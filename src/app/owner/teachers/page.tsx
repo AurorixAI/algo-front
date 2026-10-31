@@ -101,7 +101,7 @@ function OwnerTeachersContent() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const resendBusy = useRef(false); // a second click before the repaint must not send a second letter (LESSONS 27)
 
-  // K2-2 (G2): the letters go in the background; while one is on its way the list is read again every 2 s (at most 40 s), so «Отправляем письмо…» turns
+  // K2-2 (G2): the letters go in the background; while one is on its way the list is read again every 2 s (2 s for the first 20 s, then every 5 s, at most 150 s: the server calls a lost letter failed after 120 s), so «Отправляем письмо…» turns
   // into «Письмо не ушло — отправьте ещё раз» (or disappears) without a reload.
   const pollSince = useRef<number | null>(null);
   const loadData = async () => {
