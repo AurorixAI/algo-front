@@ -25,3 +25,16 @@ export function isPublicPage(pathname: string): boolean {
 
 /** The paths the middleware lets through by exact match (besides the demo page and the icon, which the middleware names itself). */
 export const OPEN_EXACT_PATHS: readonly string[] = ["/", ...OPEN_PAGES];
+
+/**
+ * The words after which the NEXT segment of an address is a one-time token or a code: the token pages, the code pages, and the API routes that carry one
+ * (`/api/v1/auth/password-links/<token>`, `/auth/email-change/<token>`, `/exams/by-code/<code>/session-status/<session>`).  The support (K4a) masks the segment after each of them
+ * in the page and the failed calls it attaches to a request (`lib/support.ts`).  ONE list (LESSONS 77): the masks of nginx and `support_rules._TOKEN_PREFIXES` of the
+ * auth-service hold the same words and a test of each side compares them - a new page with a token in its address is added HERE and in the nginx masks.
+ */
+export const TOKEN_SEGMENTS_MASKED_BY_NGINX = ["invite", "set-password", "confirm-email", "d", "e", "diagnostic", "password-links", "email-change", "by-code"] as const;
+
+/** Words that carry a token only in the support's own view (not masked in the logs of nginx: no such route is public yet, or the route is under a masked one). */
+export const TOKEN_SEGMENTS_OF_THE_SUPPORT_ONLY = ["session-status", "support-login", "reset"] as const;
+
+export const TOKEN_SEGMENTS: readonly string[] = [...TOKEN_SEGMENTS_MASKED_BY_NGINX, ...TOKEN_SEGMENTS_OF_THE_SUPPORT_ONLY];

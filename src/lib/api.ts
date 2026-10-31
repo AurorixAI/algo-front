@@ -1,5 +1,5 @@
 import { encodePathId } from "./encode-id";
-import { recordClientError, type SupportCard, type SupportCreateBody, type SupportCreated, type SupportFileInfo, type SupportItem } from "./support";
+import { recordClientError, resetClientErrors, type SupportCard, type SupportCreateBody, type SupportCreated, type SupportFileInfo, type SupportItem } from "./support";
 import { listQuery } from "./substitutions";
 import { serviceApiV1 } from "./api-base";
 import type {
@@ -451,6 +451,7 @@ function endDeadSession(): Promise<void> {
       } finally {
         timeout.done();
       }
+      resetClientErrors(); // the next person on this computer does not get the failed calls of this one (K4a, R3-10)
       try {
         localStorage.removeItem("algo-auth");
       } catch {
@@ -3138,6 +3139,8 @@ export const opsApi = {
 export const supportApi = {
   create: (body: SupportCreateBody) => api<SupportCreated>("/auth/support/tickets", { method: "POST", body }),
   list: () => api<{ items: SupportItem[] }>("/auth/support/tickets"),
+  /** How many tickets have an answer of the team that the person has not opened. */
+  unread: () => api<{ count: number }>("/auth/support/unread"),
   get: (id: string) => api<SupportCard>(`/auth/support/tickets/${encodePathId(id)}`),
   reply: (id: string, text: string) => api<SupportCard>(`/auth/support/tickets/${encodePathId(id)}/messages`, { method: "POST", body: { text } }),
   /** One screenshot per request (the server takes JPEG / PNG up to 2 MB). */

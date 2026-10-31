@@ -3,7 +3,7 @@
  * The server judges everything again; the page template and the errors are cleaned here AND there (the server never trusts the client).
  */
 
-import { CODE_PAGES, TOKEN_PAGES } from "./public-pages";
+import { TOKEN_SEGMENTS } from "./public-pages";
 
 export const SUPPORT_TEXT_MIN = 10;
 export const SUPPORT_TEXT_MAX = 2000;
@@ -12,7 +12,7 @@ export const SUPPORT_MAX_FILES = 3;
 export const SUPPORT_MAX_FILE_BYTES = 2 * 1024 * 1024;
 /** What the browser sends is kept a little under the limit, so the frame of the form never pushes it over. */
 export const SUPPORT_TARGET_FILE_BYTES = Math.floor(1.9 * 1024 * 1024);
-export const SUPPORT_MAX_SIDE = 1600;
+export const SUPPORT_MAX_SIDE = 2560;
 
 export type SupportStatus = "new" | "in_progress" | "waiting" | "resolved";
 
@@ -115,12 +115,7 @@ export function screenshotProblem(file: { type: string; size: number }, already:
   return null;
 }
 
-/** Does the picture go as it is?  A PNG of the screen within the limit does; anything else (a photo with its place and time, HEIC, a big file) is drawn again as a JPEG. */
-export function sendAsIs(file: { type: string; size: number }): boolean {
-  return file.type === "image/png" && file.size <= SUPPORT_TARGET_FILE_BYTES;
-}
-
-/** The size of the redrawn picture: the long side is at most 1600. */
+/** The size of the redrawn picture: the long side is at most 2560. */
 export function scaledSize(width: number, height: number): { width: number; height: number } {
   const longest = Math.max(width, height);
   if (longest <= SUPPORT_MAX_SIDE) return { width, height };
@@ -129,18 +124,15 @@ export function scaledSize(width: number, height: number): { width: number; heig
 }
 
 export const JPEG_QUALITIES = [0.85, 0.7, 0.5] as const;
+/** When even the lowest quality is over the limit the picture is made smaller by this factor and tried again (twice at most). */
+export const SHRINK_STEP = 0.7;
+export const SHRINK_ROUNDS = 2;
 
 // ── the page and the last errors: no personal data ────────────────────────────────────────────────────
 
 const STATIC_SEGMENT = /^(?:[a-z][a-z-]{0,23}|v[0-9]{1,2})$/;
-/**
- * The segment after these is a one-time code or a token: the token pages and the code pages of the product (ONE list: `public-pages.ts`) and the API routes that carry a code
- * (`/exams/by-code/<code>/session-status/<session>`).  The auth-service keeps the same words in `support_rules._TOKEN_PREFIXES`: change both together.
- */
-const TOKEN_PREFIXES = new Set<string>([
-  ...[...TOKEN_PAGES, ...CODE_PAGES].map((page) => page.replace(/\//g, "")),
-  "support-login", "reset", "by-code", "session-status",
-]);
+/** The segment after these is a one-time code or a token: ONE list, `public-pages.ts` (the same words are in `support_rules._TOKEN_PREFIXES` and the masks of nginx). */
+export const TOKEN_PREFIXES: ReadonlySet<string> = new Set<string>(TOKEN_SEGMENTS);
 const MAX_SEGMENTS = 8;
 export const ID_SEGMENT = "[id]";
 
@@ -186,10 +178,34 @@ export function resetClientErrors(): void {
   ring.length = 0;
 }
 
+let ringOwner: string | null = null;
+
+/** The ring belongs to ONE person: when another one signs in (or nobody does) the failed calls of the first are forgotten - a shared computer must not hand them to the next request. */
+export function bindClientErrorsTo(userId: string | null | undefined): void {
+  const next = userId ?? null;
+  if (next !== ringOwner) resetClientErrors();
+  ringOwner = next;
+}
+
 /** A key the server remembers: the same key returns the same request (a double click, a retry after a lost answer). */
 export function newClientKey(): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
   if (c?.randomUUID) return c.randomUUID();
   const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
   return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
+}
+
+// ── why a screenshot did not go (R3-13) ───────────────────────────────────────────────────────────────
+
+/** In words, for the plate «снимок не загрузился»: the size, the format, the limit of 3, the network.  `error` is an `ApiError` of the server, or an `Error` of the redrawing. */
+export function lostReason(error: unknown): string {
+  const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : undefined;
+  const message = error instanceof Error ? error.message : "";
+  if (status === 413) return "больше 2 МБ";
+  if (status === 415) return /слишком большое/i.test(message) ? "слишком большое изображение" : "формат не подходит (нужен JPEG или PNG)";
+  if (status === 409) return /не больше 3/.test(message) ? "уже приложено 3 снимка" : "обращение закрыто";
+  if (status === 429) return "слишком много запросов — повторите позже";
+  if (status === 0 || /Не удалось подключиться/.test(message)) return "нет связи";
+  if (status === undefined && message) return message.replace(/[.\s]+$/, "").replace(/^./, (c) => c.toLowerCase());
+  return "не удалось загрузить";
 }

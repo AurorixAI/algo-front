@@ -1,6 +1,6 @@
 "use client";
 
-import { JPEG_QUALITIES, SUPPORT_TARGET_FILE_BYTES, scaledSize, sendAsIs } from "./support";
+import { JPEG_QUALITIES, SHRINK_ROUNDS, SHRINK_STEP, SUPPORT_TARGET_FILE_BYTES, scaledSize } from "./support";
 
 export const SCREENSHOT_UNREADABLE = "Не удалось прочитать снимок. Приложите JPEG или PNG.";
 export const SCREENSHOT_TOO_BIG = "Снимок слишком большой даже после сжатия. Приложите другой или обрежьте его.";
@@ -31,25 +31,28 @@ function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null
 }
 
 /**
- * The picture that goes to the server.  A PNG of the screen within the limit goes as it is.  Anything else is drawn again as a JPEG with the long side at most 1600
- * (a photo of a phone is 3-8 MB; the HEIC of an iPhone is not accepted by the server; the place and the time of the shot stay in the old file, not in the new one).
+ * The picture that goes to the server: ALWAYS drawn again on a canvas as a JPEG with the long side at most 2560 (R3-11).  A canvas carries no metadata, so the place and the time
+ * of a photo (EXIF), the text blocks of a PNG and anything hidden in the file stay behind.  Too big a file after the lowest quality is made smaller and tried again.
  */
 export async function prepareScreenshot(file: File): Promise<{ blob: Blob; name: string }> {
-  if (sendAsIs(file)) return { blob: file, name: file.name || "screenshot.png" };
   const source = await decode(file).catch(() => { throw new Error(SCREENSHOT_UNREADABLE); });
   try {
-    const { width, height } = scaledSize(source.width, source.height);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error(SCREENSHOT_UNREADABLE);
-    ctx.fillStyle = "#ffffff"; // a transparent PNG becomes white, not black, as a JPEG
-    ctx.fillRect(0, 0, width, height);
-    source.draw(ctx, width, height);
-    for (const quality of JPEG_QUALITIES) {
-      const blob = await toBlob(canvas, quality);
-      if (blob && blob.size <= SUPPORT_TARGET_FILE_BYTES) return { blob, name: "screenshot.jpg" };
+    let { width, height } = scaledSize(source.width, source.height);
+    for (let round = 0; round <= SHRINK_ROUNDS; round += 1) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error(SCREENSHOT_UNREADABLE);
+      ctx.fillStyle = "#ffffff"; // a transparent PNG becomes white, not black, as a JPEG
+      ctx.fillRect(0, 0, width, height);
+      source.draw(ctx, width, height);
+      for (const quality of JPEG_QUALITIES) {
+        const blob = await toBlob(canvas, quality);
+        if (blob && blob.size <= SUPPORT_TARGET_FILE_BYTES) return { blob, name: "screenshot.jpg" };
+      }
+      width = Math.max(1, Math.round(width * SHRINK_STEP));
+      height = Math.max(1, Math.round(height * SHRINK_STEP));
     }
     throw new Error(SCREENSHOT_TOO_BIG);
   } finally {
