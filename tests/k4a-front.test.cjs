@@ -129,18 +129,19 @@ test("[R3-10] the ring belongs to one person: another user or a sign-out empties
   assert.equal(S.recentClientErrors().length, 0);
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /bindClientErrorsTo\(user\?\.id\)/);
-  assert.match(sidebar, /resetClientErrors\(\);\s*logout\(\);/);
+  assert.match(sidebar, /resetClientState\(\);[\s\S]{0,160}logout\(\)/);   // WB-P5: one reset of everything the page remembers, then the sign-out
+  assert.match(read("src/lib/reset-client-state.ts"), /resetClientErrors\(\);/);
   assert.match(read("src/lib/api.ts"), /resetClientErrors\(\); \/\/ the next person/);       // a session that died by itself (endDeadSession)
   S.bindClientErrorsTo(null);
 });
 
 test("[11] the api layer records the failed calls with status, method and the ENDPOINT only (never the answer)", () => {
   const api = read("src/lib/api.ts");
-  assert.equal((api.match(/recordClientError\(response\.status, method, endpoint\)/g) || []).length, 3, "the auth api, the exam api and the diagnostic api");
+  // WB-P5 (DUP-1): ONE place notes the failure - apiErrorOf - and every client (account, exam, diagnostic, uploads, downloads) goes through it
+  assert.equal((api.match(/recordClientError\(response\.status, context\.method, context\.endpoint\)/g) || []).length, 1);
+  assert.ok((api.match(/await apiErrorOf\(response, \{ method, endpoint/g) || []).length >= 3, "the auth api, the exam api and the diagnostic api");
   assert.match(api, /import \{ recordClientError,/);
   const at = api.indexOf("recordClientError(response.status");
-  const around = api.slice(at - 600, at + 200);
-  assert.match(around, /throw new ApiError/);
   assert.doesNotMatch(api.slice(at, at + 80), /message|error\.detail/);
 });
 

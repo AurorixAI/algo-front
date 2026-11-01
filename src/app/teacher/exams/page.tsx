@@ -46,6 +46,9 @@ import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-loa
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { useScrollLock } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
+import { copyText } from "@/lib/use-copy";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -135,15 +138,18 @@ interface SuccessModalProps {
 function SuccessAssignModal({ result, returnHref, onClose }: SuccessModalProps) {
   const [copied, setCopied] = useState(false);
   useScrollLock(true); // mounted only while the dialog is open
-  const fullUrl = typeof window !== "undefined" && result.access_code
-    ? `${window.location.origin}/e/${result.access_code}`
+  const { showToast, toastNode } = useToast();
+  const fullUrl = result.access_code
+    ? examLinkHere(result.access_code)
     : result.url || "";
 
   const handleCopy = () => {
     if (!fullUrl) return;
-    navigator.clipboard.writeText(fullUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyText(fullUrl).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   return (
@@ -198,6 +204,7 @@ function SuccessAssignModal({ result, returnHref, onClose }: SuccessModalProps) 
           </Link>
         </div>
       </motion.div>
+      {toastNode}
     </div>
   );
 }
@@ -553,6 +560,7 @@ function libraryHref(status: StatusTab, query: string): string {
 }
 
 export default function TeacherExamsPage() {
+  const { showToast, toastNode } = useToast();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -667,10 +675,11 @@ export default function TeacherExamsPage() {
     e.preventDefault();
     e.stopPropagation();
     if (!exam.access_code) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://algo.uz";
-    navigator.clipboard.writeText(`${origin}/e/${exam.access_code}`);
-    setCopiedId(exam.exam_id);
-    setTimeout(() => setCopiedId(null), 2000);
+    void copyText(examLinkHere(exam.access_code)).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopiedId(exam.exam_id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
   };
 
   const handlePin = async (examId: string) => {
@@ -690,7 +699,7 @@ export default function TeacherExamsPage() {
       // the read-only/live exam screen.
       router.push(`/teacher/exams/${res.exam_id}/draft?return_to=${encodeURIComponent(currentLibraryHref)}`);
     } catch (err: any) {
-      alert("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."));
+      showToast("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."), "error");
     }
   };
 
@@ -708,7 +717,7 @@ export default function TeacherExamsPage() {
         prev.map((e) => e.exam_id === examId ? { ...e, status: "archived", is_pinned: false } : e)
       );
     } catch (err: any) {
-      alert(err?.message || "Не удалось отправить экзамен в архив");
+      showToast(err?.message || "Не удалось отправить экзамен в архив", "error");
     }
   };
 
@@ -727,7 +736,7 @@ export default function TeacherExamsPage() {
       if (err?.status === 409 && err?.code === "EXAM_NOT_ARCHIVED") {
         await loadData();
       } else {
-        alert(err?.message || "Не удалось восстановить экзамен");
+        showToast(err?.message || "Не удалось восстановить экзамен", "error");
       }
     } finally {
       restoringRef.current.delete(examId);
@@ -1019,6 +1028,7 @@ export default function TeacherExamsPage() {
           />
         )}
       </AnimatePresence>
+      {toastNode}
     </div>
   );
 }

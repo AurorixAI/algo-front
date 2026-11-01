@@ -65,6 +65,7 @@ import {
 import { DateInput } from "@/components/ui/date-input";
 import { Radio } from "@/components/ui/radio";
 import { NumberInput } from "@/components/ui/number-input";
+import { useToast } from "@/components/ui/toast";
 
 interface SettingsSectionProps {
   title: string;
@@ -649,6 +650,7 @@ export default function OwnerSettingsPage() {
 }
 
 function OwnerSettingsContent() {
+  const { showToast, toastNode } = useToast();
   const { org, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -723,7 +725,7 @@ function OwnerSettingsContent() {
       setSavedOrg(true);
       setTimeout(() => setSavedOrg(false), 3000);
     } catch (e: any) {
-      alert(e.message || "Ошибка сохранения");
+      showToast(e.message || "Не удалось сохранить. Повторите попытку.", "error");
     } finally {
       setSavingOrg(false);
     }
@@ -739,7 +741,7 @@ function OwnerSettingsContent() {
       setSavedProfile(true);
       setTimeout(() => setSavedProfile(false), 3000);
     } catch (e: any) {
-      alert(e.message || "Ошибка сохранения");
+      showToast(e.message || "Не удалось сохранить. Повторите попытку.", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -942,6 +944,7 @@ function OwnerSettingsContent() {
           )}
         </div>
       </div>
+      {toastNode}
     </div>
   );
 }

@@ -26,6 +26,9 @@ import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDat
 import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { useScrollLock } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
+import { copyText } from "@/lib/use-copy";
 import { DAYS } from "@/lib/schedule-time";
 
 type Tab = "students" | "exams" | "attendance";
@@ -55,6 +58,7 @@ interface ScheduleLesson {
 }
 
 export default function TeacherGroupDetailPage() {
+  const { showToast, toastNode } = useToast();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -577,7 +581,7 @@ export default function TeacherGroupDetailPage() {
                                       load(false);
                                     } catch (e: any) {
                                       console.error(e);
-                                      alert(e.message || "Ошибка при назначении экзамена");
+                                      showToast(e.message || "Не удалось назначить экзамен. Повторите попытку.", "error");
                                     } finally {
                                       setAssigningId(null);
                                     }
@@ -811,10 +815,11 @@ export default function TeacherGroupDetailPage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const origin = typeof window !== "undefined" ? window.location.origin : "https://algo.uz";
-                            navigator.clipboard.writeText(`${origin}/e/${ex.access_code}`);
-                            setCopiedId(ex.exam_id);
-                            setTimeout(() => setCopiedId(null), 2000);
+                            void copyText(examLinkHere(ex.access_code!)).then((ok) => {
+                              if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+                              setCopiedId(ex.exam_id);
+                              setTimeout(() => setCopiedId(null), 2000);
+                            });
                           }}
                           className={`group/code inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
                             copiedId === ex.exam_id
@@ -890,6 +895,7 @@ export default function TeacherGroupDetailPage() {
           }}
         />
       )}
+      {toastNode}
     </div>
   );
 }

@@ -14,7 +14,7 @@ export interface ExamSessionCsvRow {
   submitted_at?: string | null;
 }
 
-export const EXAM_SESSIONS_CSV_HEADER = ["Студент", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"];
+export const EXAM_SESSIONS_CSV_HEADER = ["Ученик", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"];
 
 /** The status as the teacher reads it on the screen («Работа сдана» / «Проходит»), never the raw `submitted`. */
 export function examSessionStatusLabel(status: string): string {

@@ -40,8 +40,12 @@ import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomN
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { SupportDialog } from "@/components/support/support-dialog";
 import { useSupportDialog } from "@/lib/support-store";
-import { SUPPORT_LABEL, SUPPORT_MY_LABEL, bindClientErrorsTo, resetClientErrors } from "@/lib/support";
+import { SUPPORT_LABEL, SUPPORT_MY_LABEL, bindClientErrorsTo } from "@/lib/support";
+import { resetClientState } from "@/lib/reset-client-state";
 import { SUPPORT_UNREAD_POLL_MS, useSupportUnread } from "@/lib/support-unread";
+
+/** The longest the menu waits for the server to answer the sign-out before it opens the sign-in page anyway. */
+const LOGOUT_WAIT_MS = 4000;
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -212,12 +216,18 @@ export function Sidebar() {
     return () => window.clearInterval(timer);
   }, [user?.id]);
 
-  const handleLogout = () => {
-    usePaymentsSummary.getState().reset();
-    useSubstitutionBadge.getState().reset();
-    useSupportUnread.getState().reset();
-    resetClientErrors();
-    logout();
+  // WB-P5 (BUG-1): the sign-out is awaited (the server drops the cookies) before the page leaves, so the sign-in page never meets the old
+  // cookie; a hanging server holds the menu for LOGOUT_WAIT_MS at most - the cookies then die with their own expiry and the login still opens.
+  const loggingOut = useRef(false);
+  const handleLogout = async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    resetClientState();
+    try {
+      await Promise.race([logout(), new Promise<void>((resolve) => window.setTimeout(resolve, LOGOUT_WAIT_MS))]);
+    } finally {
+      loggingOut.current = false;
+    }
     router.push("/login");
   };
 

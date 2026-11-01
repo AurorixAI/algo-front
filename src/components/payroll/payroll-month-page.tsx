@@ -52,6 +52,7 @@ import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
+import { askConfirm } from "@/lib/confirm-dialog";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
@@ -177,8 +178,8 @@ function PayrollMonthContent() {
   const gate = calculationGate(teachers);
   const busy = calculating !== null;
 
-  const goToMonth = (next: string) => {
-    if (!confirmLeave(dirty, UNSAVED_TEXT)) return;
+  const goToMonth = async (next: string) => {
+    if (!(await confirmLeave(dirty, UNSAVED_TEXT))) return;
     router.replace(`?month=${next}`, { scroll: false });
   };
 
@@ -191,7 +192,16 @@ function PayrollMonthContent() {
    */
   const calculate = async (ids: string[], all = false) => {
     if (!overview || busy || ids.length === 0) return;
-    if (dirty && !window.confirm("Новый расчёт заменит предпросмотр, в котором есть несохранённые правки. Продолжить?")) return;
+    if (dirty) {
+      const replace = await askConfirm({
+        title: "Заменить предпросмотр?",
+        message: "Новый расчёт заменит предпросмотр, в котором есть несохранённые правки.",
+        confirmLabel: "Рассчитать заново",
+        cancelLabel: "Оставить правки",
+        tone: "danger",
+      });
+      if (!replace) return;
+    }
     const requestedMonth = month;
     const token = calcs.current.next();
     setCalculating(all ? "all" : new Set(ids));
@@ -230,8 +240,8 @@ function PayrollMonthContent() {
     });
   };
 
-  const closePreviews = () => {
-    if (!confirmLeave(dirty, UNSAVED_TEXT)) return;
+  const closePreviews = async () => {
+    if (!(await confirmLeave(dirty, UNSAVED_TEXT))) return;
     setPreviews({});
     setActiveId(null);
   };
@@ -302,8 +312,8 @@ function PayrollMonthContent() {
     }
   };
 
-  const openSheet = (teacher: PayrollMonthTeacher) => {
-    if (!teacher.sheet || !confirmLeave(dirty, UNSAVED_TEXT)) return;
+  const openSheet = async (teacher: PayrollMonthTeacher) => {
+    if (!teacher.sheet || !(await confirmLeave(dirty, UNSAVED_TEXT))) return;
     router.push(`/owner/payroll/${encodeURIComponent(teacher.sheet.id)}`);
   };
 

@@ -43,6 +43,7 @@ import {
   withTransientRetry,
 } from "@/lib/exam-retry";
 import { RateLimitCard } from "@/components/exam/rate-limit-card";
+import { browserTickerEnv, deadlineAfter, startDeadlineTicker } from "@/lib/exam-clock";
 import { canRetryNow, rateLimitDeadline, rateLimitFallbackText, rateLimitText, secondsLeft, waitLabel } from "@/lib/exam-rate-limit";
 import { createAutoSubmit, type AutoSubmit, type SubmitOutcome } from "@/lib/exam-auto-submit";
 import { useNowUntil } from "@/lib/use-countdown";
@@ -168,6 +169,8 @@ export default function ExamPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(0);
+  /** WB-P5 (F-A15): the moment the exam ends on the wall clock; `timeLeft` is derived from it (a locked phone or a background tab must not stretch the time). */
+  const [examDeadline, setExamDeadline] = useState<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   // "next question" after a confirmed option: at most one advance per pause, so a fast extra tap cannot skip a question
@@ -268,6 +271,7 @@ export default function ExamPage() {
               ? statusRes.time_remaining_seconds
               : (statusRes.time_minutes || examInfo?.total_time_minutes || 45) * 60;
           setTimeLeft(remSec);
+          setExamDeadline(deadlineAfter(remSec, Date.now()));
           startTimeRef.current = Date.now();
           setPhase("exam");
         } else if (statusRes.status === "kicked") {
@@ -296,21 +300,12 @@ export default function ExamPage() {
   }, [phase, sessionId, sessionToken, code, examInfo]);
 
   // ── Timer ────────────────────────────────────────────────────────────────
+  // The seconds left are recomputed from the deadline every second and whenever the tab comes back to the screen (visibilitychange).
   useEffect(() => {
-    if (phase !== "exam" || timeLeft <= 0) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [phase, timeLeft]);
+    if (phase !== "exam" || examDeadline === null) return;
+    const ticker = startDeadlineTicker(examDeadline, setTimeLeft, browserTickerEnv());
+    return () => ticker.stop();
+  }, [phase, examDeadline]);
 
   // Auto-submit when time runs out: once per session (a failed submit puts the page back to «exam», which must not fire it again);
   // after a 429 exactly one more automatic try when the wait ends, then only the button (nits N3-1).
@@ -488,6 +483,7 @@ export default function ExamPage() {
             ? res.time_remaining_seconds
             : res.time_minutes * 60;
         setTimeLeft(remSec);
+        setExamDeadline(deadlineAfter(remSec, Date.now()));
         startTimeRef.current = Date.now() - (res.time_minutes * 60 - remSec) * 1000;
         setPhase("exam");
       }
@@ -997,7 +993,7 @@ export default function ExamPage() {
 
                 <h2 className="text-2xl font-bold text-slate-900 mb-2">Вы в комнате ожидания</h2>
                 <p className="text-sm text-slate-500 mb-6">
-                  Учитель запустит экзамен для всех участников одновременно.
+                  Преподаватель запустит экзамен для всех участников одновременно.
                 </p>
 
                 {/* Confirmed student pill */}
@@ -1284,7 +1280,7 @@ export default function ExamPage() {
 
                   <h2 className="text-2xl font-bold text-slate-900 mb-2">Спасибо за прохождение!</h2>
                   <p className="text-slate-500 mb-2">
-                    {result.student_name}, ваши ответы успешно отправлены учителю.
+                    {result.student_name}, ваши ответы успешно отправлены преподавателю.
                   </p>
                   <p className="text-sm text-slate-400 mb-8">
                     Результаты будут доступны у вашего преподавателя.

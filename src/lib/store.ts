@@ -153,7 +153,7 @@ export const useAuthStore = create<AuthState>()(
         };
         try {
           const user = await authApi.me();
-          // api() answers `undefined` after it has sent the tab to the login itself (the session is over)
+          // a dead session is a 401 ApiError (caught below); an empty answer is treated the same way
           if (!user) {
             set(signedOut);
             return "ended";

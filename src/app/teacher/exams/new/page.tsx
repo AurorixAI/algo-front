@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { useToast } from "@/components/ui/toast";
 import {
   textbookApi,
   examsApi,
@@ -326,6 +327,7 @@ function TOCTreeView({
 }
 
 export default function NewExamPage() {
+  const { showToast, toastNode } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>(1);
@@ -570,7 +572,7 @@ export default function NewExamPage() {
       router.push(`/teacher/exams/${examId}/draft`);
     } catch (err: any) {
       console.error("Exam generation failed:", err);
-      alert(err.message || "Ошибка генерации экзамена");
+      showToast(err.message || "Не удалось создать экзамен. Повторите попытку.", "error");
     } finally {
       setIsGenerating(false);
     }
@@ -1045,7 +1047,7 @@ export default function NewExamPage() {
                         iconBg: "bg-slate-100/90 text-slate-700",
                         title: "Печать",
                         desc: "PDF-варианты для распечатки + отдельный файл с ответами",
-                        features: ["Бланки для учеников", "Ключи для учителя", "Критерии оценивания"],
+                        features: ["Бланки для учеников", "Ключи для преподавателя", "Критерии оценивания"],
                       },
                       {
                         id: "hybrid",
@@ -1288,6 +1290,7 @@ export default function NewExamPage() {
             </div>
           )}
       </div>
+      {toastNode}
     </div>
   );
 }

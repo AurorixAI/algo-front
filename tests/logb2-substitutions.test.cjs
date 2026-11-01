@@ -704,7 +704,8 @@ test("[M1] «Замены» is in the owner's and the administrator's menu with 
   const badge = read("src/lib/substitution-badge.ts");
   assert.match(badge, /substitutionsApi\.summary\(\)/);
   assert.match(badge, /if \(DEMO_MODE\) return Promise\.resolve\(\);/);
-  assert.match(read("src/components/auth/SessionSync.tsx"), /useSubstitutionBadge\.getState\(\)\.reset\(\)/);
+  assert.match(read("src/components/auth/SessionSync.tsx"), /resetClientState\(\)/);
+  assert.match(read("src/lib/reset-client-state.ts"), /useSubstitutionBadge\.getState\(\)\.reset\(\)/);
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /useSubstitutionBadge\.getState\(\)\.refresh\(true\)/);
   assert.equal(require(path.join(root, "src/lib/nav-badge.ts")).navBadgeText(120), "99+");
   assert.ok(fs.existsSync(path.join(root, "src/app/owner/substitutions/page.tsx")));

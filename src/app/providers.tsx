@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LanguageProvider } from "@/lib/language";
 import { SessionSync } from "@/components/auth/SessionSync";
+import { ConfirmHost } from "@/components/ui/confirm-host";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <LanguageProvider>
         <SessionSync />
         {children}
+        <ConfirmHost />
       </LanguageProvider>
     </QueryClientProvider>
   );

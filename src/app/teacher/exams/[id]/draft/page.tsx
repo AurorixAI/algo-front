@@ -161,12 +161,16 @@ import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
+import { copyText } from "@/lib/use-copy";
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
 export default function ExamDraftPage() {
+  const { showToast, toastNode } = useToast();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -323,7 +327,7 @@ export default function ExamDraftPage() {
       setReplacingTaskId(null);
       setAlternatives([]);
     } catch (err: any) {
-      alert(err.message || "Ошибка замены");
+      showToast(err.message || "Ошибка замены", "error");
     }
   };
 
@@ -343,7 +347,7 @@ export default function ExamDraftPage() {
       setReplacingTaskId(null);
       setAlternatives([]);
     } catch (err: any) {
-      alert(err.message || "Ошибка замены");
+      showToast(err.message || "Ошибка замены", "error");
     }
   };
 
@@ -360,7 +364,7 @@ export default function ExamDraftPage() {
       hydrateDraft(data);
       setShowAssignModal(false);
     } catch (err: any) {
-      alert("Не удалось привязать группу: " + (err.message || ""));
+      showToast("Не удалось привязать группу: " + (err.message || ""), "error");
     } finally {
       setAssignLoading(false);
     }
@@ -385,7 +389,7 @@ export default function ExamDraftPage() {
       const result = await examsApi.clone(examId);
       router.push(`/teacher/exams/${result.exam_id}/draft?return_to=${encodeURIComponent(backHref)}`);
     } catch (err: any) {
-      alert("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."));
+      showToast("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."), "error");
     }
   };
 
@@ -394,7 +398,7 @@ export default function ExamDraftPage() {
       const result = await examsApi.pin(examId);
       setDraft((previous) => previous ? { ...previous, is_pinned: result.is_pinned } : previous);
     } catch (err: any) {
-      alert("Не удалось изменить закрепление: " + (err?.message || "Повторите попытку."));
+      showToast("Не удалось изменить закрепление: " + (err?.message || "Повторите попытку."), "error");
     }
   };
 
@@ -487,21 +491,17 @@ export default function ExamDraftPage() {
     }
   };
 
-  const getExamUrl = (accessCode: string) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://algo.uz";
-    return `${origin}/e/${accessCode}`;
-  };
+  const getExamUrl = examLinkHere;
 
-  const getExamDisplayUrl = (accessCode: string) => {
-    const host = typeof window !== "undefined" ? window.location.host : "algo.uz";
-    return `${host}/e/${accessCode}`;
-  };
+  const getExamDisplayUrl = examLinkDisplay;
 
   const handleCopy = () => {
     if (publishResult?.access_code) {
-      navigator.clipboard.writeText(getExamUrl(publishResult.access_code));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      void copyText(getExamUrl(publishResult.access_code)).then((ok) => {
+        if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
     }
   };
 
@@ -677,7 +677,7 @@ export default function ExamDraftPage() {
                   Все экзамены
                 </Button>
               </Link>
-              <Link href={`/teacher/exams/${examId}/sessions`} className="w-full">
+              <Link href={`/teacher/exams/${examId}?tab=analytics`} className="w-full">
                 <Button size="sm" variant="primary" className="w-full justify-center shadow-md shadow-primary-500/20" icon={<Activity className="w-3.5 h-3.5" />}>
                   Мониторинг сдачи
                 </Button>
@@ -1383,6 +1383,7 @@ export default function ExamDraftPage() {
           </div>
         )}
       </AnimatePresence>
+      {toastNode}
     </div>
   );
 }

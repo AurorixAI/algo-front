@@ -334,7 +334,7 @@ test("exam and diagnostic screens go through the business-time helpers", () => {
     "app/admin/exams/page.tsx": ["businessDateWithOffset", "formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],
     "app/admin/exams/[id]/page.tsx": ["formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],
     "app/teacher/exams/page.tsx": ["formatUtcNaiveAsBusinessDate(exam.created_at", "formatBusinessCalendarDate(exam.scheduled_lesson_date"],
-    "app/teacher/exams/[id]/sessions/page.tsx": ["formatUtcNaiveAsBusinessTime(s.submitted_at)"],
+    // the old /sessions page is a redirect now (WB-P5, F-A17); the results table lives in app/teacher/exams/[id]/page.tsx
     "lib/exam-sessions-csv.ts": ["formatUtcNaiveAsBusinessDateTime(s.submitted_at)"],
     "app/teacher/exams/[id]/report/page.tsx": ["formatUtcNaiveAsBusinessDayTime(report.generated_at"],
     "app/teacher/groups/[id]/page.tsx": ["formatUtcNaiveAsBusinessDate(ex.created_at)"],

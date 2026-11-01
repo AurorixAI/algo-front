@@ -14,7 +14,17 @@ const FRESH_MS = 4000;
 
 let cached: { at: number; value: OpeningsSummary | null } | null = null;
 let inFlight: Promise<OpeningsSummary | null> | null = null;
+/** Bumped by `resetOpeningsSummary` so an answer that arrives after another person has signed in is dropped (WB-P5, BUG-2). */
+let epoch = 0;
 const listeners = new Set<(value: OpeningsSummary | null) => void>();
+
+/** Another person signed in (or this one signed out): the figures of the previous one are forgotten, the shown pieces go empty. */
+export function resetOpeningsSummary(): void {
+  epoch += 1;
+  cached = null;
+  inFlight = null;
+  listeners.forEach((listener) => listener(null));
+}
 
 export async function loadOpeningsSummary(force: boolean): Promise<OpeningsSummary | null> {
   // no right to money (the profile says so, or the summary was refused): not asked at all - a request would end in a 403 in the console
@@ -22,6 +32,7 @@ export async function loadOpeningsSummary(force: boolean): Promise<OpeningsSumma
   if (moneyDeniedFor(useAuthStore.getState().user, { loaded: money.loaded, available: money.available })) return null;
   if (!force && cached && Date.now() - cached.at < FRESH_MS) return cached.value;
   if (inFlight) return inFlight;
+  const myEpoch = epoch;
   const request = orgApi.getOpeningsSummary()
     .then((value): OpeningsSummary | null => value)
     .catch((error: unknown): OpeningsSummary | null => {
@@ -30,11 +41,12 @@ export async function loadOpeningsSummary(force: boolean): Promise<OpeningsSumma
       throw error;
     })
     .then((value) => {
+      if (myEpoch !== epoch) return null; // the previous person's answer
       cached = { at: Date.now(), value };
       listeners.forEach((listener) => listener(value));
       return value;
     })
-    .finally(() => { inFlight = null; });
+    .finally(() => { if (myEpoch === epoch) inFlight = null; });
   inFlight = request;
   return request;
 }

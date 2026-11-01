@@ -238,7 +238,7 @@ function OwnerTeachersContent() {
       await orgApi.revokeInvitation(id);
       loadData();
     } catch (e: any) {
-      alert(e.message || "Ошибка отмены");
+      showToast(e.message || "Не удалось отменить приглашение. Повторите попытку.", "error");
     }
   };
 

@@ -196,6 +196,20 @@ function loadApi() {
   return require(file);
 }
 
+/** WB-P5 (BUG-3): the call of a dead session rejects with the 401 ApiError (never `undefined`): the tab is already on its way to the login. */
+async function endedSession(call) {
+  try {
+    await call();
+  } catch (error) {
+    assert.equal(error.name, "ApiError");
+    assert.equal(error.status, 401);
+    assert.equal(error.code, "session_ended");
+    assert.match(error.message, /Сессия закончилась/);
+    return error;
+  }
+  assert.fail("a dead session must reject, not resolve");
+}
+
 /** A browser + server in miniature: fetch answers 401 while the cookie is stale, /auth/refresh renews it once per token. */
 function world({
   refreshWorks = true, refreshStatus = null, refreshThrows = false, refreshHangs = false, logoutThrows = false,
@@ -306,8 +320,7 @@ test("the refresh runs under a cross-tab Web Lock when the browser has one", asy
 test("refresh refused (revoked or 30 days gone): cookies cleared, to /login WITH the page, sign-in dropped, nothing thrown", async () => {
   const state = world({ refreshWorks: false });
   const { authApi } = loadApi();
-  const answer = await authApi.me();
-  assert.equal(answer, undefined);
+  await endedSession(() => authApi.me());
   assert.equal(state.locationHref, "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
   assert.deepEqual(state.removed, ["algo-auth"]);
   assert.equal(state.refreshCalls, 1);
@@ -323,7 +336,7 @@ test("refresh refused (revoked or 30 days gone): cookies cleared, to /login WITH
 test("403 from /auth/refresh is a dead session too", async () => {
   const state = world({ refreshStatus: 403 });
   const { authApi } = loadApi();
-  assert.equal(await authApi.me(), undefined);
+  await endedSession(() => authApi.me());
   assert.match(state.locationHref, /^\/login\?redirect=/);
   assert.equal(state.logoutCalls, 1);
 });
@@ -331,8 +344,7 @@ test("403 from /auth/refresh is a dead session too", async () => {
 test("several requests failing at once end the session ONCE: one logout call, one redirect", async () => {
   const state = world({ refreshWorks: false });
   const { authApi } = loadApi();
-  const answers = await Promise.all([authApi.me(), authApi.me(), authApi.me()]);
-  assert.deepEqual(answers, [undefined, undefined, undefined]);
+  await Promise.all([1, 2, 3].map(() => endedSession(() => authApi.me())));
   assert.equal(state.refreshCalls, 1);
   assert.equal(state.logoutCalls, 1);
   assert.equal(state.assigned, 1);
@@ -341,7 +353,7 @@ test("several requests failing at once end the session ONCE: one logout call, on
 test("a failing best-effort logout does not keep the user on a dead page", async () => {
   const state = world({ refreshWorks: false, logoutThrows: true });
   const { authApi } = loadApi();
-  await authApi.me();
+  await endedSession(() => authApi.me());
   assert.equal(state.logoutCalls, 1);
   assert.match(state.locationHref, /^\/login\?redirect=/);
   assert.deepEqual(state.removed, ["algo-auth"]);
@@ -351,7 +363,7 @@ test("a dead session on a public page goes to the bare /login", async () => {
   for (const pathname of ["/e/ABC123", "/d/ABC123", "/"]) {
     const state = world({ refreshWorks: false, pathname, search: "?x=1" });
     const { authApi } = loadApi();
-    await authApi.me();
+    await endedSession(() => authApi.me());
     assert.equal(state.locationHref, "/login", pathname);
   }
 });

@@ -4,9 +4,7 @@ import { useEffect, useRef } from "react";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { loginUrlForPage } from "@/lib/safe-redirect";
-import { usePaymentsSummary } from "@/lib/payments-summary";
-import { useExcuseBadge } from "@/lib/excuse-badge";
-import { useSubstitutionBadge } from "@/lib/substitution-badge";
+import { resetClientState } from "@/lib/reset-client-state";
 import { useToast } from "@/components/ui/toast";
 import {
   AUTH_STORAGE_KEY,
@@ -36,7 +34,7 @@ function withReturnUrl(verdict: Extract<SessionVerdict, { action: "redirect" }>)
 async function askServer(): Promise<MeOutcome> {
   try {
     const user = await authApi.me();
-    // api() answers `undefined` after it has sent the tab to the login itself (401 and no refresh).
+    // After a dead session api() rejects with a 401 ApiError (WB-P5, BUG-3) - it has sent the tab to the login itself; the catch below turns it into the same verdict.
     return user?.id ? { ok: true, user } : { ok: false, status: 401 };
   } catch (error) {
     return meOutcomeFromError(error);
@@ -69,9 +67,7 @@ export function SessionSync() {
     const redirect = (verdict: Extract<SessionVerdict, { action: "redirect" }>) => {
       handled.current = true;
       // Whatever was counted for the previous user is not the new user's.
-      usePaymentsSummary.getState().reset();
-      useExcuseBadge.getState().reset();
-      useSubstitutionBadge.getState().reset();
+      resetClientState();
       try {
         if (verdict.notice) window.sessionStorage.setItem(SESSION_NOTICE_KEY, verdict.notice);
       } catch {

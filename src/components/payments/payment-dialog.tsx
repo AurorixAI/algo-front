@@ -21,7 +21,7 @@ import {
 import {
   buildPaymentPayload,
   dueView,
-  newIdempotencyKey,
+  newIdempotencyKey, sendKeyFor,
   payError,
   paymentFormFrom,
   previewAmount,
@@ -118,6 +118,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const amountInput = useRef<HTMLInputElement | null>(null);
   const noteInput = useRef<HTMLTextAreaElement | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
+  const sentBody = useRef<string | null>(null); // the body of the previous send: a changed body gets a new key (BUG-6)
   const immediate = useRef(false);
 
   useEffect(() => {
@@ -128,7 +129,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     setValues(start);
     setCommentOpen(start.note.trim().length > 0);
     amountTouched.current = kind === "replace";
-    idempotencyKey.current = newIdempotencyKey();
+    idempotencyKey.current = newIdempotencyKey(); sentBody.current = null;
     setBusy(false);
     setError(null);
     setSaved(null);
@@ -199,6 +200,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     try {
       const body = buildPaymentPayload(values);
       const reason = values.reason.trim();
+      sendKeyFor(idempotencyKey, sentBody, JSON.stringify([body, reason]));
       const result = kind === "replace" && payment
         ? await orgApi.replacePayment(payment.id, { ...body, ...(reason ? { reason } : {}) }, idempotencyKey.current)
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);

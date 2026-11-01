@@ -75,7 +75,7 @@ test("a semicolon, a comma, a quote or a line break in the name keeps the row at
 test("an ordinary row is not touched; numbers stay numbers; the status is in Russian; CRLF lines", () => {
   const csv = E.buildExamSessionsCsv([session(), session({ status: "in_progress", submitted_at: null, student_name: "Бобур" })]);
   const rows = parseCsv(csv);
-  assert.deepEqual(rows[0], ["Студент", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"]);
+  assert.deepEqual(rows[0], ["Ученик", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"]);
   assert.deepEqual(rows[1], ["Алия Каримова", "2", "7", "10", "7", "10", "70,0", "10:05", "Работа сдана", "20.10.2026 13:30"]);
   assert.deepEqual(rows[2].slice(8), ["Проходит", "—"]);
   assert.ok(csv.endsWith("\r\n") && !/[^\r]\n/.test(csv), "every line ends with CRLF");
@@ -93,7 +93,7 @@ test("the import report (CSV of the skipped students, names from the teacher's s
 });
 
 test("the export button builds the file through the guarded builder", () => {
-  const page = fs.readFileSync(path.join(root, "src/app/teacher/exams/[id]/sessions/page.tsx"), "utf8");
+  const page = fs.readFileSync(path.join(root, "src/app/teacher/exams/[id]/page.tsx"), "utf8"); // WB-P5 F-A17: the export moved to the results tab of the exam
   assert.match(page, /buildExamSessionsCsv\(sessions\)/);
   assert.doesNotMatch(page, /\.join\(","\)/);
 });
@@ -323,7 +323,7 @@ test("the public exam page uses has_group; the group id stays only as a document
 test("the file uses the Russian / Uzbek Excel delimiter (;) and opens as ten columns", () => {
   const csv = E.buildExamSessionsCsv([session()]);
   const [head, row] = csv.split("\r\n");
-  assert.equal(head, "Студент;Вариант;Балл;Макс;Правильных;Всего;Процент;Время;Статус;Сдано");
+  assert.equal(head, "Ученик;Вариант;Балл;Макс;Правильных;Всего;Процент;Время;Статус;Сдано");
   assert.equal(row.split(";").length, 10);
   assert.match(row, /;70,0;/, "decimal comma, not quoted");
   assert.equal(C.csvCell("70,0"), "70,0");

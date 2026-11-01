@@ -844,6 +844,7 @@ function fakeBrowser() {
   const queue = [];
   const confirms = [];
   const answers = [];
+  const followed = [];
   const location = (key) => new URL(entries[index].url)[key];
   const traverse = (delta) => { index += delta; for (const listener of [...listeners.popstate]) listener({}); };
   const env = {
@@ -854,7 +855,8 @@ function fakeBrowser() {
         back() { queue.push(-1); },
       },
       location: { get href() { return entries[index].url; }, get pathname() { return location("pathname"); }, get search() { return location("search"); }, get origin() { return location("origin"); } },
-      confirm(message) { confirms.push(message); return answers.length ? answers.shift() : true; },
+      // WB-P5: the platform's dialog answers later (a promise), not synchronously like the browser's confirm
+      ask(message) { confirms.push(message); return Promise.resolve(answers.length ? answers.shift() : true); },
       addEventListener(type, listener) { listeners[type].add(listener); },
       removeEventListener(type, listener) { listeners[type].delete(listener); },
     },
@@ -871,17 +873,26 @@ function fakeBrowser() {
     flush() { while (queue.length) traverse(queue.shift()); },
     /** The user presses Back. */
     userBack() { traverse(-1); },
+    /** A click on a link.  `followed` lists the links the router would have followed: a click that nobody stopped, or the repeat after «Уйти». */
+    followed,
     click(href, over = {}) {
-      const event = {
-        defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false,
-        target: { closest: () => ({ href, target: "", hasAttribute: () => false, ...(over.anchor ?? {}) }) }, stopped: false,
-        preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...over.event,
+      const dispatch = (extra = {}) => {
+        const event = {
+          defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false,
+          target: { closest: () => anchor }, stopped: false,
+          preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...over.event, ...extra,
+        };
+        for (const listener of [...clicks]) listener(event);
+        if (!event.defaultPrevented) followed.push(href);
+        return event;
       };
-      for (const listener of [...clicks]) listener(event);
-      return event;
+      const anchor = { href, target: "", hasAttribute: () => false, click: () => dispatch(), ...(over.anchor ?? {}) };
+      return dispatch();
     },
   };
 }
+/** The answer of the dialog arrives in a later microtask. */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
 const { createUnsavedGuard } = require(path.join(root, "src/lib/use-unsaved-guard.ts"));
 
 test("save, then Back: one press goes back (the sentinel is taken off when the page is clean)", () => {
@@ -904,7 +915,7 @@ test("save, then Back: one press goes back (the sentinel is taken off when the p
   assert.equal(browser.clicks.size, 0);
 });
 
-test("dirty again after a save: Back is guarded again, «Остаться» keeps the page, «Уйти» leaves in one go", () => {
+test("dirty again after a save: Back is guarded again, «Остаться» keeps the page, «Уйти» leaves in one go", async () => {
   const browser = fakeBrowser();
   const guard = createUnsavedGuard(browser.env, () => "unsaved");
   guard.update(true);
@@ -917,11 +928,13 @@ test("dirty again after a save: Back is guarded again, «Остаться» keep
   assert.equal(browser.listeners.beforeunload.size, 1);
   browser.answers.push(false);                                   // «Остаться»
   browser.userBack();
+  await settle();
   assert.deepEqual(browser.confirms, ["unsaved"]);
   assert.equal(browser.url, "https://app.test/owner/payroll/s1"); // still here
   assert.equal(browser.index, 2);                                 // the sentinel is back
   browser.answers.push(true);                                    // «Уйти»
   browser.userBack();
+  await settle();
   assert.equal(browser.confirms.length, 2);
   browser.flush();
   assert.equal(browser.url, "https://app.test/owner/payroll?month=2026-09");
@@ -930,7 +943,7 @@ test("dirty again after a save: Back is guarded again, «Остаться» keep
   assert.equal(browser.confirms.length, 2);
 });
 
-test("discard edits also takes the sentinel off; a page that was never dirty never touches the history", () => {
+test("discard edits also takes the sentinel off; a page that was never dirty never touches the history", async () => {
   const browser = fakeBrowser();
   const guard = createUnsavedGuard(browser.env, () => "unsaved");
   guard.update(false);
@@ -958,6 +971,7 @@ test("discard edits also takes the sentinel off; a page that was never dirty nev
   assert.equal(third.index, 2);
   third.answers.push(false);
   third.userBack();
+  await settle();
   assert.equal(third.confirms.length, 1);
   assert.equal(third.index, 2);
   assert.equal(third.confirms.length, 1);
@@ -971,20 +985,25 @@ test("discard edits also takes the sentinel off; a page that was never dirty nev
   assert.equal(fourth.index, 1);
 });
 
-test("links and closing the tab are asked about only while the page is dirty", () => {
+test("links and closing the tab are asked about only while the page is dirty", async () => {
   const browser = fakeBrowser();
   const guard = createUnsavedGuard(browser.env, () => "unsaved");
   assert.equal(browser.clicks.size, 0);
   guard.update(true);
   assert.equal(browser.clicks.size, 1);
-  // another page: «Остаться» cancels the click before the router sees it, «Уйти» lets it through
+  // another page: the click is held back at once (the router must not see it); «Остаться» drops it, «Уйти» repeats it
   browser.answers.push(false);
   const stay = browser.click("https://app.test/owner/groups");
   assert.equal(stay.defaultPrevented, true);
   assert.equal(stay.stopped, true);
+  await settle();
+  assert.deepEqual(browser.followed, [], "«Остаться»: the link is not followed");
   browser.answers.push(true);
   const go = browser.click("https://app.test/owner/groups");
-  assert.equal(go.defaultPrevented, false);
+  assert.equal(go.defaultPrevented, true, "the first click waits for the answer");
+  assert.deepEqual(browser.followed, []);
+  await settle();
+  assert.deepEqual(browser.followed, ["https://app.test/owner/groups"], "«Уйти»: the same link is followed once");
   assert.equal(browser.confirms.length, 2);
   // not a way out: the same page and query, another site, a new tab, a download, a modified click, a click on no link
   const asked = () => browser.confirms.length;

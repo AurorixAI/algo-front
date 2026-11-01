@@ -18,14 +18,20 @@ import {
 import Link from "next/link";
 import QRCode from "qrcode.react";
 import { orgApi } from "@/lib/api";
+import { FULL_NAME_NEEDS_TWO_WORDS, splitFullName } from "@/lib/full-name";
+import { useToast } from "@/components/ui/toast";
+import { copyText } from "@/lib/use-copy";
+import { COPY_FAILED_TEXT } from "@/lib/exam-link";
 import { formatUzPhone, isValidUzPhone } from "@/lib/phone";
 import { Radio } from "@/components/ui/radio";
 
 type Step = 1 | 2;
 
 export default function NewStudentPage() {
+  const { showToast, toastNode } = useToast();
   const [step, setStep] = useState<Step>(1);
   const [copied, setCopied] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [diagnosticCode, setDiagnosticCode] = useState<string>("");
@@ -58,10 +64,14 @@ export default function NewStudentPage() {
     ? `${window.location.origin}/d/${diagnosticCode}`
     : "";
 
+  const nameOk = splitFullName(formData.name) !== null;
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(diagnosticLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyText(diagnosticLink).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const handleCreateStudent = async () => {
@@ -69,9 +79,13 @@ export default function NewStudentPage() {
     setApiError(null);
     try {
       // Split name into first_name / last_name
-      const nameParts = formData.name.trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || firstName;
+      // one word is not a surname: it must not be copied into both fields (F-A23); the button is off and the field says why
+      const name = splitFullName(formData.name);
+      if (!name) {
+        setNameTouched(true);
+        setIsSubmitting(false);
+        return;
+      }
 
       // Build comment with level info
       const levelLabel = levels.find((l) => l.value === formData.expectedLevel)?.label;
@@ -82,8 +96,8 @@ export default function NewStudentPage() {
 
       // 1. Create student
       const student = await orgApi.createStudent({
-        first_name: firstName,
-        last_name: lastName,
+        first_name: name.first_name,
+        last_name: name.last_name,
         class_level: parseInt(formData.grade),
         student_phone: formData.phone.trim(),
         comment,
@@ -155,6 +169,8 @@ export default function NewStudentPage() {
                     placeholder="Алия Каримова"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onBlur={() => setNameTouched(true)}
+                    error={nameTouched && formData.name.trim() && !nameOk ? FULL_NAME_NEEDS_TWO_WORDS : undefined}
                   />
 
                   <Input
@@ -218,7 +234,7 @@ export default function NewStudentPage() {
                     size="lg"
                     loading={isSubmitting}
                     icon={isSubmitting ? undefined : <ArrowRight className="w-4 h-4" />}
-                    disabled={!formData.name || !formData.grade || !isValidUzPhone(formData.phone) || isSubmitting}
+                    disabled={!nameOk || !formData.grade || !isValidUzPhone(formData.phone) || isSubmitting}
                   >
                     {isSubmitting ? "Создание..." : "Создать и получить ссылку"}
                   </Button>
@@ -310,6 +326,7 @@ export default function NewStudentPage() {
               </GlassCard>
             </motion.div>
           )}
+      {toastNode}
     </div>
   );
 }

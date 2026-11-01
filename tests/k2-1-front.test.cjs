@@ -173,5 +173,5 @@ test("[A1] the page of an invitation shows the masked address, does not send an 
   assert.equal(S.inviteLoadErrorText({ code: "link_revoked", status: 410 }), S.INVITE_REVOKED_TEXT);
   assert.equal(S.inviteLoadErrorText({ status: 404 }), S.INVITE_NOT_FOUND_TEXT);
   assert.match(S.INVITE_REVOKED_TEXT, /заменено новым или отозвано/);
-  assert.match(read("src/lib/api.ts"), /typeof error\?\.code === "string"/, "the machine code of {detail, code} answers reaches the page");
+  assert.match(read("src/lib/error-body.ts"), /typeof root\.code === "string"/, "the machine code of {detail, code} answers reaches the page (the one reader of error bodies, WB-P5)");
 });

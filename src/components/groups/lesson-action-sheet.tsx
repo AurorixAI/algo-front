@@ -348,7 +348,7 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-reason" className={LABEL}>Причина переноса</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
-              <p className="text-xs leading-relaxed text-slate-500">Расписание группы не меняется: переносится только этот урок, на любую дату. Ученики и учитель увидят новое время.</p>
+              <p className="text-xs leading-relaxed text-slate-500">Расписание группы не меняется: переносится только этот урок, на любую дату. Ученики и преподаватель увидят новое время.</p>
             </div>
           )}
 

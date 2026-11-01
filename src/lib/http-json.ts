@@ -7,6 +7,7 @@
  * per-field messages of a 422, the seconds of a 429.
  */
 
+import { parseErrorBody } from "./error-body";
 import { retryText } from "./portable/demo-form";
 
 export interface HttpErrorInit {
@@ -77,57 +78,20 @@ function retryAfterSeconds(response: Response): number | undefined {
   return left > 0 ? left : undefined;
 }
 
-/** Field name of a FastAPI `loc` (`["body", "email"]` -> `email`; `["body", "items", 0, "name"]` -> `items.0.name`). */
-function fieldOf(loc: unknown): string | null {
-  if (!Array.isArray(loc)) return typeof loc === "string" ? loc : null;
-  const parts = loc.filter((part) => part !== "body" && part !== "query" && part !== "path").map(String);
-  return parts.length ? parts.join(".") : null;
-}
-
-/** Turn the JSON body of a failed response into an error.  Understands FastAPI (`detail` string / list / object) and `{message, fields}`. */
+/** Turn the JSON body of a failed response into an error.  Understands FastAPI (`detail` string / list / object) and `{message, fields}`; the body is read by `parseErrorBody` (lib/error-body.ts), the one reader of every client. */
 export function errorFromBody(status: number, body: unknown, retryAfter?: number): HttpError {
   const root = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const detail = "detail" in root ? root.detail : body;
-  let message = "";
-  let code: string | undefined;
+  const parsed = parseErrorBody(body);
+  let message = parsed.message;
   const fields: Record<string, string> = {};
-
-  const takeFields = (source: unknown) => {
-    if (!source || typeof source !== "object" || Array.isArray(source)) return;
-    for (const [name, text] of Object.entries(source as Record<string, unknown>)) {
-      const value = Array.isArray(text) ? text.map(String).join(" ") : typeof text === "string" ? text : "";
-      if (value && CYRILLIC.test(value)) fields[name] = value;
-      else if (value) fields[name] = "Проверьте это поле";
-    }
-  };
-
-  if (typeof detail === "string") {
-    message = detail;
-  } else if (Array.isArray(detail)) {
-    for (const item of detail) {
-      if (!item || typeof item !== "object") continue;
-      const entry = item as Record<string, unknown>;
-      const field = fieldOf(entry.loc);
-      const text = typeof entry.msg === "string" ? entry.msg : "";
-      const shown = CYRILLIC.test(text) ? text : "Проверьте это поле";
-      if (field && !(field in fields)) fields[field] = shown;
-    }
-  } else if (detail && typeof detail === "object") {
-    const entry = detail as Record<string, unknown>;
-    if (typeof entry.message === "string") message = entry.message;
-    if (typeof entry.code === "string") code = entry.code;
-    takeFields(entry.fields);
-    takeFields(entry.errors);
-  }
-  takeFields(root.fields);
-  // The accounting server's new endpoints put `code` / `fields` / `retry_after` next to `detail` (API_CONTRACT.md §0).
-  if (typeof root.code === "string") code = root.code;
-  if (retryAfter === undefined && typeof root.retry_after === "number" && root.retry_after > 0) retryAfter = root.retry_after;
+  for (const [name, text] of Object.entries(parsed.fields)) fields[name] = CYRILLIC.test(text) ? text : "Проверьте это поле";
+  if (retryAfter === undefined) retryAfter = parsed.retryAfter;
 
   if (status === 429 && !message) message = fallbackMessage(429, retryAfter);
   // A message that is not Russian (a framework default such as «Not Found») is never shown to a person.
   if (!message || !CYRILLIC.test(message)) message = fallbackMessage(status, retryAfter);
-  return new HttpError({ status, message, code, fields, retryAfter, detail, body });
+  return new HttpError({ status, message, code: parsed.code, fields, retryAfter, detail, body });
 }
 
 export interface JsonRequestOptions {

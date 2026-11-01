@@ -374,8 +374,10 @@ test("the tab asks the server before it moves, and listens to focus as well as v
   const onStorage = component.slice(component.indexOf("const onStorage"), component.indexOf("// Coming back to the tab"));
   assert.doesNotMatch(onStorage, /redirect\(|location/);
   assert.match(onStorage, /eventNeedsVerification\(/);
-  assert.match(component, /usePaymentsSummary\.getState\(\)\.reset\(\)/);
-  assert.match(component, /useExcuseBadge\.getState\(\)\.reset\(\)/);
+  assert.match(component, /resetClientState\(\)/);   // WB-P5: the one reset below
+  const resetAll = read("lib/reset-client-state.ts");
+  assert.match(resetAll, /usePaymentsSummary\.getState\(\)\.reset\(\)/);
+  assert.match(resetAll, /useExcuseBadge\.getState\(\)\.reset\(\)/);
   assert.match(component, /window\.location\.replace\(verdict\.target\)/);
   assert.match(component, /handled\.current/); // one redirect per page life
   assert.match(component, /inFlight/);          // one check at a time

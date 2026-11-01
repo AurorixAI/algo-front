@@ -182,19 +182,19 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   }, []);
 
   /** A read that hides rows with typed values asks first (the values are kept, but not sent while the rows are away). */
-  const confirmHiding = useCallback((stays: (row: OpeningRow) => boolean): boolean => {
+  const confirmHiding = useCallback((stays: (row: OpeningRow) => boolean): Promise<boolean> => {
     const risk = draftsAtRisk(rows, drafts, stays);
     return confirmLeave(risk > 0, openingsHiddenDraftsText(risk));
   }, [rows, drafts]);
 
-  const changeServerGroup = (groupId: string) => {
-    if (!confirmHiding((row) => groupId === "" || row.group.id === groupId)) return;
+  const changeServerGroup = async (groupId: string) => {
+    if (!(await confirmHiding((row) => groupId === "" || row.group.id === groupId))) return;
     setServerGroup(groupId);
     void load({ group: groupId });
   };
 
-  const toggleLeft = (checked: boolean) => {
-    if (!checked && !confirmHiding((row) => row.status !== "left" && !row.only_debt)) return;
+  const toggleLeft = async (checked: boolean) => {
+    if (!checked && !(await confirmHiding((row) => row.status !== "left" && !row.only_debt))) return;
     setIncludeLeft(checked);
     void load({ silent: true, left: checked });
   };

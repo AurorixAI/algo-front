@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatDateRu, REASON_MIN, type MembershipPaymentRow } from "@/lib/payments";
-import { newIdempotencyKey } from "@/lib/payments-ledger";
+import { newIdempotencyKey, sendKeyFor } from "@/lib/payments-ledger";
 import {
   attendedText,
   buildPauseBody,
@@ -65,6 +65,7 @@ export function PauseDialog({
   /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
   const [endNeedsReason, setEndNeedsReason] = useState(false);
   const idempotencyKey = useRef(newIdempotencyKey());
+  const sentBody = useRef<string | null>(null);
   const sequence = useRef(createRequestSequence());
 
   const loadPauses = () => orgApi.listPauses(membershipId).then((list) => setPauses(livePauses(list))).catch(() => setPauses([]));
@@ -81,6 +82,7 @@ export function PauseDialog({
     setEndNeedsReason(false);
     setPauses(null);
     idempotencyKey.current = newIdempotencyKey();
+    sentBody.current = null;
     void loadPauses();
     // restarts when opened (for another membership), not when the card refreshes behind it
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,7 +122,9 @@ export function PauseDialog({
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.createPause(membershipId, buildPauseBody(values), { idempotencyKey: idempotencyKey.current });
+      const body = buildPauseBody(values);
+      sendKeyFor(idempotencyKey, sentBody, JSON.stringify(body));
+      const result = await orgApi.createPause(membershipId, body, { idempotencyKey: idempotencyKey.current });
       onChanged(result.row, `Пауза поставлена: ${pauseLine(result.pause)}`);
       onClose();
     } catch (cause) {

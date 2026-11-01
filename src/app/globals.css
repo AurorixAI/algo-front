@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap');
+/* Fonts: Inter and Noto Serif come from next/font (app/layout.tsx); a CSS @import after the Tailwind layers is ignored by browsers (WB-P5, F-A18). */
 
 :root {
   --background: #eff3f8;

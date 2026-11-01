@@ -1,4 +1,6 @@
+import { saveBlobAs } from "./download";
 import { encodePathId } from "./encode-id";
+import { errorMessageOf, parseErrorBody, readErrorBody } from "./error-body";
 import { recordClientError, resetClientErrors, type SupportCard, type SupportCreateBody, type SupportCreated, type SupportFileInfo, type SupportItem } from "./support";
 import { listQuery } from "./substitutions";
 import { serviceApiV1 } from "./api-base";
@@ -240,6 +242,28 @@ function retryAfterSeconds(response: Response, anyStatus = false): number | unde
   return left > 0 ? left : undefined;
 }
 
+const SERVICE_UNAVAILABLE_MESSAGE = "Сервис временно недоступен. Повторите попытку.";
+/** The text and the code of the rejection `api()` throws once the session is over (the tab is already going to the login). */
+export const SESSION_ENDED_MESSAGE = "Сессия закончилась. Войдите снова.";
+export const SESSION_ENDED_CODE = "session_ended";
+
+/**
+ * The ApiError for a non-OK answer: ONE reader of the body for every client (api, examApi, diagServiceApi, the uploads,
+ * downloads and the print PDFs; DUP-1, BUG-4, BUG-5), and ONE place that notes the failure for a later request to the
+ * support (K4a: status + method + the template of the route, never the text).
+ */
+async function apiErrorOf(
+  response: Response,
+  context: { method: string; endpoint: string; fallback: string; russianOnly?: boolean },
+): Promise<ApiError> {
+  const parsed = parseErrorBody(await readErrorBody(response));
+  recordClientError(response.status, context.method, context.endpoint);
+  let message = errorMessageOf(parsed, context.fallback);
+  // a file screen shows the person a sentence, not a framework default («Field required», «Not Found»): the Russian fallback stands in for it
+  if (context.russianOnly && !/[а-яё]/i.test(message)) message = context.fallback;
+  return new ApiError(response.status, message, parsed.code, parsed.action, parsed.detail);
+}
+
 async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { method = "GET", body, noAuth = false, signal } = options;
 
@@ -292,29 +316,15 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     if (refresh.kind === "dead" || response.status === 401) {
       // The session is over (refresh refused with 401/403, or the retry is refused too) — to the login
       await endDeadSession();
-      return undefined as any;
+      // WB-P5 (BUG-3): never `undefined` - a caller reads `response.items` and would fall with a TypeError on the last
+      // second before the redirect.  The rejection is the 401 itself; the tab is already on its way to the login.
+      throw new ApiError(401, SESSION_ENDED_MESSAGE, SESSION_ENDED_CODE);
     }
     // Refreshed: any other answer of the retry (200, but also 403/404/409/422) is the answer to the
     // request itself and is handled below like any response - it must not look like a lost session.
   }
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    let message = "Сервис временно недоступен. Повторите попытку.";
-    let code: string | undefined;
-    if (typeof error?.detail === "string") {
-      message = error.detail;
-    } else if (Array.isArray(error?.detail)) {
-      message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
-    } else if (error?.detail && typeof error.detail === "object") {
-      message = error.detail.message || message;
-      code = error.detail.code;
-    }
-    // the new routes (password links, staff invitations) answer `{detail: "<text>", code: "<machine_code>"}`
-    if (!code && typeof error?.code === "string") code = error.code;
-    recordClientError(response.status, method, endpoint); // K4a: status + method + the template of the route, for a later request to the support (never the text of the answer)
-    throw new ApiError(response.status, message, code, undefined, error?.detail);
-  }
+  if (!response.ok) throw await apiErrorOf(response, { method, endpoint, fallback: SERVICE_UNAVAILABLE_MESSAGE });
 
   return response.json();
 }
@@ -527,21 +537,14 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
   const response = audience === "staff" ? await fetchExamStaff(url, init, endpoint) : await fetchOrThrow(url, init);
 
   if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    let message = "Сервис временно недоступен. Повторите попытку.";
-    if (typeof error?.detail === "string") {
-      message = error.detail;
-    } else if (Array.isArray(error?.detail)) {
-      message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
-    }
+    const failure = await apiErrorOf(response, { method, endpoint, fallback: SERVICE_UNAVAILABLE_MESSAGE });
     // A change refused as «busy» (503 + Retry-After) and not repeated, or still refused after its repeat: say so briefly.
     if (audience === "staff" && isStaffWriteBusy(method, response.status, retryAfterSeconds(response))) {
-      message = STAFF_BUSY_MESSAGE;
+      failure.message = STAFF_BUSY_MESSAGE;
     }
-    // The exam service names an expected refusal next to its text: `{detail: "...", code: "EXAM_NOT_ARCHIVED"}`.
-    const code = typeof error?.code === "string" ? error.code : undefined;
-    recordClientError(response.status, method, endpoint); // K4a: the template of the route, never the text
-    throw new ApiError(response.status, message, code, undefined, undefined, retryAfterSeconds(response, response.status === 409));
+    // The exam service names an expected refusal next to its text (`{detail: "...", code: "EXAM_NOT_ARCHIVED"}`) or inside it (`{detail: {code, message}}`): apiErrorOf reads both.
+    failure.retryAfter = retryAfterSeconds(response, response.status === 409);
+    throw failure;
   }
 
   return response.json();
@@ -557,23 +560,9 @@ async function downloadExamPrintPdf(
   const path = `/exams/${encodePathId(examId)}/print-package/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    const message = typeof error?.detail === "string"
-      ? error.detail
-      : "Не удалось сформировать печатный файл. Повторите попытку.";
-    throw new ApiError(response.status, message);
-  }
+  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать печатный файл. Повторите попытку.", russianOnly: true });
 
-  const file = await response.blob();
-  const url = URL.createObjectURL(file);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${kind === "teacher-key" ? "algo-key" : "algo-exam"}-${examId}-v${variantNumber}.pdf`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  saveBlobAs(await response.blob(), `${kind === "teacher-key" ? "algo-key" : "algo-exam"}-${examId}-v${variantNumber}.pdf`);
 }
 
 /**
@@ -590,13 +579,7 @@ async function previewExamPrintPdf(
   const path = `/exams/${encodePathId(examId)}/print-preview/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    const message = typeof error?.detail === "string"
-      ? error.detail
-      : "Не удалось сформировать предпросмотр печатного бланка. Повторите попытку.";
-    throw new ApiError(response.status, message);
-  }
+  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать предпросмотр печатного бланка. Повторите попытку.", russianOnly: true });
 
   return response.blob();
 }
@@ -618,17 +601,7 @@ async function diagServiceApi<T>(endpoint: string, audience: ApiAudience, option
     audience,
   );
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    let message = "Сервис временно недоступен. Повторите попытку.";
-    if (typeof error?.detail === "string") {
-      message = error.detail;
-    } else if (typeof error?.detail === "object" && error.detail !== null) {
-      message = (error.detail as any).message || JSON.stringify(error.detail);
-    }
-    recordClientError(response.status, method, endpoint); // K4a: the template of the route, never the text
-    throw new ApiError(response.status, message, error?.detail?.code, error?.detail?.action);
-  }
+  if (!response.ok) throw await apiErrorOf(response, { method, endpoint, fallback: SERVICE_UNAVAILABLE_MESSAGE });
 
   return response.json();
 }
@@ -2031,7 +2004,7 @@ export const orgApi = {
       credentials: "include",
       cache: "no-store",
     });
-    if (!res.ok) throw new ApiError(res.status, "Не удалось скачать шаблон");
+    if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint: "/auth/org/import/template", fallback: "Не удалось скачать шаблон", russianOnly: true });
     return res.blob();
   },
   importPreview: (file: File) => uploadImport<ImportPreviewResult>("/auth/org/import/preview", file),
@@ -2092,18 +2065,6 @@ export interface ImportCommitResult {
   created_groups?: Array<{ id: string; name: string }>;
 }
 
-/** Server error text for a non-OK Response: string detail, {message}, or validation list. */
-async function readErrorMessage(res: Response, fallback: string): Promise<{ message: string; code?: string }> {
-  const text = await res.text().catch(() => "");
-  let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
-  const detail = data?.detail;
-  if (typeof detail === "string") return { message: detail };
-  if (Array.isArray(detail)) return { message: detail.map((e: any) => e?.msg || String(e)).join("; ") || fallback };
-  if (detail && typeof detail === "object") return { message: detail.message || fallback, code: detail.code };
-  return { message: fallback };
-}
-
 /**
  * fetch with one token refresh on 401, like api(): after a successful refresh
  * the same request is repeated once; a second 401 sends the user to the login.
@@ -2131,20 +2092,14 @@ async function uploadMultipart<T>(endpoint: string, file: Blob, filename: string
     cache: "no-store",
     body: form,
   });
-  if (!res.ok) {
-    const { message, code } = await readErrorMessage(res, fallback);
-    throw new ApiError(res.status, message, code);
-  }
+  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback, russianOnly: true });
   return (await res.json()) as T;
 }
 
 /** Authenticated binary GET, modelled on downloadExamPrintPdf. */
 async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
-  if (!res.ok) {
-    const { message, code } = await readErrorMessage(res, fallback);
-    throw new ApiError(res.status, message, code);
-  }
+  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback, russianOnly: true });
   return res.blob();
 }
 
@@ -2167,10 +2122,7 @@ function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number;
  */
 async function fetchFile(endpoint: string, fallbackName: string, fallbackError: string): Promise<{ blob: Blob; filename: string }> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
-  if (!res.ok) {
-    const { message, code } = await readErrorMessage(res, fallbackError);
-    throw new ApiError(res.status, message, code);
-  }
+  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback: fallbackError, russianOnly: true });
   const blob = await res.blob();
   return { blob, filename: filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackName) };
 }
@@ -2178,11 +2130,11 @@ async function fetchFile(endpoint: string, fallbackName: string, fallbackError: 
 /** DELETE that does not care what (if anything) the server answers on success. */
 async function deleteAuthed(endpoint: string, fallback: string): Promise<void> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { method: "DELETE", credentials: "include", cache: "no-store" });
-  if (!res.ok) {
-    const { message, code } = await readErrorMessage(res, fallback);
-    throw new ApiError(res.status, message, code);
-  }
+  if (!res.ok) throw await apiErrorOf(res, { method: "DELETE", endpoint, fallback, russianOnly: true });
 }
+
+/** The sentence for an import the server refused without a text of its own (a 422 «Field required», a gateway page). */
+export const IMPORT_FILE_FALLBACK = "Не удалось обработать файл. Проверьте, что это наш шаблон .xlsx, и загрузите его снова.";
 
 async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
   const form = new FormData();
@@ -2194,13 +2146,13 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
     cache: "no-store",
     body: form,
   });
+  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback: IMPORT_FILE_FALLBACK, russianOnly: true });
   const text = await res.text();
-  let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
-  if (!res.ok) {
-    throw new ApiError(res.status, data?.detail || "Ошибка импорта");
+  try {
+    return (text ? JSON.parse(text) : null) as T;
+  } catch {
+    throw new ApiError(res.status, "Сервис ответил непонятно. Повторите попытку.");
   }
-  return data as T;
 }
 
 // ============================================================================

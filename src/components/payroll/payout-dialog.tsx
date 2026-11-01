@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, NOTE_MAX, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
-import { newIdempotencyKey } from "@/lib/payments-ledger";
+import { newIdempotencyKey, sendKeyFor } from "@/lib/payments-ledger";
 import {
   buildPayoutBody,
   emptyPayoutValues,
@@ -49,6 +49,7 @@ export function PayoutDialog({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const idempotencyKey = useRef(newIdempotencyKey());
+  const sentBody = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +58,7 @@ export function PayoutDialog({
     setError(null);
     setConfirming(false);
     idempotencyKey.current = newIdempotencyKey();
+    sentBody.current = null;
     // restarts when opened (for another sheet), not when the numbers refresh behind it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sheetId]);
@@ -70,7 +72,9 @@ export function PayoutDialog({
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.createPayrollPayout(sheetId, buildPayoutBody(values), idempotencyKey.current);
+      const body = buildPayoutBody(values);
+      sendKeyFor(idempotencyKey, sentBody, JSON.stringify(body));
+      const result = await orgApi.createPayrollPayout(sheetId, body, idempotencyKey.current);
       onDone(`Выплата внесена: ${formatMoney(result.payout.amount)}`);
       onClose();
     } catch (cause) {

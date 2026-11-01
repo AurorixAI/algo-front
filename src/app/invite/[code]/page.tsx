@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 import { authApi } from "@/lib/api";
+import { effectiveRole, loginHome } from "@/lib/role-home";
 import type { InviteInfo } from "@/lib/ops-b-types";
 import { inviteAcceptErrorText, inviteLoadErrorText, returningIntroText } from "@/lib/staff-lifecycle";
 
@@ -68,12 +69,9 @@ export default function InviteAcceptPage() {
       });
       const user = useAuthStore.getState().user;
       if (user) {
-        const role = user.org_role || user.role;
         // Hard navigation — guarantees a fresh request that middleware
-        // evaluates with the just-set cookie (see login page for why).
-        if (role === "owner") window.location.href = "/owner/dashboard";
-        else if (role === "admin") window.location.href = "/admin/diagnostics";
-        else window.location.href = "/teacher/dashboard";
+        // evaluates with the just-set cookie (see login page for why).  The home of the role is the shared table (WB-P5, F-A07).
+        window.location.href = loginHome(effectiveRole(user));
       }
     } catch (failure) {
       // The store keeps the server text; the refusals of the pack (another e-mail, another centre) are said in the words of the spec

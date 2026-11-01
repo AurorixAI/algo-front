@@ -9,9 +9,7 @@ const notoSerif = Noto_Serif({ subsets: ["latin", "cyrillic"], variable: "--font
 export const metadata: Metadata = {
   title: "ALGO - Диагностическая платформа",
   description: "Адаптивная диагностика и обучение математике на основе IRT",
-  icons: {
-    icon: "/favicon.ico",
-  },
+  // The icon is app/icon.tsx (Next adds the tag itself); a pointer to a missing .ico file made every page ask for a 404 (WB-P5, F-A18).
 };
 
 /**

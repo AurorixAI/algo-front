@@ -109,7 +109,7 @@ function presentationFor(
         }
       : {
           label: "Идёт урок",
-          description: "Учитель ведёт урок и отмечает посещаемость",
+          description: "Преподаватель ведёт урок и отмечает посещаемость",
           badgeClassName: "bg-primary-50 text-primary-700 border-primary-200",
           icon: Radio,
         };
@@ -243,7 +243,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
     if (statuses.includes("in_progress")) {
       return {
         title: "Сейчас идёт урок",
-        description: "Учитель ведёт занятие; посещаемость может обновляться до его завершения.",
+        description: "Преподаватель ведёт занятие; посещаемость может обновляться до его завершения.",
         className: "bg-primary-50 border-primary-200 text-primary-800",
         Icon: Radio,
       };

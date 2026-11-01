@@ -53,14 +53,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
   const handleDownloadTemplate = async () => {
     try {
       const blob = await orgApi.downloadImportTemplate();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "algo_import_template.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      saveBlobAs(blob, "algo_import_template.xlsx");
     } catch (e: any) {
       setError(e.message || "Не удалось скачать шаблон");
     }

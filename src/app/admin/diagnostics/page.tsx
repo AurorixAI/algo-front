@@ -5,6 +5,9 @@ import { DIAGNOSTIC_ENROLLED, DIAGNOSTIC_STATUS } from "@/lib/status-registry";
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { orgApi } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
+import { copyText } from "@/lib/use-copy";
+import { COPY_FAILED_TEXT } from "@/lib/exam-link";
 import {
   Plus, Search, Brain, Copy, Check,
   Clock, UserPlus, ExternalLink,
@@ -50,6 +53,7 @@ interface DiagnosticInvite {
 }
 
 export default function AdminDiagnosticsPage() {
+  const { showToast, toastNode } = useToast();
   const [invites, setInvites] = useState<DiagnosticInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -90,16 +94,20 @@ export default function AdminDiagnosticsPage() {
   }, [loadInvites]);
 
   const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
+    void copyText(code).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    });
   };
 
   const copyLink = (code: string) => {
     const url = window.location.origin + "/d/" + code;
-    navigator.clipboard.writeText(url);
-    setCopiedCode("link-" + code);
-    setTimeout(() => setCopiedCode(null), 2000);
+    void copyText(url).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopiedCode("link-" + code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    });
   };
 
   // IA audit F14: the labels, tones and dots come from the one registry of statuses
@@ -531,6 +539,7 @@ export default function AdminDiagnosticsPage() {
         </div>
       )}
 
+      {toastNode}
     </div>
   );
 }

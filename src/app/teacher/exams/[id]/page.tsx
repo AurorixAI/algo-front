@@ -12,6 +12,11 @@ import { Input } from "@/components/ui/input";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { useToast } from "@/components/ui/toast";
+import { askConfirm } from "@/lib/confirm-dialog";
+import { saveBlobAs } from "@/lib/download";
+import { buildExamSessionsCsv } from "@/lib/exam-sessions-csv";
+import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
+import { copyText } from "@/lib/use-copy";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
@@ -224,7 +229,11 @@ export default function ExamHubPage() {
   const returnTo = safeTeacherReturnPath(searchParams.get("return_to"));
 
   // State
-  const [activeTab, setActiveTab] = useState<"lobby" | "tasks" | "analytics">("lobby");
+  // `?tab=analytics` opens the results straight away (the link «Мониторинг сдачи» of the draft screen, the old /sessions address; F-A17)
+  const [activeTab, setActiveTab] = useState<"lobby" | "tasks" | "analytics">(() => {
+    const wanted = searchParams.get("tab");
+    return wanted === "analytics" || wanted === "tasks" ? wanted : "lobby";
+  });
   const [exam, setExam] = useState<ExamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -426,6 +435,11 @@ export default function ExamHubPage() {
     replaceTarget || showQrModal || showAssignModal || showScheduleModal || showDeliveryDecisionModal,
   ));
 
+  // The table of results as a file: RFC 4180 + a guard against formulas in the name the student typed (src/lib/csv.ts); BOM so Excel reads UTF-8.
+  const exportSessionsCsv = () => {
+    saveBlobAs(new Blob(["\uFEFF" + buildExamSessionsCsv(sessions)], { type: "text/csv;charset=utf-8;" }), `exam-${examId}-results.csv`);
+  };
+
   // ─── Load Analytics on Tab Switch ─────────────────────────────────────────
   // A printed exam has no web answer sessions. It therefore must not request
   // or expose online analytics before a separate manual-marking workflow exists.
@@ -515,7 +529,7 @@ export default function ExamHubPage() {
       await fetchExam();
       setShowAssignModal(false);
     } catch (err: any) {
-      alert("Не удалось привязать к группе: " + (err.message || ""));
+      showToast("Не удалось привязать к группе: " + (err.message || ""), "error");
     } finally {
       setAssignLoading(false);
     }
@@ -526,7 +540,7 @@ export default function ExamHubPage() {
       const res = await examsApi.clone(examId);
       router.push(`/teacher/exams/${res.exam_id}/draft?return_to=${encodeURIComponent(backHref)}`);
     } catch (err: any) {
-      alert("Не удалось скопировать экзамен: " + (err.message || ""));
+      showToast("Не удалось скопировать экзамен: " + (err.message || ""), "error");
     }
   };
 
@@ -570,7 +584,7 @@ export default function ExamHubPage() {
       if (err?.status === 409 && err?.code === "EXAM_NOT_ARCHIVED") {
         await fetchExam();
       } else {
-        alert("Не удалось восстановить экзамен: " + (err.message || ""));
+        showToast("Не удалось восстановить экзамен: " + (err.message || ""), "error");
       }
     } finally {
       restoringRef.current = false;
@@ -641,7 +655,7 @@ export default function ExamHubPage() {
         setExam((prev) => (prev ? { ...prev, status: "active" } : null));
       }
     } catch (err: any) {
-      alert("Ошибка при запуске экзамена: " + (err.message || ""));
+      showToast("Ошибка при запуске экзамена: " + (err.message || ""), "error");
     } finally {
       setActionLoading(false);
     }
@@ -666,12 +680,19 @@ export default function ExamHubPage() {
   };
 
   const handleKickStudent = async (sessionId: string, studentName: string) => {
-    if (!confirm(`Удалить участника «${studentName}» из сессии?`)) return;
+    // WB-P5 (F-A20): the platform's own question (a native confirm is blocked in iOS home-screen apps and in-app browsers)
+    const sure = await askConfirm({
+      title: "Убрать ученика из сессии?",
+      message: `Ученик «${studentName}» будет убран из сессии и увидит сообщение об этом.`,
+      confirmLabel: "Убрать",
+      tone: "danger",
+    });
+    if (!sure) return;
     try {
       await examsApi.kickStudent(examId, sessionId);
       setLobbyStudents((prev) => prev.filter((s) => s.session_id !== sessionId));
     } catch (err: any) {
-      alert("Ошибка при удалении ученика: " + (err.message || ""));
+      showToast("Ошибка при удалении ученика: " + (err.message || ""), "error");
     }
   };
 
@@ -691,17 +712,20 @@ export default function ExamHubPage() {
 
   const handleCopyCode = () => {
     if (!exam?.access_code) return;
-    navigator.clipboard.writeText(exam.access_code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    void copyText(exam.access_code).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
   };
 
   const handleCopyLink = () => {
     if (!exam?.access_code) return;
-    const url = `${window.location.origin}/e/${exam.access_code}`;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+    void copyText(examLinkHere(exam.access_code)).then((ok) => {
+      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
   };
 
   const handleOpenReplace = async (task: DraftTask) => {
@@ -738,11 +762,11 @@ export default function ExamHubPage() {
       await fetchExam();
       setReplaceTarget(null);
     } catch (err: any) {
-      const msg = err.message || "";
-      if (msg.includes("черновик") || msg.includes("draft")) {
+      // the state refusal (409) is the same sentence as the check above; any other answer is the server's own text (not guessed from words in it, F-A28)
+      if (err?.status === 409) {
         setReplaceError("Замена задач возможна только в режиме черновика до запуска экзамена.");
       } else {
-        setReplaceError(msg || "Не удалось заменить задачу");
+        setReplaceError(err?.message || "Не удалось заменить задачу");
       }
     } finally {
       setReplacingTaskId(null);
@@ -753,13 +777,11 @@ export default function ExamHubPage() {
     if (exam?.status !== "closed" && exam?.status !== "archived") return;
     setReportError(null);
     setReportLoading(true);
-    setReportStep(1); // Step 1: instant
+    setReportStep(1); // Step 1: collecting the results
     try {
-      await new Promise((r) => setTimeout(r, 700));
-      setReportStep(2); // Step 2: LLM call
+      setReportStep(2); // Step 2: the request itself (no artificial pauses between the steps, F-A28)
       const rep = await examsApi.generateReport(examId, true);
-      setReportStep(3); // Step 3: finalizing
-      await new Promise((r) => setTimeout(r, 600));
+      setReportStep(3); // Step 3: showing it
       setReport(rep);
     } catch (err: any) {
       setReportError(err.message || "Не удалось сформировать отчёт по экзамену");
@@ -2055,13 +2077,18 @@ export default function ExamHubPage() {
 
           {/* Student Results Table */}
           <GlassCard variant="panel" className="p-0 overflow-visible">
-            <div className="p-5 border-b border-slate-200/80 flex items-center justify-between">
-              <div>
+            <div className="p-5 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h3 className="text-base font-semibold text-slate-900">Результаты учеников</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   {isFinalized ? "Итоговые статусы зафиксированы после завершения экзамена." : "Статусы обновляются по мере выполнения работы."}
                 </p>
               </div>
+              {sessions.length > 0 && (
+                <Button variant="secondary" size="sm" icon={<Download className="h-4 w-4" />} onClick={exportSessionsCsv}>
+                  Скачать таблицу
+                </Button>
+              )}
             </div>
 
             {sessions.length === 0 ? (
@@ -2198,7 +2225,7 @@ export default function ExamHubPage() {
 
               <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 inline-block shadow-inner">
                 <QRCode
-                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/e/${exam.access_code}`}
+                  value={examLinkHere(exam.access_code)}
                   size={260}
                   level="Q"
                 />

@@ -767,7 +767,7 @@ export default function ExamReportPage() {
                       )}
                     </div>
 
-                    {/* Анализ ошибки и Совет учителю */}
+                    {/* Анализ ошибки и совет преподавателю */}
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <div className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 to-white p-4">
                         <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
@@ -786,7 +786,7 @@ export default function ExamReportPage() {
                       <div className="rounded-xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/60 to-white p-4">
                         <p className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
                           <Lightbulb className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                          Методический совет учителю
+                          Методический совет преподавателю
                         </p>
                         <div className="mt-2 text-xs leading-relaxed text-slate-700 space-y-1">
                           {task.teacher_advice.split("\n").map((line, lIdx) => (

@@ -115,7 +115,7 @@ test("openings: before a read that hides drafted rows the existing confirm is as
   assert.match(page, /onChange=\{\(event\) => changeServerGroup\(event\.target\.value\)\}/);
   assert.match(page, /if \(serverGroup !== "" \|\| groupOptions === catalog\) changeServerGroup\(event\.target\.value\);/);
   assert.match(page, /onChange=\{\(event\) => toggleLeft\(event\.target\.checked\)\}/);
-  assert.match(page, /if \(!checked && !confirmHiding\(/);
+  assert.match(page, /if \(!checked && !\(await confirmHiding\(/);
   assert.match(page, /changedCount\(rows, drafts\) \+ hiddenDrafts/);
 });
 
