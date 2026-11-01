@@ -237,6 +237,7 @@ export default function ExamHubPage() {
   const [exam, setExam] = useState<ExamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);                 // 404: say so once and why; other failures keep their own text
   const { showToast, toastNode } = useToast();
 
   // The print PDF buttons fire and forget: a refusal (or a session that could not be renewed) must be seen.
@@ -308,6 +309,7 @@ export default function ExamHubPage() {
       return examData;
     } catch (err: any) {
       console.error("Failed to load exam:", err);
+      setNotFound(err?.status === 404);
       setError(err.message || "Не удалось загрузить экзамен");
       return null;
     } finally {
@@ -844,9 +846,9 @@ export default function ExamHubPage() {
       <div className="p-8 max-w-4xl mx-auto">
         <GlassCard className="p-8 text-center space-y-4">
           <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
-          <h2 className="text-xl font-bold text-slate-900">Экзамен не найден</h2>
-          <p className="text-slate-500">{error || "Не удалось загрузить данные экзамена"}</p>
-          <Link href={backHref}>
+          <h2 className="text-xl font-bold text-slate-900">{notFound || !error ? "Экзамен не найден" : "Не удалось открыть экзамен"}</h2>
+          <p className="text-slate-500">{notFound || !error ? "Возможно, его удалили или ссылка устарела." : error}</p>
+          <Link href={backHref} className="inline-block pt-2">
             <Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />}>
               {backLabel}
             </Button>
