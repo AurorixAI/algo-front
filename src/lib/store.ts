@@ -51,7 +51,8 @@ interface AuthState {
     first_name?: string;
     last_name?: string;
   }) => Promise<void>;
-  logout: () => Promise<void>;
+  /** Resolves `true` when the SERVER confirmed the sign-out (the cookies are gone); the stored sign-in is dropped either way. */
+  logout: () => Promise<boolean>;
   refreshProfile: () => Promise<ProfileRefresh>;
   updateUser: (updates: Partial<AuthUser>) => void;
   clearError: () => void;
@@ -132,10 +133,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        let confirmed = true;
         try {
           await authApi.logout();
         } catch {
-          // ignore error on logout
+          confirmed = false; // the page leaves all the same; the caller tells the person that the server did not confirm
         }
         set({
           user: null,
@@ -143,6 +145,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           error: null,
         });
+        return confirmed;
       },
 
       refreshProfile: async () => {

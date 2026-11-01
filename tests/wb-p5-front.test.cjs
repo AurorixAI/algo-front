@@ -116,7 +116,7 @@ function world(answers = {}, { refreshWorks = true } = {}) {
     const u = new URL(url);
     const key = `${init.method || "GET"} ${u.pathname}`;
     state.log.push(key);
-    if (u.pathname.endsWith("/auth/logout")) return reply(200, { ok: true });
+    if (u.pathname.endsWith("/auth/logout")) return answers["/auth/logout"] ? reply(...answers["/auth/logout"]) : reply(200, { ok: true });
     if (u.pathname.endsWith("/auth/refresh")) return refreshWorks ? reply(200, {}) : reply(401, { detail: "x" });
     const hit = Object.entries(answers).find(([k]) => key.endsWith(k) || key === k);
     if (hit) return reply(hit[1][0], hit[1][1]);
@@ -757,7 +757,31 @@ test("BUG-1/BUG-2: resetClientState forgets every per-person store in one call (
     assert.match(read(file), /resetClientState\(\)/, file);
   }
   assert.match(read("src/components/layout/sidebar.tsx"), /await Promise\.race\(\[logout\(\)/, "the sign-out is awaited (with a cap) before the page leaves");
+  assert.match(read("src/components/layout/sidebar.tsx"), /data-testid="logging-out"/, "R3 #7: the wait is shown");
 });
+
+test("R3 #7: the store says whether the SERVER confirmed the sign-out; the stored sign-in is dropped either way", async () => {
+  world({ "/auth/logout": [200, { ok: true }] });
+  let { useAuthStore } = loadStoreFresh();
+  useAuthStore.setState({ user: { id: "u1" }, isAuthenticated: true });
+  assert.equal(await useAuthStore.getState().logout(), true);
+  assert.equal(useAuthStore.getState().user, null);
+  world({ "/auth/logout": [503, { detail: "x" }] });
+  ({ useAuthStore } = loadStoreFresh());
+  useAuthStore.setState({ user: { id: "u1" }, isAuthenticated: true });
+  const answer = await useAuthStore.getState().logout();
+  assert.equal(answer, false, "a refused sign-out is not reported as done");
+  assert.equal(useAuthStore.getState().user, null);
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  assert.match(sidebar, /LOGOUT_UNCONFIRMED_TEXT/);
+  assert.match(sidebar, /resetClientState\(\); \/\/ a poll that answered during the wait/, "the counters are reset again AFTER the wait");
+  assert.match(lib("session-sync.ts").LOGOUT_UNCONFIRMED_TEXT, /Не удалось завершить вход на сервере/);
+});
+
+function loadStoreFresh() {
+  for (const f of ["src/lib/store.ts", "src/lib/api.ts"]) delete require.cache[path.join(root, f)];
+  return require(path.join(root, "src/lib/store.ts"));
+}
 
 test("BUG-2: an openings summary answer that arrives after the reset is dropped", async () => {
   const state = world();

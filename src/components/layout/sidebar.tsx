@@ -42,6 +42,7 @@ import { SupportDialog } from "@/components/support/support-dialog";
 import { useSupportDialog } from "@/lib/support-store";
 import { SUPPORT_LABEL, SUPPORT_MY_LABEL, bindClientErrorsTo } from "@/lib/support";
 import { resetClientState } from "@/lib/reset-client-state";
+import { LOGOUT_UNCONFIRMED_TEXT, SESSION_NOTICE_KEY } from "@/lib/session-sync";
 import { SUPPORT_UNREAD_POLL_MS, useSupportUnread } from "@/lib/support-unread";
 
 /** The longest the menu waits for the server to answer the sign-out before it opens the sign-in page anyway. */
@@ -219,16 +220,22 @@ export function Sidebar() {
   // WB-P5 (BUG-1): the sign-out is awaited (the server drops the cookies) before the page leaves, so the sign-in page never meets the old
   // cookie; a hanging server holds the menu for LOGOUT_WAIT_MS at most - the cookies then die with their own expiry and the login still opens.
   const loggingOut = useRef(false);
+  const [leaving, setLeaving] = useState(false);
   const handleLogout = async () => {
     if (loggingOut.current) return;
     loggingOut.current = true;
+    setLeaving(true);
     resetClientState();
-    try {
-      await Promise.race([logout(), new Promise<void>((resolve) => window.setTimeout(resolve, LOGOUT_WAIT_MS))]);
-    } finally {
-      loggingOut.current = false;
+    const confirmed = await Promise.race([logout(), new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), LOGOUT_WAIT_MS))]);
+    resetClientState(); // a poll that answered during the wait must not refill the counters of the person who left (R3 #7)
+    if (confirmed) {
+      router.push("/login");
+    } else {
+      // The server did not confirm in time (or refused): the sign-in page opens, but the person is told the cookie may still be alive.
+      try { window.sessionStorage.setItem(SESSION_NOTICE_KEY, LOGOUT_UNCONFIRMED_TEXT); } catch { /* the page opens all the same */ }
+      window.location.href = "/login";
     }
-    router.push("/login");
+    window.setTimeout(() => { loggingOut.current = false; setLeaving(false); }, 3000);
   };
 
   // Close the profile menu on a press outside (mouse and touch) and on Escape (keyboard).  The menu is click-driven
@@ -576,6 +583,11 @@ export function Sidebar() {
       onSupport={DEMO_MODE ? undefined : showSupport}  // the demo has no accounting server: nobody to write to
     />
     <SupportDialog />
+    {leaving && (
+      <div role="status" data-testid="logging-out" className="fixed inset-x-0 top-4 z-[100030] mx-auto w-fit max-w-[calc(100vw-2rem)] rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-lg print:hidden">
+        Выходим…
+      </div>
+    )}
     </>
   );
 }

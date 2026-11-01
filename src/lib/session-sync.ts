@@ -13,6 +13,8 @@ import { effectiveRole, roleHome } from "./role-home";
 export const AUTH_STORAGE_KEY = "algo-auth";
 /** sessionStorage key: the notice survives the hard redirect inside this tab only. */
 export const SESSION_NOTICE_KEY = "algo-session-notice";
+/** Shown on the sign-in page when the server did not confirm the sign-out (an offline server): the cookie may still be alive. */
+export const LOGOUT_UNCONFIRMED_TEXT = "Не удалось завершить вход на сервере. Закройте вкладку или повторите выход";
 /** Another person signed in in another tab. */
 export const SESSION_CHANGED_NOTICE = "Вы вошли как другой пользователь в другой вкладке";
 /** The same person, but the role in the organisation changed. */
