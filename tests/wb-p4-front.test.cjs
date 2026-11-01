@@ -101,3 +101,10 @@ test("the server's sentence shows only when it adds to the chip and the figures"
     "Выплачено 75 000 · после изменений данных доплатить 100 000");
   assert.equal(Y.payoutNote(null), null);
 });
+
+test("the hint under the amount says the same sum as the server's question, also when the month is already overpaid", () => {
+  const over = { saved_total: 150000, fresh_total: 150000, target: 150000, paid: 175000, balance: -25000, state: "overpaid", basis: "saved",
+    text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 25000 };
+  assert.equal(plain(Y.payoutAfterText(100000, over)), "Переплата 100 000 сум");                 // server: left = max(balance, 0), excess = amount − left
+  assert.equal(plain(Y.payoutAfterText(100000, { ...over, paid: 75000, balance: 75000, state: "due" })), "Переплата 25 000 сум");
+});

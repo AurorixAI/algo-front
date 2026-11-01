@@ -311,7 +311,7 @@ export function advanceLines(state: PayoutState | null | undefined): string[] {
 /** Under the amount: what is left after this payout («Останется выплатить 125 000 сум» / «Выплачено полностью»). */
 export function payoutAfterText(amount: number | null, state: PayoutState | null | undefined): string {
   if (amount === null || amount < 1 || !state) return "";
-  const rest = state.balance - amount;
+  const rest = Math.max(state.balance, 0) - amount;      // as the server's question: an earlier overpay is not «left to pay» (rel-b3 walk)
   if (rest > 0) return `Останется выплатить ${formatMoney(rest)}`;
   if (rest === 0) return "Выплачено полностью";
   return `Переплата ${formatMoney(-rest)}`;
