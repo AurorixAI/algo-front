@@ -231,9 +231,9 @@ test("[M1][G2] the list says «Письмо не ушло — отправьте
 
 // ── F: sign-in messages, autoComplete, the screen of a closed access ─────────────────────
 
-test("[F] a right password with the «wrong» role above is simply a sign-in: the person goes to HIS cabinet, no sign-out, no «выберите роль»", () => {
+test("[F] a right password is simply a sign-in: the person goes to HIS cabinet, no sign-out, no role choice on the page (owner 01.11)", () => {
   const LF = lib("login-flow.ts");
-  // «Владелец» selected on the page, the server's answer says the account is a teacher (the dropdown is not an input of the destination)
+  // the server's answer says what the account is; the page has no role input
   assert.equal(LF.loginDestination(null, { org_role: "teacher", role: "teacher" }), "/teacher/dashboard");
   assert.equal(LF.loginDestination(null, { org_role: "admin", role: "admin" }), "/admin/diagnostics");
   assert.equal(LF.loginDestination(null, { org_role: "owner", role: "owner" }), "/owner/dashboard");

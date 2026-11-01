@@ -26,7 +26,7 @@ const translations: Translations = {
   // Auth
   "auth.login": { ru: "Войти", uz: "Kirish", en: "Login" },
   "auth.register": { ru: "Регистрация", uz: "Ro'yxatdan o'tish", en: "Register" },
-  "auth.email": { ru: "Email", uz: "Email", en: "Email" },
+  "auth.email": { ru: "Почта", uz: "Email", en: "Email" },
   "auth.password": { ru: "Пароль", uz: "Parol", en: "Password" },
   "auth.forgot_password": { ru: "Забыли пароль?", uz: "Parolni unutdingizmi?", en: "Forgot password?" },
   "auth.no_account": { ru: "Нет аккаунта?", uz: "Akkauntingiz yo'qmi?", en: "No account?" },

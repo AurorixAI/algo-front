@@ -201,7 +201,7 @@ test("P2: what an old demo address answers: a redirect to SITE_URL/#demo, or the
 test("P2: the sign-in page links to the relative /request-demo, nothing is hard-coded or built in", () => {
   const login = read("src/app/login/page.tsx");
   assert.match(login, /const DEMO_REQUEST_URL = "\/request-demo";/);
-  assert.match(login, /Нет доступа\?[\s\S]{0,200}<a href=\{DEMO_REQUEST_URL\}[^>]*>\s*Запросить демо\s*<\/a>/);
+  assert.match(login, /нет доступа\?[\s\S]{0,200}<a href=\{DEMO_REQUEST_URL\}[^>]*>\s*Запросить демо\s*<\/a>/);
   assert.doesNotMatch(stripComments(login), /SITE_URL/);
   for (const file of walk("src")) {
     assert.doesNotMatch(stripComments(read(file)), /https?:\/\/(www\.)?algolab\.me|landing\.stage/, `${file}: the address of the site is a runtime variable, not a literal`);
@@ -209,7 +209,14 @@ test("P2: the sign-in page links to the relative /request-demo, nothing is hard-
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const html = renderToStaticMarkup(React.createElement(load("src/app/login/page.tsx").default));
-  assert.match(html, /<a href="\/request-demo"[^>]*>\s*Запросить демо/, "the owner's tab, whatever the build");
+  assert.match(html, /<a href="\/request-demo"[^>]*>\s*Запросить демо/, "one footer for everyone, whatever the build");
+  // owner 01.11: no «Кто входит?» — the page does not know the role before the password; the footer is the same for everyone
+  assert.doesNotMatch(html, /Кто входит|Владелец|Админ|Учитель(?!и)|role="combobox"|aria-haspopup|<select/, "no role choice on the sign-in page");
+  assert.match(html, /Ещё нет доступа\? Центр подключается по заявке —/);
+  assert.match(html, /Учителя и администраторы получают доступ по приглашению от руководства центра\./);
+  for (const want of [/Почта/, /Пароль/, /Запомнить меня/, /href="\/forgot-password"[^>]*>Забыли пароль\?/, /Войти/]) assert.match(html, want);
+  assert.doesNotMatch(html, /Email/, "the field is «Почта», as on /forgot-password");
+  assert.doesNotMatch(stripComments(login), /ROLE_OPTIONS|setRole|isOwner|localStorage|[?&]role=/, "no leftover of the role choice");
 });
 
 test("P2: /request-demo and /register: 302 to SITE_URL/#demo (runtime variable); without it, or on the same host, a plain page and NO loop", () => {

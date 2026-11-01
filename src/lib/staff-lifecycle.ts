@@ -216,7 +216,7 @@ export function removedOnText(removedAt: string | null | undefined): string {
 // ── invitations (O10) ───────────────────────────────────────────────────────────────────────────
 
 export const INVITE_ADMIN_HINT = "Приглашать администраторов может только владелец.";
-export const INVITE_EMAIL_REQUIRED_TEXT = "Укажите email: приглашение выдаётся на него.";
+export const INVITE_EMAIL_REQUIRED_TEXT = "Укажите почту: приглашение выдаётся на неё.";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -228,7 +228,7 @@ export function normalizeEmail(value: string): string {
 export function inviteEmailError(value: string): string | null {
   const email = normalizeEmail(value);
   if (!email) return INVITE_EMAIL_REQUIRED_TEXT;
-  if (!EMAIL_PATTERN.test(email)) return "Проверьте email: он записан неверно.";
+  if (!EMAIL_PATTERN.test(email)) return "Проверьте почту: адрес записан неверно.";
   return null;
 }
 
@@ -354,7 +354,7 @@ export function inviteErrorText(error: unknown, fallback = "Не удалось 
   switch (opsErrorCode(error)) {
     case "EMAIL_REQUIRED": return INVITE_EMAIL_REQUIRED_TEXT;
     case "ONLY_OWNER_INVITES_ADMIN": return INVITE_ADMIN_HINT;
-    case "ALREADY_MEMBER": return "Этот email уже работает в центре";
+    case "ALREADY_MEMBER": return "Эта почта уже работает в центре";
     default: return (error instanceof Error && error.message.trim()) || fallback;
   }
 }
@@ -378,8 +378,8 @@ export const INVITE_REVOKED_TEXT = "Это приглашение заменен
 export function inviteLoadErrorText(error: unknown): string {
   return opsErrorCode(error) === "link_revoked" ? INVITE_REVOKED_TEXT : INVITE_NOT_FOUND_TEXT;
 }
-export const INVITE_EMAIL_MISMATCH_TEXT = "Это приглашение выдано для другого email";
-export const EMAIL_IN_OTHER_ORG_TEXT = "Этот email уже зарегистрирован в другом центре. Пока один email работает только в одном центре.";
+export const INVITE_EMAIL_MISMATCH_TEXT = "Это приглашение выдано для другой почты";
+export const EMAIL_IN_OTHER_ORG_TEXT = "Эта почта уже зарегистрирована в другом центре. Пока одна почта работает только в одном центре.";
 
 /** «Вы возвращаетесь в «Алго Тест». Задайте новый пароль для входа.» for a member who was removed and invited again. */
 export function returningIntroText(orgName: string): string {

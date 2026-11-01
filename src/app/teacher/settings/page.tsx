@@ -195,7 +195,7 @@ export default function TeacherSettingsPage() {
             </div>
           </div>
           <div>
-            <label className={labelClasses} htmlFor="teacher-settings-email">Электронная почта</label>
+            <label className={labelClasses} htmlFor="teacher-settings-email">Почта</label>
             <input
               id="teacher-settings-email"
               value={profile.email}

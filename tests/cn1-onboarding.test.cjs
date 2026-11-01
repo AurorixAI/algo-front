@@ -285,7 +285,7 @@ function walkSrc(dir) {
 
 test("the login page points to «Запросить демо» on the landing; no door to the deleted pages is left in src", () => {
   const login = read("src/app/login/page.tsx");
-  assert.match(login, /Нет доступа\?[\s\S]{0,200}href=\{DEMO_REQUEST_URL\}[\s\S]{0,120}Запросить демо/);
+  assert.match(login, /нет доступа\?[\s\S]{0,200}href=\{DEMO_REQUEST_URL\}[\s\S]{0,120}Запросить демо/);
   assert.match(login, /const DEMO_REQUEST_URL = "\/request-demo";/);
   assert.doesNotMatch(login, /Зарегистрировать организацию|href="\/register"|href="\/request-demo"/);
   // `/` has no marketing page: no cookie -> /login
