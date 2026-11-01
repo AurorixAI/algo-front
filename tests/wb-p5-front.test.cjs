@@ -271,6 +271,21 @@ test("MUTATION: a rule that shows the server's text whatever the language fails 
   assert.equal(real.errorMessageOf(real.parseErrorBody({ detail: "Not Found" }), "x", 404), "Не найдено");
 });
 
+test("R3 #4: an error toast stays at least 8 s and has the cross «Закрыть»; a success toast is as short as before", () => {
+  const T = lib("toast-timing.ts");
+  assert.ok(T.toastLifetimeMs("error", false) >= 8000);
+  assert.ok(T.toastLifetimeMs("warning", false) >= 8000);
+  assert.equal(T.toastLifetimeMs("success", false), 3500);
+  assert.equal(T.toastLifetimeMs("success", true), 10000, "a toast with details as before");
+  assert.equal(T.toastClosable("error", false), true);
+  assert.equal(T.toastClosable("success", false), false);
+  const toast = read("src/components/ui/toast.tsx");
+  assert.match(toast, /toastLifetimeMs\(type, Boolean\(details\?\.length\)\)/);
+  assert.match(toast, /aria-label="Закрыть"/);
+  const mutated = loadMutated("src/lib/toast-timing.ts", 'return type === "success" ? SUCCESS_TOAST_MS : ERROR_TOAST_MS;', "return SUCCESS_TOAST_MS;");
+  assert.ok(mutated.toastLifetimeMs("error", false) < 8000, "the old 3.5 s would fail the first assertion");
+});
+
 test("BUG-3: after a dead session api() rejects with the 401 ApiError, never `undefined`", async () => {
   const state = world({ "/auth/me": [401, { detail: "Токен истёк" }], "/auth/org/students": [401, { detail: "Токен истёк" }] }, { refreshWorks: false });
   const { authApi, orgApi } = loadApi();

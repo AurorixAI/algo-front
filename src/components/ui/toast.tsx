@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { toastClosable, toastLifetimeMs } from "@/lib/toast-timing";
 
 export interface ToastMessage {
   text: string;
@@ -63,7 +64,7 @@ export function useToast(): {
   const showToast = useCallback((text: string, type: ToastMessage["type"] = "success", details?: string[]) => {
     if (timer.current) clearTimeout(timer.current);
     setToast({ text, type, details });
-    timer.current = setTimeout(() => setToast(null), details?.length ? 10000 : 3500);
+    timer.current = setTimeout(() => setToast(null), toastLifetimeMs(type, Boolean(details?.length)));
   }, []);
 
   const toastNode = (
@@ -87,7 +88,7 @@ export function useToast(): {
                   </ul>
                 )}
               </div>
-              {toast.details && toast.details.length > 0 && (
+              {toastClosable(toast.type, Boolean(toast.details?.length)) && (
                 <button
                   type="button"
                   onClick={() => setToast(null)}
