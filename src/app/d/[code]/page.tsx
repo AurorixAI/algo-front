@@ -23,6 +23,17 @@ import {
   AlertCircle,
   Sparkles,
 } from "lucide-react";
+import {
+  NO_STREAK,
+  SKIP_ANSWER,
+  SKIP_BUTTON_LABEL,
+  SKIP_HINT,
+  addNotChecked,
+  canSkipQuestion,
+  isAnswerNotChecked,
+  notCheckedMessage,
+  type NotCheckedStreak,
+} from "@/lib/diagnostic-not-checked";
 import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
 import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, inviteEndsCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
@@ -94,6 +105,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   // The centre switched the invite off (the student is in the archive): not an error to retry, only the centre can help.
   const [inviteCancelled, setInviteCancelled] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  // «Ответ не проверен» in a row on one question (the checker is busy/down): after 2 the student may skip it.
+  const [notChecked, setNotChecked] = useState<NotCheckedStreak>(NO_STREAK);
   const submitInFlightRef = useRef(false);
   const requestEpochRef = useRef(0);
   const checkedCodeRef = useRef<string | null>(null);
@@ -229,6 +242,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       if (epoch !== requestEpochRef.current) return;
 
       setAnswer("");
+      setNotChecked(NO_STREAK);
 
       if (resp.session_completed) {
         diagStore.complete();
@@ -248,9 +262,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       }
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
-      // A timeout says nothing about whether the server committed. Resolve
-      // this same attempt before asking the student to send anything again.
-      if (!(err instanceof ApiError) || err.status !== 403) {
+      if (err instanceof ApiError && isAnswerNotChecked(err)) {
+        // The server did NOT save the answer and did not count it as wrong; the question is the same.  Show its
+        // own text, keep what was typed, count the streak (2 in a row -> «Пропустить вопрос»).
+        setNotChecked((streak) => addNotChecked(streak, diagStore.currentTask?.task_id ?? ""));
+        setSubmissionNotice(notCheckedMessage(err));
+      } else if (!(err instanceof ApiError) || err.status !== 403) {
+        // A timeout says nothing about whether the server committed. Resolve
+        // this same attempt before asking the student to send anything again.
         await checkInvite(false, true);
       } else {
         setErrorContext("answer");
@@ -697,9 +716,22 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </QuestionCard>
 
                   {submissionNotice && (
-                    <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                      {submissionNotice}
-                    </p>
+                    <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <p>{submissionNotice}</p>
+                      {canSkipQuestion(notChecked, currentTask.task_id) && (
+                        <>
+                          <p className="mt-2">{SKIP_HINT}</p>
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => void handleSubmit(SKIP_ANSWER)}
+                            className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {SKIP_BUTTON_LABEL}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
 
                   {/* Answer area — MC or text */}
