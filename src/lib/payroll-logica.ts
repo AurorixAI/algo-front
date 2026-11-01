@@ -233,6 +233,17 @@ export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{
   return parts;
 }
 
+/**
+ * The server's sentence under the figures, only when it says what the chip and the figures do not (rel-b3 walk: «Переплачено 25 000» stood
+ * three times): a month the advance closed whole, or a sheet the changed data made stale.
+ */
+export function payoutNote(state: PayoutState | null | undefined): string | null {
+  if (!state || !state.text) return null;
+  const closedByAdvance = state.state === "settled" && state.paid === 0 && state.carry_used > 0;
+  const stale = state.basis === "fresh" && state.balance > 0 && state.paid > 0;
+  return closedByAdvance || stale ? state.text : null;
+}
+
 // ── The form «Отметить выплату» ─────────────────────────────────────────────
 
 export interface PayoutFormValues {

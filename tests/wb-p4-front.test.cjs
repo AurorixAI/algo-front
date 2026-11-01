@@ -89,3 +89,15 @@ test("R3 3: the advance of the earlier months is a part of the block, a line und
   const block = read("src/components/payroll/payout-block.tsx");
   assert.match(block, /advanceLines\(state\)\.map/);
 });
+
+test("the server's sentence shows only when it adds to the chip and the figures", () => {
+  const base = { saved_total: 150000, fresh_total: 150000, target: 150000, paid: 175000, balance: -25000, state: "overpaid", basis: "saved",
+    text: "Переплачено 25 000", items: [], carry_in: 0, carry_used: 0, advance_out: 25000 };
+  assert.equal(Y.payoutNote(base), null);                                                          // the chip and «Переплачено» say it
+  assert.equal(Y.payoutNote({ ...base, paid: 75000, balance: 75000, state: "due", text: "Выплачено 75 000 из 150 000 · осталось 75 000" }), null);
+  assert.equal(Y.payoutNote({ ...base, paid: 0, balance: 0, state: "settled", carry_used: 150000, text: "Закрыто авансом прошлого месяца 150 000" }),
+    "Закрыто авансом прошлого месяца 150 000");
+  assert.equal(Y.payoutNote({ ...base, paid: 75000, balance: 100000, state: "due", basis: "fresh", text: "Выплачено 75 000 · после изменений данных доплатить 100 000" }),
+    "Выплачено 75 000 · после изменений данных доплатить 100 000");
+  assert.equal(Y.payoutNote(null), null);
+});
