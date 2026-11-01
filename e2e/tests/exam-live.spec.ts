@@ -100,13 +100,13 @@ test("assign to a started lesson -> student joins by code -> teacher starts -> t
   await sp.getByRole("button", { name: "Завершить" }).click();
   await expect(sp.getByRole("heading", { name: "Спасибо за прохождение!" })).toBeVisible();
 
-  // --- teacher: «Работа сдана», 2 of 3, 67 %
+  // --- teacher: the old address of the results lands on the results tab (WB-P5, F-A17); 67 %, «Сдано», one finished work
   await tp.goto(`/teacher/exams/${draft.exam_id}/sessions`);
+  await expect(tp).toHaveURL(new RegExp(`/teacher/exams/${draft.exam_id}\\?tab=analytics`));
   const row = tp.getByRole("row", { name: /Сдающий Анвар/ });
-  await expect(row).toContainText("2/3");
   await expect(row).toContainText("67%");
-  await expect(row.getByRole("cell", { name: "Работа сдана" })).toBeVisible();
-  await expect(tp.getByText("Сдали").locator("xpath=following-sibling::p[1]")).toHaveText("1");
+  await expect(row).toContainText("Сдано");
+  await expect(tp.getByText("Сдали работы").locator("xpath=following-sibling::p[1]")).toHaveText("1");
 });
 
 // (appended) «Завершить досрочно» is on the live block of the exam page, behind a dialog of the page

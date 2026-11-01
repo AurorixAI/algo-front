@@ -293,11 +293,18 @@ test("unsaved edits are guarded: leaving the page asks first, and a phone shows 
   await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
   await expect(page.getByTestId("openings-save-bar")).toBeVisible(); // sticky at the bottom
   await expectNoHorizontalScroll(page);
-  const dialogs: string[] = [];
-  page.on("dialog", (d) => { dialogs.push(d.message()); void d.dismiss(); });
+  // WB-P5 (F-A20): the question is the platform's own dialog, not the browser's confirm
+  page.on("dialog", (d) => { throw new Error(`a native dialog was opened: ${d.message()}`); });
   await page.getByTestId("openings-back").click();
-  expect(dialogs.join(" ")).toContain("не сохранены");
+  const ask = page.getByRole("dialog", { name: "Несохранённые правки" });
+  await expect(ask.getByText(/не сохранены/)).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await ask.getByRole("button", { name: "Остаться" }).click();
+  await expect(ask).toHaveCount(0);
   await expect(page).toHaveURL(/\/owner\/payments\/openings/);
+  await page.getByTestId("openings-back").click();
+  await page.getByRole("dialog", { name: "Несохранённые правки" }).getByRole("button", { name: "Уйти" }).click();
+  await expect(page).not.toHaveURL(/\/owner\/payments\/openings$/);
 });
 
 test.describe("lessons mode", () => {
