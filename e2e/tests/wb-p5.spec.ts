@@ -71,7 +71,14 @@ test("import: the REAL 422 body of the server (a validation list) reaches the pe
   } else {
     expect(text, "(before: the list was turned into text by the old line)").toMatch(/object Object/);
   }
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(700);
+  if (checks) {
+    // R3 #8: the error is not hidden under the footer (a phone: the step fills the screen)
+    const errorBox = (await error.boundingBox())!;
+    const footerBox = (await dialog.getByRole("button", { name: /Далее/ }).boundingBox())!;
+    expect(errorBox.y + errorBox.height, "the error ends above the footer buttons").toBeLessThanOrEqual(footerBox.y + 1);
+    await expect(dialog.getByRole("alert")).toBeVisible();
+  }
   await page.screenshot({ path: path.join(SHOTS, `${PHASE}-import-error-422-${testInfo.project.name}.png`) });
   await expectNoHorizontalScroll(page);
 });
@@ -142,17 +149,42 @@ test("exam: remove a participant and finish early through the platform's dialogs
   if (checks) {
     const ask = tp.getByRole("dialog", { name: "Убрать ученика из сессии?" });
     await expect(ask.getByText(new RegExp(removed.lastName))).toBeVisible();
+    await expect(ask.getByRole("button", { name: "Отмена" })).toBeFocused();                    // R3 #10: the safe answer has the focus
     await shot(tp, "kick-dialog");
-    await ask.getByRole("button", { name: "Отмена" }).click();
+    await tp.keyboard.press("Escape");                                                          // Escape = «no»
     await expect(ask).toHaveCount(0);
     await expect(tp.getByText(`${removed.lastName} ${removed.firstName}`)).toBeVisible();   // kept
     await kick.click();
-    await tp.getByRole("dialog", { name: "Убрать ученика из сессии?" }).getByRole("button", { name: "Убрать" }).click();
+    await ask.getByRole("button", { name: "Отмена" }).click();
+    await expect(ask).toHaveCount(0);
+    // a fast double click on the cross opens ONE question; a double click on «Убрать» sends ONE request
+    await kick.dblclick();
+    await expect(tp.getByRole("dialog", { name: "Убрать ученика из сессии?" })).toHaveCount(1);
+    const deletes: string[] = [];
+    tp.on("request", (r) => { if (r.method() === "DELETE" && /\/sessions\//.test(r.url())) deletes.push(r.url()); });
+    await tp.getByRole("dialog", { name: "Убрать ученика из сессии?" }).getByRole("button", { name: "Убрать" }).dblclick();
+    await expect(tp.getByText(`${removed.lastName} ${removed.firstName}`)).toHaveCount(0);
+    expect(deletes.length, "one request for a double click").toBe(1);
   } else {
     await page_wait(tp);
   }
   await expect(tp.getByText(`${removed.lastName} ${removed.firstName}`)).toHaveCount(0);
   expect(nativeOpened, checks ? "no native dialog" : "(before: the native confirm is expected)").toBe(!checks);
+
+  if (checks) {
+    // R3 #4: a refused action is an error toast that stays long enough to be read and has a cross
+    await tp.route("**/exams/*/start-live", (route) => route.fulfill({ status: 500, contentType: "application/json", headers: { "access-control-allow-origin": `http://localhost:${process.env.E2E_FRONT_PORT || 13000}`, "access-control-allow-credentials": "true" }, body: JSON.stringify({ detail: "Internal Server Error" }) }));
+    await tp.getByRole("button", { name: "Начать экзамен" }).click();
+    const toast = tp.getByRole("alert").filter({ hasText: /Сервис временно недоступен|Ошибка при запуске/ });
+    await expect(toast).toBeVisible();
+    console.log(`error toast text: «${(await toast.innerText()).trim()}»`);
+    await tp.waitForTimeout(5500);
+    await expect(toast, "still there after 5.5 s (alert waited for OK)").toBeVisible();
+    await shot(tp, "error-toast");
+    await toast.getByRole("button", { name: "Закрыть" }).click();
+    await expect(toast).toHaveCount(0);
+    await tp.unroute("**/exams/*/start-live");
+  }
 
   // --- the exam starts; the kept student sees the countdown
   await tp.getByRole("button", { name: "Начать экзамен" }).click();

@@ -307,6 +307,27 @@ test("unsaved edits are guarded: leaving the page asks first, and a phone shows 
   await expect(page).not.toHaveURL(/\/owner\/payments\/openings$/);
 });
 
+test("R3 #2: Back, then Back AGAIN while the question is open: the page stays with its edits; «Уйти» goes back exactly once", async ({ signIn }) => {
+  const { group, memberships } = await groupWithStudents("Группа О9", ["Назадный"]);
+  const page = await signIn(org.owner);
+  await page.goto("/owner/payments");
+  await page.goto("/owner/payments/openings");
+  const block = await openBlock(page, group);
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
+  await expect(page.getByTestId("openings-save-bar")).toBeVisible();
+  page.on("dialog", (d) => { throw new Error(`a native dialog was opened: ${d.message()}`); });
+  await page.goBack();                                                       // the first Back: the question
+  const ask = page.getByRole("dialog", { name: "Несохранённые правки" });
+  await expect(ask).toBeVisible();
+  await page.goBack();                                                       // the hardware Back again
+  await page.waitForTimeout(800);
+  await expect(page).toHaveURL(/\/owner\/payments\/openings$/);              // still here
+  await expect(ask).toHaveCount(1);                                          // one question, not two
+  await expect(page.getByTestId("openings-save-bar")).toBeVisible();         // the edits are alive
+  await ask.getByRole("button", { name: "Уйти" }).click();
+  await expect(page).toHaveURL(/\/owner\/payments\/?$/);                     // exactly one step back
+});
+
 test.describe("lessons mode", () => {
   let lessonsOrg: Org;
   test.beforeAll(async () => {

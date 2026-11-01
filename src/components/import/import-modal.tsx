@@ -42,6 +42,9 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
   const [result, setResult] = useState<ImportCommitResult | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  // On a phone the step takes the whole screen: a new error is scrolled into view so the footer never hides it (R3 #8)
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); }, [error]);
 
   useEffect(() => {
     if (open) {
@@ -190,7 +193,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
           )}
 
           {error && (
-            <div className="mt-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2">
+            <div ref={errorRef} role="alert" className="mt-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
             </div>
           )}
@@ -234,7 +237,7 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, clearFile
           <div>
             <p className="text-sm font-semibold text-slate-800">Шаг 1 — скачайте шаблон</p>
             <p className="text-xs text-slate-500 mt-0.5">Две вкладки: Группы и Ученики. Заполните и загрузите обратно.</p>
-            <p className="text-xs text-slate-500 mt-0.5">{IMPORT_OPENING_COLUMNS_HINT}</p>
+            <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">{IMPORT_OPENING_COLUMNS_HINT}</p>
           </div>
         </div>
         <button onClick={onDownloadTemplate} className="shrink-0 px-4 py-2 bg-white border border-primary-200 text-primary-700 rounded-xl text-sm font-semibold hover:bg-primary-50 transition-colors">
