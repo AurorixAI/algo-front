@@ -213,7 +213,7 @@ test("P2: the sign-in page links to the relative /request-demo, nothing is hard-
   // owner 01.11: no «Кто входит?» — the page does not know the role before the password; the footer is the same for everyone
   assert.doesNotMatch(html, /Кто входит|Владелец|Админ|Учитель(?!и)|role="combobox"|aria-haspopup|<select/, "no role choice on the sign-in page");
   assert.match(html, /Ещё нет доступа\? Центр подключается по заявке —/);
-  assert.match(html, /Учителя и администраторы получают доступ по приглашению от руководства центра\./);
+  assert.doesNotMatch(html, /по приглашению от руководства|Учителя и администраторы/, "owner 01.11: the footer is one line, no invitation hint");
   for (const want of [/Почта/, /Пароль/, /Запомнить меня/, /href="\/forgot-password"[^>]*>Забыли пароль\?/, /Войти/]) assert.match(html, want);
   assert.doesNotMatch(html, /Email/, "the field is «Почта», as on /forgot-password");
   assert.doesNotMatch(stripComments(login), /ROLE_OPTIONS|setRole|isOwner|localStorage|[?&]role=/, "no leftover of the role choice");
