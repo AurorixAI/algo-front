@@ -305,6 +305,26 @@ test("BUG-3: a list reader of a dead session no longer falls with a TypeError on
   assert.notEqual(error.name, "TypeError");
 });
 
+test("R3 #12: on a dead session an upload, a download and a staff exam call say «Сессия закончилась», not their own fallback", async () => {
+  const state = world({ "/auth/org/import/preview": [401, { detail: "x" }], "/auth/org/import/template": [401, { detail: "x" }], "/exams/E1/close": [401, { detail: "x" }] }, { refreshWorks: false });
+  const { orgApi, examsApi } = loadApi();
+  for (const call of [() => orgApi.importPreview(FILE), () => orgApi.downloadImportTemplate(), () => examsApi.close("E1")]) {
+    const error = await failure(call);
+    assert.equal(error.status, 401);
+    assert.equal(error.code, "session_ended");
+    assert.match(error.message, /Сессия закончилась/);
+  }
+  assert.match(state.href, /^\/login/);
+});
+
+test("R3 #5: the replace error shows the server's own sentence for 400 and 409 alike", () => {
+  const page = read("src/app/teacher/exams/[id]/page.tsx");
+  const replace = page.slice(page.indexOf("const handleConfirmReplace"), page.indexOf("const handleGenerateReport"));
+  assert.doesNotMatch(replace, /status === 409/);
+  assert.match(page, /setReplaceError\(err\?\.message \|\| "Не удалось заменить задачу"\)/);
+  assert.equal(fs.existsSync(path.join(root, "tests/a4-public-surfaces.test.cjs")), false, "R3 #9: the empty duplicate test file is gone");
+});
+
 // ── 3. the exam countdown ────────────────────────────────────────────────────────────────────────────
 
 /** A fake clock + timers + page events; `advance(ms)` moves the wall clock WITHOUT firing the timers (a throttled background tab). */
@@ -444,6 +464,25 @@ test("askConfirm: a promise per question, in order; Escape / backdrop / «Отм
   D.answerConfirm(true); // nothing on screen: harmless
   off();
   assert.deepEqual(seen, ["Первый", "Первый", "Второй", null]);
+});
+
+test("R3 #6: the same question asked twice before it is answered is ONE question - the action behind it runs once", async () => {
+  const D = lib("confirm-dialog.ts");
+  let runs = 0;
+  const handler = async () => { if (await D.askConfirm({ title: "Убрать ученика из сессии?", message: "Ученик «Иванов»" })) runs += 1; };
+  const first = handler();
+  const second = handler();                                      // the double click before the window was drawn
+  await second;
+  assert.equal(D.currentConfirm().title, "Убрать ученика из сессии?");
+  D.answerConfirm(true);
+  await first;
+  assert.equal(runs, 1, "removed once");
+  assert.equal(D.currentConfirm(), null, "no second window behind the first");
+  // another student is another question
+  const a = D.askConfirm({ title: "Убрать ученика из сессии?", message: "Ученик «Петров»" });
+  const b = D.askConfirm({ title: "Убрать ученика из сессии?", message: "Ученик «Сидоров»" });
+  D.answerConfirm(false); D.answerConfirm(false);
+  assert.deepEqual([await a, await b], [false, false]);
 });
 
 function scanNativeDialogs(sourceText, fileName = "x.tsx") {

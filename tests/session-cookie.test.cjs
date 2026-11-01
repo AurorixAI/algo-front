@@ -451,7 +451,7 @@ test("fetchAuthed (uploads, downloads) follows the same rules: transient keeps, 
   const api = read("src/lib/api.ts");
   const body = api.slice(api.indexOf("async function fetchAuthed"), api.indexOf("/** Multipart upload of one file field"));
   assert.match(body, /refresh\.kind === "transient"\) throw new ApiError\(refresh\.status, REFRESH_UNAVAILABLE_MESSAGE\)/);
-  assert.match(body, /await endDeadSession\(\);\s*return res;/);
+  assert.match(body, /await endDeadSession\(\);[\s\S]{0,200}throw new ApiError\(401, SESSION_ENDED_MESSAGE, SESSION_ENDED_CODE\);/);   // WB-P5 R3 #12: the same rejection as api()
   assert.doesNotMatch(api, /window\.location\.href = "\/login"/, "every dead-session redirect keeps the return URL");
 });
 

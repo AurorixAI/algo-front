@@ -762,12 +762,8 @@ export default function ExamHubPage() {
       await fetchExam();
       setReplaceTarget(null);
     } catch (err: any) {
-      // the state refusal (409) is the same sentence as the check above; any other answer is the server's own text (not guessed from words in it, F-A28)
-      if (err?.status === 409) {
-        setReplaceError("Замена задач возможна только в режиме черновика до запуска экзамена.");
-      } else {
-        setReplaceError(err?.message || "Не удалось заменить задачу");
-      }
+      // the server's own sentence: its 400 is «не черновик», its 409 is «эта задача уже есть в варианте» - never guessed from the status or the words (F-A28, R3 #5)
+      setReplaceError(err?.message || "Не удалось заменить задачу");
     } finally {
       setReplacingTaskId(null);
     }

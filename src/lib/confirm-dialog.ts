@@ -30,6 +30,9 @@ function notify(): void {
 
 /** Asks the question; resolves `true` on the confirming button, `false` on «Отмена», Escape, the cross or the backdrop. */
 export function askConfirm(request: ConfirmRequest): Promise<boolean> {
+  // The same question asked again while it is still unanswered (a fast double click before the window is drawn) is NOT a second
+  // question: the second asker is answered «no» at once, so the action behind it runs once - on the answer of the first (R3 #6).
+  if (queue.some((entry) => entry.request.title === request.title && entry.request.message === request.message)) return Promise.resolve(false);
   return new Promise<boolean>((resolve) => {
     queue.push({ request: { ...request, id: nextId++ }, resolve });
     notify();

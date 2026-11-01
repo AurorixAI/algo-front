@@ -2078,7 +2078,8 @@ async function fetchAuthed(url: string, init: RequestInit): Promise<Response> {
     if (res.status !== 401) return res;
   }
   await endDeadSession();
-  return res;
+  // R3 #12: the same rejection as api() - a file screen says «Сессия закончилась», not its own «не удалось обработать файл»
+  throw new ApiError(401, SESSION_ENDED_MESSAGE, SESSION_ENDED_CODE);
 }
 
 /** Multipart upload of one file field named "file" (the browser sets the boundary). */
