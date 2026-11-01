@@ -152,15 +152,12 @@ export default function LoginPage() {
         </motion.div>
 
         {/* Footer hint — the same for everyone: the page does not know the role before the password */}
-        <div className="text-center mt-6 text-sm text-slate-500 space-y-1 [text-wrap:balance]">
-          <p>
-            Ещё нет доступа? Центр подключается по заявке —{" "}
-            <a href={DEMO_REQUEST_URL} className="text-primary-600 font-medium hover:underline whitespace-nowrap">
-              Запросить демо
-            </a>
-          </p>
-          <p>Учителя и администраторы получают доступ по приглашению от руководства центра.</p>
-        </div>
+        <p className="text-center mt-6 text-sm text-slate-500 [text-wrap:balance]">
+          Ещё нет доступа? Центр подключается по заявке —{" "}
+          <a href={DEMO_REQUEST_URL} className="text-primary-600 font-medium hover:underline whitespace-nowrap">
+            Запросить демо
+          </a>
+        </p>
       </div>
     </div>
   );
