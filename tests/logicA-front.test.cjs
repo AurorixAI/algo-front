@@ -373,9 +373,7 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   const ready = { ...values, method: "cash" };
   assert.equal(Y.validatePayout(ready, "2026-11-12"), null);
   assert.deepEqual(Y.buildPayoutBody(ready), { amount: 125000, paid_on: "2026-11-12", method: "cash" });
-  assert.equal(Y.payoutOverpay(125000, due), null);
-  assert.equal(Y.payoutOverpay(155000, due), 30000);
-  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Это больше, чем осталось выплатить. Переплата 30 000 сум. Продолжить?");
+  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Выплата больше остатка на 30 000 сум — записать как аванс?");     // MN-32 (wave B P4): the server decides, the owner confirms
   assert.equal(plain(Y.payoutAfterText(100000, due)), "Останется выплатить 25 000 сум");
   assert.equal(Y.payoutAfterText(125000, due), "Выплачено полностью");
   assert.match(Y.validatePayout({ ...ready, paidOn: "2026-11-13" }, "2026-11-12"), /не может быть в будущем/);

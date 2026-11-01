@@ -11,10 +11,11 @@ import {
   buildPayoutBody,
   emptyPayoutValues,
   PAYOUT_ACTION_LABEL,
+  PAYOUT_ADVANCE_HINT,
+  PAYOUT_ADVANCE_LABEL,
   PAYOUT_METHODS,
   payoutAfterText,
   payoutError,
-  payoutOverpay,
   payoutOverpayQuestion,
   sheetPayoutParts,
   validatePayout,
@@ -30,7 +31,8 @@ const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
 /**
  * «Отметить выплату»: the amount (what is left to pay by default), the date, how it was paid, a note.  A payout belongs to the month of
- * the sheet and never rewrites it; paying more than is left asks for a confirmation («Переплата 30 000 сум. Продолжить?»).
+ * the sheet and never rewrites it.  Paying more than is left (MN-32): the SERVER refuses with 409 `OVERPAY_CONFIRM_REQUIRED` and the by-how-much;
+ * the window then asks «Выплата больше остатка на N сум — записать как аванс?» and only «Записать как аванс» sends `confirm_overpay`.
  */
 export function PayoutDialog({
   open, sheetId, teacherName, month, state, onClose, onDone,
@@ -48,16 +50,18 @@ export function PayoutDialog({
   const [values, setValues] = useState<PayoutFormValues>(() => emptyPayoutValues(today, state));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [overpay, setOverpay] = useState<number | null>(null);   // the server's by-how-much while the question is open
   const idempotencyKey = useRef(newIdempotencyKey());
   const firstSend = useRef<FirstSend | null>(null); // R3: the key stays for the whole opening; only the text of a 409 depends on what was sent
+  const sending = useRef(false);                                    // a second Enter / click before the next render
 
   useEffect(() => {
     if (!open) return;
     setValues(emptyPayoutValues(today, state));
     setBusy(false);
     setError(null);
-    setConfirming(false);
+    setOverpay(null);
+    sending.current = false;
     idempotencyKey.current = newIdempotencyKey();
     firstSend.current = null;
     // restarts when opened (for another sheet), not when the numbers refresh behind it
@@ -65,37 +69,40 @@ export function PayoutDialog({
   }, [open, sheetId]);
 
   const amount = parseMoneyInput(values.amount);
-  const overpay = payoutOverpay(amount, state);
   const after = payoutAfterText(amount, state);
-  const patch = (next: Partial<PayoutFormValues>) => { setError(null); setConfirming(false); setValues((previous) => ({ ...previous, ...next })); };
+  const patch = (next: Partial<PayoutFormValues>) => { setError(null); setOverpay(null); setValues((previous) => ({ ...previous, ...next })); };
 
-  const send = async () => {
+  const send = async (confirmedOverpay: number | null) => {
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     let signature = "";
     try {
-      const body = buildPayoutBody(values);
-      signature = JSON.stringify(body);
+      const body = buildPayoutBody(values, confirmedOverpay);
+      signature = JSON.stringify(buildPayoutBody(values, null));    // what the owner typed; the confirmation flag is not part of «the same payout»
       rememberFirstSend(firstSend, signature, body.amount);
       const result = await orgApi.createPayrollPayout(sheetId, body, idempotencyKey.current);
       onDone(`Выплата внесена: ${formatMoney(result.payout.amount)}`);
       onClose();
     } catch (cause) {
       const failure = payoutError(cause as PayrollErrorLike);
-      if (failure.kind === "duplicate") { onDone(duplicateNotice(firstSend.current, signature, formatMoney, PAYOUT_WORDS).text); onClose(); }
+      if (failure.kind === "overpay_confirm" && failure.overpay !== null) {
+        firstSend.current = null;                                    // nothing was written: the confirmed send will be the first one
+        setOverpay(failure.overpay);                                 // the owner decides
+      } else if (failure.kind === "duplicate") { onDone(duplicateNotice(firstSend.current, signature, formatMoney, PAYOUT_WORDS).text); onClose(); }
       else setError(failure.message);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
 
   const submit = () => {
-    if (busy) return;
+    if (busy || overpay !== null) return;
     const problem = validatePayout(values, today);
     if (problem) { setError(problem); return; }
-    // More than is left: ask once, then send.
-    if (overpay !== null && !confirming) { setConfirming(true); return; }
-    void send();
+    void send(null);
   };
 
   const parts = sheetPayoutParts(state);
@@ -109,15 +116,17 @@ export function PayoutDialog({
       busy={busy}
       footer={(
         <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
+          {/* «Отмена» of the question goes back to the form (the amount can be corrected); of the form it closes the window */}
+          <button type="button" onClick={overpay !== null ? () => setOverpay(null) : onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
           <button
-            type="submit"
+            type={overpay !== null ? "button" : "submit"}
             form="payout-form"
+            onClick={overpay !== null ? () => void send(overpay) : undefined}
             disabled={busy}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {confirming ? "Продолжить" : "Сохранить"}
+            {overpay !== null ? PAYOUT_ADVANCE_LABEL : "Сохранить"}
           </button>
         </>
       )}
@@ -172,10 +181,10 @@ export function PayoutDialog({
           <input id="payout-note" value={values.note} onChange={(event) => patch({ note: event.target.value })} maxLength={NOTE_MAX} autoComplete="off" className={FIELD} />
         </div>
 
-        {confirming && overpay !== null && (
+        {overpay !== null && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>{payoutOverpayQuestion(overpay)}</span>
+            <span>{payoutOverpayQuestion(overpay)}<span className="mt-1 block text-xs font-normal text-amber-800">{PAYOUT_ADVANCE_HINT}</span></span>
           </p>
         )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

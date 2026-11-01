@@ -7,6 +7,7 @@ import {
   normalizePayoutState,
   PAYOUT_ACTION_LABEL,
   PAYOUT_CHIP_CLASS,
+  advanceLines,
   livePayouts,
   payoutChip,
   payoutError,
@@ -58,6 +59,7 @@ export function SheetPayoutBlock({
             ))}
           </dl>
           {state.text && <p className="mt-1.5 text-sm text-slate-600" data-testid="payout-text">{state.text}</p>}
+          {advanceLines(state).map((line) => <p key={line} className="mt-1 text-xs text-slate-500" data-testid="payout-advance">{line}</p>)}
           {state.fresh_total === null && state.state !== "settled" && (
             <p className="mt-1 text-xs text-slate-500">Новую сумму посчитать нельзя (нет ставки или цена задана вручную) — за основу взята сохранённая; пересчитайте после указания ставки.</p>
           )}

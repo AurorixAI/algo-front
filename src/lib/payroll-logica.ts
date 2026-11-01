@@ -84,6 +84,10 @@ export interface PayoutState {
   text: string;
   /** Live and cancelled, the oldest first. */
   items: PayoutOut[];
+  /** R3 3: the advance of the earlier months of this teacher, how much of it this month's total took (`target` is AFTER it) and what this month hands on to the next one. */
+  carry_in: number;
+  carry_used: number;
+  advance_out: number;
 }
 
 export interface PayoutCreated {
@@ -101,6 +105,9 @@ export interface PayoutCreate {
   paid_on?: string | null;
   method?: PayoutMethod | null;
   note?: string | null;
+  /** MN-32: the server answers 409 `OVERPAY_CONFIRM_REQUIRED` to a payout above the balance until this is `true` AND `overpay` is the sum the owner was shown (R3 7). */
+  confirm_overpay?: boolean;
+  overpay?: number;
 }
 
 export function normalizePayout(raw: Partial<PayoutOut> | null | undefined): PayoutOut | null {
@@ -138,6 +145,9 @@ export function normalizePayoutState(raw: Partial<PayoutState> | null | undefine
     basis: raw.basis === "fresh" ? "fresh" : "saved",
     text: String(raw.text ?? ""),
     items,
+    carry_in: num(raw.carry_in),
+    carry_used: num(raw.carry_used),
+    advance_out: num(raw.advance_out),
   };
 }
 
@@ -214,6 +224,7 @@ export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{
   if (!state) return [];
   const parts: Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> = [
     { label: "К выплате", value: formatMoney(state.target), tone: "plain" },
+    ...(state.carry_used > 0 ? [{ label: "Аванс прошлого месяца", value: formatMoney(state.carry_used), tone: "plain" as const }] : []),
     { label: "Выплачено", value: formatMoney(state.paid), tone: "plain" },
   ];
   if (state.balance > 0 && state.paid > 0) parts.push({ label: state.basis === "fresh" ? "Доплатить" : "Осталось выплатить", value: formatMoney(state.balance), tone: "due" });
@@ -259,22 +270,31 @@ export function validatePayout(values: PayoutFormValues, today: string): string 
   return null;
 }
 
-export function buildPayoutBody(values: PayoutFormValues): PayoutCreate {
+/** `confirmedOverpay`: the sum of the server's question the owner answered «Записать как аванс» to (MN-32, R3 7); never sent by default. */
+export function buildPayoutBody(values: PayoutFormValues, confirmedOverpay: number | null = null): PayoutCreate {
   const body: PayoutCreate = { amount: parseMoneyInput(values.amount) ?? 0, paid_on: values.paidOn, method: values.method ?? "other" };
   const note = values.note.trim();
   if (note) body.note = note;
+  if (confirmedOverpay !== null) { body.confirm_overpay = true; body.overpay = confirmedOverpay; }
   return body;
 }
 
-/** The overpayment the amount makes: «Это больше, чем осталось выплатить. Переплата 30 000 сум. Продолжить?»; null when it does not exceed what is left. */
-export function payoutOverpay(amount: number | null, state: PayoutState | null | undefined): number | null {
-  if (amount === null || amount < 1) return null;
-  const left = Math.max(0, state?.balance ?? 0);
-  return amount > left ? amount - left : null;
+/** MN-32: the question of the window when the SERVER says the payout is above the balance (it counts the balance under the lock of the sheet, the screen may be stale). */
+export function payoutOverpayQuestion(overpay: number): string {
+  return `Выплата больше остатка на ${formatMoney(overpay)} — записать как аванс?`;
 }
 
-export function payoutOverpayQuestion(overpay: number): string {
-  return `Это больше, чем осталось выплатить. Переплата ${formatMoney(overpay)}. Продолжить?`;
+export const PAYOUT_ADVANCE_LABEL = "Записать как аванс";
+/** R3 3: under the question of the window - what the advance does. */
+export const PAYOUT_ADVANCE_HINT = "Аванс уменьшит выплату следующего месяца";
+
+/** Under the block of a sheet: «Аванс прошлого месяца: 25 000 сум — зачтён» / «Аванс 25 000 сум зачтётся в выплате следующего месяца»; null when there is none. */
+export function advanceLines(state: PayoutState | null | undefined): string[] {
+  if (!state) return [];
+  const lines: string[] = [];
+  if (state.carry_used > 0) lines.push(`Аванс прошлого месяца: ${formatMoney(state.carry_used)} — зачтён, «К выплате» уменьшена на него`);
+  if (state.advance_out > 0) lines.push(`Аванс ${formatMoney(state.advance_out)} зачтётся в выплате следующего месяца`);
+  return lines;
 }
 
 /** Under the amount: what is left after this payout («Останется выплатить 125 000 сум» / «Выплачено полностью»). */
@@ -298,9 +318,10 @@ export function validatePayoutVoid(reason: string | null | undefined): string | 
   return null;
 }
 
-export type PayoutErrorKind = "duplicate" | "not_saved" | "already_voided" | "amount_range" | "paid_on_range" | "method_required" | "reason_required" | "other";
+export type PayoutErrorKind = "overpay_confirm" | "duplicate" | "not_saved" | "already_voided" | "amount_range" | "paid_on_range" | "method_required" | "reason_required" | "other";
 
 const PAYOUT_ERROR: Record<string, PayoutErrorKind> = {
+  OVERPAY_CONFIRM_REQUIRED: "overpay_confirm",
   DUPLICATE_PAYOUT: "duplicate",
   SHEET_NOT_SAVED: "not_saved",
   ALREADY_VOIDED: "already_voided",
@@ -310,10 +331,12 @@ const PAYOUT_ERROR: Record<string, PayoutErrorKind> = {
   REASON_REQUIRED: "reason_required",
 };
 
-export function payoutError(error: PayrollErrorLike | null | undefined): { kind: PayoutErrorKind; message: string } {
+export function payoutError(error: PayrollErrorLike | null | undefined): { kind: PayoutErrorKind; message: string; overpay: number | null } {
   const code = error?.code ?? (error?.detail as { code?: string } | null | undefined)?.code;
   const message = (error?.message || "Не удалось выполнить действие").replace(/[.\s]+$/, "");
-  return { kind: (code && PAYOUT_ERROR[code]) || "other", message };
+  const kind = (code && PAYOUT_ERROR[code]) || "other";
+  const extra = (error?.detail as { overpay?: unknown } | null | undefined)?.overpay;
+  return { kind, message, overpay: kind === "overpay_confirm" && typeof extra === "number" && extra > 0 ? extra : null };
 }
 
 // ── The cover of a lesson (decision 5) ──────────────────────────────────────
