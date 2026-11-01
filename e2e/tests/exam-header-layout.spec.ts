@@ -13,7 +13,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
  */
 const SHOTS = process.env.SHOTS_DIR || path.resolve(__dirname, "../../../artifacts/code_audit_2410/shots-wb-p1");
 const PHASE = process.env.SHOT_PHASE || "after";
-const PREFIX = process.env.SHOT_PREFIX || "tidy3";
+const PREFIX = process.env.SHOT_PREFIX || "tidy4";
 mkdirSync(SHOTS, { recursive: true });
 const LONG_TITLE = "Контрольная работа №3: Квадратные уравнения и неравенства, 8 класс";
 
@@ -65,6 +65,15 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
     const items = await page.locator("#exam-actions-menu button").allInnerTexts();
     return items.map((t) => t.split("\n")[0].trim());
   };
+  // ONE row from 1024 px: the counter, the plate, the main action and «⋯» of the live block stand at the same height (the centres of the boxes)
+  const oneRow = async (page: import("@playwright/test").Page) => {
+    if (!desktop) return;
+    const centres: number[] = [];
+    for (const locator of [block(page).locator("div.rounded-2xl").first(), block(page).getByRole("button")]) {
+      for (const box of await Promise.all((await locator.all()).map((l) => l.boundingBox()))) if (box) centres.push(box.y + box.height / 2);
+    }
+    expect(Math.max(...centres) - Math.min(...centres), `the live block is one row: ${centres.map(Math.round)}`).toBeLessThanOrEqual(12);
+  };
   const noButtonInHeader = async (page: import("@playwright/test").Page) => {
     await expect(header(page).getByRole("button")).toHaveCount(0);
     await expect(header(page).getByRole("link")).toHaveCount(0);
@@ -84,6 +93,17 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
   }
   await shot(page, "draft-nogroup", "teacher");
 
+  // --- a draft with a group: «Открыть лобби» + «⋯» in one row
+  const groupDraft = await api.createDraft({ title: LONG_TITLE, groupId: group.id, tasks: 3, skillId: STUB_SKILL20_ID, threshold: 70 });
+  page = await open("teacher", groupDraft.exam_id);
+  if (checks) {
+    await noButtonInHeader(page);
+    await expect(block(page).getByRole("button", { name: "Открыть лобби" })).toBeVisible();
+    await expect(block(page).getByRole("button")).toHaveCount(2);
+    await oneRow(page);
+  }
+  await shot(page, "draft-group", "teacher");
+
   // --- lobby
   const draft = await api.createDraft({ title: LONG_TITLE, groupId: group.id, tasks: 3, skillId: STUB_SKILL20_ID, threshold: 70 });
   const published = await api.call<{ access_code: string }>("POST", `/exams/${draft.exam_id}/assign`, {
@@ -95,9 +115,10 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
     await expect(page.getByText("Ожидает старта", { exact: true })).toBeVisible();
     await expect(page.getByText(/Группа Ш1 · урок .*· порог 70%/)).toBeVisible();   // one quiet line
     await expect(block(page).getByRole("button", { name: "Начать экзамен" })).toBeVisible();
-    await expect(block(page).getByRole("button", { name: "Ссылка для учеников" })).toBeVisible();
-    await expect(block(page).getByText("Длительность: 20 мин")).toBeVisible();
-    await expect(block(page).getByRole("button")).toHaveCount(3);                   // main action, link, «⋯»
+    await expect(block(page).getByRole("button", { name: "Скопировать ссылку для учеников" })).toBeVisible();   // «Ссылка» with the link icon
+    await expect(block(page).getByText("20 мин", { exact: true })).toBeVisible();                              // the plate
+    await expect(block(page).getByRole("button")).toHaveCount(3);                   // link, main action, «⋯»
+    await oneRow(page);
     expect(await menuItems(page)).toEqual([                                          // (the title can be changed in a draft only)
       "Разблокировать вход учеников", "Изменить порог", "Создать копию", "Закрепить", "Перенести в архив",
     ]);
@@ -122,13 +143,17 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
   if (checks) {
     await noButtonInHeader(page);
     await expect(page.getByText("Идёт экзамен", { exact: true })).toBeVisible();
-    await expect(block(page).getByText("Осталось времени")).toBeVisible();
-    await expect(block(page).getByRole("button", { name: "Завершить досрочно" })).toBeVisible();
-    await expect(block(page).getByRole("button", { name: "Ссылка для учеников" })).toBeVisible();
-    await expect(block(page).getByRole("button")).toHaveCount(3);                   // finish early, link, «⋯»
+    await expect(block(page).getByText("Осталось")).toBeVisible();                   // the compact plate: «Осталось 19:59», no button under it
+    await expect(block(page).getByRole("button", { name: "Завершить досрочно" })).toHaveCount(0);
+    await expect(block(page).getByRole("button")).toHaveCount(1);                   // «⋯» only
+    await oneRow(page);
     const items = await menuItems(page);
-    expect(items).not.toContain("Изменить порог");                                   // shut from the start
-    expect(items[0]).toBe("Разблокировать вход учеников");
+    expect(items).toEqual([                                                          // the finish and the link moved into «⋯»; the threshold is shut from the start
+      "Завершить досрочно", "Скопировать ссылку для учеников", "Разблокировать вход учеников", "Создать копию", "Закрепить", "Перенести в архив",
+    ]);
+    await shot(page, "active-menu", "teacher");
+    await page.locator("#exam-actions-menu").getByRole("button", { name: "Скопировать ссылку для учеников" }).click();
+    await expect(page.getByText("Ссылка скопирована")).toBeVisible();
     await page.keyboard.press("Escape");
   }
   await shot(page, "active", "teacher");
@@ -146,14 +171,16 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
   // --- finish early: a dialog of the page, not the browser's confirm
   if (checks) {
     page.once("dialog", () => { throw new Error("a native dialog was opened"); });
-    await block(page).getByRole("button", { name: "Завершить досрочно" }).click();
+    await block(page).getByRole("button", { name: "Опции экзамена" }).click();
+    await page.locator("#exam-actions-menu").getByRole("button", { name: "Завершить досрочно" }).click();
     const dialog = page.getByRole("dialog", { name: "Завершить досрочно" });
     await expect(dialog.getByText("Ученики ещё пишут. Завершить экзамен для всех?")).toBeVisible();
     await shot(page, "active-confirm", "teacher");
     await dialog.getByRole("button", { name: "Отмена" }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(block(page).getByText("Осталось времени")).toBeVisible();           // nothing happened
-    await block(page).getByRole("button", { name: "Завершить досрочно" }).click();
+    await expect(block(page).getByText("Осталось")).toBeVisible();                   // nothing happened
+    await block(page).getByRole("button", { name: "Опции экзамена" }).click();
+    await page.locator("#exam-actions-menu").getByRole("button", { name: "Завершить досрочно" }).click();
     await page.getByRole("dialog", { name: "Завершить досрочно" }).getByRole("button", { name: "Завершить", exact: true }).click();
     await expect(block(page).getByText("Экзамен завершён")).toBeVisible();
   } else {
@@ -169,6 +196,7 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
     expect(await page.getByText("Завершён", { exact: true }).getAttribute("class")).not.toMatch(/rose|red/);
     await expect(header(page).locator("div[class*='gradient-to-r']")).toHaveCount(0);
     await expect(block(page).getByRole("button")).toHaveCount(2);                   // «Открыть отчёт» and «⋯»
+    await oneRow(page);
     await block(page).getByRole("button", { name: "Открыть отчёт" }).click();
     await expect(page.getByText(/Сдали порог \(≥70%\)/)).toBeVisible();            // the tab «Результаты и аналитика»
     await page.getByRole("button", { name: /Лобби \/ Live/ }).click();

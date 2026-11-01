@@ -36,6 +36,7 @@ import {
   Clock,
   BookOpen,
   Copy,
+  Link2,
   Check,
   QrCode,
   Layers,
@@ -907,6 +908,36 @@ export default function ExamHubPage() {
                   label="Опции экзамена"
                   className="bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 space-y-0.5 text-xs"
                 >
+                      {!isPrintDelivery && exam.status === "active" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setCloseError(null);
+                            setShowCloseConfirm(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-rose-700 hover:bg-rose-50 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <StopCircle className="w-4 h-4 text-rose-600" />
+                          Завершить досрочно
+                        </button>
+                      )}
+
+                      {!isPrintDelivery && exam.access_code && exam.status === "active" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            handleCopyLink();
+                            showToast("Ссылка скопирована", "success");
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Copy className="w-4 h-4 text-primary-500" />
+                          Скопировать ссылку для учеников
+                        </button>
+                      )}
+
                       {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
                         <button
                           type="button"
@@ -924,6 +955,8 @@ export default function ExamHubPage() {
                           </span>
                         </button>
                       )}
+
+                      {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && <div className="border-t border-slate-100 my-1" />}
 
                       {canRename && (
                         <button
@@ -1358,8 +1391,8 @@ export default function ExamHubPage() {
             </div>
           )}
           {/* The LIVE BLOCK: the counters of the room and EVERY action of the exam (the header above has none): one main action by status, one quiet link, «⋯». */}
-          <div data-testid="exam-live-block" className="relative flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4 pr-10 sm:pr-0">
+          <div data-testid="exam-live-block" className="flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4 lg:flex-1">
               <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black text-xl shrink-0">
                 {totalConnected}
               </div>
@@ -1382,46 +1415,49 @@ export default function ExamHubPage() {
             </div>
 
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
-              {/* the running exam: the timer, and under it the quiet early finish */}
+
+            {/* ONE row from 1024 px (counter · caption · plate · main action · «⋯»); on a phone the second row: the plate and the actions side by side, «⋯» at the right */}
+            <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap lg:shrink-0 lg:justify-end">
+              {/* the plate: the time left of a running exam / the length of a lobby / the end of a finished one */}
               {exam.status === "active" && (
-                <div className="flex flex-col items-stretch gap-1.5 sm:items-center">
-                  <div className="flex items-center gap-3 self-stretch rounded-2xl border border-amber-200/90 bg-amber-50/90 px-4 py-2.5 shadow-2xs">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100/80 text-amber-700">
-                      <Clock className="h-5 w-5 animate-pulse" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-xs font-semibold text-amber-600">Осталось времени</p>
-                      <p className="text-lg font-black font-mono leading-tight text-amber-950 sm:text-xl">
-                        {formatRemainingTimer(timeRemaining)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={actionLoading}
-                    onClick={() => { setCloseError(null); setShowCloseConfirm(true); }}
-                    icon={<StopCircle className="h-4 w-4 text-rose-600" />}
-                    className="w-full text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
-                  >
-                    Завершить досрочно
-                  </Button>
+                <div className="flex items-center gap-2 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3.5 py-2 whitespace-nowrap">
+                  <Clock className="h-4 w-4 shrink-0 animate-pulse text-amber-700" />
+                  <span className="text-xs font-semibold text-amber-700">Осталось</span>
+                  <span className="font-mono text-base font-black leading-none text-amber-950">{formatRemainingTimer(timeRemaining)}</span>
                 </div>
               )}
 
               {exam.status === "lobby" && (
-                <div className="flex items-center gap-2 self-start rounded-xl border border-indigo-200/80 bg-indigo-50 px-3.5 py-2 sm:self-auto">
+                <div title="Длительность экзамена" className="flex items-center gap-2 rounded-xl border border-indigo-200/80 bg-indigo-50 px-3.5 py-2 whitespace-nowrap">
                   <Clock className="h-4 w-4 text-indigo-600" />
-                  <span className="text-xs font-bold text-indigo-900">Длительность: {exam.total_time_minutes} мин</span>
+                  <span className="text-xs font-bold text-indigo-900">{exam.total_time_minutes} мин</span>
                 </div>
               )}
 
               {exam.status === "closed" && (
-                <div className="flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 sm:self-auto">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 whitespace-nowrap">
                   <CheckCircle2 className="h-4 w-4 text-slate-600" />
                   <span className="text-xs font-bold text-slate-700">Экзамен завершён</span>
                 </div>
+              )}
+
+              {/* lobby: the quiet link (a running exam keeps it in «⋯») */}
+              {exam.access_code && exam.status === "lobby" && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={handleCopyLink}
+                  title="Скопировать ссылку для учеников"
+                  aria-label="Скопировать ссылку для учеников"
+                  icon={
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                      {copiedLink ? <Check className="h-4 w-4 animate-in zoom-in-50 text-emerald-600 duration-150" /> : <Link2 className="h-4 w-4" />}
+                    </span>
+                  }
+                  className={cn("whitespace-nowrap", copiedLink ? "text-emerald-700" : "")}
+                >
+                  {copiedLink ? "Скопировано" : "Ссылка"}
+                </Button>
               )}
 
               {/* the main action by status (a template without a group binds the group in the yellow notice above) */}
@@ -1432,7 +1468,7 @@ export default function ExamHubPage() {
                   loading={actionLoading}
                   onClick={handleStartLive}
                   icon={<Play className="h-4 w-4 fill-white" />}
-                  className="w-full font-bold shadow-md shadow-primary-500/20 sm:w-auto"
+                  className="flex-1 whitespace-nowrap font-bold shadow-md shadow-primary-500/20 sm:flex-none"
                 >
                   Начать экзамен
                 </Button>
@@ -1445,7 +1481,7 @@ export default function ExamHubPage() {
                   loading={actionLoading}
                   onClick={handleOpenLobby}
                   icon={<Radio className="h-4 w-4" />}
-                  className="w-full font-bold shadow-md shadow-primary-500/20 sm:w-auto"
+                  className="flex-1 whitespace-nowrap font-bold shadow-md shadow-primary-500/20 sm:flex-none"
                 >
                   Открыть лобби
                 </Button>
@@ -1457,29 +1493,13 @@ export default function ExamHubPage() {
                   size="md"
                   onClick={() => setActiveTab("analytics")}
                   icon={<FileBarChart2 className="h-4 w-4" />}
-                  className="w-full font-bold sm:w-auto"
+                  className="flex-1 whitespace-nowrap font-bold sm:flex-none"
                 >
                   Открыть отчёт
                 </Button>
               )}
 
-              {exam.access_code && ["lobby", "active"].includes(exam.status) && (
-                <Button
-                  variant="ghost"
-                  size="md"
-                  onClick={handleCopyLink}
-                  icon={
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                      {copiedLink ? <Check className="h-4 w-4 animate-in zoom-in-50 text-emerald-600 duration-150" /> : <Copy className="h-4 w-4" />}
-                    </span>
-                  }
-                  className={cn("w-full sm:w-auto", copiedLink ? "text-emerald-700" : "")}
-                >
-                  {copiedLink ? "Ссылка скопирована" : "Ссылка для учеников"}
-                </Button>
-              )}
-
-              {actionsMenu("absolute right-4 top-4 sm:static")}
+              {actionsMenu("ml-auto lg:ml-0")}
             </div>
           </div>
 

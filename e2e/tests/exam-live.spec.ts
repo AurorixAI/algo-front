@@ -127,15 +127,18 @@ test("finish early: the dialog asks, «Отмена» changes nothing, «Зав�
   await tp.goto(`/teacher/exams/${draft.exam_id}`);
   const block = tp.getByTestId("exam-live-block");
   await block.getByRole("button", { name: "Начать экзамен" }).click();                  // the start is in the live block
-  await expect(block.getByText("Осталось времени")).toBeVisible();
+  await expect(block.getByText("Осталось")).toBeVisible();
   tp.once("dialog", () => { throw new Error("a native dialog was opened"); });
-  await block.getByRole("button", { name: "Завершить досрочно" }).click();
+  await expect(block.getByRole("button", { name: "Завершить досрочно" })).toHaveCount(0);   // it is in «⋯» now
+  await block.getByRole("button", { name: "Опции экзамена" }).click();
+  await tp.locator("#exam-actions-menu").getByRole("button", { name: "Завершить досрочно" }).click();
   const dialog = tp.getByRole("dialog", { name: "Завершить досрочно" });
   await expect(dialog.getByText("Ученики ещё пишут. Завершить экзамен для всех?")).toBeVisible();
   await dialog.getByRole("button", { name: "Отмена" }).click();
   await expect(dialog).toHaveCount(0);
   expect((await api.call<any>("GET", `/exams/${draft.exam_id}`)).status).toBe("active");
-  await block.getByRole("button", { name: "Завершить досрочно" }).click();
+  await block.getByRole("button", { name: "Опции экзамена" }).click();
+  await tp.locator("#exam-actions-menu").getByRole("button", { name: "Завершить досрочно" }).click();
   await tp.getByRole("dialog", { name: "Завершить досрочно" }).getByRole("button", { name: "Завершить", exact: true }).click();
   await expect(block.getByText("Экзамен завершён")).toBeVisible();
   expect((await api.call<any>("GET", `/exams/${draft.exam_id}`)).status).toBe("closed");
