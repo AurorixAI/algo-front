@@ -53,7 +53,7 @@ test("the dialog asks only what the server asked, and sends the flag only on Â«Ð
   const dialog = read("src/components/payroll/payout-dialog.tsx");
   assert.doesNotMatch(dialog, /payoutOverpay\(/, "no client-side pre-question: the screen's balance may be stale, the server counts under the lock");
   assert.doesNotMatch(dialog, /confirming/, "the old client-side confirmation state is gone");
-  assert.match(dialog, /failure\.kind === "overpay_confirm" && failure\.overpay !== null\) setOverpay\(failure\.overpay\)/);
+  assert.match(dialog, /failure\.kind === "overpay_confirm" && failure\.overpay !== null\) \{[^}]*firstSend\.current = null;[^}]*setOverpay\(failure\.overpay\)/);
   assert.match(dialog, /void send\(null\)/, "the first send never carries the flag");
   assert.match(dialog, /onClick=\{overpay !== null \? \(\) => void send\(overpay\) : undefined\}/, "only the button of the question confirms, with the sum it showed");
   assert.match(dialog, /PAYOUT_ADVANCE_HINT/, "the window says what the advance does");
