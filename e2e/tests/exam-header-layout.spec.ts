@@ -42,6 +42,13 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
     await page.goto(who === "teacher" ? `/teacher/exams/${examId}` : `/admin/exams/${examId}`);
     const title = page.getByRole("heading", { level: 1, name: LONG_TITLE });
     await expect(title).toBeVisible();
+    if (checks && !desktop && who === "teacher") {
+      // on a phone the breadcrumb is one short line: «← Экзамены», without the title
+      const crumb = page.getByTestId("exam-back-link");
+      await expect(crumb).toBeVisible();
+      expect((await crumb.innerText()).trim()).toBe("Экзамены");               // the visible text only
+      expect((await crumb.boundingBox())!.height, "the breadcrumb is one line").toBeLessThan(32);
+    }
     if (checks && desktop) {
       // the title is not squeezed into a column of one or two words: it is wide, and takes at most two lines
       const box = (await title.boundingBox())!;

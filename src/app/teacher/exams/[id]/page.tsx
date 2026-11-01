@@ -1053,12 +1053,14 @@ export default function ExamHubPage() {
     <div className="w-full max-w-[1400px] mx-auto space-y-6">
       {/* ─── Breadcrumbs ─── */}
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link href={backHref} className="hover:text-slate-900 flex items-center gap-1.5 transition-colors font-medium">
-          <ArrowLeft className="w-4 h-4" />
-          {backLabel}
+        <Link href={backHref} data-testid="exam-back-link" className="hover:text-slate-900 flex items-center gap-1.5 transition-colors font-medium whitespace-nowrap">
+          <ArrowLeft className="w-4 h-4 shrink-0" />
+          {/* on a phone one short line: the way back only (the title is in the header below) */}
+          <span className="sm:hidden">{backLabel.startsWith("Назад в группу") ? "Группа" : "Экзамены"}</span>
+          <span className="hidden sm:inline">{backLabel}</span>
         </Link>
-        <span className="text-slate-300">/</span>
-        <span className="text-slate-900 font-semibold truncate max-w-md">{exam.title}</span>
+        <span className="hidden text-slate-300 sm:inline">/</span>
+        <span className="hidden max-w-md truncate font-semibold text-slate-900 sm:inline">{exam.title}</span>
       </div>
 
       {/* ─── Exam Profile Header Card ─── */}
