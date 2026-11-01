@@ -254,13 +254,12 @@ export const SESSION_ENDED_CODE = "session_ended";
  */
 async function apiErrorOf(
   response: Response,
-  context: { method: string; endpoint: string; fallback: string; russianOnly?: boolean },
+  context: { method: string; endpoint: string; fallback: string },
 ): Promise<ApiError> {
   const parsed = parseErrorBody(await readErrorBody(response));
   recordClientError(response.status, context.method, context.endpoint);
-  let message = errorMessageOf(parsed, context.fallback);
-  // a file screen shows the person a sentence, not a framework default («Field required», «Not Found»): the Russian fallback stands in for it
-  if (context.russianOnly && !/[а-яё]/i.test(message)) message = context.fallback;
+  // a sentence for people only: the server's Russian text, else the screen's own fallback, else the phrase of the status (lib/error-body.ts)
+  const message = errorMessageOf(parsed, context.fallback, response.status, context.fallback !== SERVICE_UNAVAILABLE_MESSAGE);
   return new ApiError(response.status, message, parsed.code, parsed.action, parsed.detail);
 }
 
@@ -560,7 +559,7 @@ async function downloadExamPrintPdf(
   const path = `/exams/${encodePathId(examId)}/print-package/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
-  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать печатный файл. Повторите попытку.", russianOnly: true });
+  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать печатный файл. Повторите попытку." });
 
   saveBlobAs(await response.blob(), `${kind === "teacher-key" ? "algo-key" : "algo-exam"}-${examId}-v${variantNumber}.pdf`);
 }
@@ -579,7 +578,7 @@ async function previewExamPrintPdf(
   const path = `/exams/${encodePathId(examId)}/print-preview/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
-  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать предпросмотр печатного бланка. Повторите попытку.", russianOnly: true });
+  if (!response.ok) throw await apiErrorOf(response, { method: "GET", endpoint: path, fallback: "Не удалось сформировать предпросмотр печатного бланка. Повторите попытку." });
 
   return response.blob();
 }
@@ -2004,7 +2003,7 @@ export const orgApi = {
       credentials: "include",
       cache: "no-store",
     });
-    if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint: "/auth/org/import/template", fallback: "Не удалось скачать шаблон", russianOnly: true });
+    if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint: "/auth/org/import/template", fallback: "Не удалось скачать шаблон" });
     return res.blob();
   },
   importPreview: (file: File) => uploadImport<ImportPreviewResult>("/auth/org/import/preview", file),
@@ -2092,14 +2091,14 @@ async function uploadMultipart<T>(endpoint: string, file: Blob, filename: string
     cache: "no-store",
     body: form,
   });
-  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback, russianOnly: true });
+  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback });
   return (await res.json()) as T;
 }
 
 /** Authenticated binary GET, modelled on downloadExamPrintPdf. */
 async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
-  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback, russianOnly: true });
+  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback });
   return res.blob();
 }
 
@@ -2122,7 +2121,7 @@ function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number;
  */
 async function fetchFile(endpoint: string, fallbackName: string, fallbackError: string): Promise<{ blob: Blob; filename: string }> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
-  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback: fallbackError, russianOnly: true });
+  if (!res.ok) throw await apiErrorOf(res, { method: "GET", endpoint, fallback: fallbackError });
   const blob = await res.blob();
   return { blob, filename: filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackName) };
 }
@@ -2130,7 +2129,7 @@ async function fetchFile(endpoint: string, fallbackName: string, fallbackError: 
 /** DELETE that does not care what (if anything) the server answers on success. */
 async function deleteAuthed(endpoint: string, fallback: string): Promise<void> {
   const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { method: "DELETE", credentials: "include", cache: "no-store" });
-  if (!res.ok) throw await apiErrorOf(res, { method: "DELETE", endpoint, fallback, russianOnly: true });
+  if (!res.ok) throw await apiErrorOf(res, { method: "DELETE", endpoint, fallback });
 }
 
 /** The sentence for an import the server refused without a text of its own (a 422 «Field required», a gateway page). */
@@ -2146,7 +2145,7 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
     cache: "no-store",
     body: form,
   });
-  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback: IMPORT_FILE_FALLBACK, russianOnly: true });
+  if (!res.ok) throw await apiErrorOf(res, { method: "POST", endpoint, fallback: IMPORT_FILE_FALLBACK });
   const text = await res.text();
   try {
     return (text ? JSON.parse(text) : null) as T;

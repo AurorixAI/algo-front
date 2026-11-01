@@ -62,7 +62,7 @@ function checkShapes(E) {
     assert.ok(!/\[object Object\]|{"|\[{/.test(text), `${name}: unreadable text «${text}»`);
   }
   assert.equal(E.errorMessageOf(E.parseErrorBody({ detail: [{ msg: "Нужен файл" }] }), "x"), "Нужен файл");
-  assert.equal(E.errorMessageOf(E.parseErrorBody({ detail: [{ msg: "A" }, { msg: "B" }] }), "x"), "A; B");
+  assert.equal(E.errorMessageOf(E.parseErrorBody({ detail: [{ msg: "Раз" }, { msg: "Два" }] }), "x"), "Раз; Два");
   assert.equal(E.errorMessageOf(E.parseErrorBody({}), "ЗАПАСНОЙ"), "ЗАПАСНОЙ");
 }
 
@@ -71,12 +71,12 @@ test("parseErrorBody understands every shape of a failed answer and never prints
 });
 
 test("MUTATION: a reader that prints String(item) for a list item without msg fails the shapes", () => {
-  const E = loadMutated("src/lib/error-body.ts", 'const text = typeof entry.msg === "string" ? entry.msg.trim() : "";', 'const text = String(entry.msg ?? entry);');
+  const E = loadMutated("src/lib/error-body.ts", 'const text = typeof entry.msg === "string" ? stripValueError(entry.msg) : "";', 'const text = String(entry.msg ?? entry);');
   assert.throws(() => checkShapes(E));
 });
 
 test("MUTATION: a reader that stringifies an object detail fails the shapes", () => {
-  const E = loadMutated("src/lib/error-body.ts", 'if (typeof entry.message === "string") result.message = entry.message.trim();', 'result.message = typeof entry.message === "string" ? entry.message.trim() : JSON.stringify(entry);');
+  const E = loadMutated("src/lib/error-body.ts", 'if (typeof entry.message === "string") result.message = stripValueError(entry.message);', 'result.message = typeof entry.message === "string" ? entry.message.trim() : JSON.stringify(entry);');
   assert.throws(() => checkShapes(E));
 });
 
@@ -224,6 +224,51 @@ test("a download failure shows the server's Russian text, and a framework defaul
   world({ "/auth/org/import/template": [404, { detail: "Not Found" }] });
   api = loadApi();
   assert.equal((await failure(() => api.orgApi.downloadImportTemplate())).message, "Не удалось скачать шаблон");
+});
+
+const ENGLISH_CASES = [
+  // [name, status, body, expected sentence]
+  ["a validator's Russian text with the framework prefix", 422, { detail: [{ loc: ["body", "amount"], msg: "Value error, Сумма должна быть больше нуля" }] }, "Сумма должна быть больше нуля"],
+  ["the prefix on a string detail", 400, { detail: "Value error, Нельзя так" }, "Нельзя так"],
+  ["English items are dropped, a Russian one stays", 422, { detail: [{ msg: "Field required" }, { msg: "Input should be a valid integer" }, { msg: "Укажите класс" }] }, "Укажите класс"],
+  ["a 422 list with nothing Russian -> the phrase of the status", 422, { detail: [{ loc: ["body", "x"], msg: "Input should be greater than or equal to 1" }] }, "Проверьте заполнение полей"],
+  ["404 «Not Found»", 404, { detail: "Not Found" }, "Не найдено"],
+  ["403 «Forbidden»", 403, { detail: "Forbidden" }, "Нет доступа"],
+  ["409 English", 409, { detail: "Conflict" }, "Данные изменились — обновите страницу"],
+  ["500 English", 500, { detail: "Internal Server Error" }, "Сервис временно недоступен"],
+  ["{code} without a message and a code we do not know -> by the status", 409, { detail: { code: "SOMETHING_NEW", action: "reload" } }, "Данные изменились — обновите страницу"],
+  ["{code} without a message and a known code -> by the code", 409, { detail: { code: "EXAM_NOT_ARCHIVED" } }, "Экзамен уже не в архиве. Обновите страницу."],
+  ["a Russian text is shown as it is", 409, { detail: "Группа заполнена" }, "Группа заполнена"],
+  ["a body that is not JSON", 502, "<html>Bad Gateway</html>", "Сервис временно недоступен"],
+];
+
+test("R3 #3: English never reaches a person - the same rule for the account API, the exam service and the diagnostic service", async () => {
+  for (const [name, status, body, expected] of ENGLISH_CASES) {
+    world({ "/auth/me": [status, body], "/exams/E1/close": [status, body], "/diagnostic/sessions/by-invite": [status, body] });
+    const { authApi, examsApi, diagnosticApi } = loadApi();
+    const got = [
+      (await failure(() => authApi.me())).message,
+      (await failure(() => examsApi.close("E1"))).message,
+      (await failure(() => diagnosticApi.resolveSession("A"))).message,
+    ];
+    assert.deepEqual(got, [expected, expected, expected], name);
+  }
+});
+
+test("R3 #3: the fields to highlight are kept (the prefix cut, English texts left to the Russian filter of the form)", () => {
+  const E = lib("error-body.ts");
+  const parsed = E.parseErrorBody({ detail: [{ loc: ["body", "amount"], msg: "Value error, Сумма должна быть больше нуля" }, { loc: ["body", "name"], msg: "Field required" }] });
+  assert.deepEqual(parsed.fields, { amount: "Сумма должна быть больше нуля", name: "Field required" });
+  assert.equal(E.stripValueError("Value error, Текст"), "Текст");
+  assert.equal(E.stripValueError("value error,Текст"), "Текст");
+  assert.equal(E.stripValueError("Обычный текст"), "Обычный текст");
+});
+
+test("MUTATION: a rule that shows the server's text whatever the language fails the English cases", () => {
+  const E = loadMutated("src/lib/error-body.ts", "if (parsed.message && CYRILLIC.test(parsed.message)) return parsed.message;", "if (parsed.message) return parsed.message;");
+  assert.equal(E.errorMessageOf(E.parseErrorBody({ detail: "Not Found" }), "x", 404), "Not Found", "the mutation lets English through");
+  const real = lib("error-body.ts");
+  assert.equal(real.errorMessageOf(real.parseErrorBody({ detail: "Not Found" }), "x", 404), "Не найдено");
 });
 
 test("BUG-3: after a dead session api() rejects with the 401 ApiError, never `undefined`", async () => {

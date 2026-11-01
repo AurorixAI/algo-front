@@ -36,10 +36,17 @@ export function fieldOf(loc: unknown): string | null {
   return parts.length ? parts.join(".") : null;
 }
 
+const CYRILLIC = /[а-яё]/i;
+
+/** The framework puts «Value error, » in front of the text a validator raised: it is not part of the sentence. */
+export function stripValueError(text: string): string {
+  return text.replace(/^\s*Value error,\s*/i, "").trim();
+}
+
 function takeFields(into: Record<string, string>, source: unknown): void {
   if (!source || typeof source !== "object" || Array.isArray(source)) return;
   for (const [name, text] of Object.entries(source as Record<string, unknown>)) {
-    const value = Array.isArray(text) ? text.filter((part) => typeof part === "string").join(" ") : typeof text === "string" ? text : "";
+    const value = stripValueError(Array.isArray(text) ? text.filter((part) => typeof part === "string").join(" ") : typeof text === "string" ? text : "");
     if (value) into[name] = value;
   }
 }
@@ -50,23 +57,23 @@ export function parseErrorBody(body: unknown): ParsedErrorBody {
   const result: ParsedErrorBody = { message: "", issues: [], fields: {}, detail: "detail" in root ? root.detail : undefined };
 
   if (typeof detail === "string") {
-    result.message = detail.trim();
+    result.message = stripValueError(detail);
   } else if (Array.isArray(detail)) {
     for (const item of detail) {
       if (typeof item === "string") {
-        if (item.trim()) result.issues.push(item.trim());
+        if (stripValueError(item)) result.issues.push(stripValueError(item));
         continue;
       }
       if (!item || typeof item !== "object") continue;
       const entry = item as Record<string, unknown>;
-      const text = typeof entry.msg === "string" ? entry.msg.trim() : "";
+      const text = typeof entry.msg === "string" ? stripValueError(entry.msg) : "";
       if (text) result.issues.push(text);
       const field = fieldOf(entry.loc);
       if (field && !(field in result.fields)) result.fields[field] = text;
     }
   } else if (detail && typeof detail === "object") {
     const entry = detail as Record<string, unknown>;
-    if (typeof entry.message === "string") result.message = entry.message.trim();
+    if (typeof entry.message === "string") result.message = stripValueError(entry.message);
     if (typeof entry.code === "string") result.code = entry.code;
     if (typeof entry.action === "string") result.action = entry.action;
     takeFields(result.fields, entry.fields);
@@ -79,9 +86,40 @@ export function parseErrorBody(body: unknown): ParsedErrorBody {
   return result;
 }
 
-/** The text to show: the server's own, else the joined validation list, else `fallback`.  Always a string, never an object. */
-export function errorMessageOf(parsed: ParsedErrorBody, fallback: string): string {
-  return parsed.message || parsed.issues.join("; ") || fallback;
+/** What a person is told when the server sent no sentence in Russian: by the machine code of the answer when we know it, else by the status. */
+const CODE_TEXT: Record<string, string> = {
+  IMPORT_IN_PROGRESS: "Импорт уже идёт. Подождите минуту и повторите.",
+  EXAM_NOT_ARCHIVED: "Экзамен уже не в архиве. Обновите страницу.",
+  DUPLICATE_PAYMENT: "Эта оплата уже внесена",
+  DUPLICATE_PAYOUT: "Эта выплата уже внесена",
+};
+
+/** A calm phrase for a status (the server's own English default is never shown); null for a status with no common meaning. */
+export function statusPhrase(status: number | undefined): string | null {
+  if (status === undefined) return null;
+  if (status === 401) return "Сессия закончилась. Войдите снова.";
+  if (status === 403) return "Нет доступа";
+  if (status === 404) return "Не найдено";
+  if (status === 409) return "Данные изменились — обновите страницу";
+  if (status === 400 || status === 422) return "Проверьте заполнение полей";
+  if (status === 429) return "Слишком много попыток. Повторите позже.";
+  if (status === 0 || status >= 500) return "Сервис временно недоступен";
+  return null;
+}
+
+/**
+ * The text to show a person.  Only a sentence with Cyrillic in it is shown (a framework default such as «Not Found», «Field required»
+ * is not for people); the validators' «Value error, » prefix is cut.  Order: the server's own Russian sentence, the Russian items
+ * of a validation list, the text of the machine `code`, `specific` (a screen's own sentence, e.g. «Не удалось скачать шаблон»),
+ * the phrase of the status, the plain `fallback`.
+ */
+export function errorMessageOf(parsed: ParsedErrorBody, fallback: string, status?: number, specific = false): string {
+  if (parsed.message && CYRILLIC.test(parsed.message)) return parsed.message;
+  const russian = parsed.issues.filter((item) => CYRILLIC.test(item));
+  if (russian.length) return russian.join("; ");
+  if (parsed.code && CODE_TEXT[parsed.code]) return CODE_TEXT[parsed.code];
+  if (specific) return fallback;
+  return statusPhrase(status) ?? fallback;
 }
 
 /** The JSON body of a non-OK response (`null` when it is empty, not JSON or unreadable).  Works with a bare `{json}` fake as well. */
