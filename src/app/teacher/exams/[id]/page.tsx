@@ -73,7 +73,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal, useScrollLock } from "@/components/ui/modal";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -646,14 +646,19 @@ export default function ExamHubPage() {
     }
   };
 
+  // «Завершить досрочно»: the confirmation is a dialog of the page (not the browser's confirm); the request is in flight at most once.
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
   const handleCloseExam = async () => {
-    if (!confirm("Вы уверены, что хотите завершить экзамен? Студенты больше не смогут вносить ответы.")) return;
+    if (actionLoading) return;
     setActionLoading(true);
+    setCloseError(null);
     try {
       await examsApi.close(examId);
       setExam((prev) => (prev ? { ...prev, status: "closed" } : null));
+      setShowCloseConfirm(false);
     } catch (err: any) {
-      alert("Ошибка при завершении экзамена: " + (err.message || ""));
+      setCloseError(err?.message || "Не удалось завершить экзамен. Повторите попытку.");
     } finally {
       setActionLoading(false);
     }
@@ -876,159 +881,9 @@ export default function ExamHubPage() {
     isPrintDelivery ? null : `порог ${examPassThreshold(exam)}%`,
   ].filter((part): part is string => Boolean(part));
 
-  return (
-    <div className="w-full max-w-[1400px] mx-auto space-y-6">
-      {/* ─── Breadcrumbs ─── */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link href={backHref} className="hover:text-slate-900 flex items-center gap-1.5 transition-colors font-medium">
-          <ArrowLeft className="w-4 h-4" />
-          {backLabel}
-        </Link>
-        <span className="text-slate-300">/</span>
-        <span className="text-slate-900 font-semibold truncate max-w-md">{exam.title}</span>
-      </div>
-
-      {/* ─── Exam Profile Header Card ─── */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl border border-slate-200/80 shadow-xs relative"
-      >
-        <div className="p-6 md:p-7">
-          {/* Title, one status and one quiet line of facts take the whole width; the actions (one main button, one quiet link, «⋯») sit in a row
-              under them, and beside them only from 1440 px, where the title column still keeps 30rem. */}
-          <div className="flex flex-col gap-5 min-[1440px]:flex-row min-[1440px]:items-center min-[1440px]:justify-between">
-            {/* Left Side: Icon + Title + Status + Facts */}
-            <div className="flex min-w-0 items-start gap-4 sm:gap-5 min-[1440px]:min-w-[30rem] min-[1440px]:flex-1">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
-                <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
-              </div>
-
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                  <h1 className="min-w-0 break-words text-lg sm:text-2xl font-medium text-slate-800 tracking-[-0.02em] leading-snug">
-                    {exam.title}
-                  </h1>
-                  {exam.is_pinned && (
-                    <Pin className="h-4 w-4 shrink-0 fill-amber-500 text-amber-500" aria-label="Экзамен закреплён вверху списка" />
-                  )}
-                  {/* The ONE coloured element of the header. A print package has its own workspace below, so no status here. */}
-                  {headerStatus && (
-                    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap", headerStatus.pill)}>
-                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", headerStatus.dot)} />
-                      {headerStatus.label}
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-sm text-slate-500" title={boundLessonRoom ? `Занятие: ${boundLessonLabel} · ${boundLessonRoom}` : undefined}>
-                  {headerFacts.join(" · ")}
-                </p>
-              </div>
-            </div>
-
-            {/* Right Side: the main action, the quiet link, «⋯» */}
-            <div className="flex flex-wrap items-center gap-2.5 min-[1440px]:shrink-0 min-[1440px]:flex-nowrap">
-              {!exam.group_id ? (
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
-                  icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                  className="font-bold shadow-sm"
-                >
-                  {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию" : isPrintDelivery ? "Подготовить печатный комплект" : "Привязать группу"}
-                </Button>
-              ) : (
-                <>
-                  {exam.status === "lobby" && !isPastUnstartedDelivery && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      loading={actionLoading}
-                      onClick={handleStartLive}
-                      icon={<Play className="w-4 h-4 fill-white" />}
-                      className="shadow-md shadow-primary-500/20 font-bold"
-                    >
-                      Начать экзамен
-                    </Button>
-                  )}
-
-                  {exam.status === "active" && (
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      loading={actionLoading}
-                      onClick={handleCloseExam}
-                      icon={<StopCircle className="w-4 h-4 text-rose-600" />}
-                      className="text-rose-700 hover:bg-rose-50 border-rose-200 font-bold"
-                    >
-                      {isPrintDelivery ? "Завершить экзамен на бумаге" : "Завершить экзамен"}
-                    </Button>
-                  )}
-
-                  {isPrintDelivery && exam.status === "print_ready" && !isPastUnstartedDelivery && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      loading={actionLoading}
-                      onClick={handleStartLive}
-                      icon={<Play className="w-4 h-4 fill-white" />}
-                      className="shadow-md shadow-primary-500/20 font-bold"
-                    >
-                      Начать на бумаге
-                    </Button>
-                  )}
-
-                  {(exam.status === "draft" || exam.status === "variants_ready") && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      loading={actionLoading}
-                      onClick={isPrintDelivery && hasVoidedPrintPackage ? handleClone : isPrintDelivery ? () => setShowScheduleModal(true) : handleOpenLobby}
-                      icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
-                      className="shadow-md shadow-primary-500/20 font-bold"
-                    >
-                      {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию для занятия" : isPrintDelivery ? "Подготовить печатный комплект" : "Открыть лобби"}
-                    </Button>
-                  )}
-
-                  {exam.status === "closed" && !isPrintDelivery && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={() => setActiveTab("analytics")}
-                      icon={<FileBarChart2 className="w-4 h-4" />}
-                      className="font-bold"
-                    >
-                      Отчёт
-                    </Button>
-                  )}
-
-                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
-                    <Button
-                      variant="ghost"
-                      size="md"
-                      onClick={handleCopyLink}
-                      icon={
-                        <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                          {copiedLink ? (
-                            <Check className="w-4 h-4 text-emerald-600 animate-in zoom-in-50 duration-150" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </span>
-                      }
-                      className={copiedLink ? "text-emerald-700" : ""}
-                    >
-                      {copiedLink ? "Ссылка скопирована" : "Ссылка для учеников"}
-                    </Button>
-                  )}
-                </>
-              )}
-
-              {/* 3-dots Dropdown Menu */}
-              <div className="relative">
+  // «⋯» of the live block (the header has no buttons): the same list in the same order for every status.
+  const actionsMenu = (wrapperClass = "") => (
+    <div className={cn("relative", wrapperClass)}>
                 <button
                   ref={headerMenuTriggerRef}
                   type="button"
@@ -1126,6 +981,7 @@ export default function ExamHubPage() {
                         </button>
                       )}
 
+                      {exam.status !== "archived" && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1146,8 +1002,9 @@ export default function ExamHubPage() {
                           </>
                         )}
                       </button>
+                      )}
 
-                      <div className="border-t border-slate-100 my-1" />
+                      {exam.status !== "archived" && <div className="border-t border-slate-100 my-1" />}
 
                       {exam.status === "archived" ? (
                         <>
@@ -1189,8 +1046,59 @@ export default function ExamHubPage() {
                         </button>
                       )}
                 </FloatingPanel>
+    </div>
+  );
+
+  return (
+    <div className="w-full max-w-[1400px] mx-auto space-y-6">
+      {/* ─── Breadcrumbs ─── */}
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Link href={backHref} className="hover:text-slate-900 flex items-center gap-1.5 transition-colors font-medium">
+          <ArrowLeft className="w-4 h-4" />
+          {backLabel}
+        </Link>
+        <span className="text-slate-300">/</span>
+        <span className="text-slate-900 font-semibold truncate max-w-md">{exam.title}</span>
+      </div>
+
+      {/* ─── Exam Profile Header Card ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl border border-slate-200/80 shadow-xs relative"
+      >
+        <div className="p-6 md:p-7">
+          {/* Title, one status and one quiet line of facts: no button, no «⋯» here. */}
+          <div>
+            {/* Icon + Title + Status + Facts: the header carries information only, every action lives in the live block of the «Лобби / Live» tab */}
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
+                <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  <h1 className="min-w-0 break-words text-lg sm:text-2xl font-medium text-slate-800 tracking-[-0.02em] leading-snug">
+                    {exam.title}
+                  </h1>
+                  {exam.is_pinned && (
+                    <Pin className="h-4 w-4 shrink-0 fill-amber-500 text-amber-500" aria-label="Экзамен закреплён вверху списка" />
+                  )}
+                  {/* The ONE coloured element of the header. A print package has its own workspace below, so no status here. */}
+                  {headerStatus && (
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap", headerStatus.pill)}>
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", headerStatus.dot)} />
+                      {headerStatus.label}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-sm text-slate-500" title={boundLessonRoom ? `Занятие: ${boundLessonLabel} · ${boundLessonRoom}` : undefined}>
+                  {headerFacts.join(" · ")}
+                </p>
               </div>
             </div>
+
           </div>
         </div>
       </motion.div>
@@ -1356,6 +1264,35 @@ export default function ExamHubPage() {
                     Выбрать занятие
                   </Button>
                 )}
+
+                {/* the actions of the printed exam, by status: one main action and «⋯» (the header has none) */}
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {exam.status === "print_ready" && !isPastUnstartedDelivery && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      loading={actionLoading}
+                      onClick={handleStartLive}
+                      icon={<Play className="h-4 w-4 fill-white" />}
+                      className="font-bold shadow-md shadow-primary-500/20"
+                    >
+                      Начать на бумаге
+                    </Button>
+                  )}
+                  {exam.status === "active" && (
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      loading={actionLoading}
+                      onClick={() => { setCloseError(null); setShowCloseConfirm(true); }}
+                      icon={<StopCircle className="h-4 w-4 text-rose-600" />}
+                      className="border-rose-200 font-bold text-rose-700 hover:bg-rose-50"
+                    >
+                      Завершить экзамен на бумаге
+                    </Button>
+                  )}
+                  {actionsMenu()}
+                </div>
               </div>
 
               {hasUsablePrintPackage && exam.print_package?.snapshot_sha256 && (
@@ -1418,9 +1355,9 @@ export default function ExamHubPage() {
               </Button>
             </div>
           )}
-          {/* Lobby Status Bar with Live Countdown Timer */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
-            <div className="flex items-center gap-4">
+          {/* The LIVE BLOCK: the counters of the room and EVERY action of the exam (the header above has none): one main action by status, one quiet link, «⋯». */}
+          <div data-testid="exam-live-block" className="relative flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4 pr-10 sm:pr-0">
               <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black text-xl shrink-0">
                 {totalConnected}
               </div>
@@ -1442,36 +1379,106 @@ export default function ExamHubPage() {
               </div>
             </div>
 
-            {/* Right Side: Live Countdown Timer during Active Exam */}
-            {exam.status === "active" && (
-              <div className="flex items-center gap-3 bg-amber-50/90 border border-amber-200/90 py-2.5 px-4 rounded-2xl shrink-0 shadow-2xs self-start sm:self-auto">
-                <div className="w-9 h-9 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700 shrink-0">
-                  <Clock className="w-5 h-5 animate-pulse" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-semibold text-amber-600">Осталось времени</p>
-                  <p className="text-lg sm:text-xl font-black font-mono text-amber-950 leading-tight">
-                    {formatRemainingTimer(timeRemaining)}
-                  </p>
-                </div>
-              </div>
-            )}
 
-            {exam.status === "lobby" && (
-              <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200/80 py-2 px-3.5 rounded-xl shrink-0 self-start sm:self-auto">
-                <Clock className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs font-bold text-indigo-900">
-                  Длительность: {exam.total_time_minutes} мин
-                </span>
-              </div>
-            )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+              {/* the running exam: the timer, and under it the quiet early finish */}
+              {exam.status === "active" && (
+                <div className="flex flex-col items-stretch gap-1.5 sm:items-center">
+                  <div className="flex items-center gap-3 self-stretch rounded-2xl border border-amber-200/90 bg-amber-50/90 px-4 py-2.5 shadow-2xs">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100/80 text-amber-700">
+                      <Clock className="h-5 w-5 animate-pulse" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs font-semibold text-amber-600">Осталось времени</p>
+                      <p className="text-lg font-black font-mono leading-tight text-amber-950 sm:text-xl">
+                        {formatRemainingTimer(timeRemaining)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={actionLoading}
+                    onClick={() => { setCloseError(null); setShowCloseConfirm(true); }}
+                    icon={<StopCircle className="h-4 w-4 text-rose-600" />}
+                    className="w-full text-rose-700 hover:bg-rose-50 hover:text-rose-800 sm:w-auto"
+                  >
+                    Завершить досрочно
+                  </Button>
+                </div>
+              )}
 
-            {exam.status === "closed" && (
-              <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 py-2 px-3.5 rounded-xl shrink-0 self-start sm:self-auto">
-                <CheckCircle2 className="w-4 h-4 text-slate-600" />
-                <span className="text-xs font-bold text-slate-700">Экзамен завершён</span>
-              </div>
-            )}
+              {exam.status === "lobby" && (
+                <div className="flex items-center gap-2 self-start rounded-xl border border-indigo-200/80 bg-indigo-50 px-3.5 py-2 sm:self-auto">
+                  <Clock className="h-4 w-4 text-indigo-600" />
+                  <span className="text-xs font-bold text-indigo-900">Длительность: {exam.total_time_minutes} мин</span>
+                </div>
+              )}
+
+              {exam.status === "closed" && (
+                <div className="flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 sm:self-auto">
+                  <CheckCircle2 className="h-4 w-4 text-slate-600" />
+                  <span className="text-xs font-bold text-slate-700">Экзамен завершён</span>
+                </div>
+              )}
+
+              {/* the main action by status (a template without a group binds the group in the yellow notice above) */}
+              {exam.group_id && exam.status === "lobby" && !isPastUnstartedDelivery && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={actionLoading}
+                  onClick={handleStartLive}
+                  icon={<Play className="h-4 w-4 fill-white" />}
+                  className="w-full font-bold shadow-md shadow-primary-500/20 sm:w-auto"
+                >
+                  Начать экзамен
+                </Button>
+              )}
+
+              {exam.group_id && (exam.status === "draft" || exam.status === "variants_ready") && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={actionLoading}
+                  onClick={handleOpenLobby}
+                  icon={<Radio className="h-4 w-4" />}
+                  className="w-full font-bold shadow-md shadow-primary-500/20 sm:w-auto"
+                >
+                  Открыть лобби
+                </Button>
+              )}
+
+              {exam.status === "closed" && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => setActiveTab("analytics")}
+                  icon={<FileBarChart2 className="h-4 w-4" />}
+                  className="w-full font-bold sm:w-auto"
+                >
+                  Открыть отчёт
+                </Button>
+              )}
+
+              {exam.access_code && ["lobby", "active"].includes(exam.status) && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={handleCopyLink}
+                  icon={
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                      {copiedLink ? <Check className="h-4 w-4 animate-in zoom-in-50 text-emerald-600 duration-150" /> : <Copy className="h-4 w-4" />}
+                    </span>
+                  }
+                  className={cn("w-full sm:w-auto", copiedLink ? "text-emerald-700" : "")}
+                >
+                  {copiedLink ? "Ссылка скопирована" : "Ссылка для учеников"}
+                </Button>
+              )}
+
+              {actionsMenu("absolute right-4 top-4 sm:static")}
+            </div>
           </div>
 
           {/* Student Grid (Kahoot / Live Room Badges) */}
@@ -2542,6 +2549,26 @@ export default function ExamHubPage() {
           />
         )}
       </AnimatePresence>
+
+      <Modal
+        open={showCloseConfirm}
+        title="Завершить досрочно"
+        description={isPrintDelivery ? "Завершить проведение экзамена на бумаге?" : "Ученики ещё пишут. Завершить экзамен для всех?"}
+        onClose={() => setShowCloseConfirm(false)}
+        busy={actionLoading}
+        maxWidthClassName="max-w-md"
+        footer={
+          <>
+            <Button variant="secondary" size="md" onClick={() => setShowCloseConfirm(false)} disabled={actionLoading}>Отмена</Button>
+            <Button variant="danger" size="md" loading={actionLoading} onClick={handleCloseExam}>Завершить</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          {isPrintDelivery ? "Экзамен будет отмечен проведённым." : "Работы, которые ещё не сданы, будут сданы автоматически, дальше ответы вносить нельзя."}
+        </p>
+        {closeError && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{closeError}</p>}
+      </Modal>
 
       <PassThresholdModal
         open={showThresholdModal}

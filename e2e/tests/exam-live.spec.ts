@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org, startLesson } from "../support/api";
-import { ExamApi, STUB_ANSWERS } from "../support/exam";
+import { ExamApi, STUB_ANSWERS, StudentAttempt } from "../support/exam";
 import { expectNoHorizontalScroll } from "../support/ui";
 
 /**
@@ -107,4 +107,36 @@ test("assign to a started lesson -> student joins by code -> teacher starts -> t
   await expect(row).toContainText("67%");
   await expect(row.getByRole("cell", { name: "Работа сдана" })).toBeVisible();
   await expect(tp.getByText("Сдали").locator("xpath=following-sibling::p[1]")).toHaveText("1");
+});
+
+// (appended) «Завершить досрочно» is on the live block of the exam page, behind a dialog of the page
+test("finish early: the dialog asks, «Отмена» changes nothing, «Завершить» ends the exam for everybody @exam", async ({ signIn }) => {
+  const org2 = await Org.create("Досрочно");
+  const teacher = await org2.addStaff("teacher", "Досрочев");
+  const group = await org2.createGroup({ name: "Группа Д1", teacherId: teacher.userId });
+  const student = await org2.addStudent(group, "Ученик", "Пишущий");
+  const lesson = await org2.createLessonStartingNow(group.id, teacher, 45);
+  await startLesson(teacher, lesson);
+  const api = new ExamApi(teacher);
+  const draft = await api.createDraft({ title: "E2E Досрочно", groupId: group.id, tasks: 2 });
+  const published = await api.call<{ access_code: string }>("POST", `/exams/${draft.exam_id}/assign`, {
+    group_id: group.id, publish: true, lesson_id: lesson.id, lesson_date: lesson.date,
+  });
+  await new StudentAttempt(published.access_code).join(`${student.lastName} ${student.firstName}`, student.displayId!);
+  const tp = await signIn(teacher);
+  await tp.goto(`/teacher/exams/${draft.exam_id}`);
+  const block = tp.getByTestId("exam-live-block");
+  await block.getByRole("button", { name: "Начать экзамен" }).click();                  // the start is in the live block
+  await expect(block.getByText("Осталось времени")).toBeVisible();
+  tp.once("dialog", () => { throw new Error("a native dialog was opened"); });
+  await block.getByRole("button", { name: "Завершить досрочно" }).click();
+  const dialog = tp.getByRole("dialog", { name: "Завершить досрочно" });
+  await expect(dialog.getByText("Ученики ещё пишут. Завершить экзамен для всех?")).toBeVisible();
+  await dialog.getByRole("button", { name: "Отмена" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect((await api.call<any>("GET", `/exams/${draft.exam_id}`)).status).toBe("active");
+  await block.getByRole("button", { name: "Завершить досрочно" }).click();
+  await tp.getByRole("dialog", { name: "Завершить досрочно" }).getByRole("button", { name: "Завершить", exact: true }).click();
+  await expect(block.getByText("Экзамен завершён")).toBeVisible();
+  expect((await api.call<any>("GET", `/exams/${draft.exam_id}`)).status).toBe("closed");
 });

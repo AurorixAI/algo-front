@@ -69,6 +69,21 @@ test("threshold 70: students at 55 % and 75 % -> «Аналитика» and «О
     group_id: group.id, publish: true, lesson_id: lesson.id, lesson_date: lesson.date,
   });
   const code = published.access_code;
+
+  // the lobby is not «begun»: the threshold changes through «⋯» of the live block of the exam page
+  await tp.goto(`/teacher/exams/${draft.exam_id}`);
+  await tp.getByTestId("exam-live-block").getByRole("button", { name: "Опции экзамена" }).click();
+  await tp.getByRole("button", { name: "Изменить порог" }).click();
+  const lobbyDialog = tp.getByRole("dialog", { name: "Проходной порог" });
+  await expect(lobbyDialog.getByText("Меняется до начала экзамена")).toBeVisible();
+  await lobbyDialog.getByLabel("Проходной порог, %").fill("75");
+  await lobbyDialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(tp.getByText(/порог 75%/)).toBeVisible();
+  await tp.getByTestId("exam-live-block").getByRole("button", { name: "Опции экзамена" }).click();
+  await tp.getByRole("button", { name: "Изменить порог" }).click();
+  await tp.getByRole("dialog", { name: "Проходной порог" }).getByLabel("Проходной порог, %").fill("70");
+  await tp.getByRole("dialog", { name: "Проходной порог" }).getByRole("button", { name: "Сохранить" }).click();
+  await expect(tp.getByText(/порог 70%/)).toBeVisible();
   const lowAttempt = new StudentAttempt(code);
   const highAttempt = new StudentAttempt(code);
   await lowAttempt.join(`${low.lastName} ${low.firstName}`, low.displayId!);
@@ -99,8 +114,9 @@ test("threshold 70: students at 55 % and 75 % -> «Аналитика» and «О
   expect(refused?.status).toBe(409);
   expect(JSON.stringify(refused?.detail)).toContain(LOCKED);
   expect((await api.call("GET", `/exams/${draft.exam_id}`)).pass_threshold_pct).toBe(70);
-  await tp.getByRole("button", { name: "Опции экзамена" }).click();
-  await expect(tp.getByRole("button", { name: "Изменить название" }).or(tp.getByRole("button", { name: /Создать копию/ })).first()).toBeVisible();
+  await tp.getByRole("button", { name: /Лобби \/ Live/ }).click();                       // the controls are on the live block
+  await tp.getByTestId("exam-live-block").getByRole("button", { name: "Опции экзамена" }).click();
+  await expect(tp.getByRole("button", { name: /Создать копию/ })).toBeVisible();
   await expect(tp.getByRole("button", { name: "Изменить порог" })).toHaveCount(0);
   await tp.keyboard.press("Escape");
 
