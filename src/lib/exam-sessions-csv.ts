@@ -16,9 +16,9 @@ export interface ExamSessionCsvRow {
 
 export const EXAM_SESSIONS_CSV_HEADER = ["Студент", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"];
 
-/** The status as the teacher reads it on the screen («Сдал» / «Проходит»), never the raw `submitted`. */
+/** The status as the teacher reads it on the screen («Работа сдана» / «Проходит»), never the raw `submitted`. */
 export function examSessionStatusLabel(status: string): string {
-  return status === "submitted" ? "Сдал" : "Проходит";
+  return status === "submitted" ? "Работа сдана" : "Проходит";
 }
 
 function formatMinutes(seconds: number): string {
