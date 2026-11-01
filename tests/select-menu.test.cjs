@@ -128,7 +128,7 @@ test("field in sight: a hit on the field or on the list pinned over it keeps the
   assert.equal(isAnchorInSight({ top: 330, bottom: 376, left: 16, right: 344 }, { ...vp, bottom: 340 }, [], "none"), false);
 });
 
-test("every key the Select handles stops bubbling (login form must not submit on Enter while choosing a role)", () => {
+test("every key the Select handles stops bubbling (a form around a Select must not submit on Enter while choosing an option)", () => {
   for (const open of [false, true]) {
     for (const key of ["Enter", " "]) {
       const r = resolveSelectKey(open, key);

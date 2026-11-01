@@ -5,29 +5,21 @@ import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
 import { Checkbox } from "@/components/ui/checkbox";
 import { loginDestination } from "@/lib/login-flow";
 
-const ROLE_OPTIONS = [
-  { value: "owner", label: "Владелец" },
-  { value: "admin", label: "Админ" },
-  { value: "teacher", label: "Учитель" },
-];
-
 // ONE text for "no such account" and "wrong password" (the server answers both alike): the page must not tell which of them it was.
-// K2-2 (F): a person whose PASSWORD WAS RIGHT is told the truth: his account is blocked / closed by the centre (the server says it). A right password with
-// another role in the dropdown is simply a sign-in to his own cabinet (stage walk).
-// «Нет доступа? Запросить демо»: the request form is on the landing.  The link is the relative `/request-demo` of this origin:
+// K2-2 (F): a person whose PASSWORD WAS RIGHT is told the truth: his account is blocked / closed by the centre (the server says it).
+// There is no «Кто входит?» choice (owner 01.11): the server never got it, the account decides the cabinet.
+// «Запросить демо»: the request form is on the landing.  The link is the relative `/request-demo` of this origin:
 // the middleware sends it to the landing, whose address is the RUNTIME variable SITE_URL (one front image on prod and stage, K3 P2).
 const DEMO_REQUEST_URL = "/request-demo";
 
 export default function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore();
-  const [role, setRole] = useState("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -44,8 +36,7 @@ export default function LoginPage() {
     clearError();
     try {
       await login(email, password, rememberMe);  // K2-1 (D): the server keeps the mode (14 days, or until the browser closes)
-      // K2-2 (stage walk): the password was RIGHT, so the person goes to HIS cabinet, whatever the «Кто входит?» above says: the account decides the role
-      // (the server gave it in the answer), not the dropdown. No sign-out, no «выберите роль»: a teacher who left «Владелец» is simply signed in.
+      // The password was RIGHT, so the person goes to HIS cabinet: the account decides the role (the server gave it in the answer).
       const destination = loginDestination(new URLSearchParams(window.location.search).get("redirect"), useAuthStore.getState().user);
 
       // Hard navigation (not router.push) — guarantees a fresh request that
@@ -66,7 +57,6 @@ export default function LoginPage() {
     }
   };
 
-  const isOwner = role === "owner";
   const errorMessage = error;
 
   return (
@@ -110,13 +100,6 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-4" onKeyDown={handleKeyDown}>
-              <Select
-                label="Кто входит?"
-                options={ROLE_OPTIONS}
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              />
-
               <Input
                 label="Email"
                 name="email"
@@ -168,19 +151,16 @@ export default function LoginPage() {
           </GlassCard>
         </motion.div>
 
-        {/* Footer hint — depends on selected role */}
-        <p className="text-center mt-6 text-sm text-slate-500">
-          {isOwner ? (
-            <>
-              Нет доступа?{" "}
-              <a href={DEMO_REQUEST_URL} className="text-primary-600 font-medium hover:underline">
-                Запросить демо
-              </a>
-            </>
-          ) : (
-            "Нет доступа? Обратитесь к владельцу или администратору вашей организации за логином и паролем."
-          )}
-        </p>
+        {/* Footer hint — the same for everyone: the page does not know the role before the password */}
+        <div className="text-center mt-6 text-sm text-slate-500 space-y-1 [text-wrap:balance]">
+          <p>
+            Ещё нет доступа? Центр подключается по заявке —{" "}
+            <a href={DEMO_REQUEST_URL} className="text-primary-600 font-medium hover:underline whitespace-nowrap">
+              Запросить демо
+            </a>
+          </p>
+          <p>Учителя и администраторы получают доступ по приглашению от руководства центра.</p>
+        </div>
       </div>
     </div>
   );
