@@ -21,7 +21,7 @@ import {
 import {
   buildPaymentPayload,
   dueView,
-  newIdempotencyKey, sendKeyFor,
+  newIdempotencyKey,
   payError,
   paymentFormFrom,
   previewAmount,
@@ -50,6 +50,7 @@ import {
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { groupPriceHref } from "@/lib/group-price";
+import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { SegmentedControl } from "@/components/ui/radio";
@@ -81,7 +82,7 @@ interface PaymentDialogProps {
   /** Called right after the server accepted the payment (the list refreshes behind the dialog). */
   onSaved: (result: PaymentSaveResult) => void;
   /** The server already has this payment (a repeated send): the caller refreshes and tells so. */
-  onDuplicate?: () => void;
+  onDuplicate?: (notice: DuplicateNotice) => void;
 }
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -118,7 +119,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const amountInput = useRef<HTMLInputElement | null>(null);
   const noteInput = useRef<HTMLTextAreaElement | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
-  const sentBody = useRef<string | null>(null); // the body of the previous send: a changed body gets a new key (BUG-6)
+  const firstSend = useRef<FirstSend | null>(null); // what the first send of this opening carried (R3: the KEY never changes, only the text of a 409 does)
   const immediate = useRef(false);
 
   useEffect(() => {
@@ -129,7 +130,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     setValues(start);
     setCommentOpen(start.note.trim().length > 0);
     amountTouched.current = kind === "replace";
-    idempotencyKey.current = newIdempotencyKey(); sentBody.current = null;
+    idempotencyKey.current = newIdempotencyKey(); firstSend.current = null;
     setBusy(false);
     setError(null);
     setSaved(null);
@@ -197,10 +198,12 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     if (problem) { setError(problem); return; }
     setBusy(true);
     setError(null);
+    let signature = "";
     try {
       const body = buildPaymentPayload(values);
       const reason = values.reason.trim();
-      sendKeyFor(idempotencyKey, sentBody, JSON.stringify([body, reason]));
+      signature = JSON.stringify([body, reason]);
+      rememberFirstSend(firstSend, signature, body.amount);
       const result = kind === "replace" && payment
         ? await orgApi.replacePayment(payment.id, { ...body, ...(reason ? { reason } : {}) }, idempotencyKey.current)
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);
@@ -211,8 +214,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     } catch (cause) {
       const failure = payError(cause, "Не удалось сохранить оплату");
       if (failure.kind === "duplicate") {
-        // The first send did arrive: there is nothing to enter again.
-        onDuplicate?.();
+        // The first send did arrive: nothing is entered twice; a CHANGED body is told what was recorded (R3)
+        onDuplicate?.(duplicateNotice(firstSend.current, signature, formatMoney, PAYMENT_WORDS));
         onClose();
       } else {
         setError(failure.message);

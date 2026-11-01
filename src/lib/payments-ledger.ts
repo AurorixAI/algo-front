@@ -810,22 +810,6 @@ export function newIdempotencyKey(): string {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
 }
 
-/**
- * WB-P5 (BUG-6): the key of the NEXT send.  The key belongs to one body: a resend of the same body keeps it (the server then
- * recognises the double), but a body the user has CHANGED after a first send whose answer was lost needs a new key - with the old
- * one the server (or `payError().kind === "duplicate"`) would answer «the first send arrived» and the correction would be lost
- * silently.  `sentSignature` is the body of the previous send of this opening (null before the first send).
- */
-export function keyForSend(currentKey: string, sentSignature: string | null, signature: string, make: () => string = newIdempotencyKey): string {
-  return sentSignature === null || sentSignature === signature ? currentKey : make();
-}
-
-/** `keyForSend` over the refs of a dialog: `key` becomes the key of this send, `sent` remembers its body. */
-export function sendKeyFor(key: { current: string }, sent: { current: string | null }, signature: string, make: () => string = newIdempotencyKey): void {
-  key.current = keyForSend(key.current, sent.current, signature, make);
-  sent.current = signature;
-}
-
 // ── Receipt: what the money covered at the moment of payment ───────────────
 
 export interface ReceiptFacts {

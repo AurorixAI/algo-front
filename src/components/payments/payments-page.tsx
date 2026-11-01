@@ -449,7 +449,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
-        onDuplicate={() => { showToast("Эта оплата уже внесена"); afterChange(); }}
+        onDuplicate={(notice) => { showToast(notice.text, notice.tone); afterChange(); }}
       />
       <PaymentVoidModal
         payment={voidTarget?.payment ?? null}

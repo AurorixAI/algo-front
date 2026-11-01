@@ -462,32 +462,68 @@ test("F-A20: the screens that had an alert show the failure as a toast (toastNod
 
 // ── 5. the small items ───────────────────────────────────────────────────────────────────────────────
 
-test("BUG-6: a payment body changed after a first send gets a NEW key; the same body keeps it", () => {
+/** A server that remembers the key of every record it made (payments_service._guard_key / payroll_payouts: 409 on a used key). */
+function moneyServer() {
+  const records = [];
+  return {
+    records,
+    post(key, amount) {
+      if (records.some((r) => r.key === key)) return { status: 409, code: "DUPLICATE_PAYMENT" };
+      records.push({ key, amount });
+      return { status: 201 };
+    },
+  };
+}
+
+test("BUG-6 (rolled back, R3): lost answer -> the sum is corrected -> repeated: NO second payment, the person is told what was recorded", () => {
   const L = lib("payments-ledger.ts");
-  let n = 0;
-  const make = () => `new-${++n}`;
-  assert.equal(L.keyForSend("k1", null, "A", make), "k1", "first send: the key of the opening");
-  assert.equal(L.keyForSend("k1", "A", "A", make), "k1", "a resend of the same body: the server recognises the double");
-  assert.equal(L.keyForSend("k1", "A", "B", make), "new-1", "a corrected body is a new payment attempt");
-  // over the refs of a dialog: send, lose the answer, correct the body, send again
-  const key = { current: "k0" };
-  const sent = { current: null };
-  L.sendKeyFor(key, sent, "A", make);
-  assert.equal(key.current, "k0");
-  L.sendKeyFor(key, sent, "A", make);
-  assert.equal(key.current, "k0", "the same body again: the same key");
-  L.sendKeyFor(key, sent, "B", make);
-  assert.equal(key.current, "new-2");
-  L.sendKeyFor(key, sent, "B", make);
-  assert.equal(key.current, "new-2");
-  for (const file of ["src/components/payments/payment-dialog.tsx", "src/components/payments/pause-dialog.tsx", "src/components/payroll/payout-dialog.tsx"]) {
-    assert.match(read(file), /sendKeyFor\(idempotencyKey, sentBody, JSON\.stringify\(/, file);
-  }
+  const A = lib("send-attempt.ts");
+  const P = lib("payments.ts");
+  const server = moneyServer();
+  const first = { current: null };
+  const key = L.newIdempotencyKey();                       // the dialog opens: ONE key
+  const body500 = JSON.stringify([{ amount: 500000 }, ""]);
+  A.rememberFirstSend(first, body500, 500000);
+  assert.equal(server.post(key, 500000).status, 201);       // it arrived; the answer was lost (the dialog shows «Не удалось подключиться»)
+  const body450 = JSON.stringify([{ amount: 450000 }, ""]);
+  A.rememberFirstSend(first, body450, 450000);              // the person corrects the sum and presses «Внести» again: SAME key
+  const answer = server.post(key, 450000);
+  assert.equal(answer.status, 409);
+  assert.equal(server.records.length, 1, "no second payment");
+  const notice = A.duplicateNotice(first.current, body450, P.formatMoney, A.PAYMENT_WORDS);
+  assert.equal(notice.tone, "warning");
+  assert.match(notice.text.replace(/\u00a0/g, " "), /^Первая отправка уже записана \(500 000 сум\)\. Если сумма неверна — отмените эту оплату в журнале и внесите заново\.$/);
 });
 
-test("MUTATION: a key that ignores the body fails the BUG-6 scenario", () => {
-  const L = loadMutated("src/lib/payments-ledger.ts", "return sentSignature === null || sentSignature === signature ? currentKey : make();", "return currentKey;");
-  assert.notEqual(L.keyForSend("k1", "A", "B", () => "new"), "new");
+test("BUG-6 (R3): a double click with the SAME body is the plain «already entered»; a payout says «выплату» / «в ведомости»", () => {
+  const A = lib("send-attempt.ts");
+  const P = lib("payments.ts");
+  const first = { current: null };
+  A.rememberFirstSend(first, "X", 100);
+  A.rememberFirstSend(first, "Y", 999);                      // only the FIRST send is remembered
+  assert.deepEqual(first.current, { signature: "X", amount: 100 });
+  assert.deepEqual(A.duplicateNotice(first.current, "X", P.formatMoney, A.PAYMENT_WORDS), { text: "Эта оплата уже внесена", tone: "success" });
+  assert.deepEqual(A.duplicateNotice(null, "X", P.formatMoney, A.PAYOUT_WORDS), { text: "Эта выплата уже внесена", tone: "success" });
+  const payout = A.duplicateNotice(first.current, "other", P.formatMoney, A.PAYOUT_WORDS);
+  assert.match(payout.text, /отмените эту выплату в ведомости и внесите заново/);
+});
+
+test("BUG-6 (R3): closing and reopening the dialog is a NEW payment on purpose - a new key, the first send is forgotten", () => {
+  const L = lib("payments-ledger.ts");
+  const server = moneyServer();
+  const key1 = L.newIdempotencyKey();
+  assert.equal(server.post(key1, 500000).status, 201);
+  const key2 = L.newIdempotencyKey();                        // the dialog opened again
+  assert.notEqual(key1, key2);
+  assert.equal(server.post(key2, 500000).status, 201);
+  assert.equal(server.records.length, 2);
+  for (const file of ["src/components/payments/payment-dialog.tsx", "src/components/payroll/payout-dialog.tsx"]) {
+    const source = read(file);
+    assert.match(source, /idempotencyKey\.current = newIdempotencyKey\(\);/, `${file}: the key is made when the dialog opens`);
+    assert.equal((source.match(/newIdempotencyKey\(\)/g) || []).length, 2, `${file}: ...and nowhere else (the key never follows the fields)`);
+    assert.match(source, /duplicateNotice\(firstSend\.current, signature,/, file);
+  }
+  assert.doesNotMatch(read("src/components/payments/pause-dialog.tsx"), /sendKeyFor|keyForSend/);
 });
 
 test("F-A23: one word is not a name and a surname; two words are split; the extra words go to the surname", () => {

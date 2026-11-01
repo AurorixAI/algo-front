@@ -353,7 +353,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         payment={correct}
         onClose={() => setCorrect(null)}
         onSaved={() => { showToast("Оплата исправлена"); changed(); void cheques.reload(); }}
-        onDuplicate={() => { showToast("Эта оплата уже внесена"); changed(); }}
+        onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
       />
       <PaymentVoidModal
         payment={voidPayment}
@@ -370,7 +370,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         groupsBasePath={bases.groups}
         onClose={() => setPayOpen(false)}
         onSaved={(result) => { showToast(PAYMENT_SAVED_TEXT.create, "success", savedPaymentDetails(result.allocation)); changed(); void cheques.reload(); }}
-        onDuplicate={() => { showToast("Эта оплата уже внесена"); changed(); }}
+        onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
       />
       {cheques.dialogs}
       {toastNode}

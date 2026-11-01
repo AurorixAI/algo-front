@@ -178,7 +178,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
-        onDuplicate={() => { onNotify("Эта оплата уже внесена"); void refreshSummary(true); }}
+        onDuplicate={(notice) => { onNotify(notice.text); void refreshSummary(true); }}
       />
     </div>
   );

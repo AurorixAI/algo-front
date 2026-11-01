@@ -5,7 +5,8 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, NOTE_MAX, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
-import { newIdempotencyKey, sendKeyFor } from "@/lib/payments-ledger";
+import { newIdempotencyKey } from "@/lib/payments-ledger";
+import { duplicateNotice, PAYOUT_WORDS, rememberFirstSend, type FirstSend } from "@/lib/send-attempt";
 import {
   buildPayoutBody,
   emptyPayoutValues,
@@ -49,7 +50,7 @@ export function PayoutDialog({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const idempotencyKey = useRef(newIdempotencyKey());
-  const sentBody = useRef<string | null>(null);
+  const firstSend = useRef<FirstSend | null>(null); // R3: the key stays for the whole opening; only the text of a 409 depends on what was sent
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +59,7 @@ export function PayoutDialog({
     setError(null);
     setConfirming(false);
     idempotencyKey.current = newIdempotencyKey();
-    sentBody.current = null;
+    firstSend.current = null;
     // restarts when opened (for another sheet), not when the numbers refresh behind it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sheetId]);
@@ -71,15 +72,17 @@ export function PayoutDialog({
   const send = async () => {
     setBusy(true);
     setError(null);
+    let signature = "";
     try {
       const body = buildPayoutBody(values);
-      sendKeyFor(idempotencyKey, sentBody, JSON.stringify(body));
+      signature = JSON.stringify(body);
+      rememberFirstSend(firstSend, signature, body.amount);
       const result = await orgApi.createPayrollPayout(sheetId, body, idempotencyKey.current);
       onDone(`Выплата внесена: ${formatMoney(result.payout.amount)}`);
       onClose();
     } catch (cause) {
       const failure = payoutError(cause as PayrollErrorLike);
-      if (failure.kind === "duplicate") { onDone("Эта выплата уже внесена"); onClose(); }
+      if (failure.kind === "duplicate") { onDone(duplicateNotice(firstSend.current, signature, formatMoney, PAYOUT_WORDS).text); onClose(); }
       else setError(failure.message);
     } finally {
       setBusy(false);

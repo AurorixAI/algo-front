@@ -319,7 +319,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
           groupsBasePath={groupsBasePath}
           onClose={() => setPayOpen(false)}
           onSaved={(result: PaymentSaveResult) => { changed(result.row); showToast(PAYMENT_SAVED_TEXT.create, "success", savedPaymentDetails(result.allocation)); }}
-          onDuplicate={() => { showToast("Эта оплата уже внесена"); void load(true); }}
+          onDuplicate={(notice) => { showToast(notice.text, notice.tone); void load(true); }}
         />
       )}
       {toastNode}
