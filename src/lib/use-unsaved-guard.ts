@@ -8,12 +8,13 @@ export interface GuardEnv {
       readonly state: unknown;
       pushState(state: unknown, unused: string, url?: string | null): void;
       back(): void;
+      go(delta: number): void;
     };
     location: { readonly href: string; readonly pathname: string; readonly search: string; readonly origin: string };
     /** The question «leave the page?»: the platform's dialog (WB-P5, F-A20), never the browser's `confirm`. */
     ask(message: string): Promise<boolean>;
-    addEventListener(type: string, listener: (event: never) => void): void;
-    removeEventListener(type: string, listener: (event: never) => void): void;
+    addEventListener(type: string, listener: (event: never) => void, capture?: boolean): void;
+    removeEventListener(type: string, listener: (event: never) => void, capture?: boolean): void;
   };
   document: {
     addEventListener(type: string, listener: (event: never) => void, capture?: boolean): void;
@@ -76,6 +77,8 @@ export function createUnsavedGuard(env: GuardEnv, getMessage: () => string): Uns
   let asking = false;
   /** The repeat of a click the user has allowed is on its way through the listener. */
   let repeating = false;
+  /** `history.go(1)` calls we made to bring the page back after a second Back while the question was open: their popstates are ours. */
+  let returning = 0;
 
   const pushSentinel = () => {
     win.history.pushState(win.history.state, "", win.location.href);
@@ -120,7 +123,13 @@ export function createUnsavedGuard(env: GuardEnv, getMessage: () => string): Uns
     });
   };
 
-  const onPopState = () => {
+  const onPopState = (event?: { stopImmediatePropagation?: () => void }) => {
+    // Our own return to the page: the router must not hear about it.
+    if (returning > 0) {
+      returning -= 1;
+      event?.stopImmediatePropagation?.();
+      return;
+    }
     if (swallowing) {
       // Our own back: the sentinel is off the stack.
       swallowing = false;
@@ -131,9 +140,16 @@ export function createUnsavedGuard(env: GuardEnv, getMessage: () => string): Uns
       return;
     }
     if (leaving || !dirty) return;
+    if (asking) {
+      // Back AGAIN while the question is open (the phone's hardware button): the page must not be left behind the question.  The router
+      // is not told (this listener runs first, on capture), and we step forward to where we were; «Уйти» then goes back exactly once.
+      event?.stopImmediatePropagation?.();
+      returning += 1;
+      win.history.go(1);
+      return;
+    }
     // The user's Back took the sentinel off: we stand on the page itself.
     sentinel = false;
-    if (asking) return;
     asking = true;
     void win.ask(getMessage()).then((leave) => {
       asking = false;
@@ -146,7 +162,8 @@ export function createUnsavedGuard(env: GuardEnv, getMessage: () => string): Uns
     });
   };
 
-  win.addEventListener("popstate", onPopState);
+  // On capture: before the router's own listener, so that a Back we turn down is never seen by it.
+  win.addEventListener("popstate", onPopState, true);
 
   const listen = () => {
     if (listening) return;
@@ -181,7 +198,7 @@ export function createUnsavedGuard(env: GuardEnv, getMessage: () => string): Uns
     },
     dispose() {
       unlisten();
-      win.removeEventListener("popstate", onPopState);
+      win.removeEventListener("popstate", onPopState, true);
     },
   };
 }
@@ -198,8 +215,8 @@ export function useUnsavedGuard(dirty: boolean, message: string): void {
       history: w.history,
       location: w.location,
       ask: askLeave,
-      addEventListener: (type, listener) => w.addEventListener(type, listener as unknown as EventListener),
-      removeEventListener: (type, listener) => w.removeEventListener(type, listener as unknown as EventListener),
+      addEventListener: (type, listener, capture) => w.addEventListener(type, listener as unknown as EventListener, capture),
+      removeEventListener: (type, listener, capture) => w.removeEventListener(type, listener as unknown as EventListener, capture),
     };
     guard.current = createUnsavedGuard({ window: guardWindow, document: document as unknown as GuardEnv["document"] }, () => messageRef.current);
     return () => {

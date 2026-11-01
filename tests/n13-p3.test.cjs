@@ -846,13 +846,20 @@ function fakeBrowser() {
   const answers = [];
   const followed = [];
   const location = (key) => new URL(entries[index].url)[key];
-  const traverse = (delta) => { index += delta; for (const listener of [...listeners.popstate]) listener({}); };
+  const stoppedPops = [];
+  const traverse = (delta) => {
+    index += delta;
+    const event = { stopped: false, stopImmediatePropagation() { this.stopped = true; } };
+    for (const listener of [...listeners.popstate]) { if (event.stopped) break; listener(event); }
+    stoppedPops.push(event.stopped);
+  };
   const env = {
     window: {
       history: {
         get state() { return entries[index].state; },
         pushState(state, _unused, url) { entries.splice(index + 1); entries.push({ url: url ?? entries[index].url, state }); index = entries.length - 1; },
         back() { queue.push(-1); },
+        go(delta) { queue.push(delta); },
       },
       location: { get href() { return entries[index].url; }, get pathname() { return location("pathname"); }, get search() { return location("search"); }, get origin() { return location("origin"); } },
       // WB-P5: the platform's dialog answers later (a promise), not synchronously like the browser's confirm
@@ -866,7 +873,7 @@ function fakeBrowser() {
     },
   };
   return {
-    env, entries, listeners, clicks, confirms, answers,
+    env, entries, listeners, clicks, confirms, answers, stoppedPops,
     get index() { return index; },
     get url() { return entries[index].url; },
     /** What the browser does with the queued history.back() calls. */
@@ -983,6 +990,53 @@ test("discard edits also takes the sentinel off; a page that was never dirty nev
   idle.update(false);
   fourth.flush();
   assert.equal(fourth.index, 1);
+});
+
+test("WB-P5 R3 #2: a SECOND Back while the question is open does not leave the page; «Уйти» then goes back exactly once", async () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  guard.update(true);                                            // [prev, page, sentinel], on the sentinel
+  assert.equal(browser.index, 2);
+  browser.answers.push(true);                                    // (the answer is given later: «Уйти»)
+  const hold = [];
+  const realAsk = browser.env.window.ask;
+  browser.env.window.ask = (message) => new Promise((resolve) => { hold.push(resolve); void realAsk(message); });
+  browser.userBack();                                            // first Back: the question opens, we stand on the page
+  assert.equal(browser.index, 1);
+  assert.equal(hold.length, 1);
+  browser.userBack();                                            // the hardware Back AGAIN: the browser is on «prev» now...
+  assert.equal(browser.index, 0);
+  assert.equal(browser.stoppedPops.at(-1), true, "the router is not told about the refused Back");
+  browser.flush();                                               // ...and the guard has stepped forward to the page
+  assert.equal(browser.index, 1);
+  assert.equal(browser.url, "https://app.test/owner/payroll/s1");
+  assert.equal(hold.length, 1, "no second question");
+  assert.equal(browser.stoppedPops.at(-1), true, "our own step forward is not heard by the router either");
+  hold[0](true);                                                 // «Уйти»
+  await settle();
+  browser.flush();
+  assert.equal(browser.index, 0, "exactly ONE entry back from the page");
+  assert.equal(browser.url, "https://app.test/owner/payroll?month=2026-09");
+  assert.equal(browser.entries.length, 3);
+});
+
+test("WB-P5 R3 #2: Back, Back, then «Остаться»: the page stays and is guarded again", async () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  guard.update(true);
+  const hold = [];
+  browser.env.window.ask = () => new Promise((resolve) => { hold.push(resolve); });
+  browser.userBack();
+  browser.userBack();
+  browser.flush();
+  assert.equal(browser.index, 1);
+  hold[0](false);                                                // «Остаться»
+  await settle();
+  assert.equal(browser.url, "https://app.test/owner/payroll/s1");
+  assert.equal(browser.index, 2, "the sentinel is back on top");
+  assert.equal(hold.length, 1);
+  guard.dispose();
+  assert.equal(browser.listeners.popstate.size, 0, "the capture listener is removed too");
 });
 
 test("links and closing the tab are asked about only while the page is dirty", async () => {
