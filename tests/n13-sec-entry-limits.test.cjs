@@ -78,10 +78,13 @@ test("the teacher can reset the entry limits while the exam is open, and only th
   assert.match(api, /resetEntryLimits: \(examId: string\) =>\s*examApi<\{ exam_id: string; reset: boolean \}>\(`\/exams\/\$\{encodePathId\(examId\)\}\/entry-limits\/reset`, "staff", \{\s*method: "POST"/);
   const page = read("src/app/teacher/exams/[id]/page.tsx");
   assert.match(page, /await examsApi\.resetEntryLimits\(examId\);\s*showToast\("Ограничения входа сброшены", "success"\);/);
-  const button = page.slice(page.indexOf("onClick={handleResetEntryLimits}") - 400, page.indexOf("Сбросить ограничения входа") + 40);
-  assert.match(button, /!isPrintDelivery && exam\.access_code && \["lobby", "active"\]\.includes\(exam\.status\) && \(/);
-  assert.ok(button.includes("loading={resettingLimits}"));
-  assert.ok(button.includes("Сбросить ограничения входа"));
+  // tidy header (31.10): the action moved from the header into the «⋯» menu, renamed «Разблокировать вход учеников», still only for an open exam
+  const item = page.slice(page.indexOf("void handleResetEntryLimits()") - 500, page.indexOf("Разблокировать вход учеников") + 40);
+  assert.match(item, /!isPrintDelivery && exam\.access_code && \["lobby", "active"\]\.includes\(exam\.status\) && \(/);
+  assert.ok(item.includes("disabled={resettingLimits}"));
+  assert.ok(item.includes("Разблокировать вход учеников"));
+  assert.ok(page.includes("Если ученик несколько раз ввёл код неверно"));
+  assert.match(page, /if \(resettingLimits\) return;/);   // a second click while the first is in flight
 });
 
 test("examsApi.checkStudent: a 429 rejects with the wait from Retry-After, the form can show it", async () => {

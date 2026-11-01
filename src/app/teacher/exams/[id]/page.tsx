@@ -129,7 +129,6 @@ interface ExamDetail {
   print_package?: PrintPackageMetadata | null;
   is_pinned?: boolean;
   pass_threshold_pct?: number;
-  pass_threshold_locked?: boolean;
   variants: DraftVariant[];
   created_at: string;
 }
@@ -672,6 +671,7 @@ export default function ExamHubPage() {
 
   // Entry limits (#33): a classmate behind the school address can use up the failure budget of the exam code.
   const handleResetEntryLimits = async () => {
+    if (resettingLimits) return; // a second click while the first is in flight
     setResettingLimits(true);
     try {
       await examsApi.resetEntryLimits(examId);
@@ -854,6 +854,28 @@ export default function ExamHubPage() {
   const boundLessonLabel = formatBoundLessonLabel(exam.scheduled_lesson_date, boundLesson);
   const boundLessonRoom = boundLesson && (boundLesson.format === "online" ? "Онлайн" : boundLesson.room || "Кабинет не указан");
 
+  // The header says three things and colours only one of them: the status.  Group, lesson and threshold are one quiet line.
+  const headerStatus: { label: string; pill: string; dot: string } | null = isPrintDelivery
+    ? null
+    : exam.status === "archived"
+    ? { label: "Архив", pill: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" }
+    : exam.status === "closed"
+    ? { label: "Завершён", pill: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" }
+    : exam.group_id && exam.status === "active"
+    ? { label: "Идёт экзамен", pill: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" }
+    : exam.group_id && exam.status === "lobby"
+    ? {
+        label: examState === "needs_resolution" ? lobbyExamLabel(examState, "") : "Ожидает старта",
+        pill: lobbyOpen || examState === "needs_resolution" ? "bg-amber-50 text-amber-900 border-amber-200" : "bg-sky-50 text-sky-800 border-sky-200",
+        dot: lobbyOpen ? "bg-amber-500" : examState === "needs_resolution" ? "bg-amber-500" : "bg-sky-500",
+      }
+    : { label: "Черновик", pill: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" };
+  const headerFacts = [
+    exam.group_name || (exam.group_id ? null : "Шаблон без группы"),
+    boundLessonLabel ? `урок ${boundLessonLabel.replace(" · ", ", ")}` : null,
+    isPrintDelivery ? null : `порог ${examPassThreshold(exam)}%`,
+  ].filter((part): part is string => Boolean(part));
+
   return (
     <div className="w-full max-w-[1400px] mx-auto space-y-6">
       {/* ─── Breadcrumbs ─── */}
@@ -888,172 +910,52 @@ export default function ExamHubPage() {
         </div>
 
         <div className="p-6 md:p-7">
-          {/* Title and labels take the whole width; the action buttons sit in a row under them. Side by side only from 1536 px,
-              where the title column still keeps 26rem (a running exam has three buttons and «⋯»: at 1280 they squeezed the title to «E2E / Порог / 70»). */}
-          <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
-            {/* Left Side: Icon + Title + Metadata row */}
-            <div className="flex min-w-0 items-start gap-4 sm:gap-5 2xl:min-w-[26rem]">
-              <div className="w-14 h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
-                <FileText className="w-7 h-7" />
+          {/* Title, one status and one quiet line of facts take the whole width; the actions (one main button, one quiet link, «⋯») sit in a row
+              under them, and beside them only from 1440 px, where the title column still keeps 30rem. */}
+          <div className="flex flex-col gap-5 min-[1440px]:flex-row min-[1440px]:items-center min-[1440px]:justify-between">
+            {/* Left Side: Icon + Title + Status + Facts */}
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5 min-[1440px]:min-w-[30rem] min-[1440px]:flex-1">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
+                <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
 
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="min-w-0 break-words text-xl sm:text-[1.7rem] font-medium text-slate-800 tracking-[-0.02em] leading-snug">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  <h1 className="min-w-0 break-words text-lg sm:text-2xl font-medium text-slate-800 tracking-[-0.02em] leading-snug">
                     {exam.title}
                   </h1>
                   {exam.is_pinned && (
-                    <span
-                      className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-200/60 shadow-2xs"
-                      title="Экзамен закреплен вверху списка"
-                    >
-                      <Pin className="w-3.5 h-3.5 fill-amber-500" />
+                    <Pin className="h-4 w-4 shrink-0 fill-amber-500 text-amber-500" aria-label="Экзамен закреплён вверху списка" />
+                  )}
+                  {/* The ONE coloured element of the header. A print package has its own workspace below, so no status here. */}
+                  {headerStatus && (
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap", headerStatus.pill)}>
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", headerStatus.dot)} />
+                      {headerStatus.label}
                     </span>
                   )}
                 </div>
 
-                {/* Metadata Pills */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  {/* Group badge */}
-                  {exam.group_name ? (
-                    isDraft ? (
-                      <button
-                        type="button"
-                        onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
-                        title="Нажмите, чтобы сменить группу"
-                        className="px-3 py-1 rounded-xl font-medium bg-indigo-50 hover:bg-indigo-100/80 text-indigo-600 border border-indigo-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        {exam.group_name}
-                        <Edit3 className="w-3 h-3 opacity-60 ml-0.5" />
-                      </button>
-                    ) : (
-                      <span className="px-3 py-1 rounded-xl font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" />
-                        {exam.group_name}
-                      </span>
-                    )
-                  ) : isDraft ? (
-                    <button
-                      type="button"
-                      onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
-                      className="px-3 py-1 rounded-xl font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      Привязать группу
-                    </button>
-                  ) : null}
-
-                  {boundLessonLabel && (
-                    <span
-                      title={boundLessonRoom ? `Занятие: ${boundLessonLabel} · ${boundLessonRoom}` : `Занятие: ${boundLessonLabel}`}
-                      className="px-3 py-1 rounded-xl font-medium bg-violet-50 text-violet-700 border border-violet-200/80 flex items-center gap-1.5"
-                    >
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      На урок: {boundLessonLabel}
-                    </span>
-                  )}
-
-                  {/* Operational status and task counts stay in the online
-                      header.  A print package has its dedicated workspace
-                      below, so duplicating those controls here is noise. */}
-                  {!isPrintDelivery && (
-                    <>
-                      <span
-                        className={cn(
-                          "px-3 py-1 rounded-xl font-medium flex items-center gap-1.5 border",
-                          (!exam.group_id || exam.status === "draft") && "bg-slate-100 text-slate-700 border-slate-200",
-                          exam.group_id && exam.status === "variants_ready" && "bg-blue-50 text-blue-700 border-blue-200",
-                          exam.group_id && exam.status === "lobby" && (lobbyOpen || examState === "needs_resolution" ? "bg-amber-50 text-amber-900 border-amber-200" : "bg-sky-50 text-sky-800 border-sky-200"),
-                          exam.group_id && exam.status === "active" && "bg-emerald-50 text-emerald-800 border-emerald-200",
-                          exam.status === "closed" && "bg-rose-50 text-rose-800 border-rose-200"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "w-2 h-2 rounded-full shrink-0",
-                            (!exam.group_id || exam.status === "draft") && "bg-slate-500",
-                            exam.group_id && exam.status === "variants_ready" && "bg-blue-500",
-                            exam.group_id && exam.status === "lobby" && (lobbyOpen ? "bg-amber-500 animate-pulse" : "bg-sky-500"),
-                            exam.group_id && exam.status === "active" && "bg-emerald-500 animate-ping",
-                            exam.status === "closed" && "bg-rose-500"
-                          )}
-                        />
-                        {!exam.group_id
-                          ? "Шаблон (без группы)"
-                          : exam.status === "draft"
-                          ? "Черновик"
-                          : exam.status === "variants_ready"
-                          ? "Готов к запуску"
-                          : exam.status === "lobby"
-                          ? lobbyExamLabel(examState, exam.scheduled_lesson_date ? formatIsoDateLabel(exam.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "")
-                          : exam.status === "active"
-                          ? "Идёт экзамен (Активен)"
-                          : "Завершён"}
-                      </span>
-
-                      <span
-                        title="Ученик с результатом не ниже порога считается справившимся"
-                        className="px-3 py-1 rounded-xl font-medium flex items-center gap-1.5 border bg-slate-50 text-slate-700 border-slate-200 whitespace-nowrap"
-                      >
-                        <Target className="w-3.5 h-3.5 text-slate-400" />
-                        Порог: {examPassThreshold(exam)}%
-                      </span>
-                    </>
-                  )}
-                </div>
+                <p className="text-sm text-slate-500" title={boundLessonRoom ? `Занятие: ${boundLessonLabel} · ${boundLessonRoom}` : undefined}>
+                  {headerFacts.join(" · ")}
+                </p>
               </div>
             </div>
 
-            {/* Right Side: Quick Action Buttons & 3-dots Menu */}
-            <div className="flex flex-wrap items-center gap-2.5 2xl:shrink-0 2xl:flex-nowrap">
+            {/* Right Side: the main action, the quiet link, «⋯» */}
+            <div className="flex flex-wrap items-center gap-2.5 min-[1440px]:shrink-0 min-[1440px]:flex-nowrap">
               {!exam.group_id ? (
                 <Button
                   variant="primary"
                   size="md"
                   onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
                   icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm"
+                  className="font-bold shadow-sm"
                 >
                   {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию" : isPrintDelivery ? "Подготовить печатный комплект" : "Привязать группу"}
                 </Button>
               ) : (
                 <>
-                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      onClick={handleCopyLink}
-                      icon={
-                        <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                          {copiedLink ? (
-                            <Check className="w-4 h-4 text-emerald-600 animate-in zoom-in-50 duration-150" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </span>
-                      }
-                      className={`transition-all duration-200 ${
-                        copiedLink ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs" : ""
-                      }`}
-                    >
-                      {copiedLink ? "Ссылка скопирована!" : "Скопировать ссылку"}
-                    </Button>
-                  )}
-
-                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      loading={resettingLimits}
-                      onClick={handleResetEntryLimits}
-                      icon={<RotateCcw className="w-4 h-4" />}
-                      title="Если ученики не могут войти из-за «Слишком много попыток»"
-                    >
-                      Сбросить ограничения входа
-                    </Button>
-                  )}
-
                   {exam.status === "lobby" && !isPastUnstartedDelivery && (
                     <Button
                       variant="primary"
@@ -1098,11 +1000,43 @@ export default function ExamHubPage() {
                       variant="primary"
                       size="md"
                       loading={actionLoading}
-                      onClick={isPrintDelivery && hasVoidedPrintPackage ? handleClone : handleOpenLobby}
+                      onClick={isPrintDelivery && hasVoidedPrintPackage ? handleClone : isPrintDelivery ? () => setShowScheduleModal(true) : handleOpenLobby}
                       icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
                       className="shadow-md shadow-primary-500/20 font-bold"
                     >
                       {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию для занятия" : isPrintDelivery ? "Подготовить печатный комплект" : "Открыть лобби"}
+                    </Button>
+                  )}
+
+                  {exam.status === "closed" && !isPrintDelivery && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={() => setActiveTab("analytics")}
+                      icon={<FileBarChart2 className="w-4 h-4" />}
+                      className="font-bold"
+                    >
+                      Отчёт
+                    </Button>
+                  )}
+
+                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      onClick={handleCopyLink}
+                      icon={
+                        <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                          {copiedLink ? (
+                            <Check className="w-4 h-4 text-emerald-600 animate-in zoom-in-50 duration-150" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </span>
+                      }
+                      className={copiedLink ? "text-emerald-700" : ""}
+                    >
+                      {copiedLink ? "Ссылка скопирована" : "Ссылка для учеников"}
                     </Button>
                   )}
                 </>
@@ -1129,35 +1063,25 @@ export default function ExamHubPage() {
                   open={headerMenuOpen}
                   triggerRef={headerMenuTriggerRef}
                   onClose={() => setHeaderMenuOpen(false)}
-                  width={224}
+                  width={256}
                   label="Опции экзамена"
                   className="bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 space-y-0.5 text-xs"
                 >
-                      {isDraft && (
+                      {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
                         <button
                           type="button"
+                          disabled={resettingLimits}
                           onClick={() => {
                             setHeaderMenuOpen(false);
-                            if (isPrintDelivery) {
-                              if (hasVoidedPrintPackage) {
-                                handleClone();
-                              } else {
-                                setShowScheduleModal(true);
-                              }
-                            } else {
-                              setShowAssignModal(true);
-                            }
+                            void handleResetEntryLimits();
                           }}
-                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-start gap-2.5 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {isPrintDelivery ? <FileText className="w-4 h-4 text-indigo-500" /> : <Users className="w-4 h-4 text-indigo-500" />}
-                          {isPrintDelivery
-                            ? hasVoidedPrintPackage
-                              ? "Создать копию для занятия"
-                              : "Подготовить печатный комплект"
-                            : exam.group_id
-                            ? "Сменить группу"
-                            : "Привязать к группе"}
+                          <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
+                          <span>
+                            Разблокировать вход учеников
+                            <span className="mt-0.5 block text-[11px] font-normal leading-4 text-slate-500">Если ученик несколько раз ввёл код неверно</span>
+                          </span>
                         </button>
                       )}
 
@@ -1189,6 +1113,20 @@ export default function ExamHubPage() {
                         </button>
                       )}
 
+                      {isDraft && exam.group_id && !isPrintDelivery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setShowAssignModal(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Users className="w-4 h-4 text-indigo-500" />
+                          Сменить группу
+                        </button>
+                      )}
+
                       {exam.status !== "archived" && (
                         <button
                           type="button"
@@ -1199,7 +1137,7 @@ export default function ExamHubPage() {
                           className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium flex items-center gap-2.5 transition-colors cursor-pointer"
                         >
                           <Copy className="w-4 h-4 text-slate-400" />
-                          Создать копию (клон)
+                          Создать копию
                         </button>
                       )}
 
@@ -1219,7 +1157,7 @@ export default function ExamHubPage() {
                         ) : (
                           <>
                             <Pin className="w-4 h-4 text-amber-500" />
-                            Закрепить вверху
+                            Закрепить
                           </>
                         )}
                       </button>
