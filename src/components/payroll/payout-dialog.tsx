@@ -10,6 +10,7 @@ import {
   buildPayoutBody,
   emptyPayoutValues,
   PAYOUT_ACTION_LABEL,
+  PAYOUT_ADVANCE_HINT,
   PAYOUT_ADVANCE_LABEL,
   PAYOUT_METHODS,
   payoutAfterText,
@@ -68,13 +69,13 @@ export function PayoutDialog({
   const after = payoutAfterText(amount, state);
   const patch = (next: Partial<PayoutFormValues>) => { setError(null); setOverpay(null); setValues((previous) => ({ ...previous, ...next })); };
 
-  const send = async (confirmOverpay: boolean) => {
+  const send = async (confirmedOverpay: number | null) => {
     if (sending.current) return;
     sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.createPayrollPayout(sheetId, buildPayoutBody(values, confirmOverpay), idempotencyKey.current);
+      const result = await orgApi.createPayrollPayout(sheetId, buildPayoutBody(values, confirmedOverpay), idempotencyKey.current);
       onDone(`Выплата внесена: ${formatMoney(result.payout.amount)}`);
       onClose();
     } catch (cause) {
@@ -92,7 +93,7 @@ export function PayoutDialog({
     if (busy || overpay !== null) return;
     const problem = validatePayout(values, today);
     if (problem) { setError(problem); return; }
-    void send(false);
+    void send(null);
   };
 
   const parts = sheetPayoutParts(state);
@@ -111,7 +112,7 @@ export function PayoutDialog({
           <button
             type={overpay !== null ? "button" : "submit"}
             form="payout-form"
-            onClick={overpay !== null ? () => void send(true) : undefined}
+            onClick={overpay !== null ? () => void send(overpay) : undefined}
             disabled={busy}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
@@ -174,7 +175,7 @@ export function PayoutDialog({
         {overpay !== null && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>{payoutOverpayQuestion(overpay)}</span>
+            <span>{payoutOverpayQuestion(overpay)}<span className="mt-1 block text-xs font-normal text-amber-800">{PAYOUT_ADVANCE_HINT}</span></span>
           </p>
         )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

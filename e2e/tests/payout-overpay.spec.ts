@@ -1,8 +1,10 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { Org, runLesson } from "../support/api";
 import { businessNow, payrollLine } from "../support/time";
+import { seedNextMonthSheet } from "../support/payroll-seed";
+import { readZip } from "../support/xlsx-lite";
 import { moneyPattern, toast } from "../support/ui";
 
 /**
@@ -25,6 +27,7 @@ async function shot(page: Page, project: string, name: string) {
 }
 
 let org: Org;
+let teacherId = "";
 test.beforeAll(async () => {
   org = await Org.create("Выплата сверх остатка");
 });
@@ -33,6 +36,7 @@ test("a payout above the balance: the window asks, «Отмена» writes nothi
   const project = info.project.name;
   const month = businessNow().date.slice(0, 7);
   const teacher = await org.addStaff("teacher", "Авансов");
+  teacherId = teacher.userId;
   const group = await org.createGroup({ name: "Группа Выплат", teacherId: teacher.userId, lessonType: "group" });
   await org.setGroupPrice(group.id, 600000);
   const student = await org.addStudent(group, "Анвар", "Платящий");
@@ -68,6 +72,7 @@ test("a payout above the balance: the window asks, «Отмена» writes nothi
   await expect(question).toContainText(new RegExp(`Выплата больше остатка на\\s*${moneyPattern(15000)}\\s*сум — записать как аванс\\?`));
   await expect(dialog.getByRole("button", { name: "Записать как аванс" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Отмена" })).toBeVisible();
+  await expect(question).toContainText("Аванс уменьшит выплату следующего месяца");       // R3 3: what the advance does
   await shot(page, project, "02-overpay-question");
   const none = await org.owner.api.get("/auth/org/payroll/payouts", { month });
   expect(none, "the refusal writes nothing").toEqual([]);
@@ -86,6 +91,7 @@ test("a payout above the balance: the window asks, «Отмена» writes nothi
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(40000)}`))).toBeVisible();
   await expect(dialog).toHaveCount(0);
   await expect(block).toContainText(new RegExp(`Переплачено\\s*${moneyPattern(15000)}\\s*сум`));
+  await expect(block.getByTestId("payout-advance")).toContainText(new RegExp(`Аванс\\s*${moneyPattern(15000)}\\s*сум зачтётся в выплате следующего месяца`));
   await expect(block.getByRole("list", { name: "Выплаты" })).toContainText(new RegExp(`${moneyPattern(40000)}\\s*сум`));
   await shot(page, project, "03-sheet-overpaid");
   const written = await org.owner.api.get("/auth/org/payroll/payouts", { month });
@@ -110,4 +116,44 @@ test("a payout above the balance: the window asks, «Отмена» writes nothi
   await again.getByRole("button", { name: "Отмена" }).click(); // the second «Отмена» closes the window
   await expect(again).toHaveCount(0);
   expect(await org.owner.api.get("/auth/org/payroll/payouts", { month })).toHaveLength(1);
+});
+
+test("the advance is carried: next month's sheet says «Аванс прошлого месяца», «К выплате» is smaller by it, the exact rest needs no question, the Excel file has the line @mobile", async ({ signIn }, info) => {
+  const project = info.project.name;
+  const now = businessNow().date;                                            // YYYY-MM-DD
+  const [year, month] = now.split("-").map(Number);
+  const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
+  const sheetId = seedNextMonthSheet(org.owner.userId, teacherId, `${next}-01`, 100000);
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/payroll/${sheetId}`);
+  const block = page.getByTestId("sheet-payout");
+  // the 15 000 advance of this month is taken off: «К выплате» 85 000, the line says why
+  await expect(block).toContainText(new RegExp(`К выплате\\s*${moneyPattern(85000)}\\s*сум`));
+  await expect(block).toContainText(new RegExp(`Аванс прошлого месяца\\s*${moneyPattern(15000)}\\s*сум`));
+  await expect(block.getByTestId("payout-advance")).toContainText("«К выплате» уменьшена на него");
+  await shot(page, project, "05-next-month-with-advance");
+  const state = (await org.owner.api.get(`/auth/org/payroll/sheets/${sheetId}`)).payout;
+  expect([state.carry_in, state.carry_used, state.target, state.balance]).toEqual([15000, 15000, 85000, 85000]);
+  // the Excel file of the sheet carries the line
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Скачать Excel/ }).click()]);
+  const file = info.outputPath("sheet.xlsx");
+  await download.saveAs(file);
+  const strings = [...readZip(readFileSync(file)).values()].map((part) => part.toString("utf8")).join("\n");     // the text of the cells (shared or inline strings)
+  expect(strings, "the Excel file of the sheet has the line of the advance").toContain("Аванс прошлого месяца: 15 000 сум");
+  // paying exactly what is left (85 000) is no question and settles the month
+  await block.getByRole("button", { name: "Отметить выплату" }).click();
+  const dialog = page.getByRole("dialog", { name: "Отметить выплату" });
+  await dialog.getByRole("radio", { name: "Наличные" }).click();
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(85000)}`))).toBeVisible();
+  await expect(block).toContainText("Выплачено полностью");
+  // voiding the advance payout of this month takes the carry away from next month at once (nothing was stored)
+  const month0 = now.slice(0, 7);
+  const first = (await org.owner.api.get("/auth/org/payroll/payouts", { month: month0 }))[0];
+  await org.owner.api.post(`/auth/org/payroll/payouts/${first.id}/void`, { reason: "внесли по ошибке" });
+  const after = (await org.owner.api.get(`/auth/org/payroll/sheets/${sheetId}`)).payout;
+  expect([after.carry_in, after.carry_used, after.target]).toEqual([0, 0, 100000]);
+  await page.reload();
+  await expect(block.getByTestId("payout-advance")).toHaveCount(0);
+  await shot(page, project, "06-advance-voided");
 });
