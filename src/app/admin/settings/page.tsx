@@ -69,8 +69,8 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <div>
-            <label htmlFor={`${uid}-email`} className="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
-            <input id={`${uid}-email`} value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder="Email" type="email" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <label htmlFor={`${uid}-email`} className="block text-sm font-semibold text-slate-700 mb-1.5">Почта</label>
+            <input id={`${uid}-email`} value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder="Почта" type="email" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div className="flex justify-end">
             <button onClick={handleProfile} disabled={savingProfile} className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50">

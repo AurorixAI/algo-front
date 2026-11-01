@@ -127,8 +127,8 @@ test("[O10.R1][O10.R9] the page of a returning member: the words of the spec, th
 test("[O10.R1][O10.R9] the refusals of «Принять приглашение» in the words of the spec", () => {
   const mismatch = fixture("c6_invite_mismatch");
   assert.equal(mismatch.status, 400);
-  assert.equal(S.inviteAcceptErrorText(refusal(mismatch.status, mismatch.body)), "Это приглашение выдано для другого email");
-  assert.equal(S.inviteAcceptErrorText({ code: "EMAIL_IN_OTHER_ORG", message: "x" }), "Этот email уже зарегистрирован в другом центре. Пока один email работает только в одном центре.");
+  assert.equal(S.inviteAcceptErrorText(refusal(mismatch.status, mismatch.body)), "Это приглашение выдано для другой почты");
+  assert.equal(S.inviteAcceptErrorText({ code: "EMAIL_IN_OTHER_ORG", message: "x" }), "Эта почта уже зарегистрирована в другом центре. Пока одна почта работает только в одном центре.");
   assert.equal(S.inviteAcceptErrorText(new Error("Приглашение не найдено или уже использовано")), "Приглашение не найдено или уже использовано");
   assert.equal(S.INVITE_NOT_FOUND_TEXT, "Приглашение не найдено, использовано или истекло.");
 });

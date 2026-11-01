@@ -440,7 +440,7 @@ function OwnerTeachersContent() {
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <p className={`font-semibold text-sm break-all ${expired ? "text-slate-400" : "text-slate-800"}`}>{inv.email || "Без email"}</p>
+                            <p className={`font-semibold text-sm break-all ${expired ? "text-slate-400" : "text-slate-800"}`}>{inv.email || "Без почты"}</p>
                             <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${rConfig.badge}`}>
                               {rConfig.label}
                             </span>
@@ -646,7 +646,7 @@ function OwnerTeachersContent() {
 
             <div>
               <label htmlFor="owner-invite-email-dlya-priglasheniya" className="block text-sm font-bold text-slate-700 mb-2">
-                Email сотрудника
+                Почта сотрудника
               </label>
               <input
                 id="owner-invite-email-dlya-priglasheniya"
@@ -659,7 +659,7 @@ function OwnerTeachersContent() {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:text-slate-400"
               />
               <p className="text-xs font-medium text-slate-500 mt-2">
-                Приглашение придёт на этот email. Принять его сможет только тот, кто получил письмо. Ссылка действует 7 дней.
+                Приглашение придёт на эту почту. Принять его сможет только тот, кто получил письмо. Ссылка действует 7 дней.
               </p>
               {inviteError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{inviteError}</p>}
             </div>

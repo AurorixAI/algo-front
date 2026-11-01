@@ -150,7 +150,7 @@ test.describe.serial("Консоль-1: заявка → одобрение → 
   test("the new owner can sign in to the cabinet with the new password", async ({ anonymous }) => {
     const page = await anonymous();
     await page.goto("/login");
-    await page.getByLabel("Email").fill(demo.email);
+    await page.getByLabel("Почта").fill(demo.email);
     await page.getByLabel("Пароль").fill(newPassword);
     await page.getByRole("button", { name: "Войти" }).click();
     await expect(page).toHaveURL(/\/owner\/dashboard/);

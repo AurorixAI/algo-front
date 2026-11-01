@@ -101,7 +101,7 @@ export default function LoginPage() {
 
             <div className="space-y-4" onKeyDown={handleKeyDown}>
               <Input
-                label="Email"
+                label="Почта"
                 name="email"
                 type="email"
                 autoComplete="username"

@@ -192,12 +192,12 @@ test("[O2.R3] «Бывшие сотрудники»: the removed member of the c
 // ── invitations (chain 6, O10) ─────────────────────────────────────────────────────────────────
 
 test("[O10.R1] the e-mail is required, normalised, and checked before the request goes out", () => {
-  assert.equal(S.inviteEmailError(""), "Укажите email: приглашение выдаётся на него.");
-  assert.equal(S.inviteEmailError("   "), "Укажите email: приглашение выдаётся на него.");
+  assert.equal(S.inviteEmailError(""), "Укажите почту: приглашение выдаётся на неё.");
+  assert.equal(S.inviteEmailError("   "), "Укажите почту: приглашение выдаётся на неё.");
   assert.match(S.inviteEmailError("ivan"), /неверно/);
   assert.equal(S.inviteEmailError(" T@X.uz "), null);
   assert.equal(S.normalizeEmail(" T@X.uz "), "t@x.uz");
-  assert.equal(S.inviteErrorText(refusal(422, fixture("x_email_required").body)), "Укажите email: приглашение выдаётся на него.");
+  assert.equal(S.inviteErrorText(refusal(422, fixture("x_email_required").body)), "Укажите почту: приглашение выдаётся на неё.");
   assert.equal(S.inviteErrorText(refusal(403, { detail: { code: "ONLY_OWNER_INVITES_ADMIN", message: "x" } })), "Приглашать администраторов может только владелец.");
   assert.equal(S.INVITE_ADMIN_HINT, "Приглашать администраторов может только владелец.");
 });
