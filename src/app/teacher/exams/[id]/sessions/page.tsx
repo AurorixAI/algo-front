@@ -266,7 +266,7 @@ export default function ExamSessionsPage() {
                     <td className="px-4 py-3 text-center">
                       {s.status === "submitted" ? (
                         <span className="flex items-center justify-center gap-1 text-emerald-600 font-medium">
-                          <CheckCircle className="w-3.5 h-3.5" /> Сдал
+                          <CheckCircle className="w-3.5 h-3.5" /> Работа сдана
                         </span>
                       ) : (
                         <span className="flex items-center justify-center gap-1 text-amber-500 font-medium">

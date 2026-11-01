@@ -112,8 +112,8 @@ test("no blue-violet-green strips: the shared Modal, the group dialogs, the impo
     assert.doesNotMatch(read(file), /via-violet-400|via-sky-400 to-indigo-500|via-violet-600 to-emerald-400/, file);
     assert.doesNotMatch(read(file), /h-1(\.5)? w-full[^"]*bg-gradient|absolute top-0 left-0 right-0 h-1\.5/, file);
   }
-  // what encodes something stays: the status ribbon and the pin stripe of an exam
-  assert.match(read("src/app/teacher/exams/[id]/page.tsx"), /exam\.status === "closed" && "bg-gradient-to-r/);
+  // the status ribbon of the exam card is gone too (owner 31.10, tidy): the only colour of the header is the status label
+  assert.doesNotMatch(read("src/app/teacher/exams/[id]/page.tsx"), /exam\.status === "closed" && "bg-gradient-to-r|Top Accent Ribbon/);
 });
 
 // ── 4. the late note of the excuse dialog ───────────────────────────────────────────────────────────

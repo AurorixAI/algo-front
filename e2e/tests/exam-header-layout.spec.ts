@@ -9,10 +9,11 @@ import { expectNoHorizontalScroll } from "../support/ui";
  * The header of the exam page (teacher /teacher/exams/{id}, administrator /admin/exams/{id}), in every state, at 1280 and at 375:
  * a long title in whole words, ONE coloured element (the status), one quiet line of facts, ONE main action + one quiet link + «⋯»,
  * the rest of the actions in «⋯» (tidy, owner 31.10).  Needs E2E_EXAM=1.
- * Screenshots: SHOTS_DIR/tidy-{SHOT_PHASE}-{state}-{teacher|admin}-{desktop|mobile}.png  (SHOT_PHASE = before | after; the checks run on «after»)
+ * Screenshots: SHOTS_DIR/{SHOT_PREFIX=tidy}-{SHOT_PHASE}-{state}-{teacher|admin}-{desktop|mobile}.png  (SHOT_PHASE = before | after; the checks run on «after»)
  */
 const SHOTS = process.env.SHOTS_DIR || path.resolve(__dirname, "../../../artifacts/code_audit_2410/shots-wb-p1");
 const PHASE = process.env.SHOT_PHASE || "after";
+const PREFIX = process.env.SHOT_PREFIX || "tidy";
 mkdirSync(SHOTS, { recursive: true });
 const LONG_TITLE = "Контрольная работа №3: Квадратные уравнения и неравенства, 8 класс";
 
@@ -32,7 +33,7 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
   const ap = await signIn(org.owner);
   const shot = async (page: import("@playwright/test").Page, state: string, who: string) => {
     await page.waitForTimeout(700);   // the card fades in: the picture is taken when it stands still
-    await page.screenshot({ path: path.join(SHOTS, `tidy-${PHASE}-${state}-${who}-${testInfo.project.name}.png`) });
+    await page.screenshot({ path: path.join(SHOTS, `${PREFIX}-${PHASE}-${state}-${who}-${testInfo.project.name}.png`) });
     await expectNoHorizontalScroll(page);
   };
   const header = (page: import("@playwright/test").Page) => page.getByRole("heading", { level: 1, name: LONG_TITLE }).locator("xpath=ancestor::div[contains(@class,'rounded-3xl')][1]");
@@ -113,6 +114,9 @@ test("header of the exam page in every state @exam @mobile", async ({ signIn }, 
   if (checks) {
     await expect(page.getByRole("button", { name: "Отчёт" })).toBeVisible();
     await expect(page.getByText("Завершён", { exact: true })).toBeVisible();
+    // the finished exam is not painted as an error: no red status, no coloured ribbon over the card
+    expect(await page.getByText("Завершён", { exact: true }).getAttribute("class")).not.toMatch(/rose|red/);
+    await expect(header(page).locator("div[class*='gradient-to-r']")).toHaveCount(0);
     await expect(header(page).getByRole("button")).toHaveCount(2);
   }
   await shot(page, "closed", "teacher");

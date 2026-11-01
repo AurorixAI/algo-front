@@ -855,20 +855,20 @@ export default function ExamHubPage() {
   const boundLessonRoom = boundLesson && (boundLesson.format === "online" ? "Онлайн" : boundLesson.room || "Кабинет не указан");
 
   // The header says three things and colours only one of them: the status.  Group, lesson and threshold are one quiet line.
+  // Colours of the status (the ONLY colour of the header): draft grey, waiting for the start amber, running green, finished violet (the registry's tone
+  // of «Завершён» - never red), archive grey; red is for a real problem: the lesson of a lobby has passed and the exam was not run.
   const headerStatus: { label: string; pill: string; dot: string } | null = isPrintDelivery
     ? null
     : exam.status === "archived"
     ? { label: "Архив", pill: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" }
     : exam.status === "closed"
-    ? { label: "Завершён", pill: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" }
+    ? { label: "Завершён", pill: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500" }
     : exam.group_id && exam.status === "active"
     ? { label: "Идёт экзамен", pill: "bg-emerald-50 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" }
     : exam.group_id && exam.status === "lobby"
-    ? {
-        label: examState === "needs_resolution" ? lobbyExamLabel(examState, "") : "Ожидает старта",
-        pill: lobbyOpen || examState === "needs_resolution" ? "bg-amber-50 text-amber-900 border-amber-200" : "bg-sky-50 text-sky-800 border-sky-200",
-        dot: lobbyOpen ? "bg-amber-500" : examState === "needs_resolution" ? "bg-amber-500" : "bg-sky-500",
-      }
+    ? examState === "needs_resolution"
+      ? { label: lobbyExamLabel(examState, ""), pill: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" }
+      : { label: "Ожидает старта", pill: "bg-amber-50 text-amber-900 border-amber-200", dot: "bg-amber-500" }
     : { label: "Черновик", pill: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" };
   const headerFacts = [
     exam.group_name || (exam.group_id ? null : "Шаблон без группы"),
@@ -894,21 +894,6 @@ export default function ExamHubPage() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-3xl border border-slate-200/80 shadow-xs relative"
       >
-        {/* Full-width Top Accent Ribbon — neatly curves along the rounded-3xl corners without edge overflow */}
-        <div className="absolute inset-x-0 top-0 h-6 rounded-t-[23px] overflow-hidden pointer-events-none">
-          <div
-            className={cn(
-              "h-1.5 w-full",
-              (!exam.group_id || exam.status === "draft") && "bg-gradient-to-r from-slate-400 via-slate-500 to-slate-600",
-              exam.group_id && exam.status === "variants_ready" && "bg-gradient-to-r from-blue-500 via-indigo-500 to-primary-600",
-              exam.status === "print_ready" && "bg-gradient-to-r from-violet-500 via-purple-500 to-primary-600",
-              exam.group_id && exam.status === "lobby" && "bg-amber-400",
-              exam.group_id && exam.status === "active" && "bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600",
-              exam.status === "closed" && "bg-gradient-to-r from-rose-400 via-pink-500 to-rose-600"
-            )}
-          />
-        </div>
-
         <div className="p-6 md:p-7">
           {/* Title, one status and one quiet line of facts take the whole width; the actions (one main button, one quiet link, «⋯») sit in a row
               under them, and beside them only from 1440 px, where the title column still keeps 30rem. */}
@@ -1294,7 +1279,7 @@ export default function ExamHubPage() {
               <span>Результаты и Аналитика</span>
               {submittedCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-bold">
-                  {submittedCount} сдали
+                  {submittedCount} сдано
                 </span>
               )}
             </button>
@@ -1451,7 +1436,7 @@ export default function ExamHubPage() {
                   {exam.status === "lobby"
                     ? (lobbyOpen ? "Вы можете начать экзамен в любой момент, когда готовы (не обязательно ждать 100% присутствия)" : "Ученики смогут войти, пока урок идёт")
                     : isFinalized
-                    ? `Сдали: ${submittedCount}${incompleteCount > 0 ? ` • Не завершили: ${incompleteCount}` : ""}`
+                    ? `Сдано работ: ${submittedCount}${incompleteCount > 0 ? ` • Не завершили: ${incompleteCount}` : ""}`
                     : `В процессе: ${inProgressCount} • Завершили: ${submittedCount} • Ожидают: ${waitingCount}`}
                 </p>
               </div>
@@ -1603,7 +1588,7 @@ export default function ExamHubPage() {
                       {s.status === "submitted" && (
                         <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
                           <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Сдал
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Работа сдана
                           </span>
                           <span className="text-xs font-black text-emerald-800">
                             {s.score} / {s.max_score} б. ({s.max_score > 0 ? Math.round((s.score / s.max_score) * 100) : 0}%)

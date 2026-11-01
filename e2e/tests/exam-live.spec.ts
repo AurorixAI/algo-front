@@ -9,7 +9,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
  *   student: /e/{code} in ANOTHER browser context -> name + ID -> lobby
  *   teacher: sees him in the lobby -> «Начать экзамен»
  *   student: answers with the two-step selection (first tap marks, second tap confirms) -> «Завершить»
- *   teacher: «Сдал», 2/3, 67 %
+ *   teacher: «Работа сдана», 2/3, 67 %
  * The student answers question 2 wrongly on purpose: the score must follow the answers, not just "submitted".
  */
 test.describe.configure({ mode: "serial" });
@@ -19,7 +19,7 @@ test.beforeAll(async () => {
   org = await Org.create("Экзамен");
 });
 
-test("assign to a started lesson -> student joins by code -> teacher starts -> two-step answers -> «Сдал» @exam @mobile", async ({ signIn, anonymous, hasTouch }) => {
+test("assign to a started lesson -> student joins by code -> teacher starts -> two-step answers -> «Работа сдана» @exam @mobile", async ({ signIn, anonymous, hasTouch }) => {
   const teacher = await org.addStaff("teacher", "Экзаменов");
   const group = await org.createGroup({ name: "Группа Э1", teacherId: teacher.userId });
   const student = await org.addStudent(group, "Анвар", "Сдающий");
@@ -100,11 +100,11 @@ test("assign to a started lesson -> student joins by code -> teacher starts -> t
   await sp.getByRole("button", { name: "Завершить" }).click();
   await expect(sp.getByRole("heading", { name: "Спасибо за прохождение!" })).toBeVisible();
 
-  // --- teacher: «Сдал», 2 of 3, 67 %
+  // --- teacher: «Работа сдана», 2 of 3, 67 %
   await tp.goto(`/teacher/exams/${draft.exam_id}/sessions`);
   const row = tp.getByRole("row", { name: /Сдающий Анвар/ });
   await expect(row).toContainText("2/3");
   await expect(row).toContainText("67%");
-  await expect(row.getByRole("cell", { name: "Сдал" })).toBeVisible();
+  await expect(row.getByRole("cell", { name: "Работа сдана" })).toBeVisible();
   await expect(tp.getByText("Сдали").locator("xpath=following-sibling::p[1]")).toHaveText("1");
 });
