@@ -28,12 +28,14 @@ test("an exam without the field (older server) reads as the old 60; a stored one
   assert.equal(threshold.passThresholdTileLabel(70), "Сдали порог (≥70%)");
 });
 
-test("«Изменить порог» is offered only for an online exam that has no submitted work and is not archived", () => {
-  assert.equal(threshold.canEditPassThreshold({ delivery_mode: "online", status: "draft", pass_threshold_locked: false }), true);
-  assert.equal(threshold.canEditPassThreshold({ delivery_mode: "online", status: "active" }), true);
-  assert.equal(threshold.canEditPassThreshold({ delivery_mode: "online", status: "closed", pass_threshold_locked: true }), false);
+test("«Изменить порог» is offered by the status alone: a draft and a lobby; never from «идёт», closed, archived, print_ready or print", () => {
+  const offered = (status, extra = {}) => threshold.canEditPassThreshold({ delivery_mode: "online", status, ...extra });
+  assert.deepEqual(["draft", "variants_ready", "lobby"].map((s) => offered(s)), [true, true, true]);
+  assert.deepEqual(["active", "closed", "archived", "print_ready"].map((s) => offered(s)), [false, false, false, false]);
+  assert.equal(offered("lobby", { pass_threshold_locked: true }), true);          // the flag is not a second rule any more
   assert.equal(threshold.canEditPassThreshold({ delivery_mode: "print", status: "draft" }), false);
-  assert.equal(threshold.canEditPassThreshold({ delivery_mode: "online", status: "archived" }), false);
+  assert.equal(threshold.canEditPassThreshold({}), false);
+  assert.equal(threshold.PASS_THRESHOLD_WHEN_HINT, "Меняется до начала экзамена");
 });
 
 test("a library page is appended without duplicates and keeps the order", () => {
@@ -72,7 +74,7 @@ test("«Отчёт» and «Аналитика» take the threshold from the exam
   const exam = read("src/app/teacher/exams/[id]/page.tsx");
   assert.match(exam, /analytics\?\.pass_threshold_pct/);
   assert.match(exam, /analytics\.pass_rate_pct/);
-  assert.match(exam, /Порог: \{examPassThreshold\(exam\)\}%/);
+  assert.match(exam, /`порог \$\{examPassThreshold\(exam\)\}%`/);
   const admin = read("src/app/admin/exams/[id]/page.tsx");
   assert.match(admin, /passThresholdTileLabel\(examPassThreshold\(analytics\)\)/);
 });

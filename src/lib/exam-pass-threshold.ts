@@ -5,6 +5,7 @@
 export const DEFAULT_PASS_THRESHOLD_PCT = 60;
 
 export const PASS_THRESHOLD_HINT = "Ученик с результатом не ниже порога считается справившимся";
+export const PASS_THRESHOLD_WHEN_HINT = "Меняется до начала экзамена";
 
 /** «60» -> 60; anything that is not a whole number from 1 to 100 -> null (the form says so, the server would answer 422). */
 export function parsePassThreshold(text: string): number | null {
@@ -25,9 +26,12 @@ export function passThresholdTileLabel(threshold: number): string {
   return `Сдали порог (≥${threshold}%)`;
 }
 
-/** May the «Изменить порог» action be offered? Only for online exams (a printed one has no analytics) and until a work is submitted. */
-export function canEditPassThreshold(exam: { delivery_mode?: string | null; status?: string | null; pass_threshold_locked?: boolean | null }): boolean {
-  return exam.delivery_mode !== "print" && exam.status !== "archived" && !exam.pass_threshold_locked;
+/** Statuses in which the threshold may still change: the exam has not begun (owner's rule 31.10, ONE rule). From «идёт» on, and in every other status, it is shut. */
+export const PASS_THRESHOLD_OPEN_STATUSES = ["draft", "variants_ready", "lobby"] as const;
+
+/** May the «Изменить порог» action be offered? An online exam that is a draft or a lobby - the status alone (the server says the same with a 409). */
+export function canEditPassThreshold(exam: { delivery_mode?: string | null; status?: string | null }): boolean {
+  return exam.delivery_mode !== "print" && (PASS_THRESHOLD_OPEN_STATUSES as readonly string[]).includes(exam.status ?? "");
 }
 
 /** The threshold the create form sends: what is typed, or the default when the field is unusable (the form blocks «Далее» before that). */

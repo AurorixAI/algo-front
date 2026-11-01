@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { Loader2, Target, X } from "lucide-react";
 import { useScrollLock } from "@/components/ui/modal";
-import { PASS_THRESHOLD_HINT, parsePassThreshold } from "@/lib/exam-pass-threshold";
+import { PASS_THRESHOLD_HINT, PASS_THRESHOLD_WHEN_HINT, parsePassThreshold } from "@/lib/exam-pass-threshold";
 
 interface PassThresholdModalProps {
   open: boolean;
@@ -100,7 +100,7 @@ export function PassThresholdModal({ open, current, onClose, onSave }: PassThres
             />
             <span className="text-base font-semibold text-slate-500">%</span>
           </div>
-          <p className="text-xs leading-5 text-slate-500">{PASS_THRESHOLD_HINT}. Меняется до первой сданной работы.</p>
+          <p className="text-xs leading-5 text-slate-500">{PASS_THRESHOLD_HINT}. {PASS_THRESHOLD_WHEN_HINT}.</p>
           {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
         </div>
 

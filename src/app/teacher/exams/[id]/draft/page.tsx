@@ -96,7 +96,6 @@ interface DraftData {
   class_level?: number | null;
   is_pinned?: boolean;
   pass_threshold_pct?: number;
-  pass_threshold_locked?: boolean;
   settings: Record<string, any>;
   delivery_mode: "online" | "print";
   skills_covered: string[];

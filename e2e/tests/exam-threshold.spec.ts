@@ -19,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 
 const SHOTS = process.env.SHOTS_DIR || path.resolve(__dirname, "../../../artifacts/code_audit_2410/shots-wb-p1");
 mkdirSync(SHOTS, { recursive: true });
-const LOCKED = "Порог нельзя изменить: по экзамену уже есть сданные работы";
+const LOCKED = "Порог нельзя изменить: экзамен уже начался";
 
 let org: Org;
 test.beforeAll(async () => {
@@ -47,7 +47,7 @@ test("threshold 70: students at 55 % and 75 % -> «Аналитика» and «О
   await expectNoHorizontalScroll(tp);
   await shot(tp, "1-draft-threshold-in-header");
 
-  // the threshold can still be changed before any work is submitted: through the «⋯» menu
+  // the threshold can still be changed while the exam is a draft: through the «⋯» menu
   await tp.getByRole("button", { name: /Действия|Опции/ }).first().click();
   await tp.getByRole("button", { name: "Изменить порог" }).click();
   const dialog = tp.getByRole("dialog", { name: "Проходной порог" });
@@ -94,7 +94,7 @@ test("threshold 70: students at 55 % and 75 % -> «Аналитика» and «О
   await expectNoHorizontalScroll(tp);
   await shot(tp, "3-analytics-pass-threshold");
 
-  // --- the threshold is locked now: the API says why, the menu does not offer it
+  // --- the exam has begun, the threshold is shut: the API says why, the menu does not offer it
   const refused = await api.call("PATCH", `/exams/${draft.exam_id}/pass-threshold`, { pass_threshold_pct: 50 }).then(() => null, (e) => e);
   expect(refused?.status).toBe(409);
   expect(JSON.stringify(refused?.detail)).toContain(LOCKED);

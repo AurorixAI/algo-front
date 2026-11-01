@@ -2631,7 +2631,6 @@ export const examsApi = {
       scheduled_lesson_date?: string | null;
       /** % of the maximum score from which a student counts as having passed; locked once a work is submitted. */
       pass_threshold_pct?: number;
-      pass_threshold_locked?: boolean;
       settings: Record<string, any>;
       delivery_mode: "online" | "print";
       print_package?: PrintPackageMetadata | null;
