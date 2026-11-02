@@ -253,9 +253,9 @@ const allTsx = walk("src");
 
 test("no component reveals content on mouse hover only: hover handlers have a focus / tap twin, hover-reveals have a focus twin", () => {
   const hoverHandlers = allTsx.filter((f) => /onMouseEnter|onMouseOver|onPointerEnter/.test(read(f)));
-  // feature-lock: hover + focus + tap-to-pin;  hint: hover + focus + click / Enter pin
+  // hint: hover + focus + click / Enter pin
   // income-parts: the donut «Чем платили» — the hover only HIGHLIGHTS a segment and its legend line (nothing is revealed by hover alone): focus does the same, a tap / Enter chooses it
-  assert.deepEqual(hoverHandlers.sort(), ["src/components/payments/income-parts.tsx", "src/components/ui/feature-lock.tsx", "src/components/ui/hint.tsx"]);
+  assert.deepEqual(hoverHandlers.sort(), ["src/components/payments/income-parts.tsx", "src/components/ui/hint.tsx"]);
   const donut = read("src/components/payments/income-parts.tsx");
   assert.match(donut, /onFocus: \(\) => setHover\(method\)/, "the donut: focus highlights too");
   assert.match(donut, /onClick=\{\(\) => pick\(segment\.method\)\}/, "the donut: a tap chooses");
@@ -283,8 +283,8 @@ test("no component reveals content on mouse hover only: hover handlers have a fo
 test("no hand-placed absolute dropdown remains: menus go through FloatingPanel / the placement hook", () => {
   // `absolute ... top-full | bottom-full | left-full | right-full` = a panel glued to its trigger's box
   const hand = allTsx.filter((f) => /absolute[\s\S]{0,260}?\b(top-full|bottom-full|left-full|right-full)\b/.test(read(f))).sort();
-  // sidebar: the profile menu hangs off a `fixed` full-height rail (documented, click + Escape); feature-lock: the tooltip's arrow
-  assert.deepEqual(hand, ["src/components/layout/sidebar.tsx", "src/components/ui/feature-lock.tsx"].sort());
+  // sidebar: the profile menu hangs off a `fixed` full-height rail (documented, click + Escape)
+  assert.deepEqual(hand, ["src/components/layout/sidebar.tsx"]);
   assert.doesNotMatch(read("src/components/layout/sidebar.tsx"), /left-full|right-full/);
   // the full-screen click-catcher behind a menu (fixed inset-0 z-30..40 + onClick close) is gone: FloatingPanel closes on a press outside
   for (const f of allTsx) {
@@ -295,7 +295,6 @@ test("no hand-placed absolute dropdown remains: menus go through FloatingPanel /
     "src/app/teacher/exams/[id]/page.tsx": "headerMenuTriggerRef",
     "src/app/teacher/exams/[id]/draft/page.tsx": "headerMenuTriggerRef",
     "src/app/teacher/schedule/page.tsx": "groupFilterTriggerRef",
-    "src/components/layout/header.tsx": "langTriggerRef",
   };
   for (const [file, ref] of Object.entries(converted)) {
     const src = read(file);
@@ -372,9 +371,6 @@ test("keyboard / touch twins of the other reveals: sidebar profile menu closes o
   const fig = read("src/components/tasks/TaskFigureDrawer.tsx");
   assert.match(fig, /role="button"\s+tabIndex=\{0\}/);
   assert.match(fig, /group-focus-visible:opacity-100/);
-  const lock = read("src/components/ui/feature-lock.tsx");
-  assert.match(lock, /\{ type: "click", mousePins: false \}/, "a feature lock reacts to a tap, a mouse click does not pin it");
-  assert.match(lock, /\{ type: "blur" \}/);
 });
 
 // ---- 4. R3 follow-ups ------------------------------------------------------------------------------
@@ -434,16 +430,13 @@ test("reveal state machine - keyboard after a touch session: Tab focus shows it,
   assert.equal(st.hovered, false);
 });
 
-test("Hint is a labelled button: role=button + aria-expanded; FeatureLock/Hint share the tested touch rules", () => {
+test("Hint is a labelled button: role=button + aria-expanded; the touch rules come from the tested state machine", () => {
   const hint = read("src/components/ui/hint.tsx");
   assert.match(hint, /role="button"/);
   assert.match(hint, /aria-expanded=\{open\}/);
   assert.match(hint, /dispatch\(\{ type: "pointer-down", pointerType: event\.pointerType \}\)/);
   assert.match(hint, /dispatch\(\{ type: "blur" \}\)/);
   assert.match(hint, /dispatch\(\{ type: "click", mousePins: true \}\)/);
-  const lock = read("src/components/ui/feature-lock.tsx");
-  assert.match(lock, /dispatch\(\{ type: "pointer-down", pointerType: event\.pointerType \}\)/);
-  assert.doesNotMatch(lock, /setIsHovered|setIsFocused|setIsPinned/, "no ad-hoc hover / focus / pin state any more");
 });
 
 test("filter keyboard + a11y: ArrowDown on the trigger, focus returns after a pick, the reset is a real button, selected rows are marked", () => {
@@ -517,7 +510,7 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
 test("menus: panels are role=group, so no aria-haspopup=true; triggers point to them with aria-controls", () => {
   const files = [
     "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx",
-    "src/app/teacher/schedule/page.tsx", "src/components/layout/header.tsx", "src/components/layout/sidebar.tsx",
+    "src/app/teacher/schedule/page.tsx", "src/components/layout/sidebar.tsx",
   ];
   for (const f of files) {
     const src = read(f);
@@ -529,7 +522,7 @@ test("menus: panels are role=group, so no aria-haspopup=true; triggers point to 
   const pairs = [
     ["src/app/teacher/exams/[id]/page.tsx", "exam-actions-menu"], ["src/app/teacher/exams/[id]/page.tsx", "exam-student-popover"],
     ["src/app/teacher/exams/[id]/draft/page.tsx", "draft-actions-menu"], ["src/app/teacher/schedule/page.tsx", "schedule-group-filter-menu"],
-    ["src/components/substitutions/teacher-lesson-controls.tsx", "lesson-actions-menu"], ["src/components/layout/header.tsx", "language-menu"],
+    ["src/components/substitutions/teacher-lesson-controls.tsx", "lesson-actions-menu"],
     ["src/components/layout/sidebar.tsx", "sidebar-profile-menu"],
   ];
   for (const [f, id] of pairs) {
