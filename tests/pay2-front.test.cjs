@@ -17,7 +17,6 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/pay2", `${name}.json`), "utf8"));
 const P = require(path.join(root, "src/lib/payments.ts"));
 const L = require(path.join(root, "src/lib/payments-ledger.ts"));
-const I = require(path.join(root, "src/lib/payments-income.ts"));
 const hook = require(path.join(root, "src/lib/use-payment-preview.ts"));
 const { createRequestSequence } = require(path.join(root, "src/lib/request-sequence.ts"));
 /** Normal spaces instead of the non-breaking ones: what the user reads. */
@@ -33,12 +32,12 @@ test("the contract has 21 operations; the front has a helper for each one it use
   const api = read("src/lib/api.ts");
   const needed = {
     "payments/preview": /payments\/preview/, "/writeoffs": /writeoffs`/, "/refunds": /refunds`/, "/statement": /statement`|statement\$\{/,
-    "statement/export": /statement\/export/, "receipts": /payments\/receipts\?/, "receipts/items": /receipts\/items\?/, "balances": /payments\/balances\?/,
+    "statement/export": /statement\/export/,
     "writeoffs void": /writeoffs\/\$\{encodePathId\(writeoffId\)\}\/void/, "refunds void": /refunds\/\$\{encodePathId\(refundId\)\}\/void/,
     "Idempotency-Key": /"Idempotency-Key"/, "dry_run": /dry_run=true/,
   };
   for (const [name, pattern] of Object.entries(needed)) assert.match(api, pattern, name);
-  assert.doesNotMatch(api, /payments\/quote/);
+  assert.doesNotMatch(api, /payments\/quote|payments\/receipts|payments\/balances/); // the first PAY-2 report calls are gone with the report (wave D)
 });
 
 test("every response fixture reads through the tolerant parsers without NaN or missing lists", () => {
@@ -425,123 +424,6 @@ test("a statement that does not add up is called out, not hidden", () => {
 });
 
 // ── receipts report «Поступления» ───────────────────────────────────────────────────────────────
-
-test("the receipts report: totals, where the money went, the days the server leaves out, «сходится»", () => {
-  const report = I.normalizeReport(fixture("receipts_report_2026-10"));
-  const totals = report.totals;
-  assert.equal(totals.received, 1540000);
-  assert.equal(totals.refunded_from_received, 324000);
-  assert.equal(totals.net_received, 1216000);
-  // received − returned = what went to past debts + running periods + advance
-  assert.equal(I.distributionAddsUp(totals), true);
-  assert.deepEqual(I.distributionRows(totals).map((row) => [row.column, row.amount]), [["to_past_debt", 269000], ["to_current", 926000], ["to_advance", 21000]]);
-  assert.equal(I.sharePercent(926000, totals.net_received), 76);
-  // money that left the group is shown in two parts: real refunds and money moved to another group
-  assert.deepEqual(I.leftRows(totals), [{ key: "refunded", label: "Возвращено", amount: 324000 }]);
-  assert.deepEqual(I.leftRows({ ...totals, refunded_from_received: 100000, transferred_from_received: 224000 }).map((row) => [row.label, row.amount]), [["Возвращено", 100000], ["Переведено в другие группы", 224000]]);
-  assert.deepEqual(I.leftRows({ ...totals, refunded_from_received: 0, transferred_from_received: 0 }), []);
-  assert.equal(I.distributionRows(totals).reduce((a, row) => a + row.amount, 0) + I.leftRows(totals).reduce((a, row) => a + row.amount, 0), totals.received);
-  assert.equal(I.distributionAddsUp({ ...totals, refunded_from_received: 100000, transferred_from_received: 224000 }), true);
-  // only the days that have money get a row in the table
-  assert.deepEqual(I.activeSeries(I.fillSeries(report)).map((point) => point.bucket), report.series.map((point) => point.bucket));
-  assert.equal(I.sharePercent(1, 0), 0);
-  // by method adds up to the received money, by group and by teacher too
-  assert.equal(report.by_method.reduce((a, item) => a + item.amount, 0), totals.received);
-  assert.equal(report.by_group.reduce((a, item) => a + item.received, 0), totals.received);
-  assert.equal(report.by_teacher.reduce((a, item) => a + item.received, 0), totals.received);
-  assert.equal(report.by_group.reduce((a, item) => a + item.to_past_debt + item.to_current + item.to_advance, 0), totals.net_received);
-  assert.equal(report.by_group.reduce((a, item) => a + item.written_off, 0), totals.written_off);
-  // the position of the whole center today
-  assert.deepEqual([report.position.debt_total, report.position.advance_total, report.position.students_with_debt], [70000, 21000, 1]);
-  // the series lists only the days with money: the front fills the other days of the month with zeros
-  assert.equal(report.series.length, 5);
-  const days = I.fillSeries(report);
-  assert.equal(days.length, 31);
-  assert.deepEqual([days[0].bucket, days[30].bucket], ["2026-10-01", "2026-10-31"]);
-  assert.equal(days.reduce((a, day) => a + day.received, 0), totals.received);
-  assert.equal(days.reduce((a, day) => a + day.refunded, 0), totals.refunded);
-  assert.equal(days[1].received, 0);
-  assert.equal(days[1].count, 0);
-  // the reconciliation line
-  const check = I.reconciliationView(report.reconciliation);
-  assert.equal(check.ok, true);
-  assert.equal(check.text, "Сходится");
-  assert.equal(check.lines.length, 3);
-  assert.ok(check.lines.every((line) => line.ok));
-});
-
-test("the report does not hide a discrepancy", () => {
-  const report = I.normalizeReport(fixture("receipts_report_2026-10"));
-  const broken = { ...report.reconciliation, ok: false, checks: report.reconciliation.checks.map((check, index) => (index === 0 ? { ...check, right: check.right - 1000, diff: 1000 } : check)) };
-  const view = I.reconciliationView(broken);
-  assert.equal(view.ok, false);
-  assert.equal(plain(view.text), "Не сходится: расхождение 1 000 сум");
-  assert.equal(view.failed.length, 1);
-  assert.match(view.failed[0].label, /Поступило = распределено/);
-  assert.equal(I.distributionAddsUp({ ...report.totals, to_advance: report.totals.to_advance + 1 }), false);
-});
-
-test("a month by months: the monthly series has every month, the empty ones are zero", () => {
-  const fake = { from: "2026-08-15", to: "2026-10-31", group_by: "month", series: [{ bucket: "2026-09", received: 5, refunded: 0, to_past_debt: 0, to_current: 5, to_advance: 0, written_off: 0, count: 1, by_method: {} }] };
-  assert.deepEqual(I.fillSeries(fake).map((point) => [point.bucket, point.received]), [["2026-08", 0], ["2026-09", 5], ["2026-10", 0]]);
-  assert.equal(I.bucketLabel("2026-10-21"), "21.10");
-  assert.equal(I.bucketLabel("2026-10"), "Октябрь 2026 г.");
-});
-
-test("the period picker: a day, a month, a range; the query is the server's", () => {
-  const month = I.periodOf("month", "2026-10-21");
-  assert.deepEqual([month.from, month.to], ["2026-10-01", "2026-10-31"]);
-  const next = I.stepPeriod(month, 1);
-  assert.deepEqual([next.from, next.to], ["2026-11-01", "2026-11-30"]);
-  const prev = I.stepPeriod(I.periodOf("month", "2026-01-15"), -1);
-  assert.deepEqual([prev.from, prev.to], ["2025-12-01", "2025-12-31"]);
-  const leap = I.periodOf("month", "2028-02-10");
-  assert.equal(leap.to, "2028-02-29");
-  const day = I.periodOf("day", "2026-10-21");
-  assert.deepEqual(I.stepPeriod(day, -1), { kind: "day", from: "2026-10-20", to: "2026-10-20" });
-  // switching from a month to a day keeps the date; a range keeps its own dates
-  assert.deepEqual(I.periodOf("range", "2026-10-21", { kind: "range", from: "2026-10-05", to: "2026-10-12" }), { kind: "range", from: "2026-10-05", to: "2026-10-12" });
-  assert.deepEqual(I.stepPeriod({ kind: "range", from: "2026-10-01", to: "2026-10-10" }, 1), { kind: "range", from: "2026-10-11", to: "2026-10-20" });
-  assert.equal(I.periodTitle(month), "Октябрь 2026 г.");
-  assert.equal(I.periodTitle(day), "21.10.2026");
-  assert.deepEqual(I.reportQuery(month, I.NO_FILTERS), { from: "2026-10-01", to: "2026-10-31", group_by: "day" });
-  assert.deepEqual(I.reportQuery(month, { method: "cash", groupId: "g1", teacherId: "t1" }), { from: "2026-10-01", to: "2026-10-31", group_by: "day", method: "cash", group_id: "g1", teacher_id: "t1" });
-  // the server: a day-by-day series is at most 92 days, a range at most 366
-  assert.equal(I.groupByFor({ kind: "range", from: "2026-01-01", to: "2026-06-30" }), "month");
-  assert.equal(I.validatePeriod({ kind: "range", from: "2026-01-01", to: "2027-01-02" }), "Период не длиннее года");
-  assert.equal(I.validatePeriod({ kind: "range", from: "2026-01-01", to: "2026-12-31" }), null);
-  assert.equal(I.validatePeriod({ kind: "range", from: "2026-10-10", to: "2026-10-01" }), "Конец периода раньше начала");
-});
-
-test("every figure opens the list of payments behind it", () => {
-  const month = I.periodOf("month", "2026-10-21");
-  const filters = { method: "cash", groupId: "", teacherId: "t1" };
-  const target = I.itemsDrill("to_past_debt", { bucket: "2026-10-01", of: "Математика 7А", groupId: "g1" });
-  assert.equal(target.title, "На долги прошлых периодов · Математика 7А");
-  assert.deepEqual(I.drillQuery(target, month, filters, 50, 50), {
-    from: "2026-10-01", to: "2026-10-31", column: "to_past_debt", limit: 50, offset: 50, bucket: "2026-10-01", method: "cash", group_id: "g1", teacher_id: "t1",
-  });
-  // the filters on screen are kept; a figure of a method overrides the method filter
-  assert.equal(I.drillQuery(I.itemsDrill("received", { method: "card" }), month, filters).method, "card");
-  assert.equal(I.balancesDrill("debt").title, "Ученики с долгом");
-  assert.equal(I.balancesDrill("advance").title, "Ученики с авансом");
-  const items = I.normalizeItems(fixture("receipts_items_to_past_debt"));
-  assert.ok(items.items.length > 0);
-  // the column amount is the part of the record in the clicked column; the whole record is the note
-  for (const item of items.items) {
-    assert.ok(item.column_amount <= item.amount);
-    if (item.column_amount !== item.amount) assert.match(plain(I.itemPartNote(item)), /^из [\d ]+ сум$/);
-    else assert.equal(I.itemPartNote(item), null);
-  }
-  assert.equal(items.items.reduce((a, item) => a + item.column_amount, 0), 269000);
-  assert.match(I.itemTitle(items.items[0]), /^Оплата № \d+ · /);
-  assert.equal(I.itemTitle({ type: "writeoff", receipt_no: null, method: null }), "Долг прощён");
-  const balances = I.normalizeBalances(fixture("balances_debt"));
-  assert.ok(balances.items.every((row) => row.debt > 0));
-  assert.equal(L.balanceRowNote({ is_active: false }), " · ушёл из группы");
-  assert.equal(L.balanceRowNote({ is_active: true, student_archived: true }), " · ученик в архиве");
-  assert.equal(L.balanceRowNote({ is_active: true }), "");
-});
 
 // ── receipt: from the snapshot ──────────────────────────────────────────────────────────────────
 

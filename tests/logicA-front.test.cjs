@@ -49,16 +49,16 @@ function renderer() {
 
 // ── the contract ─────────────────────────────────────────────────────────────────────────────
 
-test("the contract: 36 operations, every one the front needs has a helper in orgApi", () => {
+test("the contract: 36 operations, every one a screen of the front calls has a helper in orgApi (opening void, payouts list and the divisor PUT have no screen: their helpers are gone, wave D)", () => {
   const contract = fixture("_contract");
   const operations = Object.entries(contract.paths).flatMap(([route, methods]) => Object.keys(methods).map((method) => `${method.toUpperCase()} ${route}`));
   assert.equal(operations.length, 36);
   const api = read("src/lib/api.ts");
   const needed = {
-    "opening get/put": /opening-balance\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}/, "opening void": /opening-balances\/\$\{encodePathId\(openingId\)\}\/void/,
+    "opening get/put": /opening-balance\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}/,
     "pauses": /\/pauses\$\{options\?\.dryRun/, "pause patch": /\/pauses\/\$\{encodePathId\(pauseId\)\}\$\{options\?\.dryRun/, "pause void": /pauses\/\$\{encodePathId\(pauseId\)\}\/void/,
     "leave preview": /leave-preview/, "leave": /\/leave`/, "archive preview": /archive-preview/, "payouts": /payroll\/sheets\/\$\{encodePathId\(sheetId\)\}\/payouts/,
-    "payout void": /payroll\/payouts\/\$\{encodePathId\(payoutId\)\}\/void/, "payouts list": /payroll\/payouts\?month=/, "divisor": /payroll\/settings", \{ method: "PUT", body \}/,
+    "payout void": /payroll\/payouts\/\$\{encodePathId\(payoutId\)\}\/void/,
     "opening in add": /opening_balance/, "price dry run": /price-override\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}/, "Idempotency-Key": /"Idempotency-Key"/,
   };
   for (const [name, pattern] of Object.entries(needed)) assert.match(api, pattern, name);
