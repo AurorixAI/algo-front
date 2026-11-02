@@ -71,6 +71,7 @@ export default function AdminDiagnosticsPage() {
   const loadSequence = useRef(createRequestSequence());
   const lastFullAt = useRef<number | null>(null);
   const inFlight = useRef(false);
+  const hasList = useRef(false);
   const loadInvites = useCallback(async (automatic = false) => {
     if (automatic && inFlight.current) return;
     const token = loadSequence.current.next();
@@ -81,6 +82,7 @@ export default function AdminDiagnosticsPage() {
         const data = await orgApi.listDiagnostics();
         if (!loadSequence.current.isCurrent(token)) return;
         lastFullAt.current = Date.now();
+        hasList.current = true;
         setInvites(Array.isArray(data) ? data : []);
       } else {
         const head = await orgApi.listDiagnosticsHead();
@@ -91,6 +93,8 @@ export default function AdminDiagnosticsPage() {
     } catch (err: any) {
       if (!loadSequence.current.isCurrent(token)) return;
       console.error("Failed to load diagnostics:", err);
+      // A refresh in the background that failed or ran out of time (8 s per page) keeps the list on screen; the next tick asks again.
+      if (automatic && hasList.current) return;
       setLoadError(err?.message || "Не удалось загрузить диагностики. Проверьте подключение и повторите попытку.");
     } finally {
       if (loadSequence.current.isCurrent(token)) {

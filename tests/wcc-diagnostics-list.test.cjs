@@ -158,3 +158,51 @@ test("the page: the list goes through the helpers, one refresh at a time, the la
   assert.ok(!/while \(true\)[\s\S]{0,400}\/auth\/org\/diagnostics/.test(api), "the sequential page loop is gone");
   assert.ok(/loadAllPages<any>/.test(api));
 });
+
+// ── R3 B1/m3: a request that never answers must not block the refresh ────────────────────────────────────────────────────────────
+const { withTimeLimit } = require(path.join(__dirname, "../src/lib/request-limit.ts"));
+
+function fakeTimers() {
+  let now = 0, seq = 0, timers = [];
+  return {
+    env: { setTimer: (fn, ms) => { const t = { id: ++seq, at: now + ms, fn }; timers.push(t); return t.id; }, clearTimer: (id) => { timers = timers.filter((t) => t.id !== id); } },
+    pending: () => timers.length,
+    advance: async (ms) => { now += ms; for (const t of timers.filter((x) => x.at <= now)) { timers = timers.filter((x) => x !== t); t.fn(); } for (let i = 0; i < 10; i += 1) await Promise.resolve(); },
+  };
+}
+
+test("a request that never answers is aborted after 8 s and rejects; a quick one clears its timer", async () => {
+  const f = fakeTimers();
+  let seen = null;
+  const hung = withTimeLimit(8000, (signal) => { seen = signal; return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))); }, f.env);
+  const outcome = hung.then(() => "ok", (e) => e.message);
+  await f.advance(7999);
+  assert.equal(seen.aborted, false);
+  await f.advance(1);
+  assert.equal(seen.aborted, true);
+  assert.equal(await outcome, "aborted");
+  assert.equal(f.pending(), 0);
+  assert.equal(await withTimeLimit(8000, async () => 42, f.env), 42);
+  assert.equal(f.pending(), 0, "the timer of a finished request is cleared");
+});
+
+test("a page of the list that hangs fails the whole read at once (no wait for the others), so the next refresh can start", async () => {
+  const f = fakeTimers();
+  const s = fakeServer(450);
+  const fetchPage = (offset) => offset === 200
+    ? withTimeLimit(8000, (signal) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))), f.env)
+    : s.fetch(offset);
+  const outcome = loadAllPages(fetchPage, idOf).then(() => "ok", (e) => e.message);
+  await new Promise((resolve) => setImmediate(resolve));     // the first page and the first batch are on the way, the hanging page has its timer
+  await f.advance(8000);
+  assert.equal(await outcome, "aborted");
+});
+
+test("the page: every page of the list has the 8 s limit; a failed refresh in the background keeps the list on screen", () => {
+  const api = fs.readFileSync(path.join(__dirname, "../src/lib/api.ts"), "utf8");
+  assert.ok(/DIAGNOSTICS_REQUEST_LIMIT_MS = 8000/.test(api));
+  assert.ok(/withTimeLimit\(DIAGNOSTICS_REQUEST_LIMIT_MS, \(signal\) => api<PagedResponse<any> \| any\[\]>\(`[^`]*`, \{ signal \}\)\)/.test(api));
+  const src = fs.readFileSync(path.join(__dirname, "../src/app/admin/diagnostics/page.tsx"), "utf8");
+  assert.ok(/if \(automatic && hasList\.current\) return;/.test(src));
+  assert.ok(/hasList\.current = true;/.test(src));
+});

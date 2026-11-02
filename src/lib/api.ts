@@ -145,6 +145,7 @@ import {
   type PayrollSettingsFull,
 } from "./payroll-logica";
 import { loadAllPages, type PagedResponse } from "./diagnostics-list";
+import { withTimeLimit } from "./request-limit";
 
 import type {
   ArchiveGroupBody,
@@ -1324,10 +1325,12 @@ export const authApi = {
 // ============================================================================
 
 const DIAGNOSTICS_PAGE_SIZE = 100;
+/** One page of the list may take this long; a request that never answers must not block the refresh of the list (R3 B1/m3). */
+const DIAGNOSTICS_REQUEST_LIMIT_MS = 8000;
 function diagnosticsPage(offset: number, status?: string) {
   const query = new URLSearchParams({ limit: String(DIAGNOSTICS_PAGE_SIZE), offset: String(offset), include_meta: "true" });
   if (status) query.set("status", status);
-  return api<PagedResponse<any> | any[]>(`/auth/org/diagnostics?${query.toString()}`);
+  return withTimeLimit(DIAGNOSTICS_REQUEST_LIMIT_MS, (signal) => api<PagedResponse<any> | any[]>(`/auth/org/diagnostics?${query.toString()}`, { signal }));
 }
 
 export const orgApi = {
