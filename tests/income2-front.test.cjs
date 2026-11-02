@@ -104,6 +104,10 @@ test("period: a month (the arrows step by month) and a custom range (the arrows 
   assert.deepEqual(V.stepPeriod(V.periodOf("month", TODAY), -1), { kind: "month", from: "2026-09-01", to: "2026-09-30" });
   assert.deepEqual(V.stepPeriod(V.periodOf("month", "2026-01-15"), -1), { kind: "month", from: "2025-12-01", to: "2025-12-31" });
   assert.deepEqual(V.stepPeriod(V.periodOf("month", "2026-12-15"), 1), { kind: "month", from: "2027-01-01", to: "2027-01-31" });
+  // monthEnd of a leap February (the month arithmetic lives in payments-income.ts)
+  assert.deepEqual(V.periodOf("month", "2028-02-10"), { kind: "month", from: "2028-02-01", to: "2028-02-29" });
+  assert.deepEqual(V.periodOf("month", "2027-02-10"), { kind: "month", from: "2027-02-01", to: "2027-02-28" });
+  assert.deepEqual(V.stepPeriod(V.periodOf("month", "2028-03-05"), -1), { kind: "month", from: "2028-02-01", to: "2028-02-29" });
   assert.deepEqual(V.stepPeriod({ kind: "custom", from: "2026-10-10", to: "2026-10-19" }, -1), { kind: "custom", from: "2026-09-30", to: "2026-10-09" });
 
   assert.equal(V.canStepForward(V.periodOf("month", TODAY), TODAY), false); // this month holds today
