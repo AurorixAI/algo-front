@@ -30,6 +30,7 @@ import { create } from "zustand";
 import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
+import { refreshBadgesOnPageChange } from "@/lib/badge-throttle";
 import { BADGE_LABEL } from "@/lib/substitutions";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
@@ -99,13 +100,13 @@ export function Sidebar() {
   // «Замены» (LOGIC-B2): the requests of teachers waiting for a decision; the same people see it, the same rhythm of refresh.
   const pendingSubstitutions = useSubstitutionBadge((state) => state.pending);
   const refreshSubstitutions = useSubstitutionBadge((state) => state.refresh);
-  // Asked when the role is known, not on every change of page (WC-C, PERF-1: ten pages in a minute were twenty requests): the counters are
-  // refreshed by every action on the pages that change them (`refresh(true)`), by the tab coming back and every 5 minutes (below).
+  // A change of page re-reads the counters, but not more than once in 30 s (by the last successful read, not by the path: WC-C, PERF-1 -
+  // ten pages in a minute were twenty requests).  The other refreshes: the tab coming back, every 5 minutes (below), `refresh(true)`
+  // after every action on the pages that change the counters.
   useEffect(() => {
     if (!showExcuses) return;
-    void refreshExcuses();
-    void refreshSubstitutions();
-  }, [showExcuses, refreshExcuses, refreshSubstitutions]);
+    refreshBadgesOnPageChange([useExcuseBadge, useSubstitutionBadge], Date.now());
+  }, [showExcuses, pathname]);
   useEffect(() => {
     if (!showExcuses) return;
     // Returning to the tab fires both "focus" and "visibilitychange": one request is enough.

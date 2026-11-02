@@ -6,6 +6,8 @@ interface ExcuseBadgeState {
   pending: number;
   /** Lessons that still have to be closed (started-unfinished + never started). */
   openLessons: number;
+  /** When the counter was last read successfully (ms since epoch, 0 = never): a change of page re-reads it only when this is 30 s old (lib/badge-throttle.ts). */
+  lastOkAt: number;
   /**
    * Re-read the counter; a failure keeps the last known value and never throws.
    * Without `force`, a call within a second of the previous one is skipped (mount
@@ -33,13 +35,14 @@ const MIN_GAP_MS = 1000;
 export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   pending: 0,
   openLessons: 0,
-  setPending: (value) => set({ pending: count(value) }),
+  lastOkAt: 0,
+  setPending: (value) => set({ pending: count(value), lastOkAt: Date.now() }),
   reset: () => {
     epoch += 1;
     inFlight = null;
     queued = null;
     lastStartedAt = 0;
-    set({ pending: 0, openLessons: 0 });
+    set({ pending: 0, openLessons: 0, lastOkAt: 0 });
   },
   refresh: (force = false) => {
     // The demo API has no such endpoint; nothing is requested there.
@@ -53,8 +56,8 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
           const open = summary?.open_lessons_total;
           // null/absent = not counted (server hiccup, or an older backend): keep the last value.
           set(open == null
-            ? { pending: count(summary?.pending_total) }
-            : { pending: count(summary?.pending_total), openLessons: count(open) });
+            ? { pending: count(summary?.pending_total), lastOkAt: Date.now() }
+            : { pending: count(summary?.pending_total), openLessons: count(open), lastOkAt: Date.now() });
         })
         .catch(() => undefined)
         .finally(() => { if (inFlight === request) inFlight = null; });

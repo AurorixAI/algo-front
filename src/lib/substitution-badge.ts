@@ -11,6 +11,8 @@ interface SubstitutionBadgeState {
   overdue: number;
   /** W1 S20: waiting requests that drop out of the window on the 1st (non-zero only in the last 3 days before it). */
   expiring: number;
+  /** When the counter was last read successfully (ms since epoch, 0 = never): a change of page re-reads it only when this is 30 s old (lib/badge-throttle.ts). */
+  lastOkAt: number;
   /**
    * Re-read the counter; a failure keeps the last known value and never throws.  Without `force` a call within a second of the
    * previous one is skipped (mount and route change fire together); pass `force` after an action that changed it.
@@ -37,14 +39,15 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
   urgent: 0,
   overdue: 0,
   expiring: 0,
+  lastOkAt: 0,
   setWaiting: (total) => set({ pending: count(total) }),
-  setSummary: (summary) => set({ pending: waitingTotal(summary), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal) }),
+  setSummary: (summary) => set({ pending: waitingTotal(summary), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal), lastOkAt: Date.now() }),
   reset: () => {
     epoch += 1;
     inFlight = null;
     queued = null;
     lastStartedAt = 0;
-    set({ pending: 0, urgent: 0, overdue: 0, expiring: 0 });
+    set({ pending: 0, urgent: 0, overdue: 0, expiring: 0, lastOkAt: 0 });
   },
   refresh: (force = false) => {
     // The demo API has no such endpoint; nothing is requested there.
@@ -55,7 +58,7 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
       const request: Promise<void> = substitutionsApi.summary()
         .then((summary) => {
           if (myEpoch !== epoch) return;
-          set({ pending: waitingTotal(summary), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal) });
+          set({ pending: waitingTotal(summary), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal), lastOkAt: Date.now() });
         })
         .catch(() => undefined)
         .finally(() => { if (inFlight === request) inFlight = null; });
