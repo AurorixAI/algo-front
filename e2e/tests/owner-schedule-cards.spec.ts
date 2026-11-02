@@ -80,8 +80,9 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await second.click();
   await page.getByRole("dialog", { name: "Вторая" }).getByRole("button", { name: "Отменить урок" }).click();
   const cancelSheet = page.getByRole("dialog", { name: "Вторая" });
-  await cancelSheet.getByRole("button", { name: "Отменить урок" }).click(); // without a reason
-  await expect(cancelSheet.getByRole("alert")).toContainText("Укажите причину");
+  // without a reason the button is off and the sheet says why (W1 front R3, 27.10)
+  await expect(cancelSheet.getByRole("button", { name: "Отменить урок" })).toBeDisabled();
+  await expect(cancelSheet.getByText(/Укажите причину/)).toBeVisible();
   await cancelSheet.getByLabel("Причина отмены").fill("Каникулы центра");
   await cancelSheet.getByRole("button", { name: "Отменить урок" }).click();
   await expect(toast(page, "Урок отменён")).toBeVisible();

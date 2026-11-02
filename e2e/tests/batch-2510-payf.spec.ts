@@ -293,7 +293,8 @@ test.describe("monthly centre", () => {
     await shot(page, `09-pay-dialog-recalc-${project}`);
     await page.keyboard.press("Escape");
 
-    // --- 5. the teacher cancels HIS lesson (the last one of next week): no «Праздник» choice, and the cancellation is «по вине центра»
+    // --- 5. the teacher has no «Отменить этот урок» (W1 S3, 27.10: he asks «Не смогу провести», the administrator decides); the owner cancels the
+    //        teacher's last lesson of next week, «по вине центра» (the default)
     const nextMonday = addDays(mondayOf(today()), 7);
     const lastWeekday = Math.max(...days.map((d) => d.weekday));
     const mine = { date: addDays(nextMonday, lastWeekday - 1), topic: days.find((d) => d.weekday === lastWeekday)!.topic };
@@ -305,16 +306,18 @@ test.describe("monthly centre", () => {
     await Promise.all([teacherPage.waitForResponse((r) => r.url().includes(`/attendance?date_from=${nextMonday}`)), teacherPage.getByTitle("Следующая неделя").click()]);
     await teacherPage.getByRole("heading", { name: group.name, level: 4 }).last().click();
     await teacherPage.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
-    await teacherPage.getByRole("menuitem", { name: /Отменить этот урок/ }).click();
-    await teacherPage.getByPlaceholder("Причина отмены (обязательно)").fill("Заболел, урока не будет");
-    await expect(teacherPage.getByTestId("cancellation-kind")).toHaveCount(0); // the teacher has no choice
+    await expect(teacherPage.getByRole("menuitem", { name: /Не смогу провести/ })).toBeVisible();
+    await expect(teacherPage.getByRole("menuitem", { name: /Отменить этот урок/ })).toHaveCount(0);
     await expect(teacherPage.getByText("Праздник, выходной")).toHaveCount(0);
     await expectNoHorizontalScroll(teacherPage);
-    await shot(teacherPage, `10-teacher-cancel-${project}`);
-    await expect(teacherPage.getByRole("button", { name: "Подтвердить отмену" })).toBeEnabled();
-    await teacherPage.getByRole("button", { name: "Подтвердить отмену" }).click();
-    await expect(teacherPage.getByText("Урок отменён").first()).toBeVisible();
-    await shot(teacherPage, `11-teacher-cancelled-${project}`);
+    await shot(teacherPage, `10-teacher-menu-${project}`);
+    const second = await openCard(page, group, mine);
+    await second.sheet.getByRole("button", { name: "Отменить урок" }).click();
+    await second.sheet.getByLabel("Причина отмены", { exact: true }).fill("Заболел, урока не будет");
+    await expect(second.sheet.getByRole("radio", { name: "По вине центра" })).toBeChecked();
+    await second.sheet.getByRole("button", { name: "Отменить урок" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await shot(page, `11-owner-cancelled-second-${project}`);
     const two = await lines();
     expect(two.recalc).toHaveLength(2);
     expect(two.recalc.map((r: any) => r.details.recalc.lesson_date).sort()).toEqual([first.date, mine.date].sort());
