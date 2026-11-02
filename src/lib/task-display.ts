@@ -1,13 +1,6 @@
 /** Pick the best display string for a task question (KaTeX-ready). */
 
-import {
-  prepareMathDisplay,
-  pickAnswerDisplayText,
-  pickAnswerDisplayProjection,
-  pickOptionDisplayText,
-  pickOptionDisplayProjection,
-  type MathDisplayProjection,
-} from "./math-display";
+import { prepareMathDisplay, type MathDisplayProjection } from "./math-display";
 
 export {
   pickAnswerDisplayText,
@@ -17,33 +10,6 @@ export {
   prepareMathDisplay,
   type MathDisplayProjection,
 } from "./math-display";
-
-function subpartIndex(taskId?: string): number | null {
-  if (!taskId) return null;
-  const m = taskId.match(/\.(\d+)$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function extractNumberedPart(text: string, index: number | null): string {
-  if (!index || index < 1) return text;
-  const re = new RegExp(`${index}[\\).]\\s*([^;\\n]+)`, "i");
-  const m = text.match(re);
-  if (m) return m[1].trim();
-  const chunks = text.split(/;\s*(?=\d+[\\).])/);
-  if (chunks.length >= index) {
-    return chunks[index - 1].replace(/^\d+[\\).]\s*/, "").trim();
-  }
-  return text;
-}
-
-function wrapEquation(expr: string): string {
-  const e = expr
-    .trim()
-    .replace(/,\s*(\d)/g, ".$1")
-    .replace(/\^(\d+)/g, "^{$1}")
-    .replace(/\^([a-zA-Z])/g, "^{$1}");
-  return `$${e}$`;
-}
 
 // wrapBareMath lives in math-display.ts (re-exported above)
 

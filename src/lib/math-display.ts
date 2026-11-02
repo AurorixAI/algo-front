@@ -1,16 +1,3 @@
-const BARE_LATEX_COMMANDS = new Set([
-  "\\frac", "\\dfrac", "\\sqrt", "\\sin", "\\cos", "\\tg", "\\ctg",
-  "\\log", "\\ln", "\\lim", "\\alpha", "\\beta", "\\gamma", "\\pi",
-  "\\infty", "\\Delta", "\\Sigma", "\\Omega", "\\theta", "\\int",
-  "\\sum", "\\prod", "\\pm", "\\mp", "\\neq", "\\geq", "\\leq",
-  "\\approx", "\\equiv", "\\to", "\\Rightarrow", "\\in", "\\cup",
-  "\\cap", "\\emptyset", "\\vec", "\\hat", "\\overline", "\\underline"
-]);
-
-const TWO_ARG_COMMANDS = new Set([
-  "\\dfrac", "\\frac", "\\tfrac", "\\cfrac", "\\binom", "\\stackrel", "\\overset", "\\underset"
-]);
-
 const LATEX_COMMAND_RE = /\\[a-zA-Z]+|[\^_]/;
 const CYRILLIC_RE = /[а-яА-ЯёЁ]/;
 
@@ -22,11 +9,6 @@ const CYRILLIC_RE = /[а-яА-ЯёЁ]/;
 export interface MathDisplayProjection {
   text: string;
   renderMode: "legacy" | "trusted";
-}
-
-function looksLikeMathExpr(s: string): boolean {
-  if (CYRILLIC_RE.test(s)) return false;
-  return /^[0-9a-zA-Z\s\+\-\*\/\=\(\)\[\]\{\}\.,\^]+$/.test(s) && /[\+\-\*\/\=\^\[\]\{\}]/.test(s);
 }
 
 function cleanLatexSpacing(s: string): string {
@@ -43,10 +25,6 @@ function normalizeSqrtNotation(s: string): string {
     .replace(/\bsqrt\(([^()]+)\)/g, "\\sqrt{$1}")
     .replace(/√\(([^()]+)\)/g, "\\sqrt{$1}")
     .replace(/√(\d+(?:\.\d+)?)/g, "\\sqrt{$1}");
-}
-
-function convertMathFunctions(s: string): string {
-  return s.replace(/(?<!\\)\b(sin|cos|tg|ctg|arcsin|arccos|arctg|arcctg|log|ln|lim)(?=\s|\(|\_|\^)/g, "\\$1");
 }
 
 function unicodeToLatex(s: string): string {
@@ -66,13 +44,6 @@ function unicodeToLatex(s: string): string {
     .replace(/∓/g, "\\mp ");
 }
 
-export function fixSpacingAroundMath(s: string): string {
-  s = s.replace(/(\d+)([а-яА-ЯёЁ]+)/g, "$1 $2");
-  s = s.replace(/([а-яА-ЯёЁ]+)(\d+)/g, "$1 $2");
-  s = s.replace(/([.,!?:;])([а-яА-ЯёЁ])/g, "$1 $2");
-  return s;
-}
-
 export function normalizeMathExponents(s: string): string {
   let res = s
     .replace(/\^(-?\d+)/g, "^{$1}")
@@ -85,53 +56,6 @@ export function normalizeMathExponents(s: string): string {
   res = res.replace(/([a-zA-Z0-9_\-]+)\s*\/\s*\(([^\(\)]+)\)/g, "\\dfrac{$1}{$2}");
 
   return res;
-}
-
-function hasComplexLatex(s: string): boolean {
-  return /\\(?:left|right|begin|end|frac|dfrac|sum|prod|int|oint|binom|stackrel|overset|underset)(?![a-zA-Z])/.test(s);
-}
-
-function hasCyrillicProse(s: string): boolean {
-  return /[а-яА-ЯёЁ]{2,}/.test(s) || /[а-яА-ЯёЁ]\s+[а-яА-ЯёЁ]/.test(s);
-}
-
-function extractMathChunk(s: string, startIdx: number): { text: string; end: number } | null {
-  const m = s.slice(startIdx).match(/^\\[a-zA-Z]+/);
-  if (!m) return null;
-  const cmd = m[0];
-  let i = startIdx + cmd.length;
-  
-  const targetBraces = TWO_ARG_COMMANDS.has(cmd) ? 2 : 1;
-  let bracesFound = 0;
-  let bracesCurrent = 0;
-
-  while (i < s.length) {
-    const char = s[i];
-    if (char === '{') {
-      bracesCurrent++;
-    } else if (char === '}') {
-      bracesCurrent--;
-      if (bracesCurrent === 0) {
-        bracesFound++;
-        if (bracesFound >= targetBraces) {
-          i++;
-          break;
-        }
-      }
-    } else if (bracesCurrent === 0 && bracesFound === 0) {
-      if (/[а-яА-ЯёЁ]/.test(char)) break;
-      if (s.slice(i).match(/^\s*,\s*[а-яА-ЯёЁ]/)) break;
-      if (s.slice(i).match(/^\s+и\s+/)) break;
-    }
-    i++;
-  }
-
-  const trailingMatch = s.slice(i).match(/^(\s*(?:[+*/=<>≤≥\-]|\\leqslant|\\geqslant|\\neq|\\leq|\\geq|\\cdot|\\times)\s*[a-zA-Z0-9_^()+*/\-]+)+/);
-  if (trailingMatch) {
-    i += trailingMatch[0].length;
-  }
-
-  return { text: s.slice(startIdx, i).trim(), end: i };
 }
 
 export function insertSpacesAroundInlineMath(s: string): string {
