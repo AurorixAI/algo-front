@@ -40,7 +40,7 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
   overdue: 0,
   expiring: 0,
   lastOkAt: 0,
-  setWaiting: (total) => set({ pending: count(total) }),
+  setWaiting: (total) => set({ pending: count(total), lastOkAt: Date.now() }),
   setSummary: (summary) => set({ pending: waitingTotal(summary), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal), lastOkAt: Date.now() }),
   reset: () => {
     epoch += 1;

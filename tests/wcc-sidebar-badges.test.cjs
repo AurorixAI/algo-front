@@ -122,4 +122,15 @@ test("sign-out/sign-in (reset) forgets the time: the next page change asks", asy
   assert.equal(calls.excuses, 2);
 });
 
+test("m5: the number the page of substitutions publishes with setWaiting is a successful read too", async () => {
+  fresh();
+  clock = 1_000_000;
+  useSubstitutionBadge.getState().setWaiting(4);
+  await flush();
+  assert.equal(useSubstitutionBadge.getState().lastOkAt, 1_000_000);
+  await pageChangeAt(10);
+  assert.equal(calls.substitutions, 0, "10 s later a change of page does not ask for it again");
+  assert.equal(calls.excuses, 1, "the other counter was never read: it asks");
+});
+
 test("restore the clock", () => { Date.now = realNow; Module._load = origLoad; });
