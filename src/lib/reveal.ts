@@ -1,5 +1,5 @@
 /**
- * When is a hover / focus / tap explanation shown?  The shared state machine of <Hint> and <FeatureLock>
+ * When is a hover / focus / tap explanation shown?  The shared state machine of <Hint>
  * (a mouse shows it on hover, the keyboard on focus, a touch screen on tap), pure so node:test covers it
  * (tests/n13-ui-floating.test.cjs).
  *
