@@ -422,11 +422,6 @@ export function createToast(out: Pick<CreateSubstitutionOut, "created" | "alread
   return { text: sent > 1 ? `Запросов отправлено: ${sent}` : "Запрос отправлен администратору", type: "success" };
 }
 
-/** The request cards already shown on the lessons the person picks: a lesson of another day cannot be asked for from here when the server says no. */
-export function requestableSelection(lessons: MyLesson[], picked: ReadonlySet<string>): MyLesson[] {
-  return lessons.filter((lesson) => lesson.canRequest && picked.has(lessonKeyOfRef(lesson)));
-}
-
 // ── the lesson panel: who may ask, and what the lesson says ──────────────────────────────────────
 
 export type RequestControl =

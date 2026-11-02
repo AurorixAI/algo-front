@@ -947,11 +947,6 @@ export interface LessonAuthor {
   role: "owner" | "admin" | "teacher" | string;
 }
 
-export interface AttendanceRecord {
-  student_id: string;
-  status: AttendanceStatus;
-}
-
 /** Review state of one "excused" mark (N13 P1). `review_note` is hidden from teachers. */
 export interface AttendanceExcuseInfo {
   id: string;

@@ -625,15 +625,3 @@ export function MathRenderer({
     />
   );
 }
-
-export function MathText({
-  text,
-  className,
-  renderMode = "legacy",
-}: {
-  text: string;
-  className?: string;
-  renderMode?: MathRenderMode;
-}) {
-  return <MathRenderer text={text} className={className} block renderMode={renderMode} />;
-}

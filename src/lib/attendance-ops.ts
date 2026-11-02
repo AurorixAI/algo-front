@@ -163,10 +163,6 @@ export const FINISH_LESSON_BACK = "Вернуться";
 export const FINISH_QUESTION = "Завершить урок?";
 export const EXAM_SYNC_UNAVAILABLE_TEXT = "Урок завершён, но проверить экзамены не удалось.";
 
-export function isLiveExamRefusal(error: unknown): boolean {
-  return opsErrorCode(error) === "LESSON_HAS_LIVE_EXAM";
-}
-
 export function liveExamsOf(error: unknown): LiveExamItem[] {
   return opsErrorDetail<LiveExamDetail>(error)?.exams ?? [];
 }

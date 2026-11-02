@@ -157,12 +157,6 @@ export interface OpeningSaved {
   row: MembershipPaymentRow | null;
 }
 
-export interface OpeningVoided {
-  opening: OpeningOut;
-  impact: ImpactMoney | null;
-  row: MembershipPaymentRow | null;
-}
-
 export interface OpeningFormValues {
   /** `YYYY-MM-DD` or "". */
   paidUntil: string;
@@ -779,21 +773,10 @@ export function priceMoneyLines(money: PriceImpactMoney | null | undefined, stal
 /** In place of «Уже внесённые оплаты не меняются никогда». */
 export const PRICE_PAYMENTS_NOTE = "Внесённые оплаты не меняются, но долг и аванс пересчитываются — ниже, у кого.";
 
-/** Nothing moves: «Деньги учеников не изменятся». */
-export const PRICE_NO_MONEY_TEXT = "Долг и аванс учеников не изменятся.";
-
-/** A price from a past day is allowed only when nobody has money behind the period. */
-export function priceBackdateWarning(valueFrom: string | null | undefined, today: string): string | null {
-  if (!valueFrom || !isIsoDate(valueFrom) || valueFrom >= today) return null;
-  return "Цена задним числом: если у кого-то за этот период уже есть оплата, сервер откажет — разницу за прошлое закрывают прощением долга или возвратом.";
-}
-
 /** The red banner of 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the server's sentence + who blocks (first 20). */
 export function priceBlockedText(error: LogicaError): { message: string; students: string[] } {
   return { message: error.message, students: error.students.map((student) => student.student_name) };
 }
-
-export const PRICE_MARKER_TEXT = "Эту запись создала система при уходе из группы; её нельзя отменить";
 
 /** «Индивидуальная цена закончилась. Сейчас — цена группы 600 000 сум.» for the returning student (F13). */
 export function priceEndedText(groupAmount: number | null | undefined): string {

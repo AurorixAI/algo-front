@@ -156,7 +156,6 @@ export function parseDivisor(text: string | number | null | undefined): { value:
   return { value, error: null };
 }
 
-export const PAYROLL_FORMULA_TEXT = "Цена в месяц × % ÷ 12 × засчитанные уроки";
 export const PAYROLL_PACKAGE_TEXT = "Для оплаты пакетом уроков делитель — размер пакета, который покрывает урок: преподаватель получает свой процент от цены одного урока пакета.";
 
 /** `label`: what the price is called in the centre («Цена в месяц» / «Цена пакета»). */

@@ -23,21 +23,6 @@ export interface TaskDisplayFields {
 }
 
 /**
- * Check if the LaTeX question projection is attested and trustworthy.
- */
-export function isQuestionLatexAttested(opts: TaskDisplayFields): boolean {
-  if (opts.latex_attested === true) return true;
-  if (Array.isArray(opts.attested_fields) && opts.attested_fields.includes("question")) {
-    return true;
-  }
-  const cq = opts.content_quality as { latex_attested_fields?: string[] } | null;
-  if (cq && Array.isArray(cq.latex_attested_fields) && cq.latex_attested_fields.includes("question")) {
-    return true;
-  }
-  return false;
-}
-
-/**
  * Select the display source for a question.
  *
  * `question_latex` is the canonical statement shown to students in exams and

@@ -26,7 +26,6 @@ import type { CollectionRow } from "./payments-income-v2";
 
 // ── Who sees the tab ────────────────────────────────────────────────────────
 
-export const GROUP_PAYMENTS_TAB = "payments";
 export const GROUP_PAYMENTS_LABEL = "Оплаты";
 
 /**

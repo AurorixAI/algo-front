@@ -14,7 +14,6 @@ import type {
   TeacherBusyDetail,
   TeacherConflict,
 } from "./ops-b-types";
-import { pluralRu } from "./plural";
 import { staffDisplayName } from "./staff-name";
 
 // ── removal dialog ──────────────────────────────────────────────────────────────────────────────
@@ -357,15 +356,6 @@ export function inviteErrorText(error: unknown, fallback = "Не удалось 
     case "ALREADY_MEMBER": return "Эта почта уже работает в центре";
     default: return (error instanceof Error && error.message.trim()) || fallback;
   }
-}
-
-/** Count of the tabs: «Сотрудники (3)» etc. */
-export function membersTabCount(active: number): string {
-  return `Сотрудники (${active})`;
-}
-
-export function groupsCountText(count: number): string {
-  return `${count} ${pluralRu(count, ["группа", "группы", "групп"])}`;
 }
 
 // ── the page of an invitation (F8) ──────────────────────────────────────────────────────────────

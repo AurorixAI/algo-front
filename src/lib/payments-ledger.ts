@@ -132,8 +132,6 @@ export function canRefund(row: Pick<MembershipPaymentRow, "refundable">): boolea
 
 // ── Allocation: where a payment went ───────────────────────────────────────
 
-export type AllocationTone = "debt" | "current" | "advance";
-
 export interface AllocationLine {
   label: string;
   amount: number;
@@ -1112,11 +1110,6 @@ export const STATEMENT_ICON_TONE: Record<StatementIconKind, string> = {
   opening: "bg-slate-100 text-slate-500",
   pause: "bg-slate-100 text-slate-500",
 };
-
-/** «600 000»: a whole sum without the unit (the header of the statement says сум once). */
-export function statementDigits(value: number): string {
-  return digitsOf(value);
-}
 
 /** The «Стоимость» cell: «600 000», empty when the row has no charge. */
 export function statementChargedText(entry: Pick<StatementEntry, "charged">): string {

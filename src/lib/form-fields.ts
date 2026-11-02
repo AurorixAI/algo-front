@@ -284,8 +284,6 @@ export function stepNumber(current: string, delta: number, min?: number, max?: n
 
 // ── Radio groups ─────────────────────────────────────────────────────────────────────────────────────
 
-export type RadioKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Home" | "End";
-
 /**
  * The option a key moves a segmented radio group to: arrows go to the next / previous ENABLED option and wrap around,
  * Home / End to the first / last enabled one.  -1 when no option can take the focus (all disabled) or the key is not ours.

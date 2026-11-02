@@ -403,18 +403,6 @@ export function splitLayout(lines: ReadonlyArray<{ membership_id: string; lesson
   });
 }
 
-/** Rows of a block sorted by student, keeping the sub-rows of a student together (stable by the type order the server sent). */
-export function sortLinesByStudent<T extends { student_name: string; membership_id: string }>(lines: T[]): T[] {
-  const order = new Map<string, number>();
-  lines.forEach((line, index) => { if (!order.has(line.membership_id)) order.set(line.membership_id, index); });
-  return [...lines].sort((a, b) => {
-    const byName = a.student_name.localeCompare(b.student_name, "ru");
-    if (byName !== 0) return byName;
-    if (a.membership_id !== b.membership_id) return (order.get(a.membership_id) ?? 0) - (order.get(b.membership_id) ?? 0);
-    return 0;
-  });
-}
-
 // ── F7: the divisor by month ────────────────────────────────────────────────
 
 export interface DivisorRow {
@@ -499,9 +487,4 @@ export function payrollLogicaErrorText(error: PayrollErrorLike | null | undefine
   if (isFingerprintRequired(error)) return FINGERPRINT_REQUIRED_TEXT;
   if (error?.code === "DIVISOR_RANGE") return error.message || "Делитель: от 1 до 31";
   return null;
-}
-
-/** The days of a payout in the month overview are never older than the sheet: `addDays` for the date limits of the form. */
-export function payoutDateBounds(today: string): { min: string; max: string } {
-  return { min: subtractYears(today, PAYOUT_MAX_AGE_YEARS), max: today };
 }

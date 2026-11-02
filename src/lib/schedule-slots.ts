@@ -40,24 +40,8 @@ export function roomLabel(lesson: { format?: string | null; room?: string | null
   return room || ROOM_NOT_SET;
 }
 
-/** True when the lesson has a real room to print (the map pin is not shown for «Кабинет не указан»). */
-export function hasRoom(lesson: { format?: string | null; room?: string | null }): boolean {
-  return lesson.format !== "online" && Boolean((lesson.room ?? "").trim());
-}
-
 /** «с 26.10» for a slot that starts in the future; null when it already acts (or has no date: an older server). */
 export function validFromBadge(validFrom: string | null | undefined, today: string): string | null {
   if (!validFrom || !/^\d{4}-\d{2}-\d{2}$/.test(validFrom) || validFrom <= today) return null;
   return `с ${formatIsoDateLabel(validFrom, { day: "2-digit", month: "2-digit" })}`;
-}
-
-/** The first date the form offers: the day of the week the slot repeats on, on or after `from`. Used to tell the user when the first lesson is. */
-export function firstOccurrenceOnOrAfter(from: string, dayOfWeek: number): string {
-  for (let offset = 0; offset < 7; offset += 1) {
-    const day = addIsoDays(from, offset);
-    const date = new Date(`${day}T12:00:00Z`).getUTCDay();
-    const iso = date === 0 ? 7 : date;
-    if (iso === dayOfWeek) return day;
-  }
-  return from;
 }

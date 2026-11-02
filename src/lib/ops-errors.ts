@@ -19,11 +19,6 @@ export function opsErrorDetail<T extends OpsErrorDetail = OpsErrorDetail>(error:
   return detail && typeof detail === "object" && !Array.isArray(detail) ? (detail as T) : null;
 }
 
-export function opsErrorStatus(error: unknown): number | undefined {
-  const status = (error as { status?: unknown } | null | undefined)?.status;
-  return typeof status === "number" ? status : undefined;
-}
-
 export function errorMessageOf(error: unknown, fallback: string): string {
   const text = error instanceof Error ? error.message.trim() : "";
   return text || fallback;
@@ -44,7 +39,6 @@ export const NO_STUDENTS_FINISH_TEXT = "В составе урока нет уч
 export const DUPLICATE_SLOT_TEXT = "Такой урок уже есть в расписании группы";
 export const VALID_FROM_PAST_TEXT = "Дата начала не может быть в прошлом";
 export const GROUP_ARCHIVED_SCHEDULE_TEXT = "Группа в архиве: изменить расписание нельзя. Верните её из архива";
-export const GROUP_ARCHIVED_TEXT = "Группа в архиве: действие недоступно. Верните её из архива.";
 
 /** «пн, 26.10» - the weekday and the date of a calendar day, from the calendar alone (the device zone never enters). */
 export function dayAndDateLabel(isoDate: string): string {
