@@ -394,7 +394,8 @@ test("V2: the return to an ask that has hung for 8 s (its timer frozen) abandons
   assert.equal(signals.length, 2, "and the events that come together do not make a third");
 });
 
-test("V1: the start of the exam reaches the student within (answer time + 5 s), for any moment of the start and answer times 0 / 1 / 3 s", async () => {
+test("V1: the start of the exam reaches the student within (answer time + 5 s), for any moment of the start and answer times 0 / 1 / 3 s", async (t) => {
+  const worsts = [];
   for (const L of [0, 1000, 3000]) {
     for (const random of [0, 0.5, 1]) {
       let worst = 0;
@@ -409,9 +410,11 @@ test("V1: the start of the exam reaches the student within (answer time + 5 s), 
         assert.ok(entered, `L=${L} offset=${offset}: entered`);
         worst = Math.max(worst, entered.at - flip);
       }
+      worsts.push(`L=${L / 1000}s random=${random}: ${worst} ms`);
       assert.ok(worst <= L + WAITING_POLL_MAX_MS, `L=${L} random=${random}: worst ${worst} ms`);
     }
   }
+  t.diagnostic(worsts.join(" | "));
 });
 
 test("V1: the pause is counted from the start of an ask: a 0.3 s answer is followed by an ask 1.5 s after the START", async () => {
