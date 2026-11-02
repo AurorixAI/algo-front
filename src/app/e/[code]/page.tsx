@@ -44,6 +44,7 @@ import {
 } from "@/lib/exam-retry";
 import { RateLimitCard } from "@/components/exam/rate-limit-card";
 import { browserTickerEnv, deadlineAfter, startDeadlineTicker } from "@/lib/exam-clock";
+import { browserWaitingPollEnv, startWaitingRoomPoll } from "@/lib/exam-waiting-poll";
 import { canRetryNow, rateLimitDeadline, rateLimitFallbackText, rateLimitText, secondsLeft, waitLabel } from "@/lib/exam-rate-limit";
 import { createAutoSubmit, type AutoSubmit, type SubmitOutcome } from "@/lib/exam-auto-submit";
 import { useNowUntil } from "@/lib/use-countdown";
@@ -256,48 +257,60 @@ export default function ExamPage() {
   };
 
   // ── Polling in Waiting Room Phase ────────────────────────────────────────
+  // WC-C (F-A14): one ask at a time (a recursive timeout, not an interval), 1.5 s -> back-off up to 5 s on failures, not paused in the
+  // background, an immediate ask when the tab comes back (lib/exam-waiting-poll.ts).  `examInfo` is read through a ref: its change must
+  // not restart the poll.
+  const examInfoRef = useRef(examInfo);
+  examInfoRef.current = examInfo;
   useEffect(() => {
     if (phase !== "waiting_room" || !sessionId || !sessionToken) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const statusRes = await examsApi.getSessionStatus(code, sessionId, sessionToken);
-        if (statusRes.status === "in_progress" && statusRes.tasks && statusRes.tasks.length > 0) {
-          setTasks(statusRes.tasks);
-          if (statusRes.variant_number) setVariantNumber(statusRes.variant_number);
-          if (statusRes.saved_answers) setAnswers(statusRes.saved_answers);
-          const remSec =
-            statusRes.time_remaining_seconds !== undefined && statusRes.time_remaining_seconds !== null
-              ? statusRes.time_remaining_seconds
-              : (statusRes.time_minutes || examInfo?.total_time_minutes || 45) * 60;
-          setTimeLeft(remSec);
-          setExamDeadline(deadlineAfter(remSec, Date.now()));
-          startTimeRef.current = Date.now();
-          setPhase("exam");
-        } else if (statusRes.status === "kicked") {
-          setPhase("error");
-          setError(statusRes.message || "Преподаватель удалил вас из сессии.");
-        } else if (statusRes.status === "submitted") {
-          setAlreadySubmitted(true);
-          try {
-            const detailed = await examsApi.getResult(sessionId, sessionToken);
-            setResult(detailed);
-            setPhase("results");
-          } catch {
-            setPhase("lobby");
-            setGroupWarning(statusRes.message || "Время экзамена истекло. Ответы отправлены.");
-          }
-        } else if (statusRes.status === "closed") {
-          setError(statusRes.message || "Экзамен завершён преподавателем до начала вашей попытки.");
-          setPhase("error");
-        }
-      } catch (e) {
-        console.error("Polling status error:", e);
+    const poll = startWaitingRoomPoll(async (alive) => {
+      const statusRes = await examsApi.getSessionStatus(code, sessionId, sessionToken);
+      if (!alive()) return "stop";
+      if (statusRes.status === "in_progress" && statusRes.tasks && statusRes.tasks.length > 0) {
+        setTasks(statusRes.tasks);
+        if (statusRes.variant_number) setVariantNumber(statusRes.variant_number);
+        if (statusRes.saved_answers) setAnswers(statusRes.saved_answers);
+        const remSec =
+          statusRes.time_remaining_seconds !== undefined && statusRes.time_remaining_seconds !== null
+            ? statusRes.time_remaining_seconds
+            : (statusRes.time_minutes || examInfoRef.current?.total_time_minutes || 45) * 60;
+        setTimeLeft(remSec);
+        setExamDeadline(deadlineAfter(remSec, Date.now()));
+        startTimeRef.current = Date.now();
+        setPhase("exam");
+        return "stop";
       }
-    }, 1500);
+      if (statusRes.status === "kicked") {
+        setPhase("error");
+        setError(statusRes.message || "Преподаватель удалил вас из сессии.");
+        return "stop";
+      }
+      if (statusRes.status === "submitted") {
+        setAlreadySubmitted(true);
+        try {
+          const detailed = await examsApi.getResult(sessionId, sessionToken);
+          if (!alive()) return "stop";
+          setResult(detailed);
+          setPhase("results");
+        } catch {
+          if (!alive()) return "stop";
+          setPhase("lobby");
+          setGroupWarning(statusRes.message || "Время экзамена истекло. Ответы отправлены.");
+        }
+        return "stop";
+      }
+      if (statusRes.status === "closed") {
+        setError(statusRes.message || "Экзамен завершён преподавателем до начала вашей попытки.");
+        setPhase("error");
+        return "stop";
+      }
+      return "continue";
+    }, browserWaitingPollEnv(), (e) => console.error("Polling status error:", e));
 
-    return () => clearInterval(interval);
-  }, [phase, sessionId, sessionToken, code, examInfo]);
+    return () => poll.stop();
+  }, [phase, sessionId, sessionToken, code]);
 
   // ── Timer ────────────────────────────────────────────────────────────────
   // The seconds left are recomputed from the deadline every second and whenever the tab comes back to the screen (visibilitychange).
