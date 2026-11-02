@@ -197,16 +197,16 @@ test("an id taken from the address bar stays ONE path segment (no ../ walk throu
   for (const evil of ["..%2f..%2fx", "../../x", "a/b?x=1#h", "a%2Fb"]) {
     calls.length = 0;
     await orgApi.removeMember(evil);
-    await orgApi.getStudent(evil);
+    await orgApi.updateStudent(evil, {});
     await orgApi.getGroup(evil);
-    await examsApi.getSummary(evil);
+    await examsApi.getReport(evil);
     for (const c of calls) {
       const u = new URL(c.url);
       assert.ok(!u.pathname.includes("/../") && !/\/\.\.(\/|$)/.test(u.pathname), `${evil} -> ${c.url}`);
       assert.equal(u.search, "", `${evil} -> ${c.url}`);
       assert.equal(u.hash, "");
       // the last segment is the whole id, encoded once
-      assert.equal(u.pathname.split("/").length, c.url.includes("/exams/") ? 5 : 7, `${evil} -> ${c.url}`);
+      assert.equal(u.pathname.split("/").length, c.url.includes("/exams/") ? 6 : 7, `${evil} -> ${c.url}`);
     }
   }
   calls.length = 0;

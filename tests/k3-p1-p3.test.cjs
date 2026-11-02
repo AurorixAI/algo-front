@@ -80,7 +80,7 @@ test("P1: ONE bundle serves three domains: the same module, loaded in a browser 
       const { authApi, diagnosticApi, examsApi } = load("src/lib/api.ts");
       await authApi.me();
       await diagnosticApi.resolveSession("ABC").catch(() => {});
-      await examsApi.getSummary("e1").catch(() => {});
+      await examsApi.getReport("e1").catch(() => {});
       assert.equal(seen.length, 3, origin);
       assert.ok(seen[0].startsWith(`${origin}/api/v1/auth/me`), seen[0]);
       assert.ok(seen[1].startsWith(`${origin}/api/v1/diagnostic/`), seen[1]);

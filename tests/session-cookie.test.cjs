@@ -598,9 +598,9 @@ test("exam-service (staff): 401 -> ONE refresh -> the same request repeated -> t
   const state = world();
   const seen = recordRequests(state);
   const { examsApi } = loadApi();
-  const summary = await examsApi.getSummary("e1");
-  assert.equal(summary.url, "/api/v1/exams/e1");
-  assert.deepEqual(paths(state), ["GET /exams/e1", "POST /auth/refresh", "GET /exams/e1"]);
+  const report = await examsApi.getReport("e1");
+  assert.equal(report.url, "/api/v1/exams/e1/report");
+  assert.deepEqual(paths(state), ["GET /exams/e1/report", "POST /auth/refresh", "GET /exams/e1/report"]);
   assert.equal(state.refreshCalls, 1);
   assert.equal(state.assigned, 0);
   assert.equal(state.logoutCalls, 0);
@@ -664,7 +664,7 @@ test("import template / upload (auth-service) refresh too", async () => {
 test("exam/diagnostic/PDF requests and api() share ONE refresh when they fail together", async () => {
   const state = world();
   const { authApi, examsApi, analyticsApi } = loadApi();
-  const answers = await Promise.all([authApi.me(), examsApi.getSummary("e1"), analyticsApi.studentReport("s1"), examsApi.previewTeacherPrintKey("e1", 1), examsApi.getAdminView("e1")]);
+  const answers = await Promise.all([authApi.me(), examsApi.getReport("e1"), analyticsApi.studentReport("s1"), examsApi.previewTeacherPrintKey("e1", 1), examsApi.getAdminView("e1")]);
   assert.equal(state.refreshCalls, 1, "the refresh token rotates: a second parallel refresh would sign the teacher out");
   assert.ok(answers.every(Boolean));
   assert.equal(state.assigned, 0);
@@ -687,7 +687,7 @@ async function assertSessionEnded(state, run) {
 
 test("refresh refused: exam-service, diagnostic-service and the PDFs end the session like api() (logout, /login?redirect=)", async () => {
   for (const run of [
-    (a) => a.examsApi.getSummary("e1"),
+    (a) => a.examsApi.getReport("e1"),
     (a) => a.analyticsApi.studentReport("s1"),
     (a) => a.examsApi.previewStudentPrintPdf("e1", 1),
     (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
@@ -702,7 +702,7 @@ test("the retry is refused too (401 after a good refresh): the session is over, 
   const inner = global.fetch;
   global.fetch = async (url, init) => (new URL(url).pathname.includes("/exams/") ? { ok: false, status: 401, json: async () => ({ detail: "no" }) } : inner(url, init));
   const { examsApi } = loadApi();
-  await assert.rejects(examsApi.getSummary("e1"), (error) => error.status === 401);
+  await assert.rejects(examsApi.getReport("e1"), (error) => error.status === 401);
   assert.equal(state.refreshCalls, 1);
   assert.equal(state.logoutCalls, 1);
   assert.equal(state.assigned, 1);
@@ -713,7 +713,7 @@ test("a transient refresh failure (429/5xx/no network/timeout) on exam / diagnos
   for (const opts of cases) {
     const expected = opts.refreshStatus ?? 0;
     for (const run of [
-      (a) => a.examsApi.getSummary("e1"),
+      (a) => a.examsApi.getReport("e1"),
       (a) => a.analyticsApi.studentReport("s1"),
       (a) => a.examsApi.previewTeacherPrintKey("e1", 1),
       (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
@@ -778,7 +778,7 @@ test("every exam / diagnostic / textbook / analytics method declares its audienc
   }
   for (const key of STUDENT_METHODS) assert.ok(covered.has(key), `${key} is listed as a student method but does not exist`);
   assert.equal(studentCount, STUDENT_METHODS.size);
-  assert.ok(staffCount >= 45, `only ${staffCount} staff methods were enumerated`);
+  assert.ok(staffCount >= 38, `only ${staffCount} staff methods were enumerated`);
 });
 
 test("a student's 401 still shows the request's own error, and the attempt token travels as before", async () => {
@@ -807,7 +807,7 @@ test("the audience is a required argument of both wrappers: no default, so a new
   // `(examId, "student", n)` of the print PDFs is the kind of the file, not an audience.
   const calls = (api.match(/(?<![\w.])(?:examApi|diagApi|diagServiceApi)</g) || []).length - 2; // minus the two declarations
   const declared = (api.match(/(?<!\bexamId),\s*"(?:staff|student)"\s*[,)]/g) || []).length;
-  assert.ok(calls > 50, `${calls} calls`);
+  assert.ok(calls > 40, `${calls} calls`);
   assert.equal(declared, calls);
 });
 
@@ -815,7 +815,7 @@ test("a student's request with no answer at all is still the friendly status-0 e
   world();
   global.fetch = async () => { throw new TypeError("network down"); };
   const { examsApi, analyticsApi } = loadApi();
-  for (const run of [() => examsApi.getResult("s1", "tok"), () => examsApi.getSummary("e1"), () => analyticsApi.studentReport("s1")]) {
+  for (const run of [() => examsApi.getResult("s1", "tok"), () => examsApi.getReport("e1"), () => analyticsApi.studentReport("s1")]) {
     await assert.rejects(run(), (error) => error.name === "ApiError" && error.status === 0 && /Не удалось подключиться/.test(error.message));
   }
 });

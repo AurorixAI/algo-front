@@ -668,7 +668,6 @@ test("the API helpers sit on the contract's routes", () => {
     "/auth/org/payroll/months/${encodePathId(month)}`",
     "/auth/org/payroll/months/${encodePathId(month)}/calculate",
     "/auth/org/payroll/sheets\"",
-    "/auth/org/payroll/sheets?month=${encodeURIComponent(month)}",
     "/auth/org/payroll/sheets/${encodePathId(sheetId)}`",
     "/auth/org/payroll/sheets/${encodePathId(sheetId)}/revisions",
     "/auth/org/payroll/sheets/${encodePathId(sheetId)}/diff",

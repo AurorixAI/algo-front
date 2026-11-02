@@ -261,11 +261,6 @@ export interface MineOut {
   clearedForMe?: ClearedForMe[];
 }
 
-export interface WithdrawBatchOut {
-  withdrawn: SubstitutionItem[];
-  skipped: Array<{ id: string; code: string; message: string }>;
-}
-
 // ── owner / admin ─────────────────────────────────────────────────────────────
 
 export interface SubstitutionSummary {

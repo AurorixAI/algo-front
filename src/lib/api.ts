@@ -28,7 +28,6 @@ import type {
   SubstitutionOutcome,
   SubstitutionRequestMark,
   SubstitutionSummary,
-  WithdrawBatchOut,
 } from "./substitution-types";
 import type { LessonPurposeFields, MakeupCandidates, MoneyDecisionOut, OneOffDecision, OneOffDecisionsOut, OneOffMoney } from "./one-off";
 import { loginUrlForPage } from "./safe-redirect";
@@ -46,8 +45,6 @@ import type {
   PriceOverrideRequest,
 } from "./group-price";
 import type {
-  BalancesPage,
-  BalancesQuery,
   MembershipPaymentRow,
   PaymentCreate,
   PaymentFileOut,
@@ -62,11 +59,7 @@ import type {
   PaymentBucket,
   PaymentWarning,
   PreviewQuery,
-  ReceiptItems,
-  ReceiptItemsQuery,
   ReceiptOut,
-  ReceiptsQuery,
-  ReceiptsReport,
   RefundCreate,
   RefundCreated,
   RefundVoided,
@@ -91,7 +84,6 @@ import {
   type OpeningsList,
   type OpeningsSummary,
 } from "./openings";
-import { normalizeBalances, normalizeItems, normalizeReport } from "./payments-income";
 import {
   normalizeJournal,
   normalizeOverview,
@@ -117,7 +109,6 @@ import {
   type PayrollSaveBody,
   type PayrollSettings,
   type PayrollSheet,
-  type PayrollSheetBrief,
 } from "./payroll";
 // LOGIC-A («деньги»): the types and readers of its routes live in two files of their own (a separate section below).
 import {
@@ -128,7 +119,6 @@ import {
   type OpeningOut,
   type OpeningPut,
   type OpeningSaved,
-  type OpeningVoided,
   type PauseOut,
   type PauseSaved,
   type PauseVoided,
@@ -165,7 +155,6 @@ import type {
   LessonTeacherResult,
   MemberListStatus,
   OpsWarning,
-  OrgMemberRow,
   RemoveMemberResult,
   RemovalImpact,
   RestoreLessonResult,
@@ -1390,18 +1379,6 @@ export const orgApi = {
   // Students
   createStudent: (data: { first_name: string; last_name: string; class_level: number; student_phone: string; comment?: string }) =>
     api<any>("/auth/org/students", { method: "POST", body: data }),
-  listStudents: (params?: { class_level?: number; group_id?: string; teacher_id?: string; has_group?: boolean; status?: string; exclude_status?: string; search?: string }) => {
-    const query = new URLSearchParams();
-    if (params?.class_level) query.set("class_level", String(params.class_level));
-    if (params?.group_id) query.set("group_id", params.group_id);
-    if (params?.teacher_id) query.set("teacher_id", params.teacher_id);
-    if (params?.has_group !== undefined) query.set("has_group", String(params.has_group));
-    if (params?.status) query.set("status", params.status);
-    if (params?.exclude_status) query.set("exclude_status", params.exclude_status);
-    if (params?.search) query.set("search", params.search);
-    const qs = query.toString();
-    return api<any[]>(`/auth/org/students${qs ? `?${qs}` : ""}`);
-  },
   /** One server-side page of students plus the exact total of the filtered set. */
   listStudentsPage: async (params: {
     class_level?: number; group_id?: string; teacher_id?: string; has_group?: boolean; has_primary_group?: boolean;
@@ -1423,7 +1400,6 @@ export const orgApi = {
     if (Array.isArray(response)) return { items: response, total: response.length };
     return { items: response.items ?? [], total: response.total ?? (response.items ?? []).length };
   },
-  getStudent: (id: string) => api<any>(`/auth/org/students/${encodePathId(id)}`),
   getStudentProfile: (id: string) => api<StudentProfile>(`/auth/org/students/${encodePathId(id)}/profile`),
   getStudentAttendanceSummary: (id: string, month?: string) =>
     api<StudentAttendanceSummary>(
@@ -1441,8 +1417,6 @@ export const orgApi = {
   // Diagnostics
   createDiagnostic: (data: { student_id: string; class_level: number; diagnostic_type?: string }) =>
     api<any>("/auth/org/diagnostics", { method: "POST", body: data }),
-  createQuickDiagnostic: (data: { first_name: string; last_name: string; class_level: number }) =>
-    api<any>("/auth/org/diagnostics/quick", { method: "POST", body: data }),
   listDiagnostics: (status?: string) => {
     // The pages after the first are asked in parallel batches, in the server's order (WC-C, PERF-2).
     return loadAllPages<any>((offset) => diagnosticsPage(offset, status), (item) => String(item?.id));
@@ -1561,8 +1535,6 @@ export const orgApi = {
   getOneOffDecisions: () => api<OneOffDecisionsOut>(`/auth/org/one-off-decisions`),
   decideOneOffMoney: (lessonId: string, decision: OneOffDecision) =>
     api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),
-  updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
-    api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}`, { method: "PUT", body: data }),
   reviseRecurringLesson: (
     lessonId: string,
     data: Omit<Partial<LessonEvent>, "topic"> & { topic?: string | null; effectiveFrom: string; reason: string; releaseAffectedExams?: boolean },
@@ -1793,14 +1765,6 @@ export const orgApi = {
     if (q.include_voided) params.set("include_voided", "true");
     return fetchFile(`/auth/org/memberships/${encodePathId(membershipId)}/statement/export?${params.toString()}`, fallbackName, "Не удалось скачать Excel");
   },
-  /** «Поступления»: money received in a period, where it went, what is owed today; `reconciliation` says whether it adds up. */
-  getReceiptsReport: (q: ReceiptsQuery, signal?: AbortSignal) => {
-    const params = new URLSearchParams({ from: q.from, to: q.to, group_by: q.group_by });
-    if (q.method) params.set("method", q.method);
-    if (q.group_id) params.set("group_id", q.group_id);
-    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
-    return api<ReceiptsReport>(`/auth/org/payments/receipts?${params.toString()}`, { signal }).then(normalizeReport);
-  },
   /** «Поступления» v2: everything above the journal in one answer (the cards, the sentence, the chart, the till, the groups of the month). */
   getIncomeOverview: (q: IncomeQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams({ from: q.from, to: q.to, period: q.period });
@@ -1815,27 +1779,6 @@ export const orgApi = {
     const params = journalParams(q);
     params.set("format", "xlsx");
     return fetchFile(`/auth/org/payments/journal/export?${params.toString()}`, fallbackName, "Не удалось скачать Excel");
-  },
-  /** The payments (write-offs, refunds) behind one figure of the report. */
-  getReceiptItems: (q: ReceiptItemsQuery) => {
-    const params = new URLSearchParams({ from: q.from, to: q.to, column: q.column });
-    if (q.bucket) params.set("bucket", q.bucket);
-    if (q.method) params.set("method", q.method);
-    if (q.group_id) params.set("group_id", q.group_id);
-    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
-    params.set("limit", String(q.limit ?? 50));
-    params.set("offset", String(q.offset ?? 0));
-    return api<ReceiptItems>(`/auth/org/payments/receipts/items?${params.toString()}`).then(normalizeItems);
-  },
-  /** Students with a debt / an advance today, for the position figures of the report. */
-  getBalances: (q: BalancesQuery) => {
-    const params = new URLSearchParams({ kind: q.kind });
-    if (q.group_id) params.set("group_id", q.group_id);
-    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
-    if (q.search) params.set("search", q.search);
-    params.set("limit", String(q.limit ?? 50));
-    params.set("offset", String(q.offset ?? 0));
-    return api<BalancesPage>(`/auth/org/payments/balances?${params.toString()}`).then(normalizeBalances);
   },
   getPaymentReceipt: (paymentId: string) =>
     !paymentId || paymentId === "undefined" || paymentId === "null"
@@ -1863,8 +1806,6 @@ export const orgApi = {
   // ── Payroll (owner only; every route answers 403 to anyone else) ───────
   // Errors: `detail: {code, message, ...}` - ApiError.message is `detail.message`, ApiError.code is `detail.code`.
   getPayrollSettings: () => api<PayrollSettings>("/auth/org/payroll/settings"),
-  updatePayrollSettings: (data: { divisor: number }) =>
-    api<PayrollSettings>("/auth/org/payroll/settings", { method: "PUT", body: data }),
   /** Rates of the teachers (UX-2): by type, in force in `month` (YYYY-MM), and the ones scheduled for later. */
   getPayrollRates: (month: string) =>
     api<PayrollRatesResponse>(`/auth/org/payroll/rates?month=${encodeURIComponent(month)}`),
@@ -1881,8 +1822,6 @@ export const orgApi = {
     (await api<PayrollCalculateResponse>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body })).sheets,
   /** Saves a sheet; when the teacher already has one for the month `revision` (the one the owner saw) is required. */
   savePayrollSheet: (body: PayrollSaveBody) => api<PayrollSheet>("/auth/org/payroll/sheets", { method: "POST", body }),
-  listPayrollSheets: (month: string) =>
-    api<PayrollSheetBrief[]>(`/auth/org/payroll/sheets?month=${encodeURIComponent(month)}`),
   getPayrollSheet: (sheetId: string) => api<PayrollSheet>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`),
   /** A new version; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. `recalculate: true` is «Пересчитать». */
   patchPayrollSheet: (sheetId: string, body: PayrollPatchBody) =>
@@ -1904,9 +1843,6 @@ export const orgApi = {
   /** `dryRun`: nothing is written, the answer holds the `impact` (the ledger before / after).  All three fields empty: the live one is voided. */
   putOpeningBalance: (membershipId: string, body: OpeningPut, options?: { dryRun?: boolean }) =>
     api<OpeningSaved>(`/auth/org/memberships/${encodePathId(membershipId)}/opening-balance${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PUT", body })
-      .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
-  voidOpeningBalance: (openingId: string, reason: string) =>
-    api<OpeningVoided>(`/auth/org/opening-balances/${encodePathId(openingId)}/void`, { method: "POST", body: { reason } })
       .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
   // ── ROADMAP #125 «Остатки на начало»: the table, the batch (preview -> apply), the checklist state, the Excel round trip ──
   // Contract: tests/fixtures/openings (openings_contract.json of the backend).  Money roles only (403 for everybody else).
@@ -1975,14 +1911,8 @@ export const orgApi = {
   setGroupLessonType: (groupId: string, body: LessonTypeRequest, options?: { dryRun?: boolean }) =>
     api<GroupLessonTypeChanged>(`/auth/org/groups/${encodePathId(groupId)}/lesson-type${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PUT", body })
       .then(normalizeLessonTypeChanged),
-  /** The divisor by month (F7): the current one and the history. */
-  getPayrollSettingsHistory: () => api<PayrollSettingsFull>("/auth/org/payroll/settings"),
   setPayrollDivisor: (body: { divisor: number; valid_from?: string }) =>
     api<PayrollSettingsFull>("/auth/org/payroll/settings", { method: "PUT", body }),
-  /** Payouts of the month (live and cancelled), optionally of one teacher. */
-  listPayrollPayouts: (month: string, teacherId?: string) =>
-    api<PayoutOut[]>(`/auth/org/payroll/payouts?month=${encodeURIComponent(month)}${teacherId ? `&teacher_id=${encodeURIComponent(teacherId)}` : ""}`)
-      .then((list) => (Array.isArray(list) ? list.map(normalizePayout).filter((item): item is PayoutOut => item !== null) : [])),
   /** «Отметить выплату»; `Idempotency-Key`: one per opening of the dialog (409 `DUPLICATE_PAYOUT` carries `payout_id`). */
   createPayrollPayout: (sheetId: string, body: PayoutCreate, idempotencyKey?: string) =>
     api<PayoutCreated>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/payouts`, {
@@ -2474,37 +2404,6 @@ export const examsApi = {
     );
   },
 
-  /**
-   * Full organisation catalog for the admin console. The teacher library
-   * intentionally stays limited and scoped; admin KPIs must not silently
-   * omit older exams.
-   */
-  listAllForAdmin: async () => {
-    const pageSize = 100;
-    const allItems: ExamSummary[] = [];
-    let offset = 0;
-
-    while (true) {
-      const params = new URLSearchParams({
-        limit: String(pageSize),
-        offset: String(offset),
-        include_meta: "true",
-      });
-      const response = await examApi<
-        { items: ExamSummary[]; total: number; limit: number; offset: number } | ExamSummary[]
-      >(`/exams?${params.toString()}`, "staff");
-
-      // Tolerate a short rolling-deployment window while a previous service
-      // version still exposes the original array response.
-      if (Array.isArray(response)) return response;
-
-      const pageItems = Array.isArray(response.items) ? response.items : [];
-      allItems.push(...pageItems);
-      offset += pageItems.length;
-      if (offset >= response.total || pageItems.length === 0) return allItems;
-    }
-  },
-
   /** Authoritative, paginated history for the organisation admin monitor. */
   getAdminMonitor: (opts: {
     state: AdminExamMonitorState;
@@ -2525,9 +2424,6 @@ export const examsApi = {
 
   /** Teacher-profile visual data for an administrator, without any controls or access code. */
   getAdminView: (examId: string) => examApi<AdminExamView>(`/admin/exams/${encodePathId(examId)}/view`, "staff"),
-
-  /** Read-only exam metadata. Safe for the admin monitoring surface. */
-  getSummary: (examId: string) => examApi<ExamSummary>(`/exams/${encodePathId(examId)}`, "staff"),
 
   /** Compact server-authoritative state for Dashboard live exam cards. */
   getLiveDashboardSummary: () =>
@@ -2618,11 +2514,6 @@ export const examsApi = {
     examApi<{ exam_id: string; status: "active"; print_package: PrintPackageMetadata }>(
       `/exams/${encodePathId(examId)}/print-package/start`, "staff",
       { method: "POST" },
-    ),
-
-  getPrintPackage: (examId: string) =>
-    examApi<{ exam_id: string; status: string; print_package: PrintPackageMetadata }>(
-      `/exams/${encodePathId(examId)}/print-package`, "staff",
     ),
 
   downloadStudentPrintPdf: (examId: string, variantNumber = 1) =>
@@ -2839,13 +2730,6 @@ export const examsApi = {
       }>;
     }>(`/exams/by-code/${encodePathId(code)}/session-status/${encodePathId(sessionId)}`, "student", { sessionToken, signal }),
 
-  /** Teacher: bind a concrete lesson and open the lobby. */
-  openLobby: (examId: string, data: { lesson_id: string; lesson_date: string }) =>
-    examApi<{ status: string; access_code: string; url: string }>(`/exams/${encodePathId(examId)}/open-lobby`, "staff", {
-      method: "POST",
-      body: data,
-    }),
-
   /** Linked exam state used before a teacher cancels a lesson. */
   getLessonBinding: (data: { groupId: string; lessonId: string; lessonDate: string }) => {
     const params = new URLSearchParams({
@@ -3005,18 +2889,6 @@ export interface SkillTreeNode {
   tasks_count: number;
 }
 
-export interface TextbookTask {
-  task_id: string;
-  structure_id?: number;
-  exercise_number?: string;
-  skill_id: string;
-  difficulty: string;
-  question_text: string;
-  question_latex?: string;
-  answer_type: string;
-  has_template: boolean;
-}
-
 export const textbookApi = {
   /** Список учебников с фильтрацией */
   list: (params?: { class_level?: number; country?: string; status?: string }) => {
@@ -3033,21 +2905,6 @@ export const textbookApi = {
   /** Оглавление учебника (дерево) */
   toc: (textbookId: string) =>
     examApi<TOCNode[]>(`/textbooks/${encodePathId(textbookId)}/toc/tree`, "staff"),
-
-  /** Задачи из учебника */
-  tasks: (
-    textbookId: string,
-    params?: { structure_id?: number; skill_id?: string; difficulty?: string; limit?: number; offset?: number }
-  ) => {
-    const query = new URLSearchParams();
-    if (params?.structure_id) query.set("structure_id", String(params.structure_id));
-    if (params?.skill_id) query.set("skill_id", params.skill_id);
-    if (params?.difficulty) query.set("difficulty", params.difficulty);
-    if (params?.limit) query.set("limit", String(params.limit));
-    if (params?.offset) query.set("offset", String(params.offset));
-    const qs = query.toString();
-    return examApi<TextbookTask[]>(`/textbooks/${encodePathId(textbookId)}/tasks${qs ? `?${qs}` : ""}`, "staff");
-  },
 
   /** Дерево навыков (для режима "По программе") */
   skillTree: (classLevel?: number) => {
@@ -3081,8 +2938,6 @@ export const opsApi = {
     api<HandoverResult>(`/auth/org/members/${encodePathId(memberId)}/handover`, { method: "POST", body }),
   restoreMember: (memberId: string) =>
     api<{ member_id: string; is_active: boolean }>(`/auth/org/members/${encodePathId(memberId)}/restore`, { method: "POST" }),
-  listMembersByStatus: (status: MemberListStatus) =>
-    api<OrgMemberRow[]>(`/auth/org/members?status=${encodeURIComponent(status)}`),
 };
 
 // ── K4a «Поддержка»: the author's own tickets (the three cabinets) ───────────────────────────────────────────────────────
@@ -3113,9 +2968,6 @@ export const substitutionsApi = {
     api<MineOut>(`/auth/org/substitutions/mine?status=${encodeURIComponent(status)}`),
   withdraw: (requestId: string) =>
     api<SubstitutionItem>(`/auth/org/substitutions/${encodePathId(requestId)}/withdraw`, { method: "POST" }),
-  withdrawMany: (ids: string[]) =>
-    api<WithdrawBatchOut>("/auth/org/substitutions/withdraw", { method: "POST", body: { ids } }),
-
   /** «Предложить коллегу»: the active staff who can teach, except the caller (id, name, role; any member of the centre may read it). */
   colleagues: () =>
     api<Array<{ id: string; name: string; role: "teacher" | "owner" | "admin" }>>("/auth/org/substitutions/colleagues"),

@@ -58,14 +58,13 @@ test("the contract has 14 routes, every fixture of the index is there and names 
   }
 });
 
-test("every route the screens call is in the contract and in api.ts", () => {
+test("every route the screens call is in the contract and in api.ts (the batch withdraw has no screen: its helper is gone, wave D)", () => {
   const api = read("src/lib/api.ts");
   const calls = {
     "GET /org/substitutions/my-lessons": /substitutions\/my-lessons\?/,
     "POST /org/substitutions": /"\/auth\/org\/substitutions", \{ method: "POST", body \}/,
     "GET /org/substitutions/mine": /substitutions\/mine\?status=/,
     "POST /org/substitutions/{request_id}/withdraw": /\/withdraw`, \{ method: "POST" \}/,
-    "POST /org/substitutions/withdraw": /substitutions\/withdraw", \{ method: "POST", body: \{ ids \} \}/,
     "GET /org/substitutions/summary": /substitutions\/summary/,
     "GET /org/substitutions": /substitutions\?\$\{listQuery\(params\)\}/,
     "GET /org/substitutions/{request_id}": /substitutions\/\$\{encodePathId\(requestId\)\}`\)/,

@@ -385,18 +385,6 @@ export interface PayrollSheet {
   updated_at: string | null;
 }
 
-export interface PayrollSheetBrief {
-  id: string;
-  teacher_id: string;
-  teacher_name: string | null;
-  month: string;
-  revision: number;
-  total_amount: number;
-  stale: boolean | null;
-  updated_by_name: string | null;
-  updated_at: string | null;
-}
-
 export interface PayrollCalculateResponse {
   month: string;
   month_open: boolean;
