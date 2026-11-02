@@ -99,11 +99,13 @@ export function Sidebar() {
   // «Замены» (LOGIC-B2): the requests of teachers waiting for a decision; the same people see it, the same rhythm of refresh.
   const pendingSubstitutions = useSubstitutionBadge((state) => state.pending);
   const refreshSubstitutions = useSubstitutionBadge((state) => state.refresh);
+  // Asked when the role is known, not on every change of page (WC-C, PERF-1: ten pages in a minute were twenty requests): the counters are
+  // refreshed by every action on the pages that change them (`refresh(true)`), by the tab coming back and every 5 minutes (below).
   useEffect(() => {
     if (!showExcuses) return;
     void refreshExcuses();
     void refreshSubstitutions();
-  }, [showExcuses, pathname, refreshExcuses, refreshSubstitutions]);
+  }, [showExcuses, refreshExcuses, refreshSubstitutions]);
   useEffect(() => {
     if (!showExcuses) return;
     // Returning to the tab fires both "focus" and "visibilitychange": one request is enough.
