@@ -6,14 +6,9 @@ import { authCookieValue, isSecureDeployment } from "./lib/auth-cookie";
 import { OPEN_EXACT_PATHS, OPEN_PATH_PREFIXES } from "./lib/public-pages";
 
 /**
- * Middleware для серверной защиты маршрутов.
- * 
- * Проверяет наличие auth-токена в cookie "algo-auth".
- * Zustand persist сохраняет state в localStorage, но middleware работает
- * на сервере и не имеет доступа к localStorage — поэтому мы дублируем
- * токен в cookie при логине (store.ts).
- * 
- * Двойная защита: middleware (SSR) + AuthGuard (CSR).
+ * Server-side gate of the pages: a request without the session cookie goes to /login (with the return address).
+ * The cookie is httpOnly and set by the server on login / refresh (see lib/auth-cookie.ts); the role check is the
+ * client AuthGuard's job (middleware sees no role, only that a session cookie exists).
  */
 
 // The ONE list of public pages is lib/public-pages.ts (K2-2: sign-in, «Забыли пароль», the pages of a one-time token / code).
@@ -31,12 +26,6 @@ const OPEN_PATHS = OPEN_PATH_PREFIXES;
 const STATIC_FILE = /\.(?:ico|png|jpe?g|gif|svg|webp|avif|css|js|map|txt|xml|json|webmanifest|woff2?|ttf)$/i;
 // ...and never under the three staff areas, whatever the ending (a file-like id there is still a page).
 const STAFF_AREA = /^\/(?:owner|admin|teacher)(?:\/|$)/;
-
-const ROLE_PATHS: Record<string, string[]> = {
-  "/admin": ["admin", "owner"],
-  "/owner": ["owner"],
-  "/teacher": ["teacher", "admin", "owner"],
-};
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
