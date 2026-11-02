@@ -124,17 +124,15 @@ test("the gate: a hand-made demo cookie never opens it; the real cookie always d
 });
 
 test("only real static files skip the gate: a dot in an id of a protected page does not", () => {
-  {
-    for (const url of ["/owner/payments/receipt/a.b", "/teacher/groups/x.y", "/owner/files/report.pdf", "/teacher/exams/1.2/draft"]) {
-      assert.ok(redirectsToLogin(visit(url)), url);
-    }
-    for (const url of ["/favicon.ico", "/robots.txt", "/logo.PNG", "/fonts/a.woff2", "/_next/static/a.js", "/api/v1/x"]) {
-      assert.equal(visit(url).status, 200, url);
-    }
-    // K2-2: /forgot-password is a real public page now (and so is the page of a new address)
-    assert.equal(visit("/forgot-password").status, 200);
-    for (const url of ["/", "/login", "/forgot-password", "/e/ABC123", "/d/ABC123", "/invite/X", "/set-password/T", "/confirm-email/T", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
+  for (const url of ["/owner/payments/receipt/a.b", "/teacher/groups/x.y", "/owner/files/report.pdf", "/teacher/exams/1.2/draft"]) {
+    assert.ok(redirectsToLogin(visit(url)), url);
   }
+  for (const url of ["/favicon.ico", "/robots.txt", "/logo.PNG", "/fonts/a.woff2", "/_next/static/a.js", "/api/v1/x"]) {
+    assert.equal(visit(url).status, 200, url);
+  }
+  // K2-2: /forgot-password is a real public page now (and so is the page of a new address)
+  assert.equal(visit("/forgot-password").status, 200);
+  for (const url of ["/", "/login", "/forgot-password", "/e/ABC123", "/d/ABC123", "/invite/X", "/set-password/T", "/confirm-email/T", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
 });
 
 // ---- SEC-3 / S-02: what api.ts puts into the URL ------------------------------------------------------
@@ -303,11 +301,9 @@ test("exam info: has_group is read as it is, and from an older service's group_i
 });
 
 test("signed-out visitors can open the site icon; the old /activate page is gone (K2-1: dead since no link was ever sent)", () => {
-  {
-    for (const url of ["/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
-    for (const url of ["/activate?token=abc123", "/activate", "/activate/other"]) assert.ok(redirectsToLogin(visit(url)), url);
-    assert.ok(redirectsToLogin(visit("/owner/groups")));
-  }
+  for (const url of ["/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
+  for (const url of ["/activate?token=abc123", "/activate", "/activate/other"]) assert.ok(redirectsToLogin(visit(url)), url);
+  assert.ok(redirectsToLogin(visit("/owner/groups")));
   const R = load("src/lib/safe-redirect.ts");
   assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login?redirect=%2Factivate%3Ftoken%3Dx");
   // K2-2: public pages (the forgot form, the pages of a token) are never a return address: the token stays out of the address bar
@@ -317,13 +313,11 @@ test("signed-out visitors can open the site icon; the old /activate page is gone
 });
 
 test("a file-like ending never skips the cookie check under /owner /admin /teacher", () => {
-  {
-    for (const url of ["/owner/files/report.pdf", "/owner/x.png", "/admin/exams/1.json", "/teacher/groups/a.js", "/teacher/x.css", "/owner/logo.svg", "/admin/a.map"]) {
-      assert.ok(redirectsToLogin(visit(url)), url);
-      const signedIn = visit(url, "algo_auth_token=jwt");
-      assert.equal(signedIn.status, 200, url);
-      if (url.startsWith("/teacher")) assert.match(signedIn.headers.get("cache-control"), /no-store/, url);
-    }
-    for (const url of ["/favicon.ico", "/robots.txt", "/ownership/logo.png", "/_next/static/a.js"]) assert.equal(visit(url).status, 200, url);
+  for (const url of ["/owner/files/report.pdf", "/owner/x.png", "/admin/exams/1.json", "/teacher/groups/a.js", "/teacher/x.css", "/owner/logo.svg", "/admin/a.map"]) {
+    assert.ok(redirectsToLogin(visit(url)), url);
+    const signedIn = visit(url, "algo_auth_token=jwt");
+    assert.equal(signedIn.status, 200, url);
+    if (url.startsWith("/teacher")) assert.match(signedIn.headers.get("cache-control"), /no-store/, url);
   }
+  for (const url of ["/favicon.ico", "/robots.txt", "/ownership/logo.png", "/_next/static/a.js"]) assert.equal(visit(url).status, 200, url);
 });
