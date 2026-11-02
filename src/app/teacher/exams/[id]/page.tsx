@@ -106,7 +106,6 @@ interface DraftTask {
   correct_answer_latex?: string | null;
   answer_options: string[] | null;
   distractor_meta: DistractorMeta[] | null;
-  is_template_generated: boolean;
 }
 
 interface DraftVariant {

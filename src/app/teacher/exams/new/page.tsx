@@ -39,7 +39,6 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  Zap,
   Users,
   Globe,
   Printer,

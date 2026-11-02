@@ -73,3 +73,10 @@ test("archive asks the server to archive, delete asks for the erasure", () => {
   assert.deepEqual(R.removalRequest({ mode: "archive", examId: "E1", title: "" }), { examId: "E1", permanent: false });
   assert.deepEqual(R.removalRequest({ mode: "delete", examId: "E2", title: "" }), { examId: "E2", permanent: true });
 });
+
+test("wave D: the «Шаблон» mode is gone from exams - no template badge (Zap, «Шаблон», is_template_generated) on the draft or in the types", () => {
+  for (const file of ["src/app/teacher/exams/[id]/draft/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/lib/api.ts"]) {
+    assert.doesNotMatch(read(file), /is_template_generated|>\s*Шаблон\s*</, file);
+  }
+  assert.doesNotMatch(read("src/app/teacher/exams/[id]/draft/page.tsx"), /\bZap\b/);
+});

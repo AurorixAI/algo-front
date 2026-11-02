@@ -34,7 +34,6 @@ import {
   Send,
   XCircle,
   AlertTriangle,
-  Zap,
   Eye,
   EyeOff,
   Activity,
@@ -74,7 +73,6 @@ interface DraftTask {
   correct_answer_latex?: string | null;
   answer_options: string[] | null;
   distractor_meta: DistractorMeta[] | null;
-  is_template_generated: boolean;
 }
 
 interface DraftVariant {
@@ -909,9 +907,6 @@ export default function ExamDraftPage() {
               }`}
             >
               Вариант {v.variant_number}
-              {v.tasks.some((t) => t.is_template_generated) && (
-                <Zap className="w-3 h-3 inline ml-1 text-amber-500" />
-              )}
             </button>
           ))}
         </div>
@@ -995,11 +990,6 @@ export default function ExamDraftPage() {
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${diffColors[task.difficulty] || "bg-slate-100"}`}>
                                 {task.difficulty}
                               </span>
-                              {task.is_template_generated && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
-                                  Шаблон
-                                </span>
-                              )}
                               <button
                                 onClick={() => handleReplace(task.task_id)}
                                 className={`p-1.5 rounded-lg transition-colors ${

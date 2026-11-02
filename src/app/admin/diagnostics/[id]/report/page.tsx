@@ -39,7 +39,6 @@ import {
   ArrowRight,
   Target,
   Compass,
-  Zap,
   User,
   Info,
   History,

@@ -2480,7 +2480,6 @@ export const examsApi = {
             error_logic_latex?: string | null;
             plausibility: number;
           }> | null;
-          is_template_generated: boolean;
         }>;
       }>;
     }>(`/exams/${encodePathId(examId)}/draft`, "staff"),
