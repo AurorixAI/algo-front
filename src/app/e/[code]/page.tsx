@@ -265,8 +265,8 @@ export default function ExamPage() {
   useEffect(() => {
     if (phase !== "waiting_room" || !sessionId || !sessionToken) return;
 
-    const poll = startWaitingRoomPoll(async (alive) => {
-      const statusRes = await examsApi.getSessionStatus(code, sessionId, sessionToken);
+    const poll = startWaitingRoomPoll(async (alive, signal) => {
+      const statusRes = await examsApi.getSessionStatus(code, sessionId, sessionToken, signal);
       if (!alive()) return "stop";
       if (statusRes.status === "in_progress" && statusRes.tasks && statusRes.tasks.length > 0) {
         setTasks(statusRes.tasks);

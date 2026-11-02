@@ -523,7 +523,7 @@ async function fetchExamStaff(url: string, init: RequestInit, endpoint: string):
 
 /** Fetch wrapper for exam-service: see ApiAudience for what `audience` changes. */
 async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body, sessionToken } = options;
+  const { method = "GET", body, sessionToken, signal } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -533,7 +533,7 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
   }
 
   const url = `${EXAM_API_V1}${endpoint}`;
-  const init: RequestInit = { method, headers, credentials: "include", body: body ? JSON.stringify(body) : undefined };
+  const init: RequestInit = { method, headers, credentials: "include", body: body ? JSON.stringify(body) : undefined, ...(signal ? { signal } : {}) };
   const response = audience === "staff" ? await fetchExamStaff(url, init, endpoint) : await fetchOrThrow(url, init);
 
   if (!response.ok) {
@@ -2832,7 +2832,7 @@ export const examsApi = {
     }),
 
   /** Poll session status for students waiting in lobby */
-  getSessionStatus: (code: string, sessionId: string, sessionToken: string) =>
+  getSessionStatus: (code: string, sessionId: string, sessionToken: string, signal?: AbortSignal) =>
     examApi<{
       status: "waiting" | "in_progress" | "kicked" | "closed" | "submitted";
       exam_status?: string;
@@ -2853,7 +2853,7 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-    }>(`/exams/by-code/${encodePathId(code)}/session-status/${encodePathId(sessionId)}`, "student", { sessionToken }),
+    }>(`/exams/by-code/${encodePathId(code)}/session-status/${encodePathId(sessionId)}`, "student", { sessionToken, signal }),
 
   /** Teacher: bind a concrete lesson and open the lobby. */
   openLobby: (examId: string, data: { lesson_id: string; lesson_date: string }) =>
