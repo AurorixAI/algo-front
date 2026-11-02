@@ -2172,30 +2172,11 @@ const diagApi = diagServiceApi;
 
 export const analyticsApi = {
   // Student progress — diagnostic-service (DIAG_API_V1)
-  studentSkillMap: (studentId: string) =>
-    diagApi<any>(`/analytics/students/${encodePathId(studentId)}/skill-map`, "staff"),
-  studentTimeline: (studentId: string) =>
-    diagApi<any>(`/analytics/students/${encodePathId(studentId)}/timeline`, "staff"),
   studentReport: (studentId: string, sessionId?: string | null) => {
     const query = new URLSearchParams({ _t: String(Date.now()) });
     if (sessionId) query.set("session_id", sessionId);
     return diagApi<any>(`/analytics/students/${encodePathId(studentId)}/report?${query.toString()}`, "staff");
   },
-
-  // Group analytics — передаём student_ids списком
-  groupOverview: (studentIds: string[]) =>
-    diagApi<any>(`/analytics/groups/overview?${new URLSearchParams(studentIds.map((id) => ["student_ids", id])).toString()}`, "staff"),
-  groupHeatmap: (studentIds: string[]) =>
-    diagApi<any>(`/analytics/groups/heatmap?${new URLSearchParams(studentIds.map((id) => ["student_ids", id])).toString()}`, "staff"),
-
-  // Org analytics
-  orgLiveQueue: (hours?: number) =>
-    diagApi<any>(`/analytics/org/live-queue${hours ? `?hours=${hours}` : ""}`, "staff"),
-  orgStats: () => diagApi<any>("/analytics/org/stats", "staff"),
-  orgOverview: () => diagApi<any>("/analytics/org/overview", "staff"),
-  orgEnrollment: (days?: number) =>
-    diagApi<any>(`/analytics/org/enrollment${days ? `?days=${days}` : ""}`, "staff"),
-  orgProblemSkills: () => diagApi<any>("/analytics/org/problem-skills", "staff"),
 };
 
 // ============================================================================

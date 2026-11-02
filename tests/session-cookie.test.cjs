@@ -623,9 +623,9 @@ test("exam-service (staff) POST: the retry carries the very same body and header
 test("diagnostic-service (staff analytics): 401 -> refresh -> retry -> the answer", async () => {
   const state = world();
   const { analyticsApi } = loadApi();
-  const stats = await analyticsApi.orgStats();
-  assert.equal(stats.url, "/api/v1/analytics/org/stats");
-  assert.deepEqual(paths(state), ["GET /analytics/org/stats", "POST /auth/refresh", "GET /analytics/org/stats"]);
+  const report = await analyticsApi.studentReport("s1");
+  assert.equal(report.url, "/api/v1/analytics/students/s1/report");
+  assert.deepEqual(paths(state), ["GET /analytics/students/s1/report", "POST /auth/refresh", "GET /analytics/students/s1/report"]);
   assert.equal(state.assigned, 0);
 });
 
@@ -664,7 +664,7 @@ test("import template / upload (auth-service) refresh too", async () => {
 test("exam/diagnostic/PDF requests and api() share ONE refresh when they fail together", async () => {
   const state = world();
   const { authApi, examsApi, analyticsApi } = loadApi();
-  const answers = await Promise.all([authApi.me(), examsApi.getSummary("e1"), analyticsApi.orgStats(), examsApi.previewTeacherPrintKey("e1", 1), examsApi.getAdminView("e1")]);
+  const answers = await Promise.all([authApi.me(), examsApi.getSummary("e1"), analyticsApi.studentReport("s1"), examsApi.previewTeacherPrintKey("e1", 1), examsApi.getAdminView("e1")]);
   assert.equal(state.refreshCalls, 1, "the refresh token rotates: a second parallel refresh would sign the teacher out");
   assert.ok(answers.every(Boolean));
   assert.equal(state.assigned, 0);
@@ -688,7 +688,7 @@ async function assertSessionEnded(state, run) {
 test("refresh refused: exam-service, diagnostic-service and the PDFs end the session like api() (logout, /login?redirect=)", async () => {
   for (const run of [
     (a) => a.examsApi.getSummary("e1"),
-    (a) => a.analyticsApi.orgStats(),
+    (a) => a.analyticsApi.studentReport("s1"),
     (a) => a.examsApi.previewStudentPrintPdf("e1", 1),
     (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
   ]) {
@@ -714,7 +714,7 @@ test("a transient refresh failure (429/5xx/no network/timeout) on exam / diagnos
     const expected = opts.refreshStatus ?? 0;
     for (const run of [
       (a) => a.examsApi.getSummary("e1"),
-      (a) => a.analyticsApi.orgStats(),
+      (a) => a.analyticsApi.studentReport("s1"),
       (a) => a.examsApi.previewTeacherPrintKey("e1", 1),
       (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
     ]) {
@@ -815,7 +815,7 @@ test("a student's request with no answer at all is still the friendly status-0 e
   world();
   global.fetch = async () => { throw new TypeError("network down"); };
   const { examsApi, analyticsApi } = loadApi();
-  for (const run of [() => examsApi.getResult("s1", "tok"), () => examsApi.getSummary("e1"), () => analyticsApi.orgStats()]) {
+  for (const run of [() => examsApi.getResult("s1", "tok"), () => examsApi.getSummary("e1"), () => analyticsApi.studentReport("s1")]) {
     await assert.rejects(run(), (error) => error.name === "ApiError" && error.status === 0 && /Не удалось подключиться/.test(error.message));
   }
 });
