@@ -13,6 +13,8 @@ import { FloatingPanel } from "@/components/ui/floating-panel";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
 import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
+import { attendanceMapsOfToday, groupIdsOfLessons } from "@/lib/schedule-attendance";
+import { browserVisiblePollEnv, startVisiblePolling } from "@/lib/visible-polling";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
@@ -195,8 +197,9 @@ export default function TeacherSchedulePage() {
       }
     };
     void refresh(liveExamRefreshNonce > 0);
-    const timer = window.setInterval(() => { void refresh(); }, 15_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    // Only a tab that is looked at asks (a forgotten background tab asked the heavy live-summary every 15 s); the tab coming back asks at once.
+    const stopPolling = startVisiblePolling(() => { void refresh(); }, 15_000, browserVisiblePollEnv());
+    return () => { cancelled = true; stopPolling(); };
   }, [liveExamRefreshNonce]);
 
   // Add lesson modal
@@ -249,38 +252,17 @@ export default function TeacherSchedulePage() {
       ]);
 
       // Attendance is always tied to the concrete occurrence (date + lesson).
-      const attMap: Record<string, boolean> = {};
-      const compMap: Record<string, boolean> = {};
-      const statusMap: Record<string, LessonAttendanceStatus> = {};
-
       // A failed attendance journal must not make an in-progress lesson look
       // like an untouched one. Finish every read before committing the
       // snapshot to screen state.
+      // One request per GROUP (its journal of today holds all of its lessons), not one per lesson (WC-C, F-A13).
+      const journalByGroup = new Map<string, Awaited<ReturnType<typeof orgApi.getGroupAttendance>>>();
       await Promise.all(
-        loadedTodayOccurrences.map(async (les: LessonOccurrence) => {
-          if (!les || !les.groupId) return;
-          const att = await orgApi.getGroupAttendance(les.groupId, {
-            dateFrom: todayStr,
-            dateTo: todayStr,
-          });
-          const lessonKey = `${todayStr}_${les.id}`;
-          if (att?.records) {
-            const rec = att.records[lessonKey];
-            if (rec && Object.keys(rec).length > 0) {
-              attMap[les.id] = true;
-            }
-          }
-          if (att?.statuses) {
-            const st = att.statuses[lessonKey];
-            if (st) statusMap[les.id] = st;
-            if (st === "completed") {
-              compMap[les.id] = true;
-            } else if (st === "in_progress") {
-              compMap[les.id] = false;
-            }
-          }
+        groupIdsOfLessons(loadedTodayOccurrences).map(async (groupId) => {
+          journalByGroup.set(groupId, await orgApi.getGroupAttendance(groupId, { dateFrom: todayStr, dateTo: todayStr }));
         })
       );
+      const { attMap, compMap, statusMap } = attendanceMapsOfToday(loadedTodayOccurrences, todayStr, (groupId) => journalByGroup.get(groupId));
 
       setGroups(fetchedGroups);
       setNewGroupId((current) => current || fetchedGroups[0]?.id || "");
