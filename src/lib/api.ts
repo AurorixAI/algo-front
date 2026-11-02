@@ -144,6 +144,7 @@ import {
   type PayoutVoided,
   type PayrollSettingsFull,
 } from "./payroll-logica";
+import { loadAllPages, type PagedResponse } from "./diagnostics-list";
 
 import type {
   ArchiveGroupBody,
@@ -1322,6 +1323,13 @@ export const authApi = {
 // ORG API
 // ============================================================================
 
+const DIAGNOSTICS_PAGE_SIZE = 100;
+function diagnosticsPage(offset: number, status?: string) {
+  const query = new URLSearchParams({ limit: String(DIAGNOSTICS_PAGE_SIZE), offset: String(offset), include_meta: "true" });
+  if (status) query.set("status", status);
+  return api<PagedResponse<any> | any[]>(`/auth/org/diagnostics?${query.toString()}`);
+}
+
 export const orgApi = {
   get: () => api<OrgInfo>("/auth/org"),
   stats: () => api<Record<string, any>>("/auth/org/stats"),
@@ -1432,33 +1440,17 @@ export const orgApi = {
     api<any>("/auth/org/diagnostics", { method: "POST", body: data }),
   createQuickDiagnostic: (data: { first_name: string; last_name: string; class_level: number }) =>
     api<any>("/auth/org/diagnostics/quick", { method: "POST", body: data }),
-  listDiagnostics: async (status?: string) => {
-    const pageSize = 100;
-    const allItems: any[] = [];
-    let offset = 0;
-
-    while (true) {
-      const query = new URLSearchParams({
-        limit: String(pageSize),
-        offset: String(offset),
-        include_meta: "true",
-      });
-      if (status) query.set("status", status);
-
-      const response = await api<
-        { items: any[]; total: number; limit: number; offset: number } | any[]
-      >(`/auth/org/diagnostics?${query.toString()}`);
-
-      // During a rolling update the auth-service can briefly still expose
-      // the former array response. Do not break the admin queue in that case.
-      if (Array.isArray(response)) return response;
-
-      const pageItems = Array.isArray(response.items) ? response.items : [];
-      allItems.push(...pageItems);
-      offset += pageItems.length;
-
-      if (offset >= response.total || pageItems.length === 0) return allItems;
-    }
+  listDiagnostics: (status?: string) => {
+    // The pages after the first are asked in parallel batches, in the server's order (WC-C, PERF-2).
+    return loadAllPages<any>((offset) => diagnosticsPage(offset, status), (item) => String(item?.id));
+  },
+  /** The first page only (the newest invites) with the total: the cheap refresh of a visible tab. */
+  listDiagnosticsHead: async (status?: string): Promise<{ items: any[]; total: number }> => {
+    const response = await diagnosticsPage(0, status);
+    // During a rolling update the auth-service can briefly still expose the former array response.
+    if (Array.isArray(response)) return { items: response, total: response.length };
+    const items = Array.isArray(response.items) ? response.items : [];
+    return { items, total: Number(response.total) || items.length };
   },
   getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${encodePathId(id)}`),
   acknowledgeDiagnosticReport: (id: string) =>

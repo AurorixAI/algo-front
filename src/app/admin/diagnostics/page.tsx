@@ -2,9 +2,12 @@
 
 import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { DIAGNOSTIC_ENROLLED, DIAGNOSTIC_STATUS } from "@/lib/status-registry";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { orgApi } from "@/lib/api";
+import { mergeFirstPage, refreshKind } from "@/lib/diagnostics-list";
+import { createRequestSequence } from "@/lib/request-sequence";
+import { browserVisiblePollEnv, startVisiblePolling } from "@/lib/visible-polling";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/use-copy";
 import { COPY_FAILED_TEXT } from "@/lib/exam-link";
@@ -63,34 +66,44 @@ export default function AdminDiagnosticsPage() {
   const [assignedOnly, setAssignedOnly] = useState<boolean>(false);
   const [search, setSearch] = useState("");
 
-  const loadInvites = useCallback(async () => {
-    setLoadError(null);
+  // WC-C (PERF-2): the whole list at the opening and at most every 2 minutes; in between the 15 s refresh of a visible tab reads only
+  // the first page (the newest invites) and lays it over the list in hand.  One refresh at a time; the latest started wins.
+  const loadSequence = useRef(createRequestSequence());
+  const lastFullAt = useRef<number | null>(null);
+  const inFlight = useRef(false);
+  const loadInvites = useCallback(async (automatic = false) => {
+    if (automatic && inFlight.current) return;
+    const token = loadSequence.current.next();
+    inFlight.current = true;
+    if (!automatic) setLoadError(null);
     try {
-      const data = await orgApi.listDiagnostics();
-      setInvites(Array.isArray(data) ? data : []);
+      if (refreshKind(Date.now(), lastFullAt.current) === "full" || !automatic) {
+        const data = await orgApi.listDiagnostics();
+        if (!loadSequence.current.isCurrent(token)) return;
+        lastFullAt.current = Date.now();
+        setInvites(Array.isArray(data) ? data : []);
+      } else {
+        const head = await orgApi.listDiagnosticsHead();
+        if (!loadSequence.current.isCurrent(token)) return;
+        setInvites((held) => mergeFirstPage(held, head.items, head.total, (inv) => String(inv.id)));
+      }
+      setLoadError(null);
     } catch (err: any) {
+      if (!loadSequence.current.isCurrent(token)) return;
       console.error("Failed to load diagnostics:", err);
       setLoadError(err?.message || "Не удалось загрузить диагностики. Проверьте подключение и повторите попытку.");
     } finally {
-      setLoading(false);
+      if (loadSequence.current.isCurrent(token)) {
+        inFlight.current = false;
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadInvites();
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") {
-        void loadInvites();
-      }
-    };
-    const timer = window.setInterval(refreshWhenVisible, 15_000);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
+    // only a tab that is looked at asks; the tab coming back asks at once
+    return startVisiblePolling(() => { void loadInvites(true); }, 15_000, browserVisiblePollEnv());
   }, [loadInvites]);
 
   const copyCode = (code: string) => {
