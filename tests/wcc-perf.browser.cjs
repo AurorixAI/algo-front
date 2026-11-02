@@ -79,7 +79,7 @@ async function fa14(browser, out) {
   const page = await context.newPage();
   await page.goto(base + '/e/UI-LOBBY');
   await page.getByPlaceholder('Иван Иванов').fill('Синтетический Ученик');
-  await page.getByRole('button', {name: /Начать экзамен|Войти|Продолжить/}).first().click();
+  await page.getByRole('button', {name: /Присоединиться к лобби/}).first().click();
   await page.getByText(/Ожидание|ожида/i).first().waitFor({timeout: 10000});
   const result = {};
   // 1. healthy lobby: calls in 20 s (the interval of 1.5 s made 13)
@@ -107,7 +107,7 @@ async function fa14(browser, out) {
   const page2 = await context2.newPage();
   await page2.goto(base + '/e/UI-LOBBY');
   await page2.getByPlaceholder('Иван Иванов').fill('Синтетический Ученик');
-  await page2.getByRole('button', {name: /Начать экзамен|Войти|Продолжить/}).first().click();
+  await page2.getByRole('button', {name: /Присоединиться к лобби/}).first().click();
   await page2.getByText(/Ожидание|ожида/i).first().waitFor({timeout: 10000});
   await sleep(3000);
   state2.statusCalls.length = 0;
