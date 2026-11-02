@@ -493,8 +493,3 @@ export interface StudentNotice {
   /** #154: where the cancelled lesson was made up («Отработан → чт 06.11»); null / absent: it was not.  Never money. */
   madeUpBy?: MadeUpRef | null;
 }
-
-export interface RequestClosed {
-  id: string;
-  status: SubstitutionStatus;
-}

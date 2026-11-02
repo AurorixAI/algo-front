@@ -6,8 +6,6 @@
  */
 import { formatUtcNaiveAsBusinessDate } from "./business-time";
 
-export type DiagnosticInviteStatus = "pending" | "confirmed" | "in_progress" | "completed" | "expired" | "cancelled";
-
 /** `cancel_reason` of an invite cancelled by archiving the student. */
 export const CANCEL_REASON_STUDENT_ARCHIVED = "student_archived";
 

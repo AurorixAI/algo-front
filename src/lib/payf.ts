@@ -64,8 +64,6 @@ export function cancellationKindBody(kind: CancellationKind, canChoose: boolean)
   return canChoose ? { cancellationKind: kind } : {};
 }
 
-/** The kinds of a cancelled lesson as the journal sends them: `day_off` = cancelled by a day off of the centre (change the day off, not the lesson). */
-export type CancelledKind = CancellationKind | "day_off";
 export const CHANGE_KIND_LABEL = "Изменить причину отмены";
 export const CHANGE_KIND_BUTTON = "Сохранить причину";
 
@@ -190,8 +188,6 @@ export const VOID_EXAMS_NOTE = "Если с этих уроков снимали
 export const NOT_RESTORED_TITLE = "Замена не вернётся — назначьте заново";
 /** A long list shows this many lessons first, then «Показать все N». */
 export const DAY_OFF_LIST_PREVIEW = 5;
-export const CONVERTED_TEXT = "Отмена переведена в праздник";
-
 export interface DayOffForDate {
   dayOff: DayOffOut | null;
 }

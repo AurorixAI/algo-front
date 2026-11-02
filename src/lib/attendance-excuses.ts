@@ -6,8 +6,6 @@
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { formatBusinessDateTime, shiftBusinessMonth } from "./business-time";
 
-export type LessonState = "scheduled" | "in_progress" | "completed" | "cancelled";
-
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
   | "cancel_missed"  // "Урока не было"

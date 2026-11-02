@@ -911,13 +911,6 @@ export function statementRowView(row: StatementRow): StatementRowView {
   };
 }
 
-/** «· ученик в архиве» / «· ушёл из группы» in the list of balances: a debt or an advance of a student who is gone stays visible, marked. */
-export function balanceRowNote(row: { is_active?: boolean; student_archived?: boolean }): string {
-  if (row.student_archived) return " · ученик в архиве";
-  if (row.is_active === false) return " · ушёл из группы";
-  return "";
-}
-
 // ── Statement as a bank statement: Дата | Операция | Стоимость | Оплачено | Баланс ─────────────
 
 const MONTH_NAMES = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
