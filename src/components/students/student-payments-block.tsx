@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { groupHref } from "@/lib/ia-links";
-import { DEMO_MODE, orgApi, type StudentProfile } from "@/lib/api";
+import { orgApi, type StudentProfile } from "@/lib/api";
 import { utcNaiveToBusinessIsoDate } from "@/lib/business-time";
 import { type MembershipPaymentRow } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -38,7 +38,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
 
   const available = usePaymentsSummary((state) => state.available);
   const periodMode = usePaymentsSummary((state) => state.periodMode);
-  const moneyEnabled = !isTeacher && !DEMO_MODE && available;
+  const moneyEnabled = !isTeacher && available;
   // An archived student keeps his payment history, read-only: no «Внести оплату», no individual price, no «Исправить»
   // (the server refuses them); «Отменить» stays so that a mistaken payment can be cancelled.
   const access = studentArchiveAccess({ isTeacher, status: profile.student.status });

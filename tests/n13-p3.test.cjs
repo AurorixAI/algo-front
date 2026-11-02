@@ -604,7 +604,7 @@ test("the menu item «Зарплата» is the owner's alone; the pages sit und
   const adminNav = sidebar.slice(sidebar.indexOf("const adminNav"), sidebar.indexOf("const ownerNav"));
   const teacherNav = sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems"));
   assert.match(ownerNav, /href: "\/owner\/payroll", label: "Зарплата"/);
-  assert.match(ownerNav, /!DEMO_MODE && rawRole === "owner"/);
+  assert.match(ownerNav, /\.\.\.\(rawRole === "owner"/);
   assert.doesNotMatch(adminNav, /payroll|Зарплата/);
   assert.doesNotMatch(teacherNav, /payroll|Зарплата/);
   assert.match(read("src/app/owner/layout.tsx"), /allowedRoles=\{\["owner"\]\}/);

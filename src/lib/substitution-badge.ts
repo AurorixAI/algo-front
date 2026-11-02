@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DEMO_MODE, substitutionsApi } from "./api";
+import { substitutionsApi } from "./api";
 import { waitingTotal } from "./one-off";
 
 interface SubstitutionBadgeState {
@@ -50,8 +50,6 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
     set({ pending: 0, urgent: 0, overdue: 0, expiring: 0, lastOkAt: 0 });
   },
   refresh: (force = false) => {
-    // The demo API has no such endpoint; nothing is requested there.
-    if (DEMO_MODE) return Promise.resolve();
     const start = (): Promise<void> => {
       lastStartedAt = Date.now();
       const myEpoch = epoch;

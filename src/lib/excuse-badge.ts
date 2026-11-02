@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DEMO_MODE, orgApi } from "./api";
+import { orgApi } from "./api";
 
 interface ExcuseBadgeState {
   /** Excused absences waiting for an administrator decision. */
@@ -45,8 +45,6 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
     set({ pending: 0, openLessons: 0, lastOkAt: 0 });
   },
   refresh: (force = false) => {
-    // The demo API has no such endpoint; nothing is requested there.
-    if (DEMO_MODE) return Promise.resolve();
     const start = (): Promise<void> => {
       lastStartedAt = Date.now();
       const myEpoch = epoch;

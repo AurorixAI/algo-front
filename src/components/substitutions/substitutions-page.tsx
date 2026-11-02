@@ -8,7 +8,7 @@ import { queryWith, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
 import { formatBusinessDate } from "@/lib/business-time";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Info, Loader2, Search, X } from "lucide-react";
-import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
+import { orgApi, substitutionsApi } from "@/lib/api";
 import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createQueueGuard, afterDecision, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, createOncePer } from "@/lib/queue-guard";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
@@ -554,11 +554,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   );
 }
 
-/** "Замены" for the owner and the administrator; the demo build has no such section. */
+/** "Замены" for the owner and the administrator. */
 export function SubstitutionsPage({ role }: { role: "owner" | "admin" }) {
-  if (DEMO_MODE) {
-    return <EmptyState icon={CheckCircle2} title="Раздел недоступен в демо-версии" />;
-  }
   return (
     <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}>
       <SubstitutionsContent role={role} />

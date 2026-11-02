@@ -43,12 +43,12 @@ export type GroupPaymentsAccess = "show" | "pending" | "hidden";
 
 /**
  * The tab is for the owner and for an administrator the owner gave money to (the server answers `payments/summary` with 200 only
- * to them: `moneyAvailable`); never for a teacher, never in the demo, never on an archived group (nothing to pay there: archiving
+ * to them: `moneyAvailable`); never for a teacher, never on an archived group (nothing to pay there: archiving
  * needs the group empty, «Цены групп» lists no archived group, the debt of the ones who left lives in «Оплаты -> Должники»).
  * `pending`: the answer of the summary has not come yet - a deep link waits instead of falling back.
  */
-export function groupPaymentsAccess(input: { moneyAvailable: boolean; moneyLoaded: boolean; isTeacher?: boolean; archived?: boolean; demo?: boolean }): GroupPaymentsAccess {
-  if (input.isTeacher || input.demo || input.archived) return "hidden";
+export function groupPaymentsAccess(input: { moneyAvailable: boolean; moneyLoaded: boolean; isTeacher?: boolean; archived?: boolean }): GroupPaymentsAccess {
+  if (input.isTeacher || input.archived) return "hidden";
   if (input.moneyAvailable) return "show";
   return input.moneyLoaded ? "hidden" : "pending";
 }

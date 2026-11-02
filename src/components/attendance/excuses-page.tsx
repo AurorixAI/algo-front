@@ -17,7 +17,6 @@ import {
   XCircle,
 } from "lucide-react";
 import {
-  DEMO_MODE,
   orgApi,
   type AttendanceExcuseFile,
   type AttendanceExcuseItem,
@@ -200,19 +199,7 @@ function ExpandableText({
   );
 }
 
-export function ExcusesPage(props: { studentProfileBasePath: string; groupsBasePath: string }) {
-  // The demo API has no excuse endpoints: show a note and request nothing.
-  if (DEMO_MODE) {
-    return (
-      <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-        Раздел «Уважительные пропуски» недоступен в демонстрационном режиме.
-      </div>
-    );
-  }
-  return <ExcusesPageContent {...props} />;
-}
-
-function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
+export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
   const router = useRouter();
   const { showToast, toastNode } = useToast();
   // The list covers one calendar month on the business clock (Asia/Tashkent).

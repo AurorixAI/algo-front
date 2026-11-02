@@ -46,7 +46,6 @@ require.extensions[".ts"] = (mod, filename) => {
 const calls = { excuses: 0, substitutions: 0 };
 let failing = false;
 const fakeApi = {
-  DEMO_MODE: false,
   orgApi: { getAttendanceExcuseSummary: async () => { calls.excuses += 1; if (failing) throw new Error("503"); return { pending_total: 2, open_lessons_total: 1 }; } },
   substitutionsApi: { summary: async () => { calls.substitutions += 1; if (failing) throw new Error("503"); return { pendingTotal: 3, urgentTotal: 1, overdueTotal: 0 }; } },
 };

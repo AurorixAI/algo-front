@@ -38,7 +38,7 @@ export interface BottomNavProps {
   onLogout: () => void;
   /** «Поддержка» (K4a): opens the window to write to the ALGO team; the row is under «Настройки». */
   onSupport?: () => void;
-  /** «Мои обращения» (K4a, R3-1): the page of the person's own tickets; the row is next to «Поддержка».  Absent = no row (the demo). */
+  /** «Мои обращения» (K4a, R3-1): the page of the person's own tickets; the row is next to «Поддержка».  Absent = no row. */
   supportPath?: string;
   /** How many tickets have an answer of the team the person has not opened: a counter on the row and on «Ещё». */
   supportUnread?: number;

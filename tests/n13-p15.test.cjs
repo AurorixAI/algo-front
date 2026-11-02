@@ -417,7 +417,7 @@ test("the centre's average θ is weighted by diagnosed students and is «—» w
 
 test("the owner's «Оплаты» does not wait for the summary; the badge slot fades in", () => {
   const sidebar = read("components/layout/sidebar.tsx");
-  assert.match(sidebar, /showPayments = !DEMO_MODE && \(rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)\)/);
+  assert.match(sidebar, /showPayments = rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)/);
   assert.match(sidebar, /transition-opacity duration-300/);
   assert.match(sidebar, /item\.badge \? "opacity-100" : "opacity-0"/);
   // on the icon's top-right corner (inside a wrapper around the icon, so the link's overflow cannot clip it): it moves nothing

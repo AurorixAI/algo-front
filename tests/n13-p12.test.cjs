@@ -269,7 +269,6 @@ test("a forced badge refresh after an action is not answered by a request that s
   Module._load = function (request, ...rest) {
     if (request === "./api") {
       return {
-        DEMO_MODE: false,
         orgApi: {
           getAttendanceExcuseSummary: () => {
             const value = values[calls++];

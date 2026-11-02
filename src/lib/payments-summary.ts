@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import { DEMO_MODE, orgApi } from "./api";
+import { orgApi } from "./api";
 import type { PaymentsSummary, PeriodMode } from "./payments";
 import { useAuthStore } from "./store";
 
@@ -167,11 +167,6 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
     set({ ...EMPTY });
   },
   refresh: (force = false, options) => {
-    // The demo API has no such endpoint; nothing is requested there.
-    if (DEMO_MODE) {
-      set({ ...EMPTY, loaded: true });
-      return Promise.resolve();
-    }
     let access = paymentsAccessFromProfile(useAuthStore.getState().user);
     if (access === false) {
       // The profile has the final word; whatever was remembered from the probe is forgotten (a later false -> true asks again).

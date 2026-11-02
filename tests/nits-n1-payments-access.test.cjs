@@ -180,25 +180,6 @@ test("a profile read that fails or ends the session on a recheck leaves the stat
   });
 });
 
-test("the demo build never asks (as before): the check of the profile comes after the demo guard", () => {
-  const source = fs.readFileSync(path.join(root, "src/lib/payments-summary.ts"), "utf8");
-  assert.ok(source.indexOf("if (DEMO_MODE)") < source.indexOf("paymentsAccessFromProfile(useAuthStore"));
-  const script = `
-    const fs = require("fs"), ts = require("typescript"), path = require("path");
-    require.extensions[".ts"] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, "utf8"), { compilerOptions: { module: 1, target: 7, esModuleInterop: true } }).outputText, f);
-    let requests = 0; global.fetch = async () => { requests += 1; throw new Error("no requests in demo"); };
-    const { usePaymentsSummary } = require(path.join(${JSON.stringify(root)}, "src/lib/payments-summary.ts"));
-    const { useAuthStore } = require(path.join(${JSON.stringify(root)}, "src/lib/store.ts"));
-    useAuthStore.setState({ user: { payments_access: true } });
-    usePaymentsSummary.getState().refresh(true).then(() => {
-      const s = usePaymentsSummary.getState();
-      console.log(JSON.stringify([requests, s.available, s.loaded]));
-    });`;
-  const run = spawnSync(process.execPath, ["-e", script], { cwd: root, env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: "true" }, encoding: "utf8" });
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout.trim().split("\n").pop(), "[0,false,true]");
-});
-
 test("N1-1: the profile says true but the summary answers 403 (the right was taken back): one summary request, one /auth/me, then nothing until the value flips; false -> true asks again", async () => {
   signIn({ payments_access: true });
   let profileAccess = true; // what /auth/me says

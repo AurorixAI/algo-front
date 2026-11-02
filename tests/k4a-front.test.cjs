@@ -222,8 +222,8 @@ test("[14] «Поддержка» is in the profile menu of the rail AND in «Е
   const nav = read("src/components/layout/bottom-nav.tsx");
   assert.match(sidebar, /data-testid="profile-support"/);
   assert.match(sidebar, /showSupport\(\)/);
-  assert.match(sidebar, /onSupport=\{DEMO_MODE \? undefined : showSupport\}/);
-  assert.match(sidebar, /\{!DEMO_MODE && \(\s*<button[^>]*\s*type="button"\s*onClick=\{\(\) => \{ setProfileOpen\(false\); showSupport\(\); \}\}/);
+  assert.match(sidebar, /onSupport=\{showSupport\}/);
+  assert.match(sidebar, /<button[^>]*\s*type="button"\s*onClick=\{\(\) => \{ setProfileOpen\(false\); showSupport\(\); \}\}/);
   assert.equal((sidebar.match(/<SupportDialog \/>/g) || []).length, 1);
   assert.match(nav, /data-testid="more-support"/);
   assert.match(nav, /\{onSupport && \(/);
@@ -240,7 +240,7 @@ test("[R3-1] «Мои обращения» is a row of the profile menu AND of �
   assert.match(sidebar, /data-testid="profile-my-support"/);
   assert.match(sidebar, /router\.push\(supportPath\)/);
   assert.match(sidebar, /const supportPath = rawRole === "owner" \? "\/owner\/support" : role === "admin" \? "\/admin\/support" : "\/teacher\/support"/);
-  assert.match(sidebar, /supportPath=\{DEMO_MODE \? undefined : supportPath\}/);
+  assert.match(sidebar, /supportPath=\{supportPath\}/);
   assert.match(nav, /data-testid="more-my-support"/);
   assert.match(nav, /<Link href=\{supportPath\}/);
   assert.match(nav, /SUPPORT_MY_LABEL/);

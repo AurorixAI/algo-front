@@ -9,7 +9,7 @@ import {
   Archive, Tag, Info, RotateCcw, Wallet, BookOpen, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
-import { orgApi, DEMO_MODE, GroupDetail, type StudentInGroup } from "@/lib/api";
+import { orgApi, GroupDetail, type StudentInGroup } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
 import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, resolveGroupTab, type PaymentsFilter } from "@/lib/group-payments";
@@ -72,7 +72,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
   const moneyLoaded = usePaymentsSummary((state) => state.loaded);
   const refreshMoney = usePaymentsSummary((state) => state.refresh);
   useEffect(() => { void refreshMoney(); }, [refreshMoney]);
-  const paymentsAccess = groupPaymentsAccess({ moneyAvailable, moneyLoaded, archived: group?.status === "archived", demo: DEMO_MODE });
+  const paymentsAccess = groupPaymentsAccess({ moneyAvailable, moneyLoaded, archived: group?.status === "archived" });
   const tab: Tab = resolveGroupTab(requestedTab, paymentsAccess);
   const paymentsFilter = parsePaymentsFilter(searchParams?.get("filter"));
   const setPaymentsFilter = (filter: PaymentsFilter) => router.replace(paymentsFilterQuery(filter), { scroll: false });

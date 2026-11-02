@@ -49,14 +49,13 @@ const view = (n) => VIEWS.find((v) => v.membershipId === `m-${n}`);
 
 // ── who sees the tab ────────────────────────────────────────────────────────────────────────
 
-test("visibility: the owner and an administrator with the money right see it; a teacher, an admin without the right, an archived group, the demo do not", () => {
+test("visibility: the owner and an administrator with the money right see it; a teacher, an admin without the right, an archived group do not", () => {
   const base = { moneyAvailable: true, moneyLoaded: true };
   assert.equal(G.groupPaymentsAccess(base), "show");                                   // owner / money admin: summary answered 200
   assert.equal(G.groupPaymentsAccess({ moneyAvailable: false, moneyLoaded: true }), "hidden"); // admin without the right: 403/404
   assert.equal(G.groupPaymentsAccess({ moneyAvailable: false, moneyLoaded: false }), "pending"); // not known yet: a deep link waits
   assert.equal(G.groupPaymentsAccess({ ...base, isTeacher: true }), "hidden");
   assert.equal(G.groupPaymentsAccess({ ...base, archived: true }), "hidden");
-  assert.equal(G.groupPaymentsAccess({ ...base, demo: true }), "hidden");
 });
 
 test("the tab of ?tab=: payments only where it may be seen; a deep link waits while the right is unknown; the others as before", () => {
@@ -79,7 +78,6 @@ test("the pages of the owner and of the administrator carry the 4th tab; the tea
     assert.match(page, /groupsBasePath=\{paths\.groups\}/, role);
     assert.match(page, /paymentsBasePath=\{paths\.payments\}/, role);
     assert.match(page, /archived: group\?\.status === "archived"/, role);
-    assert.match(page, /demo: DEMO_MODE/, role);
     assert.match(page, /tab === "payments" && paymentsAccess === "pending"/, role);
   }
   const teacher = read("src/app/teacher/groups/[id]/page.tsx");
@@ -263,7 +261,7 @@ test("the tab: columns, actions and the shared dialogs (payment, individual pric
   assert.doesNotMatch(src, /overflow-x-auto|min-w-\[/);                    // no horizontal scroll
   assert.doesNotMatch(src, /getIncomeOverview|collection|loadIncome/); // the month's collection is in the header chips and «Поступления», not here
   // never requested for a teacher: the pages render the tab only for «show»
-  assert.match(read("src/lib/group-payments.ts"), /if \(input\.isTeacher \|\| input\.demo \|\| input\.archived\) return "hidden"/);
+  assert.match(read("src/lib/group-payments.ts"), /if \(input\.isTeacher \|\| input\.archived\) return "hidden"/);
 });
 
 test("the dialogs of the individual price are shared with the student card (exported, same rules: a reason is required)", () => {

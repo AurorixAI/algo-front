@@ -753,7 +753,7 @@ test("no money for a teacher: the teacher screens never touch a price", () => {
     assert.doesNotMatch(read(file), /price|monthly_fee|сум/i, file);
   }
   // the student card asks for money only when it is a money role (existing rule) and the price section lives inside that block
-  assert.match(read("src/components/students/student-payments-block.tsx"), /const moneyEnabled = !isTeacher && !DEMO_MODE && available;/);
+  assert.match(read("src/components/students/student-payments-block.tsx"), /const moneyEnabled = !isTeacher && available;/);
   assert.match(read("src/components/students/student-payments-block.tsx"), /if \(!moneyEnabled\) return null;/);
   // the group card shows a price only for the key a money role gets; a teacher's list never has it
   assert.match(read("src/components/groups/group-card.tsx"), /"price_current" in group/);

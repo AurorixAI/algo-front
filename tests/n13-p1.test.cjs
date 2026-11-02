@@ -173,7 +173,7 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /href: "\/admin\/attendance", label: "Посещаемость"/);
   assert.match(sidebar, /href: "\/owner\/attendance", label: "Посещаемость"/);
-  assert.match(sidebar, /showExcuses = !DEMO_MODE/);
+  assert.match(sidebar, /showExcuses = rawRole === "owner" \|\| role === "admin"/);
   assert.match(sidebar, /badge\?: number/);
   // the teacher menu never gets the item
   const teacherNav = sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems"));
@@ -188,8 +188,6 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
   assert.doesNotMatch(excusesPage, /Выбрать все|Подтвердить выбранные|checkbox|reviewAttendanceExcusesBulk|Поиск по ученику/);
   assert.match(excusesPage, /CascadingFilter/);
   assert.doesNotMatch(read("src/lib/api.ts"), /reviewAttendanceExcusesBulk|review-bulk/);
-  // the badge store does not request anything in demo mode
-  assert.match(read("src/lib/excuse-badge.ts"), /if \(DEMO_MODE\) return Promise\.resolve\(\)/);
   // the admin journal is editable and in admin mode on both group cards
   for (const role of ["admin", "owner"]) {
     const page = read("src/components/groups/group-detail-view.tsx");
@@ -381,7 +379,7 @@ test("menu badge = pending excuses + open lessons, from ONE summary request", as
   const originalLoad = Module._load;
   Module._load = function (request, ...rest) {
     if (request === "./api") {
-      return { DEMO_MODE: false, orgApi: { getAttendanceExcuseSummary: async () => { calls += 1; return summary; } } };
+      return { orgApi: { getAttendanceExcuseSummary: async () => { calls += 1; return summary; } } };
     }
     return originalLoad.call(this, request, ...rest);
   };

@@ -27,7 +27,6 @@ import { LOCK_COPY } from "@/lib/lock-copy";
 import { useAuthStore } from "@/lib/store";
 import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
-import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { refreshBadgesOnPageChange } from "@/lib/badge-throttle";
@@ -92,9 +91,8 @@ export function Sidebar() {
   // Organisation display name
   const orgName = org?.name || user?.org_name || "ALGO";
 
-  // Excused absences waiting for a decision: administrators and owners only,
-  // never in the demo build (the demo API has no such endpoint).
-  const showExcuses = !DEMO_MODE && (rawRole === "owner" || role === "admin");
+  // Excused absences waiting for a decision: administrators and owners only.
+  const showExcuses = rawRole === "owner" || role === "admin";
   const pendingExcuses = useExcuseBadge(selectBadgeTotal);
   const refreshExcuses = useExcuseBadge((state) => state.refresh);
   // «Замены» (LOGIC-B2): the requests of teachers waiting for a decision; the same people see it, the same rhythm of refresh.
@@ -138,7 +136,7 @@ export function Sidebar() {
   const paymentsDue = usePaymentsSummary((state) => debtorsCount({ debtors: state.debtors, students_with_debt: state.studentsWithDebt }) ?? 0);
   // The owner always has access, so the item is there from the first paint (no jump when the
   // summary arrives); an administrator sees it once the server confirms the access.
-  const showPayments = !DEMO_MODE && (rawRole === "owner" || (role === "admin" && paymentsAvailable));
+  const showPayments = rawRole === "owner" || (role === "admin" && paymentsAvailable);
 
   const adminNav: NavItem[] = [
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
@@ -170,8 +168,8 @@ export function Sidebar() {
     ...(showPayments
       ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Должники" }]
       : []),
-    // Payroll is the owner's alone (N13 P3): no item for an administrator or a teacher, and none in the demo.
-    ...(!DEMO_MODE && rawRole === "owner"
+    // Payroll is the owner's alone (N13 P3): no item for an administrator or a teacher.
+    ...(rawRole === "owner"
       ? [{ href: "/owner/payroll", label: "Зарплата", icon: Banknote }]
       : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
@@ -202,7 +200,6 @@ export function Sidebar() {
   }, [paymentsKnown, barGaveUp]);
   const barPending = bottomBarPending({
     role: rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher",
-    demo: DEMO_MODE,
     summaryLoaded: paymentsKnown,
     gaveUp: barGaveUp,
   });
@@ -211,10 +208,10 @@ export function Sidebar() {
   const supportPath = rawRole === "owner" ? "/owner/support" : role === "admin" ? "/admin/support" : "/teacher/support";
   const supportUnread = useSupportUnread((state) => state.count);
 
-  // The failed calls of the ring belong to the person who is signed in now; the badge of «Мои обращения» asks at sign-in and every two minutes (not in the demo: no server).
+  // The failed calls of the ring belong to the person who is signed in now; the badge of «Мои обращения» asks at sign-in and every two minutes.
   useEffect(() => {
     bindClientErrorsTo(user?.id);
-    if (DEMO_MODE || !user?.id) return undefined;
+    if (!user?.id) return undefined;
     void useSupportUnread.getState().load();
     const timer = window.setInterval(() => void useSupportUnread.getState().load(), SUPPORT_UNREAD_POLL_MS);
     return () => window.clearInterval(timer);
@@ -495,33 +492,29 @@ export function Sidebar() {
                 <Settings className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>Настройки</span>
               </button>
-              {!DEMO_MODE && (
-                <button
-                  type="button"
-                  onClick={() => { setProfileOpen(false); showSupport(); }}
-                  data-testid="profile-support"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
-                >
-                  <LifeBuoy className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>{SUPPORT_LABEL}</span>
-                </button>
-              )}
-              {!DEMO_MODE && (
-                <button
-                  type="button"
-                  onClick={() => { setProfileOpen(false); router.push(supportPath); }}
-                  data-testid="profile-my-support"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
-                >
-                  <MessagesSquare className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{SUPPORT_MY_LABEL}</span>
-                  {supportUnread > 0 && (
-                    <span data-testid="support-unread-badge" aria-label={`Есть ответ: ${supportUnread}`} className="h-4 min-w-[16px] shrink-0 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
-                      {navBadgeText(supportUnread)}
-                    </span>
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => { setProfileOpen(false); showSupport(); }}
+                data-testid="profile-support"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
+              >
+                <LifeBuoy className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>{SUPPORT_LABEL}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setProfileOpen(false); router.push(supportPath); }}
+                data-testid="profile-my-support"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
+              >
+                <MessagesSquare className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{SUPPORT_MY_LABEL}</span>
+                {supportUnread > 0 && (
+                  <span data-testid="support-unread-badge" aria-label={`Есть ответ: ${supportUnread}`} className="h-4 min-w-[16px] shrink-0 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                    {navBadgeText(supportUnread)}
+                  </span>
+                )}
+              </button>
               <div className="my-1 border-t border-slate-100" />
               <button
                 type="button"
@@ -581,9 +574,9 @@ export function Sidebar() {
         initial: user?.first_name?.[0] || user?.full_name?.[0] || role[0],
       }}
       onLogout={handleLogout}
-      supportPath={DEMO_MODE ? undefined : supportPath}
+      supportPath={supportPath}
       supportUnread={supportUnread}
-      onSupport={DEMO_MODE ? undefined : showSupport}  // the demo has no accounting server: nobody to write to
+      onSupport={showSupport}
     />
     <SupportDialog />
     {leaving && (

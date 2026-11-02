@@ -168,25 +168,11 @@ import type {
 export type { GroupPriceCancelled, GroupPriceChange, GroupPriceRow, PriceOverrideCancelled, PriceOverrideChange, PriceOverrideRow } from "./group-price";
 
 // An empty NEXT_PUBLIC_*_API_URL = the site the page was opened from (K3 P1): see lib/api-base.ts.
-export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+const AUTH_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://localhost:8000");
 
-function demoApiV1(): string {
-  if (typeof window !== "undefined") return "/api/demo/v1";
-  const origin = process.env.NEXT_PUBLIC_DEMO_ORIGIN ?? "http://localhost:3000";
-  return `${origin}/api/demo/v1`;
-}
+const EXAM_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_EXAM_API_URL, "http://localhost:8003");
 
-const AUTH_API_V1 = DEMO_MODE
-  ? demoApiV1()
-  : serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://localhost:8000");
-
-const EXAM_API_V1 = DEMO_MODE
-  ? demoApiV1()
-  : serviceApiV1(process.env.NEXT_PUBLIC_EXAM_API_URL, "http://localhost:8003");
-
-const DIAG_API_V1 = DEMO_MODE
-  ? demoApiV1()
-  : serviceApiV1(process.env.NEXT_PUBLIC_DIAG_API_URL, "http://localhost:8002");
+const DIAG_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_DIAG_API_URL, "http://localhost:8002");
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

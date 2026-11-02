@@ -335,18 +335,17 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /href: "\/admin\/payments", label: "Оплаты"/);
   assert.match(sidebar, /href: "\/owner\/payments", label: "Оплаты"/);
-  assert.match(sidebar, /showPayments = !DEMO_MODE && \(rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)\)/);
+  assert.match(sidebar, /showPayments = rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)/);
   const teacherNav = sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems"));
   assert.doesNotMatch(teacherNav, /payments|Оплаты/);
-  // the store does not request anything in the demo build and is fed only by owner/admin layouts
-  assert.match(read("src/lib/payments-summary.ts"), /if \(DEMO_MODE\)/);
+  // the store is fed only by owner/admin layouts
   assert.doesNotMatch(read("src/app/teacher/layout.tsx"), /Payments/);
   // the student card asks for money only when it is not a teacher and the server allowed it
   // (N13 P2.2: money moved from the «Группы» block to its own «Оплаты» tab; «Обучение» holds none)
   const groups = read("src/components/students/student-groups-block.tsx");
   assert.doesNotMatch(groups, /MembershipPayments|getStudentMemberships|usePaymentsSummary/);
   const moneyBlock = read("src/components/students/student-payments-block.tsx");
-  assert.match(moneyBlock, /moneyEnabled = !isTeacher && !DEMO_MODE && available/);
+  assert.match(moneyBlock, /moneyEnabled = !isTeacher && available/);
   assert.match(moneyBlock, /if \(!moneyEnabled\) \{ setRows\(null\); return; \}/);
   // the add-student drawer offers the fee only when payments are available
   const drawer = read("src/components/groups/add-student-drawer.tsx");

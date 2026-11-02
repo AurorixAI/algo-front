@@ -1,4 +1,4 @@
-// Wave A / A4 (front): CSV with formulas (F-A16), the demo API and cookie only in a demo build (F-A02),
+// Wave A / A4 (front): CSV with formulas (F-A16), no demo mode at all (F-A02; the demo build was removed in wave D),
 // the middleware gate (F-A04), one path/query encoding in api.ts (SEC-3), the invite code of the report in a header (S-02).
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -17,8 +17,7 @@ const Module = require("node:module");
 const root = path.join(__dirname, "..");
 const resolveFilename = Module._resolveFilename;
 Module._resolveFilename = function (request, ...rest) {
-  if (request.startsWith("@demo/")) request = path.join(root, "demo", request.slice(6));
-  else if (request.startsWith("@/")) request = path.join(root, "src", request.slice(2));
+  if (request.startsWith("@/")) request = path.join(root, "src", request.slice(2));
   return resolveFilename.call(this, request, ...rest);
 };
 const { NextRequest } = require("next/server");
@@ -98,53 +97,19 @@ test("the export button builds the file through the guarded builder", () => {
   assert.doesNotMatch(page, /\.join\(","\)/);
 });
 
-// ---- F-A02: the demo API ----------------------------------------------------------------------
+// ---- F-A02: no demo mode ----------------------------------------------------------------------
 
-const withEnv = async (value, fn) => {
-  const before = process.env.NEXT_PUBLIC_DEMO_MODE;
-  if (value === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE; else process.env.NEXT_PUBLIC_DEMO_MODE = value;
-  try { return await fn(); } finally {
-    if (before === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE; else process.env.NEXT_PUBLIC_DEMO_MODE = before;
+test("wave D: the demo build is gone - no demo API route, no demo sources, no Vercel config, no DEMO_MODE switch left in src", () => {
+  for (const gone of ["src/app/api/demo", "demo", "vercel.json", ".vercelignore", ".env.demo.example"]) {
+    assert.equal(fs.existsSync(path.join(root, gone)), false, gone);
   }
-};
-const ctx = (...p) => ({ params: { path: p } });
-const demoReq = (method, url, init = {}) => new NextRequest(`https://algo.example${url}`, { method, ...init });
-
-test("DEMO_MODE off (unset, false, anything but true): every method of the demo route is 404, no cookie, nothing written", async () => {
-  const route = load("src/app/api/demo/v1/[...path]/route.ts");
-  for (const value of [undefined, "false", "", "1", "TRUE"]) {
-    await withEnv(value, async () => {
-      for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-        const body = method === "GET" ? undefined : JSON.stringify({ email: "x", password: "y" });
-        const res = await route[method](demoReq(method, "/api/demo/v1/auth/login", { body }), ctx("auth", "login"));
-        assert.equal(res.status, 404, `${method} ${value}`);
-        assert.equal(res.headers.get("set-cookie"), null, `${method} ${value}`);
-      }
-      const dev = await route.POST(demoReq("POST", "/api/demo/v1/auth/dev-login?role=admin"), ctx("auth", "dev-login"));
-      assert.equal(dev.status, 404);
-      assert.equal(dev.headers.get("set-cookie"), null);
-    });
+  const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
+  for (const file of walk("src")) {
+    assert.doesNotMatch(fs.readFileSync(path.join(root, file), "utf8"), /DEMO_MODE|algo_demo_session|api\/demo|@demo\//, file);
   }
-});
-
-test("DEMO_MODE on: the route works, the cookie is the demo one and never algo_auth_token", async () => {
-  const route = load("src/app/api/demo/v1/[...path]/route.ts");
-  await withEnv("true", async () => {
-    const anon = await route.GET(demoReq("GET", "/api/demo/v1/auth/me"), ctx("auth", "me"));
-    assert.equal(anon.status, 401);
-    const me = await route.GET(demoReq("GET", "/api/demo/v1/auth/me", { headers: { cookie: "algo_demo_session=1" } }), ctx("auth", "me"));
-    assert.equal(me.status, 200);
-    // the REAL session cookie does not authenticate the demo API (and the demo cookie is not the real one)
-    const real = await route.GET(demoReq("GET", "/api/demo/v1/auth/me", { headers: { cookie: "algo_auth_token=real-jwt" } }), ctx("auth", "me"));
-    assert.equal(real.status, 401);
-  });
-  const { handleAuth } = load("demo/handlers/auth.ts");
-  const login = handleAuth({ method: "POST", path: "/auth/dev-login", searchParams: new URLSearchParams("role=admin"), body: {}, cookies: {} });
-  const setCookie = login.headers["Set-Cookie"];
-  assert.match(setCookie, /^algo_demo_session=1;/);
-  assert.doesNotMatch(setCookie, /algo_auth_token/);
-  const logout = handleAuth({ method: "POST", path: "/auth/logout", searchParams: new URLSearchParams(), body: {}, cookies: {} });
-  assert.doesNotMatch(logout.headers["Set-Cookie"], /algo_auth_token/, "a demo logout must not erase a real session cookie");
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  for (const script of ["dev:demo", "build:demo", "sync-demo", "deploy:demo", "lint"]) assert.equal(pkg.scripts[script], undefined, script);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "tsconfig.json"), "utf8"), /@demo|demo\//);
 });
 
 // ---- F-A04: the middleware gate ------------------------------------------------------------------
@@ -152,29 +117,24 @@ test("DEMO_MODE on: the route works, the cookie is the demo one and never algo_a
 const visit = (url, cookie) => load("src/middleware.ts").middleware(new NextRequest(`https://algo.example${url}`, cookie ? { headers: { cookie } } : undefined));
 const redirectsToLogin = (res) => res.status === 307 && new URL(res.headers.get("location")).pathname === "/login";
 
-test("the demo cookie opens the gate only in a demo build; the real cookie always", async () => {
-  await withEnv(undefined, async () => {
-    assert.ok(redirectsToLogin(visit("/owner/groups", "algo_demo_session=1")), "a hand-made demo cookie on a real deployment");
-    assert.equal(visit("/owner/groups", "algo_auth_token=jwt").status, 200);
-  });
-  await withEnv("true", async () => {
-    assert.equal(visit("/owner/groups", "algo_demo_session=1").status, 200);
-    assert.ok(redirectsToLogin(visit("/owner/groups")));
-  });
+test("the gate: a hand-made demo cookie never opens it; the real cookie always does", () => {
+  assert.ok(redirectsToLogin(visit("/owner/groups", "algo_demo_session=1")), "a demo cookie is not a session");
+  assert.equal(visit("/owner/groups", "algo_auth_token=jwt").status, 200);
+  assert.ok(redirectsToLogin(visit("/owner/groups")));
 });
 
-test("only real static files skip the gate: a dot in an id of a protected page does not", async () => {
-  await withEnv(undefined, async () => {
+test("only real static files skip the gate: a dot in an id of a protected page does not", () => {
+  {
     for (const url of ["/owner/payments/receipt/a.b", "/teacher/groups/x.y", "/owner/files/report.pdf", "/teacher/exams/1.2/draft"]) {
       assert.ok(redirectsToLogin(visit(url)), url);
     }
-    for (const url of ["/favicon.ico", "/robots.txt", "/logo.PNG", "/fonts/a.woff2", "/_next/static/a.js", "/api/v1/x", "/api/demo/v1/auth/me"]) {
+    for (const url of ["/favicon.ico", "/robots.txt", "/logo.PNG", "/fonts/a.woff2", "/_next/static/a.js", "/api/v1/x"]) {
       assert.equal(visit(url).status, 200, url);
     }
     // K2-2: /forgot-password is a real public page now (and so is the page of a new address)
     assert.equal(visit("/forgot-password").status, 200);
     for (const url of ["/", "/login", "/forgot-password", "/e/ABC123", "/d/ABC123", "/invite/X", "/set-password/T", "/confirm-email/T", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
-  });
+  }
 });
 
 // ---- SEC-3 / S-02: what api.ts puts into the URL ------------------------------------------------------
@@ -342,12 +302,12 @@ test("exam info: has_group is read as it is, and from an older service's group_i
   assert.match(fs.readFileSync(path.join(root, "src/app/e/[code]/page.tsx"), "utf8"), /setExamInfo\(normalizeExamInfo\(info\)\)/);
 });
 
-test("signed-out visitors can open the site icon; the old /activate page is gone (K2-1: dead since no link was ever sent)", async () => {
-  await withEnv(undefined, async () => {
+test("signed-out visitors can open the site icon; the old /activate page is gone (K2-1: dead since no link was ever sent)", () => {
+  {
     for (const url of ["/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
     for (const url of ["/activate?token=abc123", "/activate", "/activate/other"]) assert.ok(redirectsToLogin(visit(url)), url);
     assert.ok(redirectsToLogin(visit("/owner/groups")));
-  });
+  }
   const R = load("src/lib/safe-redirect.ts");
   assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login?redirect=%2Factivate%3Ftoken%3Dx");
   // K2-2: public pages (the forgot form, the pages of a token) are never a return address: the token stays out of the address bar
@@ -356,8 +316,8 @@ test("signed-out visitors can open the site icon; the old /activate page is gone
   assert.equal(R.loginUrlForPage("/set-password/TOKEN", ""), "/login");
 });
 
-test("a file-like ending never skips the cookie check under /owner /admin /teacher", async () => {
-  await withEnv(undefined, async () => {
+test("a file-like ending never skips the cookie check under /owner /admin /teacher", () => {
+  {
     for (const url of ["/owner/files/report.pdf", "/owner/x.png", "/admin/exams/1.json", "/teacher/groups/a.js", "/teacher/x.css", "/owner/logo.svg", "/admin/a.map"]) {
       assert.ok(redirectsToLogin(visit(url)), url);
       const signedIn = visit(url, "algo_auth_token=jwt");
@@ -365,5 +325,5 @@ test("a file-like ending never skips the cookie check under /owner /admin /teach
       if (url.startsWith("/teacher")) assert.match(signedIn.headers.get("cache-control"), /no-store/, url);
     }
     for (const url of ["/favicon.ico", "/robots.txt", "/ownership/logo.png", "/_next/static/a.js"]) assert.equal(visit(url).status, 200, url);
-  });
+  }
 });

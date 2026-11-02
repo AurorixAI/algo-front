@@ -66,14 +66,10 @@ export function middleware(request: NextRequest) {
   // The server sets the httpOnly cookie "__Host-algo_auth_token" (plain "algo_auth_token" on http development) on login/refresh. It lives as long
   // as the session cookie says (14 days with «Запомнить меня», until the browser closes without) while the JWT inside expires after an
   // hour: a stale JWT is NOT detected here (middleware cannot refresh) - the first API call answers 401 and api() refreshes.
-  // The demo session cookie counts ONLY in a demo build (NEXT_PUBLIC_DEMO_MODE=true); on a real deployment a
-  // hand-made `algo_demo_session=1` must not pass the gate.
-  const authCookie =
-    authCookieValue(
-      (name) => request.cookies.get(name),
-      isSecureDeployment(process.env, request.nextUrl.protocol, request.headers.get("x-forwarded-proto")),
-    ) ??
-    (process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? request.cookies.get("algo_demo_session")?.value : undefined);
+  const authCookie = authCookieValue(
+    (name) => request.cookies.get(name),
+    isSecureDeployment(process.env, request.nextUrl.protocol, request.headers.get("x-forwarded-proto")),
+  );
 
   if (!authCookie) {
     // No token — redirect to login with the full return URL (path AND query), so that

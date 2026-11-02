@@ -26,9 +26,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@demo/*": [
-        "./demo/*"
       ]
     }
   },
@@ -38,7 +35,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next-e2e/types/**/*.ts",
-    "demo/**/*.ts",
     ".next-k2b/types/**/*.ts"
   ],
   "exclude": [

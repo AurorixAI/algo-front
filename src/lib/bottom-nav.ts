@@ -55,8 +55,8 @@ export const BOTTOM_BAR_WAIT_MS = 2500;
  * swap places under the thumb.  The owner (always sees payments) and the teacher (never) know it from the first paint;
  * after `BOTTOM_BAR_WAIT_MS` the bar is drawn with what is known, so a failing request cannot hide the menu.
  */
-export function bottomBarPending(input: { role: "owner" | "admin" | "teacher"; demo: boolean; summaryLoaded: boolean; gaveUp: boolean }): boolean {
-  return input.role === "admin" && !input.demo && !input.summaryLoaded && !input.gaveUp;
+export function bottomBarPending(input: { role: "owner" | "admin" | "teacher"; summaryLoaded: boolean; gaveUp: boolean }): boolean {
+  return input.role === "admin" && !input.summaryLoaded && !input.gaveUp;
 }
 
 /** The menu item (or one of its sub-pages) is the open page. */

@@ -209,10 +209,10 @@ test("bottom bar, owner: Панель, Группы, Ученики, Оплат�
   const { bar, more } = splitBottomNav(items(MENU.owner), BOTTOM_NAV_PRIORITY.owner);
   assert.deepEqual(hrefsAfterSplit(bar), ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/payments"]);
   assert.deepEqual(hrefsAfterSplit(more), ["/owner/attendance", "/owner/substitutions", "/owner/payroll", "/owner/teachers"]);
-  // the demo build has no attendance / payments / payroll: the next ones by priority fill the bar
-  const demo = splitBottomNav(items(["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]), BOTTOM_NAV_PRIORITY.owner);
-  assert.deepEqual(hrefsAfterSplit(demo.bar), ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]);
-  assert.deepEqual(demo.more, []);
+  // a menu without attendance / payments / payroll: the next ones by priority fill the bar
+  const short = splitBottomNav(items(["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]), BOTTOM_NAV_PRIORITY.owner);
+  assert.deepEqual(hrefsAfterSplit(short.bar), ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]);
+  assert.deepEqual(short.more, []);
 });
 
 test("bottom bar, admin: Диагностика, Ученики, Группы, Оплаты; without the payments right «Посещаемость» takes the slot", () => {

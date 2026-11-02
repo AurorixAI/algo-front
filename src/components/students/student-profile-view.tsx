@@ -11,7 +11,7 @@ import {
   ChevronRight, Plus, Wallet, Archive, ArchiveRestore, Copy
 } from "lucide-react";
 import Link from "next/link";
-import { DEMO_MODE, examsApi, orgApi, StudentAttendanceSummary, StudentProfile, type StudentArchiveResult } from "@/lib/api";
+import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile, type StudentArchiveResult } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
@@ -100,13 +100,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   // Money is shown only to a role that may see it, and only after the server confirmed it (owner; an administrator with the right).
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
   const paymentsLoaded = usePaymentsSummary((state) => state.loaded);
-  const paymentsVisible = !isTeacher && !DEMO_MODE && paymentsAvailable;
+  const paymentsVisible = !isTeacher && paymentsAvailable;
   const tabs = visibleProfileTabs({ isTeacher: Boolean(isTeacher), paymentsVisible });
   const requestedTab = searchParams?.get("tab");
   const activeTab = parseProfileTab(requestedTab, tabs, Boolean(isTeacher));
   // `?tab=payments` opened before the summary has answered: wait instead of flashing «Обучение».
   const [paymentsWaitOver, setPaymentsWaitOver] = useState(false);
-  const paymentsPending = requestedTab === "payments" && !isTeacher && !DEMO_MODE && !paymentsLoaded && !paymentsWaitOver;
+  const paymentsPending = requestedTab === "payments" && !isTeacher && !paymentsLoaded && !paymentsWaitOver;
   useEffect(() => {
     if (!(requestedTab === "payments" && !paymentsLoaded)) return;
     // The summary never answered (offline): stop waiting and show the fallback tab.
@@ -340,7 +340,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const openAssign = (mode: "transfer" | "add") => { setAssignMode(mode); setAssignModalOpen(true); };
 
   // Archive: owner and administrator only; an archived card hides every group and payment action.
-  const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status, demo: DEMO_MODE });
+  const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status });
   const archiveInfo = studentArchiveInfo(profile);
   const formerGroupNames = archiveGroupNames(profile.archived_groups);
   // The archived state changed: read again everything that depends on it - the card (status, banner, actions,

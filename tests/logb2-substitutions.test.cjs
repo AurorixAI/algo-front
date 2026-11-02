@@ -689,20 +689,19 @@ test("[access] the lesson of a substitute: the journal is the only source of his
 
 // ── the menu and the routes ─────────────────────────────────────────────────────────────────────
 
-test("[M1] «Замены» is in the owner's and the administrator's menu with the counter of waiting requests; not in the demo, not for a teacher", () => {
+test("[M1] «Замены» is in the owner's and the administrator's menu with the counter of waiting requests; not for a teacher", () => {
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /href: "\/admin\/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL/);
   assert.match(sidebar, /href: "\/owner\/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL/);
   assert.equal(S.BADGE_LABEL, "Ждут решения");
-  // the same gate as «Посещаемость»: owner and administrator, never the demo
-  assert.match(sidebar, /const showExcuses = !DEMO_MODE && \(rawRole === "owner" \|\| role === "admin"\)/);
+  // the same gate as «Посещаемость»: owner and administrator
+  assert.match(sidebar, /const showExcuses = rawRole === "owner" \|\| role === "admin"/);
   assert.equal((sidebar.match(/\.\.\.\(showExcuses\s*\? \[\{ href: "\/(admin|owner)\/substitutions"/g) || []).length, 2);
   assert.doesNotMatch(sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems")), /substitutions/);
   // the counter is read on a route change, on return to the tab, every 5 minutes, and by force after an action
   assert.match(sidebar, /void refreshSubstitutions\(\);/);
   const badge = read("src/lib/substitution-badge.ts");
   assert.match(badge, /substitutionsApi\.summary\(\)/);
-  assert.match(badge, /if \(DEMO_MODE\) return Promise\.resolve\(\);/);
   assert.match(read("src/components/auth/SessionSync.tsx"), /resetClientState\(\)/);
   assert.match(read("src/lib/reset-client-state.ts"), /useSubstitutionBadge\.getState\(\)\.reset\(\)/);
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /useSubstitutionBadge\.getState\(\)\.refresh\(true\)/);

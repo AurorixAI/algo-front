@@ -325,13 +325,12 @@ test("leftPhrase: the verb agrees with the number, in the payments chip and in t
 
 test("bottom bar: the administrator's bar waits for the one fact that decides its slots; «Посещения»; «Ещё» is current", () => {
   const { bottomBarPending, BOTTOM_BAR_WAIT_MS } = lib("bottom-nav.ts");
-  const base = { demo: false, summaryLoaded: false, gaveUp: false };
+  const base = { summaryLoaded: false, gaveUp: false };
   assert.equal(bottomBarPending({ ...base, role: "admin" }), true, "unknown: skeleton");
   assert.equal(bottomBarPending({ ...base, role: "admin", summaryLoaded: true }), false);
   assert.equal(bottomBarPending({ ...base, role: "admin", gaveUp: true }), false, "a failing request does not hide the menu");
   assert.equal(bottomBarPending({ ...base, role: "owner" }), false, "the owner always sees payments");
   assert.equal(bottomBarPending({ ...base, role: "teacher" }), false, "a teacher never does");
-  assert.equal(bottomBarPending({ ...base, role: "admin", demo: true }), false);
   assert.equal(BOTTOM_BAR_WAIT_MS, 2500);
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.equal((sidebar.match(/label: "Посещаемость", shortLabel: "Посещения"/g) || []).length, 2, "owner and administrator");
@@ -672,7 +671,7 @@ test("the sidebar badge really re-reads the summary after a decision, and the ta
   const originalLoad = Module._load;
   let reads = 0;
   Module._load = function (request, ...rest) {
-    if (request === "./api") return { DEMO_MODE: false, orgApi: { getAttendanceExcuseSummary: async () => ({ pending_total: 4 - reads++ , open_lessons_total: 0 }) } };
+    if (request === "./api") return { orgApi: { getAttendanceExcuseSummary: async () => ({ pending_total: 4 - reads++ , open_lessons_total: 0 }) } };
     return originalLoad.call(this, request, ...rest);
   };
   let badge;

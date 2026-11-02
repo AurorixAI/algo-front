@@ -187,7 +187,7 @@ test("?tab=: missing, unknown or forbidden opens «Обучение» - the one 
 
 test("the card keeps money out of «Обучение» and shows the payments tab only when the server allowed it", () => {
   const view = read("src/components/students/student-profile-view.tsx");
-  assert.match(view, /const paymentsVisible = !isTeacher && !DEMO_MODE && paymentsAvailable;/);
+  assert.match(view, /const paymentsVisible = !isTeacher && paymentsAvailable;/);
   assert.match(view, /visibleProfileTabs\(\{ isTeacher: Boolean\(isTeacher\), paymentsVisible \}\)/);
   assert.match(view, /activeTab === "payments" && paymentsVisible/);
   // contacts are visible to every role; the edit controls stay staff-only
@@ -197,7 +197,7 @@ test("the card keeps money out of «Обучение» and shows the payments ta
   assert.match(view, /overflow-x-auto/); // the tab bar scrolls on a phone
   assert.match(view, /<Suspense/);
   // a link to ?tab=payments waits for the summary instead of flashing «Обучение»
-  assert.match(view, /requestedTab === "payments" && !isTeacher && !DEMO_MODE && !paymentsLoaded/);
+  assert.match(view, /requestedTab === "payments" && !isTeacher && !paymentsLoaded/);
   const learning = view.slice(view.indexOf('activeTab === "learning"'), view.indexOf("«Оплаты»: only for a role"));
   assert.doesNotMatch(learning, /MembershipPayments|StudentPaymentsBlock/);
   assert.match(read("src/components/students/student-payments-block.tsx"), /paymentsBasePath=\{paymentsBasePath\}/);
