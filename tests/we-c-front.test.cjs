@@ -55,14 +55,14 @@ test("E-C/1: tabs by role - ONE order; the teacher has no schedule and no money;
   assert.deepEqual(tabs("teacher"), ["students", "exams", "attendance"], "the teacher's three tabs, as before");
   assert.deepEqual(tabs("teacher", "show"), ["students", "exams", "attendance"], "money never reaches a teacher");
   assert.deepEqual(tabs("admin"), ["students", "schedule", "exams", "attendance"]);
-  assert.deepEqual(tabs("owner", "show"), ["students", "schedule", "exams", "attendance", "payments"]);
-  assert.deepEqual(tabs("owner", "pending"), ["students", "schedule", "exams", "attendance"], "the tab appears when the right is known");
+  assert.deepEqual(tabs("owner", "show"), ["students", "schedule", "attendance", "payments"], "owner 03.11: no «Экзамены»");
+  assert.deepEqual(tabs("owner", "pending"), ["students", "schedule", "attendance"], "the tab appears when the right is known");
 });
 
 test("E-C/1: ?tab= resolves per role; a tab the role has not opens «Ученики»; the payments deep link waits while the right is unknown", () => {
   const to = (requested, workspace, paymentsAccess = "hidden") => W.resolveGroupPageTab(requested, { workspace, paymentsAccess });
   assert.equal(to("exams", "teacher"), "exams");
-  assert.equal(to("exams", "owner"), "exams");
+  assert.equal(to("exams", "owner"), "students", "a link to the owner's «Экзамены» opens «Ученики»");
   assert.equal(to("schedule", "teacher"), "students");
   assert.equal(to("schedule", "admin"), "schedule");
   assert.equal(to("payments", "teacher", "show"), "students");
@@ -314,8 +314,8 @@ test("E-C/5: the row of an exam leads where the role has a page: teacher - the h
   assert.equal(link("owner"), null, "the owner workspace never links into /admin/*");
 });
 
-test("E-C/5: the tab is in the list of every role and every role reads the same list of the group (one call, not two for a watcher)", () => {
-  for (const role of ROLES) assert.ok(W.groupPageTabs({ workspace: role, paymentsAccess: "hidden" }).includes("exams"), role);
+test("E-C/5: the tab is in the list of the teacher and the administrator, not the owner (03.11), and both read the same list of the group (one call)", () => {
+  for (const role of ROLES) assert.equal(W.groupPageTabs({ workspace: role, paymentsAccess: "hidden" }).includes("exams"), role !== "owner", role);
   const tab = read(EXAMS_TAB);
   assert.match(tab, /examsApi\.list\(\{ groupId, includeArchived: true \}\)/);
   assert.match(tab, /access\.canAssign \? examsApi\.list\(\{ unassigned: true \}\) : Promise\.resolve\(\[\]\)/, "the library is read only by who binds");

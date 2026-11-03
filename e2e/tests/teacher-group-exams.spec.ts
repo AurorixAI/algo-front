@@ -9,7 +9,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
  *   - «Добавить экзамен» -> «Из библиотеки» -> «Выбрать» -> the dialog of the lesson (the group is chosen) -> «Назначить и открыть лобби»
  *   - «Экзамен назначен!» names the lesson; the list of the tab shows the exam (lobby opened on that lesson, not a draft without a lesson)
  *   - an archived exam of the group: «Восстановить из архива» in its hub -> back to the group -> it is in the list again («В подготовке»)
- * The owner and the administrator see the same tab read-only: no «Добавить экзамен».
+ * The administrator sees the same tab read-only (no «Добавить экзамен»); the owner has no «Экзамены» tab (owner 03.11).
  */
 test.describe.configure({ mode: "serial" });
 
@@ -86,20 +86,24 @@ test("an archived exam of the group: «Восстановить из архив�
   await expect(page.getByRole("link", { name: new RegExp(title) })).toBeVisible();
 });
 
-test("the owner and the administrator see the tab «Экзамены» of the group read-only; the strip of five tabs does not widen the phone page @exam @mobile", async ({ signIn }) => {
+test("the administrator sees the tab «Экзамены» of the group read-only, the owner has no such tab (03.11); the tab strip does not widen the phone page @exam @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Наблюдаемый");
   const admin = await org.addStaff("admin", "Наблюдатель");
   const group = await org.createGroup({ name: "Группа Э-Н", teacherId: teacher.userId });
   const title = "E2E Для наблюдателей";
   await new ExamApi(teacher).createDraft({ title, groupId: group.id, tasks: 3 });
 
-  for (const [role, viewer] of [["owner", org.owner], ["admin", admin]] as const) {
-    const page = await signIn(viewer);
-    await page.goto(`/${role}/groups/${group.id}?tab=exams&exam_status=draft`);
-    await expect(page.getByText(title)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Добавить экзамен" })).toHaveCount(0);
-    if (role === "admin") await expect(page.getByRole("link", { name: new RegExp(title) })).toHaveAttribute("href", /\/admin\/exams\/.*return_to=/);
-    else await expect(page.getByRole("link", { name: new RegExp(title) })).toHaveCount(0);
-    await expectNoHorizontalScroll(page);
-  }
+  const adminPage = await signIn(admin);
+  await adminPage.goto(`/admin/groups/${group.id}?tab=exams&exam_status=draft`);
+  await expect(adminPage.getByText(title)).toBeVisible();
+  await expect(adminPage.getByRole("button", { name: "Добавить экзамен" })).toHaveCount(0);
+  await expect(adminPage.getByRole("link", { name: new RegExp(title) })).toHaveAttribute("href", /\/admin\/exams\/.*return_to=/);
+  await expectNoHorizontalScroll(adminPage);
+
+  const ownerPage = await signIn(org.owner);
+  await ownerPage.goto(`/owner/groups/${group.id}?tab=exams`);
+  await expect(ownerPage.getByRole("tab", { name: /Экзамены/ })).toHaveCount(0);
+  await expect(ownerPage.getByRole("tab", { name: /Ученики/ })).toHaveAttribute("aria-selected", "true");   // ?tab=exams falls back to «Ученики»
+  await expect(ownerPage.getByText(title)).toHaveCount(0);
+  await expectNoHorizontalScroll(ownerPage);
 });

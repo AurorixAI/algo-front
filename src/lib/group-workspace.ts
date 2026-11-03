@@ -37,15 +37,14 @@ export function groupWorkspacePaths(workspace: GroupWorkspace): GroupWorkspacePa
 export type GroupPageTab = "students" | "schedule" | "exams" | "attendance" | "payments";
 
 /**
- * The tabs of the group page, in ONE order for every role: «Ученики», «Расписание» (owner / administrator), «Экзамены» (everyone who runs or
- * watches the exams of the group), «Посещаемость», «Оплаты» (who sees the money, see `groupPaymentsAccess`).  The teacher has no schedule and no money.
+ * The tabs of the group page, in ONE order for every role: «Ученики», «Расписание» (owner / administrator), «Экзамены» (the teacher runs, the administrator watches through his exam monitor; not the owner — decision 03.11), «Посещаемость», «Оплаты» (who sees the money, see `groupPaymentsAccess`).  The teacher has no schedule and no money.
  */
 export function groupPageTabs(input: { workspace: GroupWorkspace; paymentsAccess: "show" | "pending" | "hidden" }): GroupPageTab[] {
   const staff = input.workspace !== "teacher";
   return [
     "students",
     ...(staff ? (["schedule"] as const) : []),
-    "exams",
+    ...(input.workspace !== "owner" ? (["exams"] as const) : []),   // owner 03.11: the owner has no exam page to go to - the tab is not his
     "attendance",
     ...(staff && input.paymentsAccess === "show" ? (["payments"] as const) : []),
   ];
