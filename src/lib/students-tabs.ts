@@ -6,6 +6,8 @@
  * when no search is typed. «Архив (K)» is a separate list that never joins that sum.
  */
 
+import { pluralRu } from "./plural";
+
 export type StudentTab = "grouped" | "ungrouped" | "archived";
 
 /** All tabs, in the order of the tab bar. */
@@ -67,10 +69,7 @@ export function studentTabCounts(
 
 /** «1 ученик», «2 ученика», «5 учеников», «21 ученик», «12 учеников». */
 export function studentsPlural(n: number): string {
-  const tail = n % 100;
-  const last = n % 10;
-  const word = tail >= 11 && tail <= 14 ? "учеников" : last === 1 ? "ученик" : last >= 2 && last <= 4 ? "ученика" : "учеников";
-  return `${n} ${word}`;
+  return `${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`;
 }
 
 /**

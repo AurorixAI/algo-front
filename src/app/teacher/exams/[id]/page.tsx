@@ -192,12 +192,7 @@ function groupTasksIntoSections(tasks: DraftTask[]): TaskSection[] {
 }
 
 function taskCountLabel(count: number): string {
-  const lastTwoDigits = count % 100;
-  const lastDigit = count % 10;
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "заданий";
-  if (lastDigit === 1) return "задание";
-  if (lastDigit >= 2 && lastDigit <= 4) return "задания";
-  return "заданий";
+  return pluralRu(count, "задание", "задания", "заданий");
 }
 
 function formatBoundLessonLabel(

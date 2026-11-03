@@ -334,3 +334,39 @@ test("E2/4: mutation - the 300 limit of the old lesson-teacher copy put on the c
   assert.ok(broken.reasonProblemFor("cancel", "x".repeat(400)));
   assert.equal(reasons.reasonProblemFor("cancel", "x".repeat(400)), null);
 });
+
+// ---- DUP-5: the hand-made plurals are `pluralRu`; «из N заданий» (the genitive after «из») is NOT touched -----------------------------------
+
+/** The reference rule (the one the old copies wrote by hand). */
+const ruWord = (n, one, few, many) => {
+  const tail = n % 100;
+  const last = n % 10;
+  return tail >= 11 && tail <= 14 ? many : last === 1 ? one : last >= 2 && last <= 4 ? few : many;
+};
+
+test("DUP-5: students, lessons, hours: the same words for 0..125 as the old hand-made copies", () => {
+  const tabs = lib("students-tabs.ts");
+  const diag = lib("diagnostic-report.ts");
+  for (let n = 0; n <= 125; n += 1) {
+    assert.equal(tabs.studentsPlural(n), `${n} ${ruWord(n, "ученик", "ученика", "учеников")}`, `ученик ${n}`);
+    assert.equal(diag.hoursLabel(n), `~${n} ${ruWord(n, "час", "часа", "часов")}`, `час ${n}`);
+  }
+  const subs = lib("substitutions.ts");
+  for (const n of [2, 3, 5, 11, 12, 21, 22, 25, 101, 111]) assert.equal(subs.sendLabel(n), `Отправить запрос (${n} ${ruWord(n, "урок", "урока", "уроков")})`, `урок ${n}`);
+});
+
+test("DUP-5: no hand-made plural is left in the exam pages / students-tabs / substitutions / diagnostic-report; «из N заданий» keeps its genitive", () => {
+  for (const f of ["src/lib/students-tabs.ts", "src/lib/substitutions.ts", "src/lib/diagnostic-report.ts", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx"]) {
+    assert.doesNotMatch(read(f), /tail >= 11 && tail <= 14|lastTwoDigits >= 11|n % 100 !== 11|\[12, 13, 14\]/, `${f}: a hand-made plural`);
+    assert.match(read(f), /pluralRu/, f);
+  }
+  // «из 2 заданий» is the right genitive plural after «из» (the audit called it a bug: it is not) - a replacement by pluralRu would give «из 3 задания»
+  const level = lib("diagnostic-level.ts");
+  assert.equal(level.formatSolvedMixed(1, 2), "Решено 1 из 2 заданий разной трудности");
+  assert.equal(level.formatSolvedMixed(1, 3), "Решено 1 из 3 заданий разной трудности");
+  assert.equal(level.formatSolvedMixed(1, 21), "Решено 1 из 21 задания разной трудности");
+  assert.equal(level.formatSolvedMixed(1, 11), "Решено 1 из 11 заданий разной трудности");
+  const time = lib("schedule-time.ts");
+  assert.equal(time.completedLessonsProgressLabel(1, 3), "Завершено: 1 из 3 уроков");
+  assert.equal(time.completedLessonsProgressLabel(0, 21), "Завершено: 0 из 21 урока");
+});

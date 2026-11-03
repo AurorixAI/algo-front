@@ -378,12 +378,7 @@ export function sendLabel(count: number): string {
 }
 
 function pluralLessons(count: number): string {
-  const tail = count % 100;
-  const last = count % 10;
-  if (tail >= 11 && tail <= 14) return "уроков";
-  if (last === 1) return "урок";
-  if (last >= 2 && last <= 4) return "урока";
-  return "уроков";
+  return pluralRu(count, "урок", "урока", "уроков");
 }
 
 export function buildCreate(input: {

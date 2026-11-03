@@ -53,10 +53,7 @@ export function knownPlanHours(plan: PlanStepLike[] | null | undefined): number 
 /** "~2 часа": Russian plural of a whole number of hours. */
 export function hoursLabel(hours: number): string {
   const n = Math.round(hours);
-  const last = n % 10;
-  const tail = n % 100;
-  const word = tail >= 11 && tail <= 14 ? "часов" : last === 1 ? "час" : last >= 2 && last <= 4 ? "часа" : "часов";
-  return `~${n} ${word}`;
+  return `~${n} ${pluralRu(n, "час", "часа", "часов")}`;
 }
 
 /** True for a development ("next growth") step of an error-free attempt. */

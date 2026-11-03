@@ -562,11 +562,7 @@ export default function ExamDraftPage() {
   // ─── Published result ───
 
   if (publishResult) {
-    const formatVariants = (n: number) => {
-      if (n % 10 === 1 && n % 100 !== 11) return `${n} вариант`;
-      if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return `${n} варианта`;
-      return `${n} вариантов`;
-    };
+    const formatVariants = (n: number) => `${n} ${pluralRu(n, "вариант", "варианта", "вариантов")}`;
 
     return (
       <div className="min-h-[calc(100vh-100px)] flex items-center justify-center py-2 sm:py-4 px-4">
