@@ -728,7 +728,7 @@ test("a transient refresh failure (429/5xx/no network/timeout) on exam / diagnos
 const STUDENT_METHODS = new Set([
   "examsApi.getByCode", "examsApi.checkStudent", "examsApi.startSession", "examsApi.saveProgress",
   "examsApi.getSessionStatus", "examsApi.submit", "examsApi.getResult",
-  "diagnosticApi.resolveSession", "diagnosticApi.createSession", "diagnosticApi.submitAnswer", "diagnosticApi.getReport",
+  "diagnosticApi.resolveSession", "diagnosticApi.createSession", "diagnosticApi.submitAnswer",
 ]);
 /** Secondary check only (the runtime decides by the declared audience, never by the path). */
 const STUDENT_PATH = /^\/(exams\/by-code|exam-sessions)\/|^\/diagnostic\//;

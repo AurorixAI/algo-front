@@ -19,7 +19,6 @@ import {
   TrendingUp,
   AlertTriangle,
   Home,
-  Send,
   AlertCircle,
   Sparkles,
 } from "lucide-react";
@@ -34,7 +33,7 @@ import {
   notCheckedMessage,
   type NotCheckedStreak,
 } from "@/lib/diagnostic-not-checked";
-import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
+import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult } from "@/lib/api";
 import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, inviteEndsCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
@@ -42,35 +41,7 @@ import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
-type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "analyzing" | "results" | "error";
-
-const REPORT_STAGE = {
-  queued: {
-    title: "Ответы сохранены",
-    description: "Готовим структуру персонального отчёта.",
-    current: 0,
-  },
-  collecting_evidence: {
-    title: "Проверяем результаты",
-    description: "Сверяем ответы, навыки и зафиксированные ошибки.",
-    current: 1,
-  },
-  writing_methodical_conclusion: {
-    title: "Формируем заключение",
-    description: "Готовим методические рекомендации по результатам диагностики.",
-    current: 2,
-  },
-  retry_queued: {
-    title: "Повторно готовим отчёт",
-    description: "Ответы сохранены. Повторяем подготовку без потери данных.",
-    current: 1,
-  },
-  failed: {
-    title: "Результаты сохранены",
-    description: "Подробный отчёт будет подготовлен повторно специалистом учебного центра.",
-    current: 0,
-  },
-} as const;
+type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "results" | "error";
 
 /** Format elapsed time */
 function formatTime(ms: number): string {
@@ -79,9 +50,6 @@ function formatTime(ms: number): string {
   const secs = totalSec % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
-
-/** Max report-poll attempts (~3 min with backoff) before showing the retry screen. */
-const REPORT_POLL_MAX_ATTEMPTS = 40;
 
 export default function DiagnosticPage({ params }: { params: { code: string } }) {
   const code = params.code;
@@ -101,7 +69,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   // offering a second attempt for a one-time diagnostic capability.
   const [canRetry, setCanRetry] = useState(true);
   const [checkVersion, setCheckVersion] = useState(0);
-  const [errorContext, setErrorContext] = useState<"invite" | "answer" | "result">("invite");
   // The centre switched the invite off (the student is in the archive): not an error to retry, only the centre can help.
   const [inviteCancelled, setInviteCancelled] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -110,7 +77,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const submitInFlightRef = useRef(false);
   const requestEpochRef = useRef(0);
   const checkedCodeRef = useRef<string | null>(null);
-  const resultSessionIdRef = useRef<string | null>(null);
 
   // Active session for resume flow
   const [activeSession, setActiveSession] = useState<{
@@ -152,8 +118,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [answer, setAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [result, setResult] = useState<DiagReport | null>(null);
-  const reportPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Elapsed time ticker
   useEffect(() => {
@@ -206,7 +170,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         await checkInvite(false);
         return;
       }
-      setErrorContext("invite");
       setInviteCancelled(isInviteCancelledError(err));
       setCanRetry(!(err instanceof ApiError) || ![403, 410].includes(err.status));
       setErrorMsg(err.message || "Не удалось начать диагностику");
@@ -246,9 +209,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
       if (resp.session_completed) {
         diagStore.complete();
-        resultSessionIdRef.current = sessionId;
-        setPhase("analyzing");
-        void fetchResult(sessionId);
+        // The report is for the teacher (it is built in the background): the student sees only that the answers are saved.
+        // The last question counts in the time, and the ticker stopped a second ago.
+        setElapsedMs(initialElapsedMsRef.current + (Date.now() - sessionStartRef.current));
+        setPhase("results");
       } else if (resp.next_task) {
         diagStore.setNextTask(
           resp.next_task,
@@ -272,7 +236,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         // this same attempt before asking the student to send anything again.
         await checkInvite(false, true);
       } else {
-        setErrorContext("answer");
         setCanRetry(false);
         setErrorMsg(err.message);
         setPhase("error");
@@ -282,47 +245,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         submitInFlightRef.current = false;
         setIsSubmitting(false);
       }
-    }
-  };
-
-  /** Fetch final report from diagnostic-service */
-  const fetchResult = async (sessionId: string, attempt = 0) => {
-    const epoch = requestEpochRef.current;
-    resultSessionIdRef.current = sessionId;
-    if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
-    try {
-      const res = await diagnosticApi.getReport(sessionId, code);
-      if (epoch !== requestEpochRef.current) return;
-      setResult(res);
-      if (typeof res.total_time_ms === "number") setElapsedMs(res.total_time_ms);
-      const generationStatus = res.report_generation?.status;
-      if (generationStatus === "ready" || generationStatus === "failed") {
-        reportPollTimerRef.current = setTimeout(() => {
-          if (epoch === requestEpochRef.current) setPhase("results");
-        }, 700);
-        return;
-      }
-
-      // The service stores the job before returning from the final answer.
-      // Poll only this completed session until its durable state becomes ready;
-      // no report data is lost if the page is refreshed in the meantime.
-      // Capped with a gentle backoff so a stuck "pending" job cannot poll forever;
-      // after the cap the existing error screen offers a manual retry.
-      if (attempt + 1 >= REPORT_POLL_MAX_ATTEMPTS) {
-        setErrorContext("result");
-        setCanRetry(true);
-        setErrorMsg("Отчёт ещё формируется. Ответы сохранены. Повторите загрузку чуть позже.");
-        setPhase("error");
-        return;
-      }
-      const delay = Math.min(1800 + attempt * 400, 6000);
-      reportPollTimerRef.current = setTimeout(() => fetchResult(sessionId, attempt + 1), delay);
-    } catch (err: any) {
-      if (epoch !== requestEpochRef.current) return;
-      setErrorContext("result");
-      setCanRetry(!(err instanceof ApiError) || ![403, 404].includes(err.status));
-      setErrorMsg("Ответы сохранены. Сейчас не удалось загрузить отчёт. Повторите загрузку или обратитесь к учебному центру.");
-      setPhase("error");
     }
   };
 
@@ -349,8 +271,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
           diagStore.restoreCompleted(resolved.session_id);
           setElapsedMs(resolved.total_time_ms);
           setAnswer("");
-          setPhase("analyzing");
-          void fetchResult(resolved.session_id);
+          setPhase("results");
           return;
         }
         if (!resolved.current_task) throw new Error("Не удалось восстановить текущий вопрос.");
@@ -383,7 +304,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       }
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
-      setErrorContext(recoveringAnswer ? "answer" : "invite");
       // Nothing to resume of a cancelled invite (410 INVITE_CANCELLED, or no session of it) ends on «Приглашение отменено».
       setInviteCancelled(inviteEndsCancelled(inviteStatus, err));
       setCanRetry(!(err instanceof ApiError) || ![403, 404, 410].includes(err.status));
@@ -400,19 +320,16 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       setActiveSession(null);
       setInviteInfo(null);
       setSubmissionNotice(null);
-      resultSessionIdRef.current = null;
     }
     setPhase("loading");
     setErrorMsg(null);
     setInviteCancelled(false);
     setIsSubmitting(false);
     setConfirmLoading(false);
-    setResult(null);
     void checkInvite();
     return () => {
       requestEpochRef.current += 1;
       submitInFlightRef.current = false;
-      if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
     };
   }, [code, checkVersion]);
 
@@ -785,69 +702,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
             </motion.div>
           )}
 
-          {/* ══════════════════════ ANALYZING ══════════════════════ */}
-          {phase === "analyzing" && (
-            <motion.div
-              key="analyzing"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center p-4"
-            >
-              <div className="text-center">
-                <div className="relative w-20 h-20 mx-auto mb-6 rounded-full overflow-hidden border border-slate-200 bg-slate-100 shadow-inner">
-                  <div className="absolute bottom-0 left-0 w-full animate-liquid-rise z-0">
-                    <div className="w-full h-20 liquid-bg animate-liquid-pulse opacity-90" />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent pointer-events-none" />
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <Brain className="w-8 h-8 text-white/80 drop-shadow-md" />
-                  </div>
-                </div>
-
-                <h2 className="text-xl font-bold text-slate-900 mb-2">
-                  {REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.title || "Готовим отчёт"}
-                </h2>
-                <p className="text-slate-500 mb-6 max-w-sm">
-                  {REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.description || "Ответы сохранены. Обычно подготовка занимает до минуты."}
-                </p>
-
-                <div className="space-y-2">
-                  {[
-                    "Сохранение ответов",
-                    "Анализ результатов",
-                    "Формирование отчёта",
-                  ].map((step, i) => {
-                    const current = REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.current ?? 0;
-                    const isDone = i < current;
-                    const isCurrent = i === current;
-                    return (
-                    <motion.div
-                      key={step}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.4 }}
-                      className={`flex items-center gap-2 justify-center text-sm ${isCurrent ? "font-semibold text-primary-700" : "text-slate-500"}`}
-                    >
-                      {isDone ? (
-                        <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      ) : isCurrent ? (
-                        <div className="w-4 h-4 rounded-full border-2 border-primary-600 border-t-transparent animate-spin" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border-2 border-slate-200" />
-                      )}
-                      {step}
-                    </motion.div>
-                    );
-                  })}
-                </div>
-                <p className="mt-5 text-xs text-slate-400">Можно не закрывать страницу — статус обновится автоматически.</p>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ══════════════════════ RESULTS — Student congratulations ══════════════════════ */}
-          {phase === "results" && result && (
+          {/* ══════════════════════ RESULTS — the test is over, nothing of the result is shown ══════════════════════ */}
+          {phase === "results" && (
             <motion.div
               key="results"
               initial={{ opacity: 0, y: 20 }}
@@ -875,7 +731,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       transition={{ delay: 0.4 }}
                       className="text-2xl font-bold text-slate-900 mb-2"
                     >
-                      Диагностика пройдена!
+                      Тест завершён
                     </motion.h2>
 
                     <motion.p
@@ -884,7 +740,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       transition={{ delay: 0.6 }}
                       className="text-slate-500"
                     >
-                      Отличная работа! Все ответы сохранены.
+                      Ответы сохранены — результаты увидит преподаватель.
                     </motion.p>
                   </div>
 
@@ -901,25 +757,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     </div>
                   </motion.div>
 
-
-                  {/* Info card — what happens next */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.9 }}
-                    className="p-4 rounded-2xl bg-blue-50 border border-blue-100 mb-6"
-                  >
-                    <div className="flex items-start gap-3">
-                      <Send className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-blue-900 text-sm mb-1">Что дальше?</p>
-                        <p className="text-sm text-blue-700">
-                          Твои результаты отправлены в учебный центр. Преподаватели проанализируют их
-                          и составят персональную программу обучения.
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
 
                   {/* CTA */}
                   <motion.div
@@ -963,7 +800,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </div>
 
                   <h1 className="text-xl font-bold text-slate-900 mb-2">
-                    {inviteCancelled ? INVITE_CANCELLED_MESSAGE : errorContext === "result" ? "Ответы сохранены" : "Не удалось продолжить"}
+                    {inviteCancelled ? INVITE_CANCELLED_MESSAGE : "Не удалось продолжить"}
                   </h1>
                   <p className="text-slate-500 mb-6">
                     {inviteCancelled ? INVITE_CANCELLED_CENTER_HINT : errorMsg || "Произошла непредвиденная ошибка"}
@@ -974,17 +811,12 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       <Button
                         onClick={() => {
                           setErrorMsg(null);
-                          if (errorContext === "result" && resultSessionIdRef.current) {
-                            setPhase("analyzing");
-                            void fetchResult(resultSessionIdRef.current);
-                          } else {
-                            setCheckVersion((value) => value + 1);
-                          }
+                          setCheckVersion((value) => value + 1);
                         }}
                         size="lg"
                         className="w-full"
                       >
-                        {errorContext === "result" ? "Повторить загрузку результата" : "Повторить проверку состояния"}
+                        Повторить проверку состояния
                       </Button>
                     )}
                     <Button

@@ -447,7 +447,7 @@ export const isInferredChain = (chain: { evidence_source?: unknown } | null | un
 
 // ─── N04a: report polling ─────────────────────────────────────────────────────
 
-/** Same cap as the student result page (src/app/d/[code]/page.tsx REPORT_POLL_MAX_ATTEMPTS). */
+/** Polls of one report page before it stops waiting and offers a manual retry. */
 export const REPORT_POLL_MAX_ATTEMPTS = 40;
 export const REPORT_POLL_FIRST_DELAY_MS = 2000;
 export const REPORT_POLL_MAX_DELAY_MS = 10000;
@@ -638,30 +638,23 @@ export function formatReportDate(value: unknown): string | null {
   return typeof value === "string" ? formatDateRu(value.trim()) || null : null;
 }
 
-/** Mirrors the backend REPORT_SCHEMA_VERSION (report_generator.py): the format of a report built now. */
-export const CURRENT_REPORT_SCHEMA = 5;
-
 /**
  * Format of the report by its CONTENT, not by generation status (an explicit regeneration
- * stamps a CURRENT report "not current" in the DB, a degraded one is re-queued): the
- * report's own `report_meta.report_schema_version` (schema 4 writes it too); a report without
- * the marker is current only if it carries a schema-5-only key (see below), otherwise old.
+ * stamps a CURRENT report "not current" in the DB, a degraded one is re-queued): the report's
+ * own `report_meta.report_schema_version`; a report without the marker is older than any marked one (0).
  */
 export function reportContentSchema(report: Obj | null | undefined): number {
   const meta = report?.report_meta;
   const v = isObj(meta) ? meta.report_schema_version : undefined;
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  // `level` is NOT a marker: the schema-4 generator writes it too. Schema-5-only keys (absent from the
-  // schema-4 generator): report_meta.error_free / generated_on, `achievements`, `recommended_start`.
-  const schema5 =
-    (isObj(meta) && (typeof meta.error_free === "boolean" || typeof meta.generated_on === "string")) ||
-    Array.isArray(report?.achievements) ||
-    report?.recommended_start !== undefined;
-  return schema5 ? CURRENT_REPORT_SCHEMA : 0;
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
-export const isOldFormatReport = (report: Obj | null | undefined): boolean =>
-  hasReportContent(report) && reportContentSchema(report) < CURRENT_REPORT_SCHEMA;
+/**
+ * `currentSchema` is the format the backend builds now (`report_generation.current_schema_version`): the page keeps no copy
+ * of that number. Without it there is nothing to compare with, and nothing is called old.
+ */
+export const isOldFormatReport = (report: Obj | null | undefined, currentSchema: number | null | undefined): boolean =>
+  hasReportContent(report) && typeof currentSchema === "number" && reportContentSchema(report) < currentSchema;
 
 export interface ReportMetaInfo {
   /** Date the student took the test (report_meta.date), "dd.mm.yyyy". */
@@ -682,7 +675,12 @@ export interface ReportMetaInfo {
    * «старый формат» only then; a current report being rebuilt gets the neutral updating text.
    */
   oldFormat: boolean;
+  /** The model was asked for the wording of the report and gave nothing usable (report_meta.narrative_source): the staff are told. */
+  aiFailed: boolean;
 }
+
+/** Shown only when the model failed; a report written without it by design (switch, error-free, rebuild) says nothing. */
+export const AI_FAILED_NOTE = "Текст отчёта составлен без ИИ из-за сбоя.";
 
 /**
  * Meta of the report on screen. The old-format verdict comes from the report's content
@@ -691,13 +689,13 @@ export interface ReportMetaInfo {
  * A degraded report shows its degraded note, not the old-format banner.
  */
 export function reportMetaInfo(
-  generation: { status?: string | null; is_current_schema?: boolean | null } | null | undefined,
+  generation: { status?: string | null; is_current_schema?: boolean | null; current_schema_version?: number | null } | null | undefined,
   report: { report_meta?: Obj | null } | null | undefined,
 ): ReportMetaInfo {
   const meta = report?.report_meta;
   const reasons = Array.isArray(meta?.degraded) ? meta.degraded.filter((r: unknown): r is string => typeof r === "string") : [];
   const degraded = Array.isArray(meta?.degraded) ? meta.degraded.length > 0 : meta?.degraded === true;
-  const oldFormat = isOldFormatReport(report as Obj | null | undefined) && !degraded;
+  const oldFormat = isOldFormatReport(report as Obj | null | undefined, generation?.current_schema_version) && !degraded;
   return {
     attemptDate: formatReportDate(meta?.date),
     generatedOn: formatReportDate(meta?.generated_on),
@@ -706,6 +704,7 @@ export function reportMetaInfo(
     degradedReasons: reasons,
     rebuilding: isRebuildingReport(generation),
     oldFormat,
+    aiFailed: meta?.narrative_source === "ai_failed",
   };
 }
 

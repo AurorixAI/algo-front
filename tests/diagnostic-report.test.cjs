@@ -289,83 +289,81 @@ test("historical rebuild: the old report stays, polling continues until the new 
   for (const bad of ["oops", [], 7, true]) assert.equal(R.reportJsonState(bad), "invalid");
 });
 
-test("the cap mirrors the student result page", () => {
-  const student = fs.readFileSync(path.join(__dirname, "../src/app/d/[code]/page.tsx"), "utf8");
-  const m = /REPORT_POLL_MAX_ATTEMPTS\s*=\s*(\d+)/.exec(student);
-  assert.ok(m && Number(m[1]) === R.REPORT_POLL_MAX_ATTEMPTS);
-});
-
 test("report dates: attempt date and build date are formatted, junk is dropped", () => {
   assert.equal(R.formatReportDate("2026-10-04"), "04.10.2026");
   assert.equal(R.formatReportDate("2026-10-04T23:30:00+00:00"), "04.10.2026");
   for (const bad of [null, undefined, 20261004, "", "04.10.2026", "2026-13-01", "2026-00-10", "2026-10-32"]) assert.equal(R.formatReportDate(bad), null);
 });
 
-const CURRENT5 = { report_meta: { report_schema_version: 5, error_free: false, date: "2026-10-04", generated_on: "2026-10-12" }, level: { status: "below" } };
-const OLD0 = { report_meta: { date: "2026-10-04" } }; // no version marker, none of the schema-5-only keys (generated_on is one)
+// The format the backend builds now: it comes in the answer (report_generation.current_schema_version), the page keeps no copy.
+const NOW = 7;
+const CURRENT = { report_meta: { report_schema_version: NOW, error_free: false, date: "2026-10-04", generated_on: "2026-10-12" }, level: { status: "below" } };
+const OLD0 = { report_meta: { date: "2026-10-04" } }; // no version marker
+const metaInfo = (generation, report) => R.reportMetaInfo({ current_schema_version: NOW, ...(generation || {}) }, report);
 
-test("old format is decided by the report's CONTENT, never by generation status", () => {
-  assert.equal(R.reportContentSchema(CURRENT5), 5);
+test("old format is decided by the report's CONTENT against the backend's current version, never by generation status", () => {
+  assert.equal(R.reportContentSchema(CURRENT), NOW);
   assert.equal(R.reportContentSchema({ report_meta: { report_schema_version: 4 } }), 4);
-  // no version marker: only schema-5-only keys make it current
-  assert.equal(R.reportContentSchema({ report_meta: { error_free: false } }), 5);
-  assert.equal(R.reportContentSchema({ report_meta: { generated_on: "2026-10-12" } }), 5);
-  assert.equal(R.reportContentSchema({ achievements: [] }), 5);
-  assert.equal(R.reportContentSchema({ recommended_start: null }), 5);
-  // `level` is written by the schema-4 generator as well: not a marker
-  assert.equal(R.reportContentSchema({ level: { status: "below" } }), 0);
-  assert.equal(R.reportContentSchema({ report_meta: {}, level: { status: "below", solved: 3, total: 8 } }), 0);
-  assert.equal(R.isOldFormatReport({ level: { status: "below" } }), true);
-  assert.equal(R.reportContentSchema(OLD0), 0);
-  assert.equal(R.reportContentSchema({}), 0);
-  assert.equal(R.reportContentSchema(null), 0);
-  assert.equal(R.isOldFormatReport(OLD0), true);
-  assert.equal(R.isOldFormatReport({ report_meta: { report_schema_version: 4 } }), true);
-  assert.equal(R.isOldFormatReport(CURRENT5), false);
-  assert.equal(R.isOldFormatReport(null), false);
-  assert.equal(R.isOldFormatReport("oops"), false);
+  // no version marker: older than any marked report, whatever else it carries
+  for (const unmarked of [{ report_meta: { error_free: false } }, { report_meta: { generated_on: "2026-10-12" } }, { achievements: [] },
+    { recommended_start: null }, { level: { status: "below" } }, OLD0, {}, null]) {
+    assert.equal(R.reportContentSchema(unmarked), 0, JSON.stringify(unmarked));
+  }
+  assert.equal(R.isOldFormatReport({ level: { status: "below" } }, NOW), true);
+  assert.equal(R.isOldFormatReport(OLD0, NOW), true);
+  assert.equal(R.isOldFormatReport({ report_meta: { report_schema_version: 4 } }, NOW), true);
+  // schemas 5 and 6 were «current» for the page while the backend built 7 (the page kept its own number)
+  for (const version of [5, NOW - 1]) assert.equal(R.isOldFormatReport({ report_meta: { report_schema_version: version } }, NOW), true, String(version));
+  assert.equal(R.isOldFormatReport(CURRENT, NOW), false);
+  // the verdict follows the number the backend sends: the same report is current for v7 and old once v8 is built
+  assert.equal(R.isOldFormatReport(CURRENT, NOW + 1), true);
+  assert.equal(R.isOldFormatReport(CURRENT, NOW - 1), false);
+  // nothing to compare with -> nothing is called old
+  for (const none of [undefined, null, "7"]) assert.equal(R.isOldFormatReport(OLD0, none), false, String(none));
+  assert.equal(R.isOldFormatReport(null, NOW), false);
+  assert.equal(R.isOldFormatReport("oops", NOW), false);
   // a CURRENT report stamped "not current" (explicit regeneration sets the DB version to 0) is not «old»
   for (const status of ["ready", "failed", "pending", "generating"]) {
-    const meta = R.reportMetaInfo({ status, is_current_schema: false }, CURRENT5);
+    const meta = metaInfo({ status, is_current_schema: false }, CURRENT);
     assert.deepEqual([meta.legacy, meta.oldFormat], [false, false], status);
   }
   // an old-format report is old whatever the generation says, even "current"
-  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: true }, OLD0).oldFormat, true);
-  assert.equal(R.reportMetaInfo(undefined, OLD0).legacy, true);
-  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: false }, OLD0).legacy, true);
+  assert.equal(metaInfo({ status: "ready", is_current_schema: true }, OLD0).oldFormat, true);
+  assert.equal(metaInfo(undefined, OLD0).legacy, true);
+  assert.equal(metaInfo({ status: "ready", is_current_schema: false }, OLD0).legacy, true);
 });
 
 test("report meta: dates, degraded reasons, rebuilding", () => {
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true, status: "ready" }, CURRENT5), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false, oldFormat: false });
-  const degraded = { report_meta: { report_schema_version: 5, degraded: ["skill_names"] } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false, status: "failed" }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false, oldFormat: false });
-  assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { report_schema_version: 5, degraded: [] } }).degraded, false);
-  assert.equal(R.reportMetaInfo(null, null).degraded, false);
-  assert.equal(R.reportMetaInfo(null, null).oldFormat, false);
+  assert.deepEqual(metaInfo({ is_current_schema: true, status: "ready" }, CURRENT), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false, oldFormat: false, aiFailed: false });
+  const degraded = { report_meta: { report_schema_version: NOW, degraded: ["skill_names"] } };
+  assert.deepEqual(metaInfo({ is_current_schema: false, status: "failed" }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false, oldFormat: false, aiFailed: false });
+  assert.equal(metaInfo({ is_current_schema: true }, { report_meta: { report_schema_version: NOW, degraded: [] } }).degraded, false);
+  assert.equal(metaInfo(null, null).degraded, false);
+  assert.equal(metaInfo(null, null).oldFormat, false);
   // a degraded OLD report shows the degraded note, not the old-format banner
-  const oldDegraded = R.reportMetaInfo({ status: "ready" }, { report_meta: { report_schema_version: 3, degraded: ["skill_names"] } });
+  const oldDegraded = metaInfo({ status: "ready" }, { report_meta: { report_schema_version: 3, degraded: ["skill_names"] } });
   assert.deepEqual([oldDegraded.legacy, oldDegraded.degraded], [false, true]);
 });
 
 test("rebuilding: legacy keeps «старый формат»; current and degraded reports get the neutral «обновляется» text", () => {
   const running = { status: "generating", is_current_schema: false };
   // rebuilding legacy
-  const legacy = R.reportMetaInfo(running, OLD0);
+  const legacy = metaInfo(running, OLD0);
   assert.deepEqual([legacy.rebuilding, legacy.oldFormat, legacy.legacy], [true, true, true]);
   assert.equal(R.skillsEmptyText(legacy), R.SECTION_LEGACY_TEXT);
   assert.equal(R.planNotBuiltText(legacy), R.SECTION_LEGACY_TEXT);
   // rebuilding current (explicit regeneration of a current report)
-  const current = R.reportMetaInfo(running, CURRENT5);
+  const current = metaInfo(running, CURRENT);
   assert.deepEqual([current.rebuilding, current.oldFormat, current.legacy], [true, false, false]);
   assert.equal(R.skillsEmptyText(current), "Раздел обновляется вместе с отчётом");
   assert.equal(R.planNotBuiltText(current), "Раздел обновляется вместе с отчётом");
   assert.equal(/старого формата|старом формате/.test(R.skillsEmptyText(current) + R.planNotBuiltText(current)), false);
   // rebuilding degraded (re-queued)
-  const degraded = R.reportMetaInfo({ status: "pending", is_current_schema: false }, { report_meta: { report_schema_version: 5, degraded: ["knowledge_hierarchy"] } });
+  const degraded = metaInfo({ status: "pending", is_current_schema: false }, { report_meta: { report_schema_version: NOW, degraded: ["knowledge_hierarchy"] } });
   assert.deepEqual([degraded.rebuilding, degraded.oldFormat, degraded.legacy, degraded.degraded], [true, false, false, true]);
   assert.equal(R.skillsEmptyText(degraded), R.SECTION_UPDATING_TEXT);
   // nothing running, current: the plain «not enough data»
-  const settled = R.reportMetaInfo({ status: "ready", is_current_schema: true }, CURRENT5);
+  const settled = metaInfo({ status: "ready", is_current_schema: true }, CURRENT);
   assert.equal(R.skillsEmptyText(settled), R.SKILLS_EMPTY_TEXT);
   assert.equal(R.planNotBuiltText(settled), R.PLAN_NOT_BUILT_TEXT);
   assert.equal(R.skillsEmptyText(null), R.SKILLS_EMPTY_TEXT);
@@ -929,15 +927,15 @@ test("a service placeholder / empty object is «no report yet», never an old-fo
     assert.equal(R.hasReportContent(none), false, JSON.stringify(none));
     assert.equal(R.normalizeReportJson(none), null);
     assert.equal(R.reportJsonState(none), "missing");
-    assert.equal(R.isOldFormatReport(none), false);
-    const meta = R.reportMetaInfo({ status: "pending", is_current_schema: false }, R.normalizeReportJson(none));
+    assert.equal(R.isOldFormatReport(none, NOW), false);
+    const meta = metaInfo({ status: "pending", is_current_schema: false }, R.normalizeReportJson(none));
     assert.deepEqual([meta.oldFormat, meta.legacy], [false, false]);
   }
   // an old report that merely CARRIES the key (rebuild queued over existing json) is still that report
   const queuedOld = { report_meta: { date: "2026-09-01" }, overall: { score_percent: 60 }, _regeneration: { narrative: "deterministic" } };
   assert.equal(R.hasReportContent(queuedOld), true);
   assert.equal(R.reportJsonState(queuedOld), "ok");
-  assert.equal(R.isOldFormatReport(queuedOld), true);
+  assert.equal(R.isOldFormatReport(queuedOld, NOW), true);
   assert.notEqual(R.normalizeReportJson(queuedOld), null);
   // junk stays invalid, null stays missing
   assert.equal(R.reportJsonState("oops"), "invalid");

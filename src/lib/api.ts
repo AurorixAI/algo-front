@@ -2131,28 +2131,6 @@ export interface ResolvedDiagnosticSession {
   total_time_ms: number;
 }
 
-export interface DiagReport {
-  session_id: string;
-  student_id: string;
-  grade_level: number;
-  overall_theta: number;
-  overall_level: string;
-  confidence_interval: [number, number];
-  topic_breakdown: Record<string, any>;
-  weak_skills: string[];
-  recommended_start: string | null;
-  items_total: number;
-  total_time_ms?: number;
-  has_full_report?: boolean;
-  report_json?: Record<string, any>;
-  report_generation?: {
-    status: "pending" | "generating" | "ready" | "failed" | string;
-    stage?: string | null;
-    attempts?: number;
-    is_current_schema?: boolean;
-  };
-}
-
 export const diagnosticApi = {
   resolveSession: (inviteCode: string) =>
     diagServiceApi<ResolvedDiagnosticSession>(
@@ -2177,13 +2155,6 @@ export const diagnosticApi = {
     diagServiceApi<DiagAnswerResult>(
       `/diagnostic/sessions/${encodePathId(sessionId)}/answer`, "student",
       { method: "POST", body: data, inviteCode },
-    ),
-
-  getReport: (sessionId: string, inviteCode: string) =>
-    diagServiceApi<DiagReport>(
-      // the invite code is a capability: in a header (like `answer`), not in the URL (history, proxy logs)
-      `/diagnostic/sessions/${encodePathId(sessionId)}/report`, "student",
-      { inviteCode },
     ),
 };
 
