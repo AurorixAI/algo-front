@@ -39,7 +39,6 @@ import { groupPaymentsHref } from "@/lib/group-payments";
 import { NumberInput } from "@/components/ui/number-input";
 import { GroupExamsTab } from "@/components/groups/group-exams-tab";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
-import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 import { useAuthStore } from "@/lib/store";
 
 type Tab = GroupPageTab;
@@ -283,9 +282,6 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
         <span className="text-slate-900 font-medium truncate max-w-xs">{group.name}</span>
         {group.status === "archived" && (
           <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">Архив</span>
-        )}
-        {group.substitution && (
-          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">{SUBSTITUTE_BADGE}</span>
         )}
       </div>
 

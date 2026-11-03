@@ -88,18 +88,18 @@ export interface GroupJournalAccess {
 
 /**
  * ONE rule of «who may edit the journal of this group» for every role (it was a condition inside the teacher's page and another inside the
- * owner's).  The owner and the administrator edit every live group; a teacher only the group he leads or substitutes in; an archived group nobody.
- * (`org_role` admin / owner never reach the teacher's workspace - owner decision 28.10, only a teacher teaches - so there is no such branch.)
+ * owner's).  The owner and the administrator edit every live group; a teacher only the group he leads; an archived group nobody.  (A teacher who only substitutes
+ * has no page of the group - the server answers 403 - he works in the journal of his lesson in the schedule.)  (`org_role` admin / owner never reach the teacher's workspace - owner decision 28.10, only a teacher teaches - so there is no such branch.)
  */
 export function groupJournalAccess(input: {
   workspace: GroupWorkspace;
-  group: { name: string; status?: string | null; teacher_id?: string | null; substitution?: boolean | null };
+  group: { name: string; status?: string | null; teacher_id?: string | null };
   userId: string | null | undefined;
 }): GroupJournalAccess {
   const live = input.group.status !== "archived";
   if (input.workspace !== "teacher") return { canEdit: live, adminMode: true, viewerId: null, groupName: input.group.name };
   const mine = Boolean(input.userId) && input.group.teacher_id === input.userId;
-  return { canEdit: live && (mine || Boolean(input.group.substitution)), adminMode: false, viewerId: input.userId ?? null, groupName: null };
+  return { canEdit: live && mine, adminMode: false, viewerId: input.userId ?? null, groupName: null };
 }
 
 // ── the header of a group ───────────────────────────────────────────────────

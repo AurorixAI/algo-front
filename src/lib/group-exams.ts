@@ -6,7 +6,7 @@ import type { GroupWorkspace } from "./group-workspace";
 /**
  * What a role may do with the exams of a group - as the exam service decides (`require_group_access`, `_require_teacher_exam_operator`):
  * the lifecycle of a classroom run belongs to the teacher who LEADS the group; the owner and the administrator watch the exams of the whole
- * center, a teacher who only substitutes sees the exams of his lessons but cannot bind a new one to somebody else's group.  A button the
+ * center, a teacher who only substitutes has no page of the group at all (403).  A button the
  * role cannot use is not shown.
  */
 export interface GroupExamsAccess {
@@ -16,9 +16,9 @@ export interface GroupExamsAccess {
   showCode: boolean;
 }
 
-export function groupExamsAccess(input: { workspace: GroupWorkspace; group: { substitution?: boolean | null } }): GroupExamsAccess {
+export function groupExamsAccess(input: { workspace: GroupWorkspace }): GroupExamsAccess {
   const teacher = input.workspace === "teacher";
-  return { canAssign: teacher && !input.group.substitution, showCode: teacher };
+  return { canAssign: teacher, showCode: teacher };
 }
 
 export interface GroupExamLinks {

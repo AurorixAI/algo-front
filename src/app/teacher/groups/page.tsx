@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, GraduationCap, Filter, LayoutGrid, List } from "lucide-react";
-import { orgApi, GroupInfo } from "@/lib/api";
+import { orgApi, substitutionsApi, GroupInfo } from "@/lib/api";
+import type { AssignedToMe } from "@/lib/substitution-types";
+import { businessDateWithOffset } from "@/lib/business-time";
+import { substituteCardTarget } from "@/lib/teacher-schedule-link";
 import { useAuthStore } from "@/lib/store";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
@@ -18,6 +21,8 @@ export default function TeacherGroupsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
+  // the lessons he covers: a group where he only substitutes has no page for him (403), its card leads to the lesson in his schedule
+  const [covered, setCovered] = useState<AssignedToMe[]>([]);
 
   const loadGroups = useCallback(async () => {
     if (!user?.id) return;
@@ -27,6 +32,9 @@ export default function TeacherGroupsPage() {
       // Teacher sees only their groups — pass teacher_id filter
       const data = await orgApi.listGroups({ teacher_id: user.id });
       setGroups(Array.isArray(data) ? data : []);
+      if (Array.isArray(data) && data.some((group) => group.substitution)) {
+        substitutionsApi.mine().then((mine) => setCovered(mine.assignedToMe ?? [])).catch(() => setCovered([]));
+      }
     } catch (error) {
       // Keep a previously confirmed list on screen. An offline request must
       // never look identical to a teacher having no groups.
@@ -110,14 +118,18 @@ export default function TeacherGroupsPage() {
         </motion.div>
           ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map((group, i) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              href={`/teacher/groups/${group.id}`}
-              index={i}
-            />
-          ))}
+          {groups.map((group, i) => {
+            const substitute = group.substitution ? substituteCardTarget(group.id, covered, businessDateWithOffset(0)) : null;
+            return (
+              <GroupCard
+                key={group.id}
+                group={group}
+                href={substitute?.href ?? `/teacher/groups/${group.id}`}
+                substituteLabel={substitute?.label}
+                index={i}
+              />
+            );
+          })}
         </div>
           )}
         </>

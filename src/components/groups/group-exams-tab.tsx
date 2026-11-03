@@ -47,7 +47,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
   const router = useRouter();
   const searchParams = useSearchParams();
   const links = groupExamLinks({ workspace, groupId, groupName: group.name });
-  const access = groupExamsAccess({ workspace, group });
+  const access = groupExamsAccess({ workspace });
   const paths = groupWorkspacePaths(workspace);
 
   const [groupExams, setGroupExams] = useState<ExamSummary[]>([]);

@@ -10,6 +10,7 @@ import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
+import { scheduleDateParam, weekOffsetForDate } from "@/lib/teacher-schedule-link";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
 import { sendTeacherCancel } from "@/lib/teacher-cancel";
 import { reasonProblemFor } from "@/lib/reason-rules";
@@ -18,7 +19,7 @@ import { attendanceMapsOfToday, groupIdsOfLessons } from "@/lib/schedule-attenda
 import { browserVisiblePollEnv, startVisiblePolling } from "@/lib/visible-polling";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { businessDateWithOffset, businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -96,6 +97,13 @@ export default function TeacherSchedulePage() {
   const { menuOpen: isRecurringActionsOpen, setMenuOpen: setIsRecurringActionsOpen } = lessonActions;      // «Перенести урок» / «Не смогу провести»: rows of the «⋯» menu below
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
   const [weekOffset, setWeekOffset] = useState(0);
+  // `?date=` (the card of a group he substitutes in): open the week of that lesson
+  useEffect(() => {
+    const date = scheduleDateParam(window.location.search);
+    if (!date || date === businessDateWithOffset(0)) return;
+    setViewMode("week");
+    setWeekOffset(weekOffsetForDate(date, businessDateWithOffset(0)));
+  }, []);
   const weekPeriod = useMemo(() => ({
     start: businessWeekdayDate(1, weekOffset),
     end: businessWeekdayDate(7, weekOffset),

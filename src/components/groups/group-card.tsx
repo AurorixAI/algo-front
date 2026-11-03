@@ -8,14 +8,17 @@ import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
 import { lessonTypeLabel } from "@/lib/payroll";
 import { formatPrice, groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 
 interface GroupCardProps {
   group: GroupInfo & { avg_level?: "below_grade" | "at_grade" | "above_grade" | null };
   href: string;
   index?: number;
+  /** A group the teacher only substitutes in: the badge text (with the date of his next lesson there). */
+  substituteLabel?: string;
 }
 
-export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
+export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCardProps) {
   // The price is shown only when the server sent it: the key `price_current` exists for money roles alone.
   // An archived group with no price has nothing to set: no «Цена не задана · задать» there.
   const showPrice = "price_current" in group && !(group.status === "archived" && group.price_current === null);
@@ -59,7 +62,7 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
           
           {group.substitution && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-violet-50 text-violet-700 border-violet-200" title="Вы ведёте в этой группе отдельные уроки вместо её преподавателя">
-              Замена
+              {substituteLabel ?? SUBSTITUTE_BADGE}
             </div>
           )}
           <div className="flex items-center gap-1">
@@ -138,7 +141,7 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
       {/* Full card link overlay */}
       {href ? (
         <Link href={href} className="absolute inset-0 z-10">
-          <span className="sr-only">Открыть группу {group.name}</span>
+          <span className="sr-only">{substituteLabel ? `Открыть урок замены: ${group.name}` : `Открыть группу ${group.name}`}</span>
         </Link>
       ) : null}
     </motion.div>

@@ -81,7 +81,7 @@ test("E-C/1: the click on a tab drops the one-shot journal link and the payments
   assert.equal(W.groupTabQuery(null, "exams"), "?tab=exams");
 });
 
-test("E-C/1: ONE rule of the journal: the manager edits any live group; a teacher only his own or a substituted one; nobody an archived one", () => {
+test("E-C/1: ONE rule of the journal: the manager edits any live group; a teacher only the group he leads; nobody an archived one", () => {
   const live = { name: "9-А", status: "active", teacher_id: "t1" };
   const access = (workspace, group, userId) => W.groupJournalAccess({ workspace, group, userId });
   // owner / admin: as before (`canEdit = not archived`, adminMode, the name for the review of excuses)
@@ -89,12 +89,10 @@ test("E-C/1: ONE rule of the journal: the manager edits any live group; a teache
     assert.deepEqual(access(workspace, live, "u9"), { canEdit: true, adminMode: true, viewerId: null, groupName: "9-А" });
     assert.equal(access(workspace, { ...live, status: "archived" }, "u9").canEdit, false);
   }
-  // teacher: his group, a substitution; not another teacher's group; not an archived one
+  // teacher: his group; not another teacher's group (a substitute has no page of the group at all: 403); not an archived one
   assert.deepEqual(access("teacher", live, "t1"), { canEdit: true, adminMode: false, viewerId: "t1", groupName: null });
   assert.equal(access("teacher", live, "t2").canEdit, false);
-  assert.equal(access("teacher", { ...live, substitution: true }, "t2").canEdit, true);
   assert.equal(access("teacher", { ...live, status: "archived" }, "t1").canEdit, false);
-  assert.equal(access("teacher", { ...live, status: "archived", substitution: true }, "t2").canEdit, false);
   assert.equal(access("teacher", { ...live, teacher_id: null }, undefined).canEdit, false, "no user, no teacher: not mine");
   assert.equal(access("teacher", live, null).canEdit, false);
 });
@@ -108,7 +106,7 @@ test("E-C/1: the header «⋯» is for who manages the group; archived or a teac
 
 test("E-C/1: mutation - the old teacher condition (admin / owner branch) is seen by the same scenarios", () => {
   const mutated = loadMutated("src/lib/group-workspace.ts",
-    "return { canEdit: live && (mine || Boolean(input.group.substitution)), adminMode: false",
+    "return { canEdit: live && mine, adminMode: false",
     "return { canEdit: live, adminMode: false");
   assert.equal(mutated.groupJournalAccess({ workspace: "teacher", group: { name: "x", status: "active", teacher_id: "t1" }, userId: "t2" }).canEdit, true, "the mutant lets a stranger edit");
   assert.equal(W.groupJournalAccess({ workspace: "teacher", group: { name: "x", status: "active", teacher_id: "t1" }, userId: "t2" }).canEdit, false);
@@ -230,10 +228,10 @@ test("E-C/3: a failed load shows the error with «Повторить» (no silen
   assert.match(view, /Данные группы могут быть неактуальны/);
 });
 
-test("E-C/3: the tabs strip is made from the role's list; the substitute badge is shown for any role that gets the flag", () => {
+test("E-C/3: the tabs strip is made from the role's list", () => {
   const view = read(VIEW);
   assert.match(view, /groupPageTabs\(\{ workspace, paymentsAccess \}\)\.map\(\(key\) => \{/);
-  assert.match(view, /group\.substitution && \(\s*<span[^>]*>\{SUBSTITUTE_BADGE\}/);
+  assert.doesNotMatch(view, /substitution|SUBSTITUTE_BADGE/, "a substitute never reaches the page of the group (403): no dead branch of him here");
   assert.match(view, /\{tab === "exams" && \(\s*<motion\.div[^>]*>\s*<GroupExamsTab group=\{group\} workspace=\{workspace\} \/>/);
   assert.match(view, /\{tab === "schedule" && paths\.viewerRole !== "teacher" && \(/);
   // five short labels fit a 390 px phone: the padding of a tab is 12 px each side
@@ -303,9 +301,8 @@ test("E-C/4: mutation - the old group entrance (a draft without a lesson) is see
 const GE = lib("group-exams.ts");
 
 test("E-C/5: rights on the exams of a group as the exam service has them - the leading teacher binds, the others only watch", () => {
-  const access = (workspace, group = {}) => GE.groupExamsAccess({ workspace, group });
+  const access = (workspace) => GE.groupExamsAccess({ workspace });
   assert.deepEqual(access("teacher"), { canAssign: true, showCode: true });
-  assert.deepEqual(access("teacher", { substitution: true }), { canAssign: false, showCode: true }, "a substitute cannot bind an exam to somebody else's group (403 «только со своей группой»)");
   assert.deepEqual(access("admin"), { canAssign: false, showCode: false }, "_require_teacher_exam_operator: the lifecycle of a run is the teacher's");
   assert.deepEqual(access("owner"), { canAssign: false, showCode: false });
 });
@@ -336,7 +333,7 @@ test("E-C/5: a button the role cannot use is not rendered (add, create the first
 });
 
 test("E-C/5: mutation - an administrator who may bind an exam is seen by the table", () => {
-  const mutated = loadMutated("src/lib/group-exams.ts", "canAssign: teacher && !input.group.substitution", "canAssign: true");
+  const mutated = loadMutated("src/lib/group-exams.ts", "canAssign: teacher,", "canAssign: true,");
   assert.equal(mutated.groupExamsAccess({ workspace: "admin", group: {} }).canAssign, true);
   assert.equal(GE.groupExamsAccess({ workspace: "admin", group: {} }).canAssign, false);
 });
@@ -357,11 +354,10 @@ test("E-C/matrix: owner and administrator keep everything they had; the only add
   }
 });
 
-test("E-C/matrix: the teacher keeps his three tabs in his order, his journal rule (own group or substitution), his exam list and its filters", () => {
+test("E-C/matrix: the teacher keeps his three tabs in his order, his journal rule (the group he leads), his exam list and its filters", () => {
   assert.deepEqual(W.groupPageTabs({ workspace: "teacher", paymentsAccess: "hidden" }), ["students", "exams", "attendance"]);
   for (const [group, userId, expected] of [
     [{ name: "G", status: "active", teacher_id: "me" }, "me", true],
-    [{ name: "G", status: "active", teacher_id: "x", substitution: true }, "me", true],
     [{ name: "G", status: "active", teacher_id: "x" }, "me", false],
     [{ name: "G", status: "archived", teacher_id: "me" }, "me", false],
   ]) assert.equal(W.groupJournalAccess({ workspace: "teacher", group, userId }).canEdit, expected);
@@ -369,4 +365,46 @@ test("E-C/matrix: the teacher keeps his three tabs in his order, his journal rul
   for (const key of ["active", "lobby", "scheduled", "draft", "closed", "archived"]) assert.match(tab, new RegExp(`key: "${key}"`));
   assert.match(tab, /exam_status/);
   assert.match(tab, /exam_q/);
+});
+
+// ---- R3 В1: a substitute has no page of the group (403 by design) - his card leads to the lesson in his schedule -----------------
+
+const TS = lib("teacher-schedule-link.ts");
+
+test("E-C/R3-1: the card of a group he only substitutes in leads to the schedule on the week of his next lesson, never to /teacher/groups/{id}", () => {
+  const assigned = [
+    { groupId: "g1", lessonDate: "2026-11-03", startTime: "10:00" },
+    { groupId: "g1", lessonDate: "2026-11-12", startTime: "09:00" },
+    { groupId: "g2", lessonDate: "2026-11-05", startTime: "09:00" },
+  ];
+  const target = TS.substituteCardTarget("g1", assigned, "2026-11-05");
+  assert.equal(target.href, "/teacher/schedule?date=2026-11-12", "the nearest lesson today or later; a past one is not offered");
+  assert.match(target.label, /^Замена · 12 нояб/);
+  assert.doesNotMatch(target.href, /\/teacher\/groups\//);
+  // nothing known (a past lesson only, a failed request): the schedule of the week, the bare badge
+  assert.deepEqual(TS.substituteCardTarget("g9", assigned, "2026-11-05"), { href: "/teacher/schedule", label: "Замена" });
+  assert.equal(TS.substituteCardTarget("g1", [], "2026-11-05").href, "/teacher/schedule");
+});
+
+test("E-C/R3-1: the schedule opens the week of ?date=; a bad date opens nothing", () => {
+  assert.equal(TS.scheduleDateParam("?date=2026-11-12"), "2026-11-12");
+  assert.equal(TS.scheduleDateParam("?date=x"), null);
+  assert.equal(TS.scheduleDateParam(""), null);
+  assert.equal(TS.weekOffsetForDate("2026-11-12", "2026-11-05"), 1); // 05.11.2026 is a Thursday, the 12th is next week
+  assert.equal(TS.weekOffsetForDate("2026-11-08", "2026-11-05"), 0); // Sunday of this week
+  assert.equal(TS.weekOffsetForDate("2026-11-02", "2026-11-05"), 0); // Monday of this week
+  assert.equal(TS.weekOffsetForDate("2026-11-01", "2026-11-05"), -1);
+  const schedule = read("src/app/teacher/schedule/page.tsx");
+  assert.match(schedule, /const date = scheduleDateParam\(window\.location\.search\);/);
+  assert.match(schedule, /setWeekOffset\(weekOffsetForDate\(date, businessDateWithOffset\(0\)\)\)/);
+});
+
+test("E-C/R3-1: the teacher's list wires the substitute card to the schedule; no dead substitute branch is left on the page of the group", () => {
+  const list = read("src/app/teacher/groups/page.tsx");
+  assert.match(list, /href=\{substitute\?\.href \?\? `\/teacher\/groups\/\$\{group\.id\}`\}/);
+  assert.match(list, /group\.substitution \? substituteCardTarget\(group\.id, covered, businessDateWithOffset\(0\)\) : null/);
+  assert.match(read("src/components/groups/group-card.tsx"), /\{substituteLabel \?\? SUBSTITUTE_BADGE\}/);
+  for (const file of [VIEW, EXAMS_TAB, "src/lib/group-workspace.ts", "src/lib/group-exams.ts"]) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /substitution/, file);
+  // mutation: the old link to the page of the group is seen
+  assert.doesNotMatch(list.replace("substitute?.href ?? ", ""), /substitute\?\.href/);
 });
