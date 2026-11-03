@@ -310,7 +310,7 @@ test("E-C/5: rights on the exams of a group as the exam service has them - the l
 test("E-C/5: the row of an exam leads where the role has a page: teacher - the hub, admin - the monitor, owner - nowhere", () => {
   const link = (workspace) => GE.groupExamLinks({ workspace, groupId: "g1", groupName: "9-А" }).exam("e1", "/x?tab=exams");
   assert.match(link("teacher"), /^\/teacher\/exams\/e1\?from_group=g1&from_name=/);
-  assert.equal(link("admin"), "/admin/exams/e1");
+  assert.equal(link("admin"), "/admin/exams/e1?return_to=%2Fx%3Ftab%3Dexams");
   assert.equal(link("owner"), null, "the owner workspace never links into /admin/*");
 });
 
@@ -422,4 +422,30 @@ test("E-C/R3-2: the lesson dialog of the group offers «Подготовить �
   assert.match(read(EXAMS_TAB), /href=\{links\.newExam\}/);
   assert.match(GE.groupExamLinks({ workspace: "teacher", groupId: "g1", groupName: "А" }).newExam, /^\/teacher\/exams\/new\?group_id=g1&group_name=/);
   assert.doesNotMatch(modal.replace("noLessonHref && selectedGroup", "false && selectedGroup"), /\{noLessonHref && selectedGroup/);
+});
+
+// ---- R3 мелочи ----------------------------------------------------------------------------------------------------------------------
+
+test("E-C/R3-4: a row of an exam without a page (the owner) is plain - no hover colour, no pointer, no `group/exam` for the children", () => {
+  const tab = read(EXAMS_TAB);
+  const match = /className\.replace\((\/[^\n]*?\/g), ""\)/.exec(tab);
+  assert.ok(match, "the plain row strips the classes of a link");
+  const strip = new Function(`return ${match[1]}`)();
+  const link = "group/exam bg-white hover:bg-slate-50/70 rounded-2xl p-5 border hover:shadow-sm hover:border-primary-200 flex transition-all block cursor-pointer";
+  const plain = link.replace(strip, "");
+  assert.doesNotMatch(plain, /hover:|cursor-pointer|group\/exam/);
+  assert.match(plain, /bg-white rounded-2xl p-5 border/);
+  // mutation: if `group/exam` stayed, the title would turn blue on hover over a row that leads nowhere
+  assert.match(link.replace(/\s*hover:\S+|\s*cursor-pointer/g, ""), /group\/exam/);
+});
+
+test("E-C/R3-4: the administrator comes back from the monitor of an exam to the group (return_to, own workspace only); the owner has no such link", () => {
+  assert.equal(GE.safeAdminReturnPath("/admin/groups/g1?tab=exams"), "/admin/groups/g1?tab=exams");
+  for (const bad of ["//evil.example/x", "https://evil.example", "/teacher/groups/g1", "", null, undefined]) assert.equal(GE.safeAdminReturnPath(bad), null, String(bad));
+  const href = GE.groupExamLinks({ workspace: "admin", groupId: "g1", groupName: "А" }).exam("e1", "/admin/groups/g1?tab=exams&exam_status=draft");
+  assert.equal(href, "/admin/exams/e1?return_to=%2Fadmin%2Fgroups%2Fg1%3Ftab%3Dexams%26exam_status%3Ddraft");
+  const page = read("src/app/admin/exams/[id]/page.tsx");
+  assert.match(page, /const returnTo = safeAdminReturnPath\(useSearchParams\(\)\?\.get\("return_to"\)\);/);
+  assert.match(page, /href=\{backHref\} data-testid="exam-back-link"/);
+  assert.match(page, /returnTo\?\.startsWith\("\/admin\/groups\/"\) \? "К группе" : "К экзаменам организации"/);
 });

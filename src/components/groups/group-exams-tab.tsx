@@ -34,7 +34,7 @@ function parseExamStatusFilter(value: string | null): ExamStatusFilter {
 /** A row of the list: a link to the exam where the role has a page of it, a plain row where it has none (the owner). */
 function ExamRow({ href, className, children }: { href: string | null; className: string; children: React.ReactNode }) {
   if (href) return <Link href={href} className={className}>{children}</Link>;
-  return <div className={className.replace(/\s*hover:\S+|\s*cursor-pointer/g, "")}>{children}</div>;
+  return <div className={className.replace(/\s*hover:\S+|\s*cursor-pointer|\s*group\/exam(?=\s|$)/g, "")}>{children}</div>;
 }
 
 /**

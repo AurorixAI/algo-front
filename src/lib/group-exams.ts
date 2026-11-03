@@ -21,6 +21,11 @@ export function groupExamsAccess(input: { workspace: GroupWorkspace }): GroupExa
   return { canAssign: teacher, showCode: teacher };
 }
 
+/** `?return_to=` of the monitor of an exam: only a page of the administrator's own workspace (no other site, no `//host`). */
+export function safeAdminReturnPath(value: string | null | undefined): string | null {
+  return value && value.startsWith("/admin/") && !value.startsWith("//") ? value : null;
+}
+
 export interface GroupExamLinks {
   /** «Создать новый» (a teacher who leads the group): the constructor with the group already chosen. */
   newExam: string;
@@ -36,7 +41,7 @@ export function groupExamLinks(input: { workspace: GroupWorkspace; groupId: stri
     newExam: `/teacher/exams/new?group_id=${encodeURIComponent(groupId)}&group_name=${encodeURIComponent(groupName)}`,
     library: "/teacher/exams/new",
     exam: (examId, returnTo) => {
-      if (input.workspace === "admin") return `/admin/exams/${encodeURIComponent(examId)}`; // the monitor of the administrator
+      if (input.workspace === "admin") return `/admin/exams/${encodeURIComponent(examId)}?return_to=${encodeURIComponent(returnTo)}`; // the monitor of the administrator; «назад» comes back to the group
       if (input.workspace === "owner") return null; // the owner workspace never links into /admin/* (ia-links.ts) and has no page of an exam
       return `/teacher/exams/${encodeURIComponent(examId)}?from_group=${encodeURIComponent(groupId)}&from_name=${encodeURIComponent(groupName)}&return_to=${encodeURIComponent(returnTo)}`;
     },

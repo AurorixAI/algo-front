@@ -316,10 +316,13 @@ test("phone: the five tabs have short labels below sm (ids and the desktop names
   assert.equal(G.GROUP_TAB_LABELS.attendance.full, "Посещаемость");
   assert.equal(G.GROUP_TAB_LABELS.attendance.short, "Журнал");
   assert.equal(G.GROUP_TAB_LABELS.payments.short, "Оплаты");
-  // five short labels fit 358 px at 13 px (E-C: «Экзамены» is the fifth; the padding of a tab on a phone is 12 px each side)
+  // E-C: «Экзамены» is the fifth tab.  On a 375 px phone the page has 343 px and the five short labels need about 350: the strip scrolls INSIDE itself
+  // (`overflow-x-auto`, tabs `shrink-0`, the active one scrolled into view) and never widens the page; the e2e guard measures it
   const widest = Math.max(...Object.values(G.GROUP_TAB_LABELS).map((l) => l.short.length));
-  const total = Object.values(G.GROUP_TAB_LABELS).reduce((sum, l) => sum + l.short.length, 0);
-  assert.ok(widest <= 10 && total * 7.2 + 5 * 12 + 4 * 4 + 8 <= 358, `the short labels are ${total} characters`);
+  assert.ok(widest <= 10, "no label wider than «Расписание»");
+  const stripView = read("src/components/groups/group-detail-view.tsx");
+  assert.match(stripView, /data-testid="group-tabs" className="flex w-full max-w-full items-center gap-1 overflow-x-auto/);
+  assert.match(stripView, /flex min-w-0 flex-1 shrink-0 items-center/);
   const view = read("src/components/groups/group-detail-view.tsx");
   assert.match(view, /<span className="sm:hidden">\{GROUP_TAB_LABELS\[key as Tab\]\.short\}<\/span>/);
   assert.match(view, /<span className="hidden sm:inline">\{GROUP_TAB_LABELS\[key as Tab\]\.full\}<\/span>/);

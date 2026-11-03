@@ -716,7 +716,11 @@ test("groups: «Тип занятий» in the create and edit forms, shown on t
     assert.match(page, /lesson_type: normalizeLessonType\(g\.lesson_type\)/, role);
   }
   assert.match(read("src/components/groups/group-card.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);
-  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /<GroupDetailView workspace="teacher" \/>/); // the teacher reads the type on the same line as the others
+  // the teacher reads the type on the same line as the others: the line is not behind the manager's gate
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.match(view, /data-testid="group-lesson-type-line">\{lessonTypeLine\(group\.lesson_type\)\}<\/p>/);
+  assert.doesNotMatch(view.slice(view.indexOf("{/* LOGIC-A F14: the type of the lessons"), view.indexOf('data-testid="group-lesson-type-line"')), /canManage/);
+  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /<GroupDetailView workspace="teacher" \/>/);
 });
 
 // ---- 14. the API helpers against the real answers (fetch is stubbed) ---------------------------------------------------

@@ -348,7 +348,8 @@ test("#103: in the journal «Подтвердить» / «Отклонить» o
   assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
   // ONE rule for every role (`groupJournalAccess`): the manager's journal is in admin mode, the teacher's is not
   assert.match(read("src/components/groups/group-detail-view.tsx"), /adminMode=\{journal\.adminMode\}\s+viewerId=\{journal\.viewerId\}\s+groupName=\{journal\.groupName\}/);
-  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /adminMode/);
+  // and the teacher's journal is never in admin mode (the same function the page calls)
+  assert.equal(require(path.join(__dirname, "..", "src/lib/group-workspace.ts")).groupJournalAccess({ workspace: "teacher", group: { name: "G", status: "active", teacher_id: "t" }, userId: "t" }).adminMode, false);
 });
 
 test("#103: no other path of the front sends an excuse decision: two callers of the API, both behind the dialog", () => {

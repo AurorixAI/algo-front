@@ -5,7 +5,8 @@ import { Chip } from "@/components/ui/chip";
 import { examStatusView } from "@/lib/status-registry";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { safeAdminReturnPath } from "@/lib/group-exams";
 import {
   AlertTriangle, ArrowLeft, BarChart3, CalendarClock,
   Clock3, Eye, EyeOff, FileText, Layers, Radio, Users,
@@ -58,6 +59,10 @@ function latestEvent(exam: AdminExamView, types: string[]) {
 
 export default function AdminExamViewPage() {
   const { id: examId } = useParams<{ id: string }>();
+  // a click from the exams of a group (`return_to`) comes back to that group, otherwise to the list of the center
+  const returnTo = safeAdminReturnPath(useSearchParams()?.get("return_to"));
+  const backHref = returnTo ?? "/admin/exams";
+  const backLabel = returnTo?.startsWith("/admin/groups/") ? "К группе" : "К экзаменам организации";
   const [exam, setExam] = useState<AdminExamView | null>(null);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   // Set when exam-service answers 409 "no lobby" (a print exam we did not know was one): stop asking.
@@ -158,7 +163,7 @@ export default function AdminExamViewPage() {
   ];
 
   return <div className="space-y-6">
-    <Link href="/admin/exams" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-primary-700"><ArrowLeft className="h-4 w-4" /> К экзаменам организации</Link>
+    <Link href={backHref} data-testid="exam-back-link" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-primary-700"><ArrowLeft className="h-4 w-4" /> {backLabel}</Link>
 
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">

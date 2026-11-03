@@ -292,8 +292,9 @@ test("F4 / F8: the roster menu has at most two items, no «Карточка уч
   assert.doesNotMatch(table, /Карточка ученика|UserRound|Убрать ученика из группы\?|onRemove|confirmRemove/);
   assert.match(table, /href=\{`\$\{basePath\}\/\$\{s\.id\}`\}/); // the name leads to the card
   assert.match(read("src/components/groups/group-detail-view.tsx"), /onTransfer=\{setTransferStudent\}/);
-  // the teacher's page has no menu at all
-  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /onRemove|onTransfer|handleRemoveStudent/);
+  // the teacher's roster has no menu at all: the page (the same view for him) passes `canRemove` only to the manager, and the table opens no menu without it
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /canRemove=\{canManage && group\.status === "active"\}/);
+  assert.match(table, /canLeave: Boolean\(canRemove && groupId && onLeft && !isTeacher\), canTransfer: Boolean\(canRemove && onTransfer && !isTeacher\)/);
 });
 
 test("F3: «Цены групп» has no «⋯» with one item: «История цены» is an icon button of the row", () => {
