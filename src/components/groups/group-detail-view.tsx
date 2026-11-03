@@ -519,7 +519,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-2 text-[13px] font-medium transition-all sm:flex-none sm:px-4 sm:text-sm ${
+            className={`flex flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-2 text-[13px] font-medium transition-all sm:flex-none sm:px-4 sm:text-sm ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"

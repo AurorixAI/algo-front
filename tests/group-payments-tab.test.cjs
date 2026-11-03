@@ -322,7 +322,7 @@ test("phone: the five tabs have short labels below sm (ids and the desktop names
   assert.ok(widest <= 10, "no label wider than «Расписание»");
   const stripView = read("src/components/groups/group-detail-view.tsx");
   assert.match(stripView, /data-testid="group-tabs" className="flex w-full max-w-full items-center gap-1 overflow-x-auto/);
-  assert.match(stripView, /flex min-w-0 flex-1 shrink-0 items-center/);
+  assert.match(stripView, /`flex flex-1 shrink-0 items-center justify-center/);
   const view = read("src/components/groups/group-detail-view.tsx");
   assert.match(view, /<span className="sm:hidden">\{GROUP_TAB_LABELS\[key as Tab\]\.short\}<\/span>/);
   assert.match(view, /<span className="hidden sm:inline">\{GROUP_TAB_LABELS\[key as Tab\]\.full\}<\/span>/);
