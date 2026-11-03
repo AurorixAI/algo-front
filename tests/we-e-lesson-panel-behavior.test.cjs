@@ -100,12 +100,11 @@ scenario("B1", "today, in time, not started: the roster and «Начать ур�
   assert.ok(s.hasButton(/^Начать урок$/));
 });
 
-scenario("B2", "today, before the start: «Урок ещё не начался» and a disabled «Доступно в 15:00»", async ({ screen, world }) => {
+scenario("B2", "today, before the start: «Урок ещё не начался», «Начало через …», no start and no disabled button (the time is in the header)", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "upcoming");
   assert.match(s.text(), /Урок ещё не начался/);
   assert.match(s.text(), /Начало через/);
-  const gate = s.button(/Доступно в 15:00/);
-  assert.equal(gate.props.disabled, true);
+  assert.equal(s.hasButton(/Доступно/), false);
   assert.equal(s.hasButton(/^Начать урок/), false);
 });
 
@@ -365,6 +364,7 @@ scenario("C12c", "E-A11Y: the lesson panel is a dialog named by the group; the i
   const titles = s.all((n) => n.tag === "h3" && n.props.id === "lesson-panel-title");
   assert.equal(titles.length, 1, "the id is unique");
   assert.equal(harness.flat(harness.textOf(titles[0])).trim(), "Живая", "the name of the window is the name of the group");
+  assert.equal(s.all((n) => n.tag === "button" && n.props["aria-label"] === "Закрыть").length, 1, "the cross of the panel has a name");
   assert.equal(s.all((n) => n.props.id === "missed-lesson-title").length, 0, "the dialog «Пропущенный урок» is closed and has its own id");
 });
 

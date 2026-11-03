@@ -34,8 +34,8 @@ import { DAYS } from "@/lib/schedule-time";
 import type { AttendanceStatus } from "@/lib/api";
 import type { TeacherLessonPanel, TeacherPanelLesson } from "@/lib/use-teacher-lesson-panel";
 
-/** The row of actions under the text of a state card: shifted by the width of the icon (w-11 + gap-3.5), so it stands under the text, not under the icon. */
-const BANNER_ACTIONS = "mt-4 flex flex-wrap items-center gap-2 pl-[3.625rem]";
+/** The row of actions under the text of a state card: shifted by the width of the icon (w-11 + gap-3.5) from `sm` up, so it stands under the text; on a phone it takes the full width of the card. */
+const BANNER_ACTIONS = "mt-4 flex flex-wrap items-center gap-2 sm:pl-[3.625rem]";
 const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs";
 
 /** The series of the open lesson, on the schedule of a week only (the dashboard never changes a series). */
@@ -259,6 +259,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                   </div>
                   <button
                     onClick={() => void requestClose()}
+                    aria-label="Закрыть"
                     className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
                   >
                     <X className="w-5 h-5" />
@@ -487,16 +488,6 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                               <p className="text-sm text-amber-800 mt-0.5">Начало через {formatMinutesUntil(activeTimeStatus.diffMinutes)}.</p>
                             </div>
                           </div>
-                          <div className={BANNER_ACTIONS}>
-                            <button
-                              type="button"
-                              disabled
-                              className={`${BANNER_ACTION_BASE} bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none`}
-                            >
-                              <Clock className="w-3.5 h-3.5" />
-                              Доступно в {activeLesson.startTime}
-                            </button>
-                          </div>
                         </div>
                       ) : banner === "overdue" ? (
                         /* The occurrence was never started.  Do not bypass the
@@ -535,7 +526,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                   </button>
                                 )}
                               </div>
-                              <p className="mt-2 pl-[3.625rem] text-xs text-slate-500">Время начала запишется текущим.</p>
+                              <p className="mt-2 sm:pl-[3.625rem] text-xs text-slate-500">Время начала запишется текущим.</p>
                             </>
                           )}
                         </div>
