@@ -463,9 +463,10 @@ const questionOf = (i) => ({
 const diagTask = (i) => {
   const q = questionOf(i);
   return {
-    task_id: `D-${i + 1}`, skill_id: `SK-D-${i + 1}`, topic_id: "T-D", question_text: q.question_text, question_latex: q.question_latex,
-    question_image_url: null, answer_type: "multiple_choice", answer_options: q.options, answer_options_latex: q.options_latex, hints: [],
-    phase: "navigation", items_answered: i, items_max: STUDENT_TASKS, is_deep_scan: false,
+    // exactly the fields of diagnostic-service's PublicTask (the allowlist of what the student's page reads)
+    task_id: `D-${i + 1}`, question_text: q.question_text, question_latex: q.question_latex,
+    question_image_url: null, answer_type: "multiple_choice", answer_options: q.options, answer_options_latex: q.options_latex,
+    items_answered: i, items_max: STUDENT_TASKS,
   };
 };
 const examTask = (i) => {
@@ -555,7 +556,7 @@ function handle(req, res) {
   m = /^\/api\/v1\/auth\/diagnostic\/([^/]+)\/confirm$/.exec(path);
   if (m && req.method === "POST") { bump(`${decodeURIComponent(m[1])} d-confirm`); return send(res, 200, {}); }
   if (path === "/api/v1/diagnostic/sessions/by-invite") {
-    const code = url.searchParams.get("invite_code") || "";
+    const code = req.headers["x-diagnostic-invite-code"] || "";     // the capability is in a header, never in the URL
     const f = flowOf(code).d;
     if (!f.created) return send(res, 404, { detail: { code: "SESSION_NOT_FOUND", message: "Попытка не найдена (synthetic)" } });
     return send(res, 200, { session_id: `ds-${code}`, status: "active", items_answered: f.answered, current_task: diagTask(f.answered), total_time_ms: 1000 });
@@ -578,12 +579,8 @@ function handle(req, res) {
       f.answers.push({ task_id: body.task_id, student_answer: body.student_answer, invite_header: req.headers["x-diagnostic-invite-code"] || null });
       f.answered += 1;
       const done = f.answered >= STUDENT_TASKS;
-      send(res, 200, { is_correct: false, outcome: 0, eval_category: "wrong", theta: -0.2, se: 0.6, next_task: done ? null : diagTask(f.answered), session_completed: done });
+      send(res, 200, { next_task: done ? null : diagTask(f.answered), session_completed: done, total_time_ms: done ? f.answered * 4000 : null });
     });
-  }
-  m = /^\/api\/v1\/diagnostic\/sessions\/ds-([^/]+)\/report$/.exec(path);
-  if (m) {
-    return send(res, 200, { session_id: `ds-${decodeURIComponent(m[1])}`, student_id: "stu-ui", grade_level: 9, overall_theta: -0.2, overall_level: "at_grade", confidence_interval: [-1, 1], topic_breakdown: {}, weak_skills: [], recommended_start: null, items_total: STUDENT_TASKS, total_time_ms: 5000, report_generation: { status: "ready" } });
   }
   // ── student exam flow (/e/<code>) ──
   m = /^\/api\/v1\/exams\/by-code\/([^/]+)$/.exec(path);

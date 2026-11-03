@@ -156,7 +156,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
       diagStore.startSession(
         String(response.session_id),
-        response.first_task.phase,
         response.first_task,
       );
       setPhase("testing");
@@ -210,18 +209,11 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       if (resp.session_completed) {
         diagStore.complete();
         // The report is for the teacher (it is built in the background): the student sees only that the answers are saved.
-        // The last question counts in the time, and the ticker stopped a second ago.
-        setElapsedMs(initialElapsedMsRef.current + (Date.now() - sessionStartRef.current));
+        // The one time of the final screen is the server's sum (the same as after a refresh); the live ticker is not used for it.
+        setElapsedMs(resp.total_time_ms ?? 0);
         setPhase("results");
       } else if (resp.next_task) {
-        diagStore.setNextTask(
-          resp.next_task,
-          resp.theta,
-          resp.se,
-          0,
-          resp.next_task.phase,
-          resp.next_task.items_answered + 1,
-        );
+        diagStore.setNextTask(resp.next_task, resp.next_task.items_answered + 1);
         questionStartRef.current = Date.now();
       }
     } catch (err: any) {
@@ -281,7 +273,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         initialElapsedMsRef.current = active.total_time_ms;
         sessionStartRef.current = Date.now();
         setElapsedMs(active.total_time_ms);
-        diagStore.startSession(active.session_id, active.current_task.phase, active.current_task, active.items_answered + 1);
+        diagStore.startSession(active.session_id, active.current_task, active.items_answered + 1);
         if (previousTaskId !== active.current_task.task_id) {
           setAnswer("");
           questionStartRef.current = Date.now();
@@ -498,7 +490,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                         questionStartRef.current = Date.now();
                         diagStore.startSession(
                           String(activeSession.session_id),
-                          activeSession.current_task.phase,
                           activeSession.current_task,
                           (activeSession.items_answered ?? 0) + 1,
                         );
@@ -744,19 +735,20 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     </motion.p>
                   </div>
 
-                  {/* Stats — minimal, student-friendly */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7 }}
-                    className="mb-6"
-                  >
-                    <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
-                      <p className="text-xs text-slate-500">Затраченное время</p>
-                    </div>
-                  </motion.div>
-
+                  {/* The test took this long (the server's sum); no number, no card */}
+                  {elapsedMs > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.7 }}
+                      className="mb-6"
+                    >
+                      <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
+                        <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
+                        <p className="text-xs text-slate-500">Затраченное время</p>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* CTA */}
                   <motion.div

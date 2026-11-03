@@ -93,3 +93,36 @@ test("the page keeps no number of the report schema: it compares with report_gen
   assert.equal(R.reportMetaInfo({ status: "ready", current_schema_version: 6 }, old).oldFormat, false);
   assert.equal(R.reportMetaInfo({ status: "ready" }, old).oldFormat, false, "no number from the backend: no verdict");
 });
+
+// ── R3: the page reads only what the server may send; one source of the final time; the code in a header ──
+
+test("the final time is the server's total_time_ms; the client clock is not used for the final screen", () => {
+  const page = read(STUDENT);
+  const afterAnswer = page.slice(page.indexOf("if (resp.session_completed) {"), page.indexOf("} else if (resp.next_task) {"));
+  assert.match(afterAnswer, /setElapsedMs\(resp\.total_time_ms \?\? 0\)/);
+  assert.doesNotMatch(afterAnswer, /Date\.now|initialElapsedMsRef|sessionStartRef/);
+  // a refreshed page takes the same number from by-invite
+  assert.match(page, /setElapsedMs\(resolved\.total_time_ms\)/);
+  // no number, no card (never «0:00»)
+  assert.match(page, /\{elapsedMs > 0 && \(/);
+});
+
+test("the answer type and the task type hold no result and no internal field of the test", () => {
+  const api = read("src/lib/api.ts");
+  const block = (name) => api.slice(api.indexOf(`export interface ${name} {`), api.indexOf("\n}\n", api.indexOf(`export interface ${name} {`)));
+  for (const name of ["DiagAnswerResult", "DiagTaskOut"]) {
+    assert.ok(block(name).length > 40, name);
+    assert.doesNotMatch(block(name), /theta|\bse\b|is_correct|outcome|eval_category|stop_reason|skill_id|topic_id|\bphase\b|is_deep_scan/, name);
+  }
+  const store = read("src/lib/store.ts");
+  const diag = store.slice(store.indexOf("interface DiagnosticState {"), store.indexOf("export const useDiagnosticStore"));
+  assert.doesNotMatch(diag, /theta|thetaSe|accuracy|phase/);
+  const page = read(STUDENT);
+  assert.doesNotMatch(page, /resp\.(theta|se|is_correct|outcome|eval_category)\b|\.phase\b/);
+});
+
+test("the resume lookup sends the invite code in a header, never in the URL", async () => {
+  const api = read("src/lib/api.ts");
+  assert.doesNotMatch(api, /by-invite\?invite_code|invite_code=\$\{/);
+  assert.match(api, /"\/diagnostic\/sessions\/by-invite", "student", \{ inviteCode \}/);
+});

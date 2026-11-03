@@ -206,6 +206,17 @@ test("the invite code of an answer travels in a header, never in the URL", async
   assert.ok(!c.url.includes("ABCD-1234"));
 });
 
+test("the resume lookup of an attempt sends the invite code in a header, never in the URL", async () => {
+  const calls = captureFetch();
+  const { diagnosticApi } = loadApi();
+  await diagnosticApi.resolveSession("ABCD-1234");
+  const c = calls[0];
+  assert.equal(new URL(c.url).search, "");
+  assert.equal(new URL(c.url).pathname.endsWith("/diagnostic/sessions/by-invite"), true);
+  assert.equal(c.headers["X-Diagnostic-Invite-Code"], "ABCD-1234");
+  assert.ok(!c.url.includes("ABCD-1234") && !c.url.includes("invite_code"));
+});
+
 // ---- the report page: a refused refresh keeps the report ------------------------------------------------
 
 test("force refresh answered 409 REPORT_COOLDOWN / REPORT_IN_PROGRESS keeps the report on screen and shows the server's text", async () => {

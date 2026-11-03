@@ -2094,10 +2094,9 @@ export const analyticsApi = {
 // DIAGNOSTIC SERVICE API  — calls diagnostic-service directly (NEXT_PUBLIC_DIAG_API_URL)
 // ============================================================================
 
+/** What diagnostic-service sends the student's page of a task (an allowlist: no skill, phase or result). */
 export interface DiagTaskOut {
   task_id: string;
-  skill_id: string;
-  topic_id: string;
   question_text: string;
   question_latex: string | null;
   attested_fields?: string[] | null;
@@ -2106,21 +2105,15 @@ export interface DiagTaskOut {
   answer_type: string;
   answer_options: string[] | null;
   answer_options_latex?: string[] | null;
-  hints: string[] | null;
-  phase: string;
   items_answered: number;
   items_max: number;
-  is_deep_scan: boolean;
 }
 
+/** The answer to an answer: the next task, or the end of the test with the server's total time. Never a result. */
 export interface DiagAnswerResult {
-  is_correct: boolean;
-  outcome: number;
-  eval_category: string;
-  theta: number;
-  se: number;
   next_task: DiagTaskOut | null;
   session_completed: boolean;
+  total_time_ms: number | null;
 }
 
 export interface ResolvedDiagnosticSession {
@@ -2134,7 +2127,8 @@ export interface ResolvedDiagnosticSession {
 export const diagnosticApi = {
   resolveSession: (inviteCode: string) =>
     diagServiceApi<ResolvedDiagnosticSession>(
-      `/diagnostic/sessions/by-invite?invite_code=${encodeURIComponent(inviteCode)}`, "student",
+      // the invite code is a capability: in a header (like `answer`), not in the URL (history, proxy logs)
+      "/diagnostic/sessions/by-invite", "student", { inviteCode },
     ),
   createSession: (data: {
     student_id: string;
