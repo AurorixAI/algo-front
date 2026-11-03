@@ -167,3 +167,84 @@ test("E-C/2: mutation - the lobby without the lesson (the old group-page draft) 
   await lib("exam-assign.ts").assignExamToLesson(real, { exam_id: "e1" }, LESSON);
   assert.equal(real.calls[0][2].publish, true);
 });
+
+// ---- step 3: the page of the teacher IS GroupDetailView; the tab «Экзамены» is GroupExamsTab -------------------------------
+
+const VIEW = "src/components/groups/group-detail-view.tsx";
+const EXAMS_TAB = "src/components/groups/group-exams-tab.tsx";
+const TEACHER_PAGE = "src/app/teacher/groups/[id]/page.tsx";
+
+test("E-C/3: the three workspaces render ONE page (thin wrappers of the same component), the teacher's 900 lines are gone", () => {
+  for (const role of ROLES) {
+    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    assert.match(page, new RegExp(`<GroupDetailView workspace="${role}" />`), role);
+    assert.ok(page.split("\n").length <= 12, `${role}: a thin wrapper`);
+  }
+  assert.doesNotMatch(read(TEACHER_PAGE), /GroupAttendanceJournal|GroupStudentTable|examsApi|orgApi|useState/);
+});
+
+test("E-C/3: the dead branch `org_role admin/owner` of the teacher's page is gone, and nothing of the group page decides the journal by the role of the account", () => {
+  for (const file of [VIEW, EXAMS_TAB, TEACHER_PAGE, "src/lib/group-workspace.ts"]) {
+    assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /org_role|role === "owner"|role === "admin"/, file);
+  }
+});
+
+test("E-C/3: the journal gets ONE set of props from groupJournalAccess for every role", () => {
+  const view = read(VIEW);
+  assert.match(view, /const journal = groupJournalAccess\(\{ workspace, group, userId: user\?\.id \}\);/);
+  assert.match(view, /canEdit=\{journal\.canEdit\}\s+adminMode=\{journal\.adminMode\}\s+viewerId=\{journal\.viewerId\}\s+groupName=\{journal\.groupName\}/);
+  assert.doesNotMatch(view, /canEdit=\{group\.status/);
+  // mutation: the old inline condition is seen
+  assert.doesNotMatch(view.replace("canEdit={journal.canEdit}", 'canEdit={group.status !== "archived"}'), /canEdit=\{journal\.canEdit\}/);
+});
+
+test("E-C/3: what only the manager has (menu, restore, add student, removal, dialogs, money) is not rendered for a teacher", () => {
+  const view = read(VIEW);
+  assert.match(view, /const canManage = !isTeacher;/);
+  assert.match(view, /groupHeaderActions\(\{[^}]*canManage \}\)/);
+  assert.match(view, /canManage && <button/); // «Вернуть из архива»
+  assert.match(view, /\{canManage && group\.status === "active" && \(/); // «Добавить учеников»
+  assert.match(view, /canRemove=\{canManage && group\.status === "active"\}/);
+  assert.match(view, /\{canManage && \(\s*<>\s*<AddStudentDrawer/); // the dialogs
+  assert.match(view, /onRestore=\{\(\) => setRestoreOpen\(true\)\} \/>\s*:\s*<GroupArchivedBanner archivedAt=\{group\.archivedAt\} \/>/); // a notice for a teacher
+  assert.match(view, /if \(canManage\) void refreshMoney\(\)/); // a teacher never reads the money summary
+  assert.match(view, /groupPaymentsAccess\(\{ moneyAvailable, moneyLoaded, isTeacher,/);
+  assert.match(view, /canManage \? orgApi\.listMembers\(\)/); // the list of staff is for the edit form
+  // mutation: if the gate on «Добавить учеников» is lost, the guard sees it
+  assert.doesNotMatch(view.replace("{canManage && group.status === \"active\" && (", "{group.status === \"active\" && ("), /\{canManage && group\.status === "active" && \(/);
+});
+
+test("E-C/3: the teacher does not call the endpoints his page never showed (stats, schedule); a failure of the exam service does not take the group page down", () => {
+  assert.doesNotMatch(read(VIEW) + read(EXAMS_TAB), /getGroupStats|getSchedule|GroupStatsPanel/);
+  const view = read(VIEW);
+  assert.doesNotMatch(view, /examsApi/, "the exams are loaded by the tab, not by the page");
+  assert.match(read(EXAMS_TAB), /examsApi\.list\(\{ groupId, includeArchived: true \}\)/);
+  assert.match(read(EXAMS_TAB), /Не удалось загрузить экзамены группы/);
+});
+
+test("E-C/3: a failed load shows the error with «Повторить» (no silent redirect to the list) for every role; «Нет доступа» offers only the way back", () => {
+  const view = read(VIEW);
+  assert.doesNotMatch(view, /router\.push\(paths\.groups\)/);
+  assert.match(view, /onRetry=\{\/Нет доступа\/i\.test\(loadError \|\| ""\) \? undefined : \(\) => void load\(\)\}/);
+  assert.match(view, /isTeacher \? "К моим группам" : "К группам"/);
+  assert.match(view, /Данные группы могут быть неактуальны/);
+});
+
+test("E-C/3: the tabs strip is made from the role's list; the substitute badge is shown for any role that gets the flag", () => {
+  const view = read(VIEW);
+  assert.match(view, /groupPageTabs\(\{ workspace, paymentsAccess \}\)\.map\(\(key\) => \{/);
+  assert.match(view, /group\.substitution && \(\s*<span[^>]*>\{SUBSTITUTE_BADGE\}/);
+  assert.match(view, /\{tab === "exams" && \(\s*<motion\.div[^>]*>\s*<GroupExamsTab group=\{group\} workspace=\{workspace\} \/>/);
+  assert.match(view, /\{tab === "schedule" && paths\.viewerRole !== "teacher" && \(/);
+  // five short labels fit a 390 px phone: the padding of a tab is 12 px each side
+  assert.match(view, /rounded-lg px-1\.5 py-2/);
+});
+
+test("E-C/3: the exam links lead where the teacher's page led (the hub of the exam comes back to the same tab and filter)", () => {
+  const links = lib("group-exams.ts").groupExamLinks({ workspace: "teacher", groupId: "g1", groupName: "9-А Профиль" });
+  assert.equal(links.newExam, "/teacher/exams/new?group_id=g1&group_name=9-%D0%90%20%D0%9F%D1%80%D0%BE%D1%84%D0%B8%D0%BB%D1%8C");
+  assert.equal(links.exam("e1", "/teacher/groups/g1?tab=exams&exam_status=draft"),
+    "/teacher/exams/e1?from_group=g1&from_name=9-%D0%90%20%D0%9F%D1%80%D0%BE%D1%84%D0%B8%D0%BB%D1%8C&return_to=%2Fteacher%2Fgroups%2Fg1%3Ftab%3Dexams%26exam_status%3Ddraft");
+  assert.match(read(EXAMS_TAB), /return `\$\{paths\.groups\}\/\$\{groupId\}\?\$\{params\.toString\(\)\}`;/);
+  assert.doesNotMatch(read(EXAMS_TAB), /["'`]\/teacher\//, "the tab has no path of one workspace typed in");
+});

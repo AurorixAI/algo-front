@@ -179,7 +179,7 @@ test("E4/6: no private copy of the date arithmetic is left in src/ (only lib/bus
 
 const registry = lib("status-registry.ts");
 const TEACHER_EXAM_SCREENS = [
-  "src/app/teacher/exams/page.tsx", "src/app/teacher/groups/[id]/page.tsx",
+  "src/app/teacher/exams/page.tsx", "src/components/groups/group-exams-tab.tsx",
   "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx",
 ];
 /** Where a screen writes the word «Черновик» for a `variants_ready` exam (a literal in the same branch / object). */
@@ -206,7 +206,7 @@ test("E4/2: the teacher's screens (list, group tab, exam header, draft page) tak
 test("E4/2: mutation - the old text puts «Черновик» back and the guard sees it", () => {
   const list = read("src/app/teacher/exams/page.tsx");
   assert.equal(variantsReadyCalledDraft(list.replace('label: examStatusView("variants_ready").label', 'label: "Черновик"')), true);
-  const group = read("src/app/teacher/groups/[id]/page.tsx");
+  const group = read("src/components/groups/group-exams-tab.tsx");
   assert.equal(variantsReadyCalledDraft(group.replace('? examStatusView(ex.status).label', '? "Черновик"')), true);
 });
 
@@ -577,7 +577,7 @@ test("exams of the teacher: the tab / counter holding draft AND variants_ready i
   assert.equal(registry.DRAFT_TAB_LABEL, "В подготовке");
   assert.equal(registry.examStatusView("draft").tone, "neutral");
   const list = read("src/app/teacher/exams/page.tsx");
-  const group = read("src/app/teacher/groups/[id]/page.tsx");
+  const group = read("src/components/groups/group-exams-tab.tsx");
   assert.equal((list.match(/DRAFT_TAB_LABEL/g) || []).length >= 3, true);                  // import + counter + tab
   assert.match(group, /label: DRAFT_TAB_LABEL/);
   for (const [name, source] of [["list", list], ["group", group]]) assert.doesNotMatch(source, /"Черновики"/, name);

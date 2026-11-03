@@ -716,7 +716,7 @@ test("groups: «Тип занятий» in the create and edit forms, shown on t
     assert.match(page, /lesson_type: normalizeLessonType\(g\.lesson_type\)/, role);
   }
   assert.match(read("src/components/groups/group-card.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);
-  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);
+  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /<GroupDetailView workspace="teacher" \/>/); // the teacher reads the type on the same line as the others
 });
 
 // ---- 14. the API helpers against the real answers (fetch is stubbed) ---------------------------------------------------

@@ -6,13 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, CalendarDays,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Tag, Info, RotateCcw, Wallet, BookOpen, AlertTriangle,
+  Archive, Tag, Info, RotateCcw, Wallet, BookOpen, AlertTriangle, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, type StudentInGroup } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
-import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, resolveGroupTab, type PaymentsFilter } from "@/lib/group-payments";
+import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, type PaymentsFilter } from "@/lib/group-payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
@@ -33,12 +33,18 @@ import { useToast } from "@/components/ui/toast";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { GroupPriceAction } from "@/components/groups/group-price-action";
-import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupHeaderActions, groupPriceChipText, groupWorkspacePaths, type GroupDebtSummary, type Workspace } from "@/lib/group-workspace";
+import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupHeaderActions, groupJournalAccess, groupPageTabs, groupPriceChipText, groupTabQuery, groupWorkspacePaths, resolveGroupPageTab, type GroupDebtSummary, type GroupPageTab, type GroupWorkspace } from "@/lib/group-workspace";
 import { priceLabelOf } from "@/lib/group-price";
 import { groupPaymentsHref } from "@/lib/group-payments";
 import { NumberInput } from "@/components/ui/number-input";
+import { GroupExamsTab } from "@/components/groups/group-exams-tab";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
+import { useAuthStore } from "@/lib/store";
 
-type Tab = "students" | "schedule" | "attendance" | "payments";
+type Tab = GroupPageTab;
+
+const TAB_ICONS = { students: Users, schedule: CalendarDays, exams: FileText, attendance: BookOpen, payments: Wallet } as const;
 
 interface EditState {
   name: string;
@@ -52,11 +58,16 @@ interface EditState {
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 
 /**
- * The page of one group, for the owner and for the administrator (IA audit F9: it used to be two copies that differed in their ids and
- * paths only).  `workspace` decides the paths of the links and of the other screens of the group (students, payments, schedule).
+ * The page of one group, for the owner, the administrator and the teacher (IA audit F9: the owner's and the administrator's used to be two copies
+ * that differed in their ids and paths only; WAVE E / E-C, decision 11: the teacher's page of 900 lines is the third copy and is gone).  `workspace`
+ * decides the paths of the links and of the other screens of the group, the tabs, and what the role may do on the page: the teacher reads the group
+ * and runs its exams and its journal, the owner and the administrator manage it.
  */
-export function GroupDetailView({ workspace }: { workspace: Workspace }) {
+export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   const paths = groupWorkspacePaths(workspace);
+  const isTeacher = workspace === "teacher";
+  const canManage = !isTeacher;
+  const user = useAuthStore((state) => state.user);
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,19 +76,20 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const requestedTab = searchParams?.get("tab");
   // #126: the tab «Оплаты» is for the owner and for an administrator with the money right; never on an archived group
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const moneyLoaded = usePaymentsSummary((state) => state.loaded);
   const refreshMoney = usePaymentsSummary((state) => state.refresh);
-  useEffect(() => { void refreshMoney(); }, [refreshMoney]);
-  const paymentsAccess = groupPaymentsAccess({ moneyAvailable, moneyLoaded, archived: group?.status === "archived" });
-  const tab: Tab = resolveGroupTab(requestedTab, paymentsAccess);
+  useEffect(() => { if (canManage) void refreshMoney(); }, [canManage, refreshMoney]); // a teacher never reads the money summary
+  const paymentsAccess = groupPaymentsAccess({ moneyAvailable, moneyLoaded, isTeacher, archived: group?.status === "archived" });
+  const tab: Tab = resolveGroupPageTab(requestedTab, { workspace, paymentsAccess });
   const paymentsFilter = parsePaymentsFilter(searchParams?.get("filter"));
   const setPaymentsFilter = (filter: PaymentsFilter) => router.replace(paymentsFilterQuery(filter), { scroll: false });
   const setTab = (newTab: Tab) => {
-    router.replace(`?tab=${newTab}`, { scroll: false });
+    router.replace(groupTabQuery(searchParams?.toString(), newTab), { scroll: false });
   };
   // a strip that does not fit (a narrow phone, a deep link to «Оплаты») shows the active tab, never cut at the edge
   const tabStrip = useRef<HTMLDivElement | null>(null);
@@ -111,10 +123,11 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    setLoadError(null);
     try {
       const [g, m] = await Promise.all([
         orgApi.getGroup(groupId),
-        orgApi.listMembers().catch(() => []),
+        canManage ? orgApi.listMembers().catch(() => []) : Promise.resolve([]), // the list of staff is for the edit form and the restore dialog
       ]);
       setGroup(g);
       setMembers(Array.isArray(m) ? m : []);
@@ -126,12 +139,13 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
         max_students: String(g.max_students),
         lesson_type: normalizeLessonType(g.lesson_type),
       });
-    } catch {
-      router.push(paths.groups);
+    } catch (error) {
+      // Keep the last verified snapshot on a retry; on the first visit surface the outage instead of sending the user away.
+      setLoadError(getDataLoadErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [groupId, router, paths.groups]);
+  }, [groupId, canManage]);
 
   useEffect(() => { if (groupId) load(); }, [load]);
 
@@ -232,11 +246,25 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
       </div>
     );
   }
-  if (!group) return null;
+  if (!group) {
+    return (
+      <div className="mx-auto max-w-2xl pt-12">
+        <DataLoadError
+          title="Не удалось загрузить группу"
+          message={loadError || "Группа пока недоступна. Повторите попытку."}
+          onRetry={/Нет доступа/i.test(loadError || "") ? undefined : () => void load()}
+        />
+        <p className="mt-4 text-center">
+          <Link href={paths.groups} className="text-sm font-semibold text-primary-600 hover:text-primary-700">{isTeacher ? "К моим группам" : "К группам"}</Link>
+        </p>
+      </div>
+    );
+  }
+  const journal = groupJournalAccess({ workspace, group, userId: user?.id });
 
   const priceChip = paymentsAccess === "show" ? groupPriceChipText(group.price_current, priceLabelOf(periodMode)) : null;
   const debtChip = paymentsAccess === "show" && debt ? groupDebtChipText(debt) : null;
-  const headerMenu: RowMenuItem[] = groupHeaderActions({ archived: group.status === "archived", priceAvailable: paymentsAccess === "show" }).map((action) => {
+  const headerMenu: RowMenuItem[] = groupHeaderActions({ archived: group.status === "archived", priceAvailable: paymentsAccess === "show", canManage }).map((action) => {
     if (action === "edit") return { key: action, label: GROUP_HEADER_LABEL.edit, icon: Edit2, onSelect: () => setEditing(true) };
     if (action === "price") return { key: action, label: GROUP_HEADER_LABEL.price, icon: Tag, onSelect: () => setPriceOpen(true) };
     return { key: action, label: GROUP_HEADER_LABEL.archive, icon: Archive, danger: true, onSelect: () => setArchiveOpen(true) };
@@ -256,10 +284,24 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
         {group.status === "archived" && (
           <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">Архив</span>
         )}
+        {group.substitution && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">{SUBSTITUTE_BADGE}</span>
+        )}
       </div>
 
       {group.status === "archived" && (
-        <GroupArchivedBanner archivedAt={group.archivedAt} studentCount={group.student_count} onRestore={() => setRestoreOpen(true)} />
+        canManage
+          ? <GroupArchivedBanner archivedAt={group.archivedAt} studentCount={group.student_count} onRestore={() => setRestoreOpen(true)} />
+          : <GroupArchivedBanner archivedAt={group.archivedAt} />
+      )}
+
+      {loadError && (
+        <DataLoadError
+          compact
+          title="Данные группы могут быть неактуальны"
+          message={`${loadError} Показаны последние успешно загруженные данные.`}
+          onRetry={() => void load(true)}
+        />
       )}
 
       {/* Group header card */}
@@ -452,7 +494,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {group.status === "archived" ? (
-                    <button
+                    canManage && <button
                       type="button"
                       onClick={() => setRestoreOpen(true)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-xs cursor-pointer"
@@ -473,18 +515,15 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
 
       {/* Tabs */}
       <div ref={tabStrip} data-testid="group-tabs" className="flex w-full max-w-full items-center gap-1 overflow-x-auto bg-slate-100 rounded-xl p-1 sm:w-fit [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Разделы группы">
-        {([
-          { key: "students", Icon: Users },
-          { key: "schedule", Icon: CalendarDays },
-          { key: "attendance", Icon: BookOpen },
-          ...(paymentsAccess === "show" ? [{ key: "payments", Icon: Wallet }] : []),
-        ] as const).map(({ key, Icon }) => (
+        {groupPageTabs({ workspace, paymentsAccess }).map((key) => {
+          const Icon = TAB_ICONS[key];
+          return (
           <button
             key={key}
             role="tab"
             aria-selected={tab === key}
-            onClick={() => setTab(key as Tab)}
-            className={`flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:flex-none sm:px-4 sm:text-sm ${
+            onClick={() => setTab(key)}
+            className={`flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-2 text-[13px] font-medium transition-all sm:flex-none sm:px-4 sm:text-sm ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
@@ -494,7 +533,8 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
             <span className="sm:hidden">{GROUP_TAB_LABELS[key as Tab].short}</span>
             <span className="hidden sm:inline">{GROUP_TAB_LABELS[key as Tab].full}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab content */}
@@ -506,7 +546,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                 Состав группы
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
-              {group.status === "active" && (
+              {canManage && group.status === "active" && (
                 <button
                   type="button"
                   onClick={() => setAddOpen(true)}
@@ -522,13 +562,13 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
               studentBasePath={paths.students}
               groupId={groupId}
               onLeft={handleStudentLeft}
-              canRemove={group.status === "active"}
+              canRemove={canManage && group.status === "active"}
               onTransfer={setTransferStudent}
             />
           </motion.div>
         )}
 
-        {tab === "schedule" && (
+        {tab === "schedule" && paths.viewerRole !== "teacher" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupScheduleOverview groupId={groupId} groupName={group.name} viewerRole={paths.viewerRole} archived={group.status === "archived"} teacherAssigned={Boolean(group.teacher_id || group.teacher_name)} />
           </motion.div>
@@ -554,14 +594,21 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
           </motion.div>
         )}
 
+        {tab === "exams" && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <GroupExamsTab group={group} workspace={workspace} />
+          </motion.div>
+        )}
+
         {tab === "attendance" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupAttendanceJournal
               groupId={groupId}
               students={group.students || []}
-              canEdit={group.status !== "archived"}
-              adminMode
-              groupName={group.name}
+              canEdit={journal.canEdit}
+              adminMode={journal.adminMode}
+              viewerId={journal.viewerId}
+              groupName={journal.groupName}
               studentProfileBasePath={paths.students}
               initialMonth={searchParams?.get("month")}
               highlightLessonId={searchParams?.get("lesson")}
@@ -571,64 +618,69 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
         )}
       </div>
 
-      <AddStudentDrawer
-        open={addOpen}
-        groupId={groupId}
-        groupClassLevel={group.class_level}
-        groupPrice={group.price_current}
-        groupsBasePath={paths.groups}
-        existingStudentIds={existingIds}
-        onClose={() => setAddOpen(false)}
-        onAdded={handleStudentsAdded}
-      />
+      {/* the dialogs of the manager: a teacher manages nothing here */}
+      {canManage && (
+        <>
+          <AddStudentDrawer
+            open={addOpen}
+            groupId={groupId}
+            groupClassLevel={group.class_level}
+            groupPrice={group.price_current}
+            groupsBasePath={paths.groups}
+            existingStudentIds={existingIds}
+            onClose={() => setAddOpen(false)}
+            onAdded={handleStudentsAdded}
+          />
 
-      <GroupLessonTypeDialog
-        open={lessonTypeOpen}
-        groupId={group.id}
-        groupName={group.name}
-        initialType={editing ? editState.lesson_type : undefined}
-        onSaved={handleLessonTypeSaved}
-        onClose={() => setLessonTypeOpen(false)}
-      />
+          <GroupLessonTypeDialog
+            open={lessonTypeOpen}
+            groupId={group.id}
+            groupName={group.name}
+            initialType={editing ? editState.lesson_type : undefined}
+            onSaved={handleLessonTypeSaved}
+            onClose={() => setLessonTypeOpen(false)}
+          />
 
-      <GroupArchiveDialog
-        open={archiveOpen}
-        group={{ id: group.id, name: group.name, class_level: group.class_level }}
-        groupsBasePath={paths.groups}
-        onClose={() => setArchiveOpen(false)}
-        onArchived={handleArchived}
-      />
-      <GroupRestoreDialog
-        open={restoreOpen}
-        group={{ id: group.id, name: group.name }}
-        teachers={teachers}
-        onClose={() => setRestoreOpen(false)}
-        onRestored={handleRestored}
-      />
+          <GroupArchiveDialog
+            open={archiveOpen}
+            group={{ id: group.id, name: group.name, class_level: group.class_level }}
+            groupsBasePath={paths.groups}
+            onClose={() => setArchiveOpen(false)}
+            onArchived={handleArchived}
+          />
+          <GroupRestoreDialog
+            open={restoreOpen}
+            group={{ id: group.id, name: group.name }}
+            teachers={teachers}
+            onClose={() => setRestoreOpen(false)}
+            onRestored={handleRestored}
+          />
 
-      <GroupPriceAction
-        open={priceOpen}
-        groupId={group.id}
-        groupName={group.name}
-        onClose={() => setPriceOpen(false)}
-        onSaved={(wasSet) => { setPriceOpen(false); showToast(wasSet ? "Цена группы изменена" : "Цена группы задана"); setDebtTick((n) => n + 1); void load(true); }}
-        onError={(message) => showToast(message, "error")}
-      />
+          <GroupPriceAction
+            open={priceOpen}
+            groupId={group.id}
+            groupName={group.name}
+            onClose={() => setPriceOpen(false)}
+            onSaved={(wasSet) => { setPriceOpen(false); showToast(wasSet ? "Цена группы изменена" : "Цена группы задана"); setDebtTick((n) => n + 1); void load(true); }}
+            onError={(message) => showToast(message, "error")}
+          />
 
-      {transferStudent && (
-        <AssignGroupModal
-          open
-          studentId={transferStudent.id}
-          studentName={transferStudent.full_name || `${transferStudent.last_name} ${transferStudent.first_name}`}
-          studentGrade={transferStudent.class_level}
-          mode="transfer"
-          currentGroupId={group.id}
-          currentGroupName={group.name}
-          excludeGroupIds={[group.id]}
-          groupsBasePath={paths.groups}
-          onClose={() => setTransferStudent(null)}
-          onAssigned={() => { setTransferStudent(null); void load(true); }}
-        />
+          {transferStudent && (
+            <AssignGroupModal
+              open
+              studentId={transferStudent.id}
+              studentName={transferStudent.full_name || `${transferStudent.last_name} ${transferStudent.first_name}`}
+              studentGrade={transferStudent.class_level}
+              mode="transfer"
+              currentGroupId={group.id}
+              currentGroupName={group.name}
+              excludeGroupIds={[group.id]}
+              groupsBasePath={paths.groups}
+              onClose={() => setTransferStudent(null)}
+              onAssigned={() => { setTransferStudent(null); void load(true); }}
+            />
+          )}
+        </>
       )}
 
       {toastNode}

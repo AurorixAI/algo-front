@@ -336,7 +336,7 @@ test("exam and diagnostic screens go through the business-time helpers", () => {
     // the old /sessions page is a redirect now (WB-P5, F-A17); the results table lives in app/teacher/exams/[id]/page.tsx
     "lib/exam-sessions-csv.ts": ["formatUtcNaiveAsBusinessDateTime(s.submitted_at)"],
     "app/teacher/exams/[id]/report/page.tsx": ["formatUtcNaiveAsBusinessDayTime(report.generated_at"],
-    "app/teacher/groups/[id]/page.tsx": ["formatUtcNaiveAsBusinessDate(ex.created_at)"],
+    "components/groups/group-exams-tab.tsx": ["formatUtcNaiveAsBusinessDate(ex.created_at)"],
     "components/students/student-profile-view.tsx": ["formatUtcNaiveAsBusinessDayTime(ex.submitted_at)", "formatUtcNaiveAsBusinessDate(ex.started_at"],
     // P1: a one-off lesson is saved on its date through the shared helper (the server derives the weekday from the date)
     "app/teacher/schedule/page.tsx": ["createOneOff(groupId, newLessonDate"],

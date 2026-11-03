@@ -136,7 +136,7 @@ test("the group pages are wired: «В архив» opens the dialog, the archive
   for (const who of ["admin", "owner"]) {
     assert.match(read(`src/app/${who}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${who}" />`), who);
     const page = read("src/components/groups/group-detail-view.tsx");
-    for (const needle of [/GroupArchiveDialog/, /GroupRestoreDialog/, /GroupArchivedBanner/, /canEdit=\{group\.status !== "archived"\}/, /Вернуть из архива/]) assert.match(page, needle, `${who} ${needle}`);
+    for (const needle of [/GroupArchiveDialog/, /GroupRestoreDialog/, /GroupArchivedBanner/, /canEdit=\{journal\.canEdit\}/, /Вернуть из архива/]) assert.match(page, needle, `${who} ${needle}`);
     assert.doesNotMatch(page, /confirm\(`Архивировать/);
   }
   const api = read("src/lib/api.ts");

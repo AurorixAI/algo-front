@@ -346,11 +346,9 @@ test("#103: in the journal «Подтвердить» / «Отклонить» o
   assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else closeReviewDialog\(\);/);
   // role rules are untouched: only the administrator / owner journal (adminMode) can review
   assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
+  // ONE rule for every role (`groupJournalAccess`): the manager's journal is in admin mode, the teacher's is not
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /adminMode=\{journal\.adminMode\}\s+viewerId=\{journal\.viewerId\}\s+groupName=\{journal\.groupName\}/);
   assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /adminMode/);
-  for (const role of ["owner", "admin"]) {
-    const page = read("src/components/groups/group-detail-view.tsx");
-    assert.match(page, /adminMode\s+groupName=\{group\.name\}/, role);
-  }
 });
 
 test("#103: no other path of the front sends an excuse decision: two callers of the API, both behind the dialog", () => {

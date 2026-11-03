@@ -107,7 +107,7 @@ test("the group roster and the Select label use the style of table-chrome: semib
 test("no blue-violet-green strips: the shared Modal, the group dialogs, the import dialog, change password, the teacher group page", () => {
   for (const file of [
     "src/components/ui/modal.tsx", "src/components/groups/group-create-modal.tsx", "src/components/import/import-modal.tsx",
-    "src/app/change-password/page.tsx", "src/app/teacher/groups/[id]/page.tsx",
+    "src/app/change-password/page.tsx", "src/components/groups/group-exams-tab.tsx",
   ]) {
     assert.doesNotMatch(read(file), /via-violet-400|via-sky-400 to-indigo-500|via-violet-600 to-emerald-400/, file);
     assert.doesNotMatch(read(file), /h-1(\.5)? w-full[^"]*bg-gradient|absolute top-0 left-0 right-0 h-1\.5/, file);

@@ -186,7 +186,7 @@ test("C: a counter is what the tab shows - for every mix of lobby exams the tab 
 });
 
 test("C (LESSONS 56): no screen of an exam says «Ожидает запуска» / «В лобби» / the bare «Лобби» as a status; every screen that shows the lobby status asks the one function", () => {
-  const screens = ["src/app/admin/exams/page.tsx", "src/app/admin/exams/[id]/page.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/groups/[id]/page.tsx"];
+  const screens = ["src/app/admin/exams/page.tsx", "src/app/admin/exams/[id]/page.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/components/groups/group-exams-tab.tsx"];
   for (const file of screens) {
     const source = read(file);
     assert.match(source, /examListState|dashboardExamState/, `${file} asks the state of the exam by its lesson`);
@@ -201,7 +201,7 @@ test("C (LESSONS 56): no screen of an exam says «Ожидает запуска�
   assert.match(admin, /lobbyCounts\(todayLobby, stateOf\)/);
   assert.match(admin, /filter === "lobby" \? todayLobby\.filter\(\(exam\) => bucketOfExam\(exam\) === "lobby"\)/);
   // the teacher: the library and the group have the tab «Запланированы» and count by the same function
-  for (const file of ["src/app/teacher/exams/page.tsx", "src/app/teacher/groups/[id]/page.tsx"]) {
+  for (const file of ["src/app/teacher/exams/page.tsx", "src/components/groups/group-exams-tab.tsx"]) {
     assert.match(read(file), /examTabOf\(/, file);
     assert.match(read(file), /Запланированы/, file);
   }

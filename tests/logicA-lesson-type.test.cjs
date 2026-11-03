@@ -83,9 +83,9 @@ test("the header of the group has no «Изменить…»; the dialog opens f
     assert.match(read("src/lib/group-form.ts"), /\.\.\.\(withType \? \{ lesson_type: state\.lesson_type as LessonType \} : \{\}\)/, role);
     assert.match(page, /initialType=\{editing \? editState\.lesson_type : undefined\}/, role);
     assert.match(page, /if \(editing\) void saveFields\(false, /, role);
-    assert.match(page, /group\.status !== "archived"/, role);
   }
-  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /GroupLessonTypeDialog/);
+  // the teacher has no dialog: it sits in the block of the manager, which a teacher's workspace does not render
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /\{canManage && \(\s*<>\s*<AddStudentDrawer[\s\S]*<GroupLessonTypeDialog/);
   const dialog = read("src/components/groups/group-lesson-type-dialog.tsx");
   assert.match(dialog, /dryRun: true/);
   assert.match(dialog, /setLessonType\(initialType \?\? result\.current\)/);

@@ -43,7 +43,7 @@ function hooksOf(source) {
 
 // ── D1 ────────────────────────────────────────────────────────────────────────────────────────────────────
 test("D1: the list of exams of a group depends on the state of the exam, like its counters (a status that arrives later is seen by both)", () => {
-  const source = read("src/app/teacher/groups/[id]/page.tsx");
+  const source = read("src/components/groups/group-exams-tab.tsx");
   assert.match(source, /\}, \[groupExams, examFilter, examSearch, examStateOf\]\);/);
   assert.match(source, /\}, \[groupExams, examStateOf\]\);/, "the counters had it already");
   const filtered = hooksOf(source).find((h) => /const filteredGroupExams|examFilter/.test(h.call) && /examStateOf\(/.test(h.call));
@@ -51,7 +51,7 @@ test("D1: the list of exams of a group depends on the state of the exam, like it
 });
 
 test("D1: no memo / callback of the three lists uses the state function without having it in its dependencies (the neighbours of the same mistake)", () => {
-  const pages = { "src/app/teacher/groups/[id]/page.tsx": ["examStateOf"], "src/app/teacher/exams/page.tsx": ["stateOf"], "src/app/admin/exams/page.tsx": ["stateOf", "bucketOfExam", "todayKinds"] };
+  const pages = { "src/components/groups/group-exams-tab.tsx": ["examStateOf"], "src/app/teacher/exams/page.tsx": ["stateOf"], "src/app/admin/exams/page.tsx": ["stateOf", "bucketOfExam", "todayKinds"] };
   let checked = 0;
   for (const [file, names] of Object.entries(pages)) {
     for (const hook of hooksOf(read(file))) {

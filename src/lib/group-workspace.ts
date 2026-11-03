@@ -58,13 +58,18 @@ export function resolveGroupPageTab(requested: string | null | undefined, input:
   return tabs.find((tab) => tab === requested) ?? "students";
 }
 
+/** `?month=&lesson=&date=` open the journal on one lesson (open-lessons link); they do not follow the user to another tab or to a filter. */
+export function withoutJournalLink(params: URLSearchParams): URLSearchParams {
+  for (const key of ["month", "lesson", "date"]) params.delete(key);
+  return params;
+}
+
 /**
  * The query after a click on a tab: `?tab=` and what belongs to the tab family survives (the exam filter and search of «Экзамены»), the one-shot
  * deep link of the journal (`month`, `lesson`, `date`) and the filter of «Оплаты» do not follow the user to another tab.
  */
 export function groupTabQuery(current: string | null | undefined, tab: GroupPageTab): string {
-  const next = new URLSearchParams(current ?? "");
-  for (const key of ["month", "lesson", "date"]) next.delete(key);
+  const next = withoutJournalLink(new URLSearchParams(current ?? ""));
   if (tab !== "payments") next.delete("filter");
   next.set("tab", tab);
   return `?${next.toString()}`;

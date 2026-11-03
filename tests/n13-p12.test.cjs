@@ -147,18 +147,19 @@ test("?lesson= and ?date= are read only when both are valid", () => {
 });
 
 test("the teacher's group page honours the same deep link: ?tab=attendance opens the journal, the month/lesson/date are raw params the journal validates", () => {
-  const page = read("src/app/teacher/groups/[id]/page.tsx");
-  // `?tab=attendance` is one of the teacher's three tabs (no «schedule» tab here)
-  assert.match(page, /type Tab = "students" \| "exams" \| "attendance";/);
-  assert.match(page, /requestedTab === "exams" \|\| requestedTab === "attendance" \|\| requestedTab === "students"/);
-  assert.match(page, /\{tab === "attendance" && \(\s*<GroupAttendanceJournal/);
+  const page = read("src/components/groups/group-detail-view.tsx");
+  const exams = read("src/components/groups/group-exams-tab.tsx");
+  // `?tab=attendance` is one of the teacher's three tabs (no «schedule» tab here): the list of tabs of a role is one function
+  assert.match(page, /resolveGroupPageTab\(requestedTab, \{ workspace, paymentsAccess \}\)/);
+  assert.match(page, /\{tab === "attendance" && \(\s*<motion\.div[^>]*>\s*<GroupAttendanceJournal/);
+  assert.equal(require(path.join(__dirname, "..", "src/lib/group-workspace.ts")).resolveGroupPageTab("attendance", { workspace: "teacher", paymentsAccess: "hidden" }), "attendance");
   // an invalid month / lesson / date reaches the journal as is and is dropped there (it opens the current week)
   assert.equal(openLessons.parseJournalMonth("2026-13"), null);
   assert.equal(openLessons.parseJournalHighlight("<x>", "2026-09-30"), null);
   // the link is one-shot: switching the tab (or the exam filter) drops it, so «Посещаемость» does not jump back to it
-  assert.match(page, /const setTab = \(newTab: Tab\) => \{\s*const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);/);
-  assert.match(page, /const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);\s*next\.set\("tab", "exams"\);/);
-  assert.match(page, /for \(const key of \["month", "lesson", "date"\]\) params\.delete\(key\);/);
+  assert.match(page, /router\.replace\(groupTabQuery\(searchParams\?\.toString\(\), newTab\)/);
+  assert.match(exams, /const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);\s*next\.set\("tab", "exams"\);/);
+  assert.match(read("src/lib/group-workspace.ts"), /for \(const key of \["month", "lesson", "date"\]\) params\.delete\(key\);/);
   // the link a teacher would get is the same one the open-lessons list builds for the other roles
   assert.equal(
     openLessons.journalHref("/teacher/groups", action({ groupId: "G-7", lessonId: "s2", lessonDate: "2026-09-30" })),

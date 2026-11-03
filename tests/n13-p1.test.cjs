@@ -192,7 +192,7 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
   for (const role of ["admin", "owner"]) {
     const page = read("src/components/groups/group-detail-view.tsx");
     // LOGIC-B (O4): the journal of an archived group is read-only, so `canEdit` is no longer a bare flag
-    assert.match(page, /canEdit(=\{group\.status !== "archived"\})?\s+adminMode/, role);
+    assert.match(page, /canEdit=\{journal\.canEdit\}\s+adminMode=\{journal\.adminMode\}/, role);
     assert.match(page, /AddStudentDrawer/, role);
   }
 });

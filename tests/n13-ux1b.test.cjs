@@ -272,8 +272,8 @@ test("INC-14: no always-visible legend rows; the same words live in a «?» hint
   assert.equal(marks.excuseStatusMeaning("confirmed"), "Подтверждена — урок не идёт в зарплату");
   assert.equal(marks.excuseStatusMeaning("pending"), "Ждёт решения — решит администратор");
   assert.equal(marks.excuseStatusMeaning("rejected"), "Отклонена — считается обычным пропуском");
-  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /GroupAttendanceJournal/);
-  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /AttendanceLegend/);
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /GroupAttendanceJournal/); // the teacher's page is this view
+  assert.doesNotMatch(read("src/components/groups/group-detail-view.tsx"), /AttendanceLegend/);
 });
 
 test("a cell keeps its size: the longest words fit the 132 px column of a lesson", () => {

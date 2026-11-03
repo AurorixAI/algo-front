@@ -552,7 +552,7 @@ test("F-A20: the leave-page guard asks through the platform's dialog, holds the 
 });
 
 test("F-A20: the screens that had an alert show the failure as a toast (toastNode rendered)", () => {
-  for (const file of ["src/app/owner/settings/page.tsx", "src/app/owner/teachers/page.tsx", "src/app/teacher/groups/[id]/page.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/new/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx"]) {
+  for (const file of ["src/app/owner/settings/page.tsx", "src/app/owner/teachers/page.tsx", "src/components/groups/group-exams-tab.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/new/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx"]) {
     const source = read(file);
     assert.match(source, /\{toastNode\}/, file);
     assert.match(source, /showToast\(/, file);
@@ -666,7 +666,7 @@ test("F-A22: copyText answers false when the clipboard refuses, and the screens 
   Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true, writable: true });
   assert.equal(await copyText("x"), false, "no clipboard at all");
   assert.match(lib("exam-link.ts").COPY_FAILED_TEXT, /Не удалось скопировать/);
-  for (const file of ["src/app/admin/diagnostics/page.tsx", "src/app/admin/students/new/page.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx", "src/app/teacher/groups/[id]/page.tsx"]) {
+  for (const file of ["src/app/admin/diagnostics/page.tsx", "src/app/admin/students/new/page.tsx", "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx", "src/components/groups/group-exams-tab.tsx"]) {
     assert.match(read(file), /if \(!ok\) \{ showToast\(COPY_FAILED_TEXT, "error"\); return; \}/, file);
   }
 });

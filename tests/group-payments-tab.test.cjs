@@ -22,6 +22,7 @@ if (!Module.__gpAlias) {
 }
 const G = require(path.join(root, "src/lib/group-payments.ts"));
 const P = require(path.join(root, "src/lib/payments.ts"));
+const GW = require(path.join(root, "src/lib/group-workspace.ts"));
 const GP = require(path.join(root, "src/lib/group-price.ts"));
 const plain = (text) => String(text).replace(/[\u00a0\u202f]/g, " ");
 
@@ -59,12 +60,12 @@ test("visibility: the owner and an administrator with the money right see it; a 
 });
 
 test("the tab of ?tab=: payments only where it may be seen; a deep link waits while the right is unknown; the others as before", () => {
-  assert.equal(G.resolveGroupTab("payments", "show"), "payments");
-  assert.equal(G.resolveGroupTab("payments", "pending"), "payments");
-  assert.equal(G.resolveGroupTab("payments", "hidden"), "students");
-  assert.equal(G.resolveGroupTab("attendance", "hidden"), "attendance");
-  assert.equal(G.resolveGroupTab("bogus", "show"), "students");
-  assert.equal(G.resolveGroupTab(null, "show"), "students");
+  assert.equal(GW.resolveGroupPageTab("payments", { workspace: "owner", paymentsAccess: "show" }), "payments");
+  assert.equal(GW.resolveGroupPageTab("payments", { workspace: "owner", paymentsAccess: "pending" }), "payments");
+  assert.equal(GW.resolveGroupPageTab("payments", { workspace: "owner", paymentsAccess: "hidden" }), "students");
+  assert.equal(GW.resolveGroupPageTab("attendance", { workspace: "owner", paymentsAccess: "hidden" }), "attendance");
+  assert.equal(GW.resolveGroupPageTab("bogus", { workspace: "owner", paymentsAccess: "show" }), "students");
+  assert.equal(GW.resolveGroupPageTab(null, { workspace: "owner", paymentsAccess: "show" }), "students");
   assert.equal(G.GROUP_PAYMENTS_LABEL, "Оплаты");
 });
 
@@ -74,14 +75,16 @@ test("the pages of the owner and of the administrator carry the 4th tab; the tea
     assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${role}" />`), role);
     const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /<GroupPaymentsTab/, role);
-    assert.match(page, /\.\.\.\(paymentsAccess === "show" \? \[\{ key: "payments", Icon: Wallet \}\]/, role);
+    assert.match(page, /groupPageTabs\(\{ workspace, paymentsAccess \}\)/, role);
     assert.match(page, /groupsBasePath=\{paths\.groups\}/, role);
     assert.match(page, /paymentsBasePath=\{paths\.payments\}/, role);
     assert.match(page, /archived: group\?\.status === "archived"/, role);
     assert.match(page, /tab === "payments" && paymentsAccess === "pending"/, role);
   }
-  const teacher = read("src/app/teacher/groups/[id]/page.tsx");
-  assert.doesNotMatch(teacher, /GroupPaymentsTab|group-payments/);
+  // the teacher's page is the same view; his workspace has no money (the tab is not in his list, the access is «hidden»)
+  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /<GroupDetailView workspace="teacher" \/>/);
+  assert.equal(GW.groupPageTabs({ workspace: "teacher", paymentsAccess: "show" }).includes("payments"), false);
+  assert.equal(G.groupPaymentsAccess({ moneyAvailable: true, moneyLoaded: true, isTeacher: true }), "hidden");
 });
 
 // ── filter and deep link ────────────────────────────────────────────────────────────────────
