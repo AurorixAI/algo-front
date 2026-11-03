@@ -7,6 +7,7 @@
  *  4. the names of the ways to count a payment live in ONE dictionary: `PAYMENT_MODELS` in `payments.ts`.
  */
 import type { MembershipPaymentRow } from "./payments";
+import { daysBetweenInclusive } from "./business-time";
 import { pluralRu } from "./plural";
 
 const MINUS = "−";
@@ -198,27 +199,13 @@ export interface DayOffForm {
   reason: string;
 }
 
-/** The number of a calendar day (days of the proleptic Gregorian calendar): the difference of two is the days between them, with no time zone in it. */
-function dayNumber(iso: string): number {
-  const year = Number(iso.slice(0, 4));
-  const month = Number(iso.slice(5, 7));
-  const day = Number(iso.slice(8, 10));
-  const y = month <= 2 ? year - 1 : year;
-  const m = (month + 9) % 12;
-  return 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) + Math.floor((m * 306 + 5) / 10) + day;
-}
-
-function daysBetween(from: string, to: string): number {
-  return dayNumber(to) - dayNumber(from) + 1;
-}
-
 /** What is wrong with the DATES of a day off (the dry run asks no reason), or null. */
 export function dayOffDatesError(form: Pick<DayOffForm, "dateFrom" | "dateTo">): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dateFrom)) return "Укажите дату";
   if (form.dateTo && !/^\d{4}-\d{2}-\d{2}$/.test(form.dateTo)) return "Укажите дату окончания";
   const to = form.dateTo || form.dateFrom;
   if (to < form.dateFrom) return "Конец выходного раньше его начала";
-  if (daysBetween(form.dateFrom, to) > DAY_OFF_MAX_DAYS) return `Выходной — не больше ${DAY_OFF_MAX_DAYS} дней подряд`;
+  if (daysBetweenInclusive(form.dateFrom, to) > DAY_OFF_MAX_DAYS) return `Выходной — не больше ${DAY_OFF_MAX_DAYS} дней подряд`;
   return null;
 }
 

@@ -36,6 +36,7 @@ import {
   type StatementSummary,
   type WriteoffCreate,
 } from "./payments";
+import { shiftMonthKey } from "./business-time";
 import { recalcAmountText, type RecalcLine } from "./payf";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
@@ -928,11 +929,6 @@ function lastDayOf(key: string): string {
 /** The first / last day of a month key, for the filter of the server's export. */
 export function monthRange(key: string): { from: string; to: string } {
   return { from: `${key}-01`, to: lastDayOf(key) };
-}
-
-export function shiftMonthKey(key: string, delta: number): string {
-  const total = Number(key.slice(0, 4)) * 12 + (Number(key.slice(5, 7)) - 1) + delta;
-  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}`;
 }
 
 /** A period inside one calendar month that starts on its 1st or ends on its last day: it is called by the month. */

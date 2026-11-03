@@ -19,24 +19,25 @@ const journal = lib("journal-period");
 const payroll = lib("payroll");
 const excuses = lib("attendance-excuses");
 
-test("shiftBusinessMonth: year rollover both ways, leap/short months do not matter, junk is unchanged", () => {
-  assert.equal(time.shiftBusinessMonth("2026-12", 1), "2027-01");
-  assert.equal(time.shiftBusinessMonth("2027-01", -1), "2026-12");
-  assert.equal(time.shiftBusinessMonth("2026-01", -1), "2025-12");
-  assert.equal(time.shiftBusinessMonth("2026-10", 0), "2026-10");
-  assert.equal(time.shiftBusinessMonth("2026-10", 14), "2027-12");
-  assert.equal(time.shiftBusinessMonth("2026-10", -22), "2024-12");
-  assert.equal(time.shiftBusinessMonth("2026-13", 1), "2026-13");
-  assert.equal(time.shiftBusinessMonth("nope", 1), "nope");
+test("shiftMonthKey: year rollover both ways, leap/short months do not matter, junk is unchanged", () => {
+  assert.equal(time.shiftMonthKey("2026-12", 1), "2027-01");
+  assert.equal(time.shiftMonthKey("2027-01", -1), "2026-12");
+  assert.equal(time.shiftMonthKey("2026-01", -1), "2025-12");
+  assert.equal(time.shiftMonthKey("2026-10", 0), "2026-10");
+  assert.equal(time.shiftMonthKey("2026-10", 14), "2027-12");
+  assert.equal(time.shiftMonthKey("2026-10", -22), "2024-12");
+  assert.equal(time.shiftMonthKey("2026-13", 1), "2026-13");
+  assert.equal(time.shiftMonthKey("nope", 1), "nope");
 });
 
 test("payroll, excuses and student-card switchers share the one implementation", () => {
   for (const [month, delta] of [["2026-12", 1], ["2026-01", -1], ["2026-03", 1], ["2028-02", 1], ["2026-10", -13]]) {
-    assert.equal(payroll.shiftMonth(month, delta), time.shiftBusinessMonth(month, delta));
-    assert.equal(excuses.shiftMonth(month, delta), time.shiftBusinessMonth(month, delta));
+    assert.equal(time.shiftMonthKey(month, delta).length, 7);
   }
-  assert.equal(payroll.shiftMonth("2026-12", 1), "2027-01");
-  assert.equal(excuses.shiftMonth("2026-12", 1), "2027-01");
+  assert.equal(time.shiftMonthKey("2026-12", 1), "2027-01");
+  // WAVE E: payroll and excuses have no copy (not even a wrapper) of the switcher any more
+  assert.equal(payroll.shiftMonth, undefined);
+  assert.equal(excuses.shiftMonth, undefined);
   assert.equal(payroll.canGoToNextMonth("2026-09", "2026-10-16"), true);
   assert.equal(payroll.canGoToNextMonth("2026-10", "2026-10-16"), false);
 });
@@ -66,8 +67,8 @@ test("journal: stepping month by month from any day visits every month exactly o
       seen.push(anchor.slice(0, 7));
     }
     assert.equal(new Set(seen).size, 25, start);
-    assert.equal(seen[0], time.shiftBusinessMonth(start.slice(0, 7), 1), start);
-    assert.equal(seen[24], time.shiftBusinessMonth(start.slice(0, 7), 25), start);
+    assert.equal(seen[0], time.shiftMonthKey(start.slice(0, 7), 1), start);
+    assert.equal(seen[24], time.shiftMonthKey(start.slice(0, 7), 25), start);
     for (let i = 0; i < 25; i += 1) anchor = journal.moveJournalAnchor(anchor, "month", -1);
     assert.equal(anchor.slice(0, 7), start.slice(0, 7), `back to the start month from ${start}`);
   }

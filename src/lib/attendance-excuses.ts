@@ -4,7 +4,7 @@
  */
 
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
-import { formatBusinessDateTime, shiftBusinessMonth } from "./business-time";
+import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
 
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
@@ -223,12 +223,6 @@ export function firstMissingExcuseReason(
 
 export const EXCUSE_MAX_PERIOD_DAYS = 93;
 
-function isoToUtcDay(iso: string): number {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) return NaN;
-  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000;
-}
-
 /** First and last day (YYYY-MM-DD) of the month that contains `today`. */
 export function monthRangeOf(today: string): { from: string; to: string } {
   const match = /^(\d{4})-(\d{2})/.exec(today);
@@ -241,11 +235,10 @@ export function monthRangeOf(today: string): { from: string; to: string } {
 
 /** null when the period is acceptable for the list endpoint, otherwise the text to show. */
 export function validateExcusePeriod(from: string, to: string): string | null {
-  const start = isoToUtcDay(from);
-  const end = isoToUtcDay(to);
-  if (Number.isNaN(start) || Number.isNaN(end)) return "Укажите даты периода";
-  if (end < start) return "Дата «по» раньше даты «с»";
-  if (end - start + 1 > EXCUSE_MAX_PERIOD_DAYS) {
+  if (!addIsoDays(from, 0) || !addIsoDays(to, 0)) return "Укажите даты периода";
+  const days = daysBetweenInclusive(from, to);
+  if (days < 1) return "Дата «по» раньше даты «с»";
+  if (days > EXCUSE_MAX_PERIOD_DAYS) {
     return `Период не может быть длиннее ${EXCUSE_MAX_PERIOD_DAYS} дней`;
   }
   return null;
@@ -369,11 +362,6 @@ const MONTH_NAMES_NOMINATIVE = [
 /** "2026-10" for a YYYY-MM-DD date. */
 export function monthOf(isoDate: string): string {
   return /^(\d{4}-\d{2})/.exec(isoDate)?.[1] ?? isoDate;
-}
-
-/** The month `delta` months away: shiftMonth("2026-12", 1) -> "2027-01". */
-export function shiftMonth(month: string, delta: number): string {
-  return shiftBusinessMonth(month, delta);
 }
 
 /** "2026-10" -> "Октябрь 2026". */

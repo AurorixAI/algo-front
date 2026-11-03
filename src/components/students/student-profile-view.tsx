@@ -25,12 +25,11 @@ import { defaultDiagnosticKind, diagnosticLink, diagnosticsAllowed, isShareableI
 import { type MembershipPaymentRow } from "@/lib/payments";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
-import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime, monthYearLabelRu } from "@/lib/business-time";
+import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime, monthYearLabelRu, shiftMonthKey } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
-import { shiftMonth } from "@/lib/attendance-excuses";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { DiagnosticStatusBadge, diagnosticActionClass } from "@/components/diagnostics/list-chrome";
@@ -791,7 +790,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   <div className="inline-flex w-fit items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
                     <button
                       type="button"
-                      onClick={() => setAttendanceMonth((month) => shiftMonth(month, -1))}
+                      onClick={() => setAttendanceMonth((month) => shiftMonthKey(month, -1))}
                       aria-label="Предыдущий месяц"
                       className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
                     >
@@ -800,7 +799,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     <span className="min-w-[130px] px-2 text-center text-xs font-semibold text-slate-700">{capitalizeFirst(monthYearLabelRu(attendanceMonth))}</span>
                     <button
                       type="button"
-                      onClick={() => setAttendanceMonth((month) => shiftMonth(month, 1))}
+                      onClick={() => setAttendanceMonth((month) => shiftMonthKey(month, 1))}
                       aria-label="Следующий месяц"
                       className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
                     >

@@ -8,10 +8,10 @@
  * (rounded so they add up to 100) and the height of a bar.  Contract: tests/fixtures/income2 (the frozen income2_contract.json).
  * No React and no network here, so node:test loads this file.
  */
-import { addDays, daysBetween, formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
-import { monthEnd, monthStart, shiftMonth } from "./payments-income";
+import { formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
+import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
-import { capitalizeFirst, monthYearLabelRu } from "./business-time";
+import { addIsoDays, capitalizeFirst, daysBetweenInclusive, monthYearLabelRu, shiftDateByMonth } from "./business-time";
 
 // ── Contract (income2_contract.json) ───────────────────────────────────────
 
@@ -322,11 +322,11 @@ export function periodOf(kind: "day" | "month" | "custom", anchor: string, curre
 /** One step back / forward: a month, or a custom range of the same length. */
 export function stepPeriod(period: Period, delta: 1 | -1): Period {
   if (period.kind === "month") {
-    const first = shiftMonth(period.from, delta);
+    const first = shiftDateByMonth(period.from, delta);
     return { kind: "month", from: first, to: monthEnd(first) };
   }
-  const length = daysBetween(period.from, period.to) + 1;
-  return { kind: "custom", from: addDays(period.from, delta * length), to: addDays(period.to, delta * length) };
+  const length = daysBetweenInclusive(period.from, period.to);
+  return { kind: "custom", from: addIsoDays(period.from, delta * length), to: addIsoDays(period.to, delta * length) };
 }
 
 /** The forward arrow stops at the period that holds today: there is nothing to read in the future. */
@@ -342,7 +342,7 @@ export function monthOfPeriod(period: Period, today: string): Period {
 export function validatePeriod(period: Period): string | null {
   if (!isIsoDate(period.from) || !isIsoDate(period.to)) return "Укажите даты периода";
   if (period.to < period.from) return "Конец периода раньше начала";
-  if (daysBetween(period.from, period.to) + 1 > MAX_RANGE_DAYS) return "Период не длиннее года";
+  if (daysBetweenInclusive(period.from, period.to) > MAX_RANGE_DAYS) return "Период не длиннее года";
   return null;
 }
 

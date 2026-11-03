@@ -189,10 +189,10 @@ test("?month= : a real month up to the current one, anything else is the previou
 });
 
 test("month switcher: shift across a year, the next button stops at the current month, the title is in Russian", () => {
-  assert.equal(R.shiftMonth("2026-01", -1), "2025-12");
-  assert.equal(R.shiftMonth("2026-12", 1), "2027-01");
-  assert.equal(R.shiftMonth("2026-05", 0), "2026-05");
-  assert.equal(R.shiftMonth("bad", 1), "bad");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-01", -1), "2025-12");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-12", 1), "2027-01");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-05", 0), "2026-05");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("bad", 1), "bad");
   assert.equal(R.canGoToNextMonth("2026-09", "2026-10-15"), true);
   assert.equal(R.canGoToNextMonth("2026-10", "2026-10-15"), false);
   assert.equal(R.isOpenMonth("2026-10", "2026-10-15"), true);

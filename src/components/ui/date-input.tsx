@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatBusinessDate } from "@/lib/business-time";
+import { addIsoDays, formatBusinessDate } from "@/lib/business-time";
 import {
   MONTHS_RU,
   WEEKDAYS_RU,
@@ -14,7 +14,6 @@ import {
   moveCalendarFocus,
   parseDateText,
   parseIso,
-  addDaysIso,
   addMonthsIso,
   toIso,
   type CalendarKey,
@@ -309,7 +308,7 @@ function Calendar({
   // A month the arrows would go to has no allowed day at all (before `min` / after `max`).
   const monthDisabled = (delta: number) => {
     const first = addMonthsIso(toIso(shown.year, shown.month, 1), delta);
-    const last = addDaysIso(addMonthsIso(first, 1), -1);
+    const last = addIsoDays(addMonthsIso(first, 1), -1);
     return delta < 0 ? Boolean(min && last < min) : Boolean(max && first > max);
   };
 

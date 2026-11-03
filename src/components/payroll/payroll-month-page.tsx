@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, AlertTriangle, Banknote, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
 import {
   EMPTY_EDITS,
@@ -36,7 +36,6 @@ import {
   sheetCardStatus,
   sheetStatus,
   sheetTotal,
-  shiftMonth,
   teacherLabel,
   teacherRateHref,
   undecidedLessonsText,
@@ -340,7 +339,7 @@ function PayrollMonthContent() {
             <button
               type="button"
               aria-label="Предыдущий месяц"
-              onClick={() => goToMonth(shiftMonth(month, -1))}
+              onClick={() => goToMonth(shiftMonthKey(month, -1))}
               className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -349,7 +348,7 @@ function PayrollMonthContent() {
             <button
               type="button"
               aria-label="Следующий месяц"
-              onClick={() => goToMonth(shiftMonth(month, 1))}
+              onClick={() => goToMonth(shiftMonthKey(month, 1))}
               disabled={nextDisabled}
               className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
             >

@@ -8,7 +8,6 @@
  * Money never reaches a teacher: every shape below comes from a money-only endpoint.
  */
 import {
-  addDays,
   formatDateRu,
   formatMoney,
   formatMoneyInput,
@@ -19,7 +18,7 @@ import {
   type MembershipPaymentRow,
   type PeriodMode,
 } from "./payments";
-import { formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
+import { addIsoDays, formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
 import type { PriceImpactMoney } from "./payments-logica";
 
 // ── Shapes of the API ───────────────────────────────────────────────────────
@@ -417,7 +416,7 @@ export const OVERRIDE_REASON_MAX = 200;
 
 /** The dates a price may start on: 2000-01-01 … today + 366 days. */
 export function priceDateRange(today: string): { min: string; max: string } {
-  return { min: PRICE_MIN_DATE, max: addDays(today, PRICE_MAX_AHEAD_DAYS) };
+  return { min: PRICE_MIN_DATE, max: addIsoDays(today, PRICE_MAX_AHEAD_DAYS) };
 }
 
 export function validatePriceDate(validFrom: string, today: string): string | null {

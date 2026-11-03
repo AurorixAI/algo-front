@@ -96,3 +96,81 @@ test("E4/5: there is ONE key function - payments, payouts, pauses, openings and 
     "src/components/payments/openings-page.tsx", "src/components/support/support-dialog.tsx",
   ]) assert.match(read(f), /import \{ newIdempotencyKey \} from "@\/lib\/idempotency-key";/, f);
 });
+
+// ---- decision 6: ONE library of dates (lib/business-time.ts), no throw on an empty / wrong date -----------------------------
+
+const time = lib("business-time.ts");
+
+test("E4/6: an empty or wrong date gives EMPTY (a date) or 0 (a count) and never throws", () => {
+  for (const bad of ["", "   ", "nope", "2026-13-01", "2026-02-31", "2026-00-10", null, undefined]) {
+    assert.equal(time.addIsoDays(bad, 3), "", `addIsoDays(${JSON.stringify(bad)})`);
+    if (bad !== "2026-02-31") assert.equal(time.shiftDateByMonth(bad, 1), "", `shiftDateByMonth(${JSON.stringify(bad)})`);   // only the month matters there
+    assert.equal(time.daysBetween(bad, "2026-10-16"), 0);
+    assert.equal(time.daysBetween("2026-10-16", bad), 0);
+    assert.equal(time.daysBetweenInclusive(bad, "2026-10-16"), 0);
+    assert.equal(time.daysBetweenInclusive("2026-10-16", bad), 0);
+  }
+  assert.equal(time.shiftMonthKey("nope", 1), "nope");                   // a month key that is not one is returned as it was
+});
+
+test("E4/6: good dates - the same answers as the old copies had", () => {
+  assert.equal(time.addIsoDays("2026-10-31", 1), "2026-11-01");
+  assert.equal(time.addIsoDays("2028-03-01", -1), "2028-02-29");
+  assert.equal(time.addIsoDays("2026-12-31", 1), "2027-01-01");
+  assert.equal(time.addIsoDays("2026-10-16T10:00:00", 1), "2026-10-17");   // a timestamp keeps working as before (the date part)
+  assert.equal(time.shiftDateByMonth("2026-12-17", 1), "2027-01-01");
+  assert.equal(time.shiftDateByMonth("2027-01-31", -1), "2026-12-01");
+  assert.equal(time.shiftDateByMonth("2026-10", 0), "2026-10-01");
+  assert.equal(time.shiftMonthKey("2026-12", 1), "2027-01");
+});
+
+test("E4/6: two meanings, two names - daysBetween is the difference, daysBetweenInclusive counts both ends", () => {
+  assert.equal(time.daysBetween("2026-10-14", "2026-10-17"), 3);
+  assert.equal(time.daysBetween("2026-10-17", "2026-10-14"), -3);
+  assert.equal(time.daysBetween("2026-10-16", "2026-10-16"), 0);
+  assert.equal(time.daysBetweenInclusive("2026-10-16", "2026-10-16"), 1);
+  assert.equal(time.daysBetweenInclusive("2026-10-16", "2026-10-18"), 3);
+  assert.equal(time.daysBetweenInclusive("2026-02-27", "2026-03-02"), 4);
+});
+
+test("E4/6: the consumers of the library keep their rules (a day off up to 14 days, a pause counts both ends, the income step)", () => {
+  const payf = lib("payf.ts");
+  assert.equal(payf.dayOffDatesError({ dateFrom: "2026-10-01", dateTo: "2026-10-14" }), null);
+  assert.match(payf.dayOffDatesError({ dateFrom: "2026-10-01", dateTo: "2026-10-15" }), /не больше 14 дней/);
+  assert.equal(payf.dayOffDatesError({ dateFrom: "", dateTo: "" }), "Укажите дату");
+  const logica = lib("payments-logica.ts");
+  assert.equal(logica.pauseDays("2026-10-01", "2026-10-03"), 3);
+  assert.equal(logica.pauseDays("2026-10-03", "2026-10-01"), 0);
+  const income = lib("payments-income-v2.ts");
+  assert.deepEqual(income.stepPeriod({ kind: "month", from: "2026-12-01", to: "2026-12-31" }, 1), { kind: "month", from: "2027-01-01", to: "2027-01-31" });
+  assert.deepEqual(income.stepPeriod({ kind: "custom", from: "2026-10-01", to: "2026-10-07" }, -1), { kind: "custom", from: "2026-09-24", to: "2026-09-30" });
+  const excuses = lib("attendance-excuses.ts");
+  assert.equal(excuses.validateExcusePeriod("2026-08-01", "2026-10-31"), null);                      // 92 days
+  assert.equal(excuses.validateExcusePeriod("2026-08-01", "2026-11-01"), null);                      // 93 days
+  assert.match(excuses.validateExcusePeriod("2026-08-01", "2026-11-02"), /длиннее 93 дней/);
+  assert.match(excuses.validateExcusePeriod("2026-10-02", "2026-10-01"), /раньше/);
+  assert.equal(excuses.validateExcusePeriod("", "2026-10-01"), "Укажите даты периода");
+  const forms = lib("form-fields.ts");
+  assert.equal(forms.moveCalendarFocus("2026-10-31", "ArrowRight"), "2026-11-01");
+  assert.equal(forms.moveCalendarFocus("2026-03-01", "ArrowLeft"), "2026-02-28");
+  assert.equal(forms.moveCalendarFocus("", "ArrowLeft"), "");
+});
+
+test("E4/6: the old schedule dialogs threw RangeError on an empty date; now the library answers empty (mutation: the check is removed)", () => {
+  assert.throws(() => { const value = new Date("T12:00:00Z"); value.setUTCDate(value.getUTCDate() + 1); value.toISOString(); }, RangeError);   // the old shiftDate / addDays
+  const broken = loadMutated("src/lib/business-time.ts",
+    "return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;", "return date;");
+  assert.notEqual(broken.addIsoDays("2026-02-31", 1), "");                // without the check a non-existent day silently rolls over: the scenario above would fail
+});
+
+test("E4/6: no private copy of the date arithmetic is left in src/ (only lib/business-time.ts owns it)", () => {
+  const owner = "src/lib/business-time.ts";
+  const names = /\b(?:function|const)\s+(shiftDate|addDays|addDaysIso|daysBetween|shiftMonth|shiftMonthKey|shiftBusinessMonth|shiftDateByMonth|dayNumber|isoToUtcDay)\b/;
+  const mathOnDates = /setUTCDate|T12:00:00Z/;
+  for (const f of SRC) {
+    if (f === owner) continue;
+    const source = read(f);
+    assert.doesNotMatch(source, names, `${f}: a private date function`);
+    assert.doesNotMatch(source, mathOnDates, `${f}: date arithmetic outside the library`);
+  }
+});

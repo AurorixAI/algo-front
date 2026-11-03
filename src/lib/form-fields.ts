@@ -7,6 +7,8 @@
  * locale; a time is «ЧЧ:ММ» (24 h).  The user may type them with or without the separators and with a short year.
  */
 
+import { addIsoDays } from "./business-time";
+
 // ── Dates ────────────────────────────────────────────────────────────────────────────────────────────
 
 export const MONTHS_RU = [
@@ -203,14 +205,6 @@ export function monthGrid(year: number, month: number): CalendarDay[][] {
   return weeks;
 }
 
-/** Shifts an ISO date by whole days (the calendar's arrow keys). */
-export function addDaysIso(iso: string, days: number): string {
-  const parts = parseIso(iso);
-  if (!parts) return iso;
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
-  return toIso(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-}
-
 /** Shifts an ISO date by months, keeping the day when the month is long enough and the last day when it is not (31.01 + 1 → 28.02). */
 export function addMonthsIso(iso: string, months: number): string {
   const parts = parseIso(iso);
@@ -248,12 +242,12 @@ export function moveCalendarFocus(iso: string, key: CalendarKey, shift = false):
   const parts = parseIso(iso);
   if (!parts) return iso;
   switch (key) {
-    case "ArrowLeft": return addDaysIso(iso, -1);
-    case "ArrowRight": return addDaysIso(iso, 1);
-    case "ArrowUp": return addDaysIso(iso, -7);
-    case "ArrowDown": return addDaysIso(iso, 7);
-    case "Home": return addDaysIso(iso, -firstWeekdayOf(iso));
-    case "End": return addDaysIso(iso, 6 - firstWeekdayOf(iso));
+    case "ArrowLeft": return addIsoDays(iso, -1);
+    case "ArrowRight": return addIsoDays(iso, 1);
+    case "ArrowUp": return addIsoDays(iso, -7);
+    case "ArrowDown": return addIsoDays(iso, 7);
+    case "Home": return addIsoDays(iso, -firstWeekdayOf(iso));
+    case "End": return addIsoDays(iso, 6 - firstWeekdayOf(iso));
     case "PageUp": return addMonthsIso(iso, shift ? -12 : -1);
     case "PageDown": return addMonthsIso(iso, shift ? 12 : 1);
   }

@@ -8,8 +8,6 @@
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
 import {
-  addDays,
-  daysBetween,
   formatDateRu,
   formatMoney,
   isIsoDate,
@@ -21,6 +19,7 @@ import {
   type PayMethod,
   type PaymentPreview,
 } from "./payments";
+import { addIsoDays, daysBetween, daysBetweenInclusive } from "./business-time";
 import { daysLabel, pluralRu } from "./plural";
 
 const num = (value: unknown): number => {
@@ -215,7 +214,7 @@ export interface OpeningContext {
  */
 export function openingFloor(context: Pick<OpeningContext, "enrolDate" | "accountingStart" | "floor">): string | null {
   if (context.floor && isIsoDate(context.floor)) return context.floor;
-  const seam = context.accountingStart && isIsoDate(context.accountingStart) ? addDays(context.accountingStart, -1) : null;
+  const seam = context.accountingStart && isIsoDate(context.accountingStart) ? addIsoDays(context.accountingStart, -1) : null;
   const days = [context.enrolDate, seam].filter((day): day is string => Boolean(day));
   return days.length ? days.sort().pop() ?? null : null;
 }
@@ -227,12 +226,12 @@ export function openingDebtMax(context: Pick<OpeningContext, "enrolDate" | "acco
 
 /** `L` is the seam (the day before the accounting start), not the enrolment: the hint says where the earlier days go. */
 function floorIsSeam(floor: string, context: Pick<OpeningContext, "enrolDate" | "accountingStart">): boolean {
-  return Boolean(context.accountingStart && isIsoDate(context.accountingStart) && floor === addDays(context.accountingStart, -1));
+  return Boolean(context.accountingStart && isIsoDate(context.accountingStart) && floor === addIsoDays(context.accountingStart, -1));
 }
 
 /** The latest «Оплачено до» the server accepts: today + 366 days. */
 export function openingPaidUntilMax(today: string): string {
-  return addDays(today, 366);
+  return addIsoDays(today, 366);
 }
 
 /** The first problem of the form, in words; null when it may be sent (an empty form is fine: there is nothing to record). */
@@ -312,7 +311,7 @@ export function buildOpeningPut(values: OpeningFormValues): OpeningPut {
 export function openingLine(values: OpeningFormValues, context: Pick<OpeningContext, "enrolDate">): string {
   if (openingIsEmpty(values)) return "";
   const parts: string[] = [];
-  const from = values.paidUntil && isIsoDate(values.paidUntil) ? addDays(values.paidUntil, 1) : context.enrolDate;
+  const from = values.paidUntil && isIsoDate(values.paidUntil) ? addIsoDays(values.paidUntil, 1) : context.enrolDate;
   if (from) parts.push(`Стоимость считается с ${dm(from)}.`);
   if (values.paidUntil && isIsoDate(values.paidUntil)) parts.push(`Оплачено до ${dm(values.paidUntil)}.`);
   const debt = parseMoneyInput(values.debt);
@@ -389,7 +388,7 @@ export function emptyPauseValues(today: string): PauseFormValues {
 
 /** The earliest day a pause may start (today − 30 days). */
 export function pauseEarliest(today: string): string {
-  return addDays(today, -PAUSE_BACKDATE_DAYS);
+  return addIsoDays(today, -PAUSE_BACKDATE_DAYS);
 }
 
 /** «Задним числом — не больше 30 дней: с 21.09.2026». */
@@ -400,7 +399,7 @@ export function pauseBackdateHint(today: string): string {
 /** Number of days of a pause, both ends included (0 for a broken range). */
 export function pauseDays(first: string, last: string): number {
   if (!isIsoDate(first) || !isIsoDate(last) || last < first) return 0;
-  return daysBetween(first, last) + 1;
+  return daysBetweenInclusive(first, last);
 }
 
 export function validatePause(values: PauseFormValues, today: string): string | null {
@@ -444,7 +443,7 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   const out: string[] = [];
   const { pause } = saved;
   if (pause.first_day < today) {
-    out.push(`Пауза задним числом: уроки с ${dm(pause.first_day)} по ${dm(pause.last_day < today ? pause.last_day : addDays(today, -1))} не будут засчитаны ни ученику, ни преподавателю`);
+    out.push(`Пауза задним числом: уроки с ${dm(pause.first_day)} по ${dm(pause.last_day < today ? pause.last_day : addIsoDays(today, -1))} не будут засчитаны ни ученику, ни преподавателю`);
   }
   const attended = arr<PauseLessonMark>(saved.lessons?.attended);
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));
@@ -478,7 +477,7 @@ export function pauseEndAction(pause: Pick<PauseOut, "first_day" | "last_day">, 
 
 /** The day a running pause is shortened to: yesterday. */
 export function pauseEndDay(today: string): string {
-  return addDays(today, -1);
+  return addIsoDays(today, -1);
 }
 
 /** The pauses worth listing in the dialog: not cancelled, the freshest first. */

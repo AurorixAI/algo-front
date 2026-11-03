@@ -287,10 +287,10 @@ test("month switcher: label, neighbours across the year edge, list range", () =>
   assert.equal(rules.monthOf("2026-10-14"), "2026-10");
   assert.equal(rules.monthLabelRu("2026-10"), "Октябрь 2026");
   assert.equal(rules.monthLabelRu("2027-01"), "Январь 2027");
-  assert.equal(rules.shiftMonth("2026-10", 1), "2026-11");
-  assert.equal(rules.shiftMonth("2026-12", 1), "2027-01");
-  assert.equal(rules.shiftMonth("2027-01", -1), "2026-12");
-  assert.equal(rules.shiftMonth("2026-01", -13), "2024-12");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-10", 1), "2026-11");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-12", 1), "2027-01");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2027-01", -1), "2026-12");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).shiftMonthKey("2026-01", -13), "2024-12");
   // the request range is the month's boundaries
   assert.deepEqual(rules.monthRangeOf("2026-12-01"), { from: "2026-12-01", to: "2026-12-31" });
   assert.deepEqual(rules.monthRangeOf("2028-02-01"), { from: "2028-02-01", to: "2028-02-29" });

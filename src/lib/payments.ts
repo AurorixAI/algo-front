@@ -715,22 +715,6 @@ export function isIsoDate(value: string | null | undefined): boolean {
   return parseIso(value) !== null;
 }
 
-/** ISO date + n days (n may be negative). */
-export function addDays(iso: string, days: number): string {
-  const parts = parseIso(iso);
-  if (!parts) return iso;
-  const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + days));
-  return toIso(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-}
-
-/** Whole days from `fromIso` to `toIso` (positive when `toIso` is later). */
-export function daysBetween(fromIso: string, toIso_: string): number {
-  const a = parseIso(fromIso);
-  const b = parseIso(toIso_);
-  if (!a || !b) return 0;
-  return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86_400_000);
-}
-
 /** The same calendar day `years` earlier (29.02 -> 28.02). */
 export function subtractYears(iso: string, years: number): string {
   const parts = parseIso(iso);

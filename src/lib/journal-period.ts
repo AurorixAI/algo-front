@@ -1,4 +1,4 @@
-import { addIsoDays, isoDateDayOfWeek, shiftBusinessMonth } from "./business-time";
+import { addIsoDays, isoDateDayOfWeek, shiftMonthKey } from "./business-time";
 
 /**
  * Period of the attendance journal (a week or a month) as pure business-calendar arithmetic on
@@ -33,7 +33,7 @@ export function journalMonthAnchor(year: number, month: number): string {
  */
 export function moveJournalAnchor(anchor: string, mode: JournalViewMode, direction: -1 | 1): string {
   if (mode === "week") return addIsoDays(anchor, direction * 7);
-  const month = shiftBusinessMonth(anchor.slice(0, 7), direction);
+  const month = shiftMonthKey(anchor.slice(0, 7), direction);
   return /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : anchor;
 }
 
@@ -47,7 +47,7 @@ export function journalPeriod(anchor: string, mode: JournalViewMode): JournalPer
   if (mode === "month") {
     const { year, month } = parts(anchor);
     const first = journalMonthAnchor(year, month);
-    const nextFirst = `${shiftBusinessMonth(first.slice(0, 7), 1)}-01`;
+    const nextFirst = `${shiftMonthKey(first.slice(0, 7), 1)}-01`;
     return { start: first, end: addIsoDays(nextFirst, -1), label: `${MONTHS_GENITIVE[month - 1]} ${year}` };
   }
   const monday = addIsoDays(anchor, -(isoDateDayOfWeek(anchor) - 1));

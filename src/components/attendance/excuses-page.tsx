@@ -22,7 +22,7 @@ import {
   type AttendanceExcuseItem,
   type ExcuseReviewStatus,
 } from "@/lib/api";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
 import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
@@ -51,7 +51,6 @@ import {
   monthLabelRu,
   monthOf,
   monthRangeOf,
-  shiftMonth,
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
@@ -623,7 +622,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
           <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
             <button
               type="button"
-              onClick={() => { setMonth((m) => shiftMonth(m, -1)); resetPaging(); }}
+              onClick={() => { setMonth((m) => shiftMonthKey(m, -1)); resetPaging(); }}
               aria-label="Предыдущий месяц"
               className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
@@ -634,7 +633,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
             </div>
             <button
               type="button"
-              onClick={() => { setMonth((m) => shiftMonth(m, 1)); resetPaging(); }}
+              onClick={() => { setMonth((m) => shiftMonthKey(m, 1)); resetPaging(); }}
               aria-label="Следующий месяц"
               className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >

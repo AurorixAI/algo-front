@@ -52,11 +52,11 @@ test("dates are shown as ДД.ММ.ГГГГ", () => {
 });
 
 test("day arithmetic never depends on the browser zone", () => {
-  assert.equal(rules.addDays("2026-10-31", 1), "2026-11-01");
-  assert.equal(rules.addDays("2026-03-01", -1), "2026-02-28");
-  assert.equal(rules.addDays("2028-03-01", -1), "2028-02-29");
-  assert.equal(rules.daysBetween("2026-10-14", "2026-10-17"), 3);
-  assert.equal(rules.daysBetween("2026-10-17", "2026-10-14"), -3);
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).addIsoDays("2026-10-31", 1), "2026-11-01");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).addIsoDays("2026-03-01", -1), "2026-02-28");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).addIsoDays("2028-03-01", -1), "2028-02-29");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).daysBetween("2026-10-14", "2026-10-17"), 3);
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).daysBetween("2026-10-17", "2026-10-14"), -3);
   assert.equal(rules.subtractYears("2028-02-29", 3), "2025-02-28");
   assert.equal(rules.isIsoDate("2026-02-30"), false);
   assert.equal(rules.isIsoDate("2026-02-28"), true);

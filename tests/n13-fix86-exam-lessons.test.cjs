@@ -72,7 +72,7 @@ test("the list of the report: 09:20-09:40 completed at 09:37 disappears, the res
 
 test("the dialog filters by the attendance statuses of the chosen group and by the clock, and says so when it cannot check", () => {
   const modal = read("components/exam/schedule-exam-modal.tsx");
-  assert.match(modal, /orgApi\.getGroupAttendance\(groupId, \{ dateFrom, dateTo: addDays\(dateFrom, 42\) \}\)/);
+  assert.match(modal, /orgApi\.getGroupAttendance\(groupId, \{ dateFrom, dateTo: addIsoDays\(dateFrom, 42\) \}\)/);
   assert.match(modal, /attendance\?\.statuses \?\? \{\}/);
   assert.match(modal, /bindableLessons\(\s*occurrences\.filter\(\(item\) => item\.groupId === groupId\),/);
   assert.match(modal, /const clock = useNow\(30_000\)/);

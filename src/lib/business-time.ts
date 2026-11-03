@@ -217,24 +217,60 @@ export function formatBusinessCalendarDate(
   return day ? formatIsoDateLabel(day, options) : "";
 }
 
-/** ISO calendar date + n days (n may be negative); pure calendar arithmetic, no timezone involved. */
-export function addIsoDays(isoDate: string, days: number): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
-  if (!match) return "";
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days, 12));
-  return date.toISOString().slice(0, 10);
+// ── Calendar arithmetic: THE one library of the front (WAVE E, decision 6) ────────────────────────────────────────────
+// Pure calendar arithmetic, no timezone involved.  An empty / wrong date never throws: a date result is "" and a count is 0.
+// Different meanings have different names: daysBetween (the difference) / daysBetweenInclusive (both ends counted);
+// shiftMonthKey ("YYYY-MM" -> "YYYY-MM") / shiftDateByMonth (a date -> the 1st of the month `delta` away).
+
+const DAY_MS = 86_400_000;
+
+/** The UTC-noon instant of a REAL calendar date at the start of `value` ("2026-02-31" is not one), or null. */
+function calendarDayStart(value: string | null | undefined): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof value === "string" ? value : "");
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
+
+/** ISO calendar date + n days (n may be negative); "" when `isoDate` is empty or not a real date. */
+export function addIsoDays(isoDate: string | null | undefined, days: number): string {
+  const date = calendarDayStart(isoDate);
+  if (!date) return "";
+  return new Date(date.getTime() + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Whole days from `fromIso` to `toIso` (positive when `toIso` is later); 0 when either is not a date. */
+export function daysBetween(fromIso: string | null | undefined, toIso: string | null | undefined): number {
+  const from = calendarDayStart(fromIso);
+  const to = calendarDayStart(toIso);
+  if (!from || !to) return 0;
+  return Math.round((to.getTime() - from.getTime()) / DAY_MS);
+}
+
+/** The days of a period with BOTH ends counted (one day off on 16.10 = 1; 16.10-18.10 = 3); 0 when either end is not a date. */
+export function daysBetweenInclusive(fromIso: string | null | undefined, toIso: string | null | undefined): number {
+  return calendarDayStart(fromIso) && calendarDayStart(toIso) ? daysBetween(fromIso, toIso) + 1 : 0;
 }
 
 /**
- * The month `delta` months away, as pure "YYYY-MM" arithmetic: shiftBusinessMonth("2026-12", 1) -> "2027-01".
+ * The month `delta` months away, as pure "YYYY-MM" arithmetic: shiftMonthKey("2026-12", 1) -> "2027-01".
  * Month switchers use this and never `Date.setMonth` (31 January + 1 month is 3 March there, February skipped).
  * Anything that is not "YYYY-MM" is returned unchanged.
  */
-export function shiftBusinessMonth(month: string, delta: number): string {
+export function shiftMonthKey(month: string, delta: number): string {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month ?? "");
   if (!match) return month;
   const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
   return `${String(Math.floor(index / 12)).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
+/** The 1st of the month `delta` months away from a DATE: shiftDateByMonth("2026-12-17", 1) -> "2027-01-01"; "" when it is not a date. */
+export function shiftDateByMonth(isoDate: string | null | undefined, delta: number): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])/.exec(typeof isoDate === "string" ? isoDate : "");
+  return match ? `${shiftMonthKey(`${match[1]}-${match[2]}`, delta)}-01` : "";
 }
 
 /** Business-calendar date `days` away from today (0 = today, -1 = yesterday) as YYYY-MM-DD. */

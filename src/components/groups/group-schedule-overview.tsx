@@ -25,7 +25,7 @@ import {
   type LessonEvent,
   type LessonAttendanceStatus,
 } from "@/lib/api";
-import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { addIsoDays, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { groupsBaseOf, oneOffRoleOf, purposeMarks } from "@/lib/one-off";
@@ -48,16 +48,9 @@ type ScheduleStatus = {
   icon: typeof CalendarCheck2;
 };
 
-function shiftDate(isoDate: string, days: number): string {
-  const date = new Date(`${isoDate}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function mondayFor(isoDate: string): string {
-  const date = new Date(`${isoDate}T12:00:00Z`);
-  const weekday = date.getUTCDay() || 7;
-  return shiftDate(isoDate, 1 - weekday);
+  const weekday = isoDateDayOfWeek(isoDate);
+  return weekday ? addIsoDays(isoDate, 1 - weekday) : "";
 }
 
 /** An occurrence of a WEEKLY lesson: the one-off lessons (added for one date, or made by a move) have no weekly lesson behind them. */
@@ -175,7 +168,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
 
   const period = useMemo(() => {
     const start = mondayFor(anchorDate);
-    return { start, end: shiftDate(start, 6) };
+    return { start, end: addIsoDays(start, 6) };
   }, [anchorDate]);
 
   const loadSchedule = useCallback(async () => {
@@ -213,7 +206,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
     return result;
   }, [attendance?.lessons]);
 
-  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(period.start, index)), [period.start]);
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addIsoDays(period.start, index)), [period.start]);
   const todayLessons = lessonsByDate.get(today) || [];
 
   const todaySummary = useMemo(() => {
@@ -325,7 +318,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
   /** A weekly lesson that is still running: absent from the active weekly lessons = stopped, nothing to change or stop. */
   const seriesRunning = (lesson: Lesson) => isRecurringLesson(lesson) && (templates === null || templates.some((item) => item.id === lesson.id));
 
-  const moveWeek = (direction: -1 | 1) => setAnchorDate((value) => shiftDate(value, direction * 7));
+  const moveWeek = (direction: -1 | 1) => setAnchorDate((value) => addIsoDays(value, direction * 7));
   const isCurrentWeek = period.start === mondayFor(today);
 
   return (

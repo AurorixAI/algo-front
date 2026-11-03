@@ -16,7 +16,7 @@ import {
   formatUtcNaiveAsBusinessDate,
   formatUtcNaiveAsBusinessDateTime,
   monthYearLabelRu,
-  shiftBusinessMonth,
+  shiftMonthKey,
   utcNaiveToBusinessIsoDate,
 } from "./business-time";
 import { groupPriceHref, pricesBaseOf, type PriceSource } from "./group-price";
@@ -178,13 +178,9 @@ export function monthOfDate(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
-export function shiftMonth(month: string, delta: number): string {
-  return shiftBusinessMonth(month, delta);
-}
-
 /** The month before the one `today` (YYYY-MM-DD, business calendar) is in: the default of the page. */
 export function previousMonth(today: string): string {
-  return shiftMonth(monthOfDate(today), -1);
+  return shiftMonthKey(monthOfDate(today), -1);
 }
 
 /**
@@ -222,7 +218,7 @@ export function isOpenMonth(month: string, today: string): boolean {
 }
 
 export function canGoToNextMonth(month: string, today: string): boolean {
-  return shiftMonth(month, 1) <= monthOfDate(today);
+  return shiftMonthKey(month, 1) <= monthOfDate(today);
 }
 
 /** «2026-09-03» -> «03.09» */
@@ -1476,7 +1472,7 @@ export function rateMonthOptions(today: string, extra?: string | null): Array<{ 
   const current = monthOfDate(today);
   const out: Array<{ value: string; label: string }> = [{ value: RATE_FROM_START, label: RATE_FROM_START_LABEL }];
   for (let delta = -6; delta <= 3; delta += 1) {
-    const value = shiftMonth(current, delta);
+    const value = shiftMonthKey(current, delta);
     out.push({ value, label: monthTitle(value) });
   }
   if (extra && isMonthParam(extra) && !out.some((option) => option.value === extra)) {

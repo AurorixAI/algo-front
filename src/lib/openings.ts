@@ -11,7 +11,6 @@
  */
 import { formatPrice, priceLabelOf, type PriceInfo } from "./group-price";
 import {
-  addDays,
   formatDateRu,
   formatMoney,
   formatMoneyInput,
@@ -22,7 +21,7 @@ import {
   REASON_MIN,
   type PeriodMode,
 } from "./payments";
-import { formatBusinessDate } from "./business-time";
+import { addIsoDays, formatBusinessDate } from "./business-time";
 import { pluralRu } from "./plural";
 
 // ── The contract ────────────────────────────────────────────────────────────
@@ -423,7 +422,7 @@ export function openingsIntro(accountingStart: string): string {
 
 /** The day before the accounting start: «оплачено до» that day = «на начало долга нет». */
 export function noDebtDay(accountingStart: string): string {
-  return addDays(accountingStart, -1);
+  return addIsoDays(accountingStart, -1);
 }
 
 /** «ученик / ученика / учеников» after a number. */

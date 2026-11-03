@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, Clock3, MapPin, Users, X } from "lucide-react";
 import { orgApi, type Group, type ScheduleOccurrence } from "@/lib/api";
-import { businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { addIsoDays, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { bindableLessons, occurrenceKey, selectionLost } from "@/lib/exam-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useNow } from "@/lib/use-now";
@@ -25,12 +25,6 @@ type ScheduleExamModalProps = {
   onClose: () => void;
   onSubmit: (selection: ScheduledExamSelection) => Promise<void>;
 };
-
-function addDays(isoDate: string, days: number): string {
-  const value = new Date(`${isoDate}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-}
 
 function occurrenceLabel(item: ScheduleOccurrence): string {
   const date = formatIsoDateLabel(item.occurrenceDate, {
@@ -98,7 +92,7 @@ export function ScheduleExamModal({
     const dateFrom = formatBusinessDate();
     setLoadingLessons(true);
     setError(null);
-    orgApi.getScheduleOccurrences({ dateFrom, dateTo: addDays(dateFrom, 42) })
+    orgApi.getScheduleOccurrences({ dateFrom, dateTo: addIsoDays(dateFrom, 42) })
       .then((items) => {
         if (!cancelled) setOccurrences(Array.isArray(items) ? items : []);
       })
@@ -123,7 +117,7 @@ export function ScheduleExamModal({
     if (!groupId) return undefined;
     const token = statusReads.current.next();
     const dateFrom = formatBusinessDate();
-    orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addDays(dateFrom, 42) })
+    orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addIsoDays(dateFrom, 42) })
       .then((attendance) => {
         if (statusReads.current.isCurrent(token)) setStatuses({ groupId, map: attendance?.statuses ?? {} });
       })
@@ -142,7 +136,7 @@ export function ScheduleExamModal({
       if (!groupId || !statusesReady) return;
       const token = statusReads.current.next();
       const dateFrom = formatBusinessDate();
-      orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addDays(dateFrom, 42) })
+      orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addIsoDays(dateFrom, 42) })
         .then((attendance) => {
           if (statusReads.current.isCurrent(token)) setStatuses({ groupId, map: attendance?.statuses ?? {} });
         })
