@@ -1,5 +1,5 @@
 // Wave A / A4 (front): CSV with formulas (F-A16), no demo mode at all (F-A02; the demo build was removed in wave D),
-// the middleware gate (F-A04), one path/query encoding in api.ts (SEC-3), the invite code of the report in a header (S-02).
+// the middleware gate (F-A04), one path/query encoding in api.ts (SEC-3), the invite code of an answer in a header (S-02; the student page no longer reads the report, N03b-1).
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -195,13 +195,13 @@ test("no raw ${id} left in an API path or query of api.ts (the guard the audit a
   assert.deepEqual(bad, []);
 });
 
-test("the invite code of the report travels in a header, never in the URL", async () => {
+test("the invite code of an answer travels in a header, never in the URL", async () => {
   const calls = captureFetch();
   const { diagnosticApi } = loadApi();
-  await diagnosticApi.getReport("sess-1", "ABCD-1234");
+  await diagnosticApi.submitAnswer("sess-1", { task_id: "t1", student_answer: "1" }, "ABCD-1234");
   const c = calls[0];
   assert.equal(new URL(c.url).search, "");
-  assert.equal(new URL(c.url).pathname.endsWith("/diagnostic/sessions/sess-1/report"), true);
+  assert.equal(new URL(c.url).pathname.endsWith("/diagnostic/sessions/sess-1/answer"), true);
   assert.equal(c.headers["X-Diagnostic-Invite-Code"], "ABCD-1234");
   assert.ok(!c.url.includes("ABCD-1234"));
 });

@@ -7,7 +7,7 @@ import { levelStatusLabel, resolveReportLevel, type ReportLevel } from "@/lib/di
 import { ReportScoreHeader } from "@/components/diagnostics/report-score-header";
 import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
-  breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
+  AI_FAILED_NOTE, breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
   isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, pagerItems, planNotBuiltText, recommendedStartName,
   reportIdentity, reportJsonState, reportMetaInfo, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
@@ -174,8 +174,7 @@ interface CognitiveErrorCluster {
  */
 interface ReportJson {
   report_meta: {
-    session_id?: string; student_name?: string; class_level?: number;
-    test_code?: string;
+    session_id?: string; class_level?: number;
     /** Date of the attempt (not of the rebuild). */
     date?: string | null;
     /** Date the report was built. */
@@ -787,7 +786,7 @@ export default function DiagnosticReportPage() {
         >
 
           {/* ── Report meta: attempt date, build date, stale / degraded notes ── */}
-          {(meta.attemptDate || meta.generatedOn || meta.legacy || meta.degraded || meta.rebuilding || reportError) && (
+          {(meta.attemptDate || meta.generatedOn || meta.legacy || meta.degraded || meta.aiFailed || meta.rebuilding || reportError) && (
             <motion.div variants={fade} data-testid="diagnostic-report-meta" className="min-w-0 space-y-2">
               {(meta.attemptDate || meta.generatedOn) && (
                 <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -809,6 +808,12 @@ export default function DiagnosticReportPage() {
                 <div data-testid="diagnostic-report-degraded" className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
                   <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-px" />
                   <span className="min-w-0 break-words">{degradedNote(meta.degradedReasons)}</span>
+                </div>
+              )}
+              {meta.aiFailed && (
+                <div data-testid="diagnostic-report-ai-failed" className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
+                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-px" />
+                  <span className="min-w-0 break-words">{AI_FAILED_NOTE}</span>
                 </div>
               )}
               {/* A historical rebuild: the previous report stays visible, the page switches when the new one is ready */}
