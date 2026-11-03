@@ -109,11 +109,13 @@ scenario("B2", "today, before the start: «Урок ещё не начался»
   assert.equal(s.hasButton(/^Начать урок/), false);
 });
 
-scenario("B3", "today, the end passed, never started: «Урок не был начат» and «Начать урок сейчас»", async ({ screen, world }) => {
+scenario("B3", "today, the end passed, never started: «Урок не был начат», «Начать урок» and «Урока не было»", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок не был начат/);
-  assert.match(s.text(), /сначала начните урок/);
-  assert.ok(s.hasButton(/Начать урок сейчас/));
+  assert.match(s.text(), /Начните урок, чтобы отметить посещаемость\./);
+  assert.match(s.text(), /Время начала запишется текущим\./);
+  assert.ok(s.hasButton(/^Начать урок$/));
+  assert.ok(s.hasButton(/^Урока не было$/));
 });
 
 scenario("B4", "a started lesson without marks: «Урок начат» and «Заполнить посещаемость»", async ({ screen, world }) => {
@@ -135,7 +137,7 @@ scenario("B6", "a finished lesson: «Урок завершён», the marks are 
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок завершён/);
   assert.match(s.text(), /Исправить их может только администратор — с причиной/);
-  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+  assert.equal(s.hasButton(/^Начать урок$/), false);
 });
 
 scenario("B7", "a cancelled lesson: «Урок отменён» and the reason", async ({ screen, world }) => {
@@ -149,15 +151,15 @@ scenario("B8", "a later lesson of the teacher was already started: «Урок б
   inProgress(world, LESSONS.live);
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок больше нельзя начать/);
-  assert.match(s.text(), /уже был начат урок «Живая»/);
-  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+  assert.match(s.text(), /Уже начат следующий урок «Живая»/);
+  assert.equal(s.hasButton(/^Начать урок$/), false);
 });
 
 scenario("B9", "a lesson of a future day: «Урок ещё не наступил», no start", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "future");
   assert.match(s.text(), /Урок ещё не наступил/);
-  assert.match(s.text(), /Начать урок и отметить посещаемость можно только в день проведения/);
-  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+  assert.match(s.text(), /Начать урок можно только в день проведения/);
+  assert.equal(s.hasButton(/^Начать урок$/), false);
   assert.equal(s.hasButton(/Доступно/), false);
 }, { only: ["schedule"] });
 
@@ -165,16 +167,16 @@ scenario("B10", "a past lesson never started: «Урок не был начат�
   world.openActions = [world.openAction(LESSONS.past)];
   const s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.match(s.text(), /Урок не был начат/);
-  assert.match(s.text(), /Начать его теперь нельзя/);
+  assert.match(s.text(), /Начать его нельзя: урок запускается только в день проведения/);
   assert.ok(s.hasButton(/Разобрать пропущенный урок/));
-  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+  assert.equal(s.hasButton(/^Начать урок$/), false);
 }, { only: ["schedule"] });
 
 scenario("B11", "a past lesson never started and not in the server's list: no «Разобрать», the way out is the cancellation", async ({ screen, world }) => {
   world.openActions = [];
   const s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.match(s.text(), /Урок не был начат/);
-  assert.match(s.text(), /отмените его с причиной/);
+  assert.match(s.text(), /Если занятия не было, отмените урок с причиной/);
   assert.equal(s.hasButton(/Разобрать пропущенный урок/), false);
 }, { only: ["schedule"] });
 
@@ -325,6 +327,33 @@ scenario("C12", "cancellation is not offered while the exam service forbids it",
   await s.settle();
   await s.call(() => s.opaque("LessonCancelPanel")[0].props.onConfirm());
   assert.equal(world.called("cancelMissedGroupAttendance").length, 0);
+});
+
+scenario("C12a", "E-UX1: an unstarted lesson that passed offers «Начать урок» and «Урока не было» under the text; the second is the menu row itself, the same cancellation", async ({ screen, world }) => {
+  const s = await openPanel(screen, await startScreen(screen, world), "over");
+  const item = menuItems(s).find((i) => i.key === "cancel");
+  assert.ok(item, "the menu offers the cancellation");
+  assert.ok(s.hasButton(/^Начать урок$/), "the start");
+  const button = s.button(/^Урока не было$/);
+  assert.equal(button.props.onClick, item.onSelect, "ONE handler: the button is not a second implementation of the menu row");
+  assert.equal(s.opaque("LessonCancelPanel").length, 0);
+  await s.click(/^Урока не было$/);
+  await s.settle();
+  assert.equal(s.opaque("LessonCancelPanel").length, 1, "the same panel with the reason as after the menu row");
+  assert.equal(world.called("cancelMissedGroupAttendance").length, 0, "the click only opens the panel: nothing is sent before the reason");
+  s.opaque("LessonCancelPanel")[0].props.onReason(REASON);
+  await s.settle();
+  await s.call(() => s.opaque("LessonCancelPanel")[0].props.onConfirm());
+  const sent = world.called("cancelMissedGroupAttendance");
+  assert.equal(sent.length, 1, "the same request as C10");
+  assert.equal(sent[0].args[1].lessonId, "L-over");
+});
+
+scenario("C12b", "E-UX1: where the menu has no cancellation (a lesson in time), the card has no «Урока не было» either", async ({ screen, world }) => {
+  const s = await openPanel(screen, await startScreen(screen, world), "live");
+  assert.equal(menuItems(s).some((i) => i.key === "cancel"), false);
+  assert.equal(s.hasButton(/^Урока не было$/), false);
+  assert.ok(s.hasButton(/^Начать урок$/));
 });
 
 scenario("C12c", "E-A11Y: the lesson panel is a dialog named by the group; the id is unique and the nested dialogs are not confused with it", async ({ screen, world }) => {

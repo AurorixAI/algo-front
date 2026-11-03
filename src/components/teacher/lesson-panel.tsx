@@ -34,6 +34,10 @@ import { DAYS } from "@/lib/schedule-time";
 import type { AttendanceStatus } from "@/lib/api";
 import type { TeacherLessonPanel, TeacherPanelLesson } from "@/lib/use-teacher-lesson-panel";
 
+/** The row of actions under the text of a state card: shifted by the width of the icon (w-11 + gap-3.5), so it stands under the text, not under the icon. */
+const BANNER_ACTIONS = "mt-4 flex flex-wrap items-center gap-2 pl-[3.625rem]";
+const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs";
+
 /** The series of the open lesson, on the schedule of a week only (the dashboard never changes a series). */
 export interface LessonPanelRecurring {
   canRevise: boolean;
@@ -77,6 +81,9 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
       }] : [],
     }] : []),
   ];
+
+  // the state card of an unstarted lesson offers the SAME cancellation as the menu row: taken from the menu, so the conditions are in one place
+  const cancelMenuItem = lessonMenuItems.find((item) => item.key === "cancel");
 
   return (
     <>
@@ -383,57 +390,67 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           </button>
                         </div>
                       ) : banner === "started" ? (
-                        <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3.5">
+                        <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80">
+                          <div className="flex items-start gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                               <Play className="w-5 h-5 fill-current" />
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-900">Урок начат</p>
-                              <p className="text-xs text-emerald-700 mt-0.5 font-medium">Заполните и сохраните отметки учеников, затем завершите урок.</p>
+                              <p className="text-sm text-emerald-700 mt-0.5">Отметьте учеников и сохраните, затем завершите урок.</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsMarkingAttendance(true)}
-                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
-                          >
-                            Заполнить посещаемость
-                          </button>
+                          <div className={BANNER_ACTIONS}>
+                            <button
+                              type="button"
+                              onClick={() => setIsMarkingAttendance(true)}
+                              className={`${BANNER_ACTION_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                            >
+                              Заполнить посещаемость
+                            </button>
+                          </div>
                         </div>
                       ) : banner === "past" ? (
                         /* A past day's lesson which was never started: the server
                            starts a lesson on its own day only, so the panel must not
                            offer a start. It is settled as "missed" instead. */
-                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80">
                           <div className="flex items-start gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
                               <AlertCircle className="w-5 h-5" />
                             </div>
                             <div>
                               <p className="text-sm font-bold text-rose-950">Урок не был начат</p>
-                              <p className="text-xs text-rose-800 mt-0.5">
-                                Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : activeMissedUnknown ? "Не удалось проверить, нужно ли оформить урок." : "Если занятие не состоялось, отмените его с причиной."}
-                              </p>
+                              <p className="text-sm text-rose-800 mt-0.5">Начать его нельзя: урок запускается только в день проведения.</p>
+                              {/* the way out: with an open task the button below (the dialog offers both outcomes); otherwise the cancellation with a reason */}
+                              {!activeMissedAction && (
+                                <p className="text-sm text-rose-800 mt-0.5">
+                                  {activeMissedUnknown ? "Не удалось проверить, нужно ли оформить урок." : "Если занятия не было, отмените урок с причиной."}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          {activeMissedUnknown && (
-                            <button
-                              type="button"
-                              onClick={retryOpenActions}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
-                            >
-                              Повторить
-                            </button>
-                          )}
-                          {activeMissedAction && (
-                            <button
-                              type="button"
-                              onClick={() => openMissedLesson(activeMissedAction)}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
-                            >
-                              Разобрать пропущенный урок
-                            </button>
+                          {(activeMissedUnknown || activeMissedAction) && (
+                            <div className={BANNER_ACTIONS}>
+                              {activeMissedUnknown && (
+                                <button
+                                  type="button"
+                                  onClick={retryOpenActions}
+                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 text-white`}
+                                >
+                                  Повторить
+                                </button>
+                              )}
+                              {activeMissedAction && (
+                                <button
+                                  type="button"
+                                  onClick={() => openMissedLesson(activeMissedAction)}
+                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 text-white`}
+                                >
+                                  Разобрать пропущенный урок
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       ) : banner === "future" ? (
@@ -443,9 +460,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           </div>
                           <div>
                             <p className="text-sm font-bold text-amber-950">Урок ещё не наступил</p>
-                            <p className="text-xs text-amber-800 mt-0.5">
-                              Начать урок и отметить посещаемость можно только в день проведения.
-                            </p>
+                            <p className="text-sm text-amber-800 mt-0.5">Начать урок можно только в день проведения.</p>
                           </div>
                         </div>
                       ) : banner === "subsequent" && activeSubsequentLesson ? (
@@ -455,69 +470,79 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           </div>
                           <div>
                             <p className="text-sm font-bold text-rose-950">Урок больше нельзя начать</p>
-                            <p className="text-xs text-rose-800 mt-0.5">
-                              После его планового окончания уже был начат урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Чтобы не исказить журнал, отметки за это занятие недоступны — отмените его с причиной.
+                            <p className="text-sm text-rose-800 mt-0.5">
+                              Уже начат следующий урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Отметки за этот недоступны — отмените его с причиной.
                             </p>
                           </div>
                         </div>
                       ) : banner === "upcoming" && activeTimeStatus ? (
                         /* TODAY UPCOMING LESSON: Cannot start yet */
-                        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3.5">
+                        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80">
+                          <div className="flex items-start gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
                               <Clock className="w-5 h-5" />
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-amber-950">
-                                Урок ещё не начался
-                              </p>
-                              <p className="text-xs text-amber-800 mt-0.5">
-                                Начало через {formatMinutesUntil(activeTimeStatus.diffMinutes)}.
-                              </p>
+                              <p className="text-sm font-bold text-amber-950">Урок ещё не начался</p>
+                              <p className="text-sm text-amber-800 mt-0.5">Начало через {formatMinutesUntil(activeTimeStatus.diffMinutes)}.</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            disabled
-                            className="px-4 py-2.5 bg-slate-100 text-slate-400 cursor-not-allowed rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 border border-slate-200"
-                          >
-                            <Clock className="w-3.5 h-3.5" />
-                            Доступно в {activeLesson.startTime}
-                          </button>
+                          <div className={BANNER_ACTIONS}>
+                            <button
+                              type="button"
+                              disabled
+                              className={`${BANNER_ACTION_BASE} bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none`}
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              Доступно в {activeLesson.startTime}
+                            </button>
+                          </div>
                         </div>
                       ) : banner === "overdue" ? (
                         /* The occurrence was never started.  Do not bypass the
                            actual-start record by opening attendance directly. */
-                        <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3.5">
+                        <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80">
+                          <div className="flex items-start gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
                               <Clock className="w-5 h-5" />
                             </div>
                             <div>
-                            <p className="text-sm font-bold text-amber-950">
-                              Урок не был начат
-                            </p>
-                            <p className="text-xs text-amber-800 mt-0.5">
-                              Посещаемость пока нельзя сохранить: сначала начните урок. Будет записано фактическое время начала; если занятие не состоялось, отмените его с причиной.
-                            </p>
+                              <p className="text-sm font-bold text-amber-950">Урок не был начат</p>
+                              <p className="text-sm text-amber-800 mt-0.5">Начните урок, чтобы отметить посещаемость.</p>
                             </div>
                           </div>
                           {!isAttendanceSaved && (
-                            <button
-                              type="button"
-                              onClick={handleStartLesson}
-                              disabled={savingAttendance}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-white" />
-                              Начать урок сейчас
-                            </button>
+                            <>
+                              <div className={BANNER_ACTIONS}>
+                                <button
+                                  type="button"
+                                  onClick={handleStartLesson}
+                                  disabled={savingAttendance}
+                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 text-white`}
+                                >
+                                  <Play className="w-3.5 h-3.5 fill-white" />
+                                  Начать урок
+                                </button>
+                                {/* the SAME action as the row «Урока не было» of the «⋯» menu (one rule of when it is offered: `teacherCancelOffer`) */}
+                                {cancelMenuItem && (
+                                  <button
+                                    type="button"
+                                    onClick={cancelMenuItem.onSelect}
+                                    disabled={savingAttendance}
+                                    className={`${BANNER_ACTION_BASE} bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 shadow-none disabled:cursor-not-allowed disabled:opacity-50`}
+                                  >
+                                    Урока не было
+                                  </button>
+                                )}
+                              </div>
+                              <p className="mt-2 pl-[3.625rem] text-xs text-slate-500">Время начала запишется текущим.</p>
+                            </>
                           )}
                         </div>
                       ) : (
                         /* TODAY LIVE LESSON: Ready to start */
-                        <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3.5">
+                        <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80">
+                          <div className="flex items-start gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                               <Users className="w-5 h-5" />
                             </div>
@@ -525,20 +550,20 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                               <p className="text-sm font-bold text-slate-900">
                                 Состав группы ({groupStudents.length} {pluralRu(groupStudents.length, ["ученик", "ученика", "учеников"])})
                               </p>
-                              <p className="text-xs text-emerald-700 mt-0.5 font-medium">
-                                Время урока пришло. Нажмите «Начать урок» и отметьте присутствие учеников.
-                              </p>
+                              <p className="text-sm text-emerald-700 mt-0.5">Начните урок, чтобы отметить посещаемость.</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={handleStartLesson}
-                            disabled={savingAttendance}
-                            className="disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 shrink-0"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-white" />
-                            Начать урок
-                          </button>
+                          <div className={BANNER_ACTIONS}>
+                            <button
+                              type="button"
+                              onClick={handleStartLesson}
+                              disabled={savingAttendance}
+                              className={`${BANNER_ACTION_BASE} disabled:cursor-not-allowed disabled:opacity-50 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm shadow-emerald-600/25`}
+                            >
+                              <Play className="w-3.5 h-3.5 fill-white" />
+                              Начать урок
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

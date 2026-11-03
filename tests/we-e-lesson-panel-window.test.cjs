@@ -41,7 +41,7 @@ test("[WN2] 8 days back: no action of the teacher, ONE line «Урок стар�
     assert.equal(s.hasButton(/Разобрать пропущенный урок/), false);
     assert.equal(menuKeys(s).includes("cancel"), false);
     assert.equal(s.text().split("Урок старше 7 дней — его закрывает администратор или владелец").length - 1, 1, "the fact is said once (LESSONS 87)");
-    assert.doesNotMatch(s.text(), /отмените его с причиной|Если занятие состоялось/);
+    assert.doesNotMatch(s.text(), /отмените урок с причиной|Если занятия не было/);
   });
 });
 
@@ -78,11 +78,11 @@ async function openPast(world) {
   await s.click(s.clickable(/Вчерашняя/));
   return s;
 }
-test("[WU1] the list of tasks is empty (read fine): «отмените его с причиной», no «Повторить»", async () => {
+test("[WU1] the list of tasks is empty (read fine): «отмените урок с причиной», no «Повторить»", async () => {
   await run({}, async (world) => {
     world.openActions = [];
     const s = await openPast(world);
-    assert.match(s.text(), /отмените его с причиной/);
+    assert.match(s.text(), /Если занятия не было, отмените урок с причиной/);
     assert.equal(s.hasButton(/Повторить/), false);
     assert.doesNotMatch(s.text(), /Не удалось проверить/);
   });
@@ -93,7 +93,7 @@ test("[WU2] the list could NOT be read: «Не удалось проверить
     world.failNext.getOpenAttendanceActions = new Error("503");
     const s = await openPast(world);
     assert.match(s.text(), /Не удалось проверить, нужно ли оформить урок/);
-    assert.doesNotMatch(s.text(), /Если занятие не состоялось, отмените его с причиной/);
+    assert.doesNotMatch(s.text(), /отмените урок с причиной/);
     assert.equal(s.hasButton(/Разобрать пропущенный урок/), false);
     world.openActions = [world.openAction(LESSONS.past)];
     await s.click(/Повторить/);
