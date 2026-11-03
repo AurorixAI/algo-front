@@ -25,7 +25,7 @@ import { LessonCancelPanel } from "@/components/substitutions/lesson-cancel-pane
 import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup } from "@/components/substitutions/teacher-lesson-controls";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import { showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
-import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
+import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { roomLabel } from "@/lib/schedule-slots";
 import { timeRange } from "@/lib/schedule-plan";
 import { pluralRu } from "@/lib/payments";
@@ -57,7 +57,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
-    activeMissedAction, activeSubsequentLesson, ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
+    activeMissedAction, activeMissedTooOld, activeSubsequentLesson, ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
@@ -399,7 +399,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             <div>
                               <p className="text-sm font-bold text-rose-950">Урок не был начат</p>
                               <p className="text-xs text-rose-800 mt-0.5">
-                                Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}, {activeLesson.startTime} — {activeLesson.endTime}. Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : "Если занятие не состоялось, отмените его с причиной."}
+                                Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}, {activeLesson.startTime} — {activeLesson.endTime}. Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : activeMissedTooOld ? LESSON_TOO_OLD_TEXT : "Если занятие не состоялось, отмените его с причиной."}
                               </p>
                             </div>
                           </div>

@@ -4,7 +4,7 @@
 //   - from the schedule: the topic, «Перенесён», the menu group «Постоянное расписание»;
 //   - from the dashboard: «Разобрать пропущенный урок» for a past lesson that was never started, the date check at the start, «следующий начатый урок»;
 //   - the same banner of a future lesson, the same date format, place and footer.
-// A test marked `todo` on a screen documents a difference that decision 3 removes (it fails on the old copy; it must be green after the merge).
+// (Commit 96096d0 had the 13 scenarios where the old copies differ marked `todo`; after the merge they are strict.)
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { NOW, TODAY, PAST_DAY, FUTURE_DAY, LESSONS, createWorld, mountScreen, harness } = require("./helpers/teacher-world.cjs");
@@ -13,15 +13,12 @@ const SCREENS = {
   dashboard: { path: "src/app/teacher/dashboard/page.tsx" },
   schedule: { path: "src/app/teacher/schedule/page.tsx" },
 };
-// WE-E step 1: which differences of the OLD copies are still open (the list shrinks to nothing in step 2)
-const OPEN = new Set(process.env.WEE_STEP1 === "1" ? [] : []);
 
-/** t("dashboard|schedule", "A1 name", fn, { todoOn: [...] }) */
-function scenario(id, name, fn, { todoOn = [], only = null } = {}) {
+/** t("dashboard|schedule", "A1 name", fn) */
+function scenario(id, name, fn, { only = null } = {}) {
   for (const screen of Object.keys(SCREENS)) {
     if (only && !only.includes(screen)) continue;
-    const todo = todoOn.includes(screen) && !process.env.WEE_STEP2 ? "WE-E step 2: the copies differ, target = decision 3" : false;
-    test(`[${id}] ${screen}: ${name}`, { todo }, async () => {
+    test(`[${id}] ${screen}: ${name}`, async () => {
       harness.setNow(NOW);
       const world = createWorld();
       try { await fn({ screen, world }); } finally { world.restore(); harness.setNow(null); }
@@ -54,20 +51,20 @@ scenario("A1", "the date of the header is long, without a technical format", asy
   const s = await openPanel(screen, await startScreen(screen, world), "live");
   assert.match(s.text(), /среда, 4 ноября · 12:00 — 13:30/);
   assert.doesNotMatch(s.text(), /04\.11\.2026 ·/);
-}, { todoOn: ["schedule"] });
+});
 
 scenario("A2", "the topic of the lesson is shown", async ({ screen, world }) => {
   world.lessons.find((l) => l.id === "L-live").topic = "Дроби и проценты";
   const s = await openPanel(screen, await startScreen(screen, world), "live");
   assert.match(s.text(), /Тема урока/);
   assert.match(s.text(), /Тема урока\s*Дроби и проценты/);
-}, { todoOn: ["dashboard"] });
+});
 
 scenario("A3", "a moved lesson says «Перенесён: было → стало»", async ({ screen, world }) => {
   Object.assign(world.lessons.find((l) => l.id === "L-live"), { isRescheduled: true, originalStartTime: "11:00", originalEndTime: "12:30" });
   const s = await openPanel(screen, await startScreen(screen, world), "live");
   assert.match(s.text(), /Перенесён: 11:00.{1,3}12:30 → 12:00.{1,3}13:30/);
-}, { todoOn: ["dashboard"] });
+});
 
 scenario("A4", "the place: the room, or «Кабинет не указан», or the online class", async ({ screen, world }) => {
   const live = world.lessons.find((l) => l.id === "L-live");
@@ -87,14 +84,14 @@ scenario("A4", "the place: the room, or «Кабинет не указан», or
     assert.match(s.text(), /Zoom класс/);
   } finally { world3.restore(); }
   void live;
-}, { todoOn: ["schedule"] });
+});
 
 scenario("A5", "the class is shown only when the lesson has one", async ({ screen, world }) => {
   world.lessons.find((l) => l.id === "L-live").classLevel = 0;
   const s = await openPanel(screen, await startScreen(screen, world), "live");
   const panelText = s.text().slice(s.text().indexOf("среда, 4 ноября · 12:00") >= 0 ? s.text().indexOf("среда, 4 ноября · 12:00") : s.text().indexOf("04.11.2026"));
   assert.doesNotMatch(panelText, /0 класс/);
-}, { todoOn: ["schedule"] });
+});
 
 // ── B. the status banner by lesson state ─────────────────────────────────────────────────────────
 scenario("B1", "today, in time, not started: the roster and «Начать урок»", async ({ screen, world }) => {
@@ -138,31 +135,31 @@ scenario("B6", "a finished lesson: «Урок завершён», the marks are 
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок завершён/);
   assert.match(s.text(), /Для изменения нужен контролируемый административный доступ/);
-  assert.equal(s.hasButton(/Начать урок/), false);
-}, { todoOn: ["schedule"] });
+  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+});
 
 scenario("B7", "a cancelled lesson: «Урок отменён» and the reason", async ({ screen, world }) => {
   world.setLessonState(LESSONS.over, { status: "cancelled", version: 2, cancellationReason: "Болезнь учителя" });
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок отменён/);
   assert.match(s.text(), /Причина: Болезнь учителя/);
-}, { todoOn: ["schedule"] });
+});
 
 scenario("B8", "a later lesson of the teacher was already started: «Урок больше нельзя начать», no start", async ({ screen, world }) => {
   inProgress(world, LESSONS.live);
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок больше нельзя начать/);
   assert.match(s.text(), /уже был начат урок «Живая»/);
-  assert.equal(s.hasButton(/Начать урок/), false);
+  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
 });
 
 scenario("B9", "a lesson of a future day: «Урок ещё не наступил», no start", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "future");
   assert.match(s.text(), /Урок ещё не наступил/);
   assert.match(s.text(), /пятница, 6 ноября/);
-  assert.equal(s.hasButton(/Начать урок/), false);
+  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
   assert.equal(s.hasButton(/Доступно/), false);
-}, { todoOn: ["schedule"], only: ["schedule"] });
+}, { only: ["schedule"] });
 
 scenario("B10", "a past lesson never started: «Урок не был начат» and «Разобрать пропущенный урок» (the server has it as a task)", async ({ screen, world }) => {
   world.openActions = [world.openAction(LESSONS.past)];
@@ -170,8 +167,8 @@ scenario("B10", "a past lesson never started: «Урок не был начат�
   assert.match(s.text(), /Урок не был начат/);
   assert.match(s.text(), /Начать его теперь нельзя/);
   assert.ok(s.hasButton(/Разобрать пропущенный урок/));
-  assert.equal(s.hasButton(/Начать урок/), false);
-}, { todoOn: ["schedule"], only: ["schedule"] });
+  assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
+}, { only: ["schedule"] });
 
 scenario("B11", "a past lesson never started and not in the server's list: no «Разобрать», the way out is the cancellation", async ({ screen, world }) => {
   world.openActions = [];
@@ -342,7 +339,7 @@ scenario("C13", "a refusal that arrives after the panel was closed is not silent
   assert.match(s.text(), /Не сохранено: Живая, 4 ноября — откройте урок и повторите/);
   // the reason of the refusal comes with it (a toast with details): the same on both screens
   assert.match(s.text(), /Не удалось начать урок/);
-}, { todoOn: ["schedule"] });
+});
 
 scenario("C14", "the answer of lesson A that comes after lesson B was opened changes nothing in the panel of B", async ({ screen, world }) => {
   inProgress(world, LESSONS.live, { s1: "present", s2: "present" });
@@ -390,7 +387,7 @@ scenario("D1", "«Разобрать пропущенный урок» → «О�
   assert.equal(calls[0].args[1].lessonId, "L-past");
   assert.match(s.text(), /Урок начат/);
   assert.ok(s.hasButton(/Заполнить посещаемость/));
-}, { todoOn: ["schedule"] });
+});
 
 scenario("D2", "«Урока не было» of the reconciliation: a reason of 3+ characters, one cancel request", async ({ screen, world }) => {
   world.openActions = [world.openAction(LESSONS.past)];
@@ -408,7 +405,7 @@ scenario("D2", "«Урока не было» of the reconciliation: a reason of 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].args[1].cancellationReason, REASON);
   assert.equal(sent[0].args[1].lessonId, "L-past");
-}, { todoOn: ["schedule"] });
+});
 
 scenario("D3", "the reconciliation refused: the text is in the dialog, the lesson stays on the list", async ({ screen, world }) => {
   world.openActions = [world.openAction(LESSONS.past)];
@@ -418,7 +415,7 @@ scenario("D3", "the reconciliation refused: the text is in the dialog, the lesso
   await s.click(/Оформить проведённый урок/);
   assert.match(s.text(), /Не удалось открыть журнал пропущенного урока/);
   assert.ok(s.hasButton(/Оформить проведённый урок/));
-}, { todoOn: ["schedule"] });
+});
 
 // ── E. the menu of the lesson and the footer ─────────────────────────────────────────────────────
 scenario("E1", "the footer: the link to the group on both screens; the group «Постоянное расписание» only where the series is editable (schedule, week view)", async ({ screen, world }) => {

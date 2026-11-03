@@ -12,11 +12,11 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   orgApi, examsApi,
-  type AttendanceStatus, type GroupInfo, type LessonAttendanceStatus, type OpenAttendanceAction, type StudentInGroup,
+  type AttendanceStatus, type GroupInfo, type LessonAttendanceStatus, type OpenAttendanceAction, type ScheduleOccurrence, type StudentInGroup,
 } from "./api";
-import { businessDayOfWeek, businessTimeMinutes } from "./business-time";
+import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
-import { examSyncNotice, lessonFailure } from "./attendance-ops";
+import { examSyncNotice, lessonFailure, openLessonAccess } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
 import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
@@ -63,6 +63,26 @@ export interface TeacherPanelLesson extends PanelLesson {
   isSubstitution?: boolean;
   defaultTeacherId?: string | null;
   defaultTeacherName?: string | null;
+}
+
+/** The lesson of a task of the server (a past lesson that was never started, or a journal left open): what the panel opens for it. */
+export function lessonFromAttendanceAction(action: OpenAttendanceAction): ScheduleOccurrence & { room: string } {
+  return {
+    id: action.lessonId,
+    groupId: action.groupId,
+    groupName: action.groupName,
+    classLevel: action.classLevel,
+    subject: action.subject,
+    dayOfWeek: isoDateDayOfWeek(action.lessonDate),
+    startTime: action.startTime,
+    endTime: action.endTime,
+    room: action.room || "",
+    format: action.format === "online" ? "online" : "offline",
+    color: "blue",
+    topic: action.topic || undefined,
+    occurrenceDate: action.lessonDate,
+    isRescheduled: false,
+  };
 }
 
 /** What the screen has to learn about a write of the panel to keep ITS cards right (a map by lesson id is right whichever lesson is open). */
@@ -640,8 +660,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const activeTimeStatus = activeLesson && activeLessonIsToday
     ? getLessonTimeStatus(activeLesson, todayDayOfWeek, isAttendanceSaved || host.hasSavedMarks(activeLesson.id), activeInstanceStatus === "completed")
     : null;
-  // The never-started lesson of a past day, which the teacher can still settle as "missed".
-  const activeMissedAction = activeLesson && activeLessonRelation === "past"
+  // The never-started lesson of a past day, which the teacher can still settle as "missed" (older than 7 days: only an administrator or the owner closes it)
+  const missedOfLesson = activeLesson && activeLessonRelation === "past"
     ? host.openActions.find((action) => (
       action.actionType === "missed"
       && action.groupId === activeLesson.groupId
@@ -649,6 +669,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       && action.lessonDate === activeLessonDate
     )) ?? null
     : null;
+  const missedTooOld = Boolean(missedOfLesson && openLessonAccess(missedOfLesson, host.user?.org_role ?? host.user?.role ?? null, businessDate).locked);
+  const activeMissedAction = missedTooOld ? null : missedOfLesson;
   const activeSubsequentLesson = activeLesson && activeLessonIsToday && activeInstanceStatus === "scheduled"
     ? getSubsequentStartedLesson(activeLesson)
     : null;
@@ -691,7 +713,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape,
     // the rules, read once
-    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeSubsequentLesson,
+    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedTooOld: missedTooOld, activeSubsequentLesson,
     ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, consumeEscape, getSubsequentStartedLesson, todayDayOfWeek, businessDate,
     // the handlers
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openCancelLessonPanel,

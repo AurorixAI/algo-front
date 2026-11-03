@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTeacherLessonPanel } from "@/lib/use-teacher-lesson-panel";
+import { lessonFromAttendanceAction, useTeacherLessonPanel } from "@/lib/use-teacher-lesson-panel";
 import { TeacherLessonPanelView } from "@/components/teacher/lesson-panel";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,16 +9,7 @@ import { useAuthStore } from "@/lib/store";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { examsApi, orgApi, type GroupInfo, type LessonAttendanceStatus, type LiveExamDashboardSummary, type OpenAttendanceAction, type ScheduleOccurrence } from "@/lib/api";
 import { pollFailure } from "@/lib/staff-busy";
-import {
-  businessDayOfWeek,
-  businessGreeting,
-  businessTimeMinutes,
-  formatBusinessDate,
-  formatBusinessDateLabel,
-  formatIsoDateLabel,
-  formatMinutesUntil,
-  isoDateDayOfWeek,
-} from "@/lib/business-time";
+import { businessDayOfWeek, businessGreeting, businessTimeMinutes, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import { openLessonBadge } from "@/lib/open-lessons";
 import { Users, GraduationCap, Calendar as CalendarIcon, ArrowRight, Plus, Clock, MapPin, Video, X, Play, CheckCircle2, AlertCircle, ClipboardCheck, FileCheck2, Radio, TimerReset } from "lucide-react";
 import Link from "next/link";
@@ -91,23 +82,6 @@ type LessonAction = {
   /** Decision 7: older than 7 days - only an administrator or the owner closes it (the row is grey, without buttons). */
   locked?: boolean;
 };
-
-function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary {
-  return {
-    id: action.lessonId,
-    groupId: action.groupId,
-    groupName: action.groupName,
-    classLevel: action.classLevel,
-    subject: action.subject,
-    dayOfWeek: isoDateDayOfWeek(action.lessonDate),
-    startTime: action.startTime,
-    endTime: action.endTime,
-    room: action.room || "",
-    format: action.format === "online" ? "online" : "offline",
-    topic: action.topic || undefined,
-    occurrenceDate: action.lessonDate,
-  };
-}
 
 export default function TeacherDashboardPage() {
   const router = useRouter();
