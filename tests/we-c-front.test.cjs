@@ -113,3 +113,57 @@ test("E-C/1: mutation - the old teacher condition (admin / owner branch) is seen
   assert.equal(mutated.groupJournalAccess({ workspace: "teacher", group: { name: "x", status: "active", teacher_id: "t1" }, userId: "t2" }).canEdit, true, "the mutant lets a stranger edit");
   assert.equal(W.groupJournalAccess({ workspace: "teacher", group: { name: "x", status: "active", teacher_id: "t1" }, userId: "t2" }).canEdit, false);
 });
+
+// ---- step 2: one way to bind an exam to a lesson ---------------------------------------------------------------------------
+
+const LESSON = { group: { id: "g1" }, occurrence: { id: "s9", occurrenceDate: "2026-11-05" } };
+function fakeExamsApi() {
+  const calls = [];
+  return {
+    calls,
+    assign: async (...args) => { calls.push(["assign", ...args]); return { exam_id: args[0], status: "lobby", group_id: "g1", access_code: "ABC123" }; },
+    preparePrintPackage: async (...args) => { calls.push(["print", ...args]); return { exam_id: args[0], status: "print_ready" }; },
+  };
+}
+
+test("E-C/2: an online exam is bound to the chosen lesson and its lobby opens (publish + lesson), a paper one gets its print package", async () => {
+  const A = lib("exam-assign.ts");
+  const api = fakeExamsApi();
+  const online = await A.assignExamToLesson(api, { exam_id: "e1", delivery_mode: "online" }, LESSON);
+  assert.deepEqual(api.calls[0], ["assign", "e1", { group_id: "g1", publish: true, lesson_id: "s9", lesson_date: "2026-11-05" }]);
+  assert.equal(online.kind, "lobby");
+  assert.equal(online.result.access_code, "ABC123");
+  const printed = await A.assignExamToLesson(api, { exam_id: "e2", delivery_mode: "print" }, LESSON);
+  assert.deepEqual(api.calls[1], ["print", "e2", { group_id: "g1", lesson_id: "s9", lesson_date: "2026-11-05" }]);
+  assert.equal(printed.kind, "print");
+  assert.equal(api.calls.length, 2, "a paper exam never goes through the group-only assign");
+  // no delivery mode = online (an old row)
+  await A.assignExamToLesson(api, { exam_id: "e3" }, LESSON);
+  assert.equal(api.calls[2][0], "assign");
+});
+
+test("E-C/2: a refusal of the server reaches the dialog (the function does not swallow it, no second call)", async () => {
+  const A = lib("exam-assign.ts");
+  const api = fakeExamsApi();
+  api.assign = async () => { throw new Error("Слот занят"); };
+  await assert.rejects(() => A.assignExamToLesson(api, { exam_id: "e1" }, LESSON), /Слот занят/);
+});
+
+test("E-C/2: the library page and the success dialog are shared files; the page has no private copy of the binding", () => {
+  const page = read("src/app/teacher/exams/page.tsx");
+  assert.match(page, /assignExamToLesson\(examsApi, assignTarget, selection\)/);
+  assert.doesNotMatch(page, /examsApi\.assign\(|examsApi\.preparePrintPackage\(/);
+  assert.doesNotMatch(page, /function SuccessAssignModal/);
+  assert.match(page, /import \{ SuccessAssignModal \} from "@\/components\/exam\/success-assign-modal"/);
+  assert.match(read("src/components/exam/success-assign-modal.tsx"), /export function SuccessAssignModal/);
+});
+
+test("E-C/2: mutation - the lobby without the lesson (the old group-page draft) is seen", async () => {
+  const mutated = loadMutated("src/lib/exam-assign.ts", "publish: true, lesson_id", "publish: false, lesson_id");
+  const api = fakeExamsApi();
+  await mutated.assignExamToLesson(api, { exam_id: "e1" }, LESSON);
+  assert.equal(api.calls[0][2].publish, false, "the mutant opens no lobby");
+  const real = fakeExamsApi();
+  await lib("exam-assign.ts").assignExamToLesson(real, { exam_id: "e1" }, LESSON);
+  assert.equal(real.calls[0][2].publish, true);
+});

@@ -40,6 +40,8 @@ import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { loadLibraryPages, loadNextLibraryPage, tabCountLabel } from "@/lib/exam-library-paging";
 import { examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { SuccessAssignModal } from "@/components/exam/success-assign-modal";
+import { assignExamToLesson } from "@/lib/exam-assign";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -126,87 +128,6 @@ function StatusBadge({ status, label }: { status: string; label?: string }) {
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} flex-shrink-0`} />
       {label ?? cfg.label}
     </span>
-  );
-}
-
-// ─── Success Modal (after assign) ─────────────────────────────────────────────
-interface SuccessModalProps {
-  result: { access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string };
-  returnHref: string;
-  onClose: () => void;
-}
-
-function SuccessAssignModal({ result, returnHref, onClose }: SuccessModalProps) {
-  const [copied, setCopied] = useState(false);
-  useScrollLock(true); // mounted only while the dialog is open
-  const { showToast, toastNode } = useToast();
-  const fullUrl = result.access_code
-    ? examLinkHere(result.access_code)
-    : result.url || "";
-
-  const handleCopy = () => {
-    if (!fullUrl) return;
-    void copyText(fullUrl).then((ok) => {
-      if (!ok) { showToast(COPY_FAILED_TEXT, "error"); return; }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/60 p-6 space-y-5 text-center"
-      >
-        <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-          <CheckCircle className="w-7 h-7" />
-        </div>
-
-        <div>
-          <h3 className="text-lg font-bold text-slate-900">Экзамен назначен!</h3>
-          {result.group_name && (
-            <p className="text-xs text-slate-500 mt-1">Для группы <span className="font-semibold text-slate-800">{result.group_name}</span></p>
-          )}
-        </div>
-
-        {result.access_code && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500 font-medium">Код доступа для учеников:</p>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <span className="font-mono text-xl font-bold tracking-widest text-slate-900">{result.access_code}</span>
-              <button
-                onClick={handleCopy}
-                className="p-2 text-slate-500 hover:text-primary-600 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
-                title="Скопировать ссылку"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-          >
-            Закрыть
-          </button>
-          <Link
-            href={`/teacher/exams/${result.exam_id}?return_to=${encodeURIComponent(returnHref)}`}
-            className="flex-1 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-          >
-            В Hub экзамена
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </motion.div>
-      {toastNode}
-    </div>
   );
 }
 
@@ -999,25 +920,15 @@ export default function TeacherExamsPage() {
             initialGroupId={assignTarget.group_id}
             deliveryMode={assignTarget.delivery_mode}
             onClose={() => setAssignTarget(null)}
-            onSubmit={async ({ group, occurrence }) => {
-              if (assignTarget.delivery_mode === "print") {
-                await examsApi.preparePrintPackage(assignTarget.exam_id, {
-                  group_id: group.id,
-                  lesson_id: occurrence.id,
-                  lesson_date: occurrence.occurrenceDate,
-                });
+            onSubmit={async (selection) => {
+              // ONE way to bind an exam to a lesson (the group page uses the same function)
+              const outcome = await assignExamToLesson(examsApi, assignTarget, selection);
+              if (outcome.kind === "print") {
                 setAssignTarget(null);
                 router.push(`/teacher/exams/${assignTarget.exam_id}?return_to=${encodeURIComponent(currentLibraryHref)}`);
                 return;
               }
-
-              const result = await examsApi.assign(assignTarget.exam_id, {
-                group_id: group.id,
-                publish: true,
-                lesson_id: occurrence.id,
-                lesson_date: occurrence.occurrenceDate,
-              });
-              handleAssigned(assignTarget.exam_id, result);
+              handleAssigned(assignTarget.exam_id, outcome.result);
             }}
           />
         )}
