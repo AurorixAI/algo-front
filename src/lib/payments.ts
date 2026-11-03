@@ -9,6 +9,7 @@
  */
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
+import { formatMoney, formatMoneyInput, groupDigits } from "./money-format";
 import { CHIP_TONE_CLASS } from "./chip-tone";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
@@ -650,24 +651,7 @@ export const PAYMENT_MAX_AGE_YEARS = 3;
 
 // ── Money ──────────────────────────────────────────────────────────────────
 
-const NBSP = " ";
-
-function groupDigits(digits: string): string {
-  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
-}
-
-/** 450000 -> «450 000 сум» (non-breaking spaces: the amount never wraps in the middle). */
-export function formatMoney(value: number | null | undefined): string {
-  const amount = Math.round(Number(value) || 0);
-  const sign = amount < 0 ? "-" : "";
-  return `${sign}${groupDigits(String(Math.abs(amount)))}${NBSP}сум`;
-}
-
-/** Amount for an input field: thousands separated, no unit. */
-export function formatMoneyInput(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";
-  return groupDigits(String(Math.max(0, Math.round(Number(value)))));
-}
+export { formatMoney, formatMoneyInput } from "./money-format";
 
 /**
  * «450 000» / «450000» / «450 000 сум» -> 450000.  Everything but digits is ignored;

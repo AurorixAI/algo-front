@@ -5,6 +5,7 @@
  * The sentences that describe a calculation (`summary_text`, the label of an allocation, `balance_text`, `days_text`)
  * are written by the server and shown as they come; this file only arranges them.  Pure: no React, no network.
  */
+import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -229,7 +230,7 @@ export function buildPaymentPayload(values: PaymentFormValues): PaymentCreate {
 /** A correction starts from the payment being replaced. */
 export function paymentFormFrom(payment: { amount: number; paid_on: string; method?: PayMethod; note: string | null }): PaymentFormValues {
   return {
-    amount: String(sum(payment.amount)).replace(/\B(?=(\d{3})+(?!\d))/g, " "),
+    amount: formatMoneyInput(sum(payment.amount)),
     paidOn: payment.paid_on,
     method: enterableMethod(payment.method),
     note: payment.note ?? "",

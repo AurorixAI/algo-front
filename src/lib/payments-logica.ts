@@ -7,6 +7,7 @@
  * «Простить долг» / «Прощено».  The sentences that are about a calculation of the server (`PayoutState.text`, the summary of a
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
+import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -186,7 +187,7 @@ export function openingValuesFrom(opening: { paid_until?: string | null; debt_am
   if (!opening) return emptyOpeningValues();
   return {
     paidUntil: opening.paid_until ?? "",
-    debt: opening.debt_amount ? String(opening.debt_amount).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "",
+    debt: opening.debt_amount ? formatMoneyInput(opening.debt_amount) : "",
     debtOn: opening.debt_on ?? "",
     note: opening.note ?? "",
     reason: "",

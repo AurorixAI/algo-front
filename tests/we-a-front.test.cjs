@@ -370,3 +370,25 @@ test("DUP-5: no hand-made plural is left in the exam pages / students-tabs / sub
   assert.equal(time.completedLessonsProgressLabel(1, 3), "Завершено: 1 из 3 уроков");
   assert.equal(time.completedLessonsProgressLabel(0, 21), "Завершено: 0 из 21 урока");
 });
+
+// ---- DUP-6: ONE way to group thousands (non-breaking space) ----------------------------------------------------------------------------
+
+test("DUP-6: a form filled by the program holds the same characters as the one typed into (all NBSP); payf writes «сум» like formatMoney", () => {
+  const typed = lib("payments.ts").reformatMoneyTyping("450000");
+  assert.equal(typed, "450 000");
+  const logica = lib("payments-logica.ts");
+  assert.equal(logica.openingValuesFrom({ debt_amount: 1250000 }).debt, "1 250 000");
+  assert.equal(logica.openingValuesFrom({ debt_amount: 0 }).debt, "");
+  assert.equal(lib("payroll-logica.ts").emptyPayoutValues("2026-10-16", { balance: 1250000 }).amount, "1 250 000");
+  assert.equal(lib("payments-ledger.ts").paymentFormFrom({ amount: 450000, paid_on: "2026-10-16", note: null }).amount, typed);
+  const payf = lib("payf.ts");
+  assert.equal(payf.recalcAmountText({ amount: 46000 }), "\u221246\u00a0000\u00a0сум");
+  assert.equal(lib("money-format.ts").formatMoney(450000), lib("payments.ts").formatMoney(450000));
+});
+
+test("DUP-6: no private thousands regex outside lib/money-format.ts", () => {
+  for (const f of SRC) {
+    if (f === "src/lib/money-format.ts") continue;
+    assert.doesNotMatch(read(f), /\\B\(\?=\(\\d\{3\}\)\+/, `${f}: a private grouping of digits`);
+  }
+});

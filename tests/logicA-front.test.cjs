@@ -368,7 +368,7 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.equal(Y.monthPayoutTail([{ payout: null }]), null);
   // the form: the amount starts as what is left; more than that asks
   const values = Y.emptyPayoutValues("2026-11-12", due);
-  assert.equal(values.amount, "125 000");
+  assert.equal(values.amount, "125\u00a0000");     // WAVE E (DUP-6): the prefilled sum holds the same characters as a typed one
   assert.equal(Y.validatePayout(values, "2026-11-12"), "Выберите способ выплаты");
   const ready = { ...values, method: "cash" };
   assert.equal(Y.validatePayout(ready, "2026-11-12"), null);

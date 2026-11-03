@@ -8,6 +8,7 @@
  */
 import type { MembershipPaymentRow } from "./payments";
 import { daysBetweenInclusive } from "./business-time";
+import { formatMoney } from "./money-format";
 import { reasonProblemFor } from "./reason-rules";
 import { pluralRu } from "./plural";
 
@@ -17,9 +18,7 @@ function dayMonth(iso: string | null | undefined): string {
   return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : "";
 }
 
-function money(amount: number): string {
-  return `${String(Math.round(amount)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`;
-}
+const money = (amount: number): string => formatMoney(Math.round(amount));
 
 // ── 1. The forecast of a package ────────────────────────────────────────────
 

@@ -6,6 +6,7 @@
  * The pay of a teacher is a different account from the student's: «начислено / к выплате» keep their words here (owner 21.10).
  * Pure: no React, no network.
  */
+import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -265,7 +266,7 @@ export function defaultPayoutAmount(state: PayoutState | null | undefined): numb
 
 export function emptyPayoutValues(today: string, state: PayoutState | null | undefined): PayoutFormValues {
   const amount = defaultPayoutAmount(state);
-  return { amount: amount === null ? "" : String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, " "), paidOn: today, method: null, note: "" };
+  return { amount: amount === null ? "" : formatMoneyInput(amount), paidOn: today, method: null, note: "" };
 }
 
 export function validatePayout(values: PayoutFormValues, today: string): string | null {
