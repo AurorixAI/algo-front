@@ -103,7 +103,7 @@ scenario("B1", "today, in time, not started: the roster and «Начать ур�
 scenario("B2", "today, before the start: «Урок ещё не начался» and a disabled «Доступно в 15:00»", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "upcoming");
   assert.match(s.text(), /Урок ещё не начался/);
-  assert.match(s.text(), /Начало в 15:00 \(через/);
+  assert.match(s.text(), /Начало через/);
   const gate = s.button(/Доступно в 15:00/);
   assert.equal(gate.props.disabled, true);
   assert.equal(s.hasButton(/^Начать урок/), false);
@@ -134,7 +134,7 @@ scenario("B6", "a finished lesson: «Урок завершён», the marks are 
   world.setLessonState(LESSONS.over, { status: "completed", version: 3, roster: ["s1", "s2"], records: { s1: "present", s2: "present" } });
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок завершён/);
-  assert.match(s.text(), /Для изменения нужен контролируемый административный доступ/);
+  assert.match(s.text(), /Исправить их может только администратор — с причиной/);
   assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
 });
 
@@ -156,7 +156,7 @@ scenario("B8", "a later lesson of the teacher was already started: «Урок б
 scenario("B9", "a lesson of a future day: «Урок ещё не наступил», no start", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "future");
   assert.match(s.text(), /Урок ещё не наступил/);
-  assert.match(s.text(), /пятница, 6 ноября/);
+  assert.match(s.text(), /Начать урок и отметить посещаемость можно только в день проведения/);
   assert.equal(s.hasButton(/^Начать урок( сейчас)?$/), false);
   assert.equal(s.hasButton(/Доступно/), false);
 }, { only: ["schedule"] });

@@ -34,7 +34,7 @@ function createWorld(options = {}) {
     calls: [],
     user: { id: "t1", role: "teacher", org_role: "teacher", first_name: "Учитель", last_name: "Тестов" },
     groups: [],
-    lessons: [...Object.values(LESSONS), ...(options.recurring ? [RECURRING_PAST] : [])].map((l) => ({ ...l })),
+    lessons: [...Object.values(LESSONS), ...(options.recurring ? [RECURRING_PAST] : []), ...(options.extra || [])].map((l) => ({ ...l })),
     journals: {},            // groupId -> { statuses, versions, records, rosterStudentIds, cancellationReasons, excuses }
     rosters: {},             // groupId -> students
     openActions: [],         // OpenAttendanceAction[] (the server's list of «пропущенный урок» / «в процессе»)
@@ -44,6 +44,7 @@ function createWorld(options = {}) {
     ...options,
   };
   delete world.recurring;
+  delete world.extra;
   for (const l of world.lessons) {
     if (!world.groups.some((g) => g.id === l.groupId)) world.groups.push({ id: l.groupId, name: l.groupName, status: "active", teacher_id: world.user.id, class_level: 7, student_count: STUDENTS.length, subject: "math" });
     world.rosters[l.groupId] ??= STUDENTS;
@@ -132,4 +133,4 @@ function mountScreen(pagePath, world, options = {}) {
   return harness.screen(Page, {}, { opaque: ["TeacherLessonControls", "LessonActionsMenu", "AttendanceConflictDialog", "LiveExamConfirmDialog", "LessonCancelPanel", "RequestDialog", "LessonChips", "EditWeeklyLessonDialog", "EndWeeklyLessonDialog", "LessonSlotFields", "LessonScopeFields", "OneOffPurposeFields", "Select", "FloatingPanel", ...(options.opaque || [])] });
 }
 
-module.exports = { RECURRING_PAST, NOW, TODAY, PAST_DAY, FUTURE_DAY, STUDENTS, LESSONS, createWorld, mountScreen, harness };
+module.exports = { lesson, RECURRING_PAST, NOW, TODAY, PAST_DAY, FUTURE_DAY, STUDENTS, LESSONS, createWorld, mountScreen, harness };

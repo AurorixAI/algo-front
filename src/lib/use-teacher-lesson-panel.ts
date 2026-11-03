@@ -16,7 +16,7 @@ import {
 } from "./api";
 import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
-import { examSyncNotice, lessonFailure, openLessonAccess } from "./attendance-ops";
+import { examSyncNotice, isLessonTooOld, lessonFailure } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
 import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
@@ -25,7 +25,7 @@ import {
 import { lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
-import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
+import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
 import { reasonProblemFor } from "./reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "./schedule-card-actions";
 import { getLessonTimeStatus } from "./schedule-time";
@@ -109,6 +109,10 @@ export interface TeacherLessonPanelHost<L extends TeacherPanelLesson> {
   /** The server's list of lessons that need a decision (a past lesson that was never started is in it as `missed`). */
   openActions: OpenAttendanceAction[];
   setOpenActions: Dispatch<SetStateAction<OpenAttendanceAction[]>>;
+  /** The list of the server's tasks was read (false: it could not be - «нужно ли оформить урок» is then unknown, not «нет»). */
+  openActionsKnown: boolean;
+  /** Read that list again («Повторить»). */
+  retryOpenActions: () => void;
   /** A lesson rebuilt from a task of the server (the one the reconciliation opens). */
   lessonFromAction: (action: OpenAttendanceAction) => L;
   onWritten: (event: LessonWriteEvent<L>) => void;
@@ -230,6 +234,25 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   /** The refusal of a write whose panel is already gone: the screen shows it with the reason (a toast that stays). */
   const showRefusedWrite = (notice: string | null, reason: string) => { if (notice) host.notifyRefusal(notice, reason); };
 
+  /** The server's list of tasks follows every write of the panel - ONE code for both screens (the schedule kept it stale until a reload). */
+  const syncOpenActions = (event: LessonWriteEvent<L>) => {
+    if (event.kind === "loaded") return;
+    const { lesson } = event;
+    const same = (action: OpenAttendanceAction) => action.groupId === lesson.groupId && action.lessonId === lesson.id && action.lessonDate === event.date;
+    if (event.kind === "started") {
+      void orgApi.getOpenAttendanceActions().then((list) => host.setOpenActions(list)).catch(() => undefined);
+    } else if (event.kind === "saved") {
+      host.setOpenActions((previous) => previous.map((action) => {
+        if (!same(action)) return action;
+        const rosterCount = event.rosterCount || action.rosterCount;
+        const markedCount = Object.keys(event.marks).length;
+        return { ...action, markedCount, rosterCount, remainingCount: Math.max(rosterCount - markedCount, 0) };
+      }));
+    } else {
+      host.setOpenActions((previous) => previous.filter((action) => !same(action)));
+    }
+  };
+
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
     setAttendance((prev) => {
       // A second click on the selected status means "not decided yet".
@@ -331,6 +354,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
         // the teacher may have opened another lesson while the start was on its way: the roster of the screen is not this lesson's any more
         if (frozen && panel.isOpen(target.key)) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
       }
+      syncOpenActions({ kind: "started", lesson: activeLesson, date: target.lessonDate });
       host.onWritten({ kind: "started", lesson: activeLesson, date: target.lessonDate });
       if (panel.isOpen(target.key)) {
         setActiveInstanceStatus("in_progress");
@@ -447,6 +471,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
+    if (lessonTooOld) { setAttendanceError(LESSON_TOO_OLD_TEXT); return; }
+
     // Attendance is allowed only after the server recorded the real start of this lesson.
     // This is a client-side guard; the API enforces it too.
     if (activeInstanceStatus !== "in_progress") {
@@ -479,6 +505,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
         setIsAttendanceDirty(false);
         setActiveInstanceStatus("in_progress");
       }
+      syncOpenActions({ kind: "saved", lesson: activeLesson, date: target.lessonDate, marks, rosterCount: groupStudents.length });
       host.onWritten({ kind: "saved", lesson: activeLesson, date: target.lessonDate, marks, rosterCount: groupStudents.length });
       if (here) setIsMarkingAttendance(false);
     } catch (err) {
@@ -498,6 +525,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     if (!activeLesson) return;
     const target = panel.target(activeLesson);
     if (!target) { setAttendanceError(panel.notReadyText); return; }
+    if (lessonTooOld) { setAttendanceError(LESSON_TOO_OLD_TEXT); return; }
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
@@ -508,7 +536,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     }
 
     // Check attendance completeness: all students must be marked and attendance saved
-    const hasSaved = isAttendanceSaved || host.hasSavedMarks(activeLesson.id);
+    const hasSaved = isAttendanceSaved || (activeLessonIsToday && host.hasSavedMarks(activeLesson.id));   // the card map of the screen is the map of TODAY: not a lesson of another week with the same id
     const unmarked = groupStudents.filter((st) => !marks[st.id]);
 
     if (!hasSaved || unmarked.length > 0) {
@@ -543,6 +571,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
         rememberSavedExcuses(prepared.reasons, marks);
       }
       // O8: the exam service could not be asked - the lesson is closed anyway; the screen says so
+      syncOpenActions({ kind: "finished", lesson: activeLesson, date: target.lessonDate, syncNotice: null });
       host.onWritten({ kind: "finished", lesson: activeLesson, date: target.lessonDate, syncNotice: examSyncNotice(finished?.examSync) });
       if (here) setActiveLesson(null); // the panel of ANOTHER lesson, opened meanwhile, stays
     } catch (err) {
@@ -585,6 +614,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
         setIsCancellingLesson(false);
         setLessonExamBinding(null);
       }
+      syncOpenActions({ kind: "cancelled", lesson: activeLesson, date: target.lessonDate, notes });
       host.onWritten({ kind: "cancelled", lesson: activeLesson, date: target.lessonDate, notes });
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
@@ -660,8 +690,12 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const activeTimeStatus = activeLesson && activeLessonIsToday
     ? getLessonTimeStatus(activeLesson, todayDayOfWeek, isAttendanceSaved || host.hasSavedMarks(activeLesson.id), activeInstanceStatus === "completed")
     : null;
-  // The never-started lesson of a past day, which the teacher can still settle as "missed" (older than 7 days: only an administrator or the owner closes it)
-  const missedOfLesson = activeLesson && activeLessonRelation === "past"
+  // The window of the teacher: a lesson older than 7 days (by ITS DATE, as the server says LESSON_TOO_OLD) is closed by an administrator or the owner -
+  // nothing of the teacher's actions is offered for it (settle, mark, «Урока не было»): one line instead (`LESSON_TOO_OLD_TEXT`)
+  const viewerRole = host.user?.org_role ?? host.user?.role ?? null;
+  const lessonTooOld = Boolean(activeLesson && activeLessonDate && viewerRole !== "owner" && viewerRole !== "admin" && isLessonTooOld(activeLessonDate, businessDate));
+  // The never-started lesson of a past day, which the teacher can still settle as "missed"
+  const activeMissedAction = activeLesson && activeLessonRelation === "past" && !lessonTooOld
     ? host.openActions.find((action) => (
       action.actionType === "missed"
       && action.groupId === activeLesson.groupId
@@ -669,8 +703,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       && action.lessonDate === activeLessonDate
     )) ?? null
     : null;
-  const missedTooOld = Boolean(missedOfLesson && openLessonAccess(missedOfLesson, host.user?.org_role ?? host.user?.role ?? null, businessDate).locked);
-  const activeMissedAction = missedTooOld ? null : missedOfLesson;
+  /** The list of tasks could not be read: «not in the list» then proves nothing - the panel says so and offers to read it again (the money of the lesson depends on the answer). */
+  const activeMissedUnknown = Boolean(activeLesson && activeLessonRelation === "past" && !lessonTooOld && !host.openActionsKnown);
   const activeSubsequentLesson = activeLesson && activeLessonIsToday && activeInstanceStatus === "scheduled"
     ? getSubsequentStartedLesson(activeLesson)
     : null;
@@ -680,6 +714,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     status: activeInstanceStatus,
     relation: activeLessonRelation,
     isDirty: isAttendanceDirty,
+    tooOld: lessonTooOld,
     hasSavedMarks: isAttendanceSaved && Object.keys(attendance).length > 0,
     hasSubsequentStarted: Boolean(activeSubsequentLesson),
     time: activeTimeStatus,
@@ -688,7 +723,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   // W1 F1: a teacher does not cancel a lesson to come; «Урока не было» is offered for a lesson that has passed (one rule: `teacherCancelOffer`)
   // W1 F10: a lesson of his that a substitute leads stays in his schedule («Замена: имя»), but the lesson is not his to start, mark, move or cancel
   const ledByOther = Boolean(activeLesson?.replacedBy) || lessonBelongsToOther(activeTeacherInfo, host.user?.id);
-  const cancelOffer = activeLesson && !isCancellingLesson
+  const cancelOffer = activeLesson && !isCancellingLesson && !lessonTooOld
     ? teacherCancelOffer({
       role: host.user?.org_role ?? host.user?.role ?? null, otherLeads: ledByOther, state: activeInstanceStatus, date: lessonDateOf(activeLesson, businessDate), today: businessDate,
       startTime: activeLesson.startTime, endTime: activeLesson.endTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, host.user?.id),
@@ -701,6 +736,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const consumeEscape = (): boolean => {
     if (marksOps.conflict || marksOps.liveExams || moveHoldsEscape.current) return true;
     if (isLessonMenuOpen) { setIsLessonMenuOpen(false); return true; }
+    // the dialog «Пропущенный урок» (not while it sends): the same key on both screens
+    if (missedLessonAction && !isResolvingMissedLesson) { setMissedLessonAction(null); return true; }
     return false;
   };
 
@@ -713,7 +750,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape,
     // the rules, read once
-    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedTooOld: missedTooOld, activeSubsequentLesson,
+    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedUnknown, retryOpenActions: host.retryOpenActions, lessonTooOld, activeSubsequentLesson,
     ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, consumeEscape, getSubsequentStartedLesson, todayDayOfWeek, businessDate,
     // the handlers
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openCancelLessonPanel,

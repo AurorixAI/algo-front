@@ -93,6 +93,8 @@ export default function TeacherSchedulePage() {
   const [activeLessonView, setActiveLessonView] = useState<"today" | "week">("today");
   /** The server's tasks (a past lesson that was never started is `missed`): what «Разобрать пропущенный урок» is offered for. */
   const [openAttendanceActions, setOpenAttendanceActions] = useState<OpenAttendanceAction[]>([]);
+  /** false: the list could not be read - the panel of a past lesson says so instead of «отмените» (it proves nothing that the lesson is not in the list). */
+  const [openActionsKnown, setOpenActionsKnown] = useState(true);
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
   const [clockTick, setClockTick] = useState(0);
 
@@ -106,6 +108,10 @@ export default function TeacherSchedulePage() {
     hasSavedMarks: (lessonId) => Boolean(lessonAttendanceMap[lessonId]),
     openActions: openAttendanceActions,
     setOpenActions: setOpenAttendanceActions,
+    openActionsKnown,
+    retryOpenActions: () => {
+      void orgApi.getOpenAttendanceActions().then((list) => { setOpenAttendanceActions(list); setOpenActionsKnown(true); }).catch(() => setOpenActionsKnown(false));
+    },
     lessonFromAction: lessonFromAttendanceAction,
     onWritten: (event) => {
       const { lesson } = event;
@@ -266,6 +272,7 @@ export default function TeacherSchedulePage() {
       const { attMap, compMap, statusMap } = attendanceMapsOfToday(loadedTodayOccurrences, todayStr, (groupId) => journalByGroup.get(groupId));
 
       setGroups(fetchedGroups);
+      setOpenActionsKnown(Boolean(openActions));
       if (openActions) setOpenAttendanceActions(openActions);
       setNewGroupId((current) => current || fetchedGroups[0]?.id || "");
       setLessons(loadedLessons);

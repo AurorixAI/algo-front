@@ -134,28 +134,22 @@ export default function TeacherDashboardPage() {
     hasSavedMarks: (lessonId) => Boolean(lessonAttendanceMap[lessonId]),
     openActions: openAttendanceActions,
     setOpenActions: setOpenAttendanceActions,
+    openActionsKnown: openAttendanceActionsAvailable !== false,
+    retryOpenActions: () => setDashboardRefreshNonce((value) => value + 1),
     lessonFromAction: lessonFromAttendanceAction,
     onWritten: (event) => {
       const { lesson } = event;
       const isToday = event.date === businessDate;
-      const sameLesson = (action: OpenAttendanceAction) => action.groupId === lesson.groupId && action.lessonId === lesson.id && action.lessonDate === event.date;
       if (event.kind === "loaded") {
         if (event.snapshot.isToday) setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: event.snapshot.status }));
         if (event.snapshot.isSaved && event.snapshot.isToday) setLessonAttendanceMap((previous) => ({ ...previous, [lesson.id]: true }));
       } else if (event.kind === "started") {
         if (isToday) setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: "in_progress" }));
-        void orgApi.getOpenAttendanceActions().then(setOpenAttendanceActions).catch(() => undefined);
       } else if (event.kind === "saved") {
         if (isToday) {
           setLessonAttendanceMap((previous) => ({ ...previous, [lesson.id]: true }));
           setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: "in_progress" }));
         }
-        setOpenAttendanceActions((previous) => previous.map((action) => {
-          if (!sameLesson(action)) return action;
-          const rosterCount = event.rosterCount || action.rosterCount;
-          const markedCount = Object.keys(event.marks).length;
-          return { ...action, markedCount, rosterCount, remainingCount: Math.max(rosterCount - markedCount, 0) };
-        }));
       } else if (event.kind === "finished") {
         // O8: the exam service could not be asked - the lesson is closed anyway; say so
         if (event.syncNotice) setDashboardNotice(event.syncNotice);
@@ -163,14 +157,12 @@ export default function TeacherDashboardPage() {
           setCompletedLessonsMap((previous) => ({ ...previous, [lesson.id]: true }));
           setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: "completed" }));
         }
-        setOpenAttendanceActions((previous) => previous.filter((action) => !sameLesson(action)));
       } else {
         if (isToday) {
           setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: "cancelled" }));
           setLessonAttendanceMap((previous) => ({ ...previous, [lesson.id]: false }));
           setCompletedLessonsMap((previous) => ({ ...previous, [lesson.id]: false }));
         }
-        setOpenAttendanceActions((previous) => previous.filter((action) => !sameLesson(action)));
         if (event.notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", event.notes);
       }
     },
@@ -180,7 +172,7 @@ export default function TeacherDashboardPage() {
       setDashboardRefreshNonce((value) => value + 1);
     },
   });
-  const { activeLesson, setActiveLesson, openLesson, openMissedLesson, missedLessonAction, setMissedLessonAction, consumeEscape, getSubsequentStartedLesson } = lessonPanel;
+  const { setActiveLesson, openLesson, openMissedLesson, missedLessonAction, consumeEscape, getSubsequentStartedLesson } = lessonPanel;
 
 
   useEffect(() => {
@@ -246,7 +238,6 @@ export default function TeacherDashboardPage() {
       if (e.key === "Escape") {
         if (consumeEscape()) return;
         if (isExamQueueOpen) setIsExamQueueOpen(false);
-        else if (missedLessonAction) setMissedLessonAction(null);
         else if (isActionCenterOpen) setIsActionCenterOpen(false);
         else setActiveLesson(null);
       }

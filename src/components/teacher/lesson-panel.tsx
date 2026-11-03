@@ -58,7 +58,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
-    activeMissedAction, activeMissedTooOld, activeSubsequentLesson, ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
+    activeMissedAction, activeMissedUnknown, retryOpenActions, activeSubsequentLesson, ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
@@ -224,7 +224,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                         {activeLesson.groupName}
                       </h3>
                       {activeLesson.classLevel && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 border border-violet-200/60">
+                        <span className="shrink-0 whitespace-nowrap text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 border border-violet-200/60">
                           {activeLesson.classLevel} класс
                         </span>
                       )}
@@ -319,8 +319,16 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           </div>
                           <div>
                             <p className="text-xs font-bold text-slate-900">Урок завершён</p>
-                            <p className="text-xs text-slate-600 mt-0.5">Отметки зафиксированы. Для изменения нужен контролируемый административный доступ.</p>
+                            <p className="text-xs text-slate-600 mt-0.5">Отметки зафиксированы. Исправить их может только администратор — с причиной.</p>
                           </div>
+                        </div>
+                      ) : banner === "tooOld" ? (
+                        /* older than the window of the teacher: ONE line instead of any action (the date and the time are in the header) */
+                        <div role="status" className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-700">{LESSON_TOO_OLD_TEXT}</p>
                         </div>
                       ) : banner === "dirty" ? (
                         <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -402,10 +410,19 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             <div>
                               <p className="text-sm font-bold text-rose-950">Урок не был начат</p>
                               <p className="text-xs text-rose-800 mt-0.5">
-                                Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}, {activeLesson.startTime} — {activeLesson.endTime}. Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : activeMissedTooOld ? LESSON_TOO_OLD_TEXT : "Если занятие не состоялось, отмените его с причиной."}
+                                Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : activeMissedUnknown ? "Не удалось проверить, нужно ли оформить урок." : "Если занятие не состоялось, отмените его с причиной."}
                               </p>
                             </div>
                           </div>
+                          {activeMissedUnknown && (
+                            <button
+                              type="button"
+                              onClick={retryOpenActions}
+                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+                            >
+                              Повторить
+                            </button>
+                          )}
                           {activeMissedAction && (
                             <button
                               type="button"
@@ -424,7 +441,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           <div>
                             <p className="text-sm font-bold text-amber-950">Урок ещё не наступил</p>
                             <p className="text-xs text-amber-800 mt-0.5">
-                              Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}. Начать урок и отметить посещаемость можно только в день проведения.
+                              Начать урок и отметить посещаемость можно только в день проведения.
                             </p>
                           </div>
                         </div>
@@ -452,7 +469,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                 Урок ещё не начался
                               </p>
                               <p className="text-xs text-amber-800 mt-0.5">
-                                Начало в {activeLesson.startTime} (через {formatMinutesUntil(activeTimeStatus.diffMinutes)}). Начать урок и отметить посещаемость можно будет в {activeLesson.startTime}.
+                                Начало через {formatMinutesUntil(activeTimeStatus.diffMinutes)}.
                               </p>
                             </div>
                           </div>
@@ -478,7 +495,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                               Урок не был начат
                             </p>
                             <p className="text-xs text-amber-800 mt-0.5">
-                              Занятие было запланировано с {activeLesson.startTime} до {activeLesson.endTime}. Посещаемость пока нельзя сохранить: сначала начните урок. Будет записано фактическое время начала; если занятие не состоялось, отмените его с причиной.
+                              Посещаемость пока нельзя сохранить: сначала начните урок. Будет записано фактическое время начала; если занятие не состоялось, отмените его с причиной.
                             </p>
                             </div>
                           </div>

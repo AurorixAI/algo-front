@@ -9,7 +9,7 @@ const path = require("node:path");
 const test = require("node:test");
 const Module = require("node:module");
 const ts = require("typescript");
-const { NOW, TODAY, PAST_DAY, FUTURE_DAY, LESSONS, createWorld, harness } = require("./helpers/teacher-world.cjs");
+const { NOW, TODAY, PAST_DAY, FUTURE_DAY, LESSONS, lesson, createWorld, harness } = require("./helpers/teacher-world.cjs");
 
 const root = harness.root;
 const view = require(path.join(root, "src/lib/lesson-panel-view.ts"));
@@ -53,9 +53,9 @@ test("[R2] precedence: a finished or cancelled lesson shows that whatever else i
 });
 
 // ── the hook on a bare probe ─────────────────────────────────────────────────────────────────────
-async function probe(mutate, scenario) {
+async function probe(mutate, scenario, worldOptions) {
   harness.setNow(NOW);
-  const world = createWorld();
+  const world = createWorld(worldOptions);
   try {
     const { useTeacherLessonPanel, lessonFromAttendanceAction } = hookModule(mutate);
     const React = require("react");
@@ -103,19 +103,45 @@ test("[R4] MUTATION: without the date check the same scenario fails (a request g
   await assert.rejects(() => probe(mutated, scenarioDateCheck), /no request for a lesson of another day|0 !== 1|1 !== 0/);
 });
 
-test("[R5] a task older than 7 days is not offered to a teacher (the server would refuse it); the administrator gets it", async () => {
-  const old = { ...LESSONS.past };
-  const action = { ...createWorld().openAction(old), requiresAdmin: true, ageDays: 9 };
+// the window of the teacher is BY THE DATE of the lesson (server: LESSON_TOO_OLD when the date is before today - 7): 7 days back is allowed, 8 is not
+const dayLesson = (id, date) => lesson(id, `G-${id}`, `Группа ${id}`, date, "10:00", "11:00");
+test("[R5] 7 days back the teacher still settles / cancels / marks, 8 days back nothing of his is offered: ONE line instead; the administrator is not bound", async () => {
+  const seven = dayLesson("L7", "2026-10-28");
+  const eight = dayLesson("L8", "2026-10-27");
   await probe(null, async (api) => {
-    api.world.openActions = [action];
-    api.setHost({ openActions: [action] });
-    await api.open(old);
-    assert.equal(api.panel.activeMissedAction, null);
-    assert.equal(api.panel.activeMissedTooOld, true);
+    const missed = (l) => api.world.openAction(l);
+    api.setHost({ openActions: [missed(seven), missed(eight)] });
+    await api.open(seven);
+    assert.equal(api.panel.lessonTooOld, false);
+    assert.equal(api.panel.banner, "past");
+    assert.ok(api.panel.activeMissedAction, "7 days: «Разобрать» is offered");
+    assert.ok(api.panel.lessonMenuItems.some((item) => item.key === "cancel"), "7 days: «Урока не было» is offered");
+    await api.open(eight);
+    assert.equal(api.panel.lessonTooOld, true);
+    assert.equal(api.panel.banner, "tooOld");
+    assert.equal(api.panel.activeMissedAction, null, "8 days: no «Разобрать», even when the server lists the task");
+    assert.deepEqual(api.panel.lessonMenuItems.map((item) => item.key).filter((key) => key === "cancel"), [], "8 days: no «Урока не было»");
+    // the same for a lesson that was started and left open: nothing to mark
+    api.world.setLessonState(eight, { status: "in_progress", version: 2, roster: ["s1", "s2"] });
+    await api.open({ ...eight });
+    assert.equal(api.panel.banner, "tooOld");
+    await api.screen.call(() => api.panel.handleSaveAttendance());
+    assert.equal(api.world.called("saveGroupAttendance").length, 0);
+    assert.match(api.panel.attendanceError || "", /Урок старше 7 дней — его закрывает администратор или владелец/);
+    // the administrator is not bound by the window
     api.world.user = { ...api.world.user, role: "admin", org_role: "admin" };
-    api.setHost({ openActions: [action], user: api.world.user });
-    assert.ok(api.panel.activeMissedAction, "the administrator closes it");
-  });
+    api.setHost({ openActions: [missed(eight)], user: api.world.user });
+    assert.equal(api.panel.lessonTooOld, false);
+  }, { extra: [seven, eight] });
+});
+
+test("[R5b] MUTATION: the window by the existence of the task (not by the date) lets a lesson of 8 days with no task through", async () => {
+  const eight = dayLesson("L8", "2026-10-27");
+  const mutated = (source) => { assert.match(source, /isLessonTooOld\(activeLessonDate, businessDate\)/); return source.replace("isLessonTooOld(activeLessonDate, businessDate)", "false"); };
+  await assert.rejects(() => probe(mutated, async (api) => {
+    await api.open(eight);
+    assert.equal(api.panel.banner, "tooOld");
+  }, { extra: [eight] }), /'past' !== 'tooOld'|tooOld/);
 });
 
 test("[R6] a task that is not old is offered to the teacher; a lesson of today never has one", async () => {
