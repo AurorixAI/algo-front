@@ -21,7 +21,6 @@ import {
 import {
   buildPaymentPayload,
   dueView,
-  newIdempotencyKey,
   payError,
   paymentFormFrom,
   previewAmount,
@@ -31,6 +30,7 @@ import {
   validatePaymentForm,
   type PaymentFormValues,
 } from "@/lib/payments-ledger";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   chipSelected,
   methodChoices,

@@ -210,7 +210,7 @@ test("the page of «Мои обращения» is the page of the cabinet the p
 });
 
 test("a client key is a uuid and differs every time", () => {
-  const keys = new Set(Array.from({ length: 20 }, () => S.newClientKey()));
+  const keys = new Set(Array.from({ length: 20 }, () => require(path.join(root, "src/lib/idempotency-key.ts")).newIdempotencyKey()));
   assert.equal(keys.size, 20);
   for (const key of keys) assert.match(key, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 });
@@ -281,7 +281,7 @@ test("[12] the form is sent once: a ref flag (not only the state), a key the ser
   assert.match(dialog, /const inFlight = useRef\(false\)/);
   assert.match(dialog, /if \(inFlight\.current\) return;/);
   assert.match(dialog, /client_key: keyRef\.current/);
-  assert.match(dialog, /keyRef\.current = newClientKey\(\)/);                    // a new key for a new window, the SAME key for a retry of this one
+  assert.match(dialog, /keyRef\.current = newIdempotencyKey\(\)/);                    // a new key for a new window, the SAME key for a retry of this one
   assert.match(dialog, /busy=\{busy\}/);                                         // while sending Escape / the backdrop do not close it
   assert.match(dialog, /data-testid="support-sent"/);
   assert.match(dialog, /done\.current\?\.focus\(\)/);                            // «Готово» takes the focus, like InviteSentView

@@ -580,7 +580,7 @@ test("BUG-6 (rolled back, R3): lost answer -> the sum is corrected -> repeated: 
   const P = lib("payments.ts");
   const server = moneyServer();
   const first = { current: null };
-  const key = L.newIdempotencyKey();                       // the dialog opens: ONE key
+  const key = lib("idempotency-key.ts").newIdempotencyKey();                       // the dialog opens: ONE key
   const body500 = JSON.stringify([{ amount: 500000 }, ""]);
   A.rememberFirstSend(first, body500, 500000);
   assert.equal(server.post(key, 500000).status, 201);       // it arrived; the answer was lost (the dialog shows «Не удалось подключиться»)
@@ -610,9 +610,9 @@ test("BUG-6 (R3): a double click with the SAME body is the plain «already enter
 test("BUG-6 (R3): closing and reopening the dialog is a NEW payment on purpose - a new key, the first send is forgotten", () => {
   const L = lib("payments-ledger.ts");
   const server = moneyServer();
-  const key1 = L.newIdempotencyKey();
+  const key1 = lib("idempotency-key.ts").newIdempotencyKey();
   assert.equal(server.post(key1, 500000).status, 201);
-  const key2 = L.newIdempotencyKey();                        // the dialog opened again
+  const key2 = lib("idempotency-key.ts").newIdempotencyKey();                        // the dialog opened again
   assert.notEqual(key1, key2);
   assert.equal(server.post(key2, 500000).status, 201);
   assert.equal(server.records.length, 2);

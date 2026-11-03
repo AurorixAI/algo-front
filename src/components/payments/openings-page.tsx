@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft, Download, Loader2, Search, Upload, Wallet, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { saveBlobAs } from "@/lib/download";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { basesOfPayments } from "@/lib/ia-links";
 import {
   applyBulk,
@@ -73,15 +74,6 @@ import {
 import { OpeningsGroups } from "@/components/payments/openings-rows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileInput } from "@/components/ui/file-input";
-
-const newKey = (): string => {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c?.randomUUID) return c.randomUUID();
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
-    const r = Math.floor(Math.random() * 16);
-    return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
-  });
-};
 
 type Notice = { tone: "info" | "warn"; text: string } | null;
 
@@ -347,7 +339,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     if (!review?.preview) return;
     const preview = review.preview;
     const reasonText = reason.trim() || null;
-    keyRef.current = keyForBody(keyRef.current, { items: reviewItems, reason: reasonText, digest: preview.digest }, newKey);
+    keyRef.current = keyForBody(keyRef.current, { items: reviewItems, reason: reasonText, digest: preview.digest }, newIdempotencyKey);
     setReview({ ...review, phase: "saving", error: null });
     try {
       const applied = await orgApi.applyOpeningBatch({ items: reviewItems, reason: reasonText, idempotency_key: keyRef.current.key, digest: preview.digest });
@@ -429,7 +421,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     if (!excel?.report) return;
     const report: OpeningsImportPreview = excel.report;
     const reasonText = excelReason.trim() || null;
-    keyRef.current = keyForBody(keyRef.current, { items: report.batch_items, reason: reasonText, digest: report.digest }, newKey);
+    keyRef.current = keyForBody(keyRef.current, { items: report.batch_items, reason: reasonText, digest: report.digest }, newIdempotencyKey);
     setExcel({ ...excel, phase: "saving", error: null });
     try {
       const applied = await orgApi.applyOpeningBatch({ items: report.batch_items, reason: reasonText, idempotency_key: keyRef.current.key, digest: report.digest });

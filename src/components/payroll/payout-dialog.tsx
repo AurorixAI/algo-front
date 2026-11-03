@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, NOTE_MAX, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
-import { newIdempotencyKey } from "@/lib/payments-ledger";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { duplicateNotice, PAYOUT_WORDS, rememberFirstSend, type FirstSend } from "@/lib/send-attempt";
 import {
   buildPayoutBody,

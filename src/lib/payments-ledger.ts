@@ -796,18 +796,6 @@ export function upcomingLine(segment: Segment): string {
   return `${period}: ${paid}`;
 }
 
-// ── Idempotency ────────────────────────────────────────────────────────────
-
-/** One key per opening of a payment form: a repeated send of the same payment is recognised by the server (409 `DUPLICATE_PAYMENT`). */
-export function newIdempotencyKey(): string {
-  try {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  } catch {
-    // fall through to the weaker key below
-  }
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
-}
-
 // ── Receipt: what the money covered at the moment of payment ───────────────
 
 export interface ReceiptFacts {

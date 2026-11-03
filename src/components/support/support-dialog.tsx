@@ -19,7 +19,6 @@ import {
   SUPPORT_SENT_NOTE,
   SUPPORT_TEXT_MAX,
   lostReason,
-  newClientKey,
   pageTemplate,
   recentClientErrors,
   screenshotProblem,
@@ -28,6 +27,7 @@ import {
   supportSentTitle,
   supportTextProblem,
 } from "@/lib/support";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 
 export const SUPPORT_CHANGED = "support:changed";
 
@@ -74,14 +74,14 @@ export function SupportDialog() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
   const inFlight = useRef(false); // a second click before the screen repaints (LESSONS 27)
-  const keyRef = useRef(newClientKey()); // the same key = the same request on the server (a double click, a retry after a lost answer)
+  const keyRef = useRef(newIdempotencyKey()); // the same key = the same request on the server (a double click, a retry after a lost answer)
   const picker = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setText(""); setFiles([]); setError(null); setFileError(null); setSent(null); setBusy(false);
     inFlight.current = false;
-    keyRef.current = newClientKey();
+    keyRef.current = newIdempotencyKey();
   }, [open]);
 
   const close = useCallback(() => { if (!inFlight.current) hide(); }, [hide]);

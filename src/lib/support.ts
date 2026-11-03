@@ -187,14 +187,6 @@ export function bindClientErrorsTo(userId: string | null | undefined): void {
   ringOwner = next;
 }
 
-/** A key the server remembers: the same key returns the same request (a double click, a retry after a lost answer). */
-export function newClientKey(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c?.randomUUID) return c.randomUUID();
-  const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-  return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
-}
-
 // ── why a screenshot did not go (R3-13) ───────────────────────────────────────────────────────────────
 
 /** In words, for the plate «снимок не загрузился»: the size, the format, the limit of 3, the network.  `error` is an `ApiError` of the server, or an `Error` of the redrawing. */

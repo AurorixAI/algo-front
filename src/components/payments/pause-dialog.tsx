@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatDateRu, REASON_MIN, type MembershipPaymentRow } from "@/lib/payments";
-import { newIdempotencyKey } from "@/lib/payments-ledger";
+import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   attendedText,
   buildPauseBody,
