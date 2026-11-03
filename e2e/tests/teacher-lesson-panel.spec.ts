@@ -160,8 +160,13 @@ test("schedule: start -> marks -> finish of a lesson", async ({ signIn }) => {
   const page = await signIn(teacher);
   const saves = saveRequests(page);
   await page.goto("/teacher/schedule");
-  await page.getByText(group.name, { exact: true }).first().click();
+  const card = page.getByText(group.name, { exact: true }).first();
+  await card.click();
   await expect(page.getByText("Состав группы (2 ученика)")).toBeVisible();
+  // E-A11Y: the window is named by the group and takes the focus when it opens
+  const panel = page.getByRole("dialog", { name: group.name });
+  await expect(panel).toHaveCount(1);
+  await expect(panel).toBeFocused();
   await page.getByRole("button", { name: "Начать урок", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Отметка посещаемости \(0 из 2\)/ })).toBeVisible();
 

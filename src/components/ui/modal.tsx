@@ -47,6 +47,64 @@ export function useDialogKeys(
   }, [open, dialogRef]);
 }
 
+/**
+ * Focus of an open dialog: on open it goes into the dialog (the first field, else the first control but the cross; `initial: "dialog"` = the dialog itself,
+ * for a window whose content arrives later), on close it returns to the control the user used last outside the dialog.
+ * `ready` holds the focus back until the dialog is on screen (the portal is mounted).
+ */
+export function useDialogFocus(
+  open: boolean,
+  dialogRef: { current: HTMLElement | null },
+  options: { ready?: boolean; initial?: "first" | "dialog" } = {},
+): void {
+  const { ready = true, initial = "first" } = options;
+  const openerRef = useRef<HTMLElement | null>(null);
+  // Read by the opener tracking below.  Set during render, so it is already true in the commit that opens the dialog.
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  // Remember the control the user used last outside the dialog.  An autoFocus
+  // field inside the dialog takes focus before any effect runs, and Safari does
+  // not focus buttons on click, so reading activeElement on open is not reliable.
+  useEffect(() => {
+    const remember = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // While THIS dialog is open nothing changes the opener: an `autoFocus` field takes focus before the dialog's ref
+      // is attached and would be remembered as the control to return to.
+      if (!shouldRememberOpener({ dialogOpen: openRef.current, targetInsideDialog: Boolean(dialogRef.current?.contains(target)) })) return;
+      const control = target.closest<HTMLElement>("button, a[href], input, textarea, select, [tabindex]");
+      if (control) openerRef.current = control;
+    };
+    document.addEventListener("focusin", remember);
+    document.addEventListener("pointerdown", remember, true);
+    return () => {
+      document.removeEventListener("focusin", remember);
+      document.removeEventListener("pointerdown", remember, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open || !ready) return;
+    const opener = openerRef.current;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      // A field that is not on screen (the hidden file input of an upload) cannot take focus: skip it.
+      const shown = (el: HTMLElement) => el.getClientRects().length > 0;
+      const field = initial === "first" ? Array.from(dialog.querySelectorAll<HTMLElement>(
+        "input:not([disabled]):not([type=hidden]), textarea:not([disabled]), select:not([disabled])",
+      )).find(shown) : undefined;
+      const target = field
+        || (initial === "first" ? Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).find((el) => el.getAttribute("aria-label") !== "Закрыть" && shown(el)) : undefined)
+        || dialog;
+      target.focus();
+    }
+    return () => {
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open, ready, initial, dialogRef]);
+}
+
 interface ModalProps {
   open: boolean;
   /** The name of the dialog: the heading and `aria-label`. */
@@ -88,59 +146,16 @@ export function Modal({
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
   const openedAtRef = useRef(0);
-  // Read by the opener tracking below.  Set during render, so it is already true in the commit that opens the dialog.
-  const openRef = useRef(open);
-  openRef.current = open;
   useEffect(() => setMounted(true), []);
   useEffect(() => { if (open) openedAtRef.current = Date.now(); }, [open]);
   useScrollLock(open);
-
-  // Remember the control the user used last outside the dialog.  An autoFocus
-  // field inside the dialog takes focus before any effect runs, and Safari does
-  // not focus buttons on click, so reading activeElement on open is not reliable.
-  useEffect(() => {
-    const remember = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      // While THIS dialog is open nothing changes the opener: an `autoFocus` field takes focus before the dialog's ref
-      // is attached and would be remembered as the control to return to.
-      if (!shouldRememberOpener({ dialogOpen: openRef.current, targetInsideDialog: Boolean(dialogRef.current?.contains(target)) })) return;
-      const control = target.closest<HTMLElement>("button, a[href], input, textarea, select, [tabindex]");
-      if (control) openerRef.current = control;
-    };
-    document.addEventListener("focusin", remember);
-    document.addEventListener("pointerdown", remember, true);
-    return () => {
-      document.removeEventListener("focusin", remember);
-      document.removeEventListener("pointerdown", remember, true);
-    };
-  }, []);
 
   // Keyboard: Escape closes; Tab and Shift+Tab stay inside the dialog (the topmost dialog only).
   useDialogKeys(open, dialogRef, { busy, onClose });
 
   // On open focus the first field (or the first control); on close return focus to the opener.
-  useEffect(() => {
-    if (!open || !mounted) return;
-    const opener = openerRef.current;
-    const dialog = dialogRef.current;
-    if (dialog) {
-      // A field that is not on screen (the hidden file input of an upload) cannot take focus: skip it.
-      const shown = (el: HTMLElement) => el.getClientRects().length > 0;
-      const field = Array.from(dialog.querySelectorAll<HTMLElement>(
-        "input:not([disabled]):not([type=hidden]), textarea:not([disabled]), select:not([disabled])",
-      )).find(shown);
-      const target = field
-        || Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).find((el) => el.getAttribute("aria-label") !== "Закрыть" && shown(el))
-        || dialog;
-      target.focus();
-    }
-    return () => {
-      if (opener && document.contains(opener)) opener.focus();
-    };
-  }, [open, mounted]);
+  useDialogFocus(open, dialogRef, { ready: mounted });
 
   const side = placement === "right" || placement === "sheet";
   // A bottom sheet slides up, a side sheet slides in; the choice is made when the dialog opens (the viewport is known by then).

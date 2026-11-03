@@ -94,7 +94,7 @@ function createWorld(options = {}) {
   // the journal of the group for the PERIOD asked (the keys of every map are `<date>_<lessonId>`): a read for the wrong date shows the wrong lesson
   const inPeriod = (key, period) => !period || typeof period === "string" || !period.dateFrom || (key.slice(0, 10) >= period.dateFrom && key.slice(0, 10) <= period.dateTo);
   const journalFor = (groupId, period) => Object.fromEntries(Object.entries(world.journals[groupId]).map(([name, map]) => [name, Object.fromEntries(Object.entries(map).filter(([k]) => inPeriod(k, period)))]));
-  patch(orgApi, "getGroupAttendance", (groupId, period) => respond("getGroupAttendance", [groupId, period], () => structuredClone({ ...journalFor(groupId, period), lessonTeachers: {}, substitutionRequests: {} })));
+  patch(orgApi, "getGroupAttendance", (groupId, period) => respond("getGroupAttendance", [groupId, period], () => structuredClone({ ...journalFor(groupId, period), lessonTeachers: world.lessonTeachers ?? {}, substitutionRequests: {} })));
   patch(orgApi, "startGroupAttendance", (groupId, body) => respond("startGroupAttendance", [groupId, body], () => {
     const j = world.journals[groupId];
     const k = `${body.lessonDate}_${body.lessonId}`;

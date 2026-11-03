@@ -8,8 +8,8 @@
  * The banner of the lesson follows ONE order (`lessonPanelBanner` of lib/lesson-panel-view.ts): cancelled, finished, marks, a past day (the reconciliation), a future day,
  * a later lesson already started, before the start, after the end, ready.
  */
-import { useEffect, useState } from "react";
-import { useScrollLock } from "@/components/ui/modal";
+import { useEffect, useRef, useState } from "react";
+import { useDialogFocus, useDialogKeys, useScrollLock } from "@/components/ui/modal";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -23,7 +23,7 @@ import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonCancelPanel } from "@/components/substitutions/lesson-cancel-panel";
-import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup } from "@/components/substitutions/teacher-lesson-controls";
+import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup, type LessonMenuItem } from "@/components/substitutions/teacher-lesson-controls";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import { showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
 import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
@@ -36,7 +36,24 @@ import type { TeacherLessonPanel, TeacherPanelLesson } from "@/lib/use-teacher-l
 
 /** The row of actions under the text of a state card: shifted by the width of the icon (w-11 + gap-3.5) from `sm` up, so it stands under the text; on a phone it takes the full width of the card. */
 const BANNER_ACTIONS = "mt-4 flex flex-wrap items-center gap-2 sm:pl-[3.625rem]";
-const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs";
+const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2";
+
+/**
+ * «Урока не было» under the text of a state card.  It IS the row of the «⋯» menu (label, handler and the conditions of showing come from the menu item),
+ * so the card never offers what the menu does not; `busy`: no cancellation while a start / save is on its way.
+ */
+function CancelLessonButton({ item, busy }: { item: LessonMenuItem; busy: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={item.onSelect}
+      disabled={busy}
+      className={`${BANNER_ACTION_BASE} bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 disabled:cursor-not-allowed disabled:opacity-50`}
+    >
+      {item.label}
+    </button>
+  );
+}
 
 /** The series of the open lesson, on the schedule of a week only (the dashboard never changes a series). */
 export interface LessonPanelRecurring {
@@ -85,6 +102,15 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   // the state card of an unstarted lesson offers the SAME cancellation as the menu row: taken from the menu, so the conditions are in one place
   const cancelMenuItem = lessonMenuItems.find((item) => item.key === "cancel");
 
+  // The keyboard and the focus of the windows (shared with `Modal`): Tab stays inside the topmost window, the focus goes to the lesson window when it opens
+  // and returns to the card that opened it.  Escape stays with the screen (`consumeEscape` first: a layer of the panel keeps the key), so the layers get a no-op for it.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const missedRef = useRef<HTMLDivElement | null>(null);
+  const noEscape = () => {};
+  useDialogKeys(Boolean(mounted && activeLesson), panelRef, { onClose: noEscape });
+  useDialogKeys(Boolean(mounted && missedLessonAction), missedRef, { onClose: noEscape });
+  useDialogFocus(Boolean(activeLesson), panelRef, { ready: mounted, initial: "dialog" });
+
   return (
     <>
       {/* Explicit resolution for a past occurrence with no attendance row. */}
@@ -104,6 +130,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                ref={missedRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="missed-lesson-title"
@@ -211,10 +238,12 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                ref={panelRef}
+                tabIndex={-1}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="lesson-panel-title"
-                className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-3xl outline-none max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
               >
                 {/* Modal Header */}
                 <div className="flex items-start justify-between gap-3 mb-5">
@@ -422,16 +451,13 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             </div>
                             <div>
                               <p className="text-sm font-bold text-rose-950">Урок не был начат</p>
-                              <p className="text-sm text-rose-800 mt-0.5">Начать его нельзя: урок запускается только в день проведения.</p>
-                              {/* the way out: with an open task the button below (the dialog offers both outcomes); otherwise the cancellation with a reason */}
-                              {!activeMissedAction && (
-                                <p className="text-sm text-rose-800 mt-0.5">
-                                  {activeMissedUnknown ? "Не удалось проверить, нужно ли оформить урок." : "Если занятия не было, отмените урок с причиной."}
-                                </p>
-                              )}
+                              <p className="text-sm text-rose-800 mt-0.5">
+                                {activeMissedUnknown ? "Не удалось проверить, нужно ли оформить урок." : "Начать его нельзя: урок запускается только в день проведения."}
+                              </p>
                             </div>
                           </div>
-                          {(activeMissedUnknown || activeMissedAction) && (
+                          {/* the way out: with a task of the server «Разобрать» (the dialog offers both outcomes); the list unread: «Повторить» (no cancellation before we know); else the cancellation with a reason */}
+                          {(activeMissedUnknown || activeMissedAction || cancelMenuItem) && (
                             <div className={BANNER_ACTIONS}>
                               {activeMissedUnknown && (
                                 <button
@@ -451,6 +477,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                   Разобрать пропущенный урок
                                 </button>
                               )}
+                              {!activeMissedUnknown && !activeMissedAction && cancelMenuItem && <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />}
                             </div>
                           )}
                         </div>
@@ -465,16 +492,23 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           </div>
                         </div>
                       ) : banner === "subsequent" && activeSubsequentLesson ? (
-                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex items-start gap-3.5">
-                          <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                            <AlertCircle className="w-5 h-5" />
+                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80">
+                          <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                              <AlertCircle className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-rose-950">Урок больше нельзя начать</p>
+                              <p className="text-sm text-rose-800 mt-0.5">
+                                Уже начат следующий урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Отметки за этот урок недоступны — отмените его с причиной.
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-bold text-rose-950">Урок больше нельзя начать</p>
-                            <p className="text-sm text-rose-800 mt-0.5">
-                              Уже начат следующий урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Отметки за этот недоступны — отмените его с причиной.
-                            </p>
-                          </div>
+                          {cancelMenuItem && (
+                            <div className={BANNER_ACTIONS}>
+                              <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />
+                            </div>
+                          )}
                         </div>
                       ) : banner === "upcoming" && activeTimeStatus ? (
                         /* TODAY UPCOMING LESSON: Cannot start yet */
@@ -514,19 +548,10 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                   <Play className="w-3.5 h-3.5 fill-white" />
                                   Начать урок
                                 </button>
-                                {/* the SAME action as the row «Урока не было» of the «⋯» menu (one rule of when it is offered: `teacherCancelOffer`) */}
-                                {cancelMenuItem && (
-                                  <button
-                                    type="button"
-                                    onClick={cancelMenuItem.onSelect}
-                                    disabled={savingAttendance}
-                                    className={`${BANNER_ACTION_BASE} bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 shadow-none disabled:cursor-not-allowed disabled:opacity-50`}
-                                  >
-                                    Урока не было
-                                  </button>
-                                )}
+                                {/* the SAME action as the row of the «⋯» menu (one rule of when it is offered: `teacherCancelOffer`) */}
+                                {cancelMenuItem && <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />}
                               </div>
-                              <p className="mt-2 sm:pl-[3.625rem] text-xs text-slate-500">Время начала запишется текущим.</p>
+                              <p className="mt-2 sm:pl-[3.625rem] text-xs text-slate-500">Время начала запишется в момент нажатия.</p>
                             </>
                           )}
                         </div>
@@ -706,7 +731,8 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
 
                 {isCancellingLesson && activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isMarkingAttendance && (
                   <LessonCancelPanel
-                  oneOff={cancelVariant === "own_one_off"}
+                    autoFocus
+                    oneOff={cancelVariant === "own_one_off"}
                     date={activeLessonDate || businessDate}
                     binding={lessonExamBinding}
                     reason={cancellationReason}
