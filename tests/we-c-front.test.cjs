@@ -458,8 +458,16 @@ test("E-C/R3-3: «Вернуть из архива» is the manager's (the CONDI
   assert.match(view, gate);
   assert.doesNotMatch(view.replace("canManage\n          ? <GroupArchivedBanner", "true\n          ? <GroupArchivedBanner"), gate, "mutation: a restore button for everybody is seen");
   const tab = read(EXAMS_TAB);
-  const after = /const outcome = await assignExamToLesson\(examsApi, assignTarget, selection\);\s*setAssignTarget\(null\);\s*if \(outcome\.kind === "print"\) \{[^}]*\}\s*setAssignResult\(\{ \.\.\.outcome\.result, exam_id: assignTarget\.exam_id \}\);\s*void load\(\);/;
+  const after = /const outcome = await assignExamToLesson\(examsApi, assignTarget, selection\);\s*setAssignTarget\(null\);\s*if \(outcome\.kind === "print"\) \{[^}]*\}\s*setAssignResult\(\{ \.\.\.outcome\.result, exam_id: assignTarget\.exam_id, lesson_label: occurrenceLabel\(selection\.occurrence\) \}\);\s*void load\(\);/;
   assert.match(tab, after);
   assert.doesNotMatch(tab.replace("            void load();\n          }}\n        />\n      )}\n      {assignResult", "          }}\n        />\n      )}\n      {assignResult"), after, "mutation: no reload is seen");
-  assert.doesNotMatch(tab.replace("setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id });", ""), after, "mutation: the dialog gets nothing is seen");
+  assert.doesNotMatch(tab.replace("setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id, lesson_label: occurrenceLabel(selection.occurrence) });", ""), after, "mutation: the dialog gets nothing is seen");
+});
+
+test("E-C/R3-3: «Экзамен назначен» names the lesson - on the group tab and in the library alike", () => {
+  const modal = read("src/components/exam/success-assign-modal.tsx");
+  assert.match(modal, /\{result\.lesson_label && \(\s*<p data-testid="assigned-lesson"[^>]*>Занятие: <span[^>]*>\{result\.lesson_label\}<\/span><\/p>/);
+  assert.match(read(EXAMS_TAB), /lesson_label: occurrenceLabel\(selection\.occurrence\)/);
+  assert.match(read(LIBRARY_PAGE), /handleAssigned\(assignTarget\.exam_id, outcome\.result, occurrenceLabel\(selection\.occurrence\)\)/);
+  assert.match(read("src/components/exam/schedule-exam-modal.tsx"), /export function occurrenceLabel\(/);
 });
