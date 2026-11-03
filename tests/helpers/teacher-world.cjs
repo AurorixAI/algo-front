@@ -19,7 +19,7 @@ const lesson = (id, groupId, groupName, date, start, end, extra = {}) => ({
   occurrenceDate: date, isRescheduled: false, ...extra,
 });
 
-/** One lesson per group, so the journals do not mix. */
+/** One lesson per group, so the journals do not mix. `pastRec` is the SAME weekly lesson (same id, same group) on the Monday of this week: a recurring lesson has one id on every date. */
 const LESSONS = {
   live: lesson("L-live", "G-live", "Живая", TODAY, "12:00", "13:30"),
   upcoming: lesson("L-up", "G-up", "Скоро", TODAY, "15:00", "16:00"),
@@ -27,13 +27,14 @@ const LESSONS = {
   past: lesson("L-past", "G-past", "Вчерашняя", PAST_DAY, "10:00", "11:00"),
   future: lesson("L-future", "G-future", "Будущая", FUTURE_DAY, "10:00", "11:00"),
 };
+const RECURRING_PAST = lesson("L-live", "G-live", "Живая", PAST_DAY, "12:00", "13:30");
 
 function createWorld(options = {}) {
   const world = {
     calls: [],
     user: { id: "t1", role: "teacher", org_role: "teacher", first_name: "Учитель", last_name: "Тестов" },
     groups: [],
-    lessons: Object.values(LESSONS).map((l) => ({ ...l })),
+    lessons: [...Object.values(LESSONS), ...(options.recurring ? [RECURRING_PAST] : [])].map((l) => ({ ...l })),
     journals: {},            // groupId -> { statuses, versions, records, rosterStudentIds, cancellationReasons, excuses }
     rosters: {},             // groupId -> students
     openActions: [],         // OpenAttendanceAction[] (the server's list of «пропущенный урок» / «в процессе»)
@@ -42,6 +43,7 @@ function createWorld(options = {}) {
     bindingCanCancel: true,
     ...options,
   };
+  delete world.recurring;
   for (const l of world.lessons) {
     if (!world.groups.some((g) => g.id === l.groupId)) world.groups.push({ id: l.groupId, name: l.groupName, status: "active", teacher_id: world.user.id, class_level: 7, student_count: STUDENTS.length, subject: "math" });
     world.rosters[l.groupId] ??= STUDENTS;
@@ -88,7 +90,10 @@ function createWorld(options = {}) {
   patch(orgApi, "getSchedule", () => respond("getSchedule", [], () => world.lessons));
   patch(orgApi, "getScheduleOccurrences", (period) => respond("getScheduleOccurrences", [period], () => world.lessons.filter((l) => l.occurrenceDate >= period.dateFrom && l.occurrenceDate <= period.dateTo)));
   patch(orgApi, "getGroup", (id) => respond("getGroup", [id], () => ({ id, name: world.groups.find((g) => g.id === id)?.name, status: "active", students: world.rosters[id] || [] })));
-  patch(orgApi, "getGroupAttendance", (groupId, period) => respond("getGroupAttendance", [groupId, period], () => structuredClone({ ...world.journals[groupId], lessonTeachers: {}, substitutionRequests: {} })));
+  // the journal of the group for the PERIOD asked (the keys of every map are `<date>_<lessonId>`): a read for the wrong date shows the wrong lesson
+  const inPeriod = (key, period) => !period || typeof period === "string" || !period.dateFrom || (key.slice(0, 10) >= period.dateFrom && key.slice(0, 10) <= period.dateTo);
+  const journalFor = (groupId, period) => Object.fromEntries(Object.entries(world.journals[groupId]).map(([name, map]) => [name, Object.fromEntries(Object.entries(map).filter(([k]) => inPeriod(k, period)))]));
+  patch(orgApi, "getGroupAttendance", (groupId, period) => respond("getGroupAttendance", [groupId, period], () => structuredClone({ ...journalFor(groupId, period), lessonTeachers: {}, substitutionRequests: {} })));
   patch(orgApi, "startGroupAttendance", (groupId, body) => respond("startGroupAttendance", [groupId, body], () => {
     const j = world.journals[groupId];
     const k = `${body.lessonDate}_${body.lessonId}`;
@@ -127,4 +132,4 @@ function mountScreen(pagePath, world, options = {}) {
   return harness.screen(Page, {}, { opaque: ["TeacherLessonControls", "LessonActionsMenu", "AttendanceConflictDialog", "LiveExamConfirmDialog", "LessonCancelPanel", "RequestDialog", "LessonChips", "EditWeeklyLessonDialog", "EndWeeklyLessonDialog", "LessonSlotFields", "LessonScopeFields", "OneOffPurposeFields", "Select", "FloatingPanel", ...(options.opaque || [])] });
 }
 
-module.exports = { NOW, TODAY, PAST_DAY, FUTURE_DAY, STUDENTS, LESSONS, createWorld, mountScreen, harness };
+module.exports = { RECURRING_PAST, NOW, TODAY, PAST_DAY, FUTURE_DAY, STUDENTS, LESSONS, createWorld, mountScreen, harness };

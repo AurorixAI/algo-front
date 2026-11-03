@@ -17,8 +17,23 @@ const realReact = require("react");
 const transpile = (source, jsx) => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, ...(jsx ? { jsx: ts.JsxEmit.ReactJSX } : {}) },
 }).outputText;
-require.extensions[".ts"] = (mod, filename) => mod._compile(transpile(fs.readFileSync(filename, "utf8"), false), filename);
-require.extensions[".tsx"] = (mod, filename) => mod._compile(transpile(fs.readFileSync(filename, "utf8"), true), filename);
+// MUTATIONS: a test may change the text of one source file for the modules loaded while it runs (`withMutation`) - the same scenario must then fail
+const mutations = new Map();
+const sourceOf = (filename) => {
+  const text = fs.readFileSync(filename, "utf8");
+  const mutate = mutations.get(filename);
+  return mutate ? mutate(text) : text;
+};
+require.extensions[".ts"] = (mod, filename) => mod._compile(transpile(sourceOf(filename), false), filename);
+require.extensions[".tsx"] = (mod, filename) => mod._compile(transpile(sourceOf(filename), true), filename);
+const resetAppModules = () => { for (const key of Object.keys(require.cache)) if (key.startsWith(path.join(root, "src"))) delete require.cache[key]; };
+/** withMutation("src/lib/x.ts", (source) => source.replace(...), async () => { ...create the world and mount the screen here... }) */
+async function withMutation(relative, mutate, run) {
+  const filename = path.join(root, relative);
+  mutations.set(filename, (source) => { const out = mutate(source); if (out === source) throw new Error(`the mutation did not change ${relative}`); return out; });
+  resetAppModules();
+  try { return await run(); } finally { mutations.delete(filename); resetAppModules(); }
+}
 
 // ── the platform: clock, window, document ───────────────────────────────────────────────────────
 const RealDate = Date;
@@ -209,6 +224,8 @@ function screen(Component, props, options) {
   const api = {
     world,
     get tree() { return world.tree; },
+    /** a component that threw while rendering is a failed test (it used to leave an empty node and let «no button» assertions pass for nothing) */
+    check() { if (world.errors.length) throw new Error(`render error in ${world.errors[0].name}: ${world.errors[0].error && world.errors[0].error.stack}`); },
     /** all the text of the screen, one line, collapsed spaces */
     text: () => flat(textOf(world.tree)),
     has: (re) => (re instanceof RegExp ? re.test(api.text()) : api.text().includes(re)),
@@ -226,6 +243,7 @@ function screen(Component, props, options) {
     opaque: (name) => findAll(world.tree, (n) => n.opaque && n.tag === name),
     async settle(ticks = 6) {
       for (let i = 0; i < ticks; i += 1) { await new Promise((resolve) => setImmediate(resolve)); if (world.dirty) world.render(); }
+      api.check();
     },
     async click(nodeOrRe) {
       const node = nodeOrRe && typeof nodeOrRe === "object" && "props" in nodeOrRe ? nodeOrRe : api.button(nodeOrRe);
@@ -247,4 +265,4 @@ function screen(Component, props, options) {
 
 const deferred = () => { let resolve; let reject; const promise = new Promise((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; };
 
-module.exports = { root, screen, setNow, mock, deferred, textOf, findAll, flat, RealDate };
+module.exports = { root, screen, setNow, mock, deferred, textOf, findAll, flat, RealDate, withMutation };
