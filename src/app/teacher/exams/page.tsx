@@ -49,16 +49,16 @@ import { useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
-import { examStatusView } from "@/lib/status-registry";
+import { examStatusView, DRAFT_TAB_LABEL } from "@/lib/status-registry";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
-  draft: {
+  draft: {                                            // grey, as the registry's «neutral» for every role
     label: examStatusView("draft").label,
     icon: <AlertCircle className="w-3 h-3" />,
-    gradient: "from-amber-50 to-orange-50",
-    text: "text-amber-700",
-    dot: "bg-amber-400",
+    gradient: "from-slate-50 to-slate-100",
+    text: "text-slate-600",
+    dot: "bg-slate-400",
   },
   variants_ready: {                                   // the variants are made: «Готов к назначению» for every role (lib/status-registry.ts), blue as the registry's «info»
     label: examStatusView("variants_ready").label,
@@ -820,7 +820,7 @@ export default function TeacherExamsPage() {
           { label: "Текущие", value: tabCountLabel(counts.active, hasMore), color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
           { label: "Лобби открыто", value: tabCountLabel(counts.lobby, hasMore), color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
           { label: "Запланированы", value: tabCountLabel(counts.scheduled, hasMore), color: "text-sky-700", bg: "bg-sky-50", icon: <Clock className="w-4 h-4 text-sky-500" /> },
-          { label: "Черновики", value: tabCountLabel(counts.draft, hasMore), color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
+          { label: DRAFT_TAB_LABEL, value: tabCountLabel(counts.draft, hasMore), color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
           { label: "Завершены", value: tabCountLabel(counts.closed, hasMore), color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
         ].map((s, index, all) => (
           // #159 E9: five cards in two columns - the odd last one takes the whole row of a phone instead of standing alone
@@ -845,7 +845,7 @@ export default function TeacherExamsPage() {
               active: "Текущие",
               lobby: "Лобби",
               scheduled: "Запланированы",
-              draft: "Черновики",
+              draft: DRAFT_TAB_LABEL,
               closed: "Завершённые",
               archived: "Архив",
             };

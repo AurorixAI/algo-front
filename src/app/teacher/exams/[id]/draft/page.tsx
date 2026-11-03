@@ -17,6 +17,7 @@ import { PassThresholdModal } from "@/components/exam/pass-threshold-modal";
 import { canEditPassThreshold, examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { examStatusView } from "@/lib/status-registry";
+import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import {
   ArrowLeft,
   Target,
@@ -699,8 +700,8 @@ export default function ExamDraftPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-slate-900">{draft.title}</h1>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${draft.group_id ? CHIP_TONE_CLASS[examStatusView(draft.status).tone] : "border-amber-200/80 bg-amber-50 text-amber-800"}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
                 {!draft.group_id ? "Шаблон (без группы)" : examStatusView(draft.status).label}
               </span>
               {draft.group_name && (

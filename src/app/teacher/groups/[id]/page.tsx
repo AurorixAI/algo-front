@@ -25,7 +25,7 @@ import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-loa
 import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
 import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
-import { examStatusView } from "@/lib/status-registry";
+import { examStatusView, DRAFT_TAB_LABEL } from "@/lib/status-registry";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
@@ -682,7 +682,7 @@ export default function TeacherGroupDetailPage() {
                   { key: "active", label: "Текущие" },
                   { key: "lobby", label: "Лобби" },
                   { key: "scheduled", label: "Запланированы" },
-                  { key: "draft", label: "Черновики" },
+                  { key: "draft", label: DRAFT_TAB_LABEL },
                   { key: "closed", label: "Завершённые" },
                   { key: "archived", label: "Архив" },
                 ] as { key: ExamStatusFilter; label: string }[]).map((f) => {
@@ -782,10 +782,8 @@ export default function TeacherGroupDetailPage() {
                                 ? "bg-violet-50 text-violet-700 border border-violet-200"
                                 : ex.status === "lobby"
                                 ? (examStateOf(ex) === "lobby" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : examStateOf(ex) === "needs_resolution" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-sky-50 text-sky-700 border border-sky-200")
-                                : ex.status === "variants_ready"
-                                ? `border ${CHIP_TONE_CLASS[examStatusView("variants_ready").tone]}`
-                                : ex.status === "draft"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : ex.status === "variants_ready" || ex.status === "draft"
+                                ? `border ${CHIP_TONE_CLASS[examStatusView(ex.status).tone]}`
                                 : ex.status === "closed"
                                 ? "bg-slate-100 text-slate-600 border border-slate-200"
                                 : ex.status === "archived"

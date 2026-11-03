@@ -19,6 +19,9 @@ export const EXAM_STATUS: Record<string, StatusView> = {
   archived: { label: "В архиве", tone: "muted" },
 };
 
+/** The tab / counter of the teacher that holds BOTH `draft` and `variants_ready` exams (`examTabOf`): not «Черновики» - half of its cards are «Готов к назначению». */
+export const DRAFT_TAB_LABEL = "В подготовке";
+
 export function examStatusView(status: string | null | undefined): StatusView {
   return EXAM_STATUS[status ?? ""] ?? EXAM_STATUS.draft;
 }

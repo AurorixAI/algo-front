@@ -570,3 +570,22 @@ test("LESSONS 85: mutation - a new key on every send / on every typing is caught
   const noOpening = pause.replace("idempotencyKey.current = newIdempotencyKey();", "");
   assert.ok(keyLifetimeProblems(noOpening, KEY_DIALOGS["src/components/payments/pause-dialog.tsx"]).length > 0);
 });
+
+// ---- teacher's exams: the colour of `draft` is the registry's, the tab with draft + variants_ready is «В подготовке» ------------------
+
+test("exams of the teacher: the tab / counter holding draft AND variants_ready is «В подготовке»; draft is grey like the registry", () => {
+  assert.equal(registry.DRAFT_TAB_LABEL, "В подготовке");
+  assert.equal(registry.examStatusView("draft").tone, "neutral");
+  const list = read("src/app/teacher/exams/page.tsx");
+  const group = read("src/app/teacher/groups/[id]/page.tsx");
+  assert.equal((list.match(/DRAFT_TAB_LABEL/g) || []).length >= 3, true);                  // import + counter + tab
+  assert.match(group, /label: DRAFT_TAB_LABEL/);
+  for (const [name, source] of [["list", list], ["group", group]]) assert.doesNotMatch(source, /"Черновики"/, name);
+  // draft is grey in the list (no amber on `draft`), and the group tab takes the tone from the registry for BOTH statuses
+  assert.match(list, /draft: \{[^}]*from-slate-50[^}]*text-slate-600/s);
+  assert.match(group, /ex\.status === "variants_ready" \|\| ex\.status === "draft"\s*\?\s*`border \$\{CHIP_TONE_CLASS\[examStatusView\(ex\.status\)\.tone\]\}`/);
+  // mutation: the old amber `draft` / the old tab name are seen by the same checks
+  assert.doesNotMatch(list.replace(/(draft: \{[^}]*?)from-slate-50 to-slate-100/s, "$1from-amber-50 to-orange-50"), /draft: \{[^}]*from-slate-50[^}]*text-slate-600/s);
+  assert.doesNotMatch(list.replace(/DRAFT_TAB_LABEL/g, '"Черновики"'), /DRAFT_TAB_LABEL/);
+  assert.match(list.replace(/DRAFT_TAB_LABEL/g, '"Черновики"'), /"Черновики"/);
+});
