@@ -392,3 +392,13 @@ test("DUP-6: no private thousands regex outside lib/money-format.ts", () => {
     assert.doesNotMatch(read(f), /\\B\(\?=\(\\d\{3\}\)\+/, `${f}: a private grouping of digits`);
   }
 });
+
+// ---- F-A07: role -> home page is one table; the sidebar logo link reads it -----------------------------------------------------------
+
+test("F-A07: the sidebar logo leads to ROLE_HOME[role] - no typed paths of the homes left in the sidebar", () => {
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  assert.match(sidebar, /ROLE_HOME\[/);
+  assert.doesNotMatch(sidebar, /\?\s*"\/owner\/dashboard"\s*:|\?\s*"\/admin\/diagnostics"\s*:/);   // the old ternary of homes (the menu items keep their own hrefs)
+  const home = lib("role-home.ts");
+  assert.deepEqual(home.ROLE_HOME, { owner: "/owner/dashboard", admin: "/admin/diagnostics", teacher: "/teacher/dashboard" });
+});
