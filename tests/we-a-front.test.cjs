@@ -277,3 +277,60 @@ test("E2/4: all five password forms use it and show the same hint; no literal 8 
   // mutation: the old teacher form had no check and said «6»
   assert.match(read("src/app/teacher/settings/page.tsx").replace("placeholder={PASSWORD_HINT}", 'placeholder="Минимум 6 символов"'), /[Мм]инимум 6/);
 });
+
+// ---- decision 4 (reasons): ONE validator per kind with the limits of the server -----------------------------------------------
+
+const reasons = lib("reason-rules.ts");
+
+test("E2/4: the limits are the server's: cancel 3..500, excuse 3..300, reject 3..300, teacher change 3..300, day off 3..200", () => {
+  assert.deepEqual(reasons.REASON_LIMITS, {
+    cancel: { min: 3, max: 500 }, excuse: { min: 3, max: 300 }, reject: { min: 3, max: 300 },
+    teacherChange: { min: 3, max: 300 }, dayOff: { min: 3, max: 200 },
+  });
+  for (const [kind, { min, max }] of Object.entries(reasons.REASON_LIMITS)) {
+    assert.match(reasons.reasonProblemFor(kind, "x".repeat(min - 1)), /не менее/, kind);
+    assert.equal(reasons.reasonProblemFor(kind, "x".repeat(min)), null, kind);
+    assert.equal(reasons.reasonProblemFor(kind, "x".repeat(max)), null, kind);
+    assert.match(reasons.reasonProblemFor(kind, "x".repeat(max + 1)), new RegExp(`не более ${max}`), kind);
+    assert.match(reasons.reasonProblemFor(kind, null), /не менее/, kind);
+    assert.match(reasons.reasonProblemFor(kind, "   "), /не менее/, kind);
+  }
+  // the day off is sent with its blanks collapsed - the same text is measured
+  assert.match(reasons.reasonProblemFor("dayOff", "a    b".replace(/ +/, "  ").slice(0, 1) + "   "), /не менее/);
+  assert.equal(reasons.reasonProblemFor("dayOff", "а    б"), null);
+});
+
+test("E2/4: a reason of 400 characters: a cancellation takes it, an excuse / refusal / change of teacher / day off refuse it - on EVERY screen of the kind", () => {
+  const text = "x".repeat(400);
+  assert.equal(reasons.reasonProblemFor("cancel", text), null);
+  for (const kind of ["excuse", "reject", "teacherChange", "dayOff"]) assert.ok(reasons.reasonProblemFor(kind, text), kind);
+  const subs = lib("substitutions.ts");
+  assert.equal(subs.decisionReasonKind("cancel"), "cancel");
+  assert.equal(subs.decisionReasonKind("reschedule"), "cancel");
+  assert.equal(subs.decisionReasonKind("reject"), "reject");
+  assert.ok(reasons.reasonProblemFor(subs.decisionReasonKind("reject"), text));
+  assert.ok(lib("payf.ts").dayOffError({ dateFrom: "2026-10-21", dateTo: "", reason: "x".repeat(201) }));
+  assert.equal(lib("payf.ts").dayOffError({ dateFrom: "2026-10-21", dateTo: "", reason: "x".repeat(200) }), null);
+  assert.ok(lib("attendance-excuses.ts").validateExcusePeriod);
+});
+
+test("E2/4: no private copy of the reason check is left (the four old copies are gone); every screen takes the limit from the one table", () => {
+  const privateCopy = /\b(CANCEL_REASON_M(?:IN|AX)|DECIDE_REASON_MIN|EXCUSE_REASON_M(?:IN|AX)|DAY_OFF_REASON_MIN)\b|function (cancelReasonProblem|reasonError|decisionReasonError|validateExcuseReason)\b|const REASON_M(?:IN|AX) = (?:3|300|500)\b/;
+  for (const f of SRC) {
+    if (/payments|openings|payroll|group-price/.test(f)) continue;                                  // the money reasons are another family (not in this decision)
+    assert.doesNotMatch(read(f), privateCopy, `${f}: a private copy of a reason rule`);
+  }
+  for (const f of [
+    "src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx", "src/components/attendance/cancel-missed-lesson-modal.tsx",
+    "src/components/substitutions/lesson-cancel-panel.tsx", "src/components/groups/lesson-action-sheet.tsx", "src/components/groups/lesson-teacher-dialog.tsx",
+    "src/components/substitutions/decision-dialog.tsx", "src/components/substitutions/bulk-dialog.tsx", "src/components/schedule/weekly-lesson-dialogs.tsx",
+    "src/lib/attendance-excuses.ts", "src/lib/payf.ts",
+  ]) assert.match(read(f), /reasonProblemFor|reason-rules/, f);
+  assert.doesNotMatch(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /reason\.trim\(\)\.length < 3|text\.length < 3/);
+});
+
+test("E2/4: mutation - the 300 limit of the old lesson-teacher copy put on the cancellation is caught", () => {
+  const broken = loadMutated("src/lib/reason-rules.ts", "cancel: { min: 3, max: 500 }", "cancel: { min: 3, max: 300 }");
+  assert.ok(broken.reasonProblemFor("cancel", "x".repeat(400)));
+  assert.equal(reasons.reasonProblemFor("cancel", "x".repeat(400)), null);
+});

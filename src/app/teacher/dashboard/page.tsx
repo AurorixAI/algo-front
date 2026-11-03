@@ -54,7 +54,8 @@ import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
-import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
+import { sendTeacherCancel } from "@/lib/teacher-cancel";
+import { reasonProblemFor } from "@/lib/reason-rules";
 import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
@@ -586,7 +587,7 @@ export default function TeacherDashboardPage() {
   const handleCancelMissedLesson = async () => {
     if (!missedLessonAction || missedSending.current) return;
     const reason = missedLessonCancellationReason.trim();
-    const reasonProblem = cancelReasonProblem(reason);
+    const reasonProblem = reasonProblemFor("cancel", reason);
     if (reasonProblem) {
       setMissedLessonError(reasonProblem);
       return;
@@ -803,7 +804,7 @@ export default function TeacherDashboardPage() {
     if (!target) { setAttendanceError(panel.notReadyText); return; }
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
-    const reasonProblem = cancelReasonProblem(reason);
+    const reasonProblem = reasonProblemFor("cancel", reason);
     if (reasonProblem) {
       setAttendanceError(reasonProblem);
       return;

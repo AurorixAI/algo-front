@@ -9,7 +9,6 @@ import type { LessonTeacherCandidates, LessonTeacherInfo, LessonTeacherResult } 
 import {
   ASSIGN_TEACHER_ACTION,
   REASON_LABEL,
-  REASON_MAX,
   RETURN_GROUP_TEACHER_ACTION,
   buildAssign,
   canReturnToGroupTeacher,
@@ -18,8 +17,8 @@ import {
   currentCandidate,
   isSelectable,
   lessonTeacherDialogTitle,
-  reasonError,
 } from "@/lib/lesson-teacher";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { Radio } from "@/components/ui/radio";
 import { useAuthStore } from "@/lib/store";
 
@@ -91,7 +90,7 @@ export function LessonTeacherDialog({
 
   if (!target) return null;
 
-  const problem = reasonError(reason);
+  const problem = reasonProblemFor("teacherChange", reason);
   const current = currentCandidate(list);
   const canReturn = canReturnToGroupTeacher(target.info) || Boolean(list && list.currentTeacherId && list.currentTeacherId !== list.defaultTeacherId);
 
@@ -240,7 +239,7 @@ export function LessonTeacherBody({
           ref={reasonRef}
           value={reason}
           rows={2}
-          maxLength={REASON_MAX}
+          maxLength={REASON_LIMITS.teacherChange.max}
           onChange={(event) => onReason(event.target.value)}
           disabled={busy}
           placeholder="Например: преподаватель заболел"

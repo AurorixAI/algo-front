@@ -5,6 +5,7 @@
 
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
+import { reasonProblemFor } from "./reason-rules";
 
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
@@ -12,8 +13,6 @@ export type AdminLessonAction =
   | "finish"         // "Завершить урок"
   | "correct";       // "Исправить"
 
-export const EXCUSE_REASON_MIN = 3;
-export const EXCUSE_REASON_MAX = 300;
 export const CORRECTION_REASON_MIN = 10;
 export const CORRECTION_REASON_MAX = 500;
 export const REVIEW_NOTE_MAX = 500;
@@ -47,14 +46,6 @@ export function lessonAdminActions(state: string, date: string, today: string): 
 export function finishBlockedHint(markedCount: number, rosterCount: number): string | null {
   const left = Math.max(rosterCount - markedCount, 0);
   return left > 0 ? `Отметьте всех: осталось ${left}` : null;
-}
-
-/** Reason for an excused absence: trimmed 3..300 characters. */
-export function validateExcuseReason(value: string | null | undefined): string | null {
-  const text = (value ?? "").trim();
-  if (text.length < EXCUSE_REASON_MIN) return `Укажите причину (не короче ${EXCUSE_REASON_MIN} символов)`;
-  if (text.length > EXCUSE_REASON_MAX) return `Причина не длиннее ${EXCUSE_REASON_MAX} символов`;
-  return null;
 }
 
 /** Reason for correcting a completed lesson: trimmed 10..500 characters. */
@@ -215,7 +206,7 @@ export function firstMissingExcuseReason(
     if (records[studentId] !== "excused") continue;
     const typed = (reasons[studentId] ?? "").trim();
     const effective = typed || existing?.[studentId]?.reason || "";
-    const error = validateExcuseReason(effective);
+    const error = reasonProblemFor("excuse", effective);
     if (error) return { studentId, error };
   }
   return null;

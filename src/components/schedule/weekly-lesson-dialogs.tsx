@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { addIsoDays, businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
 import { laterChangeNote, removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, type ExamsToConfirm } from "@/lib/weekly-lessons";
@@ -627,7 +628,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
   const confirm = async () => {
     if (!impact || busy || sending.current) return;
     const text = reason.trim();
-    if (text.length < 3) { setError("Укажите понятную причину прекращения регулярных занятий."); return; }
+    if (reasonProblemFor("cancel", text)) { setError("Укажите понятную причину прекращения регулярных занятий (от 3 до 500 символов)."); return; }
     if (!impact.canEnd) { setError("Сначала завершите или разберите экзамены, которые уже нельзя вернуть в черновик."); return; }
     if (impact.affectedExamCount > 0 && !release) { setError("Подтвердите, что затронутые экзамены будут возвращены в черновики."); return; }
     sending.current = true;
@@ -662,7 +663,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
           <button
             type="button"
             onClick={() => void confirm()}
-            disabled={busy || loadingImpact || !impact || !impact.canEnd || reason.trim().length < 3 || (impact.affectedExamCount > 0 && !release)}
+            disabled={busy || loadingImpact || !impact || !impact.canEnd || Boolean(reasonProblemFor("cancel", reason)) || (impact.affectedExamCount > 0 && !release)}
             className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Прекращаем…" : "Прекратить занятия"}
@@ -692,7 +693,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            maxLength={500}
+            maxLength={REASON_LIMITS.cancel.max}
             rows={2}
             disabled={busy}
             placeholder="Например: группа закончила курс"

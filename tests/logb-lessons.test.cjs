@@ -176,9 +176,9 @@ test("[O5.R7] the dialog «Преподаватель урока»: title, candi
 });
 
 test("[O5.R1] the reason is 3..300; «Вернуть преподавателя группы» takes the substitute off; the PUT body carries the teacher the dialog was opened with", () => {
-  assert.match(LT.reasonError("ab"), /не менее 3/);
-  assert.equal(LT.reasonError("Болезнь"), null);
-  assert.match(LT.reasonError("x".repeat(301)), /не более 300/);
+  assert.match(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor("teacherChange", "ab"), /не менее 3/);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor("teacherChange", "Болезнь"), null);
+  assert.match(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor("teacherChange", "x".repeat(301)), /не более 300/);
   assert.deepEqual(
     LT.buildAssign({ lessonDate: "2026-10-26", lessonId: "lesson-l1" }, "T", " Болезнь ", "C"),
     { lessonDate: "2026-10-26", lessonId: "lesson-l1", teacherId: "T", reason: "Болезнь", expectedTeacherId: "C" },

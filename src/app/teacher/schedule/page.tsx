@@ -11,7 +11,8 @@ import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-loa
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
-import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
+import { sendTeacherCancel } from "@/lib/teacher-cancel";
+import { reasonProblemFor } from "@/lib/reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { attendanceMapsOfToday, groupIdsOfLessons } from "@/lib/schedule-attendance";
 import { browserVisiblePollEnv, startVisiblePolling } from "@/lib/visible-polling";
@@ -793,7 +794,7 @@ export default function TeacherSchedulePage() {
     if (!target) { setAttendanceError(panel.notReadyText); return; }
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
-    const reasonProblem = cancelReasonProblem(reason);
+    const reasonProblem = reasonProblemFor("cancel", reason);
     if (reasonProblem) {
       setAttendanceError(reasonProblem);
       return;

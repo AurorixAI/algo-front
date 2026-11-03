@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { REASON_LIMITS } from "@/lib/reason-rules";
 import { DAY_OFF_LIST_PREVIEW, EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, sortDayOffLessons, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
@@ -134,7 +135,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
         </div>
         <div>
           <label htmlFor="day-off-reason" className={LABEL}>Причина</label>
-          <input id="day-off-reason" value={form.reason} onChange={(event) => patch({ reason: event.target.value })} maxLength={200} placeholder="Например: Хайит, Навруз" className={FIELD} />
+          <input id="day-off-reason" value={form.reason} onChange={(event) => patch({ reason: event.target.value })} maxLength={REASON_LIMITS.dayOff.max} placeholder="Например: Хайит, Навруз" className={FIELD} />
         </div>
 
         <div aria-live="polite" className="space-y-2" data-testid="day-off-plan">

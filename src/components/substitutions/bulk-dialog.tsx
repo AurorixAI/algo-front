@@ -12,10 +12,11 @@ import {
   CANCEL_REASON_LABEL,
   REJECT_REASON_LABEL,
   buildBulk,
-  decisionReasonError,
+  decisionReasonKind,
   startsAtMsOf,
   substitutionErrorText,
 } from "@/lib/substitutions";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import type { CandidatesOut, DecideBulkOut, SubstitutionItem } from "@/lib/substitution-types";
 
 export type BulkKind = "substitute" | "cancel" | "reject";
@@ -93,7 +94,7 @@ export function BulkDialog({
 
   if (!kind) return null;
 
-  const problem = kind === "substitute" ? (pick ? null : "Выберите преподавателя") : decisionReasonError(kind === "cancel" ? "cancel" : "reject", reason);
+  const problem = kind === "substitute" ? (pick ? null : "Выберите преподавателя") : reasonProblemFor(decisionReasonKind(kind === "cancel" ? "cancel" : "reject"), reason);
 
   const submit = async () => {
     if (busy || sending.current) return;
@@ -157,7 +158,7 @@ export function BulkDialog({
           <>
             <div>
               <label htmlFor="substitution-bulk-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{kind === "cancel" ? CANCEL_REASON_LABEL : REJECT_REASON_LABEL}</label>
-              <textarea id="substitution-bulk-reason" value={reason} rows={2} maxLength={kind === "cancel" ? 500 : 300} disabled={busy} onChange={(event) => { setReason(event.target.value); setError(null); }} className={FIELD_CLASS} />
+              <textarea id="substitution-bulk-reason" value={reason} rows={2} maxLength={REASON_LIMITS[decisionReasonKind(kind === "cancel" ? "cancel" : "reject")].max} disabled={busy} onChange={(event) => { setReason(event.target.value); setError(null); }} className={FIELD_CLASS} />
             </div>
             {kind === "cancel" && (
               <>

@@ -545,10 +545,10 @@ test("R3 8: a required field switches the button off and says why in a short lin
   assert.match(render("Болел", { loading: false, attached: false, canCancel: false, message: "Идёт экзамен" }), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "a blocking exam: off");
   assert.doesNotMatch(render("Болел", undefined), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "the list of missed lessons asks no exam: the button waits for nothing");
   const T2 = require(path.join(root, "src/lib/teacher-cancel.ts"));
-  assert.equal(T2.cancelReasonProblem(""), "Укажите причину — не менее 3 символов");
-  assert.equal(T2.cancelReasonProblem("ок"), "Укажите причину — не менее 3 символов");
-  assert.equal(T2.cancelReasonProblem(" abc "), null);
-  assert.match(T2.cancelReasonProblem("x".repeat(501)), /не более 500/);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "cancel")(""), "Укажите причину — не менее 3 символов");
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "cancel")("ок"), "Укажите причину — не менее 3 символов");
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "cancel")(" abc "), null);
+  assert.match(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "cancel")("x".repeat(501)), /не более 500/);
 });
 
 test("R3 10 / 13 / 12: the panel keeps the variant in state; the menu item is one line; the consequences sit under a «?»", () => {
@@ -624,11 +624,11 @@ test("R3 19: ONE panel and ONE reason check for the dashboard's missed-lesson di
   const dash = read("src/app/teacher/dashboard/page.tsx");
   assert.equal((dash.match(/<LessonCancelPanel/g) || []).length, 2, "the lesson panel and the missed-lesson dialog");
   assert.doesNotMatch(dash, /Причина отмены<\/p>/, "the built-in copy is gone");
-  assert.match(dash, /cancelReasonProblem\(reason\)/);
+  assert.match(dash, /reasonProblemFor\("cancel", reason\)/);
   const modal = read("src/components/attendance/cancel-missed-lesson-modal.tsx");
-  assert.match(modal, /cancelReasonProblem\(text\)/);
-  assert.match(modal, /Boolean\(cancelReasonProblem\(reason\)\)/);
-  assert.match(read("src/app/teacher/schedule/page.tsx"), /cancelReasonProblem\(reason\)/);
+  assert.match(modal, /reasonProblemFor\("cancel", text\)/);
+  assert.match(modal, /Boolean\(reasonProblemFor\("cancel", reason\)\)/);
+  assert.match(read("src/app/teacher/schedule/page.tsx"), /reasonProblemFor\("cancel", reason\)/);
 });
 
 test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and replacedBy - the panel and the rules use them (a fixture of the real shape)", () => {

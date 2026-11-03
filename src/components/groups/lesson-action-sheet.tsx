@@ -26,6 +26,7 @@ import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
 import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
 import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { reasonProblemFor } from "@/lib/reason-rules";
 import { ChangeKindForm } from "./change-kind-form";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DateInput } from "@/components/ui/date-input";
@@ -33,8 +34,6 @@ import { TimeInput } from "@/components/ui/time-input";
 
 const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
-const REASON_MIN = 3;
-const REASON_MAX = 500;
 const NO_NOTES: string[] = [];
 const NO_MARKS: LessonMark[] = [];
 
@@ -176,7 +175,7 @@ export function LessonActionSheet({
   const pending = checking || (validNew && !sameSlot && fresh === null);
 
   const trimmed = reason.trim();
-  const reasonProblem = trimmed.length < REASON_MIN ? `Укажите причину (не короче ${REASON_MIN} символов)` : trimmed.length > REASON_MAX ? `Причина — не более ${REASON_MAX} символов` : null;
+  const reasonProblem = reasonProblemFor("cancel", reason);
   // the exam bound to the lesson matters for a cancellation AND a move (a move releases a draft exam, a live one blocks it)
   const examState = mode === "cancel" ? examCancelState(binding) : mode === "reschedule" ? examMoveState(binding) : examCancelState({ state: "none" });
   const checkLines = check ? lessonMoveCheckLines(check) : null;

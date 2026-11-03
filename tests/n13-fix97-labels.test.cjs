@@ -163,8 +163,11 @@ test("the settings pages: each form field has its own label with a matching id",
     }
   }
   const admin = inspect(src("app/admin/settings/page.tsx"));
-  assert.equal(admin.controls.length, 6, "admin settings: three profile fields and three password fields");
-  assert.equal(admin.labels.length, 6, "admin settings: a label for each field");
+  // WAVE E: the e-mail is the read-only component (its own label + id), the page keeps two profile fields and three password fields
+  assert.equal(admin.controls.length, 5, "admin settings: two profile fields and three password fields");
+  assert.equal(admin.labels.length, 5, "admin settings: a label for each field");
+  assert.match(fs.readFileSync(src("app/admin/settings/page.tsx"), "utf8"), /<ReadonlyEmailField id=\{`\$\{uid\}-email`\}/);
+  assert.match(fs.readFileSync(src("components/settings/readonly-email-field.tsx"), "utf8"), /<label htmlFor=\{id\}[\s\S]*<input\s+id=\{id\}/);
   for (const label of admin.labels) assert.ok(label.htmlFor && label.htmlFor.includes("uid"), `${label.where}: useId-based htmlFor`);
 });
 

@@ -8,6 +8,7 @@
  */
 import type { MembershipPaymentRow } from "./payments";
 import { daysBetweenInclusive } from "./business-time";
+import { reasonProblemFor } from "./reason-rules";
 import { pluralRu } from "./plural";
 
 const MINUS = "−";
@@ -102,7 +103,6 @@ export function recalcLines(lines: ReadonlyArray<RecalcLine> | null | undefined)
 // ── 2. «Выходной день центра» ────────────────────────────────────────────────
 
 export const DAY_OFF_MAX_DAYS = 14;
-export const DAY_OFF_REASON_MIN = 3;
 
 export interface DayOffLesson {
   groupId: string;
@@ -211,7 +211,7 @@ export function dayOffDatesError(form: Pick<DayOffForm, "dateFrom" | "dateTo">):
 
 /** What is wrong with the form of a day off, or null.  The server checks the same (3 characters, up to 14 days). */
 export function dayOffError(form: DayOffForm): string | null {
-  return dayOffDatesError(form) ?? (form.reason.trim().length < DAY_OFF_REASON_MIN ? `Укажите причину: не короче ${DAY_OFF_REASON_MIN} символов` : null);
+  return dayOffDatesError(form) ?? reasonProblemFor("dayOff", form.reason);
 }
 
 /** The body of the dry run: the dates only, so typing the reason does not ask the server again. */

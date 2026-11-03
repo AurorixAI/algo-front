@@ -39,7 +39,6 @@ import { wasMemberOn } from "@/lib/membership-periods";
 import {
   collectExcuseReasons,
   CORRECTION_REASON_MAX,
-  EXCUSE_REASON_MAX,
   excuseCellView,
   finishBlockedHint,
   formatDateRu,
@@ -52,9 +51,9 @@ import {
   recordsForSave,
   rosterProgress,
   validateCorrectionReason,
-  validateExcuseReason,
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor } from "@/lib/journal-period";
@@ -835,7 +834,7 @@ export function GroupAttendanceJournal({
 
   const submitReasonEditor = () => {
     if (!reasonEditor) return;
-    const error = validateExcuseReason(reasonEditor.text);
+    const error = reasonProblemFor("excuse", reasonEditor.text);
     if (error) {
       setReasonEditor({ ...reasonEditor, error });
       return;
@@ -1917,7 +1916,7 @@ export function GroupAttendanceJournal({
               onChange={(event) => setReasonEditor({ ...reasonEditor, text: event.target.value, error: null })}
               onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submitReasonEditor(); }}
               rows={3}
-              maxLength={EXCUSE_REASON_MAX}
+              maxLength={REASON_LIMITS.excuse.max}
               autoFocus
               placeholder="Например: заболел, написал в Telegram"
               className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
@@ -1926,7 +1925,7 @@ export function GroupAttendanceJournal({
               <span className={reasonEditor.error ? "font-medium text-rose-600" : "text-slate-400"}>
                 {reasonEditor.error || "От 3 до 300 символов. Администратор подтвердит или отклонит пропуск."}
               </span>
-              <span className="shrink-0 text-slate-400">{reasonEditor.text.trim().length}/{EXCUSE_REASON_MAX}</span>
+              <span className="shrink-0 text-slate-400">{reasonEditor.text.trim().length}/{REASON_LIMITS.excuse.max}</span>
             </div>
           </div>
         )}

@@ -41,16 +41,16 @@ test("finishing needs every student marked, the hint counts the rest", () => {
 });
 
 test("reason of an excused absence is 3..300 characters after trimming", () => {
-  assert.ok(rules.validateExcuseReason(""));
-  assert.ok(rules.validateExcuseReason(null));
-  assert.ok(rules.validateExcuseReason("  а  "));
-  assert.ok(rules.validateExcuseReason("ab "));
-  assert.equal(rules.validateExcuseReason("abc"), null);
-  assert.equal(rules.validateExcuseReason("  заболел  "), null);
-  assert.equal(rules.validateExcuseReason("x".repeat(300)), null);
-  assert.ok(rules.validateExcuseReason("x".repeat(301)));
+  assert.ok(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")(""));
+  assert.ok(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")(null));
+  assert.ok(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("  а  "));
+  assert.ok(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("ab "));
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("abc"), null);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("  заболел  "), null);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("x".repeat(300)), null);
+  assert.ok(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")("x".repeat(301)));
   // whitespace padding does not count towards the limit
-  assert.equal(rules.validateExcuseReason(`  ${"x".repeat(300)}  `), null);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor.bind(null, "excuse")(`  ${"x".repeat(300)}  `), null);
 });
 
 test("reason of a correction is 10..500 characters after trimming", () => {

@@ -23,7 +23,7 @@ import {
   canPickCandidate,
   decisionCardTitle,
   decisionHeader,
-  decisionReasonError,
+  decisionReasonKind,
   examDraftCancelText,
   examDraftText,
   examRunningText,
@@ -42,6 +42,7 @@ import {
   suggestedLine,
   type MoveForm,
 } from "@/lib/substitutions";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import type {
   CandidatesOut,
   DecideOut,
@@ -205,7 +206,7 @@ function DecisionDialogInner({
   const problem = (() => {
     if (kind === "substitute") return pick ? null : "Выберите преподавателя";
     if (kind === "reschedule") return moveFormError(move, item, today);
-    return decisionReasonError(kind, reason);
+    return reasonProblemFor(decisionReasonKind(kind), reason);
   })();
   const examBlocksCancel = kind === "cancel" && binding?.state === "ok" && binding.canCancel === false;
   const blocked = Boolean(problem) || examBlocksCancel || (kind === "reschedule" && check !== null && !check.ok);
@@ -426,7 +427,7 @@ export function DecisionBody({
           <MoveCheck lines={lines} checking={checking} error={checkError} />
           <div>
             <label htmlFor="substitution-move-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{MOVE_REASON_LABEL}</label>
-            <textarea id="substitution-move-reason" value={move.reason} rows={2} maxLength={500} disabled={busy} onChange={(event) => onMove({ reason: event.target.value })} className={FIELD_CLASS} />
+            <textarea id="substitution-move-reason" value={move.reason} rows={2} maxLength={REASON_LIMITS.cancel.max} disabled={busy} onChange={(event) => onMove({ reason: event.target.value })} className={FIELD_CLASS} />
           </div>
           <p className="text-xs leading-relaxed text-slate-500">{moveExplain(candidates?.candidates.find((entry) => entry.isDefaultTeacher)?.name ?? item.teacher.name)}</p>
           {examTitle && <p role="status" className="text-xs font-medium text-amber-800">{examDraftText(examTitle)}</p>}
@@ -437,7 +438,7 @@ export function DecisionBody({
         <div className="space-y-3">
           <div>
             <label htmlFor="substitution-cancel-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{CANCEL_REASON_LABEL}</label>
-            <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={500} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
+            <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={REASON_LIMITS.cancel.max} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
           <div ref={kindRef}><CancellationKindField canChooseKind value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} /></div>
           {binding?.state === "ok" && examTitle && (binding.canCancel === false
@@ -451,7 +452,7 @@ export function DecisionBody({
         <div className="space-y-3">
           <div>
             <label htmlFor="substitution-reject-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{REJECT_REASON_LABEL}</label>
-            <textarea id="substitution-reject-reason" value={reason} rows={2} maxLength={300} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
+            <textarea id="substitution-reject-reason" value={reason} rows={2} maxLength={REASON_LIMITS.reject.max} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
           <p className="text-xs leading-relaxed text-slate-600">{rejectConsequence(item.teacher.name)}</p>
         </div>

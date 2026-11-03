@@ -9,6 +9,7 @@ import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { pluralRu } from "./plural";
+import { reasonProblemFor, type ReasonKind } from "./reason-rules";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
 import type {
@@ -802,14 +803,9 @@ export function noFreeCandidates(candidates: SubstitutionCandidate[], requesterI
   return candidates.every((candidate) => !canPickCandidate(candidate, requesterId));
 }
 
-export const DECIDE_REASON_MIN = 3;
-
-export function decisionReasonError(kind: "reschedule" | "cancel" | "reject", reason: string): string | null {
-  const length = reason.trim().length;
-  const max = kind === "reject" ? 300 : 500;
-  if (length < DECIDE_REASON_MIN) return "Укажите причину — не менее 3 символов";
-  if (length > max) return `Причина — не более ${max} символов`;
-  return null;
+/** The kind of reason a decision of a request asks for: a refusal is 3..300, a cancellation and a move are 3..500 (`lib/reason-rules.ts`). */
+export function decisionReasonKind(kind: "reschedule" | "cancel" | "reject"): ReasonKind {
+  return kind === "reject" ? "reject" : "cancel";
 }
 
 export interface MoveForm {
@@ -827,7 +823,7 @@ export function moveFormError(form: MoveForm, item: Pick<SubstitutionItem, "less
   if (lessonMinutes(form.startTime, form.endTime) === 0) return "Окончание должно быть позже начала";
   if (form.newDate < today) return "Новое время урока уже прошло";
   if (form.newDate === item.lesson.date && form.startTime === item.lesson.startTime && form.endTime === item.lesson.endTime) return "Выберите другую дату или время";
-  return decisionReasonError("reschedule", form.reason);
+  return reasonProblemFor(decisionReasonKind("reschedule"), form.reason);
 }
 
 export function moveCheckParams(form: MoveForm): MoveCheckParams | null {

@@ -112,16 +112,6 @@ export function candidateBusyText(candidate: LessonTeacherCandidate): string | n
   return busy ? `Занят: ${busy.groupName}, ${busy.startTime}–${busy.endTime}` : "Занят";
 }
 
-export const REASON_MIN = 3;
-export const REASON_MAX = 300;
-
-export function reasonError(reason: string): string | null {
-  const length = reason.trim().length;
-  if (length < REASON_MIN) return `Укажите причину — не менее ${REASON_MIN} символов`;
-  if (length > REASON_MAX) return `Причина — не более ${REASON_MAX} символов`;
-  return null;
-}
-
 /** The candidate who teaches the lesson now (the dialog opens with them marked). */
 export function currentCandidate(list: LessonTeacherCandidates | null | undefined): string | null {
   return list?.currentTeacherId ?? list?.defaultTeacherId ?? null;

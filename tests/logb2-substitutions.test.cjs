@@ -257,8 +257,8 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   assert.deepEqual(S.buildBulk(["a", "b"], "cancel", { reason: "Праздник", cancellationKind: "holiday" }), { ids: ["a", "b"], decision: "cancel", reason: "Праздник", cancellationKind: "holiday" });
   assert.deepEqual(S.buildBulk(["a"], "cancel", { reason: "Болен" }), { ids: ["a"], decision: "cancel", reason: "Болен", cancellationKind: "centre" });
   assert.equal("cancellationKind" in S.buildBulk(["a"], "reject", { reason: "Нет" }), false, "only a cancellation carries a kind");
-  assert.equal(S.decisionReasonError("cancel", "ок"), "Укажите причину — не менее 3 символов");
-  assert.equal(S.decisionReasonError("cancel", "Болен"), null);
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor(S.decisionReasonKind("cancel"), "ок"), "Укажите причину — не менее 3 символов");
+  assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor(S.decisionReasonKind("cancel"), "Болен"), null);
   assert.equal(S.studentNoticeLabel({ kind: "cancelled" }), "Урок отменён");
   assert.equal(S.examDraftCancelText("Контрольная №3"), "Экзамен «Контрольная №3» вернётся в черновик, код доступа будет закрыт.");
   assert.equal(S.examRunningText("Контрольная №3"), "Экзамен «Контрольная №3» уже идёт — отменить урок нельзя");

@@ -1,7 +1,9 @@
 "use client";
 
 import { useId } from "react";
-import { EXCUSE_REASON_MAX, EXCUSE_REASON_MIN } from "@/lib/attendance-excuses";
+import { REASON_LIMITS } from "@/lib/reason-rules";
+
+const EXCUSE_REASON = REASON_LIMITS.excuse;
 
 interface ExcuseReasonFieldProps {
   value: string;
@@ -20,16 +22,16 @@ export function ExcuseReasonField({ value, onChange, invalid = false, saved = fa
     <div className="basis-full pt-2">
       <label htmlFor={inputId} className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-slate-500">
         <span>Причина{saved ? " (сохранена)" : ""}</span>
-        <span className="font-medium text-slate-400">{value.trim().length}/{EXCUSE_REASON_MAX}</span>
+        <span className="font-medium text-slate-400">{value.trim().length}/{EXCUSE_REASON.max}</span>
       </label>
       <input
         id={inputId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        maxLength={EXCUSE_REASON_MAX}
+        maxLength={EXCUSE_REASON.max}
         placeholder="Например: заболел, написал в Telegram"
         aria-invalid={invalid}
-        aria-label={`Причина уважительного пропуска, не короче ${EXCUSE_REASON_MIN} символов`}
+        aria-label={`Причина уважительного пропуска, не короче ${EXCUSE_REASON.min} символов`}
         className={`w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500/20 ${
           invalid ? "border-rose-400 ring-1 ring-rose-300" : "border-slate-200 focus:border-primary-500"
         }`}

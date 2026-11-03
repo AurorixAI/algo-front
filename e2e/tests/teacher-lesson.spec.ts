@@ -42,7 +42,7 @@ test("teacher runs a lesson from the dashboard to «Завершён» @mobile",
   const reason = page.getByRole("textbox", { name: /Причина уважительного пропуска/ });
   await reason.fill("ab");
   await page.getByRole("button", { name: "Сохранить отметки" }).click();
-  await expect(page.getByText(/Укажите причину \(не короче 3 символов\)/)).toBeVisible(); // too short: refused
+  await expect(page.getByText(/Укажите причину — не менее 3 символов/)).toBeVisible(); // too short: refused
   await expect(reason).toHaveAttribute("aria-invalid", "true");
 
   await reason.fill("Болела, температура");

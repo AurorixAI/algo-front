@@ -1,7 +1,7 @@
 "use client";
 
 import { formatIsoDateLabel } from "@/lib/business-time";
-import { cancelReasonProblem } from "@/lib/teacher-cancel";
+import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 
 /** What the exam bound to the lesson means for the cancellation (the page reads `lesson-exam-binding` when the panel opens). */
 export interface LessonCancelBinding {
@@ -30,7 +30,7 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
   onConfirm: () => void;
   onBack: () => void;
 }) {
-  const problem = cancelReasonProblem(reason);
+  const problem = reasonProblemFor("cancel", reason);
   return (
     <div data-testid="lesson-cancel-panel" className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
       <div>
@@ -50,7 +50,7 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
         autoFocus={autoFocus}
         value={reason}
         onChange={(event) => onReason(event.target.value)}
-        maxLength={500}
+        maxLength={REASON_LIMITS.cancel.max}
         rows={3}
         placeholder="Причина (обязательно)"
         aria-label="Причина"

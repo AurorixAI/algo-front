@@ -206,7 +206,7 @@ test("2. the form: a date or a range of up to 14 days, a reason of 3 characters"
   assert.equal(F.dayOffError({ ...ok, dateTo: "2026-11-03" }), null);                                // 14 days
   assert.equal(F.dayOffError({ ...ok, dateTo: "2026-11-04" }), "Выходной — не больше 14 дней подряд");
   assert.equal(F.dayOffError({ ...ok, dateTo: "2026-10-20" }), "Конец выходного раньше его начала");
-  assert.equal(F.dayOffError({ ...ok, reason: "ab" }), "Укажите причину: не короче 3 символов");
+  assert.equal(F.dayOffError({ ...ok, reason: "ab" }), "Укажите причину — не менее 3 символов");
   assert.equal(F.dayOffError({ ...ok, dateFrom: "" }), "Укажите дату");
   assert.equal(F.dayOffError({ dateFrom: "2026-12-25", dateTo: "2027-01-07", reason: "Каникулы" }), null);                 // over a new year: 14 days
 });
@@ -254,7 +254,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   const lines = (file) => read(file).split("\n").length;
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
-    "src/app/admin/settings/page.tsx": 107 + 6, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 /* WB-P5 R3: the text of a 409 after a lost answer */, "src/components/payments/receipt-view.tsx": 297 + 3,
+    "src/app/admin/settings/page.tsx": 107 + 6 + 1 /* WAVE E: the read-only e-mail component, the password check */, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 /* WB-P5 R3: the text of a 409 after a lost answer */, "src/components/payments/receipt-view.tsx": 297 + 3,
     "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 + 8 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3)
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
@@ -318,7 +318,7 @@ test("2. the dry run of a day off asks for the dates only; the dialog's lists an
   assert.deepEqual(F.dayOffPreviewBody({ dateFrom: "2026-10-21", dateTo: "" }), { dateFrom: "2026-10-21", dateTo: "2026-10-21" });
   assert.equal(F.dayOffDatesError({ dateFrom: "2026-10-21", dateTo: "2026-11-04" }), "Выходной — не больше 14 дней подряд");
   assert.equal(F.dayOffDatesError({ dateFrom: "2026-10-21", dateTo: "" }), null);                    // no reason is needed to look
-  assert.equal(F.dayOffError({ dateFrom: "2026-10-21", dateTo: "", reason: "" }), "Укажите причину: не короче 3 символов");
+  assert.equal(F.dayOffError({ dateFrom: "2026-10-21", dateTo: "", reason: "" }), "Укажите причину — не менее 3 символов");
   const dialog = read("src/components/schedule/day-off-dialog.tsx");
   assert.match(dialog, /\[open, datesProblem, key\]/);                                                // the effect does not depend on the reason
   assert.match(dialog, /orgApi\.previewDayOff\(dayOffPreviewBody\(form\)\)/);
