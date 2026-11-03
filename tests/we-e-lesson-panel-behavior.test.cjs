@@ -327,6 +327,18 @@ scenario("C12", "cancellation is not offered while the exam service forbids it",
   assert.equal(world.called("cancelMissedGroupAttendance").length, 0);
 });
 
+scenario("C12c", "E-A11Y: the lesson panel is a dialog named by the group; the id is unique and the nested dialogs are not confused with it", async ({ screen, world }) => {
+  const s = await openPanel(screen, await startScreen(screen, world), "live");
+  // the renderer lists a motion component and the DOM node it renders: the DOM node counts once
+  const dialogs = s.all((n) => n.tag === "div" && n.props.role === "dialog" && n.props["aria-labelledby"] === "lesson-panel-title");
+  assert.equal(dialogs.length, 1, "exactly one window is named by the title of the lesson panel (a check that found nothing is a failure, LESSONS 94)");
+  assert.equal(dialogs[0].props["aria-modal"], "true");
+  const titles = s.all((n) => n.tag === "h3" && n.props.id === "lesson-panel-title");
+  assert.equal(titles.length, 1, "the id is unique");
+  assert.equal(harness.flat(harness.textOf(titles[0])).trim(), "Живая", "the name of the window is the name of the group");
+  assert.equal(s.all((n) => n.props.id === "missed-lesson-title").length, 0, "the dialog «Пропущенный урок» is closed and has its own id");
+});
+
 scenario("C13", "a refusal that arrives after the panel was closed is not silent: «Не сохранено: группа, дата» and the reason", async ({ screen, world }) => {
   const gate = harness.deferred();
   const s = await openPanel(screen, await startScreen(screen, world), "live");

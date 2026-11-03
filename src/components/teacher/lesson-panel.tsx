@@ -204,6 +204,9 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="lesson-panel-title"
                 className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
               >
                 {/* Modal Header */}
@@ -220,7 +223,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                       </p>
                     )}
                     <div className="flex items-center gap-2.5 mt-1">
-                      <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+                      <h3 id="lesson-panel-title" className="text-xl sm:text-2xl font-bold text-slate-900">
                         {activeLesson.groupName}
                       </h3>
                       {activeLesson.classLevel && (
