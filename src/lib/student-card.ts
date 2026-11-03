@@ -1,6 +1,7 @@
 /**
  * IA audit F35 / F38 / F32: the header of the student's card.  Pure: no React, so node:test loads it.
  */
+import { formatDayMonthRu } from "./business-time";
 import { formatMoney, type MembershipPaymentRow } from "./payments";
 import { rowBalance } from "./payments-ledger";
 
@@ -30,7 +31,7 @@ export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, 
     .sort();
   if (ends.length === 0) return null;
   const nearest = ends[0];
-  return { label: `Оплачено до ${nearest.slice(8, 10)}.${nearest.slice(5, 7)}`, tone: "ok", debtGroups: 0 };
+  return { label: `Оплачено до ${formatDayMonthRu(nearest)}`, tone: "ok", debtGroups: 0 };
 }
 
 /** The editable fields of «Изменить данные…» and the patch of those that changed (nothing unchanged is sent). */

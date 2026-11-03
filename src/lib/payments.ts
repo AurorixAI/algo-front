@@ -9,6 +9,7 @@
  */
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
+import { formatDayMonthRu } from "./business-time";
 import { formatMoney, formatMoneyInput, groupDigits } from "./money-format";
 import { CHIP_TONE_CLASS } from "./chip-tone";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
@@ -948,7 +949,6 @@ export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone 
 export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until" | "past_debt" | "paid_through_forecast">>): { label: string; tone: StatusTone; title: string | null } {
   const base = moneyChip(row);
   const debt = row.debt ?? 0;
-  const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
   const until = row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) ? row.paid_until : null;
   if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
   if (debt > 0) {
@@ -964,8 +964,8 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
     // a package: only the short status here («Оплачено» / «Скоро закончится»), the count, the bar and the forecast are `PackageProgress` under the price
     return { ...base, title: null };
   }
-  if (row.status === "active" && until) return { label: `Оплачено до ${dayMonth(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
-  if (row.status === "expiring" && until) return { label: `${base.label} · до ${dayMonth(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };
+  if (row.status === "active" && until) return { label: `Оплачено до ${formatDayMonthRu(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
+  if (row.status === "expiring" && until) return { label: `${base.label} · до ${formatDayMonthRu(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };
   return { ...base, title: until && row.status === "ends_today" ? `оплачено до ${formatDateRu(until)}` : null };
 }
 
@@ -973,7 +973,7 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
 export function pausedChipText(student: { on_pause?: boolean | null; paused_until?: string | null }): string | null {
   if (!student.on_pause) return null;
   const day = student.paused_until;
-  return day && /^\d{4}-\d{2}-\d{2}/.test(day) ? `На паузе до ${day.slice(8, 10)}.${day.slice(5, 7)}` : "На паузе";
+  return day && /^\d{4}-\d{2}-\d{2}/.test(day) ? `На паузе до ${formatDayMonthRu(day)}` : "На паузе";
 }
 
 /** «Осталось 3 урока из 12» / «Остался 1 урок из 12» / «Осталось 3 урока»; "" when the count is not known. */

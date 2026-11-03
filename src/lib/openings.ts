@@ -22,7 +22,7 @@ import {
   REASON_MIN,
   type PeriodMode,
 } from "./payments";
-import { addIsoDays, formatBusinessDate } from "./business-time";
+import { addIsoDays, formatBusinessDate, formatDayMonthRu } from "./business-time";
 import { pluralRu } from "./plural";
 
 // ── The contract ────────────────────────────────────────────────────────────
@@ -412,7 +412,6 @@ export const OPENINGS_ONLY_MISSING = "Только незаполненные";
 export const OPENINGS_LEFT_NOTE = "Ушедшим можно внести только долг на начало.";
 export const OPENINGS_UNSAVED = "Остатки не сохранены. Уйти со страницы и потерять правки?";
 
-const dm = (iso: string): string => formatDateRu(iso).slice(0, 5);
 const dmy = (iso: string): string => formatDateRu(iso);
 
 /** The one sentence under the title (the wording of the lead, 22.10). */
@@ -468,9 +467,9 @@ export function currentText(row: Pick<OpeningRow, "opening" | "missing" | "statu
   if (!opening || (!opening.paid_until && !opening.debt_amount)) return row.missing ? "Не заполнено" : "Остатка нет";
   const parts: string[] = [];
   if (opening.paid_until) {
-    parts.push(opening.paid_until === noDebtDay(accountingStart) && !opening.debt_amount ? "Долга на начало нет" : `Оплачено до ${dm(opening.paid_until)}`);
+    parts.push(opening.paid_until === noDebtDay(accountingStart) && !opening.debt_amount ? "Долга на начало нет" : `Оплачено до ${formatDayMonthRu(opening.paid_until)}`);
   }
-  if (opening.debt_amount) parts.push(`Долг ${formatMoney(opening.debt_amount)}${opening.debt_on ? ` на ${dm(opening.debt_on)}` : ""}`);
+  if (opening.debt_amount) parts.push(`Долг ${formatMoney(opening.debt_amount)}${opening.debt_on ? ` на ${formatDayMonthRu(opening.debt_on)}` : ""}`);
   return parts.join(" · ");
 }
 
@@ -498,7 +497,7 @@ export interface RowChip {
 /** The small marks of a row: pause, individual price, transfer, free, payments exist, left, no price, to review. */
 export function rowChips(row: OpeningRow, accountingStart: string): RowChip[] {
   const chips: RowChip[] = [];
-  if (row.status === "left") chips.push({ key: "left", label: row.left_on ? `ушёл ${dm(row.left_on)}` : "ушёл", tone: "slate" });
+  if (row.status === "left") chips.push({ key: "left", label: row.left_on ? `ушёл ${formatDayMonthRu(row.left_on)}` : "ушёл", tone: "slate" });
   if (row.paused) chips.push({ key: "paused", label: "пауза", tone: "sky" });
   if (row.price.source === "override" && row.price.amount !== 0) chips.push({ key: "individual", label: "индивид. цена", tone: "slate", title: row.price.reason ?? undefined });
   if (row.reason_not_editable === "transfer") chips.push({ key: "transfer", label: "пришёл переводом", tone: "slate" });
@@ -507,7 +506,7 @@ export function rowChips(row: OpeningRow, accountingStart: string): RowChip[] {
   if (row.price.source === "none" || row.price.amount === null) chips.push({ key: "no_price", label: "нет цены", tone: "amber", title: "Пока у группы нет цены, стоимость не считается" });
   if (row.needs_review) chips.push({ key: "review", label: "проверьте даты", tone: "rose", title: "Остаток не подходит под дату начала учёта: исправьте или уберите" });
   if (row.status !== "left" && row.enrolled_on && accountingStart && row.enrolled_on >= accountingStart && !row.opening) {
-    chips.push({ key: "late", label: `пришёл ${dm(row.enrolled_on)}`, tone: "slate", title: "Пришёл после начала учёта: остаток обычно не нужен" });
+    chips.push({ key: "late", label: `пришёл ${formatDayMonthRu(row.enrolled_on)}`, tone: "slate", title: "Пришёл после начала учёта: остаток обычно не нужен" });
   }
   return chips;
 }
@@ -705,7 +704,7 @@ export function draftProblems(rows: readonly OpeningRow[], drafts: Drafts, conte
 export function lessonsArrow(lessons: OpeningLessons | null | undefined): string | null {
   if (!lessons) return null;
   if (lessons.lessons_left === 0) return "→ долга на начало нет";
-  return lessons.paid_until ? `→ оплачено до ${dm(lessons.paid_until)}` : null;
+  return lessons.paid_until ? `→ оплачено до ${formatDayMonthRu(lessons.paid_until)}` : null;
 }
 
 /** The items with a lessons figure (they get a quick preview for the arrow). */
@@ -782,7 +781,7 @@ export function skipText(skipped: ReadonlyArray<{ reason: SkipReason }>): string
 /** What the bulk bar says it did: «Оплачено до 30.11 — 12 учеников» (+ the skipped). */
 export function bulkDoneText(action: BulkAction, result: BulkResult, accountingStart: string): string {
   const what = action.kind === "paid_until"
-    ? (action.date === noDebtDay(accountingStart) ? "Долга на начало нет" : `Оплачено до ${dm(action.date)}`)
+    ? (action.date === noDebtDay(accountingStart) ? "Долга на начало нет" : `Оплачено до ${formatDayMonthRu(action.date)}`)
     : action.kind === "no_debt" ? "Долга на начало нет" : "Остаток уберём";
   const head = `${what}: ${result.applied} ${studentsWord(result.applied)}`;
   const skipped = skipText(result.skipped);
@@ -809,8 +808,8 @@ export function quickDates(accountingStart: string): QuickDate[] {
   const end = lastDayOfMonth(accountingStart);
   const month = MONTHS_NOMINATIVE[Number(accountingStart.slice(5, 7)) - 1];
   return [
-    { date: before, label: `${dm(before)} (долга нет)` },
-    { date: end, label: `${dm(end)} (оплатил ${month})` },
+    { date: before, label: `${formatDayMonthRu(before)} (долга нет)` },
+    { date: end, label: `${formatDayMonthRu(end)} (оплатил ${month})` },
   ];
 }
 
@@ -909,7 +908,7 @@ export function reviewParts(preview: OpeningBatchPreview): ReviewParts {
   }
   const parts: string[] = [];
   for (const [day, count] of Array.from(byDay).sort(([a], [b]) => (a < b ? -1 : 1))) {
-    parts.push(`${count} — ${day === noDebtDay(start) ? "долга на начало нет" : `оплачено до ${dm(day)}`}`);
+    parts.push(`${count} — ${day === noDebtDay(start) ? "долга на начало нет" : `оплачено до ${formatDayMonthRu(day)}`}`);
   }
   if (debtCount > 0) parts.push(`${debtCount} — долг ${formatMoney(debtSum)}`);
   if (cleared > 0) parts.push(`${cleared} — остаток уберём`);

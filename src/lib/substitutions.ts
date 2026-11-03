@@ -8,7 +8,7 @@ import type { GroupDetail, StudentInGroup } from "./api";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
-import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
+import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { pluralRu } from "./plural";
 import { reasonProblemFor, type ReasonKind } from "./reason-rules";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
@@ -102,7 +102,7 @@ export const LESSON_DELETED_TEXT = "урок удалён из расписан�
 /** «Перенесён с 25.10, 10:00» on the new lesson of a move (#124); null on any other lesson. */
 export function movedFromLabel(movedFrom: Pick<MovedFrom, "date" | "startTime"> | null | undefined): string | null {
   if (!movedFrom?.date || !/^\d{4}-\d{2}-\d{2}/.test(movedFrom.date)) return null;
-  return `Перенесён с ${movedFrom.date.slice(8, 10)}.${movedFrom.date.slice(5, 7)}${movedFrom.startTime ? `, ${movedFrom.startTime}` : ""}`;
+  return `Перенесён с ${formatDayMonthRu(movedFrom.date)}${movedFrom.startTime ? `, ${movedFrom.startTime}` : ""}`;
 }
 export const REQUESTED_LABEL = "Вы запросили замену";
 export const WITHDRAW_ACTION = "Отозвать запрос";

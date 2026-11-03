@@ -3,6 +3,7 @@
  * the certificate link text, the decision line and the journal deep link.
  * No React and no network, so node:test can load this file directly.
  */
+import { formatDayMonthRu } from "./business-time";
 import { formatDateTimeRu } from "./attendance-excuses";
 import { journalHref } from "./open-lessons";
 
@@ -17,12 +18,6 @@ export function shortPersonName(full: string | null | undefined): string {
   return `${initial}. ${parts[parts.length - 1]}`;
 }
 
-/** «2026-10-16» -> «16.10» (no Date object: the calendar day never drifts with the timezone). */
-export function dayMonthRu(isoDate: string | null | undefined): string {
-  const match = /^\d{4}-(\d{2})-(\d{2})/.exec(isoDate ?? "");
-  return match ? `${match[2]}.${match[1]}` : "";
-}
-
 /** «2026-10-15» -> «Чт, 15.10»; "" for anything that is not a real calendar day. */
 export function lessonShortLabel(isoDate: string | null | undefined): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
@@ -30,7 +25,7 @@ export function lessonShortLabel(isoDate: string | null | undefined): string {
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const real = new Date(Date.UTC(year, month - 1, day));
   if (real.getUTCFullYear() !== year || real.getUTCMonth() !== month - 1 || real.getUTCDate() !== day) return "";
-  return `${WEEKDAYS[real.getUTCDay()]}, ${match[3]}.${match[2]}`;
+  return `${WEEKDAYS[real.getUTCDay()]}, ${formatDayMonthRu(isoDate)}`;
 }
 
 /** «Дилноза Каримова · 09.10.2026 16:35»: who wrote the reason and when (shown as written, Tashkent clock). */

@@ -2,6 +2,7 @@
 // allocations of the amount); nothing here adds, splits or rounds a сум.  This file only names the periods the way a person
 // does (a calendar month by its name, otherwise by dates), says in the FUTURE tense what saving will do (nothing is saved
 // yet), and offers the quick amounts that carry the information the old top block used to.  No React: node:test loads it.
+import { formatDayMonthRu } from "./business-time";
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoney, type Allocation, type PaymentPreview } from "./payments";
 import { lessonsWord } from "./plural";
@@ -30,11 +31,6 @@ function parts(iso: string | null | undefined): { year: number; month: number; d
   return match ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) } : null;
 }
 
-function dayMonth(iso: string): string {
-  const p = parts(iso);
-  return p ? `${String(p.day).padStart(2, "0")}.${String(p.month).padStart(2, "0")}` : iso;
-}
-
 /** The calendar month a period is exactly (the 1st .. the last day of one month), or null. */
 export function calendarMonth(from: string, to: string): { year: number; month: number } | null {
   const a = parts(from);
@@ -56,7 +52,7 @@ export interface PeriodName {
 
 /** A period by its name: a month when it is exactly one (the year only when it is not the year of `asOf`), else by dates. */
 export function periodName(from: string, to: string, kind: PeriodKind = "period", asOf?: string | null): PeriodName {
-  const dates = `${dayMonth(from)}–${dayMonth(to)}`;
+  const dates = `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
   if (kind === "package") return { bare: `пакет ${dates}`, sentence: `пакет ${dates}`, isMonth: false, kind };
   const month = calendarMonth(from, to);
   if (month) {

@@ -8,7 +8,7 @@ import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
 import { substitutionErrorText } from "./substitutions";
 import { choicePayload, oneOffErrorText, type OneOffChoice } from "./one-off";
-import { addIsoDays } from "./business-time";
+import { addIsoDays, formatDayMonthRu } from "./business-time";
 import { LESSON_SUBJECT, firstOccurrenceOf, sharedRevisionPatch, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
 
 export interface WeeklyDraft {
@@ -151,15 +151,11 @@ type LaterRevision = NonNullable<RecurringRevisionNotes["laterRevisions"]>[numbe
 
 const LATER_FIELD_NAME: Record<string, string> = { dayOfWeek: "день", startTime: "время", endTime: "время", room: "кабинет", format: "формат", topic: "тема", color: "цвет" };
 
-function dayMonth(iso: string): string {
-  return /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : iso;
-}
-
 /** «Есть изменение с 12.11 — оно тоже обновлено (кабинет)»: said after the save, one line per later revision; nothing without any. */
 export function laterRevisionNotes(result: { laterRevisions?: readonly LaterRevision[] | null } | null | undefined): string[] {
   return (result?.laterRevisions ?? []).map((later) => {
     const fields = Array.from(new Set((later.fields ?? []).map((field) => LATER_FIELD_NAME[field]).filter(Boolean)));
-    return `Есть изменение с ${dayMonth(later.effectiveFrom)} — оно тоже обновлено${fields.length ? ` (${fields.join(", ")})` : ""}`;
+    return `Есть изменение с ${formatDayMonthRu(later.effectiveFrom)} — оно тоже обновлено${fields.length ? ` (${fields.join(", ")})` : ""}`;
   });
 }
 
@@ -232,7 +228,7 @@ export function removalNote(changed: { room?: string | null; topic?: string | nu
   const what = [changed.room === null ? "Кабинет" : "", changed.topic === null ? "тема" : ""].filter(Boolean);
   if (what.length === 0) return null;
   const text = what.length === 2 ? "Кабинет и тема будут убраны" : what[0] === "Кабинет" ? "Кабинет будет убран" : "Тема будет убрана";
-  return `${text} с ${dayMonth(effectiveFrom)}`;
+  return `${text} с ${formatDayMonthRu(effectiveFrom)}`;
 }
 
 /**
@@ -240,7 +236,7 @@ export function removalNote(changed: { room?: string | null; topic?: string | nu
  * several: «С 12.11 и 20.11 …»; null when none (no guessing from the schedule).
  */
 export function laterChangeNote(revisions: ReadonlyArray<{ effectiveFrom: string }> | null | undefined): string | null {
-  const dates = Array.from(new Set((revisions ?? []).map((revision) => dayMonth(revision.effectiveFrom)).filter(Boolean)));
+  const dates = Array.from(new Set((revisions ?? []).map((revision) => formatDayMonthRu(revision.effectiveFrom)).filter(Boolean)));
   if (dates.length === 0) return null;
   const when = dates.length === 1 ? dates[0] : `${dates.slice(0, -1).join(", ")} и ${dates[dates.length - 1]}`;
   return `С ${when} у этого урока уже есть своё изменение — оно тоже обновится`;

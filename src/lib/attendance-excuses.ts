@@ -57,11 +57,7 @@ export function validateCorrectionReason(value: string | null | undefined): stri
   return null;
 }
 
-/** YYYY-MM-DD -> ДД.ММ.ГГГГ (no Date object: the calendar day never drifts with the timezone). */
-export function formatDateRu(isoDate: string | null | undefined): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
-  return match ? `${match[3]}.${match[2]}.${match[1]}` : "";
-}
+export { formatDateRu } from "./business-time";
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");

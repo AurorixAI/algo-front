@@ -199,8 +199,8 @@ test("month switcher: shift across a year, the next button stops at the current 
   assert.equal(R.isOpenMonth("2026-09", "2026-10-15"), false);
   assert.equal(R.monthTitle("2026-09"), "Сентябрь 2026 г.");
   assert.equal(R.monthTitle("2026-01"), "Январь 2026 г.");
-  assert.equal(R.formatDayMonth("2026-09-03"), "03.09");
-  assert.equal(R.formatDayMonth(""), "");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).formatDayMonthRu("2026-09-03"), "03.09");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).formatDayMonthRu(""), "");
 });
 
 // ---- 5. the cells of the sheet ----------------------------------------------------------------------------------

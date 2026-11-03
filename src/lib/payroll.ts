@@ -12,6 +12,7 @@ import { formatMoney, pluralRu } from "./payments";
 import { EXCUSE_REVIEW_LABEL } from "./attendance-marks";
 import {
   capitalizeFirst,
+  formatDayMonthRu,
   formatIsoDateLabel,
   formatUtcNaiveAsBusinessDate,
   formatUtcNaiveAsBusinessDateTime,
@@ -219,12 +220,6 @@ export function isOpenMonth(month: string, today: string): boolean {
 
 export function canGoToNextMonth(month: string, today: string): boolean {
   return shiftMonthKey(month, 1) <= monthOfDate(today);
-}
-
-/** «2026-09-03» -> «03.09» */
-export function formatDayMonth(isoDate: string | null | undefined): string {
-  const match = /^\d{4}-(\d{2})-(\d{2})/.exec(isoDate ?? "");
-  return match ? `${match[2]}.${match[1]}` : "";
 }
 
 // ── API shapes (auth-service: payroll_schemas.py) ───────────────────────────
@@ -952,7 +947,7 @@ export function priceCellView(
 
 function priceStepLine(step: PayrollPriceStep): string {
   const amount = step.amount === null || step.amount === undefined ? "цена не задана" : formatMoney(step.amount);
-  return `с ${formatDayMonth(step.date)} — ${amount}`;
+  return `с ${formatDayMonthRu(step.date)} — ${amount}`;
 }
 
 // ── What goes to the server ─────────────────────────────────────────────────
@@ -1142,7 +1137,7 @@ export interface SheetStatusView {
 
 /** «16.10» of the moment a sheet was saved (a naive-UTC timestamp on the business calendar). */
 export function savedDayMonth(updatedAt: string | null | undefined): string {
-  return formatDayMonth(utcNaiveToBusinessIsoDate(updatedAt));
+  return formatDayMonthRu(utcNaiveToBusinessIsoDate(updatedAt));
 }
 
 /** One chip: «Не рассчитано» / «Сохранено 16.10» / «Есть изменения»; a chip starts with a capital letter. */

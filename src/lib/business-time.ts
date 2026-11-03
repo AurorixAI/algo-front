@@ -63,10 +63,12 @@ export function formatIsoDateLabel(
   isoDate: string,
   options: Intl.DateTimeFormatOptions,
 ): string {
+  const day = calendarDayStart(isoDate);
+  if (!day) return "";                                     // an empty / wrong date is empty, never a RangeError of Intl
   return new Intl.DateTimeFormat("ru-RU", {
     timeZone: "UTC",
     ...options,
-  }).format(new Date(`${isoDate}T12:00:00Z`));
+  }).format(day);
 }
 
 /**
@@ -233,6 +235,17 @@ function calendarDayStart(value: string | null | undefined): Date | null {
   const day = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day, 12));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
+
+/** YYYY-MM-DD -> ДД.ММ.ГГГГ (no Date object: the calendar day never drifts with the timezone); "" when it is not a real date. */
+export function formatDateRu(isoDate: string | null | undefined): string {
+  const day = calendarDayStart(isoDate);
+  return day ? `${isoDate!.slice(8, 10)}.${isoDate!.slice(5, 7)}.${isoDate!.slice(0, 4)}` : "";
+}
+
+/** YYYY-MM-DD -> ДД.ММ; "" when it is not a real date. */
+export function formatDayMonthRu(isoDate: string | null | undefined): string {
+  return formatDateRu(isoDate).slice(0, 5);
 }
 
 /** ISO calendar date + n days (n may be negative); "" when `isoDate` is empty or not a real date. */

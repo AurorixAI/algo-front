@@ -21,6 +21,7 @@ import {
   type PriceScheduledOverride,
   type PriceSource,
 } from "./group-price";
+import { formatDateRu, formatDayMonthRu } from "./business-time";
 import { formatMoney, membershipChip, pluralRu, type MembershipPaymentRow, type PeriodMode, type StatusTone } from "./payments";
 import type { CollectionRow } from "./payments-income-v2";
 
@@ -127,7 +128,7 @@ export function scheduledLine(scheduled: PriceScheduledOverride | null | undefin
   if (!scheduled) return null;
   const match = DIGITS_DATE.exec(scheduled.valid_from ?? "");
   if (!match) return null;
-  const day = `${match[3]}.${match[2]}${match[1] !== today.slice(0, 4) ? `.${match[1]}` : ""}`;
+  const day = match[1] !== today.slice(0, 4) ? formatDateRu(scheduled.valid_from) : formatDayMonthRu(scheduled.valid_from);
   const what = scheduled.amount === null || scheduled.amount === undefined ? "цена группы" : scheduled.amount === 0 ? "бесплатно" : formatMoney(scheduled.amount) + (label === "Цена пакета" ? " за пакет" : "");
   return `с ${day} — ${what}`;
 }

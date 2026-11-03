@@ -13,7 +13,8 @@
 
 import { formatIsoDateLabel } from "./business-time";
 import { excuseDeadlinePassed, type ExcuseDeadlinePassed, type ServerExcuseDeadline } from "./excuse-deadline";
-import { dayMonthRu, reasonMeta, reasonMetaOf } from "./excuse-row";
+import { formatDayMonthRu } from "./business-time";
+import { reasonMeta, reasonMetaOf } from "./excuse-row";
 import { pluralRu } from "./plural";
 
 export type ExcuseDecision = "confirmed" | "rejected";
@@ -200,7 +201,7 @@ export function afterDeadlineMark(
 ): AfterDeadlineMark | null {
   if (!source || source.decided_after_deadline !== true) return null;
   if (source.status !== undefined && source.status !== "confirmed" && source.status !== "rejected") return null;
-  const date = dayMonthRu(source.deadline_at_decision);
+  const date = formatDayMonthRu(source.deadline_at_decision);
   return {
     label: AFTER_DEADLINE_LABEL,
     date,

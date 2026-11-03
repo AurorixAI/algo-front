@@ -21,7 +21,7 @@ import {
   type PayMethod,
   type PaymentPreview,
 } from "./payments";
-import { addIsoDays, daysBetween, daysBetweenInclusive } from "./business-time";
+import { addIsoDays, daysBetween, daysBetweenInclusive, formatDayMonthRu } from "./business-time";
 import { daysLabel, pluralRu } from "./plural";
 
 const num = (value: unknown): number => {
@@ -30,7 +30,6 @@ const num = (value: unknown): number => {
 };
 const arr = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
-const dm = (iso: string): string => formatDateRu(iso).slice(0, 5);
 
 // ── Shared: the money effect of a change of one membership ─────────────────
 
@@ -314,10 +313,10 @@ export function openingLine(values: OpeningFormValues, context: Pick<OpeningCont
   if (openingIsEmpty(values)) return "";
   const parts: string[] = [];
   const from = values.paidUntil && isIsoDate(values.paidUntil) ? addIsoDays(values.paidUntil, 1) : context.enrolDate;
-  if (from) parts.push(`Стоимость считается с ${dm(from)}.`);
-  if (values.paidUntil && isIsoDate(values.paidUntil)) parts.push(`Оплачено до ${dm(values.paidUntil)}.`);
+  if (from) parts.push(`Стоимость считается с ${formatDayMonthRu(from)}.`);
+  if (values.paidUntil && isIsoDate(values.paidUntil)) parts.push(`Оплачено до ${formatDayMonthRu(values.paidUntil)}.`);
   const debt = parseMoneyInput(values.debt);
-  if (debt !== null && debt > 0) parts.push(`Долг на начало: ${formatMoney(debt)}${values.debtOn && isIsoDate(values.debtOn) ? ` на ${dm(values.debtOn)}` : ""}.`);
+  if (debt !== null && debt > 0) parts.push(`Долг на начало: ${formatMoney(debt)}${values.debtOn && isIsoDate(values.debtOn) ? ` на ${formatDayMonthRu(values.debtOn)}` : ""}.`);
   return parts.join(" ");
 }
 
@@ -433,7 +432,7 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact"> | nul
     ? `Дни паузы не входят в стоимость: ${daysLabel(days)}, ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
     : `Дни паузы не входят в стоимость: ${daysLabel(days)}.`;
   const lines = [`${head} Место в группе сохраняется.`];
-  if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${dm(impact.paid_until_after)}.`);
+  if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
   const balance = impactBalanceLine(impact);
   if (balance) lines.push(balance);
   return lines;
@@ -445,7 +444,7 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   const out: string[] = [];
   const { pause } = saved;
   if (pause.first_day < today) {
-    out.push(`Пауза задним числом: уроки с ${dm(pause.first_day)} по ${dm(pause.last_day < today ? pause.last_day : addIsoDays(today, -1))} не будут засчитаны ни ученику, ни преподавателю`);
+    out.push(`Пауза задним числом: уроки с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(pause.last_day < today ? pause.last_day : addIsoDays(today, -1))} не будут засчитаны ни ученику, ни преподавателю`);
   }
   const attended = arr<PauseLessonMark>(saved.lessons?.attended);
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));
@@ -462,12 +461,12 @@ function monthWordShort(key: string): string {
 
 /** «Ученик был отмечен на уроках 12.10, 14.10 — на эти даты паузу поставить нельзя». */
 export function attendedText(dates: string[]): string {
-  return `Ученик был отмечен на уроках ${dates.map(dm).join(", ")} — на эти даты паузу поставить нельзя`;
+  return `Ученик был отмечен на уроках ${dates.map(formatDayMonthRu).join(", ")} — на эти даты паузу поставить нельзя`;
 }
 
 /** «На паузе до 20.10» — the chip of a list and of the card. */
 export function pausedChipText(paused: { from: string; to: string } | null | undefined): string {
-  return paused?.to ? `На паузе до ${dm(paused.to)}` : "На паузе";
+  return paused?.to ? `На паузе до ${formatDayMonthRu(paused.to)}` : "На паузе";
 }
 
 /** A pause that is on today («Закончить паузу» shortens it to yesterday) vs one that has not begun («Отменить паузу»). */
@@ -489,7 +488,7 @@ export function livePauses(list: PauseOut[] | null | undefined): PauseOut[] {
 /** «с 11.10 по 20.10 · 10 дней · уехал к родственникам». */
 export function pauseLine(pause: Pick<PauseOut, "first_day" | "last_day" | "days" | "reason">): string {
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
-  return `с ${dm(pause.first_day)} по ${dm(pause.last_day)} · ${daysLabel(days)}${pause.reason ? ` · ${pause.reason}` : ""}`;
+  return `с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(pause.last_day)} · ${daysLabel(days)}${pause.reason ? ` · ${pause.reason}` : ""}`;
 }
 
 // ── F9: leaving a group / archive with the money settled ───────────────────
@@ -738,7 +737,7 @@ export function priceItemLine(item: PriceImpactItem): string {
   if (item.debt_after !== item.debt_before) parts.push(`долг ${formatMoney(item.debt_before)} → ${formatMoney(item.debt_after)}`);
   if (item.advance_after !== item.advance_before) parts.push(`аванс ${formatMoney(item.advance_before)} → ${formatMoney(item.advance_after)}`);
   if (item.paid_until_after !== item.paid_until_before && item.paid_until_after) {
-    parts.push(`оплачено до ${item.paid_until_before ? `${dm(item.paid_until_before)} → ` : ""}${dm(item.paid_until_after)}`);
+    parts.push(`оплачено до ${item.paid_until_before ? `${formatDayMonthRu(item.paid_until_before)} → ` : ""}${formatDayMonthRu(item.paid_until_after)}`);
   }
   return `${item.student_name}: ${parts.join(", ") || "без изменений"}`;
 }
@@ -812,7 +811,7 @@ export function regimeImpactLines(impact: RegimeImpact | null | undefined): stri
         : `Новый режим начнёт действовать с ${formatDateRu(impact.first_switch)}.`,
     );
   }
-  lines.push(`Затронет ${n} ${pluralRu(n, "ученика", "ученика", "учеников")}: первый переход ${impact.first_switch ? dm(impact.first_switch) : "—"}, последний ${impact.latest_switch ? dm(impact.latest_switch) : "—"}`);
+  lines.push(`Затронет ${n} ${pluralRu(n, "ученика", "ученика", "учеников")}: первый переход ${impact.first_switch ? formatDayMonthRu(impact.first_switch) : "—"}, последний ${impact.latest_switch ? formatDayMonthRu(impact.latest_switch) : "—"}`);
   return lines;
 }
 

@@ -422,3 +422,28 @@ test("DUP-2: one list of each form of the month names; no private list of the tw
   assert.match(lib("open-lessons.ts").formatLessonDate("2026-05-05"), /5 мая/);
   assert.equal(lib("journal-period.ts").MONTHS_GENITIVE, undefined);
 });
+
+// ---- DUP-4: one «ДД.ММ.ГГГГ» and one «ДД.ММ» (lib/business-time.ts); an empty / wrong date is empty, also in the label of Intl -----------
+
+test("DUP-4: formatDateRu / formatDayMonthRu / formatIsoDateLabel: good dates as before, empty for an empty or wrong one (no RangeError)", () => {
+  assert.equal(time.formatDateRu("2026-10-04"), "04.10.2026");
+  assert.equal(time.formatDateRu("2026-10-04T23:30:00+00:00"), "04.10.2026");
+  assert.equal(time.formatDayMonthRu("2026-10-04"), "04.10");
+  for (const bad of ["", null, undefined, "nope", "2026-13-01", "2026-00-10", "2026-02-31", "04.10.2026"]) {
+    assert.equal(time.formatDateRu(bad), "", String(bad));
+    assert.equal(time.formatDayMonthRu(bad), "", String(bad));
+    assert.equal(time.formatIsoDateLabel(bad, { day: "numeric", month: "long" }), "", String(bad));      // used to throw RangeError
+  }
+  assert.equal(time.formatIsoDateLabel("2026-10-22", { day: "numeric", month: "long" }), "22 октября");
+  assert.equal(lib("diagnostic-report.ts").formatReportDate("2026-10-04"), "04.10.2026");
+  assert.equal(lib("diagnostic-report.ts").formatReportDate("2026-13-01"), null);
+  assert.equal(lib("payroll.ts").formatDayMonth, undefined);
+});
+
+test("DUP-4: no private «ДД.ММ» builder from slices of an ISO date is left in src/", () => {
+  const slices = /slice\(8, ?10\)\}\.\$\{[\w.]*slice\(5, ?7\)|\$\{m(?:atch)?\[3\]\}\.\$\{m(?:atch)?\[2\]\}|\$\{m(?:atch)?\[2\]\}\.\$\{m(?:atch)?\[1\]\}/;
+  for (const f of SRC) {
+    if (f === "src/lib/business-time.ts") continue;
+    assert.doesNotMatch(read(f), slices, `${f}: a private date formatter`);
+  }
+});

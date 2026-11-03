@@ -7,16 +7,12 @@
  *  4. the names of the ways to count a payment live in ONE dictionary: `PAYMENT_MODELS` in `payments.ts`.
  */
 import type { MembershipPaymentRow } from "./payments";
-import { daysBetweenInclusive } from "./business-time";
+import { daysBetweenInclusive, formatDayMonthRu } from "./business-time";
 import { formatMoney } from "./money-format";
 import { reasonProblemFor } from "./reason-rules";
 import { pluralRu } from "./plural";
 
 const MINUS = "−";
-
-function dayMonth(iso: string | null | undefined): string {
-  return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : "";
-}
 
 const money = (amount: number): string => formatMoney(Math.round(amount));
 
@@ -38,7 +34,7 @@ export const FORECAST_NOTE = "по расписанию";
 export function forecastText(row: Pick<MembershipPaymentRow, "period_mode" | "lessons_left" | "paid_through_forecast">): string {
   if (row.period_mode !== "lessons") return "";
   if (row.lessons_left === 0) return PACKAGE_OVER_TEXT;
-  const day = dayMonth(row.paid_through_forecast);
+  const day = formatDayMonthRu(row.paid_through_forecast);
   if (day) return `хватит до ~${day} (${FORECAST_NOTE})`;
   // the server sent the field and it is empty (the schedule does not reach the end of the package): say so; an older server has no field at all
   return row.paid_through_forecast === null && (row.lessons_left ?? 0) > 0 ? FORECAST_UNAVAILABLE_TEXT : "";
@@ -90,7 +86,7 @@ export function recalcAmountText(line: Pick<RecalcLine, "amount">): string {
 
 /** «−46 000 сум: урок 21.10 отменён центром» (the server's words; built here only for a line that came without a text). */
 export function recalcText(line: Pick<RecalcLine, "amount" | "lesson_date"> & { text?: string | null }): string {
-  return line.text || `${MINUS}${money(line.amount)}: урок ${dayMonth(line.lesson_date)} отменён центром`;
+  return line.text || `${MINUS}${money(line.amount)}: урок ${formatDayMonthRu(line.lesson_date)} отменён центром`;
 }
 
 /** The lines to show (the sum is the total the payment is smaller by); nothing when the server sent none (an older server). */
@@ -225,7 +221,7 @@ export function dayOffBody(form: DayOffForm): { dateFrom: string; dateTo: string
 
 /** «21.10» or «21.10–23.10». */
 export function dayOffSpan(day: Pick<DayOffOut, "dateFrom" | "dateTo">): string {
-  return day.dateFrom === day.dateTo ? dayMonth(day.dateFrom) : `${dayMonth(day.dateFrom)}–${dayMonth(day.dateTo)}`;
+  return day.dateFrom === day.dateTo ? formatDayMonthRu(day.dateFrom) : `${formatDayMonthRu(day.dateFrom)}–${formatDayMonthRu(day.dateTo)}`;
 }
 
 /** The warning when a lesson is created on a day off of the centre (a warning, never a block). */
@@ -248,7 +244,7 @@ export function dayOffLine(day: DayOffOut): string {
 /** «21.10 · 10:00–11:00 · Группа 5» (+ « — идёт экзамен» for a lesson that is not cancelled): the ONE line of a lesson in every list of the two day-off windows (rule 48). */
 export function dayOffLessonLine(lesson: DayOffLesson): string {
   const time = lesson.startTime ? (lesson.endTime ? `${lesson.startTime}–${lesson.endTime}` : lesson.startTime) : "";
-  const head = [dayMonth(lesson.date), time, lesson.groupName].filter(Boolean).join(" · ");
+  const head = [formatDayMonthRu(lesson.date), time, lesson.groupName].filter(Boolean).join(" · ");
   return `${head}${lesson.reason ? ` — ${lesson.reason}` : ""}`;
 }
 

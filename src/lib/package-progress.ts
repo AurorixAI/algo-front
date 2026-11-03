@@ -3,6 +3,7 @@
  * ONE source for the card of the student, the «Оплаты» tab of a group, the list of payments and the debtors (`components/payments/package-progress.tsx`).
  * The header chip of a package says only the short status; the count and the date live here.  Pure: no React.
  */
+import { formatDayMonthRu } from "./business-time";
 import { statusTone, type MembershipPaymentRow } from "./payments";
 
 export type PackageTone = "ok" | "warning" | "danger" | "muted";
@@ -40,7 +41,7 @@ export function packageProgress(row: Row): PackageProgress | null {
   const used = total - left;
   const status = statusTone(row.status);
   const tone: PackageTone = left === 0 ? "danger" : status === "danger" ? "danger" : status === "warning" ? "warning" : status === "ok" ? "ok" : "muted";
-  const day = typeof row.paid_through_forecast === "string" && /^\d{4}-\d{2}-\d{2}/.test(row.paid_through_forecast) ? `${row.paid_through_forecast.slice(8, 10)}.${row.paid_through_forecast.slice(5, 7)}` : null;
+  const day = typeof row.paid_through_forecast === "string" ? formatDayMonthRu(row.paid_through_forecast) || null : null;
   let forecastLine: string | null = null;
   if (left === 0) forecastLine = "Пакет закончился";
   else if (day) forecastLine = `Хватит примерно до ${day} по расписанию`;

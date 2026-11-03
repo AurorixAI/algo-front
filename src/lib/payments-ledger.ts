@@ -38,7 +38,7 @@ import {
   type StatementSummary,
   type WriteoffCreate,
 } from "./payments";
-import { shiftMonthKey } from "./business-time";
+import { formatDayMonthRu, shiftMonthKey } from "./business-time";
 import { recalcAmountText, type RecalcLine } from "./payf";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
@@ -274,12 +274,8 @@ function digits(value: number): string {
   return formatMoney(value).replace(/\u00A0сум$/, "");
 }
 
-function dm(iso: string): string {
-  return formatDateRu(iso).slice(0, 5);
-}
-
 function periodText(from: string, to: string): string {
-  return `${dm(from)}–${dm(to)}`;
+  return `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
 }
 
 function segmentName(segment: Segment): string {
@@ -960,21 +956,21 @@ export function chargeWords(segment: Segment): { title: string; sub: string } {
     ? partWords(segment.days_text)
     : segment.kind === "package" && segment.lessons ? `${segment.lessons.in_part} из ${segment.lessons.in_period} ${segment.lessons.in_period % 10 === 1 && segment.lessons.in_period % 100 !== 11 ? "урок" : "уроков"}` : "";
   if (segment.kind === "package") {
-    return { title: `${paymentModelTitle("lessons")} ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
+    return { title: `${paymentModelTitle("lessons")} ${formatDayMonthRu(segment.period_from)}–${formatDayMonthRu(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
   }
   if (isCalendarMonthPeriod(segment.period_from, segment.period_to)) {
     const key = monthKey(segment.period_from);
     const partial = Boolean(segment.days_text) || segment.basis === "lessons" || segment.basis === "days";
-    const words = part || `с ${dm(segment.period_from)}`;
+    const words = part || `с ${formatDayMonthRu(segment.period_from)}`;
     return { title: partial ? `${monthTitle(key)} — неполный месяц (${words})` : monthTitle(key), sub };
   }
-  return { title: `Период ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
+  return { title: `Период ${formatDayMonthRu(segment.period_from)}–${formatDayMonthRu(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
 }
 
 /** «август» / «15.09–14.10» / «пакет 25.09–21.10»: how a period is named inside «за …». */
 function periodName(from: string, to: string, kind?: "period" | "package"): string {
-  if (kind === "package") return `пакет ${dm(from)}–${dm(to)}`;
-  return isCalendarMonthPeriod(from, to) ? monthWord(monthKey(from)) : `${dm(from)}–${dm(to)}`;
+  if (kind === "package") return `пакет ${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
+  return isCalendarMonthPeriod(from, to) ? monthWord(monthKey(from)) : `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
 }
 
 /** «август закрыт» for a month, «период закрыт» / «пакет закрыт» otherwise. */

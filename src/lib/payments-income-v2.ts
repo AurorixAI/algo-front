@@ -12,7 +12,7 @@ import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-cal
 import { formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
-import { addIsoDays, capitalizeFirst, daysBetweenInclusive, monthYearLabelRu, shiftDateByMonth } from "./business-time";
+import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, monthYearLabelRu, shiftDateByMonth } from "./business-time";
 
 // ── Contract (income2_contract.json) ───────────────────────────────────────
 
@@ -363,7 +363,7 @@ export function periodTitle(period: Period): string {
 /** The chip of a custom range: «12.10 – 18.10» (the year is added when the range is not inside the year of `today`). */
 export function rangeChipText(period: Pick<Period, "from" | "to">, today: string): string {
   const inYear = period.from.slice(0, 4) === today.slice(0, 4) && period.to.slice(0, 4) === today.slice(0, 4);
-  const short = (iso: string) => (inYear ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`);
+  const short = (iso: string) => (inYear ? formatDayMonthRu(iso) : formatDateRu(iso));
   return `${short(period.from)} – ${short(period.to)}`;
 }
 
@@ -1141,8 +1141,7 @@ export function isCorrection(row: Pick<JournalRow, "status" | "replaces_receipt_
 
 /** «20.10» from an ISO date or date-time; null when there is no usable date. */
 function shortDate(value: string | null | undefined, withYear = false): string | null {
-  const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
-  return match ? `${match[3]}.${match[2]}${withYear ? `.${match[1]}` : ""}` : null;
+  return (withYear ? formatDateRu(value) : formatDayMonthRu(value)) || null;
 }
 
 /** The drawer of a corrected payment: «Было 350 000 сум → стало 300 000 сум · исправил Нодира 15.10 · причина: опечатка».  Each part only when the server sent it. */
@@ -1365,13 +1364,12 @@ export function humanDestinationLine(line: string): string {
   return out;
 }
 
-const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /** A whole calendar month is «сентябрь», any other period is «20.09–19.10». */
 function allocationPeriodName(allocation: Pick<JournalAllocation, "period_from" | "period_to">): string {
   const { period_from: from, period_to: to } = allocation;
   if (isIsoDate(from) && isIsoDate(to) && from.slice(8) === "01" && monthEnd(from) === to) return MONTHS_NOMINATIVE[Number(from.slice(5, 7)) - 1] ?? "";
-  return isIsoDate(from) && isIsoDate(to) ? `${dayMonth(from)}–${dayMonth(to)}` : "";
+  return isIsoDate(from) && isIsoDate(to) ? `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}` : "";
 }
 
 /** «за сентябрь» / «за период 20.10–19.11» / «за периоды 20.09–19.10, 20.10–19.11»; «» when the periods are not known. */

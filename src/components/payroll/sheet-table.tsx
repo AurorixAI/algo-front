@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDayMonthRu } from "@/lib/business-time";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, HelpCircle } from "lucide-react";
@@ -7,7 +8,6 @@ import { formatMoney } from "@/lib/payments";
 import {
   buildBlocks,
   buildLineViews,
-  formatDayMonth,
   lessonTypeLabel,
   markCell,
   lineKeyOf,
@@ -230,7 +230,7 @@ export function PayrollSheetTable({
                     </th>
                     {showDates && block.columns.map((column) => (
                       <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
-                        {formatDayMonth(column.date)}
+                        {formatDayMonthRu(column.date)}
                       </th>
                     ))}
                     <th scope="col" aria-label="Засчитано" className={`${HEAD} text-center`}>
@@ -277,19 +277,19 @@ export function PayrollSheetTable({
                               key={column.key}
                               className="px-1 py-2 text-center align-middle text-sm print:px-0.5 print:py-1"
                               // an unpaid cell has its own tooltip (the Hint below): no second one
-                              title={cell.tone === "unpaid" || cell.tone === "unpaid_included" ? undefined : `${line.student_name}, ${formatDayMonth(column.date)}: ${cell.title}`}
+                              title={cell.tone === "unpaid" || cell.tone === "unpaid_included" ? undefined : `${line.student_name}, ${formatDayMonthRu(column.date)}: ${cell.title}`}
                             >
                               {cell.tone === "unpaid" || cell.tone === "unpaid_included" ? (
                                 <Hint text={cell.tone === "unpaid" ? UNPAID_MARK_HINT : UNPAID_INCLUDED_MARK_HINT} className="inline-block">
                                   <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
                                     {cell.label}
-                                    <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
+                                    <span className="sr-only">{`${formatDayMonthRu(column.date)}: ${cell.title}`}</span>
                                   </span>
                                 </Hint>
                               ) : (
                                 <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
                                   {cell.label}
-                                  <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
+                                  <span className="sr-only">{`${formatDayMonthRu(column.date)}: ${cell.title}`}</span>
                                 </span>
                               )}
                             </td>

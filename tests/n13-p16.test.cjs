@@ -43,8 +43,8 @@ test("lesson line «Чт, 15.10» is computed from the calendar day, not the tim
   } finally {
     if (before === undefined) delete process.env.TZ; else process.env.TZ = before;
   }
-  assert.equal(row.dayMonthRu("2026-10-16"), "16.10");
-  assert.equal(row.dayMonthRu("nope"), "");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).formatDayMonthRu("2026-10-16"), "16.10");
+  assert.equal(require(path.join(__dirname, "../src/lib/business-time.ts")).formatDayMonthRu("nope"), "");
 });
 
 test("certificate link: «справка, N фото», PDF counted apart, «справки нет» when empty", () => {

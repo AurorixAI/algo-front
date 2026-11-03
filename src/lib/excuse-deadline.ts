@@ -4,6 +4,7 @@
  * business date of "today" (`formatBusinessDate()`), so nothing here depends on the browser zone.
  */
 
+import { formatDateRu, formatDayMonthRu } from "./business-time";
 import type { ChipTone } from "./chip-tone";
 import { leftPhrase, pluralRu } from "./plural";
 
@@ -100,12 +101,8 @@ type DeadlineSource = { lesson_date: string | null | undefined; status: string; 
 
 /** «31.10»; with the year («31.10.2027») when it is not the year of `today`. */
 function deadlineDate(date: string, today: string): string {
-  const short = dayMonth(date);
+  const short = formatDayMonthRu(date);
   return date.slice(0, 4) === today.slice(0, 4) ? short : `${short}.${date.slice(0, 4)}`;
-}
-
-function dayMonth(date: string): string {
-  return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
 }
 
 const PACKAGE_SUB = "по пакету уроков";
@@ -113,7 +110,7 @@ const AFTER_DEADLINE_TOO = "После срока решение тоже мож
 
 function dateCell(date: string, left: number, overdueFlag: boolean, today: string): ExcuseDeadlineCell {
   const sub = `до ${deadlineDate(date, today)}`;
-  const title = `Подтвердить пропуск нужно до ${dayMonth(date)}.${date.slice(0, 4)}. ${AFTER_DEADLINE_TOO}`;
+  const title = `Подтвердить пропуск нужно до ${formatDateRu(date)}. ${AFTER_DEADLINE_TOO}`;
   if (overdueFlag || left < 0) {
     const ago = left < 0 ? -left : 0;
     const headline = ago > 0 ? `Срок прошёл ${ago} ${pluralRu(ago, "день", "дня", "дней")} назад` : "Срок прошёл";

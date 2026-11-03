@@ -16,6 +16,7 @@
  *    step), never a "gap" scenario.
  */
 
+import { formatDateRu } from "./business-time";
 import { pluralRu } from "./plural";
 
 export interface PlanStepLike {
@@ -634,13 +635,7 @@ export function createReportPoller(deps: ReportPollerDeps) {
 
 /** "2026-10-04" or "2026-10-04T10:00:00Z" -> "04.10.2026"; null for anything else. */
 export function formatReportDate(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
-  if (!m) return null;
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${m[3]}.${m[2]}.${m[1]}`;
+  return typeof value === "string" ? formatDateRu(value.trim()) || null : null;
 }
 
 /** Mirrors the backend REPORT_SCHEMA_VERSION (report_generator.py): the format of a report built now. */
