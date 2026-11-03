@@ -100,6 +100,22 @@ for (const screen of ["dashboard", "schedule"]) {
     });
   });
 
+  test(`[CL7] ${screen}: while the save of the marks is on its way the panel closes at once (the marks are being written; the answer is a notice of the page)`, async () => {
+    await scenario(screen, async (world) => {
+      const s = await started(screen, world, { dirty: true });
+      const gate = harness.deferred();
+      world.hold.saveGroupAttendance = gate;
+      const pending = s.click(/Сохранить отметки/);
+      await s.settle(2);
+      await s.press("Escape");
+      assert.equal(confirm().currentConfirm(), null, "no question: nothing is lost");
+      assert.doesNotMatch(s.text(), /Отметка посещаемости/);
+      gate.resolve();
+      await pending;
+      assert.equal(world.called("saveGroupAttendance").length, 1);
+    });
+  });
+
   test(`[CL6] MUTATION ${screen}: closing without the question loses the marks silently - CL1 fails`, async () => {
     await assert.rejects(() => harness.withMutation("src/lib/use-teacher-lesson-panel.ts", (source) => source.replace("if (!isAttendanceDirty) { setActiveLesson(null); return true; }", "if (true) { setActiveLesson(null); return true; }"), () => scenario(screen, async (world) => {
       const s = await started(screen, world, { dirty: true });

@@ -313,7 +313,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const closeAsking = useRef(false);
   const requestClose = async (): Promise<boolean> => {
     if (!activeLesson) return true;
-    if (!isAttendanceDirty) { setActiveLesson(null); return true; }
+    // nothing unsaved - or the save is already on its way (the marks are being written: the answer of that write reaches the page, a closed panel included)
+    if (!isAttendanceDirty || savingAttendance) { setActiveLesson(null); return true; }
     if (closeAsking.current) return false;
     closeAsking.current = true;
     const key = lessonPanelKey(activeLesson, businessDate);
