@@ -2,6 +2,7 @@
 // allocations of the amount); nothing here adds, splits or rounds a сум.  This file only names the periods the way a person
 // does (a calendar month by its name, otherwise by dates), says in the FUTURE tense what saving will do (nothing is saved
 // yet), and offers the quick amounts that carry the information the old top block used to.  No React: node:test loads it.
+import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoney, type Allocation, type PaymentPreview } from "./payments";
 import { lessonsWord } from "./plural";
 import {
@@ -23,8 +24,6 @@ export const NO_DEBT_HINT = "Долга нет. Всё, что внесёте, �
 
 // ── Naming a period ────────────────────────────────────────────────────────
 
-const MONTH_NOMINATIVE = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
-const MONTH_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 function parts(iso: string | null | undefined): { year: number; month: number; day: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
@@ -62,7 +61,7 @@ export function periodName(from: string, to: string, kind: PeriodKind = "period"
   const month = calendarMonth(from, to);
   if (month) {
     const year = parts(asOf)?.year;
-    const name = `${MONTH_NOMINATIVE[month.month - 1]}${year !== undefined && year !== month.year ? ` ${month.year}` : ""}`;
+    const name = `${MONTHS_NOMINATIVE[month.month - 1]}${year !== undefined && year !== month.year ? ` ${month.year}` : ""}`;
     return { bare: name, sentence: name, isMonth: true, kind };
   }
   return { bare: dates, sentence: `период ${dates}`, isMonth: false, kind };
@@ -73,7 +72,7 @@ export function longDate(iso: string | null | undefined, asOf?: string | null): 
   const p = parts(iso);
   if (!p) return null;
   const year = parts(asOf)?.year;
-  return `${p.day}\u00A0${MONTH_GENITIVE[p.month - 1]}${year !== undefined && year !== p.year ? ` ${p.year}` : ""}`;
+  return `${p.day}\u00A0${MONTHS_GENITIVE[p.month - 1]}${year !== undefined && year !== p.year ? ` ${p.year}` : ""}`;
 }
 
 function capital(text: string): string {

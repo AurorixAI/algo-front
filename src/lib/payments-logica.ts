@@ -7,6 +7,7 @@
  * «Простить долг» / «Прощено».  The sentences that are about a calculation of the server (`PayoutState.text`, the summary of a
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
+import { MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
@@ -455,9 +456,8 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   return out;
 }
 
-const MONTHS_GEN = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 function monthWordShort(key: string): string {
-  return MONTHS_GEN[Number(key.slice(5, 7)) - 1] ?? key;
+  return MONTHS_NOMINATIVE[Number(key.slice(5, 7)) - 1] ?? key;
 }
 
 /** «Ученик был отмечен на уроках 12.10, 14.10 — на эти даты паузу поставить нельзя». */

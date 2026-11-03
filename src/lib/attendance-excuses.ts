@@ -3,6 +3,7 @@
  * No React (only the pure business-time helpers), so node:test can load this file directly.
  */
 
+import { MONTHS_NOMINATIVE_CAP } from "./ru-calendar";
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
 import { reasonProblemFor } from "./reason-rules";
@@ -345,10 +346,6 @@ export function pendingLessonKeys(pending: Record<string, number>): string[] {
   return Object.keys(pending).filter((key) => pending[key] > 0);
 }
 
-const MONTH_NAMES_NOMINATIVE = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-];
 
 /** "2026-10" for a YYYY-MM-DD date. */
 export function monthOf(isoDate: string): string {
@@ -359,5 +356,5 @@ export function monthOf(isoDate: string): string {
 export function monthLabelRu(month: string): string {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
   if (!match) return month;
-  return `${MONTH_NAMES_NOMINATIVE[Number(match[2]) - 1] ?? match[2]} ${match[1]}`;
+  return `${MONTHS_NOMINATIVE_CAP[Number(match[2]) - 1] ?? match[2]} ${match[1]}`;
 }

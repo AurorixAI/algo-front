@@ -2,6 +2,7 @@
  * O5 / F6 (LOGIC-B): the teacher of a lesson (the group's teacher or a substitute set by an administrator).
  * Pure helpers: the labels on a lesson, the dialog «Преподаватель урока», who can be chosen.
  */
+import { MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatIsoDateLabel } from "./business-time";
 import { formatMoney } from "./payments";
 import type { LessonTeacherCandidate, LessonTeacherCandidates, LessonTeacherInfo, LessonTeacherPut } from "./ops-b-types";
@@ -97,7 +98,6 @@ export function payrollSheetsNote(sheets: ReadonlyArray<{ month?: string | null;
   return months.length === 1 ? `Ведомость за ${months[0]} изменится` : `Ведомости за ${months.join(" и ")} изменятся`;
 }
 
-const MONTHS_NOMINATIVE = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
 /** «2026-10» → «октябрь» (the month alone: the sheet is read by the person in the month he is in). */
 function monthNameOf(month: string | null | undefined): string {

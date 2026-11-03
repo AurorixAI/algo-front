@@ -5,6 +5,7 @@
  * The sentences that describe a calculation (`summary_text`, the label of an allocation, `balance_text`, `days_text`)
  * are written by the server and shown as they come; this file only arranges them.  Pure: no React, no network.
  */
+import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
@@ -903,7 +904,6 @@ export function statementRowView(row: StatementRow): StatementRowView {
 
 // ── Statement as a bank statement: Дата | Операция | Стоимость | Оплачено | Баланс ─────────────
 
-const MONTH_NAMES = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
 /** `YYYY-MM` of a date. */
 export function monthKey(iso: string): string {
@@ -913,13 +913,13 @@ export function monthKey(iso: string): string {
 /** «Сентябрь 2026» */
 export function monthTitle(key: string): string {
   const month = Number(key.slice(5, 7));
-  const name = MONTH_NAMES[month - 1] ?? key;
+  const name = MONTHS_NOMINATIVE[month - 1] ?? key;
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${key.slice(0, 4)}`;
 }
 
 /** «сентябрь» (a month inside a sentence). */
 export function monthWord(key: string): string {
-  return MONTH_NAMES[Number(key.slice(5, 7)) - 1] ?? key;
+  return MONTHS_NOMINATIVE[Number(key.slice(5, 7)) - 1] ?? key;
 }
 
 function lastDayOf(key: string): string {
@@ -992,11 +992,10 @@ export function balanceCell(balance: number | null | undefined): { kind: Balance
   return { kind: "none", text: "0" };
 }
 
-const MONTH_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 /** «сентября» / «декабря 2025» (the year only when it is not the year of `of`): the month a balance is carried from, after «С». */
 export function monthFromWords(key: string, of: string): string {
-  const name = MONTH_GENITIVE[Number(key.slice(5, 7)) - 1] ?? key;
+  const name = MONTHS_GENITIVE[Number(key.slice(5, 7)) - 1] ?? key;
   return key.slice(0, 4) === of.slice(0, 4) ? name : `${name} ${key.slice(0, 4)}`;
 }
 

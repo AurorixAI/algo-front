@@ -1,3 +1,4 @@
+import { MONTHS_GENITIVE } from "./ru-calendar";
 import { addIsoDays, isoDateDayOfWeek, shiftMonthKey } from "./business-time";
 
 /**
@@ -7,10 +8,6 @@ import { addIsoDays, isoDateDayOfWeek, shiftMonthKey } from "./business-time";
  */
 export type JournalViewMode = "week" | "month";
 
-export const MONTHS_GENITIVE = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
-];
 
 /** Sunday first, like the old getDay() index; an ISO weekday 7 (Sunday) maps to 0. */
 export const WEEKDAY_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];

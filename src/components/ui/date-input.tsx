@@ -2,8 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { addIsoDays, formatBusinessDate } from "@/lib/business-time";
+import { MONTHS_NOMINATIVE_CAP } from "@/lib/ru-calendar";
 import {
-  MONTHS_RU,
   WEEKDAYS_RU,
   clampIso,
   isWithin,
@@ -335,13 +335,13 @@ function Calendar({
           <NavButton label="Предыдущий год" disabled={monthDisabled(-12)} onClick={() => goMonth(-12)}><ChevronsLeft className="h-4 w-4" /></NavButton>
           <NavButton label="Предыдущий месяц" disabled={monthDisabled(-1)} onClick={() => goMonth(-1)}><ChevronLeft className="h-4 w-4" /></NavButton>
         </div>
-        <div className="text-sm font-semibold text-slate-900" aria-live="polite" data-testid="date-calendar-title">{MONTHS_RU[shown.month - 1]} {shown.year}</div>
+        <div className="text-sm font-semibold text-slate-900" aria-live="polite" data-testid="date-calendar-title">{MONTHS_NOMINATIVE_CAP[shown.month - 1]} {shown.year}</div>
         <div className="flex items-center">
           <NavButton label="Следующий месяц" disabled={monthDisabled(1)} onClick={() => goMonth(1)}><ChevronRight className="h-4 w-4" /></NavButton>
           <NavButton label="Следующий год" disabled={monthDisabled(12)} onClick={() => goMonth(12)}><ChevronsRight className="h-4 w-4" /></NavButton>
         </div>
       </div>
-      <div ref={gridRef} role="grid" aria-label={`${MONTHS_RU[shown.month - 1]} ${shown.year}`}>
+      <div ref={gridRef} role="grid" aria-label={`${MONTHS_NOMINATIVE_CAP[shown.month - 1]} ${shown.year}`}>
         <div role="row" className="grid grid-cols-7">
           {WEEKDAYS_RU.map((name, index) => (
             <div key={name} role="columnheader" className={cn("flex h-7 items-center justify-center text-[11px] font-semibold uppercase tracking-wide", index >= 5 ? "text-rose-400" : "text-slate-400")}>{name}</div>

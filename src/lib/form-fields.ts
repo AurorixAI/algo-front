@@ -7,20 +7,13 @@
  * locale; a time is «ЧЧ:ММ» (24 h).  The user may type them with or without the separators and with a short year.
  */
 
+import { MONTHS_GENITIVE, MONTHS_NOMINATIVE_CAP } from "./ru-calendar";
 import { addIsoDays } from "./business-time";
 
 // ── Dates ────────────────────────────────────────────────────────────────────────────────────────────
 
-export const MONTHS_RU = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-] as const;
 
 /** «22 октября 2026» needs the genitive. */
-export const MONTHS_RU_GENITIVE = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
-] as const;
 
 /** The week starts on Monday. */
 export const WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
@@ -232,7 +225,7 @@ export function clampIso(iso: string, min?: string | null, max?: string | null):
 /** «22 октября 2026» (the accessible name of a day). */
 export function longDateLabel(iso: string): string {
   const parts = parseIso(iso);
-  return parts ? `${parts.day} ${MONTHS_RU_GENITIVE[parts.month - 1]} ${parts.year}` : iso;
+  return parts ? `${parts.day} ${MONTHS_GENITIVE[parts.month - 1]} ${parts.year}` : iso;
 }
 
 export type CalendarKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Home" | "End" | "PageUp" | "PageDown";

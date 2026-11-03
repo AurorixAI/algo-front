@@ -2,10 +2,10 @@
  * "Незакрытые уроки": pure helpers for the administrators' list (no React, no Date drift).
  * The server decides what is open; this file only orders, words and links it.
  */
+import { MONTHS_SHORT_DATE } from "./ru-calendar";
 import type { OpenAttendanceAction } from "@/lib/api";
 
 const WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 
 /** YYYY-MM-DD -> «Пн, 13 окт». The calendar day is computed in UTC, so it never shifts with the viewer's zone. */
 export function formatLessonDate(isoDate: string | null | undefined): string {
@@ -13,7 +13,7 @@ export function formatLessonDate(isoDate: string | null | undefined): string {
   if (!match) return "";
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return `${WEEKDAYS_SHORT[weekday]}, ${day} ${MONTHS_SHORT[month - 1]}`;
+  return `${WEEKDAYS_SHORT[weekday]}, ${day} ${MONTHS_SHORT_DATE[month - 1]}`;
 }
 
 /** Newest lesson first; within a day the later lesson first, then by group name. */

@@ -9,6 +9,7 @@
  * Vocabulary of the owner (21.10): «Стоимость», «Долг», «Оплачено до»; never «Начисление» as a thing the owner sees.
  * `paid_until = accounting start - 1` is a REAL opening («на начало долга нет»): it is written, and the row stops being «не заполнено».
  */
+import { MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatPrice, priceLabelOf, type PriceInfo } from "./group-price";
 import {
   formatDateRu,
@@ -788,7 +789,6 @@ export function bulkDoneText(action: BulkAction, result: BulkResult, accountingS
   return skipped ? `${head}. ${skipped}` : head;
 }
 
-const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
 function lastDayOfMonth(iso: string): string {
   const year = Number(iso.slice(0, 4));
@@ -807,7 +807,7 @@ export function quickDates(accountingStart: string): QuickDate[] {
   if (!isIsoDate(accountingStart)) return [];
   const before = noDebtDay(accountingStart);
   const end = lastDayOfMonth(accountingStart);
-  const month = MONTHS[Number(accountingStart.slice(5, 7)) - 1];
+  const month = MONTHS_NOMINATIVE[Number(accountingStart.slice(5, 7)) - 1];
   return [
     { date: before, label: `${dm(before)} (долга нет)` },
     { date: end, label: `${dm(end)} (оплатил ${month})` },

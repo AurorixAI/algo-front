@@ -8,6 +8,7 @@
  * (rounded so they add up to 100) and the height of a bar.  Contract: tests/fixtures/income2 (the frozen income2_contract.json).
  * No React and no network here, so node:test loads this file.
  */
+import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-calendar";
 import { formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
@@ -346,7 +347,6 @@ export function validatePeriod(period: Period): string | null {
   return null;
 }
 
-const MONTHS_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 /** «21 октября» (+ « 2025» when the year is not the year of `today`). */
 export function dayLabel(iso: string, today: string): string {
@@ -812,7 +812,6 @@ export interface Bar {
 }
 
 const WEEKDAYS_SHORT = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 
 /** The chart has something to tell when the period has more than one day and some money. */
 export function showChart(overview: IncomeOverview): boolean {
@@ -838,7 +837,7 @@ export function chartBars(overview: IncomeOverview, today: string): Bar[] {
     } else {
       const first = `${point.bucket}-01`;
       const month = Number(point.bucket.split("-")[1]);
-      label = MONTHS_SHORT[month - 1] ?? point.bucket;
+      label = MONTHS_SHORT_TITLE[month - 1] ?? point.bucket;
       title = capitalizeFirst(monthYearLabelRu(point.bucket));
       const from = first < periodFrom ? periodFrom : first;
       const to = monthEnd(first) > periodTo ? periodTo : monthEnd(first);
@@ -1366,7 +1365,6 @@ export function humanDestinationLine(line: string): string {
   return out;
 }
 
-const MONTHS_NOMINATIVE = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /** A whole calendar month is «сентябрь», any other period is «20.09–19.10». */

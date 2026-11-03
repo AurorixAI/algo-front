@@ -402,3 +402,23 @@ test("F-A07: the sidebar logo leads to ROLE_HOME[role] - no typed paths of the h
   const home = lib("role-home.ts");
   assert.deepEqual(home.ROLE_HOME, { owner: "/owner/dashboard", admin: "/admin/diagnostics", teacher: "/teacher/dashboard" });
 });
+
+// ---- DUP-2: the names of the months live in lib/ru-calendar.ts only ----------------------------------------------------------------------
+
+test("DUP-2: one list of each form of the month names; no private list of the twelve months in src/", () => {
+  const cal = lib("ru-calendar.ts");
+  for (const name of ["MONTHS_NOMINATIVE", "MONTHS_NOMINATIVE_CAP", "MONTHS_GENITIVE", "MONTHS_SHORT_DATE", "MONTHS_SHORT_TITLE"]) assert.equal(cal[name].length, 12, name);
+  assert.equal(cal.MONTHS_GENITIVE[9], "октября");
+  assert.equal(cal.MONTHS_NOMINATIVE_CAP[9], "Октябрь");
+  assert.equal(cal.MONTHS_SHORT_DATE[4], "мая");           // «5 мая»
+  assert.equal(cal.MONTHS_SHORT_TITLE[4], "май");          // «май 2026»
+  for (const f of SRC) {
+    if (f === "src/lib/ru-calendar.ts") continue;
+    assert.doesNotMatch(read(f), /"февраля"|"Февраль"|"февраль"/, `${f}: a private list of the months`);
+  }
+  // the screens that print a date say the same thing as before
+  assert.equal(lib("attendance-excuses.ts").monthLabelRu("2026-10"), "Октябрь 2026");
+  assert.equal(lib("form-fields.ts").longDateLabel("2026-10-22"), "22 октября 2026");
+  assert.match(lib("open-lessons.ts").formatLessonDate("2026-05-05"), /5 мая/);
+  assert.equal(lib("journal-period.ts").MONTHS_GENITIVE, undefined);
+});

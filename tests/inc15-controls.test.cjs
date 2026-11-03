@@ -79,7 +79,7 @@ test("the calendar grid of October 2026: Monday first, the month starts on a Thu
   assert.deepEqual(weeks[0].map((d) => d.inMonth), [false, false, false, true, true, true, true]);
   assert.equal(weeks[4][6].iso, "2026-11-01");
   assert.equal(weeks.flat().filter((d) => d.inMonth).length, 31);
-  assert.equal(f.MONTHS_RU[9], "Октябрь");
+  assert.equal(require(path.join(__dirname, "../src/lib/ru-calendar.ts")).MONTHS_NOMINATIVE_CAP[9], "Октябрь");
   // other months: February 2027 (starts on Monday, 28 days = 4 full weeks), a month that needs six weeks
   assert.equal(f.monthGrid(2027, 2).length, 4);
   assert.equal(f.monthGrid(2026, 8).length, 6); // 1 Aug 2026 is a Saturday, 31 days

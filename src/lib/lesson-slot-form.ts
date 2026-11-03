@@ -4,7 +4,7 @@
  */
 import type { LessonEvent } from "./api";
 import { addIsoDays, businessDayOfWeek, businessWeekdayDate } from "./business-time";
-import { MONTHS_RU_GENITIVE } from "./form-fields";
+import { MONTHS_GENITIVE } from "./ru-calendar";
 import { roomForSave } from "./schedule-slots";
 import { DAYS } from "./schedule-time";
 
@@ -174,7 +174,7 @@ export function dayTimeProblem(day: number, range: TimeRange, withDay: boolean):
 /** «2 ноября» for «2026-11-02». */
 export function dayMonthWords(iso: string): string {
   const [, month, day] = iso.split("-").map(Number);
-  return `${day} ${MONTHS_RU_GENITIVE[(month || 1) - 1]}`;
+  return `${day} ${MONTHS_GENITIVE[(month || 1) - 1]}`;
 }
 
 /** The quiet note under the form: today's lesson of that weekday has gone, the weekday starts a week later. */

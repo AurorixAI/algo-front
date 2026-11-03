@@ -3,6 +3,7 @@
  * requests, the reading of a refusal, who may ask for a substitute, whose roster comes from where.  No React and no network,
  * so node:test loads this file directly.
  */
+import { MONTHS_GENITIVE } from "./ru-calendar";
 import type { GroupDetail, StudentInGroup } from "./api";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
@@ -160,7 +161,6 @@ export const DEADLINE_SOON_MINUTES = 24 * 60;
 export const DEADLINE_NOW_MINUTES = 2 * 60;
 
 const MONTHS_SHORT = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."] as const;
-const MONTHS_OF = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"] as const;
 
 function isoDay(value: string | null | undefined): { year: number; month: number; day: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
@@ -190,7 +190,7 @@ export function shortDateLabel(iso: string | null | undefined): string {
 /** «1 ноября» (for a sentence). */
 export function longDateLabel(iso: string | null | undefined): string {
   const parts = isoDay(iso);
-  return parts ? `${parts.day} ${MONTHS_OF[parts.month - 1]}` : "";
+  return parts ? `${parts.day} ${MONTHS_GENITIVE[parts.month - 1]}` : "";
 }
 
 export function deadlineOf(item: Pick<SubstitutionItem, "status" | "overdue" | "minutesToStart" | "lesson">): Deadline | null {

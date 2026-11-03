@@ -6,6 +6,7 @@
  * The pay of a teacher is a different account from the student's: «начислено / к выплате» keep their words here (owner 21.10).
  * Pure: no React, no network.
  */
+import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoneyInput } from "./money-format";
 import {
   formatDateRu,
@@ -436,12 +437,11 @@ export function divisorHistoryRows(history: DivisorRow[] | null | undefined): Ar
 }
 
 // «с октября 2026»: the month after «с» takes the genitive.
-const MONTH_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 /** «октября 2026» after «с»: the title of the month in the genitive («С октября 2026»). */
 export function monthWordGenitive(month: string): string {
   const index = Number(month.slice(5, 7)) - 1;
-  return `${MONTH_GENITIVE[index] ?? month} ${month.slice(0, 4)}`;
+  return `${MONTHS_GENITIVE[index] ?? month} ${month.slice(0, 4)}`;
 }
 
 /** The divisor in force in a month by the history (12 without one): what the settings say next to «Сейчас». */
