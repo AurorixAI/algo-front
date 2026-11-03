@@ -275,7 +275,7 @@ test("E-C/4: no draft without a lesson any more - the tab never calls assign / c
 
 test("E-C/4: a paper exam goes to its hub after the print package is prepared, like in the library", () => {
   const tab = read(EXAMS_TAB);
-  assert.match(tab, /if \(outcome\.kind === "print"\) \{\s*router\.push\(links\.exam\(assignTarget\.exam_id, groupExamReturnHref\)\);/);
+  assert.match(tab, /if \(outcome\.kind === "print"\) \{\s*router\.push\(links\.exam\(assignTarget\.exam_id, groupExamReturnHref\) \?\? groupExamReturnHref\);/);
   assert.match(read(LIBRARY_PAGE), /if \(outcome\.kind === "print"\) \{\s*setAssignTarget\(null\);\s*router\.push\(`\/teacher\/exams\/\$\{assignTarget\.exam_id\}\?return_to=/);
 });
 
@@ -296,4 +296,77 @@ test("E-C/4: mutation - the old group entrance (a draft without a lesson) is see
   const old = tab.replace("assignExamToLesson(examsApi, assignTarget, selection)", "examsApi.assign(assignTarget.exam_id, { group_id: group.id, group_name: group.name, publish: false })");
   assert.doesNotMatch(old, /assignExamToLesson\(examsApi, assignTarget, selection\)/);
   assert.match(old, /publish:\s*false/);
+});
+
+// ---- step 5: «Экзамены» for the owner and the administrator (watch), the teacher runs ----------------------------------------
+
+const GE = lib("group-exams.ts");
+
+test("E-C/5: rights on the exams of a group as the exam service has them - the leading teacher binds, the others only watch", () => {
+  const access = (workspace, group = {}) => GE.groupExamsAccess({ workspace, group });
+  assert.deepEqual(access("teacher"), { canAssign: true, showCode: true });
+  assert.deepEqual(access("teacher", { substitution: true }), { canAssign: false, showCode: true }, "a substitute cannot bind an exam to somebody else's group (403 «только со своей группой»)");
+  assert.deepEqual(access("admin"), { canAssign: false, showCode: false }, "_require_teacher_exam_operator: the lifecycle of a run is the teacher's");
+  assert.deepEqual(access("owner"), { canAssign: false, showCode: false });
+});
+
+test("E-C/5: the row of an exam leads where the role has a page: teacher - the hub, admin - the monitor, owner - nowhere", () => {
+  const link = (workspace) => GE.groupExamLinks({ workspace, groupId: "g1", groupName: "9-А" }).exam("e1", "/x?tab=exams");
+  assert.match(link("teacher"), /^\/teacher\/exams\/e1\?from_group=g1&from_name=/);
+  assert.equal(link("admin"), "/admin/exams/e1");
+  assert.equal(link("owner"), null, "the owner workspace never links into /admin/*");
+});
+
+test("E-C/5: the tab is in the list of every role and every role reads the same list of the group (one call, not two for a watcher)", () => {
+  for (const role of ROLES) assert.ok(W.groupPageTabs({ workspace: role, paymentsAccess: "hidden" }).includes("exams"), role);
+  const tab = read(EXAMS_TAB);
+  assert.match(tab, /examsApi\.list\(\{ groupId, includeArchived: true \}\)/);
+  assert.match(tab, /access\.canAssign \? examsApi\.list\(\{ unassigned: true \}\) : Promise\.resolve\(\[\]\)/, "the library is read only by who binds");
+});
+
+test("E-C/5: a button the role cannot use is not rendered (add, create the first, copy the code, the chevron of a row without a page)", () => {
+  const tab = read(EXAMS_TAB);
+  assert.match(tab, /\{access\.canAssign && <button\s+onClick=\{\(\) => setModalState\("chooser"\)\}/);
+  assert.match(tab, /\{access\.canAssign && \(\s*<Link\s+href=\{links\.newExam\}/);
+  assert.match(tab, /\{access\.showCode && ex\.access_code && \(ex\.status === "active" \|\| ex\.status === "lobby"\) && \(/);
+  assert.match(tab, /<ExamRow\s+key=\{ex\.exam_id\}\s+href=\{links\.exam\(ex\.exam_id, groupExamReturnHref\)\}/);
+  assert.match(tab, /if \(href\) return <Link href=\{href\}/);
+  // mutation: the old tab (everyone gets the add button) is seen
+  assert.doesNotMatch(tab.replace("{access.canAssign && <button", "{<button"), /\{access\.canAssign && <button\s+onClick/);
+});
+
+test("E-C/5: mutation - an administrator who may bind an exam is seen by the table", () => {
+  const mutated = loadMutated("src/lib/group-exams.ts", "canAssign: teacher && !input.group.substitution", "canAssign: true");
+  assert.equal(mutated.groupExamsAccess({ workspace: "admin", group: {} }).canAssign, true);
+  assert.equal(GE.groupExamsAccess({ workspace: "admin", group: {} }).canAssign, false);
+});
+
+// ---- the matrix «role: before -> after» ----------------------------------------------------------------------------------------
+// Each row is what the role saw / could do on the page of a group BEFORE this package (origin/main 5fbc974) and what it sees now.
+// «Same» rows are asserted against the functions above; the deliberately aligned rows are marked.
+
+test("E-C/matrix: owner and administrator keep everything they had; the only additions are the tab «Экзамены» and the error screen instead of the silent redirect", () => {
+  for (const workspace of ["owner", "admin"]) {
+    const before = ["students", "schedule", "attendance"];
+    const now = W.groupPageTabs({ workspace, paymentsAccess: "hidden" });
+    assert.deepEqual(now.filter((tab) => tab !== "exams"), before, `${workspace}: the tabs they had, in their order`);
+    assert.deepEqual(W.groupPageTabs({ workspace, paymentsAccess: "show" }).filter((tab) => tab !== "exams"), [...before, "payments"], `${workspace}: the money tab as before`);
+    assert.deepEqual(W.groupHeaderActions({ archived: false, priceAvailable: true }), ["edit", "price", "archive"]);
+    const journal = W.groupJournalAccess({ workspace, group: { name: "G", status: "active", teacher_id: "t9" }, userId: "u1" });
+    assert.deepEqual([journal.canEdit, journal.adminMode, journal.groupName], [true, true, "G"], `${workspace}: the journal as before`);
+  }
+});
+
+test("E-C/matrix: the teacher keeps his three tabs in his order, his journal rule (own group or substitution), his exam list and its filters", () => {
+  assert.deepEqual(W.groupPageTabs({ workspace: "teacher", paymentsAccess: "hidden" }), ["students", "exams", "attendance"]);
+  for (const [group, userId, expected] of [
+    [{ name: "G", status: "active", teacher_id: "me" }, "me", true],
+    [{ name: "G", status: "active", teacher_id: "x", substitution: true }, "me", true],
+    [{ name: "G", status: "active", teacher_id: "x" }, "me", false],
+    [{ name: "G", status: "archived", teacher_id: "me" }, "me", false],
+  ]) assert.equal(W.groupJournalAccess({ workspace: "teacher", group, userId }).canEdit, expected);
+  const tab = read(EXAMS_TAB);
+  for (const key of ["active", "lobby", "scheduled", "draft", "closed", "archived"]) assert.match(tab, new RegExp(`key: "${key}"`));
+  assert.match(tab, /exam_status/);
+  assert.match(tab, /exam_q/);
 });

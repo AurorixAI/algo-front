@@ -20,7 +20,7 @@ import { useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
-import { groupExamLinks } from "@/lib/group-exams";
+import { groupExamLinks, groupExamsAccess } from "@/lib/group-exams";
 import { groupWorkspacePaths, withoutJournalLink, type GroupWorkspace } from "@/lib/group-workspace";
 
 type ExamStatusFilter = ExamTab;
@@ -29,6 +29,12 @@ function parseExamStatusFilter(value: string | null): ExamStatusFilter {
   return value === "lobby" || value === "scheduled" || value === "draft" || value === "closed" || value === "archived" || value === "active"
     ? value
     : "active";
+}
+
+/** A row of the list: a link to the exam where the role has a page of it, a plain row where it has none (the owner). */
+function ExamRow({ href, className, children }: { href: string | null; className: string; children: React.ReactNode }) {
+  if (href) return <Link href={href} className={className}>{children}</Link>;
+  return <div className={className.replace(/\s*hover:\S+|\s*cursor-pointer/g, "")}>{children}</div>;
 }
 
 /**
@@ -41,6 +47,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
   const router = useRouter();
   const searchParams = useSearchParams();
   const links = groupExamLinks({ workspace, groupId, groupName: group.name });
+  const access = groupExamsAccess({ workspace, group });
   const paths = groupWorkspacePaths(workspace);
 
   const [groupExams, setGroupExams] = useState<ExamSummary[]>([]);
@@ -125,7 +132,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
     try {
       const [ex, allEx] = await Promise.all([
         examsApi.list({ groupId, includeArchived: true }),
-        examsApi.list({ unassigned: true }),
+        access.canAssign ? examsApi.list({ unassigned: true }) : Promise.resolve([]), // the library is for who binds an exam
       ]);
       setGroupExams(Array.isArray(ex) ? ex : []);
       setAllExams(Array.isArray(allEx) ? allEx : []);
@@ -135,7 +142,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
     } finally {
       setExamsLoading(false);
     }
-  }, [groupId]);
+  }, [groupId, access.canAssign]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -325,12 +332,12 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
               Экзамены, назначенные для «{group.name}»
             </p>
           </div>
-          <button
+          {access.canAssign && <button
             onClick={() => setModalState("chooser")}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-primary-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Добавить экзамен
-          </button>
+          </button>}
         </div>
 
         {/* Filter Bar + Search */}
@@ -395,12 +402,14 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               Для этой группы ещё не созданы контрольные или диагностические работы.
             </p>
-            <Link
-              href={links.newExam}
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-xl text-xs font-semibold transition-all"
-            >
-              <Plus className="w-4 h-4" /> Создать первый экзамен
-            </Link>
+            {access.canAssign && (
+              <Link
+                href={links.newExam}
+                className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-xl text-xs font-semibold transition-all"
+              >
+                <Plus className="w-4 h-4" /> Создать первый экзамен
+              </Link>
+            )}
           </div>
         ) : filteredGroupExams.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-xs">
@@ -421,7 +430,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
         ) : (
           <div className="grid grid-cols-1 gap-3">
             {filteredGroupExams.map((ex) => (
-              <Link
+              <ExamRow
                 key={ex.exam_id}
                 href={links.exam(ex.exam_id, groupExamReturnHref)}
                 className="group/exam bg-white hover:bg-slate-50/70 rounded-2xl p-5 border border-slate-100 shadow-2xs hover:shadow-sm hover:border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all block cursor-pointer"
@@ -470,7 +479,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-                  {ex.access_code && (ex.status === "active" || ex.status === "lobby") && (
+                  {access.showCode && ex.access_code && (ex.status === "active" || ex.status === "lobby") && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -500,11 +509,13 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                     </button>
                   )}
 
-                  <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-center text-slate-400 group-hover/exam:text-primary-600 group-hover/exam:border-primary-200 group-hover/exam:bg-primary-50 transition-all shrink-0">
-                    <ChevronRight className="w-4 h-4" />
-                  </div>
+                  {links.exam(ex.exam_id, groupExamReturnHref) && (
+                    <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-center text-slate-400 group-hover/exam:text-primary-600 group-hover/exam:border-primary-200 group-hover/exam:bg-primary-50 transition-all shrink-0">
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
-              </Link>
+              </ExamRow>
             ))}
           </div>
         )}
@@ -522,7 +533,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
             const outcome = await assignExamToLesson(examsApi, assignTarget, selection);
             setAssignTarget(null);
             if (outcome.kind === "print") {
-              router.push(links.exam(assignTarget.exam_id, groupExamReturnHref));
+              router.push(links.exam(assignTarget.exam_id, groupExamReturnHref) ?? groupExamReturnHref);
               return;
             }
             setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id });
