@@ -138,12 +138,16 @@ export default function TeacherSchedulePage() {
           setLessonAttendanceMap((previous) => ({ ...previous, [lesson.id]: false }));
           setCompletedLessonsMap((previous) => ({ ...previous, [lesson.id]: false }));
         }
-        if (event.notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", event.notes);
+        if (event.notes.length > 0) setScheduleNotices(event.notes);   // the notes of the server (an exam went back to a draft ...): the list of the page, as before
       }
     },
-    notifyRefusal: (notice, reason) => showToast(notice, "error", [reason]),
+    // the refusal stays in the list of the page (the list lies under the open panel: it does not go away by itself) and a toast with the reason shows it above the panel
+    notifyRefusal: (notice, reason) => {
+      setScheduleNotices((previous) => (previous.includes(notice) ? previous : [...previous, notice]));
+      showToast(notice, "error", [reason]);
+    },
     onMissedCancelled: (notes) => {
-      if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
+      if (notes.length > 0) setScheduleNotices(notes);
       void reloadAfterWeeklyChange();
     },
   });
