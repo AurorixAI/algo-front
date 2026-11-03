@@ -199,16 +199,18 @@ scenario("C2", "start refused by the server: the text stays in the panel, the le
   assert.ok(s.hasButton(/^Начать урок$/));
 });
 
-scenario("C3", "a double press of «Начать урок» is ONE request", async ({ screen, world }) => {
+scenario("C3", "a double press of «Начать урок» is ONE request (the handler itself refuses the second call, not only the disabled button)", async ({ screen, world }) => {
   const gate = harness.deferred();
   const s = await openPanel(screen, await startScreen(screen, world), "live");
   world.hold.startGroupAttendance = gate;
-  const button = s.button(/^Начать урок$/);
-  const first = s.click(button);
+  const start = s.button(/^Начать урок$/).props.onClick;
+  // two calls in ONE frame: the button cannot be disabled yet - only the guard of the handler is between them and the server
+  const first = start();
+  const second = start();
   await s.settle(2);
-  await s.click(s.button(/^Начать урок$/));
   gate.resolve();
-  await first;
+  await Promise.all([first, second]);
+  await s.settle();
   assert.equal(world.called("startGroupAttendance").length, 1);
 });
 
