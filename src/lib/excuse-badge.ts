@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { orgApi } from "./api";
+import { createPollingGate } from "./polling-gate";
 
 interface ExcuseBadgeState {
   /** Excused absences waiting for an administrator decision. */
@@ -25,12 +26,7 @@ const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 export const selectBadgeTotal = (state: Pick<ExcuseBadgeState, "pending" | "openLessons">) =>
   state.pending + state.openLessons;
 
-let inFlight: Promise<void> | null = null;
-let queued: Promise<void> | null = null;
-let lastStartedAt = 0;
-/** Bumped by `reset` so an answer that arrives after it is dropped. */
-let epoch = 0;
-const MIN_GAP_MS = 1000;
+const gate = createPollingGate();
 
 export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   pending: 0,
@@ -38,40 +34,15 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   lastOkAt: 0,
   setPending: (value) => set({ pending: count(value), lastOkAt: Date.now() }),
   reset: () => {
-    epoch += 1;
-    inFlight = null;
-    queued = null;
-    lastStartedAt = 0;
+    gate.reset();
     set({ pending: 0, openLessons: 0, lastOkAt: 0 });
   },
-  refresh: (force = false) => {
-    const start = (): Promise<void> => {
-      lastStartedAt = Date.now();
-      const myEpoch = epoch;
-      const request: Promise<void> = orgApi.getAttendanceExcuseSummary()
-        .then((summary) => {
-          if (myEpoch !== epoch) return;
-          const open = summary?.open_lessons_total;
-          // null/absent = not counted (server hiccup, or an older backend): keep the last value.
-          set(open == null
-            ? { pending: count(summary?.pending_total), lastOkAt: Date.now() }
-            : { pending: count(summary?.pending_total), openLessons: count(open), lastOkAt: Date.now() });
-        })
-        .catch(() => undefined)
-        .finally(() => { if (inFlight === request) inFlight = null; });
-      inFlight = request;
-      return request;
-    };
-    if (inFlight) {
-      if (!force) return inFlight;
-      // A forced refresh follows an action: the request already in flight may have been answered
-      // before it, so one more is queued behind it (and shared by every forced caller meanwhile).
-      if (!queued) {
-        queued = inFlight.then(() => { queued = null; return start(); });
-      }
-      return queued;
-    }
-    if (!force && Date.now() - lastStartedAt < MIN_GAP_MS) return Promise.resolve();
-    return start();
-  },
+  refresh: (force = false) => gate.run(force, (isCurrent) => orgApi.getAttendanceExcuseSummary().then((summary) => {
+    if (!isCurrent()) return;
+    const open = summary?.open_lessons_total;
+    // null/absent = not counted (server hiccup, or an older backend): keep the last value.
+    set(open == null
+      ? { pending: count(summary?.pending_total), lastOkAt: Date.now() }
+      : { pending: count(summary?.pending_total), openLessons: count(open), lastOkAt: Date.now() });
+  })),
 }));

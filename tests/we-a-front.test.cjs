@@ -447,3 +447,72 @@ test("DUP-4: no private «ДД.ММ» builder from slices of an ISO date is left
     assert.doesNotMatch(read(f), slices, `${f}: a private date formatter`);
   }
 });
+
+// ---- DUP-7: the gate of the polling counters (excuse / substitution badges) is one function -------------------------------------------------
+
+test("DUP-7: createPollingGate - one request at a time, a call within the gap is skipped, a forced call queues ONE more, reset drops old answers, failure is swallowed", async () => {
+  const { createPollingGate } = lib("polling-gate.ts");
+  let clock = 10_000;
+  const gate = createPollingGate(1000, () => clock);
+  const calls = [];
+  const resolvers = [];
+  const load = (tag) => (isCurrent) => { calls.push(tag); return new Promise((resolve) => resolvers.push(() => resolve(isCurrent())) ); };
+  const first = gate.run(false, load("a"));
+  assert.deepEqual(calls, ["a"]);                                   // started synchronously
+  const second = gate.run(false, load("b"));                         // in flight: shares it
+  assert.equal(second, first);
+  const forced1 = gate.run(true, load("c"));
+  const forced2 = gate.run(true, load("d"));                         // the forced callers share ONE queued request
+  assert.equal(forced1, forced2);
+  resolvers[0]();
+  await first;
+  await Promise.resolve();
+  assert.deepEqual(calls, ["a", "c"]);                               // the queued one started after the first finished
+  resolvers[1]();
+  await forced1;
+  clock += 500;
+  await gate.run(false, load("e"));                                  // within a second of the last start: skipped
+  assert.deepEqual(calls, ["a", "c"]);
+  clock += 1000;
+  const third = gate.run(false, (isCurrent) => { calls.push("f"); return new Promise((resolve) => setTimeout(() => { seen3 = isCurrent(); resolve(); }, 5)); });
+  let seen3 = null;
+  assert.deepEqual(calls, ["a", "c", "f"]);
+  gate.reset();                                                       // another person signed in: the answer of "f" is no longer current
+  let seen = null;
+  const last = gate.run(true, (isCurrent) => { calls.push("g"); return Promise.resolve().then(() => { seen = isCurrent(); }); });
+  await last;
+  assert.equal(seen, true);
+  await third;
+  assert.equal(seen3, false);
+  const failing = gate.run(true, () => Promise.reject(new Error("offline")));
+  await failing;                                                      // never throws
+  const stale = [];
+  const g2 = createPollingGate(0, () => clock);
+  const p = g2.run(true, (isCurrent) => new Promise((resolve) => setTimeout(() => { stale.push(isCurrent()); resolve(); }, 5)));
+  g2.reset();
+  await p;
+  assert.deepEqual(stale, [false]);
+});
+
+test("DUP-7: the two badges use the gate; no private inFlight / queued / epoch in them", () => {
+  for (const f of ["src/lib/excuse-badge.ts", "src/lib/substitution-badge.ts"]) {
+    const source = read(f);
+    assert.match(source, /createPollingGate\(\)/, f);
+    assert.doesNotMatch(source, /let inFlight|let queued|let epoch|MIN_GAP_MS/, f);
+  }
+});
+
+test("DUP-7: mutation - without the gap the second call within a second is NOT skipped (the guard of the gate is real)", async () => {
+  const broken = loadMutated("src/lib/polling-gate.ts", "if (!force && now() - lastStartedAt < minGapMs) return Promise.resolve();", "");
+  let clock = 5000;
+  const gate = broken.createPollingGate(1000, () => clock);
+  let calls = 0;
+  await gate.run(false, () => { calls += 1; return Promise.resolve(); });
+  await gate.run(false, () => { calls += 1; return Promise.resolve(); });
+  assert.equal(calls, 2);
+  const real = lib("polling-gate.ts").createPollingGate(1000, () => clock);
+  calls = 0;
+  await real.run(false, () => { calls += 1; return Promise.resolve(); });
+  await real.run(false, () => { calls += 1; return Promise.resolve(); });
+  assert.equal(calls, 1);
+});

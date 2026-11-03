@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { substitutionsApi } from "./api";
+import { createPollingGate } from "./polling-gate";
 import { waitingTotal } from "./one-off";
 
 interface SubstitutionBadgeState {
@@ -27,12 +28,7 @@ interface SubstitutionBadgeState {
 
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 
-let inFlight: Promise<void> | null = null;
-let queued: Promise<void> | null = null;
-let lastStartedAt = 0;
-/** Bumped by `reset` so an answer that arrives after it is dropped. */
-let epoch = 0;
-const MIN_GAP_MS = 1000;
+const gate = createPollingGate();
 
 export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
   pending: 0,
@@ -43,33 +39,11 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
   setWaiting: (total) => set({ pending: count(total), lastOkAt: Date.now() }),
   setSummary: (summary) => set({ pending: waitingTotal(summary), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal), lastOkAt: Date.now() }),
   reset: () => {
-    epoch += 1;
-    inFlight = null;
-    queued = null;
-    lastStartedAt = 0;
+    gate.reset();
     set({ pending: 0, urgent: 0, overdue: 0, expiring: 0, lastOkAt: 0 });
   },
-  refresh: (force = false) => {
-    const start = (): Promise<void> => {
-      lastStartedAt = Date.now();
-      const myEpoch = epoch;
-      const request: Promise<void> = substitutionsApi.summary()
-        .then((summary) => {
-          if (myEpoch !== epoch) return;
-          set({ pending: waitingTotal(summary), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal), lastOkAt: Date.now() });
-        })
-        .catch(() => undefined)
-        .finally(() => { if (inFlight === request) inFlight = null; });
-      inFlight = request;
-      return request;
-    };
-    if (inFlight) {
-      if (!force) return inFlight;
-      // A forced refresh follows an action: the request already in flight may have been answered before it, so one more is queued behind it.
-      if (!queued) queued = inFlight.then(() => { queued = null; return start(); });
-      return queued;
-    }
-    if (!force && Date.now() - lastStartedAt < MIN_GAP_MS) return Promise.resolve();
-    return start();
-  },
+  refresh: (force = false) => gate.run(force, (isCurrent) => substitutionsApi.summary().then((summary) => {
+    if (!isCurrent()) return;
+    set({ pending: waitingTotal(summary), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal), lastOkAt: Date.now() });
+  })),
 }));

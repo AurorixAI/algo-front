@@ -31,8 +31,9 @@ test("every action that changes a counter refreshes it itself (so a page change 
 });
 
 test("the guard of the stores stays (a second request within 1 s is not made)", () => {
-  assert.ok(/const MIN_GAP_MS = 1000;/.test(read("src/lib/excuse-badge.ts")));
-  assert.ok(/MIN_GAP_MS/.test(read("src/lib/substitution-badge.ts")));
+  assert.ok(/POLLING_MIN_GAP_MS = 1000;/.test(read("src/lib/polling-gate.ts")));         // WAVE E (DUP-7): the guard lives in the one gate
+  assert.ok(/createPollingGate\(\)/.test(read("src/lib/excuse-badge.ts")));
+  assert.ok(/createPollingGate\(\)/.test(read("src/lib/substitution-badge.ts")));
 });
 
 // ── the throttle on a fake clock and the real stores (the API is replaced) ─────────────────────────────────────────────────────
