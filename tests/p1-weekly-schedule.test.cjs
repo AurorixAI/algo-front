@@ -17,7 +17,7 @@ Module._resolveFilename = function (request, ...rest) {
   return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
 };
 const root = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const F = require(path.join(root, "src/lib/lesson-slot-form.ts"));
 // the real api module is replaced by a recorder: the weekly-lesson helpers are run against it (no network)
 const apiPath = path.join(root, "src/lib/api.ts");
@@ -323,7 +323,9 @@ test("wiring: the teacher's schedule uses the shared scope switch, fields and di
   assert.match(page, /<EndWeeklyLessonDialog/);
   assert.match(page, /<EndWeeklyLessonDialog\s+lesson=\{endingRecurringLesson\}\s+aboveLessonPanel/);
   assert.match(page, /<EditWeeklyLessonDialog\s+lesson=\{editingLesson\}\s+aboveLessonPanel/);
-  assert.match(page, /if \(escapeBelongsToDialogRef\.current \|\| moveHoldsEscape\.current\) return;/, "Escape closes the topmost layer only");
+  assert.match(page, /if \(escapeBelongsToDialogRef\.current\) return;/, "Escape closes the topmost layer only");
+  assert.match(page, /if \(consumeEscape\(\)\) return;/, "a conflict / a running exam / the move dialog / the «⋯» menu keep the key first (WE-E: one hook)");
+  assert.match(read("src/lib/use-teacher-lesson-panel.ts"), /marksOps\.conflict \|\| marksOps\.liveExams \|\| moveHoldsEscape\.current/);
   assert.match(page, /window\.addEventListener\("keydown", noteKey, true\)/, "asked in the capture phase, before the dialog has reacted");
   assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /aboveLessonPanel=\{aboveLessonPanel\}/);
   assert.match(page, /<LessonSlotFields/);
@@ -335,5 +337,5 @@ test("wiring: the teacher's schedule uses the shared scope switch, fields and di
   // the suggested times follow the first chosen day until the times are typed
   assert.match(page, /if \(!isAddModalOpen \|\| timesEdited\) return;/);
   assert.doesNotMatch(page, /orgApi\.reviseRecurringLesson|orgApi\.endRecurringLesson|getRecurringLessonEndImpact|orgApi\.createLesson/);
-  assert.ok(page.split("\n").length < 3400, "the teacher page must not grow back (was 4046 lines)");
+  assert.ok(fs.readFileSync(path.join(root, "src/app/teacher/schedule/page.tsx"), "utf8").split("\n").length < 3400, "the teacher page must not grow back (was 4046 lines)");
 });

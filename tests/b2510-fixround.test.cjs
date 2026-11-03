@@ -19,7 +19,7 @@ Module._resolveFilename = function (request, ...rest) {
   return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
 };
 const root = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const W = require(path.join(root, "src/lib/weekly-lessons.ts"));
 const LT = require(path.join(root, "src/lib/lesson-teacher.ts"));
 const F = require(path.join(root, "src/lib/payf.ts"));

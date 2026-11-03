@@ -17,7 +17,7 @@ require.extensions[".tsx"] = (mod, filename) => {
   }).outputText, filename);
 };
 const src = (p) => path.join(__dirname, "..", "src", p);
-const read = (p) => fs.readFileSync(src(p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(src(p), "utf8"));
 const actions = require(src("lib/lesson-actions.ts"));
 const roles = require(src("lib/role-home.ts"));
 
@@ -67,11 +67,12 @@ test("the panel never says 'the lesson started' before it was started, and has a
   for (const file of ["app/teacher/dashboard/page.tsx", "app/teacher/schedule/page.tsx"]) {
     assert.doesNotMatch(read(file), /Урок начался!/, file);
   }
-  const page = read("app/teacher/dashboard/page.tsx");
-  const past = page.indexOf('activeLessonRelation === "past" ? (');
+  // WE-E: one picture and one hook for both pages; the order of the banners is `lessonPanelBanner`, the branch of the past day is `banner === "past"`
+  const page = read("components/teacher/lesson-panel.tsx");
+  const past = page.indexOf('banner === "past" ? (');
   const startButton = page.indexOf("onClick={handleStartLesson}");
   assert.ok(past > 0 && startButton > past, "the past-day branch comes before any start button");
-  assert.match(page, /startBlockedReason\(lessonDateRelation\(/); // the handler refuses locally too
+  assert.match(read("lib/use-teacher-lesson-panel.ts"), /startBlockedReason\(lessonDateRelation\(/); // the handler refuses locally too (on BOTH screens now)
 });
 
 // ---- 1c. no silent failures ---------------------------------------------------

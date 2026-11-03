@@ -22,7 +22,7 @@ Module._resolveFilename = function (request, ...rest) {
   return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
 };
 const root = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/logB", `${name}.json`), "utf8"));
 const Slots = require(path.join(root, "src/lib/schedule-slots.ts"));
 const Err = require(path.join(root, "src/lib/ops-errors.ts"));
@@ -107,7 +107,7 @@ test("the schedule page is wired: «Действует с», the optional room w
   assert.match(page, /refusalText\(err/);   // #154: the same words on both forms (weekly-lessons.refusalText -> scheduleErrorText)
   assert.match(page, /validFromBadge\(l\.validFrom/);
   assert.match(page, /placeText\(l\)/);
-  assert.match(page, /placeText\(activeLesson\)/);
+  assert.match(read("src/components/teacher/lesson-panel.tsx"), /roomLabel\(activeLesson\)/, "WE-E: the place in the header of the panel is the one rule of the dashboard (roomLabel), on both screens");
   for (const [name, text] of Object.entries({ page, fields, helper, form })) {
     assert.doesNotMatch(text, /Кабинет 204/, name);
     assert.doesNotMatch(text, /Аудитория не указана/, name);

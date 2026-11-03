@@ -22,7 +22,7 @@ Module._resolveFilename = function (request, ...rest) {
 };
 const root = path.join(__dirname, "..");
 const src = (p) => path.join(root, "src", p);
-const read = (p) => fs.readFileSync(src(p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(src(p), "utf8"));
 /** The text between two markers of a source file (the marker lines included). */
 const between = (text, from, to) => {
   const start = text.indexOf(from);
@@ -127,18 +127,17 @@ test("useNow schedules nothing while disabled (no open panel, no timer)", () => 
 });
 
 test("both pages feed the rule from useNow while a panel is open, not from a value frozen at open", () => {
-  const dashboard = read("app/teacher/dashboard/page.tsx");
-  const dashboardMemo = between(dashboard, "const finishClock = useNow(30_000, Boolean(activeLesson));", "finishClock]);");
-  assert.match(dashboardMemo, /canFinishLessonNow\(/);
-  assert.match(dashboardMemo, /businessTimeMinutes\(new Date\(finishClock\)\)/);
-  assert.doesNotMatch(dashboardMemo, /businessTimeMinutes\(\)/, "no clock read frozen inside the memo");
-
-  const schedule = read("app/teacher/schedule/page.tsx");
-  const scheduleMemo = between(schedule, "const canFinishLesson = useMemo(() => {", "panelClock]);");
-  assert.match(schedule, /const panelClock = useNow\(30_000, Boolean\(activeLesson\)\)/);
-  assert.match(scheduleMemo, /canFinishLessonNow\(/);
-  assert.match(scheduleMemo, /businessTimeMinutes\(at\)/);
+  // WE-E: the panel is ONE hook for both pages; the clock is read there
+  const hook = read("lib/use-teacher-lesson-panel.ts");
+  const memo = between(hook, "const canFinishLesson = useMemo(() => {", "panelClock]);");
+  assert.match(hook, /const panelClock = useNow\(30_000, Boolean\(activeLesson\)\)/);
+  assert.match(memo, /canFinishLessonNow\(/);
+  assert.match(memo, /businessTimeMinutes\(new Date\(panelClock\)\)/);
+  assert.doesNotMatch(memo, /businessTimeMinutes\(\)/, "no clock read frozen inside the memo");
+  for (const page of ["app/teacher/dashboard/page.tsx", "app/teacher/schedule/page.tsx"]) {
+    assert.match(read(page), /useTeacherLessonPanel</, `${page} takes the panel from the one hook`);
+  }
   // P1.1: the one-hour cut-off of the teacher's move moves with the same kind of clock (the control reads useNow itself)
   assert.match(read("components/substitutions/teacher-move-control.tsx"), /const now = useNow\(30_000, true\)/);
-  assert.doesNotMatch(schedule, /businessTimeMinutes\(\) < startMinutes - 60/);
+  assert.doesNotMatch(read("app/teacher/schedule/page.tsx"), /businessTimeMinutes\(\) < startMinutes - 60/);
 });

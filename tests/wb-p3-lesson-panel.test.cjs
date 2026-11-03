@@ -12,6 +12,7 @@ const path = require("node:path");
 const test = require("node:test");
 const ts = require("typescript");
 const Module = require("node:module");
+const { panelText } = require("./helpers/panel-sources.cjs");
 
 const root = path.join(__dirname, "..");
 const transpile = (filename, source, jsx) => ts.transpileModule(source, {
@@ -393,7 +394,7 @@ test("[F-A12] the dashboard and the schedule get the SAME snapshot of the same j
   assert.equal(P.lessonPanelKey({ id: "LA" }, TODAY), `${TODAY}_LA`);
   // the screens keep no copy of the rule: it lives in one place
   for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
-    const text = fs.readFileSync(path.join(root, file), "utf8");
+    const text = fs.readFileSync(path.join(root, file), "utf8") + panelText();   // WE-E: the panel is the shared hook + picture, read with the page
     assert.doesNotMatch(text, /rosterStudentIds\?\.\[lessonKey\]|historicalById|hasFrozenRoster/, `${file} builds no roster of its own`);
     assert.match(text, /useLessonPanelData/, `${file} reads the lesson through the hook`);
   }
@@ -549,7 +550,7 @@ test("[mutation R3] without the check of the open lesson a refusal is lost / a s
   assert.throws(() => assert.equal(otherLesson.lessonWriteBody(targetOf(), "Т", {}).lessonId, "LA"), assert.AssertionError);
   // the screens build their bodies through these functions: no write is composed from the lesson that happens to be open
   for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
-    const text = fs.readFileSync(path.join(root, file), "utf8");
+    const text = fs.readFileSync(path.join(root, file), "utf8") + panelText();   // WE-E: the panel is the shared hook + picture, read with the page
     assert.match(text, /lessonWriteBody\(target/, file);
     assert.match(text, /lessonStartBody\(target/, file);
     assert.match(text, /lessonCancelRef\(target/, file);

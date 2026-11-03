@@ -9,6 +9,7 @@
  * a later lesson already started, before the start, after the end, ready.
  */
 import { useEffect, useState } from "react";
+import { useScrollLock } from "@/components/ui/modal";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -63,6 +64,8 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
     missedLessonError, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
   } = panel;
+  // the page behind neither scrolls nor stays outside the dim while the panel or the reconciliation dialog is open
+  useScrollLock(Boolean(activeLesson || missedLessonAction));
   // the «⋯» menu of the lesson panel: ONE place for what can be done with the lesson, in groups by meaning
   const menuGroups: LessonMenuGroup[] = [
     { label: "Этот урок", items: lessonMenuItems },

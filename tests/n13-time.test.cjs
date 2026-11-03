@@ -20,7 +20,7 @@ const period = require(path.join(__dirname, "../src/lib/business-period.ts"));
 const excuses = require(path.join(__dirname, "../src/lib/attendance-excuses.ts"));
 
 const SRC = path.join(__dirname, "../src");
-const read = (relative) => fs.readFileSync(path.join(SRC, relative), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((relative) => fs.readFileSync(path.join(SRC, relative), "utf8"));
 
 // ── parsing ────────────────────────────────────────────────────────────────────────────────────
 

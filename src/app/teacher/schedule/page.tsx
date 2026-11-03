@@ -299,7 +299,7 @@ export default function TeacherSchedulePage() {
   }, [activeLesson]);
 
   // ─── Background scroll lock while any dialog is open (shared hook: counts stacked layers, keeps the page width) ───
-  useScrollLock(isAddModalOpen || isWeekPlanOpen || !!activeLesson);
+  useScrollLock(isAddModalOpen || isWeekPlanOpen);   // the lesson panel locks the page itself
 
   // ─── Close Modal on Escape Key ───
   // The dialogs of «Изменить / Прекратить» (shared `Modal`) close themselves on Escape from ONE document listener and React may commit that

@@ -23,7 +23,7 @@ Module._resolveFilename = function (request, ...rest) {
   return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
 };
 const root = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 // the api module is a recorder: the call of the teacher's cancellation is run against it (no network)
 const apiPath = path.join(root, "src/lib/api.ts");
 const calls = [];
@@ -94,8 +94,8 @@ test("F1: ONE panel for both pages (no copy), no «Отменить этот у�
     assert.doesNotMatch(page, /Отменить этот урок|Подтвердить отмену/, file);
   }
   assert.doesNotMatch(read("src/components/substitutions/teacher-lesson-controls.tsx"), /Отменить этот урок/);
-  assert.match(read("src/app/teacher/schedule/page.tsx"), /lessonMenuGroups\.some\(\(group\) => group\.items\.length > 0\)/, "no empty «⋯»");
-  assert.match(read("src/app/teacher/dashboard/page.tsx"), /lessonMenuItems\.length > 0/, "no empty «⋯»");
+  // WE-E: the footer with the «⋯» menu is the one component of both pages
+  assert.match(read("src/components/teacher/lesson-panel.tsx"), /menuGroups\.some\(\(group\) => group\.items\.length > 0\)/, "no empty «⋯»");
 });
 
 test("F1/F4: the refusals of a cancellation have one wording on every screen", () => {
@@ -420,7 +420,7 @@ test("S26 / S27: «Добавил: <имя>» on a one-off lesson; the teacher c
   assert.match(html, /Отменить разовый урок: 24 октября/);
   assert.match(html, /Разовый урок будет отменён/);
   assert.doesNotMatch(html, /исчезнет/, "R3 10: the lesson is cancelled, it does not «vanish»");
-  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /ownOneOff: isOwnOneOff\(activeLesson, user\?\.id\)/, file);
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /ownOneOff: isOwnOneOff\(activeLesson, (?:host\.)?user\?\.id\)/, file);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /addedByLine\(lesson\)/);
 });
 
@@ -511,7 +511,7 @@ test("R3 3 / 4: «Урока не было» belongs to whoever LEADS the lesson
   assert.equal(isRoleAllowed(["teacher"], { org_role: "owner", role: "teacher" }), false);
   assert.equal(isRoleAllowed(["teacher"], { org_role: "admin", role: "teacher" }), false);
   assert.match(read("src/app/teacher/layout.tsx"), /allowedRoles=\{\["teacher"\]\}/);
-  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /role: user\?\.org_role \?\? user\?\.role \?\? null, otherLeads: ledByOther/, file);
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /role: (?:host\.)?user\?\.org_role \?\? (?:host\.)?user\?\.role \?\? null, otherLeads: ledByOther/, file);
 });
 
 test("R3 6: F9 is ONE compact row with a count that opens; «Замена снята» is its own line; the request list stays on the first screen of a phone", () => {
@@ -661,7 +661,7 @@ test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and
     assert.match(page, /setActiveTeacherInfo\(teacherInfoOfOccurrence\(lesson\)\)/, file);
     assert.match(page, /setActiveRequestMark\(lesson\.substitutionRequest \?\? null\)/, file);
     assert.match(page, /data-testid="led-by-other"/, file);
-    assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, user\?\.id\)/, file);
+    assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, (?:host\.)?user\?\.id\)/, file);
   }
   assert.match(read("src/lib/teacher-agenda.ts"), /if \(lesson\.replacedBy\) return false;/, "no «Начните урок» for a lesson a substitute leads: it is not in the day of the teacher (#158, one function)");
   assert.match(read("src/app/teacher/dashboard/page.tsx"), /entry\.phase !== "to_start"/);

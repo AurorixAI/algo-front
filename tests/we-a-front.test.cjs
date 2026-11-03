@@ -20,7 +20,7 @@ Module._resolveFilename = function (request, ...rest) {                         
   if (request.startsWith("@/")) request = path.join(root, "src", request.slice(2));
   return resolveFilename.call(this, request, ...rest);
 };
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const lib = (name) => require(path.join(root, "src/lib", name));
 
 /** A module loaded from a MUTATED copy of its source (sibling imports still resolve from the real folder). */

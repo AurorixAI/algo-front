@@ -238,7 +238,7 @@ export default function TeacherDashboardPage() {
   }, [liveExams]);
 
   // The dialogs are portalled to <body>: lock the page scroll while any of them is open (shared hook).
-  useScrollLock(Boolean(activeLesson || isActionCenterOpen || missedLessonAction || isExamQueueOpen));
+  useScrollLock(Boolean(isActionCenterOpen || isExamQueueOpen));   // the lesson panel and the reconciliation dialog lock the page themselves
 
   // Escape key handler: the layers of the panel (a conflict, a running exam, the move dialog, the «⋯» menu) keep the key first
   useEffect(() => {

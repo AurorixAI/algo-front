@@ -22,7 +22,7 @@ require.extensions[".tsx"] = (mod, filename) => {
 };
 
 const root = path.join(__dirname, "..");
-const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((relative) => fs.readFileSync(path.join(root, relative), "utf8"));
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
   entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
 const sources = walk(path.join(root, "src")).filter((f) => /\.(tsx?|jsx?)$/.test(f));

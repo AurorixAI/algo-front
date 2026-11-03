@@ -25,7 +25,7 @@ Module._resolveFilename = function (request, ...rest) {
 
 const root = path.join(__dirname, "..");
 const dir = path.join(__dirname, "fixtures/logB2");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const fx = (name) => JSON.parse(fs.readFileSync(path.join(dir, `${name}.json`), "utf8"));
 const contract = fx("_contract");
 const index = fx("index");

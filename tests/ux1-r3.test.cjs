@@ -26,7 +26,7 @@ Module._resolveFilename = function (request, ...rest) {
 };
 
 const root = path.join(__dirname, "..");
-const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((relative) => fs.readFileSync(path.join(root, relative), "utf8"));
 const lib = (name) => require(path.join(root, "src/lib", name));
 
 // ── scroll lock: exact restore (with !important) and the iOS variant ─────────────────────────────────

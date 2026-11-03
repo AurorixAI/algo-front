@@ -22,7 +22,7 @@ Module._resolveFilename = function (request, ...rest) {
   return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
 };
 const root = path.join(__dirname, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = require("./helpers/panel-sources.cjs").withPanel((p) => fs.readFileSync(path.join(root, p), "utf8"));
 const S = require(path.join(root, "src/lib/substitutions.ts"));
 const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
 
@@ -89,11 +89,12 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   assert.match(page, /<TeacherLessonControls/);
   assert.match(dashboard, /<TeacherLessonControls/, "the dashboard's panel has the same controls");
   assert.doesNotMatch(dashboard, /<RequestControl/);
-  assert.ok(dashboard.split("\n").length <= 2842 + 11, "the dashboard did not grow");
+  const lines = (file) => fs.readFileSync(path.join(root, file), "utf8").split("\n").length;   // the page itself, without the shared panel files
+  assert.ok(lines("src/app/teacher/dashboard/page.tsx") <= 2842 + 11, "the dashboard did not grow");
   assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /<RequestControl[\s\S]*<TeacherMoveControl/);
   assert.doesNotMatch(page, /только на сегодня|canRescheduleToday|rescheduleLessonOccurrence|isReschedulingLesson|rescheduleReason/, "the same-day-only move is gone from the page");
   assert.doesNotMatch(read("src/lib/api.ts"), /rescheduleLessonOccurrence/);
-  assert.ok(page.split("\n").length < 3210, "the page did not grow");
+  assert.ok(lines("src/app/teacher/schedule/page.tsx") < 3210, "the page did not grow");
   assert.match(control_, /<LessonActionSheet[\s\S]*moveOnly[\s\S]*aboveLessonPanel/);
   assert.match(control_, /actions=\{\["reschedule"\]\}/);
   assert.match(sheet, /moveOnly/);
@@ -103,7 +104,8 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   for (const source of [page, dashboard]) {
     assert.match(source, /moveHoldsEscape\.current\) return/);
     assert.match(source, /onDialogChange=\{\(open\) => \{ moveHoldsEscape\.current = open; \}\}/);
-    assert.match(source, /onMoved=\{\(text, notes\) => \{ setActiveLesson\(null\); showToast\(text, notes\?\.length \? "warning" : "success", notes\);/, "the toast lives in the page: the control goes away with the panel");
+    assert.match(source, /onMoved=\{\(text, notes\) => \{ showToast\(text, notes\?\.length \? "warning" : "success", notes\);/, "the toast lives in the page: the control goes away with the panel");
+    assert.match(source, /onMoved=\{\(text, notes\) => \{ setActiveLesson\(null\); onMoved\(text, notes\); \}\}/, "the panel closes, then the page tells the person (WE-E: one panel)");
     assert.match(source, /\{toastNode\}/);
   }
 });
@@ -141,7 +143,7 @@ test("both week grids write the head of a day with the one component: weekday, t
   assert.match(owner, /<DayHeading date=\{date\} isToday=\{isToday\} \/>/);
   assert.match(teacher, /<DayHeading date=\{businessWeekdayDate\(day\.id, weekOffset\)\} isToday=\{isToday\} onAccent \/>/);
   assert.doesNotMatch(owner + teacher, /text-\[10px\] bg-white\/20 px-2 py-1 rounded-md font-bold/, "no second copy of the pill");
-  assert.ok(teacher.split("\n").length < 3210, "the teacher page did not grow");
+  assert.ok(fs.readFileSync(path.join(root, "src/app/teacher/schedule/page.tsx"), "utf8").split("\n").length < 3210, "the teacher page did not grow");
 });
 
 test("the journal: a move without a request is «без запроса», its chip is «Урок перенесён»; a teacher's request keeps its reason", () => {
