@@ -532,3 +532,41 @@ test("DUP-7: mutation - without the gap the second call within a second is NOT s
   await real.run(false, () => { calls += 1; return Promise.resolve(); });
   assert.equal(calls, 1);
 });
+
+
+// ---- LESSONS 85: the key lives from the OPENING of the dialog - not from a send, not from a render, not from the text -----------------
+
+/** What is wrong with the life of the key in a dialog (empty = fine): exactly two calls (the ref + the opening effect), the effect depends on `open` only, the send reads the ref. */
+function keyLifetimeProblems(source, { ref, sendPattern, effectDeps }) {
+  const problems = [];
+  const calls = (source.match(/newIdempotencyKey\(\)/g) || []).length;
+  if (calls !== 2) problems.push(`${calls} calls of newIdempotencyKey() instead of 2`);
+  if (!new RegExp(`${ref}\\.current = newIdempotencyKey\\(\\);`).test(source)) problems.push("the key is not made when the dialog opens");
+  if (!sendPattern.test(source)) problems.push("the send does not read the key of the opening");
+  if (effectDeps && !effectDeps.test(source)) problems.push("the effect that makes the key does not depend on the opening only");
+  return problems;
+}
+
+const KEY_DIALOGS = {
+  "src/components/payments/pause-dialog.tsx": { ref: "idempotencyKey", sendPattern: /idempotencyKey: idempotencyKey\.current/, effectDeps: /\[open, membershipId\]/ },
+  "src/components/support/support-dialog.tsx": { ref: "keyRef", sendPattern: /client_key: keyRef\.current/, effectDeps: /keyRef\.current = newIdempotencyKey\(\);\s*\}, \[open\]\);/ },
+  "src/components/payments/payment-dialog.tsx": { ref: "idempotencyKey", sendPattern: /idempotencyKey\.current/, effectDeps: null },
+  "src/components/payroll/payout-dialog.tsx": { ref: "idempotencyKey", sendPattern: /idempotencyKey\.current/, effectDeps: null },
+};
+
+test("LESSONS 85: pause, support, payment and payout dialogs keep ONE key from the opening of the dialog", () => {
+  for (const [file, rule] of Object.entries(KEY_DIALOGS)) assert.deepEqual(keyLifetimeProblems(read(file), rule), [], file);
+});
+
+test("LESSONS 85: mutation - a new key on every send / on every typing is caught in pause and support", () => {
+  const pause = read("src/components/payments/pause-dialog.tsx");
+  const everySend = pause.replace("idempotencyKey: idempotencyKey.current", "idempotencyKey: newIdempotencyKey()");
+  assert.ok(keyLifetimeProblems(everySend, KEY_DIALOGS["src/components/payments/pause-dialog.tsx"]).length > 0);
+  const support = read("src/components/support/support-dialog.tsx");
+  const everySupportSend = support.replace("client_key: keyRef.current", "client_key: newIdempotencyKey()");
+  assert.ok(keyLifetimeProblems(everySupportSend, KEY_DIALOGS["src/components/support/support-dialog.tsx"]).length > 0);
+  const followsText = support.replace("}, [open]);", "}, [open, text]);");
+  assert.ok(keyLifetimeProblems(followsText, KEY_DIALOGS["src/components/support/support-dialog.tsx"]).length > 0);
+  const noOpening = pause.replace("idempotencyKey.current = newIdempotencyKey();", "");
+  assert.ok(keyLifetimeProblems(noOpening, KEY_DIALOGS["src/components/payments/pause-dialog.tsx"]).length > 0);
+});
