@@ -54,7 +54,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const {
-    activeLesson, setActiveLesson, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
+    activeLesson, setActiveLesson, requestClose, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
@@ -195,7 +195,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
           <AnimatePresence>
             <div
               onClick={(e) => {
-                if (e.target === e.currentTarget) setActiveLesson(null);
+                if (e.target === e.currentTarget) void requestClose();
               }}
               className="fixed left-0 top-0 z-[99999] flex items-center justify-center overflow-hidden overscroll-contain p-4 sm:p-6 bg-slate-950/60 backdrop-blur-md transition-all"
               style={{ width: "100dvw", height: "100dvh" }}
@@ -248,7 +248,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     </p>
                   </div>
                   <button
-                    onClick={() => setActiveLesson(null)}
+                    onClick={() => void requestClose()}
                     className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
                   >
                     <X className="w-5 h-5" />
@@ -747,7 +747,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     ) : isAttendanceSaved ? (
                       <button
                         type="button"
-                        onClick={() => setActiveLesson(null)}
+                        onClick={() => void requestClose()}
                         className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
                       >
                         Готово

@@ -172,7 +172,7 @@ export default function TeacherDashboardPage() {
       setDashboardRefreshNonce((value) => value + 1);
     },
   });
-  const { setActiveLesson, openLesson, openMissedLesson, missedLessonAction, consumeEscape, getSubsequentStartedLesson } = lessonPanel;
+  const { setActiveLesson, requestClose, openLesson, openMissedLesson, missedLessonAction, consumeEscape, getSubsequentStartedLesson } = lessonPanel;
 
 
   useEffect(() => {
@@ -239,12 +239,12 @@ export default function TeacherDashboardPage() {
         if (consumeEscape()) return;
         if (isExamQueueOpen) setIsExamQueueOpen(false);
         else if (isActionCenterOpen) setIsActionCenterOpen(false);
-        else setActiveLesson(null);
+        else void requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction, consumeEscape]);
+  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction, consumeEscape, requestClose]);
 
   const todayDayOfWeek = businessDayOfWeek();
 

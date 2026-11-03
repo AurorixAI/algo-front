@@ -15,6 +15,7 @@ import {
   type AttendanceStatus, type GroupInfo, type LessonAttendanceStatus, type OpenAttendanceAction, type ScheduleOccurrence, type StudentInGroup,
 } from "./api";
 import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
+import { askConfirm } from "./confirm-dialog";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
 import { examSyncNotice, isLessonTooOld, lessonFailure } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
@@ -303,6 +304,32 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   /** Open a lesson: the panel of its journal. */
   const openLesson = (lesson: L) => { setActiveLesson(lesson); };
   const closePanel = () => { setActiveLesson(null); };
+
+  /**
+   * Closing the panel by hand (the cross, the dark background, Escape, «Готово»): with marks that were NOT saved the person is asked first (the platform's own question,
+   * as in WB-P5) - before, the marks vanished without a word; with nothing unsaved the panel closes at once.  A second ask while the question is open (the same Escape reaching
+   * both the question and the page) is not a second question.
+   */
+  const closeAsking = useRef(false);
+  const requestClose = async (): Promise<boolean> => {
+    if (!activeLesson) return true;
+    if (!isAttendanceDirty) { setActiveLesson(null); return true; }
+    if (closeAsking.current) return false;
+    closeAsking.current = true;
+    const key = lessonPanelKey(activeLesson, businessDate);
+    try {
+      const sure = await askConfirm({
+        title: "Есть несохранённые отметки — закрыть без сохранения?",
+        confirmLabel: "Закрыть без сохранения",
+        cancelLabel: "Вернуться",
+        tone: "danger",
+      });
+      if (sure && panel.isOpen(key)) setActiveLesson(null);
+      return sure;
+    } finally {
+      setTimeout(() => { closeAsking.current = false; }, 0);     // not before the key that answered the question has reached every listener
+    }
+  };
 
   /**
    * One entry point for "do this action" (the card and the action centre must not branch differently): a missed lesson cannot be started (the server allows it
@@ -743,7 +770,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
 
   return {
     // state
-    activeLesson, setActiveLesson, openLesson, closePanel,
+    activeLesson, setActiveLesson, openLesson, closePanel, requestClose,
     activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, isAttendanceDirty, attendanceError,
     activeTeacherInfo, activeRequestMark, activeRosterSource,

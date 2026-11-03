@@ -157,7 +157,7 @@ export default function TeacherSchedulePage() {
       void reloadAfterWeeklyChange();
     },
   });
-  const { activeLesson, setActiveLesson, consumeEscape } = lessonPanel;
+  const { activeLesson, setActiveLesson, consumeEscape, requestClose } = lessonPanel;
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
   const [liveExamError, setLiveExamError] = useState<string | null>(null);
   const [liveExamRefreshNonce, setLiveExamRefreshNonce] = useState(0);
@@ -336,12 +336,12 @@ export default function TeacherSchedulePage() {
           setIsWeekPlanOpen(false);
           return;
         }
-        if (activeLesson) setActiveLesson(null);
+        if (activeLesson) void requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, consumeEscape]);
+  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, consumeEscape, requestClose]);
 
   // Current real day of week: 1=Mon .. 7=Sun
   const todayDayOfWeek = businessDayOfWeek();
