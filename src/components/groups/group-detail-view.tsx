@@ -538,7 +538,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
           <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>
         )}
 
-        {tab === "payments" && paymentsAccess === "show" && (
+        {tab === "payments" && paymentsAccess === "show" && paths.payments !== null && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupPaymentsTab
               groupId={groupId}

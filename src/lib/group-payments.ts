@@ -36,6 +36,7 @@ export const GROUP_PAYMENTS_LABEL = "Оплаты";
 export const GROUP_TAB_LABELS = {
   students: { full: "Ученики", short: "Ученики" },
   schedule: { full: "Расписание", short: "Расписание" },
+  exams: { full: "Экзамены", short: "Экзамены" },
   attendance: { full: "Посещаемость", short: "Журнал" },
   payments: { full: GROUP_PAYMENTS_LABEL, short: GROUP_PAYMENTS_LABEL },
 } as const;

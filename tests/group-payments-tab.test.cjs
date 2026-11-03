@@ -308,15 +308,15 @@ test("e2e finding: the debt chip of the group header is read again after the pri
 
 // ── the group page on a 390 px phone (lead review 23.10: the active «Оплаты» tab cut at the edge, «⋯» alone under the title) ──
 
-test("phone: the four tabs have short labels below sm (ids and the desktop names stay), the strip is full width and shows the active tab", () => {
-  assert.deepEqual(Object.keys(G.GROUP_TAB_LABELS), ["students", "schedule", "attendance", "payments"]);
+test("phone: the five tabs have short labels below sm (ids and the desktop names stay), the strip is full width and shows the active tab", () => {
+  assert.deepEqual(Object.keys(G.GROUP_TAB_LABELS), ["students", "schedule", "exams", "attendance", "payments"]);
   assert.equal(G.GROUP_TAB_LABELS.attendance.full, "Посещаемость");
   assert.equal(G.GROUP_TAB_LABELS.attendance.short, "Журнал");
   assert.equal(G.GROUP_TAB_LABELS.payments.short, "Оплаты");
-  // four short labels fit 358 px at 13 px: about 6 characters of the longest each side of the padding
+  // five short labels fit 358 px at 13 px (E-C: «Экзамены» is the fifth; the padding of a tab on a phone is 12 px each side)
   const widest = Math.max(...Object.values(G.GROUP_TAB_LABELS).map((l) => l.short.length));
   const total = Object.values(G.GROUP_TAB_LABELS).reduce((sum, l) => sum + l.short.length, 0);
-  assert.ok(widest <= 10 && total * 7.2 + 4 * 16 + 12 + 8 <= 358, `the short labels are ${total} characters`);
+  assert.ok(widest <= 10 && total * 7.2 + 5 * 12 + 4 * 4 + 8 <= 358, `the short labels are ${total} characters`);
   const view = read("src/components/groups/group-detail-view.tsx");
   assert.match(view, /<span className="sm:hidden">\{GROUP_TAB_LABELS\[key as Tab\]\.short\}<\/span>/);
   assert.match(view, /<span className="hidden sm:inline">\{GROUP_TAB_LABELS\[key as Tab\]\.full\}<\/span>/);

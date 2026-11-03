@@ -10,18 +10,91 @@ import { workspaceBases, type Workspace } from "./ia-links";
 
 export type { Workspace };
 
+/**
+ * WAVE E (E-C, decision 11): the group page is ONE component for the owner, the administrator and the teacher.  The teacher is a workspace of
+ * the group page only (the money / students areas of `Workspace` have no teacher), so the union lives here.
+ */
+export type GroupWorkspace = Workspace | "teacher";
+
 export interface GroupWorkspacePaths {
-  workspace: Workspace;
+  workspace: GroupWorkspace;
   groups: string;
   students: string;
-  payments: string;
-  /** `GroupScheduleOverview` wants the role that looks at the schedule. */
-  viewerRole: "owner" | "admin";
+  /** null: the workspace has no money (the teacher). */
+  payments: string | null;
+  /** `GroupScheduleOverview` wants the role that looks at the schedule; the teacher has no «Расписание» tab. */
+  viewerRole: GroupWorkspace;
 }
 
-export function groupWorkspacePaths(workspace: Workspace): GroupWorkspacePaths {
+export function groupWorkspacePaths(workspace: GroupWorkspace): GroupWorkspacePaths {
+  if (workspace === "teacher") return { workspace, groups: "/teacher/groups", students: "/teacher/students", payments: null, viewerRole: workspace };
   const bases = workspaceBases(workspace);
   return { workspace, groups: bases.groups, students: bases.students, payments: bases.payments, viewerRole: workspace };
+}
+
+// ── the tabs of a group ─────────────────────────────────────────────────────
+
+export type GroupPageTab = "students" | "schedule" | "exams" | "attendance" | "payments";
+
+/**
+ * The tabs of the group page, in ONE order for every role: «Ученики», «Расписание» (owner / administrator), «Экзамены» (everyone who runs or
+ * watches the exams of the group), «Посещаемость», «Оплаты» (who sees the money, see `groupPaymentsAccess`).  The teacher has no schedule and no money.
+ */
+export function groupPageTabs(input: { workspace: GroupWorkspace; paymentsAccess: "show" | "pending" | "hidden" }): GroupPageTab[] {
+  const staff = input.workspace !== "teacher";
+  return [
+    "students",
+    ...(staff ? (["schedule"] as const) : []),
+    "exams",
+    "attendance",
+    ...(staff && input.paymentsAccess === "show" ? (["payments"] as const) : []),
+  ];
+}
+
+/** `?tab=` of the group page: «payments» only for who may see it (`pending` keeps it: the page shows a loader); a tab the role has not is «Ученики». */
+export function resolveGroupPageTab(requested: string | null | undefined, input: { workspace: GroupWorkspace; paymentsAccess: "show" | "pending" | "hidden" }): GroupPageTab {
+  if (requested === "payments") return input.paymentsAccess === "hidden" || input.workspace === "teacher" ? "students" : "payments";
+  const tabs = groupPageTabs({ workspace: input.workspace, paymentsAccess: "hidden" });
+  return tabs.find((tab) => tab === requested) ?? "students";
+}
+
+/**
+ * The query after a click on a tab: `?tab=` and what belongs to the tab family survives (the exam filter and search of «Экзамены»), the one-shot
+ * deep link of the journal (`month`, `lesson`, `date`) and the filter of «Оплаты» do not follow the user to another tab.
+ */
+export function groupTabQuery(current: string | null | undefined, tab: GroupPageTab): string {
+  const next = new URLSearchParams(current ?? "");
+  for (const key of ["month", "lesson", "date"]) next.delete(key);
+  if (tab !== "payments") next.delete("filter");
+  next.set("tab", tab);
+  return `?${next.toString()}`;
+}
+
+// ── the journal of attendance ───────────────────────────────────────────────
+
+export interface GroupJournalAccess {
+  canEdit: boolean;
+  /** The journal of who runs the center: «⋯ → Исправить», «Заменить преподавателя», the review of excuses. */
+  adminMode: boolean;
+  /** The teacher's journal marks the lessons of other teachers; the manager's does not need it. */
+  viewerId: string | null;
+  groupName: string | null;
+}
+
+/**
+ * ONE rule of «who may edit the journal of this group» for every role (it was a condition inside the teacher's page and another inside the
+ * owner's).  The owner and the administrator edit every live group; a teacher only the group he leads or substitutes in; an archived group nobody.
+ * (`org_role` admin / owner never reach the teacher's workspace - owner decision 28.10, only a teacher teaches - so there is no such branch.)
+ */
+export function groupJournalAccess(input: {
+  workspace: GroupWorkspace;
+  group: { name: string; status?: string | null; teacher_id?: string | null; substitution?: boolean | null };
+  userId: string | null | undefined;
+}): GroupJournalAccess {
+  const live = input.group.status !== "archived";
+  if (input.workspace !== "teacher") return { canEdit: live, adminMode: true, viewerId: null, groupName: input.group.name };
+  const mine = Boolean(input.userId) && input.group.teacher_id === input.userId;
+  return { canEdit: live && (mine || Boolean(input.group.substitution)), adminMode: false, viewerId: input.userId ?? null, groupName: null };
 }
 
 // ── the header of a group ───────────────────────────────────────────────────
@@ -39,8 +112,8 @@ export const GROUP_HEADER_LABEL: Record<GroupHeaderAction, string> = {
  * «Цена группы…» (the dialog of «Цены групп»; only for a role that sees money), «В архив» (danger, last).  An archived group has no menu:
  * «Вернуть из архива» is its button.
  */
-export function groupHeaderActions(input: { archived: boolean; priceAvailable: boolean }): GroupHeaderAction[] {
-  if (input.archived) return [];
+export function groupHeaderActions(input: { archived: boolean; priceAvailable: boolean; canManage?: boolean }): GroupHeaderAction[] {
+  if (input.archived || input.canManage === false) return []; // a teacher manages no group: no «⋯»
   return input.priceAvailable ? ["edit", "price", "archive"] : ["edit", "archive"];
 }
 
