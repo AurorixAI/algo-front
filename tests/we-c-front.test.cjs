@@ -248,3 +248,52 @@ test("E-C/3: the exam links lead where the teacher's page led (the hub of the ex
   assert.match(read(EXAMS_TAB), /return `\$\{paths\.groups\}\/\$\{groupId\}\?\$\{params\.toString\(\)\}`;/);
   assert.doesNotMatch(read(EXAMS_TAB), /["'`]\/teacher\//, "the tab has no path of one workspace typed in");
 });
+
+// ---- step 4: «Выбрать» from the group = «Назначить» in «Экзамены» ------------------------------------------------------------
+
+const LIBRARY_PAGE = "src/app/teacher/exams/page.tsx";
+
+test("E-C/4: both entrances pick an exact lesson in the same dialog and bind it with the same function; the same dialog confirms", () => {
+  for (const file of [EXAMS_TAB, LIBRARY_PAGE]) {
+    const source = read(file);
+    assert.match(source, /assignExamToLesson\(examsApi, assignTarget, selection\)/, file);
+    assert.match(source, /<ScheduleExamModal[^>]*\n?[^>]*examTitle=\{assignTarget\.title\}/s, file);
+    assert.match(source, /deliveryMode=\{assignTarget\.delivery_mode\}/, file);
+    assert.match(source, /<SuccessAssignModal/, file);
+  }
+  const tab = read(EXAMS_TAB);
+  assert.match(tab, /groups=\{\[group\]\}\s+initialGroupId=\{groupId\}/, "the group is chosen already");
+  assert.match(tab, /onClick=\{\(\) => \{\s*setModalState\("none"\);\s*setAssignTarget\(exam\);\s*\}\}/, "«Выбрать» asks for the lesson");
+});
+
+test("E-C/4: no draft without a lesson any more - the tab never calls assign / clone itself and never sends publish:false", () => {
+  const tab = read(EXAMS_TAB);
+  assert.doesNotMatch(tab, /examsApi\.(assign|clone|preparePrintPackage)\(/);
+  assert.doesNotMatch(tab, /publish:\s*false|group_name: group\.name/);
+  assert.doesNotMatch(tab, /Экзамен успешно назначен|modal-success|setAssignedInfo/);
+});
+
+test("E-C/4: a paper exam goes to its hub after the print package is prepared, like in the library", () => {
+  const tab = read(EXAMS_TAB);
+  assert.match(tab, /if \(outcome\.kind === "print"\) \{\s*router\.push\(links\.exam\(assignTarget\.exam_id, groupExamReturnHref\)\);/);
+  assert.match(read(LIBRARY_PAGE), /if \(outcome\.kind === "print"\) \{\s*setAssignTarget\(null\);\s*router\.push\(`\/teacher\/exams\/\$\{assignTarget\.exam_id\}\?return_to=/);
+});
+
+test("E-C/4: the result is the same - an online exam gets its lobby on the chosen lesson whichever entrance was used", async () => {
+  const A = lib("exam-assign.ts");
+  const fromLibrary = fakeExamsApi();
+  const fromGroup = fakeExamsApi();
+  const selection = { group: { id: "g1" }, occurrence: { id: "s9", occurrenceDate: "2026-11-05" } };
+  await A.assignExamToLesson(fromLibrary, { exam_id: "e1", delivery_mode: "online" }, selection);
+  await A.assignExamToLesson(fromGroup, { exam_id: "e1", delivery_mode: "online" }, selection);
+  assert.deepEqual(fromGroup.calls, fromLibrary.calls);
+  assert.equal(fromGroup.calls[0][2].publish, true);
+  assert.equal(fromGroup.calls[0][2].lesson_id, "s9");
+});
+
+test("E-C/4: mutation - the old group entrance (a draft without a lesson) is seen by the guards", () => {
+  const tab = read(EXAMS_TAB);
+  const old = tab.replace("assignExamToLesson(examsApi, assignTarget, selection)", "examsApi.assign(assignTarget.exam_id, { group_id: group.id, group_name: group.name, publish: false })");
+  assert.doesNotMatch(old, /assignExamToLesson\(examsApi, assignTarget, selection\)/);
+  assert.match(old, /publish:\s*false/);
+});

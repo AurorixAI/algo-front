@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, CheckCircle2, ChevronRight, Copy, FileText, Library, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, ChevronRight, Copy, FileText, Library, Loader2, Plus, Search, X } from "lucide-react";
 import Link from "next/link";
 import { examsApi, type ExamSummary, type GroupDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { SuccessAssignModal } from "@/components/exam/success-assign-modal";
+import { assignExamToLesson } from "@/lib/exam-assign";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
@@ -46,15 +48,11 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
   const [examsLoading, setExamsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [modalState, setModalState] = useState<"none" | "chooser" | "library" | "success">("none");
+  const [modalState, setModalState] = useState<"none" | "chooser" | "library">("none");
   const [librarySearch, setLibrarySearch] = useState("");
-  const [assigningId, setAssigningId] = useState<string | null>(null);
-  const [assignedInfo, setAssignedInfo] = useState<{
-    exam_id: string;
-    title: string;
-    group_name: string;
-  } | null>(null);
-  const [printScheduleTarget, setPrintScheduleTarget] = useState<ExamSummary | null>(null);
+  // «Выбрать» from the library is the library's «Назначить»: the teacher picks an exact lesson, then the lobby opens on it (E-C, decision 11)
+  const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
+  const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string } | null>(null);
 
   // Group Exams Filter & Search
   const [examFilter, setExamFilter] = useState<ExamStatusFilter>(() => parseExamStatusFilter(searchParams?.get("exam_status") || null));
@@ -288,61 +286,13 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                               <p className="text-xs text-slate-500">{exam.tasks_per_variant} зад · {exam.variants_count} вар</p>
                             </div>
                             <button
-                              disabled={assigningId === exam.exam_id}
-                              onClick={async () => {
-                                if (!group) return;
-                                // A paper exam must be frozen for an exact lesson;
-                                // it cannot use the legacy group-only assignment.
-                                if (exam.delivery_mode === "print") {
-                                  setModalState("none");
-                                  setPrintScheduleTarget(exam);
-                                  return;
-                                }
-                                setAssigningId(exam.exam_id);
-                                try {
-                                  let targetId = exam.exam_id;
-                                  if (exam.group_id && exam.group_id !== groupId) {
-                                    const cloned = await examsApi.clone(exam.exam_id, {
-                                      group_id: groupId,
-                                      group_name: group.name,
-                                    });
-                                    targetId = cloned.exam_id;
-                                    await examsApi.assign(targetId, {
-                                      group_id: groupId,
-                                      group_name: group.name,
-                                      // Selecting a template from a group creates a
-                                      // draft for that group. The teacher chooses an
-                                      // exact lesson before a public lobby can open.
-                                      publish: false,
-                                    });
-                                  } else {
-                                    await examsApi.assign(exam.exam_id, {
-                                      group_id: groupId,
-                                      group_name: group.name,
-                                      publish: false,
-                                    });
-                                  }
-                                  setAssignedInfo({
-                                    exam_id: targetId,
-                                    title: exam.title,
-                                    group_name: group.name,
-                                  });
-                                  setModalState("success");
-                                  void load();
-                                } catch (e: any) {
-                                  console.error(e);
-                                  showToast(e.message || "Не удалось назначить экзамен. Повторите попытку.", "error");
-                                } finally {
-                                  setAssigningId(null);
-                                }
+                              onClick={() => {
+                                setModalState("none");
+                                setAssignTarget(exam);
                               }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 shrink-0 cursor-pointer shadow-xs"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer shadow-xs"
                             >
-                              {assigningId === exam.exam_id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Check className="w-3.5 h-3.5" />
-                              )}
+                              <Check className="w-3.5 h-3.5" />
                               Выбрать
                             </button>
                           </div>
@@ -360,45 +310,6 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                         </div>
                       )}
                     </div>
-                  </motion.div>
-                )}
-
-                {modalState === "success" && assignedInfo && (
-                  <motion.div
-                    key="modal-success"
-                    initial={{ opacity: 0, scale: 0.92, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.92, y: 8 }}
-                    transition={{ type: "spring", stiffness: 380, damping: 26 }}
-                    className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-7 text-center overflow-hidden"
-                  >
-                    
-                    <button
-                      onClick={() => setModalState("none")}
-                      className="absolute top-3.5 right-3.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Закрыть"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto mb-4 shadow-sm shadow-emerald-500/10">
-                      <CheckCircle2 className="w-8 h-8" />
-                    </div>
-
-                    <h3 className="text-lg font-bold text-slate-900 mb-1.5">
-                      Экзамен успешно назначен!
-                    </h3>
-
-                    <p className="text-xs text-slate-500 leading-relaxed mb-6">
-                      Экзамен <span className="font-semibold text-slate-800">«{assignedInfo.title}»</span> добавлен для группы <span className="font-semibold text-slate-800">«{assignedInfo.group_name}»</span>.
-                    </p>
-
-                    <button
-                      onClick={() => setModalState("none")}
-                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 text-white font-semibold text-xs shadow-md shadow-primary-600/20 transition-all cursor-pointer"
-                    >
-                      Отлично
-                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -599,29 +510,28 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
         )}
       </div>
       )}
-      {printScheduleTarget && (
+      {assignTarget && (
         <ScheduleExamModal
-          examTitle={printScheduleTarget.title}
+          examTitle={assignTarget.title}
           groups={[group]}
           initialGroupId={groupId}
-          deliveryMode="print"
-          onClose={() => setPrintScheduleTarget(null)}
-          onSubmit={async ({ group: selectedGroup, occurrence }) => {
-            await examsApi.preparePrintPackage(printScheduleTarget.exam_id, {
-              group_id: selectedGroup.id,
-              lesson_id: occurrence.id,
-              lesson_date: occurrence.occurrenceDate,
-            });
-            setPrintScheduleTarget(null);
-            setAssignedInfo({
-              exam_id: printScheduleTarget.exam_id,
-              title: printScheduleTarget.title,
-              group_name: selectedGroup.name,
-            });
-            setModalState("success");
+          deliveryMode={assignTarget.delivery_mode}
+          onClose={() => setAssignTarget(null)}
+          onSubmit={async (selection) => {
+            // the very function of the library's «Назначить»
+            const outcome = await assignExamToLesson(examsApi, assignTarget, selection);
+            setAssignTarget(null);
+            if (outcome.kind === "print") {
+              router.push(links.exam(assignTarget.exam_id, groupExamReturnHref));
+              return;
+            }
+            setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id });
             void load();
           }}
         />
+      )}
+      {assignResult && (
+        <SuccessAssignModal result={assignResult} returnHref={groupExamReturnHref} onClose={() => setAssignResult(null)} />
       )}
       {toastNode}
     </>
