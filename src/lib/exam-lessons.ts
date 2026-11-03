@@ -36,8 +36,10 @@ export function isLessonBindable(lesson: BindableLesson, context: BindableContex
   if (lesson.occurrenceDate < context.businessDate) return false;
   if (lesson.occurrenceDate > context.businessDate) return true;
   if (status === "in_progress") return true;
-  if (!lesson.endTime) return true;
-  return context.nowMinutes < clockMinutes(lesson.endTime);
+  // an end time of only spaces is NO end time (exam-service judges it the same way: tests/fixtures/lesson_bindable_golden.json)
+  const endTime = lesson.endTime?.trim();
+  if (!endTime) return true;
+  return context.nowMinutes < clockMinutes(endTime);
 }
 
 export function bindableLessons<T extends BindableLesson>(lessons: T[], context: BindableContext): T[] {
