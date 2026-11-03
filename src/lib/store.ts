@@ -207,18 +207,14 @@ export const useAuthStore = create<AuthState>()(
 
 interface DiagnosticState {
   sessionId: string | null;
-  phase: string | null;
   currentTask: any | null;
   itemNumber: number;
-  theta: number;
-  thetaSe: number;
-  accuracy: number;
   isComplete: boolean;
   startedAt: number | null;
 
   // Actions
-  startSession: (sessionId: string, phase: string, firstTask: any, itemNumber?: number) => void;
-  setNextTask: (task: any, theta: number, thetaSe: number, accuracy: number, phase: string, itemNumber: number) => void;
+  startSession: (sessionId: string, firstTask: any, itemNumber?: number) => void;
+  setNextTask: (task: any, itemNumber: number) => void;
   complete: () => void;
   restoreCompleted: (sessionId: string) => void;
   reset: () => void;
@@ -226,50 +222,30 @@ interface DiagnosticState {
 
 export const useDiagnosticStore = create<DiagnosticState>()((set) => ({
   sessionId: null,
-  phase: null,
   currentTask: null,
   itemNumber: 0,
-  theta: 0,
-  thetaSe: 1.0,
-  accuracy: 0,
   isComplete: false,
   startedAt: null,
 
-  startSession: (sessionId, phase, firstTask, itemNumber = 1) =>
+  startSession: (sessionId, firstTask, itemNumber = 1) =>
     set({
       sessionId,
-      phase,
       currentTask: firstTask,
       itemNumber,
-      theta: 0,
-      thetaSe: 1.0,
-      accuracy: 0,
       isComplete: false,
       startedAt: Date.now(),
     }),
 
-  setNextTask: (task, theta, thetaSe, accuracy, phase, itemNumber) =>
-    set({
-      currentTask: task,
-      theta,
-      thetaSe,
-      accuracy,
-      phase,
-      itemNumber,
-    }),
+  setNextTask: (task, itemNumber) => set({ currentTask: task, itemNumber }),
 
   complete: () => set({ isComplete: true, currentTask: null }),
-  restoreCompleted: (sessionId) => set({ sessionId, phase: "completed", isComplete: true, currentTask: null }),
+  restoreCompleted: (sessionId) => set({ sessionId, isComplete: true, currentTask: null }),
 
   reset: () =>
     set({
       sessionId: null,
-      phase: null,
       currentTask: null,
       itemNumber: 0,
-      theta: 0,
-      thetaSe: 1.0,
-      accuracy: 0,
       isComplete: false,
       startedAt: null,
     }),
