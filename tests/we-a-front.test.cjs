@@ -209,3 +209,71 @@ test("E4/2: mutation - the old text puts «Черновик» back and the guard
   const group = read("src/app/teacher/groups/[id]/page.tsx");
   assert.equal(variantsReadyCalledDraft(group.replace('? examStatusView(ex.status).label', '? "Черновик"')), true);
 });
+
+// ---- decision 1: the e-mail of an administrator and a teacher is read-only; the profile request has no `email` ---------------
+
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const profileLib = lib("profile-form.ts");
+const passwords = lib("set-password.ts");
+const STAFF_SETTINGS = ["src/app/admin/settings/page.tsx", "src/app/teacher/settings/page.tsx"];
+/** The old behaviour: the page keeps `email` in the form state and sends the whole form. */
+const sendsEmail = (source) => /updateProfile\((profile|profileForm)\)|setProfile\(\{[^}]*email/.test(source) || /useState\(\{[^}]*email:/s.test(source);
+
+test("E2/1: the request of the profile has no email - whatever the form holds", () => {
+  const body = profileLib.profileUpdateBody({ first_name: "Иван", last_name: "Петров", email: "new@example.com", language: "ru", is_admin: true });
+  assert.deepEqual(Object.keys(body).sort(), ["first_name", "language", "last_name"]);
+  assert.deepEqual(profileLib.profileUpdateBody({ first_name: "А", last_name: "Б", email: "x@y.z" }), { first_name: "А", last_name: "Б" });
+});
+
+test("E2/1: «Почта» of the administrator and the teacher is read-only with the hint «Почту меняет владелец центра»", () => {
+  assert.equal(profileLib.EMAIL_OWNER_ONLY_HINT, "Почту меняет владелец центра");
+  const { ReadonlyEmailField } = require(path.join(root, "src/components/settings/readonly-email-field.tsx"));
+  const html = renderToStaticMarkup(React.createElement(ReadonlyEmailField, { id: "e", email: "teacher@centre.uz", labelClassName: "l", inputClassName: "i" }));
+  assert.match(html, /<input[^>]*readOnly=""|<input[^>]*readonly=""/);
+  assert.match(html, /value="teacher@centre\.uz"/);
+  assert.match(html, /Почту меняет владелец центра/);
+  assert.match(html, /aria-describedby="e-hint"/);
+  assert.doesNotMatch(html, /onChange/);
+  for (const f of STAFF_SETTINGS) {
+    const source = read(f);
+    assert.match(source, /<ReadonlyEmailField/, f);
+    assert.match(source, /updateProfile\(profileUpdateBody\(profile\)\)/, f);
+    assert.equal(sendsEmail(source), false, `${f}: the form does not hold or send an e-mail`);
+  }
+  assert.match(read("src/app/owner/settings/page.tsx"), /updateProfile\(profileUpdateBody\(profileForm\)\)/);
+});
+
+test("E2/1: mutation - the old pages (editable e-mail, whole form sent) are caught by the guard", () => {
+  const teacher = read("src/app/teacher/settings/page.tsx");
+  assert.equal(sendsEmail(teacher.replace("updateProfile(profileUpdateBody(profile))", "updateProfile(profile)")), true);
+  assert.equal(sendsEmail(teacher.replace('last_name: user?.last_name || "",\n  });', 'last_name: user?.last_name || "",\n    email: user?.email || "",\n  });')), true);
+  const admin = read("src/app/admin/settings/page.tsx");
+  assert.equal(sendsEmail(admin.replace('last_name: user?.last_name || "" });', 'last_name: user?.last_name || "", email: user?.email || "" });')), true);
+});
+
+// ---- decision 4 (password part): «минимум 8» on the client, the hint on every form -----------------------------------------------
+
+const PASSWORD_FORMS = [
+  "src/app/admin/settings/page.tsx", "src/app/teacher/settings/page.tsx", "src/app/owner/settings/page.tsx",
+  "src/app/change-password/page.tsx", "src/app/invite/[code]/page.tsx",
+];
+
+test("E2/4: a new password is checked by ONE function (8..128) with the one text of the hint", () => {
+  assert.equal(passwords.newPasswordProblem("1234567"), "Минимум 8 символов");
+  assert.equal(passwords.newPasswordProblem(""), "Минимум 8 символов");
+  assert.equal(passwords.newPasswordProblem("12345678"), null);
+  assert.match(passwords.newPasswordProblem("x".repeat(129)), /Не длиннее 128/);
+  assert.equal(passwords.newPasswordProblem("x".repeat(128)), null);
+});
+
+test("E2/4: all five password forms use it and show the same hint; no literal 8 / «минимум 6» is left", () => {
+  for (const f of PASSWORD_FORMS) {
+    const source = read(f);
+    assert.match(source, /newPasswordProblem\(/, `${f}: the check`);
+    assert.match(source, /PASSWORD_HINT/, `${f}: the hint`);
+    assert.doesNotMatch(source, /\.length < 8|[Мм]инимум 6|Минимум 8 символов/, `${f}: no private wording`);
+  }
+  // mutation: the old teacher form had no check and said «6»
+  assert.match(read("src/app/teacher/settings/page.tsx").replace("placeholder={PASSWORD_HINT}", 'placeholder="Минимум 6 символов"'), /[Мм]инимум 6/);
+});

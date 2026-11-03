@@ -145,7 +145,7 @@ test("[F][P8] one password hint «Минимум 8 символов» on the for
   assert.equal(SP.passwordRules("1234567", "1234567")[0].text, "Минимум 8 символов");
   assert.equal(SP.passwordRules("12345678", "12345678")[0].ok, true);
   const invite = read("src/app/invite/[code]/page.tsx");
-  assert.match(invite, /Минимум 8 символов/);
+  assert.match(invite, /PASSWORD_HINT/);                         // WAVE E: the literal is replaced by the one constant
   assert.doesNotMatch(invite, /минимум 6|Минимум 6/);
   assert.doesNotMatch(read("src/app/owner/settings/page.tsx"), /минимум 6/i);
 });

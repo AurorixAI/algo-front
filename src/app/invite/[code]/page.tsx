@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 import { authApi } from "@/lib/api";
+import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { effectiveRole, loginHome } from "@/lib/role-home";
 import type { InviteInfo } from "@/lib/ops-b-types";
 import { inviteAcceptErrorText, inviteLoadErrorText, returningIntroText } from "@/lib/staff-lifecycle";
@@ -54,8 +55,9 @@ export default function InviteAcceptPage() {
       setLocalError("Пароли не совпадают");
       return;
     }
-    if (password.length < 8) {
-      setLocalError("Минимум 8 символов");
+    const problem = newPasswordProblem(password);
+    if (problem) {
+      setLocalError(problem);
       return;
     }
 
@@ -181,7 +183,7 @@ export default function InviteAcceptPage() {
               <Input
                 label="Пароль"
                 type="password" autoComplete="new-password"
-                placeholder="Минимум 8 символов"
+                placeholder={PASSWORD_HINT}
                 icon={<Lock className="w-4 h-4" />}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

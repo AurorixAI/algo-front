@@ -6,12 +6,15 @@ import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { User, Lock, Save } from "lucide-react";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
+import { ReadonlyEmailField } from "@/components/settings/readonly-email-field";
+import { profileUpdateBody } from "@/lib/profile-form";
+import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 
 export default function AdminSettingsPage() {
   const { user, updateUser } = useAuthStore();
   const uid = useId();
 
-  const [profile, setProfile] = useState({ first_name: user?.first_name || "", last_name: user?.last_name || "", email: user?.email || "" });
+  const [profile, setProfile] = useState({ first_name: user?.first_name || "", last_name: user?.last_name || "" });
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
@@ -21,7 +24,7 @@ export default function AdminSettingsPage() {
     setSavingProfile(true);
     setMsg("");
     try {
-      const updated = await authApi.updateProfile(profile);
+      const updated = await authApi.updateProfile(profileUpdateBody(profile));
       updateUser(updated);
       setMsg("Профиль обновлён");
     } catch (e: any) { setMsg(e.message || "Ошибка"); }
@@ -30,6 +33,8 @@ export default function AdminSettingsPage() {
 
   const handlePw = async () => {
     if (pw.new_password !== pw.confirm) { setMsg("Пароли не совпадают"); return; }
+    const problem = newPasswordProblem(pw.new_password);
+    if (problem) { setMsg(problem); return; }
     setSavingPw(true);
     setMsg("");
     try {
@@ -68,10 +73,7 @@ export default function AdminSettingsPage() {
               <input id={`${uid}-last-name`} value={profile.last_name} onChange={(e) => setProfile({ ...profile, last_name: e.target.value })} placeholder="Фамилия" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
             </div>
           </div>
-          <div>
-            <label htmlFor={`${uid}-email`} className="block text-sm font-semibold text-slate-700 mb-1.5">Почта</label>
-            <input id={`${uid}-email`} value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} placeholder="Почта" type="email" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
-          </div>
+          <ReadonlyEmailField id={`${uid}-email`} email={user?.email} labelClassName="block text-sm font-semibold text-slate-700 mb-1.5" inputClassName="w-full px-3 py-2 border border-slate-200 rounded-xl" />
           <div className="flex justify-end">
             <button onClick={handleProfile} disabled={savingProfile} className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50">
               <Save className="w-4 h-4" /> {savingProfile ? "..." : "Сохранить"}
@@ -93,7 +95,7 @@ export default function AdminSettingsPage() {
           </div>
           <div>
             <label htmlFor={`${uid}-new-password`} className="block text-sm font-semibold text-slate-700 mb-1.5">Новый пароль</label>
-            <input id={`${uid}-new-password`} type="password" autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} placeholder="Новый пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <input id={`${uid}-new-password`} type="password" autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} placeholder={PASSWORD_HINT} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div>
             <label htmlFor={`${uid}-confirm-password`} className="block text-sm font-semibold text-slate-700 mb-1.5">Подтвердите пароль</label>

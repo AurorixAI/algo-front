@@ -138,3 +138,10 @@ export function deadLinkText(state: { kind: DeadLinkKind; purpose?: string | nul
 export function canRequestNewLink(state: { kind: string; purpose?: string | null }): boolean {
   return state.purpose !== "centre_invite";
 }
+
+/** What is wrong with a NEW password before it is sent (the rule of the server, `password_rules.py`), or null: ONE check for every form that sets or changes a password. */
+export function newPasswordProblem(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) return PASSWORD_HINT;
+  if (password.length > MAX_PASSWORD_LENGTH) return `Не длиннее ${MAX_PASSWORD_LENGTH} символов`;
+  return null;
+}

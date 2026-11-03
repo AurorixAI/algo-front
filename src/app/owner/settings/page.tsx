@@ -66,6 +66,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Radio } from "@/components/ui/radio";
 import { NumberInput } from "@/components/ui/number-input";
 import { useToast } from "@/components/ui/toast";
+import { profileUpdateBody } from "@/lib/profile-form";
+import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 
 interface SettingsSectionProps {
   title: string;
@@ -734,7 +736,7 @@ function OwnerSettingsContent() {
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     try {
-      const updated = await authApi.updateProfile(profileForm);
+      const updated = await authApi.updateProfile(profileUpdateBody(profileForm));
       useAuthStore.setState((state) => ({
         user: { ...state.user, ...(updated ?? profileForm) },
       }));
@@ -752,8 +754,9 @@ function OwnerSettingsContent() {
       setPasswordMsg({ type: 'error', text: "Новые пароли не совпадают" });
       return;
     }
-    if (passwordForm.new_password.length < 8) {
-      setPasswordMsg({ type: 'error', text: "Минимум 8 символов" });
+    const problem = newPasswordProblem(passwordForm.new_password);
+    if (problem) {
+      setPasswordMsg({ type: 'error', text: problem });
       return;
     }
     setSavingPassword(true);
@@ -908,7 +911,7 @@ function OwnerSettingsContent() {
                     value={passwordForm.new_password}
                     onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
                     className={inputClasses}
-                    placeholder="Минимум 8 символов"
+                    placeholder={PASSWORD_HINT}
                   />
                 </div>
                 <div>

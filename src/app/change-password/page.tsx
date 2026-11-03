@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Lock, KeyRound, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { authApi, REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
+import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { roleHome } from "@/lib/role-home";
 
 export default function ChangePasswordPage() {
@@ -48,8 +49,9 @@ export default function ChangePasswordPage() {
 
   const submit = async () => {
     setError(null);
-    if (next.length < 8) {
-      setError("Новый пароль должен быть не короче 8 символов.");
+    const problem = newPasswordProblem(next);
+    if (problem) {
+      setError(problem);
       return;
     }
     if (next !== confirm) {
@@ -126,7 +128,7 @@ export default function ChangePasswordPage() {
             />
             <Field
               icon={<Lock className="w-4 h-4 text-slate-400" />}
-              placeholder="Новый пароль. Минимум 8 символов"
+              placeholder={`Новый пароль. ${PASSWORD_HINT}`}
               value={next}
               onChange={setNext}
               show={show}

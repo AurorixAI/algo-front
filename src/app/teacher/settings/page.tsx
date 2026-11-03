@@ -4,6 +4,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { ReadonlyEmailField } from "@/components/settings/readonly-email-field";
+import { profileUpdateBody } from "@/lib/profile-form";
+import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { CheckCircle2, KeyRound, Save, ShieldCheck, User, type LucideIcon } from "lucide-react";
 
 type Feedback = { type: "success" | "error"; text: string } | null;
@@ -108,7 +111,6 @@ export default function TeacherSettingsPage() {
   const [profile, setProfile] = useState({
     first_name: user?.first_name || "",
     last_name: user?.last_name || "",
-    email: user?.email || "",
   });
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -120,7 +122,7 @@ export default function TeacherSettingsPage() {
     setSavingProfile(true);
     setProfileFeedback(null);
     try {
-      const updated = await authApi.updateProfile(profile);
+      const updated = await authApi.updateProfile(profileUpdateBody(profile));
       updateUser(updated);
       setProfileFeedback({ type: "success", text: "Данные профиля обновлены" });
     } catch (error: any) {
@@ -133,6 +135,11 @@ export default function TeacherSettingsPage() {
   const handlePassword = async () => {
     if (pw.new_password !== pw.confirm) {
       setPasswordFeedback({ type: "error", text: "Новые пароли не совпадают" });
+      return;
+    }
+    const problem = newPasswordProblem(pw.new_password);
+    if (problem) {
+      setPasswordFeedback({ type: "error", text: problem });
       return;
     }
 
@@ -194,20 +201,7 @@ export default function TeacherSettingsPage() {
               />
             </div>
           </div>
-          <div>
-            <label className={labelClasses} htmlFor="teacher-settings-email">Почта</label>
-            <input
-              id="teacher-settings-email"
-              value={profile.email}
-              onChange={(event) => {
-                setProfile({ ...profile, email: event.target.value });
-                setProfileFeedback(null);
-              }}
-              placeholder="name@example.com"
-              type="email"
-              className={inputClasses}
-            />
-          </div>
+          <ReadonlyEmailField id="teacher-settings-email" email={user?.email} labelClassName={labelClasses} inputClassName={inputClasses} />
           <FeedbackMessage feedback={profileFeedback} />
         </SettingsSection>
 
@@ -246,7 +240,7 @@ export default function TeacherSettingsPage() {
                   setPw({ ...pw, new_password: event.target.value });
                   setPasswordFeedback(null);
                 }}
-                placeholder="Минимум 6 символов"
+                placeholder={PASSWORD_HINT}
                 className={inputClasses}
               />
             </div>
