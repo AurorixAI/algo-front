@@ -527,6 +527,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
           groups={[group]}
           initialGroupId={groupId}
           deliveryMode={assignTarget.delivery_mode}
+          noLessonHref={links.newExam}
           onClose={() => setAssignTarget(null)}
           onSubmit={async (selection) => {
             // the very function of the library's «Назначить»

@@ -408,3 +408,18 @@ test("E-C/R3-1: the teacher's list wires the substitute card to the schedule; no
   // mutation: the old link to the page of the group is seen
   assert.doesNotMatch(list.replace("substitute?.href ?? ", ""), /substitute\?\.href/);
 });
+
+// ---- R3 В2: «Выбрать» without a fitting lesson is not a dead end ------------------------------------------------------------------
+
+test("E-C/R3-2: the lesson dialog of the group offers «Подготовить черновик без урока» - the way of «Создать новый» with the group chosen; the library's dialog has no such line", () => {
+  const modal = read("src/components/exam/schedule-exam-modal.tsx");
+  assert.match(modal, /\{noLessonHref && selectedGroup && !loadingLessons && \(/);
+  assert.match(modal, /Нет нужного урока\?/);
+  assert.match(modal, /<Link href=\{noLessonHref\}[^>]*>Подготовить черновик без урока<\/Link>/);
+  assert.match(read(EXAMS_TAB), /noLessonHref=\{links\.newExam\}/);
+  assert.doesNotMatch(read(LIBRARY_PAGE), /noLessonHref/, "the library's exam already exists - no draft of a new one");
+  // the same address as «Создать новый» of the chooser
+  assert.match(read(EXAMS_TAB), /href=\{links\.newExam\}/);
+  assert.match(GE.groupExamLinks({ workspace: "teacher", groupId: "g1", groupName: "А" }).newExam, /^\/teacher\/exams\/new\?group_id=g1&group_name=/);
+  assert.doesNotMatch(modal.replace("noLessonHref && selectedGroup", "false && selectedGroup"), /\{noLessonHref && selectedGroup/);
+});

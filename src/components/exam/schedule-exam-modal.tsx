@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { CalendarDays, Check, Clock3, MapPin, Users, X } from "lucide-react";
 import { orgApi, type Group, type ScheduleOccurrence } from "@/lib/api";
 import { addIsoDays, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
@@ -22,6 +23,8 @@ type ScheduleExamModalProps = {
   deliveryMode?: "online" | "print";
   /** A lobby may be safely moved before any student session exists. */
   intent?: "schedule" | "reschedule";
+  /** Where to go when no lesson fits: the way to prepare a draft for the group without a lesson (the group page offers it). */
+  noLessonHref?: string;
   onClose: () => void;
   onSubmit: (selection: ScheduledExamSelection) => Promise<void>;
 };
@@ -45,6 +48,7 @@ export function ScheduleExamModal({
   initialGroupId,
   deliveryMode = "online",
   intent = "schedule",
+  noLessonHref,
   onClose,
   onSubmit,
 }: ScheduleExamModalProps) {
@@ -266,6 +270,13 @@ export function ScheduleExamModal({
               </div>
             )}
           </div>
+
+          {noLessonHref && selectedGroup && !loadingLessons && (
+            <p data-testid="no-lesson-hint" className="text-xs text-slate-500">
+              Нет нужного урока?{" "}
+              <Link href={noLessonHref} className="font-semibold text-primary-700 hover:underline">Подготовить черновик без урока</Link>
+            </p>
+          )}
 
           {selectionGone && (
             <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">Выбранное занятие больше недоступно — выберите другое</p>
