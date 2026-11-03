@@ -393,14 +393,30 @@ test("DUP-6: no private thousands regex outside lib/money-format.ts", () => {
   }
 });
 
-// ---- F-A07: role -> home page is one table; the sidebar logo link reads it -----------------------------------------------------------
+// ---- F-A07: role -> home page is one table; the sidebar logo leads to the HOME OF THE ROLE ----------------------------------------------
 
-test("F-A07: the sidebar logo leads to ROLE_HOME[role] - no typed paths of the homes left in the sidebar", () => {
-  const sidebar = read("src/components/layout/sidebar.tsx");
-  assert.match(sidebar, /ROLE_HOME\[/);
-  assert.doesNotMatch(sidebar, /\?\s*"\/owner\/dashboard"\s*:|\?\s*"\/admin\/diagnostics"\s*:/);   // the old ternary of homes (the menu items keep their own hrefs)
+test("F-A07: the logo of the sidebar leads to the home of the role (owner / administrator / teacher / unknown)", () => {
   const home = lib("role-home.ts");
   assert.deepEqual(home.ROLE_HOME, { owner: "/owner/dashboard", admin: "/admin/diagnostics", teacher: "/teacher/dashboard" });
+  // the sidebar computes: rawRole = the role of the person, role = "admin" for an owner (the same menu), so the owner is told by the RAW role
+  assert.equal(home.homeForSidebar("owner", "admin"), "/owner/dashboard");
+  assert.equal(home.homeForSidebar("admin", "admin"), "/admin/diagnostics");
+  assert.equal(home.homeForSidebar("teacher", "teacher"), "/teacher/dashboard");
+  assert.equal(home.homeForSidebar(undefined, undefined), "/teacher/dashboard");
+  assert.equal(home.homeForSidebar("stranger", "stranger"), "/teacher/dashboard");
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  assert.match(sidebar, /href=\{homeForSidebar\(rawRole, role\)\}/);
+  assert.doesNotMatch(sidebar, /\?\s*"\/owner\/dashboard"\s*:|\?\s*"\/admin\/diagnostics"\s*:/);
+});
+
+test("F-A07: mutation - the logo always on the teacher's page, or the owner not told by the raw role, is caught", () => {
+  const always = loadMutated("src/lib/role-home.ts", 'ROLE_HOME[rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher"]', 'ROLE_HOME["teacher"]');
+  assert.notEqual(always.homeForSidebar("owner", "admin"), "/owner/dashboard");
+  const byRole = loadMutated("src/lib/role-home.ts", 'rawRole === "owner" ? "owner" :', 'role === "owner" ? "owner" :');
+  assert.notEqual(byRole.homeForSidebar("owner", "admin"), "/owner/dashboard");
+  // the link of the page itself: another call in the sidebar is caught by the source guard
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  assert.doesNotMatch(sidebar.replace("homeForSidebar(rawRole, role)", 'ROLE_HOME["teacher"]'), /href=\{homeForSidebar\(rawRole, role\)\}/);
 });
 
 // ---- DUP-2: the names of the months live in lib/ru-calendar.ts only ----------------------------------------------------------------------

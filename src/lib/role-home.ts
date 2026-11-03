@@ -17,6 +17,11 @@ export function roleHome(role?: string | null): string | null {
   return (role && Object.prototype.hasOwnProperty.call(ROLE_HOME, role) && ROLE_HOME[role]) || null;
 }
 
+/** The page the logo of the sidebar leads to: the owner (by the raw role) to the owner's home, an administrator to the administrator's, everybody else to the teacher's. */
+export function homeForSidebar(rawRole?: string | null, role?: string | null): string {
+  return ROLE_HOME[rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher"];
+}
+
 /** Home right after sign-in: the role's own, else the admin default. */
 export function loginHome(role?: string | null): string {
   return roleHome(role) ?? DEFAULT_HOME;

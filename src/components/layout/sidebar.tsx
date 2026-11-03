@@ -32,7 +32,7 @@ import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { refreshBadgesOnPageChange } from "@/lib/badge-throttle";
 import { BADGE_LABEL } from "@/lib/substitutions";
 import { usePaymentsSummary } from "@/lib/payments-summary";
-import { effectiveRole, ROLE_HOME } from "@/lib/role-home";
+import { effectiveRole, homeForSidebar } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
 import { debtorsCount } from "@/lib/payments";
@@ -273,7 +273,7 @@ export function Sidebar() {
       {/* Header: Logo, Organization */}
       <div className="h-[72px] flex items-center px-4 border-b border-slate-100 gap-3 shrink-0 overflow-hidden">
         <Link
-          href={ROLE_HOME[rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher"]}
+          href={homeForSidebar(rawRole, role)}
           className="flex items-center gap-3 overflow-hidden group flex-1 min-w-0"
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-700 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm shadow-primary-600/25 group-hover:scale-105 transition-transform">
