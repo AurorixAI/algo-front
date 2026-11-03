@@ -220,6 +220,7 @@ function findAll(node, predicate, out = []) {
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 
 function screen(Component, props, options) {
+  listeners.clear();                                   // the screens of earlier tests are gone: their keyboard handlers must not answer this test's keys
   const world = createWorld(Component, props, options);
   const api = {
     world,

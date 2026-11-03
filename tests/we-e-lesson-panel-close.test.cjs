@@ -117,7 +117,7 @@ for (const screen of ["dashboard", "schedule"]) {
   });
 
   test(`[CL6] MUTATION ${screen}: closing without the question loses the marks silently - CL1 fails`, async () => {
-    await assert.rejects(() => harness.withMutation("src/lib/use-teacher-lesson-panel.ts", (source) => source.replace("if (!isAttendanceDirty) { setActiveLesson(null); return true; }", "if (true) { setActiveLesson(null); return true; }"), () => scenario(screen, async (world) => {
+    await assert.rejects(() => harness.withMutation("src/lib/use-teacher-lesson-panel.ts", (source) => source.replace("if (!isAttendanceDirty || savingAttendance) { setActiveLesson(null); return true; }", "if (true) { setActiveLesson(null); return true; }"), () => scenario(screen, async (world) => {
       const s = await started(screen, world, { dirty: true });
       await s.press("Escape");
       assert.ok(confirm().currentConfirm(), "the question is asked");
