@@ -449,3 +449,17 @@ test("E-C/R3-4: the administrator comes back from the monitor of an exam to the 
   assert.match(page, /href=\{backHref\} data-testid="exam-back-link"/);
   assert.match(page, /returnTo\?\.startsWith\("\/admin\/groups\/"\) \? "К группе" : "К экзаменам организации"/);
 });
+
+// ---- R3 «Важно» 3: the three behaviours no check held (restore gate, reload after the assignment, the result to the dialog) ----------
+
+test("E-C/R3-3: «Вернуть из архива» is the manager's (the CONDITION is guarded, not only the branch); the list is read again after an assignment; the result goes to the dialog", () => {
+  const view = read(VIEW);
+  const gate = /\{group\.status === "archived" && \(\s*canManage\s*\?\s*<GroupArchivedBanner archivedAt=\{group\.archivedAt\} studentCount=\{group\.student_count\} onRestore=\{\(\) => setRestoreOpen\(true\)\} \/>/;
+  assert.match(view, gate);
+  assert.doesNotMatch(view.replace("canManage\n          ? <GroupArchivedBanner", "true\n          ? <GroupArchivedBanner"), gate, "mutation: a restore button for everybody is seen");
+  const tab = read(EXAMS_TAB);
+  const after = /const outcome = await assignExamToLesson\(examsApi, assignTarget, selection\);\s*setAssignTarget\(null\);\s*if \(outcome\.kind === "print"\) \{[^}]*\}\s*setAssignResult\(\{ \.\.\.outcome\.result, exam_id: assignTarget\.exam_id \}\);\s*void load\(\);/;
+  assert.match(tab, after);
+  assert.doesNotMatch(tab.replace("            void load();\n          }}\n        />\n      )}\n      {assignResult", "          }}\n        />\n      )}\n      {assignResult"), after, "mutation: no reload is seen");
+  assert.doesNotMatch(tab.replace("setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id });", ""), after, "mutation: the dialog gets nothing is seen");
+});
