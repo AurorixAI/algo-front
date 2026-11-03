@@ -24,6 +24,8 @@ import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
+import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
+import { examStatusView } from "@/lib/status-registry";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
@@ -780,7 +782,9 @@ export default function TeacherGroupDetailPage() {
                                 ? "bg-violet-50 text-violet-700 border border-violet-200"
                                 : ex.status === "lobby"
                                 ? (examStateOf(ex) === "lobby" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : examStateOf(ex) === "needs_resolution" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-sky-50 text-sky-700 border border-sky-200")
-                                : ex.status === "draft" || ex.status === "variants_ready"
+                                : ex.status === "variants_ready"
+                                ? `border ${CHIP_TONE_CLASS[examStatusView("variants_ready").tone]}`
+                                : ex.status === "draft"
                                 ? "bg-amber-50 text-amber-700 border border-amber-200"
                                 : ex.status === "closed"
                                 ? "bg-slate-100 text-slate-600 border border-slate-200"
@@ -796,7 +800,7 @@ export default function TeacherGroupDetailPage() {
                               : ex.status === "lobby"
                               ? lobbyExamLabel(examStateOf(ex), ex.scheduled_lesson_date ? formatIsoDateLabel(ex.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "")
                               : ex.status === "draft" || ex.status === "variants_ready"
-                              ? "Черновик"
+                              ? examStatusView(ex.status).label
                               : ex.status === "closed"
                               ? "Завершён"
                               : "В архиве"}

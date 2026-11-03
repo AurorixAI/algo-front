@@ -49,22 +49,23 @@ import { useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
+import { examStatusView } from "@/lib/status-registry";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
   draft: {
-    label: "Черновик",
+    label: examStatusView("draft").label,
     icon: <AlertCircle className="w-3 h-3" />,
     gradient: "from-amber-50 to-orange-50",
     text: "text-amber-700",
     dot: "bg-amber-400",
   },
-  variants_ready: {
-    label: "Черновик",
+  variants_ready: {                                   // the variants are made: «Готов к назначению» for every role (lib/status-registry.ts), blue as the registry's «info»
+    label: examStatusView("variants_ready").label,
     icon: <Clock className="w-3 h-3" />,
-    gradient: "from-amber-50 to-orange-50",
-    text: "text-amber-700",
-    dot: "bg-amber-400",
+    gradient: "from-blue-50 to-sky-50",
+    text: "text-blue-700",
+    dot: "bg-blue-400",
   },
   lobby: {
     label: "Лобби открыто",

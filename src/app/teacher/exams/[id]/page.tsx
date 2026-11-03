@@ -29,6 +29,7 @@ import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { examListState, lobbyExamLabel } from "@/lib/exam-lobby";
+import { examStatusView } from "@/lib/status-registry";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { examHasLobby, isNoLobbyConflict, LOBBY_POLL_MS, nextLobbyPollDelay } from "@/lib/exam-lobby";
 import { examsApi, isTransientApiError, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
@@ -894,7 +895,9 @@ export default function ExamHubPage() {
     ? examState === "needs_resolution"
       ? { label: lobbyExamLabel(examState, ""), pill: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" }
       : { label: "Ожидает старта", pill: "bg-amber-50 text-amber-900 border-amber-200", dot: "bg-amber-500" }
-    : { label: "Черновик", pill: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" };
+    : exam.status === "variants_ready"
+    ? { label: examStatusView("variants_ready").label, pill: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" }
+    : { label: examStatusView("draft").label, pill: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" };
   const headerFacts = [
     exam.group_name || (exam.group_id ? null : "Шаблон без группы"),
     boundLessonLabel ? `урок ${boundLessonLabel.replace(" · ", ", ")}` : null,

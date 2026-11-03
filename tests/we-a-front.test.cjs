@@ -174,3 +174,38 @@ test("E4/6: no private copy of the date arithmetic is left in src/ (only lib/bus
     assert.doesNotMatch(source, mathOnDates, `${f}: date arithmetic outside the library`);
   }
 });
+
+// ---- decision 2: `variants_ready` is «Готов к назначению» for EVERY role; «Черновик» is only `draft` (one registry) -------------
+
+const registry = lib("status-registry.ts");
+const TEACHER_EXAM_SCREENS = [
+  "src/app/teacher/exams/page.tsx", "src/app/teacher/groups/[id]/page.tsx",
+  "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx",
+];
+/** Where a screen writes the word «Черновик» for a `variants_ready` exam (a literal in the same branch / object). */
+function variantsReadyCalledDraft(source) {
+  return /variants_ready[^;]{0,260}?["']Черновик["']/s.test(source.replace(/\{\s*key: "draft", label: "Черновики"/g, ""));
+}
+
+test("E4/2: the registry says «Готов к назначению» for variants_ready and «Черновик» only for draft", () => {
+  assert.equal(registry.examStatusView("variants_ready").label, "Готов к назначению");
+  assert.equal(registry.examStatusView("draft").label, "Черновик");
+  assert.notEqual(registry.examStatusView("variants_ready").label, registry.examStatusView("draft").label);
+});
+
+test("E4/2: the teacher's screens (list, group tab, exam header, draft page) take the label from the registry - no «Черновик» for variants_ready", () => {
+  for (const f of TEACHER_EXAM_SCREENS) {
+    const source = read(f);
+    assert.match(source, /examStatusView/, `${f}: reads the registry`);
+    assert.equal(variantsReadyCalledDraft(source), false, `${f}: variants_ready is not a draft`);
+  }
+  const list = read("src/app/teacher/exams/page.tsx");
+  assert.match(list, /variants_ready: \{[^}]*label: examStatusView\("variants_ready"\)\.label/s);
+});
+
+test("E4/2: mutation - the old text puts «Черновик» back and the guard sees it", () => {
+  const list = read("src/app/teacher/exams/page.tsx");
+  assert.equal(variantsReadyCalledDraft(list.replace('label: examStatusView("variants_ready").label', 'label: "Черновик"')), true);
+  const group = read("src/app/teacher/groups/[id]/page.tsx");
+  assert.equal(variantsReadyCalledDraft(group.replace('? examStatusView(ex.status).label', '? "Черновик"')), true);
+});

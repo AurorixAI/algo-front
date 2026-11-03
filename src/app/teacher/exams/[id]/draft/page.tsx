@@ -16,6 +16,7 @@ import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { PassThresholdModal } from "@/components/exam/pass-threshold-modal";
 import { canEditPassThreshold, examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
+import { examStatusView } from "@/lib/status-registry";
 import {
   ArrowLeft,
   Target,
@@ -704,7 +705,7 @@ export default function ExamDraftPage() {
               <h1 className="text-xl font-bold text-slate-900">{draft.title}</h1>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                {!draft.group_id ? "Шаблон (без группы)" : "Черновик"}
+                {!draft.group_id ? "Шаблон (без группы)" : examStatusView(draft.status).label}
               </span>
               {draft.group_name && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
