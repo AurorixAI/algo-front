@@ -29,7 +29,7 @@ type ScheduleExamModalProps = {
   onSubmit: (selection: ScheduledExamSelection) => Promise<void>;
 };
 
-function occurrenceLabel(item: ScheduleOccurrence): string {
+export function occurrenceLabel(item: ScheduleOccurrence): string {
   const date = formatIsoDateLabel(item.occurrenceDate, {
     weekday: "short",
     day: "numeric",

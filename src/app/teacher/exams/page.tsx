@@ -39,7 +39,7 @@ import { examListState, examTabOf, lobbyExamLabel, type DashboardExamState, type
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { loadLibraryPages, loadNextLibraryPage, tabCountLabel } from "@/lib/exam-library-paging";
 import { examPassThreshold } from "@/lib/exam-pass-threshold";
-import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { ScheduleExamModal, occurrenceLabel } from "@/components/exam/schedule-exam-modal";
 import { SuccessAssignModal } from "@/components/exam/success-assign-modal";
 import { assignExamToLesson } from "@/lib/exam-assign";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
@@ -507,7 +507,7 @@ export default function TeacherExamsPage() {
 
   // Modals
   const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
-  const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string } | null>(null);
+  const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string; lesson_label?: string | null } | null>(null);
 
   const fetchLibraryPage = useCallback(
     (page: number) => examsApi.listPage({ page, size: LIBRARY_PAGE_SIZE, includeArchived: true }),
@@ -675,9 +675,9 @@ export default function TeacherExamsPage() {
     removal.ask({ mode: "delete", examId, title: exam?.title ?? "" });
   };
 
-  const handleAssigned = (examId: string, result: any) => {
+  const handleAssigned = (examId: string, result: any, lessonLabel: string) => {
     setAssignTarget(null);
-    setAssignResult({ ...result, exam_id: examId });
+    setAssignResult({ ...result, exam_id: examId, lesson_label: lessonLabel });
     loadData(); // refresh list
   };
 
@@ -928,7 +928,7 @@ export default function TeacherExamsPage() {
                 router.push(`/teacher/exams/${assignTarget.exam_id}?return_to=${encodeURIComponent(currentLibraryHref)}`);
                 return;
               }
-              handleAssigned(assignTarget.exam_id, outcome.result);
+              handleAssigned(assignTarget.exam_id, outcome.result, occurrenceLabel(selection.occurrence));
             }}
           />
         )}

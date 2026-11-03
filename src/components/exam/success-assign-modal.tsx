@@ -14,7 +14,7 @@ import { copyText } from "@/lib/use-copy";
  * «Добавить экзамен -> Из библиотеки -> Выбрать» (E-C, decision 11: the same action gives the same result).
  */
 export interface SuccessAssignModalProps {
-  result: { access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string };
+  result: { access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string; /** «чт, 5 ноября · 10:00–11:00» - the lesson the lobby is opened on */ lesson_label?: string | null };
   returnHref: string;
   onClose: () => void;
 }
@@ -53,6 +53,9 @@ export function SuccessAssignModal({ result, returnHref, onClose }: SuccessAssig
           <h3 className="text-lg font-bold text-slate-900">Экзамен назначен!</h3>
           {result.group_name && (
             <p className="text-xs text-slate-500 mt-1">Для группы <span className="font-semibold text-slate-800">{result.group_name}</span></p>
+          )}
+          {result.lesson_label && (
+            <p data-testid="assigned-lesson" className="text-xs text-slate-500 mt-1">Занятие: <span className="font-semibold text-slate-800">{result.lesson_label}</span></p>
           )}
         </div>
 

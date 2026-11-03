@@ -7,7 +7,7 @@ import { Check, ChevronRight, Copy, FileText, Library, Loader2, Plus, Search, X 
 import Link from "next/link";
 import { examsApi, type ExamSummary, type GroupDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { ScheduleExamModal, occurrenceLabel } from "@/components/exam/schedule-exam-modal";
 import { SuccessAssignModal } from "@/components/exam/success-assign-modal";
 import { assignExamToLesson } from "@/lib/exam-assign";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -59,7 +59,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
   const [librarySearch, setLibrarySearch] = useState("");
   // «Выбрать» from the library is the library's «Назначить»: the teacher picks an exact lesson, then the lobby opens on it (E-C, decision 11)
   const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
-  const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string } | null>(null);
+  const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string; lesson_label?: string | null } | null>(null);
 
   // Group Exams Filter & Search
   const [examFilter, setExamFilter] = useState<ExamStatusFilter>(() => parseExamStatusFilter(searchParams?.get("exam_status") || null));
@@ -537,7 +537,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
               router.push(links.exam(assignTarget.exam_id, groupExamReturnHref) ?? groupExamReturnHref);
               return;
             }
-            setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id });
+            setAssignResult({ ...outcome.result, exam_id: assignTarget.exam_id, lesson_label: occurrenceLabel(selection.occurrence) });
             void load();
           }}
         />
