@@ -12,6 +12,7 @@
  */
 import { formatIsoDateLabel, monthYearLabelRu } from "./business-time";
 import { pluralRu } from "./plural";
+import { formatMoney } from "./money-format";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { TeacherConflict } from "./ops-b-types";
 
@@ -75,6 +76,10 @@ export interface OneOffDecisionItem {
   createdBy: { id: string; name: string; role: string } | null;
   studentsPresent: number;
   studentsTotal: number;
+  /** Money-1 A3 (ЗП-07): for how many students «Оплатить» pays - every student whose mark counts (rule 4.3: «Не был» counts), not only the ones who came. */
+  studentsPaid?: number;
+  /** Money-1 A3: the OWNER only (LESSONS 45) - what «Оплатить» pays the teacher, `amount` a sum or null with `reason` (`RATE_MISSING` | `NO_STUDENTS`) why it cannot be counted. */
+  moneyEstimate?: { amount: number | null; reason: string | null } | null;
   payrollSheet: DecisionPayrollSheet | null;
 }
 export interface OneOffDecisionsOut {
@@ -82,9 +87,11 @@ export interface OneOffDecisionsOut {
   items: OneOffDecisionItem[];
 }
 export type OneOffDecision = "pay" | "skip";
+/** Money-1 A3: `undo` takes the decision back (the lesson waits again) while the month of the teacher is open. */
+export type OneOffDecisionAction = OneOffDecision | "undo";
 export interface MoneyDecisionOut {
   lessonId: string;
-  money: "paid" | "none";
+  money: "paid" | "none" | "wait";
   payrollSheet: DecisionPayrollSheet | null;
 }
 
@@ -384,7 +391,7 @@ export const MONEY_RIGHT_TEXT = "Решение об оплате принима
 export const DECISION_PAY_LABEL = "Оплатить";
 export const DECISION_SKIP_LABEL = "Не оплачивать";
 export const DECISIONS_GROUP_TITLE = "Оплата дополнительных уроков";
-export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение принимается один раз.";
+export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение можно отменить, пока месяц преподавателя не закрыт.";
 /** An administrator without the right of money sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
 /** «2 урока ждут решения владельца» - the one row of an administrator without the right (it is information, not his task: #159 M2, U4). */
@@ -394,10 +401,45 @@ export function decisionsViewLine(count: number): string {
 }
 export const DECISION_PAY_NOTE = "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен.";
 export const DECISION_SKIP_NOTE = "Преподавателю за этот урок не заплатят.";
-export const DECISION_FINAL_NOTE = "Решение нельзя изменить.";
-/** The sentence of the window of a decision: what follows from it, and - for BOTH choices - that it is taken once. */
+export const DECISION_FINAL_NOTE = "Решение можно отменить, пока месяц преподавателя не закрыт.";
+/** The sentence of the window of a decision: what follows from it, and - for BOTH choices - that it can be taken back while the month is open. */
 export function decisionNote(decision: OneOffDecision): string {
   return `${decision === "pay" ? DECISION_PAY_NOTE : DECISION_SKIP_NOTE} ${DECISION_FINAL_NOTE}`;
+}
+
+/** The reasons the server cannot count the pay of the lesson (`moneyEstimate.reason`), in words. */
+const ESTIMATE_REASON_TEXT: Record<string, string> = {
+  RATE_MISSING: "Ставка преподавателя не задана — сумму посчитать нельзя",
+  NO_STUDENTS: "У урока нет учеников — суммы нет",
+};
+
+/**
+ * What «Оплатить» pays, said before the press (Money-1 A3, ЗП-07 / ЗПД-4): for how many students (the ones whose mark counts - «Не был» too) and - for the OWNER - about how much.
+ * Nothing for «Не оплачивать».  The server decides who sees the sum (`moneyEstimate` is absent for everybody but the owner); the screen only words it.
+ */
+export function decisionPayLines(item: Pick<OneOffDecisionItem, "studentsPaid" | "moneyEstimate">, decision: OneOffDecision): string[] {
+  if (decision !== "pay") return [];
+  const lines: string[] = [];
+  const paid = item.studentsPaid;
+  if (typeof paid === "number" && paid >= 0) lines.push(`Оплата — по числу учеников: ${paid}. В это число входят и отметки «Не был»`);
+  const estimate = item.moneyEstimate;
+  if (estimate) {
+    if (typeof estimate.amount === "number") lines.push(`Преподавателю ≈ ${formatMoney(estimate.amount)}`);
+    else if (estimate.reason && ESTIMATE_REASON_TEXT[estimate.reason]) lines.push(ESTIMATE_REASON_TEXT[estimate.reason]);
+  }
+  return lines;
+}
+
+// ── «Отменить решение» (Money-1 A3) ─────────────────────────────────────────────────────────────────────────
+export const UNDO_DECISION_LABEL = "Отменить решение об оплате";
+export const UNDO_DECISION_TITLE = "Отменить решение об оплате?";
+export const UNDO_DECISION_BUTTON = "Отменить решение";
+export const UNDO_DECISION_NOTE = "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах». Решить можно будет заново.";
+export const UNDO_DECISION_PAID_NOTE = "Сейчас урок оплачивается преподавателю: его сумма в ведомости изменится.";
+export const UNDO_DECISION_TOAST = "Решение отменено: урок снова ждёт решения";
+/** The decision of the lesson can be taken back: an additional lesson that was decided, by who has the money right; the server judges the month (409 `PERIOD_CLOSED`). */
+export function canUndoDecision(lesson: Pick<LessonPurposeFields, "purpose" | "money"> | null | undefined, moneyRight: boolean): boolean {
+  return moneyRight && lesson?.purpose === "extra" && (lesson.money === "paid" || lesson.money === "none");
 }
 export const DECISION_PAY_TOAST = "Преподавателю будет оплачено";
 export const DECISION_SKIP_TOAST = "Решено: без оплаты";

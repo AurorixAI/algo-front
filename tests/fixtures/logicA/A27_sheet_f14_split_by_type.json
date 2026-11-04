@@ -285,6 +285,7 @@
   "undecided_total": 0,
   "warnings": {
     "open_lessons": null,
+    "open_lesson_items": [],
     "pending_excused": 0,
     "no_fee": 0,
     "unpaid": 0,
@@ -305,6 +306,8 @@
     "balance": 330000,
     "state": "unpaid",
     "basis": "saved",
+    "changed_by": 0,
+    "change_text": null,
     "text": "Не выплачено",
     "items": [],
     "carry_in": 0,

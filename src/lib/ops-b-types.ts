@@ -106,6 +106,8 @@ export interface SaveAttendanceResult {
   /** Version of the lesson record after this write; send it back as `expectedVersion` of the next save. */
   version?: number;
   examSync?: ExamSync | null;
+  /** Money-1 A3: only the answer of a correction of a HELD lesson - what it did to the packs and the saved sheets (`lib/money-effects.ts`). */
+  moneyEffects?: unknown;
 }
 
 export interface AttendanceConflictDetail extends OpsErrorDetail {
@@ -138,6 +140,8 @@ export interface ArchiveBlocker {
   count: number;
   students?: Array<{ id: string; name: string; displayId?: string | null }> | null;
   lessons?: Array<{ lessonId: string; lessonDate: string; startTime?: string; endTime?: string; teacherName?: string | null }> | null;
+  /** Money-1 A6 (П8): `MISSED_LESSONS` only - what «Отменить их при архивации» does to money, said before the confirmation («за них не начислят ученикам и не заплатят преподавателям…»). */
+  cancelConsequence?: string | null;
   exams?: Array<{ examId: string; title: string; status: string; lessonDate?: string | null; blockerReason?: string | null }> | null;
 }
 
@@ -342,4 +346,19 @@ export interface RestoreLessonResult {
   /** «Экзамены, снятые с урока при его отмене, не вернутся — назначьте их заново» */
   examsNote?: string | null;
   warnings?: OpsWarning[];
+  /** Money-1 A2: a lesson that had begun («Урока не было» by mistake) went back to «Требует разбора», not to the schedule. */
+  returnedToReview?: boolean;
+  /** Money-1 A2: only with `returnedToReview` - the saved sheets of the teacher (`lib/money-effects.ts`). */
+  moneyEffects?: unknown;
+}
+
+/** Money-1 A2: the answer of «Вернуть урок» of a held lesson (and of its dry run). */
+export interface ReturnHeldLessonResult {
+  ok: boolean;
+  /** false: the lesson was not held any more (a repeat) or it is a dry run. */
+  changed: boolean;
+  dryRun?: boolean;
+  version: number;
+  status: "in_progress" | "completed";
+  moneyEffects?: unknown;
 }

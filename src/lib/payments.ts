@@ -354,6 +354,8 @@ export interface PaymentSaveResult {
   allocation?: AllocationSummary | null;
   warnings: PaymentWarning[];
   row: MembershipPaymentRow;
+  /** Money-1 A3: the saved payroll sheets this payment touches (`lib/money-effects.ts`); absent from an older server. */
+  money_effects?: unknown;
 }
 
 export interface PaymentsStatusList {
@@ -490,11 +492,14 @@ export interface WriteoffCreated {
   debt_before: number;
   debt_after: number;
   row: MembershipPaymentRow;
+  /** Money-1 A3: a forgiven debt is paid to the teacher - the sheets it moves (`lib/money-effects.ts`). */
+  money_effects?: unknown;
 }
 
 export interface WriteoffVoided {
   writeoff: WriteoffOut;
   row: MembershipPaymentRow;
+  money_effects?: unknown;
 }
 
 export interface RefundOut {
@@ -527,11 +532,13 @@ export interface RefundCreated {
   advance_before: number;
   advance_after: number;
   row: MembershipPaymentRow;
+  money_effects?: unknown;
 }
 
 export interface RefundVoided {
   refund: RefundOut;
   row: MembershipPaymentRow;
+  money_effects?: unknown;
 }
 
 /** `{detail: {code, message, debt?, refundable?, payment_id?}}` of the PAY-2 routes (kept on `ApiError.detail`). */

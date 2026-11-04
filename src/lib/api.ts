@@ -29,7 +29,7 @@ import type {
   SubstitutionRequestMark,
   SubstitutionSummary,
 } from "./substitution-types";
-import type { LessonPurposeFields, MakeupCandidates, MoneyDecisionOut, OneOffDecision, OneOffDecisionsOut, OneOffMoney } from "./one-off";
+import type { LessonPurposeFields, MakeupCandidates, MoneyDecisionOut, OneOffDecision, OneOffDecisionAction, OneOffDecisionsOut, OneOffMoney } from "./one-off";
 import { loginUrlForPage } from "./safe-redirect";
 import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
@@ -158,8 +158,10 @@ import type {
   RemoveMemberResult,
   RemovalImpact,
   RestoreLessonResult,
+  ReturnHeldLessonResult,
   SaveAttendanceResult,
 } from "./ops-b-types";
+import { normalizePeriods, type PayrollPeriods, type ReopenResult } from "./closed-period";
 
 /**
  * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
@@ -821,6 +823,8 @@ export interface AttendanceExcuseItem {
   decided_after_deadline?: boolean | null;
   /** The day the deadline was (YYYY-MM-DD) when the decision was made; null for a lessons package or when not known. */
   deadline_at_decision?: string | null;
+  /** Money-1 A3: only the answer of a decision / a reset (and of its dry run): the pack of the student and the saved sheets of the teacher (`lib/money-effects.ts`). */
+  money_effects?: unknown;
 }
 
 /** `billing_mode` of an excuse: a lessons package or a calendar period. */
@@ -952,11 +956,39 @@ export interface AttendanceExcuseInfo {
   deadline_at_decision?: string | null;
 }
 
+/** Money-1 A6: one mark changed by a correction («было → стало»); an absent mark is null. */
+export interface AttendanceMarkChange {
+  studentId: string;
+  from: string | null;
+  to: string | null;
+}
+
+/** Money-1 A6: an earlier correction or a return of a held lesson, newest first. */
+export interface AttendanceHistoryEvent {
+  kind: "corrected" | "returned";
+  by_name: string | null;
+  at: string | null;
+  reason: string | null;
+  changes: AttendanceMarkChange[];
+}
+
 /** Last correction of a completed lesson. */
 export interface AttendanceCorrectionInfo {
   by_name: string | null;
   at: string | null;
   reason: string | null;
+  /** Money-1 A6: WHAT the last correction changed, per student. */
+  changes?: AttendanceMarkChange[];
+  /** Money-1 A6: the corrections and returns before it. */
+  history?: AttendanceHistoryEvent[];
+}
+
+/** Money-1 A6: a lesson formalised afterwards («Оформить проведённый урок»). */
+export interface AttendanceBackdatedInfo {
+  by_name: string | null;
+  at: string | null;
+  /** Only when somebody other than the planned teacher was named. */
+  taught_by_name: string | null;
 }
 
 export interface GroupAttendance {
@@ -965,6 +997,8 @@ export interface GroupAttendance {
   excuses?: Record<string, Record<string, AttendanceExcuseInfo>>;
   /** lessonKey -> last correction. */
   corrections?: Record<string, AttendanceCorrectionInfo>;
+  /** Money-1 A6: lessonKey -> who formalised the lesson afterwards and when. */
+  backdated?: Record<string, AttendanceBackdatedInfo>;
   /** LOGIC-B (O7): lessonKey -> version of the lesson record; send it back as `expectedVersion`. */
   versions?: Record<string, number>;
   /** LOGIC-B (O5): lessonKey -> who teaches this lesson (a substitute or the group's teacher). */
@@ -1514,7 +1548,8 @@ export const orgApi = {
     api<MakeupCandidates>(`/auth/org/groups/${encodePathId(groupId)}/makeup-candidates`),
   /** #154 (owner / administrator): the additional lessons that wait for «Оплатить / Не оплачивать» (#159: a make-up never waits). */
   getOneOffDecisions: () => api<OneOffDecisionsOut>(`/auth/org/one-off-decisions`),
-  decideOneOffMoney: (lessonId: string, decision: OneOffDecision) =>
+  /** `undo` (Money-1 A3): takes the decision back while the month of the teacher is open. */
+  decideOneOffMoney: (lessonId: string, decision: OneOffDecisionAction) =>
     api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),
   reviseRecurringLesson: (
     lessonId: string,
@@ -1577,6 +1612,8 @@ export const orgApi = {
       expectedVersion?: number;
       /** LOGIC-B (O8): the person confirmed that an exam is still running (409 LESSON_HAS_LIVE_EXAM asked for it). */
       acknowledgeLiveExam?: boolean;
+      /** Money-1 A6: a finish where nobody is «Был» / «Опоздал» is a held lesson and is paid to the teacher: the person said yes (409 NOBODY_CAME asked for it). */
+      confirmNobodyCame?: boolean;
     }
   ) =>
     api<SaveAttendanceResult & { ok: boolean; saved: boolean }>(`/auth/org/groups/${encodePathId(groupId)}/attendance`, { method: "POST", body: data }),
@@ -1589,7 +1626,8 @@ export const orgApi = {
 
   reconcileMissedGroupAttendance: (
     groupId: string,
-    data: { lessonDate: string; lessonId: string; topic?: string },
+    // `taughtBy`: Money-1 A6 - who actually taught the lesson (the money right only; absent = the planned teacher)
+    data: { lessonDate: string; lessonId: string; topic?: string; taughtBy?: string },
   ) =>
     api<{ ok: boolean; reconciled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile`, { method: "POST", body: data }),
 
@@ -1602,6 +1640,13 @@ export const orgApi = {
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
   restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string }) =>
     api<RestoreLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/lessons/restore`, { method: "POST", body }),
+
+  /** Money-1 A2: «Вернуть урок» of a HELD lesson (completed -> not held); `dryRun`: only what it does to money.  Owner / administrator with the money right. */
+  returnHeldLesson: (groupId: string, body: { lessonDate: string; lessonId: string; reason: string; expectedVersion?: number; dryRun?: boolean }, signal?: AbortSignal) =>
+    api<ReturnHeldLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/attendance/return`, { method: "POST", body, signal }),
+  /** Money-1 A3: what a correction of the marks of a held lesson would do to money (writes nothing). */
+  attendanceCorrectionImpact: (groupId: string, body: { lessonDate: string; lessonId: string; records: Record<string, string> }, signal?: AbortSignal) =>
+    api<{ ok: boolean; moneyEffects: unknown }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/impact`, { method: "POST", body, signal }),
 
   // ── PAY-F: «Выходной день центра» (owner / admin) ───────────────────────
   previewDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo">) =>
@@ -1634,10 +1679,11 @@ export const orgApi = {
    * `expected_status` is the status the person SAW when deciding (optimistic concurrency): if somebody changed the excuse
    * meanwhile the server answers 409 `{code: "EXCUSE_CHANGED", message, item}` and writes nothing (see lib/excuse-conflict.ts).
    */
-  reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string; expected_status?: ExcuseReviewStatus }) =>
-    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review`, { method: "POST", body: data }),
-  resetAttendanceExcuse: (id: string, data?: { expected_status?: ExcuseReviewStatus }) =>
-    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset`, { method: "POST", ...(data ? { body: data } : {}) }),
+  /** `dryRun` (Money-1 A3): nothing is written, `money_effects` of the answer is the confirmation «что будет с деньгами». */
+  reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string; expected_status?: ExcuseReviewStatus }, options?: { dryRun?: boolean; signal?: AbortSignal }) =>
+    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review${options?.dryRun ? "?dry_run=true" : ""}`, { method: "POST", body: data, signal: options?.signal }),
+  resetAttendanceExcuse: (id: string, data?: { expected_status?: ExcuseReviewStatus }, options?: { dryRun?: boolean; signal?: AbortSignal }) =>
+    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset${options?.dryRun ? "?dry_run=true" : ""}`, { method: "POST", signal: options?.signal, ...(data ? { body: data } : {}) }),
   uploadAttendanceExcuseFile: (id: string, file: Blob, filename: string) =>
     uploadMultipart<AttendanceExcuseFile>(
       `/auth/org/attendance/excuses/${encodePathId(id)}/files`,
@@ -1702,7 +1748,7 @@ export const orgApi = {
       method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     }).then(normalizeSaveResult),
   voidPayment: (paymentId: string, reason: string) =>
-    api<{ payment: PaymentOut; row: MembershipPaymentRow }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
+    api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
       method: "POST", body: { reason },
     }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
   /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
@@ -1793,6 +1839,12 @@ export const orgApi = {
   /** Sets the rates of one teacher from the month `valid_from` (YYYY-MM); saved sheets do not change. Answers with his item. */
   putPayrollRates: (teacherId: string, body: PayrollRatesPutBody) =>
     api<PayrollRateItem>(`/auth/org/payroll/rates/${encodePathId(teacherId)}`, { method: "PUT", body }),
+  /** Money-1 A1: the state of the month of every teacher with a saved sheet (`open` | `closed` | `reopened`); the owner and the administrator read it. */
+  getPayrollPeriods: (month: string) =>
+    api<PayrollPeriods>(`/auth/org/payroll-periods?month=${encodeURIComponent(month)}`).then(normalizePeriods),
+  /** Money-1 A1: «Переоткрыть месяц» (the money right; a reason; a repeat answers `changed: false`). */
+  reopenPayrollPeriod: (month: string, body: { teacher_id: string; reason: string }) =>
+    api<ReopenResult>(`/auth/org/payroll-periods/${encodePathId(month)}/reopen`, { method: "POST", body }),
   /** Every rate ever set for the teacher, newest first. */
   getPayrollRateHistory: (teacherId: string) =>
     api<PayrollRateHistoryItem[]>(`/auth/org/payroll/rates/${encodePathId(teacherId)}/history`),
