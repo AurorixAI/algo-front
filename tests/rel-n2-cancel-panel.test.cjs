@@ -86,3 +86,17 @@ test("[RN2-7] the places of the panel: both uses on the lesson panel show it the
     assert.doesNotMatch(fs.readFileSync(path.join(harness.root, file), "utf8"), /<LessonCancelPanel/, `${file}: the screens use the shared panel`);
   }
 });
+
+test("[RN2-8] cancelShownInCard: the card shows «Урока не было» exactly where its state card has the button; elsewhere the row stays in the menu", () => {
+  const { cancelShownInCard } = require(path.join(harness.root, "src/lib/lesson-panel-view.ts"));
+  const base = { banner: "overdue", overviewShown: true, attendanceSaved: false, missedUnknown: false, missedAction: false };
+  const shown = (extra) => cancelShownInCard({ ...base, ...extra });
+  assert.equal(shown({}), true, "overdue");
+  assert.equal(shown({ attendanceSaved: true }), false, "overdue with the marks saved: the card has no buttons");
+  assert.equal(shown({ banner: "past" }), true, "past, no task");
+  assert.equal(shown({ banner: "past", missedAction: true }), false, "past with a task: «Разобрать»");
+  assert.equal(shown({ banner: "past", missedUnknown: true }), false, "past, the list unread: «Повторить»");
+  assert.equal(shown({ banner: "subsequent" }), true);
+  for (const banner of ["ready", "upcoming", "future", "started", "saved", "dirty", "completed", "cancelled", "tooOld"]) assert.equal(shown({ banner }), false, banner);
+  assert.equal(shown({ overviewShown: false }), false, "no state card (another teacher leads / loading / empty roster / marking)");
+});
