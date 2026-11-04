@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 
@@ -34,10 +34,14 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
   onBack: () => void;
 }) {
   const problem = reasonProblemFor("cancel", reason);
-  const [asked, setAsked] = useState(false);        // a short reason was sent, or the field was left
+  const hintId = useId();
+  const errorId = useId();
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const [typed, setTyped] = useState(false);            // something was typed (an empty field the focus left by itself - alt-tab, a tap aside - is not an error)
+  const [asked, setAsked] = useState(false);            // a short reason was sent, or the field was left after typing
   const showProblem = asked && Boolean(problem);
   const confirm = () => {
-    if (problem) { setAsked(true); return; }
+    if (problem) { setAsked(true); fieldRef.current?.focus(); return; }
     onConfirm();
   };
   return (
@@ -55,20 +59,25 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
       {!binding?.loading && binding && !binding.canCancel && (
         <p className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium leading-5 text-rose-800">{binding.message || "Отмена недоступна."}</p>
       )}
-      <textarea
-        autoFocus={autoFocus}
-        value={reason}
-        onChange={(event) => onReason(event.target.value)}
-        onBlur={() => setAsked(true)}
-        maxLength={REASON_LIMITS.cancel.max}
-        rows={3}
-        placeholder="Причина (обязательно)"
-        aria-label="Причина"
-        aria-invalid={showProblem || undefined}
-        aria-describedby={problem ? "lesson-cancel-reason-hint" : undefined}
-        className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
-      />
-      {problem && <p id="lesson-cancel-reason-hint" data-testid="reason-hint" role={showProblem ? "alert" : undefined} className={`text-xs ${showProblem ? "font-medium text-rose-700" : "text-slate-500"}`}>{problem}</p>}
+      <div>
+        <textarea
+          ref={fieldRef}
+          autoFocus={autoFocus}
+          value={reason}
+          onChange={(event) => { setTyped(true); onReason(event.target.value); }}
+          onBlur={() => { if (typed || reason) setAsked(true); }}
+          maxLength={REASON_LIMITS.cancel.max}
+          rows={3}
+          placeholder="Причина (обязательно)"
+          aria-label="Причина"
+          aria-invalid={showProblem || undefined}
+          aria-describedby={showProblem ? errorId : problem ? hintId : undefined}
+          className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
+        />
+        {problem && !showProblem && <p id={hintId} data-testid="reason-hint" className="mt-1.5 text-xs text-slate-600">{problem}</p>}
+        {/* the live region is in the page from the start, the text comes later: a screen reader announces the change */}
+        <p id={errorId} data-testid="reason-error" aria-live="polite" className={showProblem ? "mt-1.5 text-xs font-medium text-rose-700" : undefined}>{showProblem ? problem : null}</p>
+      </div>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onBack} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white">Назад</button>
         <button

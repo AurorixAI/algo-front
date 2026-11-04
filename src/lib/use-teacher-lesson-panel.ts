@@ -23,7 +23,7 @@ import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
   type LessonPanelSnapshot, type PanelLesson,
 } from "./lesson-panel-data";
-import { cancelShownInCard, lessonPanelBanner } from "./lesson-panel-view";
+import { cancelEntryPoint, lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
 import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
@@ -759,13 +759,14 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     : null;
   const allMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } });
   const cancelItem = allMenuItems.find((item) => item.key === "cancel") ?? null;
-  /** «Урока не было»: the state card shows it, or the menu does - never both (`cancelShownInCard`). */
-  const cancelCardItem = cancelItem && cancelShownInCard({
+  /** «Урока не было» has ONE road (`cancelEntryPoint`): the button of the state card, a row of the menu, or the dialog «Пропущенный урок» - never two of them. */
+  const cancelEntry = cancelEntryPoint({
     banner, overviewShown: !ledByOther && !loadingStudents && groupStudents.length > 0 && !isMarkingAttendance,
     attendanceSaved: isAttendanceSaved, missedUnknown: activeMissedUnknown, missedAction: Boolean(activeMissedAction),
-  }) ? cancelItem : null;
+  });
+  const cancelCardItem = cancelEntry === "card" ? cancelItem : null;
   /** The rows of the group «Этот урок» of the «⋯» menu: the teacher's own actions on the lesson. */
-  const lessonMenuItems = cancelCardItem ? allMenuItems.filter((item) => item !== cancelCardItem) : allMenuItems;
+  const lessonMenuItems = cancelItem && cancelEntry !== "menu" ? allMenuItems.filter((item) => item !== cancelItem) : allMenuItems;
 
   /** The Escape key: false when a layer of the panel (a conflict, a running exam, the move dialog) keeps it; closes the menu first. True when the key was used up. */
   const consumeEscape = (): boolean => {

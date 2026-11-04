@@ -387,7 +387,7 @@ scenario("C12e", "E-UX1 (R3): the lesson of another teacher has neither the card
   } finally { world2.restore(); }
 });
 
-scenario("C12f", "E-UX1 (R3): the way out of a past lesson / of a lesson after a later one is the same button «Урока не было» (not for a lesson with a task: «Разобрать»)", async ({ screen, world }) => {
+scenario("C12f", "E-UX1 (R3): the way out of a past lesson / of a lesson after a later one is the same button «Урока не было» (not for a lesson with a task: «Разобрать» opens the dialog with both outcomes)", async ({ screen, world }) => {
   world.openActions = [];
   let s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.ok(s.has(/Начать его нельзя: урок запускается только в день проведения\./));
@@ -401,10 +401,10 @@ scenario("C12f", "E-UX1 (R3): the way out of a past lesson / of a lesson after a
   try {
     s = await openPanel(screen, await startScreen(screen, world2), "past");
     assert.ok(s.hasButton(/Разобрать пропущенный урок/));
-    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "with a task the card has «Разобрать» (the dialog offers both outcomes); «Урока не было» stays in the menu");
-    menuItems(s).find((i) => i.key === "cancel").onSelect();
-    await s.settle();
-    assert.equal(s.opaque("LessonCancelPanel").length, 1, "the menu row opens the panel with the reason");
+    assert.deepEqual(cancelEntries(s), { menu: 0, card: 0 }, "with a task the card has «Разобрать»; the dialog offers both outcomes, so neither the card nor the menu repeats «Урока не было»");
+    await s.click(/Разобрать пропущенный урок/);
+    assert.ok(s.has(/Пропущенный урок/));
+    assert.ok(s.hasButton(/Урока не было/), "the way to the cancellation is the dialog");
   } finally { world2.restore(); }
 }, { only: ["schedule"] });
 
@@ -416,14 +416,17 @@ scenario("C12g", "E-UX1 (R3): a lesson after which another one was started has �
   assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 });
 });
 
-scenario("C12h", "E-UX1 (R3): the list of the server's tasks unread: «Повторить» and no «Урока не было» (it is not known whether the lesson is to be reconciled)", async ({ screen, world }) => {
+scenario("C12h", "E-UX1 (R3, REL-N2): the list of the server's tasks unread: «Повторить» and no «Урока не было» anywhere - neither the card nor the menu (it is not known whether the lesson is to be reconciled)", async ({ screen, world }) => {
   world.failNext.getOpenAttendanceActions = new Error("503");
   const s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.ok(s.has(/Не удалось проверить, нужно ли оформить урок\./));
   assert.ok(s.hasButton(/^Повторить$/));
   assert.equal(s.hasButton(/^Урока не было$/), false);
-  assert.equal(cancelEntries(s).menu, 1, "the card has no cancellation, so the row stays in the menu (as before)");
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 0 }, "no road to the cancellation until the list is read");
   assert.equal(s.has(/Начать его нельзя/), false, "one line");
+  world.failNext = {};
+  await s.click(/^Повторить$/);
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "read again, no task: the card");
 }, { only: ["schedule"] });
 
 scenario("C12j", "one action - one place: in every state the cancellation has exactly one entry (the card or the menu, never both); the «⋯» goes when nothing is left", async ({ screen, world }) => {
@@ -440,7 +443,7 @@ scenario("C12j", "one action - one place: in every state the cancellation has ex
   } finally { empty.restore(); }
 });
 
-scenario("C12k", "one action - one place, a past day: no task - the card; with a task - the menu (the card says «Разобрать»); the list unread - the menu (the card says «Повторить»)", async ({ screen, world }) => {
+scenario("C12k", "one road, a past day: no task - the card; with a task - the dialog «Разобрать»; the list unread - none until it is read (neither the card nor the menu)", async ({ screen, world }) => {
   world.openActions = [];
   let s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "no task");
@@ -449,15 +452,34 @@ scenario("C12k", "one action - one place, a past day: no task - the card; with a
   withTask.openActions = [withTask.openAction(LESSONS.past)];
   try {
     s = await openPanel(screen, await startScreen(screen, withTask), "past");
-    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "a task");
+    assert.deepEqual(cancelEntries(s), { menu: 0, card: 0 }, "a task: «Разобрать» is the road");
+    assert.ok(s.hasButton(/Разобрать пропущенный урок/));
   } finally { withTask.restore(); }
   const unread = createWorld();
   unread.failNext.getOpenAttendanceActions = new Error("503");
   try {
     s = await openPanel(screen, await startScreen(screen, unread), "past");
-    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "the list unread");
+    assert.deepEqual(cancelEntries(s), { menu: 0, card: 0 }, "the list unread");
   } finally { unread.restore(); }
 }, { only: ["schedule"] });
+
+scenario("C12n", "REL-N2 R3: the «⋯» menu that is open when it loses its last row (the roster was read, the card took «Урока не было») is closed with its button", async ({ screen, world }) => {
+  const gate = harness.deferred();
+  const s = await startScreen(screen, world);
+  world.hold.getGroupAttendance = gate;                       // the journal of the lesson (with its roster) is on its way
+  await s.click(s.clickable(new RegExp(GROUP_OF.over)));
+  await s.settle(2);
+  assert.equal(s.opaque("LessonActionsMenu").length, 1, "while it is read the row is in the menu");
+  await s.call(() => s.opaque("LessonActionsMenu")[0].props.onOpenChange(true));
+  assert.equal(s.opaque("LessonActionsMenu")[0].props.open, true);
+  gate.resolve();
+  await s.settle(8);
+  assert.ok(s.hasButton(/^Урока не было$/), "the roster read: the card took the row");
+  assert.equal(s.opaque("LessonActionsMenu").length, 0, "no «⋯»");
+  // the menu is not open behind the scenes: the first Escape closes the panel instead of being spent on an invisible menu
+  await s.press("Escape");
+  assert.equal(s.has(/Урок не был начат/), false, "the panel is closed by the first Escape");
+});
 
 scenario("C12l", "one action - one place: the «⋯» button is not shown when the card took the only row of the menu", async ({ screen, world }) => {
   // a lesson of today that passed: no move (the hour rule), no «Не смогу провести» (after the start) - the card took the last row

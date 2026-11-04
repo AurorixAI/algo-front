@@ -24,12 +24,12 @@ async function openPrevWeek(world, name) {
   return s;
 }
 
-test("[WN1] 7 days back: «Разобрать пропущенный урок» and «Урока не было» are offered", async () => {
+test("[WN1] 7 days back: «Разобрать пропущенный урок» is offered (the dialog holds «Урока не было»)", async () => {
   await run({ extra: [SEVEN] }, async (world) => {
     world.openActions = [world.openAction(SEVEN)];
     const s = await openPrevWeek(world, "Семь дней");
     assert.ok(s.hasButton(/Разобрать пропущенный урок/));
-    assert.ok(menuKeys(s).includes("cancel"));
+    assert.equal(menuKeys(s).includes("cancel"), false, "with a task the dialog offers both outcomes: one road (REL-N2)");
     assert.doesNotMatch(s.text(), /старше 7 дней/);
   });
 });

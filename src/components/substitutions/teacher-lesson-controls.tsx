@@ -97,6 +97,7 @@ export function LessonActionsMenu({ open, onOpenChange, groups }: { open: boolea
       <button
         type="button"
         ref={buttonRef}
+        data-lesson-menu-button
         onClick={() => onOpenChange(!open)}
         aria-label="Дополнительные действия с уроком"
         aria-haspopup="menu"

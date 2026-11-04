@@ -51,11 +51,18 @@ export function lessonPanelBanner(input: {
   return "ready";
 }
 
+/** Where the teacher starts «Урока не было» (given that he may cancel the lesson at all): the button of the state card, a row of the «⋯» menu, the dialog «Пропущенный урок» (after «Разобрать»), or nowhere yet. */
+export type CancelEntry = "card" | "menu" | "dialog" | "wait";
+
 /**
- * Does the state card of the overview show «Урока не было» itself (given that the teacher may cancel the lesson at all)?  ONE answer for the card and the «⋯» menu: what the card shows the menu does not repeat
- * (one action - one place on the screen), and where the card has no such button (a task «Разобрать», marking of the roster, an empty roster) the row stays in the menu.
+ * ONE answer for the card, the dialog and the «⋯» menu: a lesson has exactly one road to its cancellation (one action - one place).
+ *  - the state card has the button (overdue, past without a task, a later lesson started) - "card";
+ *  - past with a task of the server: «Разобрать» opens the dialog that already offers both outcomes - "dialog";
+ *  - past with the list of tasks unread: «Повторить»; we do not know yet whether the lesson is to be reconciled, so nothing is cancelled - "wait";
+ *  - everywhere else (no state card on the screen: an empty roster, the marking step; overdue with saved marks; a lesson in time that is the teacher's own one-off) - the menu row.
+ * Only "menu" keeps the row in the menu.
  */
-export function cancelShownInCard(input: {
+export function cancelEntryPoint(input: {
   banner: LessonPanelBanner;
   /** The overview with a state card is on the screen (not a lesson led by another, not loading, not an empty roster, not the marking step). */
   overviewShown: boolean;
@@ -64,9 +71,9 @@ export function cancelShownInCard(input: {
   /** «Past»: the list of the server's tasks could not be read ("Повторить" instead) / holds a task of this lesson ("Разобрать" instead). */
   missedUnknown: boolean;
   missedAction: boolean;
-}): boolean {
-  if (!input.overviewShown) return false;
-  if (input.banner === "overdue") return !input.attendanceSaved;
-  if (input.banner === "past") return !input.missedUnknown && !input.missedAction;
-  return input.banner === "subsequent";
+}): CancelEntry {
+  if (!input.overviewShown) return "menu";
+  if (input.banner === "overdue") return input.attendanceSaved ? "menu" : "card";
+  if (input.banner === "past") return input.missedUnknown ? "wait" : input.missedAction ? "dialog" : "card";
+  return input.banner === "subsequent" ? "card" : "menu";
 }

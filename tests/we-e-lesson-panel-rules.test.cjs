@@ -115,7 +115,7 @@ test("[R5] 7 days back the teacher still settles / cancels / marks, 8 days back 
     assert.equal(api.panel.lessonTooOld, false);
     assert.equal(api.panel.banner, "past");
     assert.ok(api.panel.activeMissedAction, "7 days: «Разобрать» is offered");
-    assert.ok(api.panel.lessonMenuItems.some((item) => item.key === "cancel"), "7 days: «Урока не было» is offered");
+    assert.equal(api.panel.lessonMenuItems.some((item) => item.key === "cancel"), false, "7 days with a task: «Разобрать» is the road (the dialog offers both outcomes), the menu does not repeat it");
     await api.open(eight);
     assert.equal(api.panel.lessonTooOld, true);
     assert.equal(api.panel.banner, "tooOld");
@@ -166,4 +166,23 @@ test("[R7] the lesson rebuilt from a task of the server: the day of the week of 
   assert.equal(lesson.occurrenceDate, PAST_DAY);
   assert.equal(lesson.topic, "Дроби");
   void FUTURE_DAY;
+});
+
+// ── REL-N2 R3: one road to «Урока не было» - the wiring of the hook (the screens cannot reach a state with saved flag and no marks, the hook can be put there) ──
+const SAVED_FLAG = "setIsAttendanceSaved(snapshot.isSaved);";
+test("[RN2-W1] overdue with the «saved» flag and no marks: the card has no buttons, so the row stays in the menu; without the flag the card takes it", async () => {
+  await probe(null, async (api) => {
+    await api.open(LESSONS.over);
+    assert.equal(api.panel.banner, "overdue");
+    assert.ok(api.panel.cancelCardItem, "the card takes the row");
+    assert.equal(api.panel.lessonMenuItems.some((item) => item.key === "cancel"), false);
+  });
+  const flagged = (source) => { assert.ok(source.includes(SAVED_FLAG), "the line to mutate found"); return source.replace(SAVED_FLAG, "setIsAttendanceSaved(true);"); };
+  await probe(flagged, async (api) => {
+    await api.open(LESSONS.over);
+    assert.equal(api.panel.isAttendanceSaved, true);
+    assert.equal(api.panel.banner, "overdue", "no marks: still the overdue banner");
+    assert.equal(api.panel.cancelCardItem, null, "the card shows no buttons for saved marks");
+    assert.equal(api.panel.lessonMenuItems.some((item) => item.key === "cancel"), true, "so the row stays in the menu: the lesson is not left without a road");
+  });
 });

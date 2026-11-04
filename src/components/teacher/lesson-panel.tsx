@@ -29,6 +29,7 @@ import { showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
 import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { roomLabel } from "@/lib/schedule-slots";
 import { timeRange } from "@/lib/schedule-plan";
+import { focusEntryAgain } from "@/lib/focus-entry";
 import { pluralRu } from "@/lib/payments";
 import { DAYS } from "@/lib/schedule-time";
 import type { AttendanceStatus } from "@/lib/api";
@@ -46,6 +47,7 @@ function CancelLessonButton({ item, busy }: { item: LessonMenuItem; busy: boolea
   return (
     <button
       type="button"
+      data-cancel-entry
       onClick={item.onSelect}
       disabled={busy}
       className={`${BANNER_ACTION_BASE} bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 disabled:cursor-not-allowed disabled:opacity-50`}
@@ -98,6 +100,9 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
       }] : [],
     }] : []),
   ];
+  const menuShown = Boolean((recurring?.canRevise || (activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson)) && menuGroups.some((group) => group.items.length > 0));
+  // the menu that loses its last row (the card took «Урока не было» when the roster was read) is closed with its button: no invisible menu that eats the first Escape
+  useEffect(() => { if (!menuShown && isLessonMenuOpen) setIsLessonMenuOpen(false); }, [menuShown, isLessonMenuOpen, setIsLessonMenuOpen]);
 
   // The keyboard and the focus of the windows (shared with `Modal`): Tab stays inside the topmost window, the focus goes to the lesson window when it opens
   // and returns to the card that opened it.  Escape stays with the screen (`consumeEscape` first: a layer of the panel keeps the key), so the layers get a no-op for it.
@@ -179,6 +184,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                         <span className="mt-1 block text-xs font-medium text-emerald-100">Откроется журнал посещаемости за эту дату</span>
                       </button>
                       <button
+                        data-cancel-entry
                         type="button"
                         disabled={isResolvingMissedLesson}
                         onClick={() => {
@@ -200,7 +206,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                       onReason={setMissedLessonCancellationReason}
                       busy={isResolvingMissedLesson}
                       onConfirm={() => void handleCancelMissedLesson()}
-                      onBack={() => { setIsCancellingMissedLesson(false); setMissedLessonCancellationReason(""); setMissedLessonError(null); }}
+                      onBack={() => { setIsCancellingMissedLesson(false); setMissedLessonCancellationReason(""); setMissedLessonError(null); focusEntryAgain(missedRef.current, ["[data-cancel-entry]"]); }}
                     />
                   )}
                 </div>
@@ -736,7 +742,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     onReason={setCancellationReason}
                     busy={savingAttendance}
                     onConfirm={() => void handleCancelLesson()}
-                    onBack={() => { setIsCancellingLesson(false); setCancellationReason(""); setLessonExamBinding(null); }}
+                    onBack={() => { setIsCancellingLesson(false); setCancellationReason(""); setLessonExamBinding(null); focusEntryAgain(panelRef.current, ["[data-cancel-entry]", "[data-lesson-menu-button]"]); }}
                   />
                 )}
 
@@ -769,7 +775,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                       ) : null
                     )}
 
-                    {(recurring?.canRevise || (activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson)) && menuGroups.some((group) => group.items.length > 0) && (
+                    {menuShown && (
                       <LessonActionsMenu open={isLessonMenuOpen} onOpenChange={setIsLessonMenuOpen} groups={menuGroups} />
                     )}
                   </div>
