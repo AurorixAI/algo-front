@@ -49,6 +49,8 @@ import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/ce
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
+import { effectLines, moneyEffectsOf } from "@/lib/money-effects";
+import { DivisorEffects } from "@/components/payroll/divisor-effects";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
 import { formatBusinessDate } from "@/lib/business-time";
 import { monthOfDate as payrollMonthOf, rateMonthOptions } from "@/lib/payroll";
@@ -219,6 +221,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
   /** F7: the divisor acts from the 1st of a month (`YYYY-MM`; `2020-01` = from the very start); the current month by default. */
   const [validFrom, setValidFromState] = useState(() => payrollMonthOf(formatBusinessDate()));
   const [save, setSave] = useState<SaveState>(IDLE_SAVE);
+  const [effects, setEffects] = useState<string[]>([]);      // Money-1 A3: the saved sheets the new divisor moves
   const touched = useRef(false);
 
   useEffect(() => {
@@ -241,7 +244,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
 
   const change = (value: string) => {
     touched.current = true;
-    setSave(IDLE_SAVE);
+    setSave(IDLE_SAVE); setEffects([]);
     setText(value.replace(/\D/g, "").slice(0, 2));
   };
   const setValidFrom = (month: string) => { touched.current = true; setSave(IDLE_SAVE); setValidFromState(month); };
@@ -254,6 +257,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
       const updated = await orgApi.setPayrollDivisor(buildDivisorBody(parsed.value, validFrom));
       setLoaded(updated);
       setText(String(updated.divisor));
+      setEffects(effectLines(moneyEffectsOf(updated), { done: true }).map((line) => line.text));
       setSave({ saving: false, saved: true, error: null });
       setTimeout(() => setSave((previous) => ({ ...previous, saved: false })), 3000);
     } catch (e: any) {
@@ -261,7 +265,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
     }
   };
 
-  return { status, loaded, text, save, change, submit, validFrom, setValidFrom, retry: () => setAttempt((n) => n + 1) };
+  return { status, loaded, text, save, effects, change, submit, validFrom, setValidFrom, retry: () => setAttempt((n) => n + 1) };
 }
 
 type PayrollSettingsDraft = ReturnType<typeof usePayrollSettingsDraft>;
@@ -611,6 +615,7 @@ function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
       {draft.save.error && (
         <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{draft.save.error}</p>
       )}
+      <DivisorEffects lines={draft.effects} />
     </SettingsSection>
   );
 }

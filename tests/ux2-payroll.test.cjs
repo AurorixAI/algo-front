@@ -212,8 +212,8 @@ test("the card status: unsaved edits, not saved yet, changed data with the diffe
   const card = (input) => { const status = R.sheetCardStatus(input); return { ...status, text: plain(status.text) }; };
   assert.deepEqual(card(base), { tone: "saved", text: "Сохранено 16.10.2026 в 08:56", action: null });
   assert.deepEqual(R.sheetCardStatus({ ...base, saved: false, updatedAt: null }), { tone: "preview", text: "Не сохранено", action: "save" });
-  assert.deepEqual(card({ ...base, stale: true, delta: -16666 }), { tone: "changed", text: "После сохранения изменились данные: −16 666 сум", action: "recalculate" });
-  assert.equal(plain(R.sheetCardStatus({ ...base, stale: true, delta: 4000 }).text), "После сохранения изменились данные: +4 000 сум");
+  assert.deepEqual(card({ ...base, stale: true, delta: -16666 }), { tone: "changed", text: "После сохранения ведомость изменилась на −16 666 сум", action: "recalculate" });
+  assert.equal(plain(R.sheetCardStatus({ ...base, stale: true, delta: 4000 }).text), "После сохранения ведомость изменилась на +4 000 сум");
   assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: 0 }).text, "После сохранения изменились данные, сумма та же");
   assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: null }).text, "После сохранения изменились данные");
   // unsaved edits come first: the floating bar saves them, the card has no button then
@@ -392,13 +392,13 @@ test("the card renders: the total big, one line of facts, the status and ONE mai
   assert.match(saved, /data-testid="payroll-total"/);
   assert.equal(R.sheetMonthNote(true), "месяц ещё идёт, расчёт предварительный");
   assert.equal(R.sheetMonthNote(false), null);
-  assert.ok(!/(Пересчитать|>Сохранить<)/.test(saved), "a saved sheet has no main button");
+  assert.ok(!/(Пересохранить|Пересчитать|>Сохранить<)/.test(saved), "a saved sheet has no main button");
   const changed = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: -16666 }), {
     diff: { sheet_id: "s", revision: 2, stale: true, saved_total: 1, fresh_total: 0, delta_amount: -16666, reasons: ["ставка 50% → 45%"], lines: [] },
   })));
-  assert.ok(textOf(changed).includes("После сохранения изменились данные: −16 666 сум"));
+  assert.ok(textOf(changed).includes("После сохранения ведомость изменилась на −16 666 сум"));
   assert.equal((changed.match(/bg-primary-600/g) || []).length, 1, "exactly one main button");
-  assert.match(changed, /Пересчитать/);
+  assert.match(changed, /Пересохранить/);
   assert.ok(textOf(changed).includes("Что изменилось"));
   assert.match(changed, /border-amber-200/);
   // a calculation not saved yet: «Сохранить» with the note, no Excel (there is no file yet)
@@ -462,7 +462,7 @@ test("«Сотрудники»: the rate line, «Изменить ставку»
   assert.match(page, /orgApi\.getPayrollRates\(today\.slice\(0, 7\)\)/);
   assert.match(page, /Изменить ставку/);
   assert.match(page, /rateItemLine\(rates\[m\.user_id \|\| m\.id\]\)/);
-  assert.match(page, /showToast\("Ставка сохранена"\)/);
+  assert.match(page, /showToast\("Ставка сохранена", note\.tone, note\.details\)/);          // Money-1 A3: + the sheets the rate moves
   assert.match(page, /router\.replace\("\/owner\/teachers"/); // closing the dialog cleans the address
   assert.match(page, /openedFromLink/); // once per link: saving does not bring the dialog back
   const dialog = read("src/components/payroll/rate-dialog.tsx");

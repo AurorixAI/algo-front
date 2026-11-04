@@ -48,7 +48,9 @@ import {
   type SheetEdits,
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
+import { periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
+import { openLessonsGate } from "@/lib/payroll-open-lessons";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChangeLine, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { askConfirm } from "@/lib/confirm-dialog";
@@ -59,6 +61,8 @@ import { TableHeader } from "@/components/attendance/table-chrome";
 import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
+import { PeriodChip } from "./period-chip";
+import { confirmUnfinishedLessons } from "./confirm-open-lessons";
 import { SheetSummaryCard } from "./sheet-summary";
 import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, WarningLinks, usePrintWithDates } from "./sheet-controls";
 
@@ -114,6 +118,8 @@ function PayrollMonthContent() {
   const { showToast, toastNode } = useToast();
 
   const [overview, setOverview] = useState<PayrollMonthOverview | null>(null);
+  /** Money-1 A1: the state of the month of each teacher with a saved sheet; null when it could not be read (the rows then say nothing about it). */
+  const [periods, setPeriods] = useState<PayrollPeriods | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<Failure | null>(null);
   /** The teachers being calculated (a row's button or «Рассчитать всех»): their buttons wait. */
@@ -135,12 +141,16 @@ function PayrollMonthContent() {
   /** `silent`: refresh the table in place (after a save) without the spinner. */
   const load = useCallback(async (silent = false) => {
     const token = loads.current.next();
-    if (!silent) { setLoading(true); setOverview(null); }
+    if (!silent) { setLoading(true); setOverview(null); setPeriods(null); }
     setFailure(null);
     try {
-      const data = await orgApi.getPayrollMonth(month);
+      const [data, state] = await Promise.all([
+        orgApi.getPayrollMonth(month),
+        orgApi.getPayrollPeriods(month).catch(() => null),
+      ]);
       if (!loads.current.isCurrent(token)) return;
       setOverview(data);
+      setPeriods(state);
     } catch (cause) {
       if (!loads.current.isCurrent(token)) return;
       if (silent) showToast(payrollErrorText(cause as PayrollErrorLike), "error");
@@ -250,6 +260,14 @@ function PayrollMonthContent() {
     if (!preview || preview.saving) return;
     const existing = teachers.find((teacher) => teacher.teacher_id === teacherId)?.sheet ?? null;
     const requestedMonth = month;
+    // Money-1 I-4: the save of a month that is over closes it - the unfinished lessons (or «не удалось проверить») are named first
+    const warnings = preview.sheet.warnings;
+    if (!(await confirmUnfinishedLessons(openLessonsGate({
+      monthOpen: preview.sheet.month_open,
+      openLessons: warnings.open_lessons,
+      unknown: warnings.open_lessons === null,
+      items: warnings.open_lesson_items,
+    })))) return;
     patchPreview(teacherId, { saving: true, error: null, rateMissing: null });
     try {
       const saved = await orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null));
@@ -437,6 +455,7 @@ function PayrollMonthContent() {
                   key={teacher.teacher_id}
                   teacher={teacher}
                   month={month}
+                  period={periodView(periodOf(periods, teacher.teacher_id))}
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
@@ -585,11 +604,13 @@ function PreviewBody({
  * ONE status chip and ONE button by the status.  A phone gets the same as a card.
  */
 export function TeacherRow({
-  teacher, month, busy, onCalculate, onOpen,
+  teacher, month, period = null, busy, onCalculate, onOpen,
 }: {
   teacher: PayrollMonthTeacher;
   /** The month of the page: «Указать» opens the rate dialog with it. */
   month: string;
+  /** Money-1 A1: the state of this teacher's month («Месяц закрыт» / «переоткрыт» / «открыт»); null: the teacher has no saved sheet or the state could not be read. */
+  period?: PeriodView | null;
   busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
@@ -597,6 +618,7 @@ export function TeacherRow({
 }) {
   const status = sheetStatus(teacher.sheet);
   const chip = payoutChip(normalizePayoutState(teacher.payout));
+  const change = payoutChangeLine(normalizePayoutState(teacher.payout));
   const action = rowAction(teacher.sheet);
   const rate = monthRateSummary(teacher);
   const warnings = warningViews(teacher.warnings);
@@ -644,10 +666,13 @@ export function TeacherRow({
         ) : (
           <span className="text-slate-400">—</span>
         )}
+        {/* Money-1 A1b: the payout stands by the saved sum; a change of the data after the saving is said here and cleared by «Пересохранить» on the sheet */}
+        {change && <p data-testid="payout-change" title={change.title ?? undefined} className="mt-1 text-xs font-medium text-amber-800">{change.text}</p>}
       </div>
 
-      <div className="mt-2 min-w-0 xl:mt-0 xl:text-center">
+      <div className="mt-2 min-w-0 space-y-1 xl:mt-0 xl:text-center">
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
+        {period && <div><PeriodChip view={period} /></div>}
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 xl:mt-0 xl:justify-center">

@@ -645,7 +645,7 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(sheetPage, /usePrintWithDates\(\)/);
   assert.match(sheetPage, /isRevisionConflict/);
   assert.match(sheetPage, /size: A4 landscape/);
-  assert.match(read("src/components/payroll/sheet-summary.tsx"), /Пересчитать/);
+  assert.match(read("src/components/payroll/sheet-summary.tsx"), /RESAVE_LABEL/);          // Money-1 A1b: «Пересохранить» (it was «Пересчитать»)
   assert.match(read("src/components/payroll/sheet-controls.tsx"), /window\.print\(\)/);
   // a window.print() page hides the chrome
   assert.match(read("src/app/owner/layout.tsx"), /print:ml-0 print:p-0/);

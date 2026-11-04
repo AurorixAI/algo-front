@@ -80,8 +80,12 @@ export interface PayoutState {
   /** target − paid: positive «доплатить», negative «переплачено». */
   balance: number;
   state: PayoutStateKind;
-  /** `fresh`: the sheet is out of date, the target is the fresh total. */
+  /** Money-1 A1b: always `saved` - the payout is by the SAVED total of the sheet (the field stays for older answers: `fresh` = the target was the fresh total). */
   basis: "fresh" | "saved";
+  /** Money-1 A1b: fresh total − saved total (0: the sheet is up to date or cannot be counted); the payout does not move, the sheet says «изменилась на ±N» and waits for «Пересохранить». */
+  changed_by: number;
+  /** The sentence of the server for `changed_by` («После сохранения ведомость изменилась на +125 000. Пересохраните ведомость, чтобы учесть»); null without a change. */
+  change_text: string | null;
   /** The sentence of the server (spec §5.8). */
   text: string;
   /** Live and cancelled, the oldest first. */
@@ -145,6 +149,8 @@ export function normalizePayoutState(raw: Partial<PayoutState> | null | undefine
     balance: num(raw.balance),
     state: kind,
     basis: raw.basis === "fresh" ? "fresh" : "saved",
+    changed_by: num(raw.changed_by),
+    change_text: typeof raw.change_text === "string" && raw.change_text.trim() ? raw.change_text.trim() : null,
     text: String(raw.text ?? ""),
     items,
     carry_in: num(raw.carry_in),
@@ -166,8 +172,8 @@ export interface PayoutChip {
 }
 
 /**
- * The chip of the «Выплата» column: «Не выплачено» / «Выплачено 475 000 из 600 000» / «Доплатить 125 000» (the sheet is out of date) /
- * «Выплачено полностью» / «Переплачено 125 000».  null while the teacher has no saved sheet (nothing to pay yet).
+ * The chip of the «Выплата» column: «Не выплачено» / «Выплачено 475 000 из 600 000» / «Выплачено полностью» / «Переплачено 125 000».  The payout is by the SAVED total of
+ * the sheet (Money-1 A1b): a change of the data after the saving is the line `payoutChangeText`, never a different target.  null while the teacher has no saved sheet.
  */
 export function payoutChip(state: PayoutState | null | undefined): PayoutChip | null {
   if (!state) return null;
@@ -177,9 +183,7 @@ export function payoutChip(state: PayoutState | null | undefined): PayoutChip | 
     case "overpaid":
       return { text: `Переплачено ${formatMoney(Math.abs(state.balance))}`, tone: "over" };
     case "due":
-      return state.basis === "fresh"
-        ? { text: `Доплатить ${formatMoney(Math.max(0, state.balance))}`, tone: "due" }
-        : { text: `Выплачено ${formatMoney(state.paid)} из ${formatMoney(state.target)}`, tone: "due" };
+      return { text: `Выплачено ${formatMoney(state.paid)} из ${formatMoney(state.target)}`, tone: "due" };
     default:
       return { text: "Не выплачено", tone: "none" };
   }
@@ -199,9 +203,8 @@ function monthPayoutParts(month: string, teachers: ReadonlyArray<{ payout?: Payo
   const paid = states.reduce((total, state) => total + state.paid, 0);
   const due = states.reduce((total, state) => total + Math.max(0, state.balance), 0);
   const over = states.reduce((total, state) => total + Math.max(0, -state.balance), 0);
-  const stale = states.some((state) => state.basis === "fresh" && state.balance > 0);
   const tail = [`выплачено ${formatMoney(paid)}`];
-  if (due > 0 && paid > 0) tail.push(`${stale ? "доплатить" : "осталось выплатить"} ${formatMoney(due)}`);
+  if (due > 0 && paid > 0) tail.push(`осталось выплатить ${formatMoney(due)}`);
   if (over > 0) tail.push(`переплачено ${formatMoney(over)}`);
   return { head: `К выплате за ${monthNameRu(month).toLowerCase()}: ${formatMoney(target)}`, tail };
 }
@@ -229,21 +232,36 @@ export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{
     ...(state.carry_used > 0 ? [{ label: "Аванс прошлого месяца", value: formatMoney(state.carry_used), tone: "plain" as const }] : []),
     { label: "Выплачено", value: formatMoney(state.paid), tone: "plain" },
   ];
-  if (state.balance > 0 && state.paid > 0) parts.push({ label: state.basis === "fresh" ? "Доплатить" : "Осталось выплатить", value: formatMoney(state.balance), tone: "due" });
-  else if (state.balance > 0) parts.push({ label: "Осталось выплатить", value: formatMoney(state.balance), tone: "due" });
+  if (state.balance > 0) parts.push({ label: "Осталось выплатить", value: formatMoney(state.balance), tone: "due" });
   else if (state.balance < 0) parts.push({ label: "Переплачено", value: formatMoney(-state.balance), tone: "over" });
   return parts;
 }
 
 /**
  * The server's sentence under the figures, only when it says what the chip and the figures do not (rel-b3 walk: «Переплачено 25 000» stood
- * three times): a month the advance closed whole, or a sheet the changed data made stale.
+ * three times): a month the advance of the earlier months closed whole.
  */
 export function payoutNote(state: PayoutState | null | undefined): string | null {
   if (!state || !state.text) return null;
-  const closedByAdvance = state.state === "settled" && state.paid === 0 && state.carry_used > 0;
-  const stale = state.basis === "fresh" && state.balance > 0 && state.paid > 0;
-  return closedByAdvance || stale ? state.text : null;
+  return state.state === "settled" && state.paid === 0 && state.carry_used > 0 ? state.text : null;
+}
+
+/** Money-1 A1b: the one button of a sheet whose data moved after the saving (it was «Пересчитать»): the new version holds the fresh numbers. */
+export const RESAVE_LABEL = "Пересохранить";
+
+/**
+ * Money-1 A1b: the data of a saved sheet moved after the saving (a late payment, a mark corrected): «изменилось на +125 000».  The payout does not move with it - the sheet
+ * waits for «Пересохранить».  0 / absent: nothing to say.
+ */
+export function payoutChangedBy(state: Pick<PayoutState, "changed_by"> | null | undefined): number {
+  return state?.changed_by ?? 0;
+}
+
+/** The short line of the month list under the payout chip: «изменилось на +125 000» (the long sentence of the server is its tooltip). */
+export function payoutChangeLine(state: Pick<PayoutState, "changed_by" | "change_text"> | null | undefined): { text: string; title: string | null } | null {
+  const delta = payoutChangedBy(state);
+  if (delta === 0) return null;
+  return { text: `изменилось на ${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`, title: state?.change_text ?? null };
 }
 
 // ── The form «Отметить выплату» ─────────────────────────────────────────────
@@ -419,6 +437,8 @@ export interface PayrollSettingsFull {
   updated_by?: string | null;
   updated_at?: string | null;
   history?: DivisorRow[];
+  /** Money-1 A3: only the answer of a change - the saved sheets from `valid_from` that now differ from what was saved (`lib/money-effects.ts`). */
+  money_effects?: unknown;
 }
 
 export const DIVISOR_HELP = "Старые месяцы не меняются. Ведомости, рассчитанные с другим делителем, покажут «Есть изменения».";

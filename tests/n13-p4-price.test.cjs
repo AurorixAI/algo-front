@@ -418,7 +418,7 @@ test("each status of a teacher's month has a short explanation", () => {
   const stale = H.statusHint({ revision: 3, stale: true });
   assert.match(stale, /версия 3/);
   assert.match(stale, /изменились посещаемость, оплаты, подтверждения пропусков, цены или ставка/);
-  assert.match(stale, /«Пересчитать»/);
+  assert.match(stale, /«Пересохранить»/);          // Money-1 A1b
   assert.equal(new Set([none, saved, stale]).size, 3);
   assert.deepEqual(H.savedRevisionLine(2).text, "Уже сохранена: версия 2. Новое сохранение создаст версию 3.");
   assert.match(H.savedRevisionLine(2).hint, /Прежняя версия останется в истории/);

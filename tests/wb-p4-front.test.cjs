@@ -97,8 +97,8 @@ test("the server's sentence shows only when it adds to the chip and the figures"
   assert.equal(Y.payoutNote({ ...base, paid: 75000, balance: 75000, state: "due", text: "Выплачено 75 000 из 150 000 · осталось 75 000" }), null);
   assert.equal(Y.payoutNote({ ...base, paid: 0, balance: 0, state: "settled", carry_used: 150000, text: "Закрыто авансом прошлого месяца 150 000" }),
     "Закрыто авансом прошлого месяца 150 000");
-  assert.equal(Y.payoutNote({ ...base, paid: 75000, balance: 100000, state: "due", basis: "fresh", text: "Выплачено 75 000 · после изменений данных доплатить 100 000" }),
-    "Выплачено 75 000 · после изменений данных доплатить 100 000");
+  // Money-1 A1b: the payout is by the SAVED total; a change of the data after the saving is the line `payoutChangeLine` (month row) and the card's «Пересохранить» - the note under the figures stays silent
+  assert.equal(Y.payoutNote({ ...base, paid: 75000, balance: 75000, state: "due", changed_by: 100000, change_text: "После сохранения ведомость изменилась на +100 000. Пересохраните ведомость, чтобы учесть", text: "Выплачено 75 000 из 150 000 · осталось 75 000" }), null);
   assert.equal(Y.payoutNote(null), null);
 });
 

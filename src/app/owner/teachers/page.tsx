@@ -12,6 +12,7 @@ import { rateItemLine, type PayrollRateItem } from "@/lib/payroll";
 import { Users, Plus, Send, AlertCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, RotateCcw, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { toastWithEffects } from "@/lib/money-effects";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { StaffAccessMenu } from "@/components/staff/staff-access-menu";
@@ -559,7 +560,8 @@ function OwnerTeachersContent() {
         onSaved={(saved) => {
           setRates((previous) => ({ ...previous, [saved.teacher_id]: saved }));
           closeRateDialog();
-          showToast("Ставка сохранена");
+          const note = toastWithEffects(saved);
+          showToast("Ставка сохранена", note.tone, note.details);
         }}
       />
       {toastNode}

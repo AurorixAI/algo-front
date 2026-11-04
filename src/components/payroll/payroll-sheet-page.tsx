@@ -36,6 +36,7 @@ import {
   type RatesNow,
   type SheetEdits,
 } from "@/lib/payroll";
+import { periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
@@ -43,6 +44,9 @@ import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
+import { ReopenMonthDialog } from "./reopen-month-dialog";
+import { confirmUnfinishedLessons } from "./confirm-open-lessons";
+import { openLessonsGate } from "@/lib/payroll-open-lessons";
 import { PayrollPageMenu } from "./month-status";
 import { SheetPayoutBlock } from "./payout-block";
 import { PayrollSheetTable } from "./sheet-table";
@@ -112,6 +116,9 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
    */
   const [freshWarnings, setFreshWarnings] = useState<PayrollMonthWarnings | null>(null);
   const [warningsFailed, setWarningsFailed] = useState(false);
+  /** Money-1 A1: is the month of this teacher closed / reopened (null while unknown or when the list could not be read: the sheet then says nothing about it). */
+  const [period, setPeriod] = useState<PayrollPeriodItem | null>(null);
+  const [reopening, setReopening] = useState(false);
 
   const loads = useRef(createRequestSequence());
   const diffs = useRef(createRequestSequence());
@@ -195,8 +202,11 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   // The rate in force in the month of this sheet, read again after every save / recalculation (a quiet failure: the card just says nothing)
   const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
   useEffect(() => {
-    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); return undefined; }
+    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); setPeriod(null); return undefined; }
     let cancelled = false;
+    orgApi.getPayrollPeriods(sheet.month)
+      .then((answer) => { if (!cancelled) setPeriod(periodOf(answer, sheet.teacher_id)); })
+      .catch(() => { if (!cancelled) setPeriod(null); });
     orgApi.getPayrollMonth(sheet.month)
       .then((overview) => {
         if (cancelled) return;
@@ -239,6 +249,13 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       setDataChanged({ message: FINGERPRINT_REQUIRED_TEXT, fingerprint: null, acknowledged: false, actionLabel: "Проверить данные" });
       return;
     }
+    // Money-1 I-4: any save of a month that is over closes it - the unfinished lessons of the month (or «не удалось проверить») are named first
+    if (!(await confirmUnfinishedLessons(openLessonsGate({
+      monthOpen: sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate()),
+      openLessons: freshWarnings?.open_lessons,
+      unknown: warningsFailed || freshWarnings?.open_lessons_unknown === true,
+      items: freshWarnings?.open_lesson_items,
+    })))) return;
     setSaving(true);
     setSaveError(null);
     setRateMissing(null);
@@ -246,7 +263,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: fingerprint }));
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
-        `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
+        `${recalculate ? "Ведомость пересохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
       );
       loads.current.next();
       setDataChanged(null);
@@ -296,7 +313,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       stale: diff ? diff.stale : sheet.stale,
       dirty,
       updatedAt: sheet.updated_at,
-      delta: diff?.stale ? diff.delta_amount : null,
+      // the diff when it is read; else what the payout state says the data moved by (Money-1 A1b: the same number from the server)
+      delta: diff?.stale ? diff.delta_amount : (sheet.payout?.changed_by ? sheet.payout.changed_by : null),
     })
     : null;
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
@@ -402,6 +420,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 diff={diff}
                 ratesNow={ratesNow}
                 warnings={warningsFailed ? undefined : freshWarnings}
+                period={periodView(period)}
+                onReopen={period && sheet.id ? () => setReopening(true) : undefined}
                 onPrimary={() => void apply(true)}
                 onExcel={() => void download()}
                 exporting={exporting}
@@ -441,6 +461,15 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
           )}
         </>
       ) : null}
+      <ReopenMonthDialog
+        target={reopening && sheet && period ? { month: sheet.month, teacherId: sheet.teacher_id, teacherName: sheet.teacher_name } : null}
+        onClose={() => setReopening(false)}
+        onReopened={(result) => {
+          setReopening(false);
+          setPeriod((current) => (current ? { ...current, state: result.state, closedOn: result.closedOn, reopened: result.reopened } : current));
+          showToast(reopenToast(result));
+        }}
+      />
       {toastNode}
     </div>
   );

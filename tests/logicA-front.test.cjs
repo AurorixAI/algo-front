@@ -190,9 +190,12 @@ test("opening balance fixtures: the impact in words, the card line, the void", (
 
 test("pause: the form, the server's calculation, the warnings, the chip and the end of a pause (G-PAUSE)", () => {
   const today = "2026-10-21";
-  assert.equal(G.pauseEarliest(today), "2026-09-21");
+  // Money-1 A1: the 30 days of the pause are gone - the closed month of the teacher is the one rule (the server: 422 PAUSE_LOCKED), so the form lets a backdated start through
+  assert.equal(G.pauseEarliest, undefined);
+  assert.equal(G.PAUSE_BACKDATE_DAYS, undefined);
   assert.equal(G.validatePause({ first: "2026-10-20", last: "2026-10-24", reason: "" }, today), null);
-  assert.match(G.validatePause({ first: "2026-09-01", last: "2026-10-24", reason: "" }, today), /не раньше чем 30 дней назад/);
+  assert.equal(G.validatePause({ first: "2026-09-01", last: "2026-10-24", reason: "" }, today), null);
+  assert.equal(G.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц преподавателя не закрыт ведомостью");
   assert.match(G.validatePause({ first: "2026-10-24", last: "2026-10-20", reason: "" }, today), /раньше, чем начинается/);
   assert.match(G.validatePause({ first: "2026-10-20", last: "2028-01-01", reason: "" }, today), /не длиннее 366 дней/);
   assert.equal(G.pauseDays("2026-10-20", "2026-10-24"), 5);
@@ -352,30 +355,46 @@ test("billing mode: «Новый режим начнёт действовать 
 test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () => {
   const unpaid = Y.normalizePayoutState(named("A28_"));
   const due = Y.normalizePayoutState(named("A21_"));
-  const over = Y.normalizePayoutState(named("A24_"));
+  const lower = Y.normalizePayoutState(named("A24_"));      // the data FELL by 125 000 after the saving: the payout still stands by the saved 600 000
+  // an overpaid month (a payout above the saved sum was confirmed as an advance)
+  const over = { ...lower, state: "overpaid", target: 350000, saved_total: 350000, balance: -125000, changed_by: 0, change_text: null, text: "Переплачено 125 000" };
   assert.equal(Y.payoutChip(unpaid).text, "Не выплачено");
-  assert.equal(plain(Y.payoutChip(due).text), "Доплатить 125 000 сум");
+  // Money-1 A1b (A21): the data moved by +125 000 after the saving - the payout stays by the SAVED 475 000 (settled), the change is its own line
+  assert.equal(due.basis, "saved");
+  assert.equal(due.target, 475000);
+  assert.equal(due.state, "settled");
+  assert.equal(Y.payoutChip(due).text, "Выплачено полностью");
+  assert.equal(Y.payoutChangedBy(due), 125000);
+  assert.equal(plain(Y.payoutChangeLine(due).text), "изменилось на +125 000 сум");
+  assert.equal(Y.payoutChangeLine(due).title, "После сохранения ведомость изменилась на +125 000. Пересохраните ведомость, чтобы учесть");     // the server's sentence, as it came
+  assert.equal(Y.payoutChangeLine(unpaid), null);
+  assert.equal(plain(Y.payoutChangeLine({ changed_by: -50000, change_text: null }).text), "изменилось на −50 000 сум");
+  assert.deepEqual([lower.state, lower.target, lower.balance, lower.changed_by], ["settled", 600000, 0, -125000]);
+  assert.equal(plain(Y.payoutChangeLine(lower).text), "изменилось на −125 000 сум");
+  // a month still owing: saved 600 000, paid 475 000
+  const owing = { ...due, state: "due", target: 600000, saved_total: 600000, balance: 125000, changed_by: 0, change_text: null, text: "Выплачено 475 000 из 600 000 · осталось 125 000" };
   assert.equal(plain(Y.payoutChip(over).text), "Переплачено 125 000 сум");
-  assert.equal(Y.payoutChip({ ...due, basis: "saved", target: 600000, paid: 475000, balance: 125000 }).text.replace(/ /g, " "), "Выплачено 475 000 сум из 600 000 сум");
-  assert.equal(Y.payoutChip({ ...due, state: "settled", balance: 0 }).text, "Выплачено полностью");
+  assert.equal(plain(Y.payoutChip(owing).text), "Выплачено 475 000 сум из 600 000 сум");
+  assert.equal(Y.payoutChip({ ...owing, state: "settled", balance: 0 }).text, "Выплачено полностью");
   assert.equal(Y.payoutChip(null), null);
-  assert.equal(due.text, "Выплачено 475 000 · после изменений данных доплатить 125 000"); // the server's sentence stays as it came
-  assert.deepEqual(Y.sheetPayoutParts(due).map((part) => [part.label, plain(part.value)]), [["К выплате", "600 000 сум"], ["Выплачено", "475 000 сум"], ["Доплатить", "125 000 сум"]]);
+  assert.equal(due.text, "Выплачено полностью"); // the server's sentence stays as it came
+  assert.deepEqual(Y.sheetPayoutParts(due).map((part) => [part.label, plain(part.value)]), [["К выплате", "475 000 сум"], ["Выплачено", "475 000 сум"]]);
+  assert.deepEqual(Y.sheetPayoutParts(owing).map((part) => [part.label, plain(part.value)]), [["К выплате", "600 000 сум"], ["Выплачено", "475 000 сум"], ["Осталось выплатить", "125 000 сум"]]);
   assert.deepEqual(Y.sheetPayoutParts(over).map((part) => part.label), ["К выплате", "Выплачено", "Переплачено"]);
-  assert.equal(plain(Y.monthPayoutText("2026-10", [{ payout: due }, { payout: null }])), "К выплате за октябрь: 600 000 сум · выплачено 475 000 сум · доплатить 125 000 сум");
+  assert.equal(plain(Y.monthPayoutText("2026-10", [{ payout: owing }, { payout: null }])), "К выплате за октябрь: 600 000 сум · выплачено 475 000 сум · осталось выплатить 125 000 сум");
   assert.equal(Y.monthPayoutText("2026-10", [{ payout: null }]), null);
-  assert.equal(plain(Y.monthPayoutTail([{ payout: due }, { payout: null }])), "выплачено 475 000 сум · доплатить 125 000 сум");
+  assert.equal(plain(Y.monthPayoutTail([{ payout: owing }, { payout: null }])), "выплачено 475 000 сум · осталось выплатить 125 000 сум");
   assert.equal(Y.monthPayoutTail([{ payout: null }]), null);
   // the form: the amount starts as what is left; more than that asks
-  const values = Y.emptyPayoutValues("2026-11-12", due);
+  const values = Y.emptyPayoutValues("2026-11-12", owing);
   assert.equal(values.amount, "125\u00a0000");     // WAVE E (DUP-6): the prefilled sum holds the same characters as a typed one
   assert.equal(Y.validatePayout(values, "2026-11-12"), "Выберите способ выплаты");
   const ready = { ...values, method: "cash" };
   assert.equal(Y.validatePayout(ready, "2026-11-12"), null);
   assert.deepEqual(Y.buildPayoutBody(ready), { amount: 125000, paid_on: "2026-11-12", method: "cash" });
   assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Выплата больше остатка на 30 000 сум — записать как аванс?");     // MN-32 (wave B P4): the server decides, the owner confirms
-  assert.equal(plain(Y.payoutAfterText(100000, due)), "Останется выплатить 25 000 сум");
-  assert.equal(Y.payoutAfterText(125000, due), "Выплачено полностью");
+  assert.equal(plain(Y.payoutAfterText(100000, owing)), "Останется выплатить 25 000 сум");
+  assert.equal(Y.payoutAfterText(125000, owing), "Выплачено полностью");
   assert.match(Y.validatePayout({ ...ready, paidOn: "2026-11-13" }, "2026-11-12"), /не может быть в будущем/);
   assert.match(Y.validatePayout({ ...ready, amount: "" }, "2026-11-12"), /Укажите сумму/);
   assert.equal(plain(Y.payoutLine(named("A20_").payout)), "05.11.2026 · 475 000 сум · Наличные · Арслан");
@@ -384,7 +403,8 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   // the void of a payout puts the balance back by its amount
   const voided = named("A25_");
   assert.ok(voided.payout.voided_at);
-  assert.equal(Y.payoutChip(Y.normalizePayoutState(voided.state)).tone, "ok");
+  assert.equal(Y.payoutChip(Y.normalizePayoutState(voided.state)).tone, "due");     // Money-1 A1b: the saved 600 000, the 475 000 of the live payout: «осталось 125 000»
+  assert.equal(plain(Y.payoutChip(Y.normalizePayoutState(voided.state)).text), "Выплачено 475 000 сум из 600 000 сум");
   assert.equal(Y.livePayouts(Y.normalizePayoutState(voided.state)).length, 1);
 });
 
@@ -393,14 +413,17 @@ test("the sheet block and the month row draw the payout", () => {
   const { SheetPayoutBlock } = require(path.join(root, "src/components/payroll/payout-block.tsx"));
   const due = named("A21_");
   const block = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: due, onChanged: () => undefined }));
-  for (const part of ["Выплата", "Доплатить 125 000 сум", "К выплате", "600 000 сум", "Выплачено", "475 000 сум", "Выплачено 475 000 · после изменений данных доплатить 125 000", "Отметить выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
-  const over = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: named("A24_"), onChanged: () => undefined }));
+  for (const part of ["Выплата", "Выплачено полностью", "К выплате", "475 000 сум", "Выплачено", "Отметить выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
+  // one fact once (LESSONS 87): the change after the saving is said by the card of the sheet («Пересохранить»), not again under the payout
+  assert.ok(!block.includes("изменилась на") && !block.includes("125 000"), block);
+  const over = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: { ...named("A24_"), state: "overpaid", target: 350000, balance: -125000, changed_by: 0, change_text: null }, onChanged: () => undefined }));
   assert.ok(over.includes("Переплачено 125 000 сум"));
   assert.equal(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "К", payout: null, onChanged: () => undefined })), "");
   const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
   const teacher = { teacher_id: "t", teacher_name: "Каримова", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: { id: "s1", revision: 1, total_amount: 475000, stale: true, updated_at: null }, warnings: {}, payout: due };
   const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
-  assert.ok(row.includes("Доплатить 125 000 сум"));
+  assert.ok(row.includes("Выплачено полностью"));
+  assert.ok(plain(row).includes("изменилось на +125 000 сум"), "the month row names the change after the saving");
   const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.match(rowHtml, /data-testid="payout-chip"/);
   assert.doesNotMatch(rowHtml, /Действия: Каримова/); // owner 22.10: no «⋯» on the month row
@@ -609,7 +632,7 @@ test("B1: the payroll sheet line-not-found text; the edit form no longer promise
   assert.equal(Y.isLineNotFound({ code: "LINE_NOT_FOUND" }), true);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /isLineNotFound\(error\)\) \{ setSaveError\(LINE_NOT_FOUND_TEXT\); void load\(true\)/);
   assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, undefined);
-  for (const role of ["owner", "admin"]) assert.match(read("src/components/groups/group-detail-view.tsx"), /\{LESSON_TYPE_EDIT_NOTE\}/, role);
+  for (const role of ["owner", "admin"]) assert.match(read("src/components/groups/group-detail-view.tsx"), /LESSON_TYPE_EDIT_NOTE/, role);
 });
 
 test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {

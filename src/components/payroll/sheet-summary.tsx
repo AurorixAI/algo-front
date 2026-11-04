@@ -15,9 +15,11 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
+import { REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
+import { PeriodChip } from "./period-chip";
 
 const DOT: Record<SheetCardStatus["tone"], string> = {
   preview: "bg-slate-400",
@@ -32,7 +34,7 @@ const DOT: Record<SheetCardStatus["tone"], string> = {
  * Excel and print are the quiet buttons of the corner.  The total here follows the unsaved edits, like the table.
  */
 export function SheetSummaryCard({
-  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow, warnings,
+  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow, warnings, period, onReopen,
   onPrimary, onExcel, exporting, onPrint, note, onNote,
 }: {
   sheet: PayrollSheet;
@@ -55,6 +57,9 @@ export function SheetSummaryCard({
    * saving is not «нет цены» any more); `null` = not known yet (nothing is said); absent = the sheet's own (a calculation not saved).
    */
   warnings?: PayrollSheetWarnings | PayrollMonthWarnings | null;
+  /** Money-1 A1: the state of the month of this teacher (a saved sheet only); `onReopen` is given to a person who may reopen it (the owner). */
+  period?: PeriodView | null;
+  onReopen?: () => void;
   onPrimary: () => void;
   /** Absent for a calculation not saved yet: there is no file of it. */
   onExcel?: () => void;
@@ -68,10 +73,10 @@ export function SheetSummaryCard({
   // «без оплаты» is already in the line of facts under the total: the card does not say it twice
   const counts = warnings === undefined ? sheet.warnings : warnings;
   const warningList = counts
-    ? warningViews(counts, counts === sheet.warnings ? { noFeeHref: sheetNoFeeHref(sheet) } : {}).filter((view) => view.key !== "unpaid")
+    ? warningViews(counts, counts === sheet.warnings ? { noFeeHref: sheetNoFeeHref(sheet), openUnknown: sheet.id === null && counts.open_lessons === null } : {}).filter((view) => view.key !== "unpaid")
     : [];
   const changed = status.tone === "changed";
-  const primaryLabel = status.action === "recalculate" ? "Пересчитать" : "Сохранить";
+  const primaryLabel = status.action === "recalculate" ? RESAVE_LABEL : "Сохранить";
   return (
     <section
       aria-label="Итог ведомости"
@@ -139,6 +144,16 @@ export function SheetSummaryCard({
           </button>
         )}
       </div>
+
+      {period && (
+        <div data-testid="sheet-period" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 print:hidden">
+          <PeriodChip view={period} />
+          {period.canReopen && onReopen && (
+            <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
+          )}
+          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и пересохраните ведомость — месяц закроется снова</span>}
+        </div>
+      )}
 
       {status.action === "save" && onNote && (
         <div className="mt-3 print:hidden">

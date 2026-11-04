@@ -327,9 +327,21 @@ export interface PayrollGroupBlock {
   total_amount: number;
 }
 
-/** The counters behind the warnings of a sheet (`open_lessons` is null when it was not looked up). */
+/** Money-1 I-4: ONE unfinished lesson of the month (`kind`: `missed` - nobody marked it, `in_progress` - started and not finished). */
+export interface OpenLessonItem {
+  lessonDate: string;
+  groupId: string;
+  lessonId: string;
+  kind: string;
+}
+
+/**
+ * The counters behind the warnings of a sheet.  `open_lessons` is null when it was not looked up - and, in a calculation not saved yet, when the check FAILED
+ * (Money-1 A6, П7: the screen says «не удалось проверить», never «0»).  `open_lesson_items`: which lessons they are (the list the owner is warned with before the month is closed).
+ */
 export interface PayrollSheetWarnings {
   open_lessons: number | null;
+  open_lesson_items?: OpenLessonItem[];
   pending_excused: number;
   no_fee: number;
   unpaid: number;
@@ -398,7 +410,10 @@ export interface PayrollMonthSheetRef {
 
 /** Counts, shown only when above 0. */
 export interface PayrollMonthWarnings {
-  open_lessons: number;
+  /** null: the check of the unfinished lessons failed (`open_lessons_unknown`) - «не удалось проверить», never 0. */
+  open_lessons: number | null;
+  open_lessons_unknown?: boolean;
+  open_lesson_items?: OpenLessonItem[];
   pending_excused: number;
   no_fee: number;
   unpaid: number;
@@ -537,6 +552,8 @@ export interface PayrollSettings {
   history?: DivisorRow[];
   updated_by?: string | null;
   updated_at?: string | null;
+  /** Money-1 A3: only the answer of a change of the divisor - the saved sheets from `valid_from` that now differ from what was saved (`lib/money-effects.ts`). */
+  money_effects?: unknown;
 }
 
 export const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = { divisor: DEFAULT_DIVISOR };
@@ -1223,7 +1240,7 @@ export type SheetCardTone = "preview" | "saved" | "changed" | "dirty";
 export interface SheetCardStatus {
   tone: SheetCardTone;
   text: string;
-  /** The one main button of the card: «Сохранить» (a calculation not saved yet), «Пересчитать» (the data changed); null: none. */
+  /** The one main button of the card: «Сохранить» (a calculation not saved yet), «Пересохранить» (the data changed after the saving - Money-1 A1b); null: none. */
   action: "save" | "recalculate" | null;
 }
 
@@ -1246,7 +1263,7 @@ export function sheetCardStatus(input: {
       ? "После сохранения изменились данные"
       : input.delta === 0
         ? "После сохранения изменились данные, сумма та же"
-        : `После сохранения изменились данные: ${formatSignedMoney(input.delta)}`;
+        : `После сохранения ведомость изменилась на ${formatSignedMoney(input.delta)}`;
     return { tone: "changed", text, action: "recalculate" };
   }
   const when = formatUtcNaiveAsBusinessDateTime(input.updatedAt);
@@ -1256,7 +1273,7 @@ export function sheetCardStatus(input: {
 
 // ── Warnings ────────────────────────────────────────────────────────────────
 
-export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students">;
+export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students" | "open_lesson_items">;
 
 export interface WarningView {
   key: WarningKey;
@@ -1285,6 +1302,10 @@ export const WARNING_TARGETS = {
   unpaid: "Оплаты → Требуют оплаты",
 } as const;
 
+/** Money-1 A6 (П7): the check of the unfinished lessons failed - not «0 незакрытых». */
+export const OPEN_LESSONS_UNKNOWN_TEXT = "Не удалось проверить незакрытые уроки";
+export const OPEN_LESSONS_UNKNOWN_HINT = "Не получилось узнать, есть ли в месяце незакрытые уроки, поэтому «0» не показываем. Откройте «Посещаемость → Незакрытые уроки» и проверьте сами, прежде чем сохранять ведомость: месяц после этого закрывается.";
+
 /** What each warning means; the unpaid one says the lessons are not in the sum and can be added on the sheet. */
 export const WARNING_HINTS = {
   open_lessons: "Урок проведён, но посещаемость не закрыта. Пока урок не закрыт, он не попадёт в расчёт. Откройте «Посещаемость → Незакрытые уроки» и закройте его.",
@@ -1298,12 +1319,15 @@ export const WARNING_HINTS = {
  * One unit per warning, said right: unclosed LESSONS, VISITS without payment, STUDENTS without a price.  A zero (or a count
  * that was not looked up) shows nothing.  `noFeeHref`: where the price is set when the sheet knows the one group it is missing in.
  */
-export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings, options: { noFeeHref?: string } = {}): WarningView[] {
+export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings, options: { noFeeHref?: string; openUnknown?: boolean } = {}): WarningView[] {
   const out: WarningView[] = [];
   const add = (key: WarningKey, text: string, tone: WarningView["tone"], href: string = WARNING_LINKS[key]) =>
     out.push({ key, text, href, tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key] });
   const open = counts.open_lessons;
-  if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
+  // the month overview says so itself; a calculation not saved yet has `null` for a failed check (a saved sheet's null is «not looked up»: the caller passes `openUnknown` only for the first)
+  if (("open_lessons_unknown" in counts && counts.open_lessons_unknown === true) || options.openUnknown === true) {
+    out.push({ key: "open_lessons", text: OPEN_LESSONS_UNKNOWN_TEXT, href: WARNING_LINKS.open_lessons, tone: "warning", hint: OPEN_LESSONS_UNKNOWN_HINT, target: WARNING_TARGETS.open_lessons });
+  } else if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
   const pending = counts.pending_excused;
   if (pending) {
     add("pending_excused", `${pending} ${pluralRu(pending, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`, "warning");
@@ -1374,6 +1398,8 @@ export interface PayrollRateItem {
   /** Type -> the rate in force in the month asked for; null: none yet. */
   rates: Record<string, PayrollRateValue | null>;
   next?: Record<string, PayrollRateNext | null> | null;
+  /** Money-1 A3: only the answer of a change of the rates - the saved sheets of the teacher from the month of the rate that now differ from what was saved (`lib/money-effects.ts`). */
+  money_effects?: unknown;
 }
 
 export interface PayrollRatesResponse {
