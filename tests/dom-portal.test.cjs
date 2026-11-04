@@ -50,7 +50,7 @@ test("M1: «Переоткрыть месяц» inside the pause dialog reopens 
   await page.close();
 });
 
-test("M1: Enter in a field of the pause form while its calculation FAILED does not put the pause on (the form waits for the calculation like its button)", async () => {
+test("M1: a submit of the pause form from anywhere but its button, while the calculation FAILED, does not put the pause on (the form waits for the calculation like its button)", async () => {
   const answer = (request) => {
     if (request.method === "GET" && request.path === "/auth/org/memberships/m1/pauses") return { json: [] };
     if (request.method === "POST" && request.path === "/auth/org/memberships/m1/pauses" && /dry_run=true/.test(request.query)) return { status: 422, json: { detail: MONTH_CLOSED } };
@@ -62,8 +62,8 @@ test("M1: Enter in a field of the pause form while its calculation FAILED does n
   const last = await page.evaluate(() => window.__helpers.plus(3));
   await page.fill("#pause-last", `${last.slice(8, 10)}${last.slice(5, 7)}${last.slice(0, 4)}`);
   await page.waitForSelector('[data-testid="period-closed"]');
-  await page.focus("#pause-reason");
-  await page.keyboard.press("Enter");
+  assert.equal(await page.isDisabled('button[form="pause-form"]'), true, "the button of the footer is closed - and so must be the form (a submit that does not come from a press of the button)");
+  await page.evaluate(() => document.getElementById("pause-form").requestSubmit());
   await page.waitForTimeout(400);
   assert.equal(calls.filter((call) => call.method === "POST" && /\/pauses$/.test(call.path) && !/dry_run=true/.test(call.query)).length, 0, "the closed month said no: nothing is sent");
   await page.close();
