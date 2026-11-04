@@ -16,6 +16,7 @@ import { excuseDeadlinePassed, type ExcuseDeadlinePassed, type ServerExcuseDeadl
 import { formatDayMonthRu } from "./business-time";
 import { reasonMeta, reasonMetaOf } from "./excuse-row";
 import { pluralRu } from "./plural";
+import type { ConfirmRequest } from "./confirm-dialog";
 
 export type ExcuseDecision = "confirmed" | "rejected";
 /** Where the excuse stands now (what the server has). */
@@ -253,6 +254,20 @@ export function excuseDecisionCopy(
 export function previewTargets<T>(items: readonly T[], max = 5): { shown: T[]; more: number } {
   const shown = items.slice(0, Math.max(0, max));
   return { shown, more: items.length - shown.length };
+}
+
+/**
+ * «Сбросить решение» asks first (Money-1 A3, I-5): a reset puts the lesson back into the pack of the student and into the pay of the teacher.  `moneyLines`: the lines of the dry run of the
+ * server (empty: nothing moves); null: the server sent no block (an older one) - nothing is claimed about the money.
+ */
+export function resetDecisionQuestion(moneyLines: string[] | null): ConfirmRequest {
+  const money = moneyLines === null ? [] : ["", "Что будет с деньгами:", ...(moneyLines.length > 0 ? moneyLines : ["деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты"])];
+  return {
+    title: "Сбросить решение по пропуску?",
+    message: ["Пропуск снова будет ждать решения: пока он не решён, урок засчитывается как обычный.", ...money].join("\n"),
+    confirmLabel: "Сбросить решение",
+    cancelLabel: "Отмена",
+  };
 }
 
 /** How the note field of the dialog behaves: absent (plain confirm), optional (reject), required («с примечанием»). */

@@ -39,6 +39,8 @@ import { AddLessonDialog, EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "
 import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@/lib/lesson-slot-form";
 import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
+import { canManageMoney } from "@/lib/money-effects";
+import { canUndoDecision } from "@/lib/one-off";
 import { addedByLine, assignActionLabel, lessonHasStarted, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
@@ -436,7 +438,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
                         const room = roomLine(lesson);
-                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null });
+                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null, moneyRight: canManageMoney(user), undoDecision: canUndoDecision(lesson, canManageMoney(user)) });
                         // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
                         const marks = [...lessonMarks(attendance?.substitutionRequests?.[key], null), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(viewerRole), groupId })];
                         const manager = viewerRole === "owner" || viewerRole === "admin";
@@ -499,7 +501,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
         const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
-        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null }) : [];
+        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null, moneyRight: canManageMoney(user), undoDecision: canUndoDecision(lesson, canManageMoney(user)) }) : [];
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;

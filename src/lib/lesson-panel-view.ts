@@ -51,6 +51,16 @@ export function lessonPanelBanner(input: {
   return "ready";
 }
 
+/**
+ * Money-1 A5: what the panel of the TEACHER says under «Урок завершён».  The teacher corrects the marks of his own held lesson in the journal within 7 days, with a reason
+ * (the month must be open); older - the administrator does it.  ONE text for the dashboard and the schedule.
+ */
+export function completedLessonNote(input: { tooOld: boolean }): { text: string; journalLink: boolean } {
+  return input.tooOld
+    ? { text: "Отметки зафиксированы. Исправить их может только администратор — с причиной.", journalLink: false }
+    : { text: "Отметки зафиксированы. Если ошиблись, исправьте их в журнале группы — в течение 7 дней, с причиной.", journalLink: true };
+}
+
 /** Where the teacher starts «Урока не было» (given that he may cancel the lesson at all): the button of the state card, a row of the «⋯» menu, the dialog «Пропущенный урок» (after «Разобрать»), or nowhere yet. */
 export type CancelEntry = "card" | "menu" | "dialog" | "wait";
 

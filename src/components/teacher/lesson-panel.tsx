@@ -31,6 +31,8 @@ import { roomLabel } from "@/lib/schedule-slots";
 import { isMovedAway, timeRange } from "@/lib/schedule-plan";
 import { movedAwayLines } from "@/lib/schedule-card-actions";
 import { focusEntryAgain } from "@/lib/focus-entry";
+import { completedLessonNote } from "@/lib/lesson-panel-view";
+import { journalHref } from "@/lib/open-lessons";
 import { pluralRu } from "@/lib/payments";
 import { DAYS } from "@/lib/schedule-time";
 import type { AttendanceStatus } from "@/lib/api";
@@ -82,7 +84,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
-    activeMissedAction, activeMissedUnknown, retryOpenActions, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
+    activeMissedAction, activeMissedUnknown, retryOpenActions, lessonTooOld, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
@@ -377,9 +379,18 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
                             <CheckCircle2 className="w-5 h-5" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-bold text-slate-900">Урок завершён</p>
-                            <p className="text-xs text-slate-600 mt-0.5">Отметки зафиксированы. Исправить их может только администратор — с причиной.</p>
+                            <p className="text-xs text-slate-600 mt-0.5">{completedLessonNote({ tooOld: lessonTooOld }).text}</p>
+                            {completedLessonNote({ tooOld: lessonTooOld }).journalLink && activeLesson.groupId && activeLessonDate && (
+                              <Link
+                                data-testid="panel-correct-in-journal"
+                                href={journalHref("/teacher/groups", { groupId: activeLesson.groupId, lessonDate: activeLessonDate, lessonId: activeLesson.id })}
+                                className="mt-1 inline-block text-xs font-semibold text-primary-700 underline-offset-2 hover:underline"
+                              >
+                                Открыть журнал группы
+                              </Link>
+                            )}
                           </div>
                         </div>
                       ) : banner === "tooOld" ? (

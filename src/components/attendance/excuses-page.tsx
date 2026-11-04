@@ -62,6 +62,9 @@ import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { FileInput } from "@/components/ui/file-input";
+import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
+import { MONEY_RIGHT_TEXT, canManageMoney, toastWithEffects } from "@/lib/money-effects";
+import { useAuthStore } from "@/lib/store";
 
 const PAGE_SIZE = 50;
 
@@ -201,6 +204,9 @@ function ExpandableText({
 export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
   const router = useRouter();
   const { showToast, toastNode } = useToast();
+  const user = useAuthStore((state) => state.user);
+  /** Money-1 A4 (I-6): the decision moves the pack of the student and the pay of the teacher - the owner and an administrator with the money right only. */
+  const moneyRight = canManageMoney(user);
   // The list covers one calendar month on the business clock (Asia/Tashkent).
   const currentMonth = useMemo(() => monthOf(formatBusinessDate()), []);
   const businessToday = formatBusinessDate();
@@ -415,7 +421,8 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
     try {
       const note = noteText.trim();
       const updated = await orgApi.reviewAttendanceExcuse(item.id, { decision, expected_status: item.status, ...(note ? { note } : {}) });
-      showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён");
+      const money = toastWithEffects(updated);
+      showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён", money.tone, money.details);
       await afterDecision(() => settleChange(updated), refreshBadge);
       return null;
     } catch (error) {
@@ -440,8 +447,11 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
   const resetDecision = async (item: AttendanceExcuseItem) => {
     markBusy(item.id, true);
     try {
+      // Money-1 A3 (I-5): a reset puts the lesson back into the pack and into the pay - the money of THIS reset is shown first (the dry run of the server), then asked
+      if (!(await confirmExcuseReset(item))) return;
       const updated = await orgApi.resetAttendanceExcuse(item.id, { expected_status: item.status });
-      showToast("Решение сброшено: пропуск снова ожидает");
+      const money = toastWithEffects(updated);
+      showToast("Решение сброшено: пропуск снова ожидает", money.tone, money.details);
       await afterDecision(() => settleChange(updated), refreshBadge);
     } catch (error) {
       const changed = excuseChange(error);
@@ -578,6 +588,8 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
 
     // IA audit F6 / d4: the menu has at most three items - the decision with a note, the certificate, the reset.  «Подтвердить» and
     // «Отклонить» are buttons of the row; the journal and the card of the student are links of the row, not menu items.
+    // Money-1 A4 (I-6): a decision moves the pack of the student and the pay of the teacher - an administrator without the money right keeps the certificate only.
+    if (!moneyRight) return [attach];
     if (item.status === "pending") return [confirmWithNote, attach];
     if (item.status === "confirmed") return [reject, reset, attach];
     return [confirmWithNote, reset, attach];
@@ -600,6 +612,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
+      {!moneyRight && <p data-testid="excuses-no-money-right" className="rounded-xl bg-slate-50 px-4 py-2.5 text-sm text-slate-600">{MONEY_RIGHT_TEXT}. Вы можете прикладывать справки и смотреть решения.</p>}
       {/* Toolbar: statuses on the left, month and filter on the right */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">
@@ -757,7 +770,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                     {/* Действия */}
                     {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
                     <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab || tab === "rejected" ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
-                      {pendingTab && (
+                      {pendingTab && moneyRight && (
                         <>
                           <button
                             type="button"
@@ -780,7 +793,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                           </button>
                         </>
                       )}
-                      {tab === "rejected" && (
+                      {tab === "rejected" && moneyRight && (
                         <button
                           type="button"
                           disabled={busy}

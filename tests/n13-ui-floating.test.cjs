@@ -345,7 +345,7 @@ test("Hint replaces hover-only title tooltips of the badges whose detail was onl
   assert.doesNotMatch(journal, /title=\{formatMembershipEvent/);
   assert.doesNotMatch(journal, /title=\{transferDescription\} className="mt-1 inline-flex rounded-md/);
   assert.match(journal, /<Hint text=\{formatMembershipEvent\(membershipEvent\)\}/);
-  assert.match(journal, /<Hint\s+text=\{\[\s*`Исправлено:/);
+  assert.match(journal, /<Hint\s+text=\{correctionHintLines\(correction,/);          // Money-1 A6: «Исправлено» with «было → стало» (lib/attendance-corrections.ts)
   assert.match(journal, /\{excuse && \(\s*<div className="mb-1 rounded-xl bg-slate-50 px-3 py-2">\s*<p className="whitespace-pre-line[^"]*">\{excuseTooltip\(excuse, \{ withLate: false \}\)\}<\/p>/, "the absence reason is also in the opened cell menu");
   // income2 §1: a schedule card is information only - its chip is plain text with the detail in the title, not a focusable Hint
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /title=\{state\.description\}/);
@@ -501,7 +501,7 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
   assert.ok(menu.indexOf("{!locked && STATUS_OPTIONS.map(") < menu.indexOf("handleSelectStatus(item.value"));
   assert.ok(menu.indexOf("{reviewable && excuse && (") < menu.indexOf('askReview(excuse, key, student, lesson, "confirmed")'));
   // `reviewable` itself needs admin mode and no correction in progress, and `locked` still covers completed / cancelled / future / view-only
-  assert.match(src, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
+  assert.match(src, /const reviewable = adminMode && moneyRight && !inCorrection && Boolean\(excuse\);/);
   assert.match(src, /const locked = !wasInLesson \|\| !canEdit \|\| lessonIsOthers\(key\) \|\| columnBusyKey === key \|\| isFutureLesson \|\| lessonStatus === "scheduled" \|\| \(lessonStatus === "completed" && !inCorrection\) \|\| lessonStatus === "cancelled";/);
   // the click handler of the cell only toggles the menu: it marks nothing
   assert.match(src, /onClick=\{\(event\) => toggleAttendanceMenu\(event, student\.id, key, isOpen\)\}/);

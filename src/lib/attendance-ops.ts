@@ -15,6 +15,7 @@ import {
 } from "./ops-errors";
 import { substitutionErrorText } from "./substitutions";
 import type { AttendanceConflictDetail, ExamSync, LiveExamDetail, LiveExamItem } from "./ops-b-types";
+import type { ConfirmRequest } from "./confirm-dialog";
 
 // ── the window of 7 days (decision 7) ───────────────────────────────────────────────────────────
 
@@ -159,6 +160,25 @@ export function sameRecords(a: MarkRecords, b: MarkRecords): boolean {
 // ── a live exam at the finish (O8) ──────────────────────────────────────────────────────────────
 
 export const FINISH_LESSON_ACTION = "Завершить урок";
+
+// ── nobody came (Money-1 A6) ────────────────────────────────────────────────────────────────────
+
+/** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it is paid to the teacher; the server asks for an explicit yes. */
+export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и оплачен преподавателю";
+
+export function isNobodyCame(error: unknown): boolean {
+  return opsErrorCode(error) === "NOBODY_CAME";
+}
+
+/** The question before a finish where nobody came: the lesson is paid to the teacher; «Урока не было» is the other road. */
+export function nobodyCameQuestion(): ConfirmRequest {
+  return {
+    title: "Завершить урок, на который никто не пришёл?",
+    message: "Все ученики отмечены без посещения. Если завершить, урок будет считаться проведённым и оплачен преподавателю.\nЕсли урока не было, вернитесь и нажмите «Урока не было».",
+    confirmLabel: "Завершить и оплатить",
+    cancelLabel: "Вернуться",
+  };
+}
 export const FINISH_LESSON_BACK = "Вернуться";
 export const FINISH_QUESTION = "Завершить урок?";
 export const EXAM_SYNC_UNAVAILABLE_TEXT = "Урок завершён, но проверить экзамены не удалось.";
@@ -199,6 +219,7 @@ export type LessonOperation = "start" | "save" | "finish" | "reconcile" | "cance
 export type LessonFailure =
   | { kind: "conflict"; text: string; detail: AttendanceConflictDetail }
   | { kind: "live_exam"; text: string; exams: LiveExamItem[] }
+  | { kind: "nobody_came"; text: string }
   | { kind: "too_old"; text: string }
   | { kind: "no_students"; text: string }
   | { kind: "not_lesson_teacher"; text: string }
@@ -216,6 +237,8 @@ export function lessonFailure(error: unknown, operation: LessonOperation, fallba
     }
     case "LESSON_HAS_LIVE_EXAM":
       return { kind: "live_exam", text: errorMessageOf(error, "У урока есть незавершённый экзамен"), exams: liveExamsOf(error) };
+    case "NOBODY_CAME":
+      return { kind: "nobody_came", text: errorMessageOf(error, NOBODY_CAME_TEXT) };
     case "LESSON_TOO_OLD":
       return { kind: "too_old", text: LESSON_TOO_OLD_TEXT };
     case "NO_STUDENTS":

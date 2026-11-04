@@ -13,23 +13,47 @@ const rules = require(path.join(__dirname, "../src/lib/attendance-excuses.ts"));
 
 const TODAY = "2026-10-14";
 
-test("lesson column actions follow the lesson state and date", () => {
-  const actions = (state, date) => rules.lessonAdminActions(state, date, TODAY);
+test("lesson column actions follow the lesson state and date (the owner / an administrator with the money right)", () => {
+  const actions = (state, date, extra = {}) => rules.lessonAdminActions(state, date, TODAY, { moneyRight: true, ...extra });
   // forgotten past lesson that was never started
   assert.deepEqual(actions("scheduled", "2026-10-10"), ["reconcile", "cancel_missed"]);
   // open (in progress), today or forgotten in the past
   assert.deepEqual(actions("in_progress", TODAY), ["finish"]);
   assert.deepEqual(actions("in_progress", "2026-10-12"), ["finish"]);
-  // completed lesson can only be corrected
-  assert.deepEqual(actions("completed", "2026-10-01"), ["correct"]);
-  assert.deepEqual(actions("completed", TODAY), ["correct"]);
-  // no button: future, today not started, cancelled, unknown
+  // Money-1 A2: a completed lesson is corrected or returned to «не проведён» (money of the students and of the teacher)
+  assert.deepEqual(actions("completed", "2026-10-01"), ["correct", "return"]);
+  assert.deepEqual(actions("completed", TODAY), ["correct", "return"]);
+  // no button: future, today not started, unknown
   assert.deepEqual(actions("scheduled", "2026-10-20"), []);
   assert.deepEqual(actions("in_progress", "2026-10-20"), []);
   assert.deepEqual(actions("scheduled", TODAY), []);
-  assert.deepEqual(actions("cancelled", "2026-10-10"), []);
   assert.deepEqual(actions("cancelled", "2026-10-20"), []);
   assert.deepEqual(actions("whatever", "2026-10-10"), []);
+  // Money-1 A2: «Урока не было» said by mistake for a lesson that has passed goes back to the review - not a move, not a day off
+  assert.deepEqual(actions("cancelled", "2026-10-10"), ["return_review"]);
+  assert.deepEqual(actions("cancelled", "2026-10-10", { cancelKind: "centre" }), ["return_review"]);
+  assert.deepEqual(actions("cancelled", "2026-10-10", { cancelKind: "day_off" }), []);
+  assert.deepEqual(actions("cancelled", "2026-10-10", { moved: true }), []);
+  assert.deepEqual(actions("cancelled", TODAY), []);
+});
+
+test("Money-1 A4: an administrator without the money right sees no action that moves money", () => {
+  const actions = (state, date) => rules.lessonAdminActions(state, date, TODAY, { moneyRight: false });
+  assert.deepEqual(actions("completed", "2026-10-01"), []);          // no correction, no return of a held lesson
+  assert.deepEqual(actions("cancelled", "2026-10-10"), []);          // no return to the review
+  assert.deepEqual(actions("scheduled", "2026-10-10"), ["cancel_missed"]);          // «Урока не было» stays; «Отметить посещаемость» formalises pay for a teacher: the right
+  assert.deepEqual(actions("in_progress", TODAY), ["finish"]);
+});
+
+test("Money-1 A5: the teacher corrects his OWN held lesson within 7 days, nothing else", () => {
+  const own = (state, date, mine = true) => rules.lessonTeacherActions(state, date, TODAY, mine);
+  assert.deepEqual(own("completed", TODAY), ["correct"]);
+  assert.deepEqual(own("completed", "2026-10-07"), ["correct"]);          // exactly 7 days back
+  assert.deepEqual(own("completed", "2026-10-06"), []);          // older: the administrator
+  assert.deepEqual(own("completed", TODAY, false), []);          // somebody else's lesson
+  assert.deepEqual(own("in_progress", TODAY), []);
+  assert.deepEqual(own("cancelled", TODAY), []);
+  assert.deepEqual(own("scheduled", "2026-10-10"), []);
 });
 
 test("finishing needs every student marked, the hint counts the rest", () => {

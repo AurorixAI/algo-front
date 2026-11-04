@@ -17,7 +17,7 @@ import {
 import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
 import { askConfirm } from "./confirm-dialog";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
-import { examSyncNotice, isLessonTooOld, lessonFailure } from "./attendance-ops";
+import { examSyncNotice, isLessonTooOld, lessonFailure, nobodyCameQuestion } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
 import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
@@ -557,7 +557,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     }
   };
 
-  const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
+  const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>, confirmNobodyCame = false) => {
     if (!activeLesson) return;
     const target = panel.target(activeLesson);
     if (!target) { setAttendanceError(panel.notReadyText); return; }
@@ -593,12 +593,15 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     }
 
     if (!writes.begin(target.key)) return;
+    // Money-1 A6: a finish where nobody is «Был» / «Опоздал» is a HELD lesson paid to the teacher - the server asks for a yes (409 NOBODY_CAME); asked after the write is released
+    let askNobody = false;
     try {
       const finished = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic ?? undefined, {
         status: "completed" as const,
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
+        ...(confirmNobodyCame ? { confirmNobodyCame: true } : {}),
       }));
       const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
       if (here) {
@@ -616,11 +619,13 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
       if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
-      // a running exam / a conflict is decided in its dialog; anything else is the text of the panel
-      if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
+      // a running exam / a conflict is decided in its dialog; nobody came - in the question below; anything else is the text of the panel
+      if (failure.kind === "nobody_came") askNobody = true;
+      else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       writes.end(target.key);
     }
+    if (askNobody && (await askConfirm(nobodyCameQuestion()))) await handleFinishLesson(acknowledgeLiveExam, marks, true);
   };
 
   const handleCancelLesson = async () => {

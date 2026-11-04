@@ -46,6 +46,7 @@ import {
   correctionWarnings,
   diffCorrection,
   lessonAdminActions,
+  lessonTeacherActions,
   mergeLoadedRecords,
   pendingLessonKeys,
   recordsForSave,
@@ -98,6 +99,23 @@ import {
 } from "@/lib/lesson-teacher";
 import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
+import { askConfirm } from "@/lib/confirm-dialog";
+import { canManageMoney, effectLines, moneyEffectsOf } from "@/lib/money-effects";
+import { periodClosedOf, REOPENED_THEN_REPEAT, type PeriodClosedInfo } from "@/lib/closed-period";
+import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { RETURN_LESSON_LABEL, RETURN_TO_REVIEW_LABEL, returnDoneDetails, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
+import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
+import { BACKDATED_LABEL, CORRECTED_LABEL, TEACHER_CORRECTION_MONEY_NOTE, backdatedHintLines, correctionHintLines } from "@/lib/attendance-corrections";
+import { nobodyCameQuestion } from "@/lib/attendance-ops";
+import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
+import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
+import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
+import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
+import { toastWithEffects } from "@/lib/money-effects";
+import { UNDO_DECISION_LABEL, UNDO_DECISION_TOAST, canUndoDecision } from "@/lib/one-off";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
+import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 
 interface GroupAttendanceJournalProps {
   groupId: string;
@@ -368,7 +386,15 @@ export function GroupAttendanceJournal({
   const [columnBusyKey, setColumnBusyKey] = useState<string | null>(null);
   const [cancelMissed, setCancelMissed] = useState<CancelMissedTarget | null>(null);
   const [correcting, setCorrecting] = useState<CorrectionState | null>(null);
-  const [correctionDialog, setCorrectionDialog] = useState<{ reason: string; error: string | null } | null>(null);
+  const [correctionDialog, setCorrectionDialog] = useState<{ reason: string; error: string | null; closed: PeriodClosedInfo | null } | null>(null);
+  /** Money-1: the money right (the owner; an administrator the owner allowed payments) and the windows it opens. */
+  const moneyRight = canManageMoney(user);
+  const [returnTarget, setReturnTarget] = useState<ReturnLessonTarget | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<ReturnLessonTarget | null>(null);
+  const [reconcileTarget, setReconcileTarget] = useState<ReconcileTarget | null>(null);
+  const [undoTarget, setUndoTarget] = useState<UndoDecisionTarget | null>(null);
+  /** Money-1 A1: a save was refused because the month of the teacher is closed - the banner offers «Переоткрыть месяц» (the right) next to the server's sentence. */
+  const [closedNotice, setClosedNotice] = useState<PeriodClosedInfo | null>(null);
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
@@ -658,6 +684,17 @@ export function GroupAttendanceJournal({
   const lessonIsOthers = (key: string): boolean =>
     !adminMode && lessonBelongsToOther(attendanceData?.lessonTeachers?.[key], viewerId);
 
+  /**
+   * The actions of the column «⋯» of one lesson.  The administrator / the owner: by the state of the lesson and the MONEY right (I-6: a held lesson, a return, a lesson formalised afterwards are money);
+   * the teacher of the lesson: «Исправить отметки» of his own held lesson within 7 days (Money-1 A5).
+   */
+  const actionsFor = (lesson: Lesson, key: string, lessonStatus: string): AdminLessonAction[] => {
+    if (!canEdit) return [];
+    if (!adminMode) return lessonTeacherActions(lessonStatus, lesson.date, today, !lessonIsOthers(key));
+    const moved = lessonStatus === "cancelled" && lesson.substitutionOutcome?.kind === "rescheduled";
+    return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight) });
+  };
+
   const handleSelectStatus = async (
     status: AttendanceStatus | "",
     student: StudentInGroup,
@@ -812,7 +849,8 @@ export function GroupAttendanceJournal({
         pendingReasonsRef.current[lessonKey] = {};
         setLocalRecords(recordsRef.current);
         const message = error instanceof Error ? error.message : "";
-        setSaveError(
+        reportFailure(
+          error,
           /причин/i.test(message) && /ув|уважит/i.test(message)
             ? "Для уважительного пропуска нужна причина. Нажмите на отметку «Уважительная» у ученика и введите причину."
             : failure.kind !== "other" ? failure.text : message || "Не удалось сохранить отметку",
@@ -873,11 +911,16 @@ export function GroupAttendanceJournal({
         };
       });
     try {
+      // Money-1 A3 (I-5): «Сбросить решение» asks first, with the money of this reset (the dry run of the server)
+      if (action === "reset" && !(await confirmExcuseReset(excuse))) return null;
       const item = action === "reset"
         ? await orgApi.resetAttendanceExcuse(excuse.id, { expected_status: excuse.status })
         : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action, expected_status: excuse.status, ...(note ? { note } : {}) });
       patchCell(item);
       void useExcuseBadge.getState().refresh(true);
+      // what the decision did to money is told when it touched a pack or a saved sheet (the cell itself shows the decision)
+      const money = toastWithEffects(item);
+      if (money.details.length > 0) showToast(action === "reset" ? "Решение сброшено" : action === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён", money.tone, money.details);
       return null;
     } catch (error) {
       const changed = excuseChange(error);
@@ -906,7 +949,7 @@ export function GroupAttendanceJournal({
     }
   };
 
-  /** «Сбросить решение» needs no question: it only returns the excuse to the waiting list. */
+  /** «Сбросить решение» asks first (Money-1 A3): it puts the lesson back into the pack of the student and into the pay of the teacher. */
   const handleReview = async (
     excuse: AttendanceExcuseInfo,
     lessonKey: string,
@@ -1068,12 +1111,13 @@ export function GroupAttendanceJournal({
   };
 
   /** One finish of a lesson (the column menu): waits behind the queued marks, carries the version, asks before it ends a running exam. */
-  const finishLesson = async (lesson: Lesson, acknowledgeLiveExam: boolean): Promise<"done" | "stopped" | "ask"> => {
+  const finishLesson = async (lesson: Lesson, acknowledgeLiveExam: boolean, confirmNobodyCame = false): Promise<"done" | "stopped" | "ask"> => {
     const key = instanceKey(lesson);
     // Cells of this lesson stay locked while it is being closed, and the
     // finish itself waits behind every mark already queued.
     finishingKeyRef.current = key;
     let asked: LiveExamItem[] | null = null;
+    let nobodyCame = false;
     let conflicted: Parameters<typeof setConflict>[0] = null;
     const task = saveQueueRef.current.then(async () => {
       const { rosterCount, markedCount } = markedInLesson(lesson);
@@ -1094,6 +1138,7 @@ export function GroupAttendanceJournal({
           records,
           ...(expectedVersion !== undefined ? { expectedVersion } : {}),
           ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
+          ...(confirmNobodyCame ? { confirmNobodyCame: true } : {}),
         });
         versionsRef.current = withSavedVersion(versionsRef.current, key, saved);
         const notice = examSyncNotice(saved?.examSync);
@@ -1101,6 +1146,7 @@ export function GroupAttendanceJournal({
       } catch (error) {
         const failure = lessonFailure(error, "finish", "Не удалось завершить урок");
         if (failure.kind === "live_exam") { asked = failure.exams; return false; }
+        if (failure.kind === "nobody_came") { nobodyCame = true; return false; }
         if (failure.kind === "conflict") {
           // O7: somebody saved the lesson first - my marks go to the dialog; «Оставить мои» repeats the finish
           conflicted = {
@@ -1132,6 +1178,11 @@ export function GroupAttendanceJournal({
       setLiveExam({ exams: asked, lesson });
       return "ask";
     }
+    // Money-1 A6: nobody is «Был» / «Опоздал» - the finish makes the lesson held and PAID to the teacher: an explicit yes first, then the same finish carries it
+    if (nobodyCame) {
+      if (!(await askConfirm(nobodyCameQuestion()))) return "stopped";
+      return finishLesson(lesson, acknowledgeLiveExam, true);
+    }
     if (!finished) return "stopped";
     await loadAttendanceRef.current(true);
     void useExcuseBadge.getState().refresh(true);
@@ -1156,10 +1207,19 @@ export function GroupAttendanceJournal({
     }
   };
 
+  /** A failed save of the journal: a closed month is the banner with «Переоткрыть месяц» (the right), anything else is the text of the error. */
+  const reportFailure = (error: unknown, text: string) => {
+    const closed = periodClosedOf(error);
+    if (closed) { setSaveError(null); setClosedNotice(closed); return; }
+    setClosedNotice(null);
+    setSaveError(text);
+  };
+
   const runColumnAction = async (action: AdminLessonAction | "replace_teacher", lesson: Lesson) => {
     const key = instanceKey(lesson);
     setColumnMenu(null);
     setSaveError(null);
+    setClosedNotice(null);
 
     if (action === "cancel_missed") {
       setCancelMissed({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
@@ -1180,23 +1240,30 @@ export function GroupAttendanceJournal({
       setCorrecting({ key, draft: { ...(localRecords[key] || {}) }, reasons: {} });
       return;
     }
+    if (action === "return") {
+      setReturnTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
+      return;
+    }
+    if (action === "undo_decision") {
+      setUndoTarget({ lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money });
+      return;
+    }
+    if (action === "return_review") {
+      setReviewTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null });
+      return;
+    }
+    if (action === "reconcile") {
+      // Money-1 A6: the lesson is formalised afterwards - the money right says WHO taught it (the planned teacher by default)
+      setReconcileTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, topic: lesson.topic });
+      return;
+    }
 
     setColumnBusyKey(key);
     try {
-      if (action === "reconcile") {
-        await orgApi.reconcileMissedGroupAttendance(groupId, {
-          lessonDate: lesson.date,
-          lessonId: lesson.id,
-          topic: lesson.topic,
-        });
-        await loadAttendanceRef.current(true);
-        showToast("Урок открыт: отметьте учеников в столбце");
-      } else if (action === "finish") {
-        await finishLesson(lesson, false);
-      }
+      if (action === "finish") await finishLesson(lesson, false);
     } catch (error) {
-      const failure = lessonFailure(error, action === "finish" ? "finish" : "reconcile", "Не удалось выполнить действие");
-      setSaveError(failure.text);
+      const failure = lessonFailure(error, "finish", "Не удалось выполнить действие");
+      reportFailure(error, failure.text);
       // somebody saved the lesson first: the journal is read again so the marks on screen are theirs
       if (failure.kind === "conflict") void loadAttendanceRef.current(true);
     } finally {
@@ -1215,6 +1282,15 @@ export function GroupAttendanceJournal({
     correctionWarnings(correctionChanges, attendanceData?.excuses?.[correcting.key])
       .forEach((warning) => correctionWarningById.set(warning.studentId, warning.text));
   }
+  // Money-1 A3 (I-5): what the correction does to money is shown BEFORE «Сохранить исправление» (the packs of the students, the saved sheets of the teacher).  The dry run is the
+  // money right's (`attendance/impact`); the teacher correcting his own lesson sees the rule in words instead (the server answers him after the save).
+  const impactKey = correctionDialog && correcting && correctingLesson && moneyRight
+    ? `${correcting.key}|${JSON.stringify(Object.entries(correcting.draft).sort())}`
+    : null;
+  const { preview: impact, retry: retryImpact } = useMoneyPreview(impactKey, (signal) => {
+    if (!correcting || !correctingLesson) return Promise.reject(new Error("no correction"));
+    return orgApi.attendanceCorrectionImpact(groupId, { lessonDate: correctingLesson.date, lessonId: correctingLesson.id, records: correcting.draft }, signal);
+  });
   const studentNameById = useMemo(() => {
     const names = new Map<string, string>();
     [...activeStudents, ...historicalStudents].forEach((student) => {
@@ -1228,9 +1304,10 @@ export function GroupAttendanceJournal({
 
   const submitCorrection = async () => {
     if (!correcting || !correctionDialog || !correctingLesson) return;
+    if (moneyRight && !effectsAllowConfirm(impact)) return;      // the confirmation waits for the answer about money
     const error = validateCorrectionReason(correctionDialog.reason);
     if (error) {
-      setCorrectionDialog({ ...correctionDialog, error });
+      setCorrectionDialog({ ...correctionDialog, error, closed: null });
       return;
     }
     setCorrectionSaving(true);
@@ -1252,7 +1329,9 @@ export function GroupAttendanceJournal({
       setCorrectionDialog(null);
       await loadAttendanceRef.current(true);
       void useExcuseBadge.getState().refresh(true);
-      showToast(`Урок ${date} исправлен`);
+      // Money-1 A3: what the correction did to money (the packs of the students, the saved sheets of the teacher) - the toast says it
+      const effects = effectLines(moneyEffectsOf(saved), { done: true }).map((line) => line.text);
+      showToast(`Урок ${date} исправлен`, effects.length ? "warning" : "success", effects);
     } catch (err) {
       const failure = lessonFailure(err, "save", "Не удалось сохранить исправление. Данные не изменены.");
       if (failure.kind === "conflict") {
@@ -1274,6 +1353,7 @@ export function GroupAttendanceJournal({
       setCorrectionDialog({
         ...correctionDialog,
         error: failure.text,
+        closed: periodClosedOf(err),
       });
     } finally {
       setCorrectionSaving(false);
@@ -1282,6 +1362,16 @@ export function GroupAttendanceJournal({
 
   return (
     <div className="space-y-4">
+      {closedNotice && (
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <PeriodClosedNotice
+            info={closedNotice}
+            onReopened={() => { setClosedNotice(null); showToast(REOPENED_THEN_REPEAT); }}
+          />
+          <button type="button" onClick={() => setClosedNotice(null)} aria-label="Закрыть сообщение об ошибке" className="rounded p-0.5 text-rose-800 hover:bg-rose-100"><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
       {saveError && (
         <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           <div className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{saveError}</div>
@@ -1378,13 +1468,11 @@ export function GroupAttendanceJournal({
                     const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
                     const inCorrection = correcting?.key === key;
                     const correction = attendanceData?.corrections?.[key];
-                    const adminActions = adminMode && canEdit && !correcting
-                      ? lessonAdminActions(lessonStatus, lesson.date, today)
-                      : [];
+                    const adminActions = !correcting ? actionsFor(lesson, key, lessonStatus) : [];
                     const teacherInfo = attendanceData?.lessonTeachers?.[key];
                     const teacherLabel = substituteLabel(teacherInfo);
                     // O5: the owner and the administrator can replace the teacher of a lesson that is not cancelled
-                    const canReplace = adminMode && canEdit && !correcting && Boolean(teacherInfo) && canReplaceTeacher("admin", lessonStatus);
+                    const canReplace = adminMode && canEdit && !correcting && Boolean(teacherInfo) && canReplaceTeacher("admin", lessonStatus) && (moneyRight || lessonStatus !== "completed");      // Money-1 A4: the teacher of a HELD lesson is whose pay it is - the money right
                     return (
                       <th
                         key={key}
@@ -1445,13 +1533,22 @@ export function GroupAttendanceJournal({
                           {correction && lessonStatus === "completed" && (
                             <div>
                               <Hint
-                                text={[
-                                  `Исправлено: ${[correction.by_name, formatUtcNaiveAsBusinessDateTime(correction.at)].filter(Boolean).join(", ")}`,
-                                  correction.reason ? `Причина: ${correction.reason}` : "",
-                                ].filter(Boolean).join("\n")}
+                                text={correctionHintLines(correction, (studentId) => studentNameById.get(studentId) || "Ученик").join("\n")}
+                                width={288}
                                 className="inline-flex border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
                               >
-                                Исправлено
+                                {CORRECTED_LABEL}
+                              </Hint>
+                            </div>
+                          )}
+                          {attendanceData?.backdated?.[key] && (
+                            <div>
+                              <Hint
+                                text={backdatedHintLines(attendanceData.backdated[key]).join("\n")}
+                                width={256}
+                                className="inline-flex border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-tight text-sky-800"
+                              >
+                                {BACKDATED_LABEL}
                               </Hint>
                             </div>
                           )}
@@ -1460,7 +1557,7 @@ export function GroupAttendanceJournal({
                               <button
                                 type="button"
                                 disabled={correctionChanges.length === 0}
-                                onClick={() => setCorrectionDialog({ reason: "", error: null })}
+                                onClick={() => setCorrectionDialog({ reason: "", error: null, closed: null })}
                                 title={correctionChanges.length === 0 ? "Измените хотя бы одну отметку" : undefined}
                                 className="rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                               >
@@ -1546,7 +1643,7 @@ export function GroupAttendanceJournal({
                         // The excuse record belongs to the saved mark, not to an unsaved correction.
                         const savedIsExcused = localRecords[key]?.[student.id] === "excused";
                         const excuse = value === "excused" && savedIsExcused ? excusesOf(key)?.[student.id] : undefined;
-                        const reviewable = adminMode && !inCorrection && Boolean(excuse);
+                        const reviewable = adminMode && moneyRight && !inCorrection && Boolean(excuse);      // Money-1 A4: the decision moves money - the money right only
                         const excuseView = value === "excused" ? excuseCellView(excuse?.status) : null;
                         const cellClassName = excuseView && excuseView.tone !== "plain"
                           ? EXCUSE_TONE_CLASS[excuseView.tone]
@@ -1558,7 +1655,7 @@ export function GroupAttendanceJournal({
                           : lessonStatus === "scheduled"
                             ? "Сначала начните урок в расписании или на панели «Сегодня»"
                           : lessonStatus === "completed"
-                            ? (adminMode && canEdit ? "Завершённый урок: для изменения выберите «⋯ → Исправить» в заголовке столбца" : "Завершённый урок защищён от случайного изменения")
+                            ? (actionsFor(lesson, key, lessonStatus).includes("correct") ? `Завершённый урок: чтобы изменить отметки, выберите «⋯ → ${CORRECT_MARKS_LABEL}» в заголовке столбца` : "Завершённый урок защищён от случайного изменения")
                             : lessonStatus === "cancelled"
                               ? "Отменённый урок нельзя отмечать"
                               : "Режим просмотра";
@@ -1813,9 +1910,9 @@ export function GroupAttendanceJournal({
         const lesson = lessons.find((item) => instanceKey(item) === columnMenu.key);
         if (!lesson) return null;
         const lessonStatus = attendanceData?.statuses?.[columnMenu.key] || lesson.status || "scheduled";
-        const actions = lessonAdminActions(lessonStatus, lesson.date, today);
+        const actions = actionsFor(lesson, columnMenu.key, lessonStatus);
         const menuTeacherInfo = attendanceData?.lessonTeachers?.[columnMenu.key];
-        const menuCanReplace = Boolean(menuTeacherInfo) && canReplaceTeacher("admin", lessonStatus);
+        const menuCanReplace = Boolean(menuTeacherInfo) && canReplaceTeacher("admin", lessonStatus) && (moneyRight || lessonStatus !== "completed");
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
@@ -1864,6 +1961,24 @@ export function GroupAttendanceJournal({
               <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <Pencil className="h-4 w-4 text-amber-600" />
                 {CORRECT_MARKS_LABEL}
+              </button>
+            )}
+            {actions.includes("return") && (
+              <button type="button" role="menuitem" data-testid="menu-return-held" onClick={() => void runColumnAction("return", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Undo2 className="h-4 w-4 text-rose-600" />
+                {RETURN_LESSON_LABEL}
+              </button>
+            )}
+            {actions.includes("undo_decision") && (
+              <button type="button" role="menuitem" data-testid="menu-undo-decision" onClick={() => void runColumnAction("undo_decision", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Undo2 className="h-4 w-4 text-amber-600" />
+                {UNDO_DECISION_LABEL}
+              </button>
+            )}
+            {actions.includes("return_review") && (
+              <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <RotateCcw className="h-4 w-4 text-emerald-600" />
+                {RETURN_TO_REVIEW_LABEL}
               </button>
             )}
           </FloatingMenu>
@@ -1964,7 +2079,8 @@ export function GroupAttendanceJournal({
             <button
               type="button"
               onClick={() => void submitCorrection()}
-              disabled={correctionSaving || correctionChanges.length === 0}
+              data-testid="correction-submit"
+              disabled={correctionSaving || correctionChanges.length === 0 || (moneyRight && !effectsAllowConfirm(impact))}
               className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {correctionSaving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -2001,12 +2117,17 @@ export function GroupAttendanceJournal({
                 ))}
               </ul>
             </div>
+            {moneyRight ? (
+              <MoneyEffectsBlock preview={impact} onRetry={retryImpact} />
+            ) : (
+              <p data-testid="correction-money-note" className="rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5 text-sm text-slate-800">{TEACHER_CORRECTION_MONEY_NOTE}</p>
+            )}
             <div className="space-y-2">
               <label htmlFor="correction-reason" className="block text-[13px] font-semibold text-slate-500">Причина исправления</label>
               <textarea
                 id="correction-reason"
                 value={correctionDialog.reason}
-                onChange={(event) => setCorrectionDialog({ reason: event.target.value, error: null })}
+                onChange={(event) => setCorrectionDialog({ reason: event.target.value, error: null, closed: null })}
                 rows={3}
                 maxLength={CORRECTION_REASON_MAX}
                 autoFocus
@@ -2014,15 +2135,63 @@ export function GroupAttendanceJournal({
                 className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
               />
               <div className="flex items-start justify-between gap-3 text-xs">
-                <span role={correctionDialog.error ? "alert" : undefined} className={correctionDialog.error ? "font-medium text-rose-600" : "text-slate-400"}>
-                  {correctionDialog.error || "От 10 до 500 символов."}
+                <span role={correctionDialog.error && !correctionDialog.closed ? "alert" : undefined} className={correctionDialog.error && !correctionDialog.closed ? "font-medium text-rose-600" : "text-slate-400"}>
+                  {(correctionDialog.closed ? null : correctionDialog.error) || (moneyRight ? effectsWaitReason(impact) : null) || "От 10 до 500 символов."}
                 </span>
                 <span className="shrink-0 text-slate-400">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
               </div>
+              {correctionDialog.closed && (
+                <PeriodClosedNotice
+                  info={correctionDialog.closed}
+                  onReopened={() => { setCorrectionDialog({ ...correctionDialog, error: null, closed: null }); retryImpact(); }}
+                />
+              )}
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Money-1 A2: «Вернуть урок» (a held lesson) and «Вернуть в разбор» («Урока не было» by mistake) */}
+      <LessonReturnDialog
+        target={returnTarget}
+        onClose={() => setReturnTarget(null)}
+        onDone={async (result, target) => {
+          setReturnTarget(null);
+          await loadAttendanceRef.current(true);
+          const details = returnDoneDetails(moneyEffectsOf(result));
+          showToast(returnDoneText(target.lessonDate, result.changed), details.length ? "warning" : "success", details);
+        }}
+      />
+      <ReturnToReviewDialog
+        target={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onDone={async (result, target) => {
+          setReviewTarget(null);
+          await loadAttendanceRef.current(true);
+          const details = returnDoneDetails(moneyEffectsOf(result));
+          showToast(returnReviewDoneText(target.lessonDate), details.length ? "warning" : "success", details);
+        }}
+      />
+      {/* Money-1 A3: the decision on an additional lesson is taken back */}
+      <UndoDecisionDialog
+        target={undoTarget}
+        onClose={() => setUndoTarget(null)}
+        onDone={async () => {
+          setUndoTarget(null);
+          await loadAttendanceRef.current(true);
+          showToast(UNDO_DECISION_TOAST);
+        }}
+      />
+      {/* Money-1 A6: «Отметить посещаемость» of a lesson formalised afterwards - WHO taught it */}
+      <ReconcileLessonDialog
+        target={reconcileTarget}
+        onClose={() => setReconcileTarget(null)}
+        onDone={async () => {
+          setReconcileTarget(null);
+          await loadAttendanceRef.current(true);
+          showToast(RECONCILE_DONE_TEXT);
+        }}
+      />
 
       {toastNode}
     </div>

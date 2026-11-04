@@ -272,7 +272,7 @@ test("#103: every «Подтвердить» / «Отклонить» of the lis
   assert.match(page, /if \(reviewing\.current\.has\(item\.id\)\) return "Решение уже отправляется";/);
   assert.match(page, /reviewing\.current\.delete\(item\.id\);/);
   // the success toasts are unchanged; a refusal is shown inside the dialog, not as a toast
-  assert.match(page, /showToast\(decision === "confirmed" \? "Пропуск подтверждён" : "Пропуск отклонён"\)/);
+  assert.match(page, /showToast\(decision === "confirmed" \? "Пропуск подтверждён" : "Пропуск отклонён", money\.tone, money\.details\)/);          // Money-1 A3: + what it did to money
   assert.doesNotMatch(page, /showToast\(error instanceof Error \? error\.message : "Не удалось сохранить решение"/);
   assert.match(page, /<ExcuseDecisionDialog target=\{dialog\} busy=\{dialogBusy\} error=\{dialogError\} onClose=\{closeDialog\}/);
   const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
@@ -345,19 +345,21 @@ test("#103: in the journal «Подтвердить» / «Отклонить» o
   // a failed attempt stays in the dialog (its note survives), a saved one closes it
   assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else closeReviewDialog\(\);/);
   // role rules are untouched: only the administrator / owner journal (adminMode) can review
-  assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
+  assert.match(journal, /const reviewable = adminMode && moneyRight && !inCorrection && Boolean\(excuse\);/);          // Money-1 A4: + the money right
   // ONE rule for every role (`groupJournalAccess`): the manager's journal is in admin mode, the teacher's is not
   assert.match(read("src/components/groups/group-detail-view.tsx"), /adminMode=\{journal\.adminMode\}\s+viewerId=\{journal\.viewerId\}\s+groupName=\{journal\.groupName\}/);
   // and the teacher's journal is never in admin mode (the same function the page calls)
   assert.equal(require(path.join(__dirname, "..", "src/lib/group-workspace.ts")).groupJournalAccess({ workspace: "teacher", group: { name: "G", status: "active", teacher_id: "t" }, userId: "t" }).adminMode, false);
 });
 
-test("#103: no other path of the front sends an excuse decision: two callers of the API, both behind the dialog", () => {
+test("#103: no other path of the front sends an excuse decision: two callers of the API, both behind the dialog (+ the dialog's own dry run)", () => {
   const callers = sources.filter((f) => /reviewAttendanceExcuse\(/.test(fs.readFileSync(f, "utf8"))).map(rel).sort();
   assert.deepEqual(callers, [
+    "src/components/attendance/excuse-decision-dialog.tsx",          // Money-1 A3: ONLY the dry run (`dryRun: true`) - it writes nothing, it asks what the decision does to money
     "src/components/attendance/excuses-page.tsx",
     "src/components/groups/group-attendance-journal.tsx",
   ]);
+  assert.match(read("src/components/attendance/excuse-decision-dialog.tsx"), /reviewAttendanceExcuse\(single!\.id, \{ decision, expected_status: single!\.status \}, \{ dryRun: true, signal \}\)/);
   assert.equal((read("src/components/groups/group-attendance-journal.tsx").match(/orgApi\.reviewAttendanceExcuse/g) || []).length, 1);
   // the review endpoint is not reached any other way (no raw fetch / api() call to it)
   for (const f of sources) {

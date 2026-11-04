@@ -710,8 +710,8 @@ test("excuseChange: only a 409 EXCUSE_CHANGED is a change; the message and the i
 
 test("a decision and a reset carry expected_status (the status the dialog showed) from the list and from the journal", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /reviewAttendanceExcuse: \(id: string, data: \{ decision: "confirmed" \| "rejected"; note\?: string; expected_status\?: ExcuseReviewStatus \}\)/);
-  assert.match(api, /resetAttendanceExcuse: \(id: string, data\?: \{ expected_status\?: ExcuseReviewStatus \}\)/);
+  assert.match(api, /reviewAttendanceExcuse: \(id: string, data: \{ decision: "confirmed" \| "rejected"; note\?: string; expected_status\?: ExcuseReviewStatus \}, options\?: \{ dryRun\?: boolean; signal\?: AbortSignal \}\)/);          // Money-1 A3: + the dry run
+  assert.match(api, /resetAttendanceExcuse: \(id: string, data\?: \{ expected_status\?: ExcuseReviewStatus \}, options\?: \{ dryRun\?: boolean; signal\?: AbortSignal \}\)/);
   const list = read("src/components/attendance/excuses-page.tsx");
   assert.match(list, /reviewAttendanceExcuse\(item\.id, \{ decision, expected_status: item\.status,/);
   assert.match(list, /resetAttendanceExcuse\(item\.id, \{ expected_status: item\.status \}\)/);

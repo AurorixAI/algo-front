@@ -7,12 +7,16 @@ import { MONTHS_NOMINATIVE_CAP } from "./ru-calendar";
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
 import { reasonProblemFor } from "./reason-rules";
+import { isLessonTooOld } from "./attendance-ops";
 
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
   | "cancel_missed"  // "Урока не было"
   | "finish"         // "Завершить урок"
-  | "correct";       // "Исправить"
+  | "correct"        // "Исправить отметки"
+  | "return"         // "Вернуть урок" (Money-1 A2): a held lesson goes back to «не проведён»
+  | "return_review"  // "Вернуть в разбор" (Money-1 A2): «Урока не было» said by mistake for a lesson that has begun
+  | "undo_decision"; // "Отменить решение об оплате" (Money-1 A3): the decision on an additional lesson is taken back
 
 export const CORRECTION_REASON_MIN = 10;
 export const CORRECTION_REASON_MAX = 500;
@@ -23,24 +27,45 @@ export const EXCUSE_FILE_MAX_COUNT = 3;
 export const EXCUSE_IMAGE_MAX_SIDE = 1600;
 export const EXCUSE_IMAGE_JPEG_QUALITY = 0.85;
 
+/** What the viewer may do with MONEY (Money-1 A4, I-6): the owner and an administrator the owner allowed payments (`canManageMoney`); the journal passes it, an absent flag is no right. */
+export interface AdminActionRights {
+  moneyRight: boolean;
+  /** How a cancelled lesson was cancelled as the journal sends it (`centre` | `holiday` | `day_off`). */
+  cancelKind?: string | null;
+  /** A cancelled ORIGINAL of a move (the lesson went to another date): it is not returned. */
+  moved?: boolean;
+  /** An additional lesson whose payment was decided (`canUndoDecision`): the decision can be taken back. */
+  undoDecision?: boolean;
+}
+
 /**
  * Which administrator actions the journal column of one lesson offers.
  * `state` is the server status of the concrete lesson ("scheduled" when no row
  * exists yet); `date` and `today` are YYYY-MM-DD business dates.
  *
- * - past + never started (scheduled)  -> reconcile / cancel_missed
+ * - past + never started (scheduled)  -> reconcile (the money right: it says who taught, a lesson paid to a teacher) / cancel_missed
  * - past + in_progress (forgotten)    -> finish (+ cancel is not offered: marks exist)
  * - today + in_progress               -> finish
- * - completed                         -> correct
- * - future, today-not-started, cancelled -> nothing
+ * - completed                         -> correct / return (the money right: a held lesson is money of the students and of the teacher)
+ * - cancelled before today            -> return_review (the money right; not the original of a move, not a day off)
+ * - future, today-not-started         -> nothing
  */
-export function lessonAdminActions(state: string, date: string, today: string): AdminLessonAction[] {
-  if (state === "completed") return ["correct"];
-  if (state === "cancelled") return [];
+export function lessonAdminActions(state: string, date: string, today: string, rights: AdminActionRights): AdminLessonAction[] {
+  if (state === "completed") return rights.moneyRight ? ["correct", "return", ...(rights.undoDecision ? ["undo_decision" as const] : [])] : [];
+  if (state === "cancelled") return rights.moneyRight && date < today && !rights.moved && rights.cancelKind !== "day_off" ? ["return_review"] : [];
   if (date > today) return [];
   if (state === "in_progress") return ["finish"];
-  if (state === "scheduled" && date < today) return ["reconcile", "cancel_missed"];
+  if (state === "scheduled" && date < today) return rights.moneyRight ? ["reconcile", "cancel_missed"] : ["cancel_missed"];
   return [];
+}
+
+/**
+ * Money-1 A5: the teacher of a lesson corrects the marks of his OWN held lesson within 7 days, while the month is open, with a reason (the server judges the month and the days:
+ * LESSON_TOO_OLD, PERIOD_CLOSED).  The journal offers the one action «Исправить отметки»; nothing else of the administrator's menu.
+ */
+export function lessonTeacherActions(state: string, date: string, today: string, own: boolean): AdminLessonAction[] {
+  if (state !== "completed" || !own) return [];
+  return isLessonTooOld(date, today) ? [] : ["correct"];
 }
 
 /** null when the lesson can be finished, otherwise the hint to show. */

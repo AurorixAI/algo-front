@@ -51,7 +51,9 @@ test("the result does not depend on the browser time zone", () => {
 
 test("only the really-UTC timestamps are converted: correction time yes, excuse times no", () => {
   const journal = read("components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /formatUtcNaiveAsBusinessDateTime\(correction\.at\)/);
+  // Money-1 A6: the lines of «Исправлено» (the last correction and the history) are worded by one function that reads the time as UTC
+  assert.match(read("lib/attendance-corrections.ts"), /formatUtcNaiveAsBusinessDateTime\(at\)/);
+  assert.match(journal, /correctionHintLines\(correction,/);
   assert.doesNotMatch(journal, /formatDateTimeRu\(correction\.at\)/);
   // reason_at / reviewed_at are written as Tashkent wall time by the server (_business_now): shown as written
   assert.match(journal, /formatDateTimeRu\(excuse\.reason_at\)/);

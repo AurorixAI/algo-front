@@ -13,6 +13,10 @@ import {
 } from "@/lib/excuse-decision";
 import { Modal } from "@/components/ui/modal";
 import { ExcuseDecisionBody } from "@/components/attendance/excuse-decision-body";
+import { orgApi } from "@/lib/api";
+import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 
 /**
  * What the dialog is about: one excuse, or (bulk) several; `noteMode` says whether a note can / must be typed.
@@ -28,6 +32,9 @@ export interface ExcuseDecisionTarget {
  * «Подтвердить» / «Отклонить» an excused absence always asks first (#103): the dialog names the student, the
  * lesson and the reason, and says in plain words what the decision does to the teacher's payroll.  Nothing
  * is sent before the button is pressed, and pressing it twice sends once.
+ *
+ * Money-1 A3 (I-5): for ONE excuse the dialog also asks the server for the money of THIS decision (a dry run: the pack of the student, the saved sheets of the teacher)
+ * and shows it as «Что будет с деньгами»; «Подтвердить» / «Отклонить» wait for that answer (a closed month: the server's sentence and «Переоткрыть месяц»).
  */
 export function ExcuseDecisionDialog({
   target,
@@ -55,7 +62,14 @@ export function ExcuseDecisionDialog({
   const decision = target?.decision ?? "confirmed";
   const noteMode = target?.noteMode ?? "none";
   const copy = excuseDecisionCopy(decision, target?.items.length ?? 1);
-  const canSubmit = canSubmitExcuseDecision(noteMode, note, busy);
+  const single = target && target.items.length === 1 ? target.items[0] : null;
+  const { preview, retry } = useMoneyPreview(
+    single ? `${single.id}|${single.status}|${decision}` : null,
+    (signal) => orgApi.reviewAttendanceExcuse(single!.id, { decision, expected_status: single!.status }, { dryRun: true, signal }),
+  );
+  const moneyReady = !single || effectsAllowConfirm(preview);
+  const canSubmit = canSubmitExcuseDecision(noteMode, note, busy) && moneyReady;
+  const waitReason = single ? effectsWaitReason(preview) : null;
 
   const submit = async () => {
     if (!target || sending.current || !canSubmit) return;
@@ -101,6 +115,7 @@ export function ExcuseDecisionDialog({
       {target && (
         <>
           <ExcuseDecisionBody items={target.items} decision={target.decision} />
+          {single && <MoneyEffectsBlock preview={preview} onRetry={retry} className="mt-3" />}
           {noteMode !== "none" && (
             <div className="space-y-1.5 pb-2 pt-3">
               <label htmlFor="excuse-decision-note" className="block text-xs font-medium text-slate-600">
@@ -116,6 +131,7 @@ export function ExcuseDecisionDialog({
               />
             </div>
           )}
+          {waitReason && !busy && <p data-testid="excuse-decision-wait" className="pt-3 text-xs text-slate-500">{waitReason}</p>}
           {error && <p role="alert" className="pt-3 text-xs font-medium text-rose-600">{error}</p>}
           {noteMode === "none" && <div className="pb-2" />}
         </>

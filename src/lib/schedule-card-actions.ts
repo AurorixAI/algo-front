@@ -1,4 +1,6 @@
 import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from "./lesson-teacher";
+import { canReturnHeld, canReturnToReview } from "./lesson-return";
+import { UNDO_DECISION_LABEL } from "./one-off";
 import { businessWallTimeToInstant } from "./business-time";
 import { roomWithPrefix } from "./lesson-slot-form";
 import { GROUP_ARCHIVED_SCHEDULE_TEXT, dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
@@ -14,6 +16,9 @@ export type ScheduleCardAction =
   | "mark"            // «Отметить посещаемость»: a past lesson nobody marked (the journal)
   | "journal"        // «Открыть в журнале»: a lesson that is held or going on
   | "restore"        // «Вернуть урок»: a cancelled lesson that has not started is planned again (W1 F3)
+  | "returnHeld"     // «Вернуть урок» (Money-1 A2): a HELD lesson goes back to «не проведён» - the money right
+  | "returnReview"   // «Вернуть в разбор» (Money-1 A2): «Урока не было» said by mistake for a lesson that had begun - the money right
+  | "undoDecision"   // «Отменить решение об оплате» (Money-1 A3): the decision on an additional lesson is taken back - the money right
   | "editSeries"     // «Изменить постоянный урок»: the weekly lesson this one belongs to, from a future date
   | "endSeries";     // «Прекратить урок»: stop the weekly lesson from a future date
 
@@ -22,6 +27,9 @@ export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">
   cancel: "Отменить урок",
   mark: "Отметить посещаемость",
   restore: "Вернуть урок",
+  returnHeld: "Вернуть урок",
+  returnReview: "Вернуть в разбор",
+  undoDecision: UNDO_DECISION_LABEL,
   journal: "Открыть в журнале",
   editSeries: "Изменить постоянный урок",
   endSeries: "Прекратить урок",
@@ -62,6 +70,10 @@ export interface ScheduleCardInput {
   moved?: boolean;
   /** How a cancelled lesson was cancelled as the journal sends it (`centre` | `holiday` | `day_off`); `day_off` is undone by the day off itself. */
   cancelKind?: string | null;
+  /** Money-1 A4: the viewer is the owner or an administrator the owner allowed payments - only they return a held lesson / a lesson that had begun (`canManageMoney`). An absent flag is no right. */
+  moneyRight?: boolean;
+  /** Money-1 A3: an additional lesson whose payment was decided (`canUndoDecision`). */
+  undoDecision?: boolean;
 }
 
 /**
@@ -123,8 +135,14 @@ export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardActio
 function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
   if (input.archived || (input.role !== "owner" && input.role !== "admin")) return [];
   const { state, date, today } = input;
-  if (state === "cancelled") return canRestoreLesson(input) ? ["restore"] : [];
-  if (state === "completed") return ["journal"];
+  if (state === "cancelled") {
+    if (canRestoreLesson(input)) return ["restore"];
+    const started = lessonHasStarted({ date, today, startTime: input.startTime, now: input.now });
+    return canReturnToReview({ moneyRight: input.moneyRight === true, archived: input.archived, state, started, moved: input.moved, cancelKind: input.cancelKind }) ? ["returnReview"] : [];
+  }
+  if (state === "completed") return canReturnHeld({ moneyRight: input.moneyRight === true, archived: input.archived, state })
+    ? ["journal", "returnHeld", ...(input.undoDecision && input.moneyRight === true ? ["undoDecision" as const] : [])]
+    : ["journal"];
   if (state === "in_progress") return ["journal"];
   const out: ScheduleCardAction[] = [];
   const canAssign = input.hasTeacherInfo && canReplaceTeacher(input.role, state);

@@ -22,6 +22,12 @@ import {
 } from "@/lib/schedule-card-actions";
 import { CANCEL_CONSEQUENCES, substitutionErrorText, type LessonMark } from "@/lib/substitutions";
 import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
+import { returnDoneDetails, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
+import { canManageMoney, moneyEffectsOf } from "@/lib/money-effects";
+import { useAuthStore } from "@/lib/store";
+import { LessonReturnDialog, ReturnToReviewDialog } from "./lesson-return-dialogs";
+import { UndoDecisionDialog } from "./undo-decision-dialog";
+import { UNDO_DECISION_TOAST } from "@/lib/one-off";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
 import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
@@ -94,7 +100,9 @@ export function LessonActionSheet({
   const setReason = (next: string) => dispatch({ type: "reason", reason: next });
   const setKind = (next: CancellationKind) => dispatch({ type: "kind", kind: next });
   const canChooseKind = useCanChooseCancellationKind();
-  const changeKind = canChangeKind(canChooseKind, cancellationKind) ? cancellationKind : null;
+  // Money-1 A4 (I-6): to CHANGE the kind of a cancellation afterwards moves the deduction of the students - the money right (choosing it while cancelling is the owner's / administrator's as before)
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
+  const changeKind = canChangeKind(canChooseKind && moneyRight, cancellationKind) ? cancellationKind : null;
   const [newDate, setNewDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -103,6 +111,8 @@ export function LessonActionSheet({
   const sending = useRef(false);           // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
+  /** Money-1 A2: the window of «Вернуть урок» (a held lesson) / «Вернуть в разбор» (a lesson that had begun) over the sheet. */
+  const [returning, setReturning] = useState<"held" | "review" | "undo" | null>(null);
   // the answer of the live check, tagged with the date and time it was asked for: an answer for other values is no answer
   const [result, setResult] = useState<{ key: string; out: MoveCheckOut | null; error: { text: string; stale: boolean } | null } | null>(null);
   const [checking, setChecking] = useState(false);
@@ -289,6 +299,12 @@ export function LessonActionSheet({
                       return <button key={action} type="button" onClick={() => open("cancel")} className={ACTION_BUTTON}><Ban className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.cancel}</button>;
                     case "restore":
                       return <button key={action} type="button" data-testid="sheet-restore" onClick={() => open("restore")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-emerald-600" />{SCHEDULE_ACTION_LABEL.restore}</button>;
+                    case "returnHeld":
+                      return <button key={action} type="button" data-testid="sheet-return-held" onClick={() => setReturning("held")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.returnHeld}</button>;
+                    case "undoDecision":
+                      return <button key={action} type="button" data-testid="sheet-undo-decision" onClick={() => setReturning("undo")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-amber-600" />{SCHEDULE_ACTION_LABEL.undoDecision}</button>;
+                    case "returnReview":
+                      return <button key={action} type="button" data-testid="sheet-return-review" onClick={() => setReturning("review")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-emerald-600" />{SCHEDULE_ACTION_LABEL.returnReview}</button>;
                     case "mark":
                       return <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
                     case "editSeries":
@@ -390,6 +406,28 @@ export function LessonActionSheet({
             </div>
           )}
         </div>
+      )}
+      {lesson && (
+        <>
+          <LessonReturnDialog
+            target={returning === "held" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null}
+            aboveLessonPanel={aboveLessonPanel}
+            onClose={() => setReturning(null)}
+            onDone={(result, target) => { setReturning(null); onChanged(returnDoneText(target.lessonDate, result.changed), returnDoneDetails(moneyEffectsOf(result))); }}
+          />
+          <UndoDecisionDialog
+            target={returning === "undo" ? { lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money } : null}
+            aboveLessonPanel={aboveLessonPanel}
+            onClose={() => setReturning(null)}
+            onDone={() => { setReturning(null); onChanged(UNDO_DECISION_TOAST); }}
+          />
+          <ReturnToReviewDialog
+            target={returning === "review" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date, cancelKind: cancellationKind } : null}
+            aboveLessonPanel={aboveLessonPanel}
+            onClose={() => setReturning(null)}
+            onDone={(result, target) => { setReturning(null); onChanged(returnReviewDoneText(target.lessonDate), returnDoneDetails(moneyEffectsOf(result))); }}
+          />
+        </>
       )}
     </Modal>
   );
