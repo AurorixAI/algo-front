@@ -16,6 +16,7 @@ const OO = lib("one-off.ts");
 const CP = lib("closed-period.ts");
 const XD = lib("excuse-decision.ts");
 const AX = lib("attendance-excuses.ts");
+const OPEN = lib("open-lessons.ts");
 
 const PERIOD_ERROR = { status: 409, code: "PERIOD_CLOSED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 03.11.2026. Чтобы исправить урок, владелец или администратор с правом оплат сначала переоткрывает месяц",
   detail: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-03" } };
@@ -112,18 +113,22 @@ test("«Вернуть урок»: the dialog says what happens, has the reason 
   assert.equal(html(React.createElement(LessonReturnDialog, { target: null, onClose() {}, onDone() {} })), "");
   const src = read("src/components/groups/lesson-return-dialogs.tsx");
   assert.match(src, /orgApi\.returnHeldLesson\(target\.groupId, \{ lessonDate: target\.lessonDate, lessonId: target\.lessonId, reason: DRY_RUN_REASON, dryRun: true \}, signal\)/);
-  assert.match(src, /\.then\(\(answer\) => \{ version\.current = answer\.version; return answer; \}\)/);
-  assert.match(src, /\.\.\.\(version\.current !== undefined \? \{ expectedVersion: version\.current \} : \{\}\)/);
-  assert.match(src, /if \(!target \|\| busy \|\| sending\.current \|\| !effectsAllowConfirm\(preview\)\) return;/);
-  assert.match(src, /disabled=\{busy \|\| !effectsAllowConfirm\(preview\)\}/);
+  // R3 #11 (item 2): the version the dry run read is kept and ALWAYS sent (`expectedVersion` is required by the server), the button waits for both
+  assert.match(src, /\.then\(\(answer\) => \{ setVersion\(answer\.version\); return answer; \}\)/);
+  assert.match(src, /reason: reason\.trim\(\), expectedVersion: version,/);
+  assert.match(src, /const canSend = effectsAllowConfirm\(preview\) && version !== undefined;/);
+  assert.match(src, /if \(!target \|\| busy \|\| sending\.current \|\| !canSend \|\| version === undefined\) return;/);
+  assert.match(src, /disabled=\{busy \|\| !canSend\}/);
+  // 409 ATTENDANCE_CONFLICT: the window forgets the version, asks the dry run again and tells the page behind it to read the lesson again
+  assert.match(src, /if \(isAttendanceConflict\(cause\)\) \{ setVersion\(undefined\); retry\(\); onStale\?\.\(\); \}/);
   assert.match(src, /const problem = validateReturnReason\(reason\);\s*if \(problem\) \{ setReasonError\(problem\); return; \}/);
 });
 
-test("«Вернуть в разбор»: the dialog says the lesson comes back to «Незакрытые уроки»; the deduction line only for «по вине центра»; the reason is required", () => {
+test("«Вернуть в разбор»: the dialog says the lesson comes back to «Незакрытые уроки»; the general deduction line is gone (the dry run names whose deduction it is); the reason is required", () => {
   const { ReturnToReviewDialog } = component("groups/lesson-return-dialogs.tsx");
   const show = (cancelKind) => textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28", cancelKind }, onClose() {}, onDone() {} })));
   const centre = show("centre");
-  for (const part of ["Вернуть урок в разбор?", "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.", "У учеников исчезнет вычет за этот урок (если центр вычитает отмены).", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
+  for (const part of ["Вернуть урок в разбор?", "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
   assert.ok(!show("holiday").includes("исчезнет вычет"), "a holiday took nothing from the students");
   assert.ok(!show(null).includes("исчезнет вычет"));
   assert.match(textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }))), /Вернуть в разбор/);
@@ -138,10 +143,16 @@ test("the words of the returns: the toast, the reason rules, the refusals in the
   assert.match(RET.validateReturnReason("ab"), /не короче 3/);
   assert.equal(RET.validateReturnReason("abc"), null);
   assert.match(RET.validateReturnReason("x".repeat(501)), /не длиннее 500/);
-  assert.equal(RET.returnErrorText({ code: "ATTENDANCE_CONFLICT", message: "Отметки урока уже изменили. Обновите страницу" }), "Отметки урока уже изменили. Обновите страницу");
+  // R3 #11: the lesson was changed after the window read it - the server's sentence, then what the window did about it
+  assert.equal(RET.returnErrorText({ code: "ATTENDANCE_CONFLICT", message: "Отметки урока уже изменили. Обновите страницу" }), "Отметки урока уже изменили. Обновите страницу. Мы прочитали урок заново: проверьте последствия и нажмите ещё раз.");
+  assert.match(RET.returnErrorText({ code: "ATTENDANCE_CONFLICT" }), /^Отметки урока уже изменили/);
+  assert.equal(RET.returnErrorText(Object.assign(new Error("Слова сервера про версию"), { code: "VERSION_REQUIRED" })), "Слова сервера про версию", "a new code: the server's own sentence");
+  assert.equal(RET.returnErrorText(Object.assign(new Error("Этот урок был раньше начала учёта центра: вернуть его на разбор нельзя"), { code: "RESTORE_BEFORE_START" })), "Этот урок был раньше начала учёта центра: вернуть его на разбор нельзя");
+  assert.equal(RET.returnErrorText(Object.assign(new Error("Сейчас идёт урок группы"), { code: "LESSON_IN_PROGRESS" })), "Сейчас идёт урок группы");
+  assert.equal(RET.returnErrorText(Object.assign(new Error("Отметки урока уже изменили"), { code: "ATTENDANCE_CONFLICT" })), "Отметки урока уже изменили. Мы прочитали урок заново: проверьте последствия и нажмите ещё раз.");
   assert.equal(RET.returnErrorText({ code: "LESSON_NOT_HELD" }), "Проведённого урока нет: возвращать нечего. Обновите страницу");
   assert.deepEqual(RET.returnDoneDetails(E.moneyEffectsOf({ moneyEffects: { students: [], payroll: [{ month: "2026-10", state: "open", teacherName: "Каримова К.", sheetId: "s", changedBy: -50000 }], dryRun: false } })).map(plain),
-    ["Ведомость Каримова К., октябрь 2026: −50 000 сум к сохранённой — пересохраните её"]);
+    ["Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум — пересохраните её"]);
   assert.deepEqual(RET.returnDoneDetails(null), []);
 });
 
@@ -149,15 +160,18 @@ test("the words of the returns: the toast, the reason rules, the refusals in the
 
 test("the correction of a held lesson: the dry run (impact) is asked for the money right, the button waits for it, a closed month has the way out; the teacher reads the rule in words", () => {
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /const impactKey = correctionDialog && correcting && correctingLesson && moneyRight\s*\?/);
+  // R3 #24 (item 12): the teacher of the lesson asks the dry run too - his block has the month and the state of the sheet, no sums
+  assert.match(journal, /const impactKey = correctionDialog && correcting && correctingLesson\s*\?/);
+  assert.doesNotMatch(journal, /const impactKey = [^;]*moneyRight/);
   assert.match(journal, /orgApi\.attendanceCorrectionImpact\(groupId, \{ lessonDate: correctingLesson\.date, lessonId: correctingLesson\.id, records: correcting\.draft \}, signal\)/);
-  assert.match(journal, /if \(moneyRight && !effectsAllowConfirm\(impact\)\) return;/);
-  assert.match(journal, /disabled=\{correctionSaving \|\| correctionChanges\.length === 0 \|\| \(moneyRight && !effectsAllowConfirm\(impact\)\)\}/);
-  assert.match(journal, /\{moneyRight \? \(\s*<MoneyEffectsBlock preview=\{impact\} onRetry=\{retryImpact\} \/>\s*\) : \(\s*<p data-testid="correction-money-note"[^>]*>\{TEACHER_CORRECTION_MONEY_NOTE\}<\/p>/);
+  assert.match(journal, /if \(!effectsAllowConfirm\(impact\)\) return;/);
+  assert.match(journal, /disabled=\{correctionSaving \|\| correctionChanges\.length === 0 \|\| !effectsAllowConfirm\(impact\)\}/);
+  assert.match(journal, /<MoneyEffectsBlock preview=\{impact\} onRetry=\{retryImpact\} \/>/);
+  assert.doesNotMatch(journal, /correction-money-note/, "no general note instead of the block");
   assert.match(journal, /closed: periodClosedOf\(err\)/);
   assert.match(journal, /<PeriodClosedNotice\s+info=\{correctionDialog\.closed\}/);
   assert.match(journal, /const effects = effectLines\(moneyEffectsOf\(saved\), \{ done: true \}\)\.map\(\(line\) => line\.text\);\s*showToast\(`Урок \$\{date\} исправлен`, effects\.length \? "warning" : "success", effects\)/);
-  assert.match(COR.TEACHER_CORRECTION_MONEY_NOTE, /Если месяц уже закрыт ведомостью, исправить урок нельзя — обратитесь к владельцу\./);
+  assert.equal(COR.TEACHER_CORRECTION_MONEY_NOTE, undefined, "the rule in words is replaced by the real block");
   assert.match(read("src/lib/api.ts"), /attendanceCorrectionImpact: \(groupId: string, body: \{ lessonDate: string; lessonId: string; records: Record<string, string> \}, signal\?: AbortSignal\) =>\s*api<\{ ok: boolean; moneyEffects: unknown \}>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/attendance\/impact`/);
 });
 
@@ -216,7 +230,16 @@ test("who taught: the planned teacher by default (nothing is sent), `taughtBy` o
   const src = read("src/components/groups/reconcile-lesson-dialog.tsx");
   assert.match(src, /\.\.\.\(taughtBy \? \{ taughtBy \} : \{\}\)/);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /if \(action === "reconcile"\) \{[^}]*setReconcileTarget\(\{ groupId, lessonId: lesson\.id, lessonDate: lesson\.date, topic: lesson\.topic \}\);\s*return;/);
+  // R3 #25: «Кто провёл» starts with the teacher of the row of «Требует разбора» (the link carries `teacher=`), only for the lesson the person came for
+  assert.match(journal, /if \(action === "reconcile"\) \{[\s\S]*?setReconcileTarget\(\{ groupId, lessonId: lesson\.id, lessonDate: lesson\.date, topic: lesson\.topic, teacherId: fromRow \}\);\s*return;/);
+  assert.match(journal, /highlightTarget && highlightTarget\.lessonId === lesson\.id && highlightTarget\.date === lesson\.date \? highlightTeacherId : null/);
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /highlightTeacherId=\{searchParams\?\.get\("teacher"\)\}/);
+  assert.match(src, /setPick\(fromRow \?\? plannedTeacherId\(result\)\)/);
+  assert.match(src, /const planned = \(target\?\.teacherId && candidates\.some\(\(candidate\) => candidate\.teacherId === target\.teacherId\) \? target\.teacherId : null\) \?\? plannedTeacherId\(list\);/);
+  const href = OPEN.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-12", lessonId: "l1", teacherId: "11111111-2222-3333-4444-555555555555" });
+  assert.match(href, /&lesson=l1&date=2026-10-12&teacher=11111111-2222-3333-4444-555555555555$/);
+  assert.doesNotMatch(OPEN.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-12", lessonId: "l1" }), /teacher=/);
+  assert.doesNotMatch(OPEN.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-12", lessonId: "l1", teacherId: "bad value" }), /teacher=/, "a teacher that is not an id is left out");
 });
 
 // ── «Завершить», когда никто не пришёл ────────────────────────────────────────────────────────────────
@@ -228,19 +251,22 @@ test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says
   assert.equal(OPS.isNobodyCame({ code: "NOBODY_CAME" }), true);
   assert.equal(OPS.isNobodyCame({ code: "ATTENDANCE_CONFLICT" }), false);
   const q = OPS.nobodyCameQuestion();
-  assert.equal(q.title, "Завершить урок, на который никто не пришёл?");
-  assert.equal(q.message, "Все ученики отмечены без посещения. Если завершить, урок будет считаться проведённым и оплачен преподавателю.\nЕсли урока не было, вернитесь и нажмите «Урока не было».");
+  assert.equal(q.title, "Никто не пришёл");
+  assert.equal(q.message, "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».");
   assert.equal(q.confirmLabel, "Завершить и оплатить");
   assert.equal(q.cancelLabel, "Вернуться");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /if \(failure\.kind === "nobody_came"\) \{ nobodyCame = true; return false; \}/);
-  assert.match(journal, /\.\.\.\(confirmNobodyCame \? \{ confirmNobodyCame: true \} : \{\}\)/);
+  // R3 #8: the FIRST request already says `confirmNobodyCame: false`; only the second one, after the yes, says true
+  assert.match(journal, /status: "completed",[\s\S]{0,400}?\n\s*confirmNobodyCame,/);
   assert.match(journal, /if \(nobodyCame\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
   const panel = read("src/lib/use-teacher-lesson-panel.ts");
   assert.match(panel, /if \(failure\.kind === "nobody_came"\) askNobody = true;/);
   assert.match(panel, /if \(askNobody && \(await askConfirm\(nobodyCameQuestion\(\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);
-  assert.equal((panel.match(/confirmNobodyCame: true/g) || []).length, 1, "the flag is sent only by the second try");
-  assert.equal((journal.match(/confirmNobodyCame: true/g) || []).length, 1);
+  assert.match(panel, /\n\s*confirmNobodyCame,\s*\/\/ R3 #8/, "the first request carries the flag too (false)");
+  assert.equal((panel.match(/handleFinishLesson\(acknowledgeLiveExam, marks, true\)/g) || []).length, 1, "true goes only with the second try");
+  assert.equal((journal.match(/finishLesson\(lesson, acknowledgeLiveExam, true\)/g) || []).length, 1, "true goes only with the second try");
+  assert.match(journal, /confirmNobodyCame = false\): Promise/, "the default is false");
 });
 
 // ── the journal: «было → стало», «оформлен задним числом» ──────────────────────────────────────────────
@@ -269,6 +295,15 @@ test("«Исправлено» tells the whole fate of the lesson: the last corr
   assert.equal(COR.markWord("excused"), "Уважительная");
   assert.equal(COR.markWord(undefined), "нет отметки");
   assert.equal(COR.changeLine({ studentId: "zz", from: "late", to: null }, nameOf), "Ученик: Опоздал → нет отметки");
+});
+
+test("R3 item 13: `corrections[key].kind` - a lesson that was only RETURNED says «Урок возвращали», a corrected one «Исправлено»; an older server (no kind) is «Исправлено»", () => {
+  assert.equal(COR.correctionChipLabel({ kind: "returned" }), "Урок возвращали");
+  assert.equal(COR.correctionChipLabel({ kind: "corrected" }), "Исправлено");
+  assert.equal(COR.correctionChipLabel({}), "Исправлено");
+  const lines = COR.correctionHintLines({ kind: "returned", by_name: "Лола", at: "2026-11-04T08:00:00", reason: "нажали по ошибке", changes: [] }, nameOf);
+  assert.deepEqual(lines, ["Возвращён в «не проведён»: Лола, 04.11.2026 13:00", "Причина: нажали по ошибке"]);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /\{correctionChipLabel\(correction\)\}/);
 });
 
 test("«Оформлен задним числом»: who and when, and who taught it when that is not the planned teacher; the chip is in the head of the column", () => {
@@ -386,7 +421,7 @@ test("payments, forgiveness, refunds, rates, the divisor: every caller shows `mo
   const voided = { payment: { id: "p" }, row: {}, money_effects: { students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s", teacherId: "t", changedBy: -125000 }], text: "", dryRun: false } };
   const note = E.toastWithEffects(voided);
   assert.equal(note.tone, "warning");
-  assert.equal(plain(note.details[0]), "Ведомость Каримова К., октябрь 2026: −125 000 сум к сохранённой — пересохраните её");
+  assert.equal(plain(note.details[0]), "Ведомость Каримова К., октябрь 2026: изменилась на −125 000 сум — пересохраните её");
 });
 
 // ── the rights in the rest of the screens ──────────────────────────────────────────────────────────────
@@ -409,4 +444,23 @@ test("an administrator without the money right: no «Перевести в др�
   assert.match(read("src/components/groups/group-student-table.tsx"), /canTransfer: Boolean\(canRemove && onTransfer && !isTeacher && moneyRight\)/);
   assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /canChangeKind\(canChooseKind && moneyRight, cancellationKind\)/);
   assert.match(read("src/components/students/student-profile-view.tsx"), /moneyRight=\{canManageMoney\(user\)\}/);
+});
+
+// ── R3 #1 (item 4): the days off, the money right only ───────────────────────────────────────────────────
+
+test("R3 item 4: the days off are given, cancelled and continued only with the money right; the journal is for every manager; an administrator without the flag and a teacher see the reason", () => {
+  const { DaysOffPanel } = component("schedule/days-off-panel.tsx");
+  const draw = (user) => { signIn(user); return html(React.createElement(DaysOffPanel)); };
+  assert.match(draw({ org_role: "owner" }), /data-testid="day-off-new"/);
+  assert.match(draw({ org_role: "admin", payments_access: true }), /data-testid="day-off-new"/);
+  for (const user of [{ org_role: "admin", payments_access: false }, { org_role: "admin" }]) {
+    const markup = draw(user);
+    assert.doesNotMatch(markup, /data-testid="day-off-new"/);
+    assert.match(markup, /data-testid="day-off-no-right"/);
+    assert.match(markup, /Журнал выходных вы видите/);
+    assert.match(markup, /Выходной день центра/, "the journal is there");
+  }
+  const src = read("src/components/schedule/days-off-panel.tsx");
+  assert.match(src, /\{moneyRight && day\.active && day\.dateTo >= formatBusinessDate\(\) && <button/, "no «Отменить» without the right");
+  assert.match(src, /\{moneyRight && <button type="button" onClick=\{\(\) => void proceed\(\)\}/, "no «Продолжить» without the right");
 });

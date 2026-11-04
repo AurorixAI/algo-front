@@ -187,7 +187,7 @@ test("F3: the words and the call of «Вернуть урок»; every RESTORE_*
   assert.equal(text("REASON_REQUIRED"), "Укажите причину (не менее 3 символов)");
   assert.equal(text("TEACHER_BUSY", "Преподаватель занят").length > 0, true);
   const api = read("src/lib/api.ts");
-  assert.match(api, /restoreLesson: \(groupId: string, body: \{ lessonId: string; lessonDate: string; reason: string \}\) =>\s+api<RestoreLessonResult>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/lessons\/restore`, \{ method: "POST", body \}\)/);
+  assert.match(api, /restoreLesson: \(groupId: string, body: \{ lessonId: string; lessonDate: string; reason: string; dryRun\?: boolean \}, signal\?: AbortSignal\) =>\s+api<RestoreLessonResult>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/lessons\/restore`, \{ method: "POST", body, signal \}\)/);
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /orgApi\.restoreLesson\(groupId, \{ lessonId: lesson\.id, lessonDate: lesson\.date, reason: trimmed \}\)/);
   assert.match(sheet, /onChanged\("Урок возвращён", warningTexts\(restored\)\)/, "the toast; the note about the exams is under the form's field, not repeated as a warning");

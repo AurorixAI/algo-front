@@ -173,8 +173,8 @@ export function isNobodyCame(error: unknown): boolean {
 /** The question before a finish where nobody came: the lesson is paid to the teacher; «Урока не было» is the other road. */
 export function nobodyCameQuestion(): ConfirmRequest {
   return {
-    title: "Завершить урок, на который никто не пришёл?",
-    message: "Все ученики отмечены без посещения. Если завершить, урок будет считаться проведённым и оплачен преподавателю.\nЕсли урока не было, вернитесь и нажмите «Урока не было».",
+    title: "Никто не пришёл",
+    message: "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».",
     confirmLabel: "Завершить и оплатить",
     cancelLabel: "Вернуться",
   };

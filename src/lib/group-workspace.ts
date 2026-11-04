@@ -59,7 +59,7 @@ export function resolveGroupPageTab(requested: string | null | undefined, input:
 
 /** `?month=&lesson=&date=` open the journal on one lesson (open-lessons link); they do not follow the user to another tab or to a filter. */
 export function withoutJournalLink(params: URLSearchParams): URLSearchParams {
-  for (const key of ["month", "lesson", "date"]) params.delete(key);
+  for (const key of ["month", "lesson", "date", "teacher"]) params.delete(key);
   return params;
 }
 

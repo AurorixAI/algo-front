@@ -7,7 +7,7 @@
  * Pure: no React, no network.
  */
 import { formatDateRu } from "./business-time";
-import { REASON_MAX, REASON_MIN } from "./payments";
+import { formatMoney, REASON_MAX, REASON_MIN } from "./payments";
 import { effectLines, type MoneyEffects } from "./money-effects";
 
 export const RETURN_LESSON_LABEL = "Вернуть урок";
@@ -21,8 +21,32 @@ export const RETURN_LESSON_EXPLAIN = "Урок станет «не провед�
 
 export const RETURN_REVIEW_TITLE = "Вернуть урок в разбор?";
 export const RETURN_REVIEW_EXPLAIN = "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.";
-/** Under the explanation when the lesson was cancelled «по вине центра»: the deduction goes away with the cancellation. */
-export const RETURN_REVIEW_DEDUCTION = "У учеников исчезнет вычет за этот урок (если центр вычитает отмены).";
+/** R3 #23: the dry run of the return says WHOSE deduction for the cancelled lesson goes away and by how much (the money right only) - it replaces the general line. */
+export const DEDUCTIONS_TITLE = "Вычеты за этот урок исчезнут";
+
+export interface DeductionLine {
+  studentId: string;
+  name: string;
+  amount: number;
+}
+
+/** `deductions` of the answer of `lessons/restore` (dry or real): a row without a name or a positive sum is not a deduction. */
+export function deductionsOf(answer: unknown): DeductionLine[] {
+  const raw = (answer as { deductions?: unknown } | null | undefined)?.deductions;
+  if (!Array.isArray(raw)) return [];
+  const lines: DeductionLine[] = [];
+  for (const item of raw) {
+    const row = item as { studentId?: unknown; name?: unknown; amount?: unknown } | null;
+    const amount = Number(row?.amount);
+    const name = typeof row?.name === "string" ? row.name.trim() : "";
+    if (name && Number.isFinite(amount) && amount > 0) lines.push({ studentId: String(row?.studentId ?? name), name, amount });
+  }
+  return lines;
+}
+
+export function deductionText(line: DeductionLine): string {
+  return `${line.name}: ${formatMoney(line.amount)}`;
+}
 export const RETURN_REVIEW_PAY = "Преподавателю урок оплатится, когда его проведут.";
 
 export function validateReturnReason(reason: string | null | undefined): string | null {
@@ -76,6 +100,7 @@ export function returnErrorText(error: unknown, fallback = "Не удалось 
   const code = (error as { code?: unknown } | null | undefined)?.code;
   const message = error instanceof Error ? error.message.trim() : "";
   if (code === "LESSON_NOT_HELD") return message || "Проведённого урока нет: возвращать нечего. Обновите страницу";
-  if (code === "ATTENDANCE_CONFLICT") return message || "Отметки урока уже изменили. Обновите страницу";
+  // R3 #11: the lesson was changed after the window read it - the window has read it again
+  if (code === "ATTENDANCE_CONFLICT") return `${(message || "Отметки урока уже изменили. Обновите страницу").replace(/[.\s]+$/, "")}. Мы прочитали урок заново: проверьте последствия и нажмите ещё раз.`;
   return message || fallback;
 }

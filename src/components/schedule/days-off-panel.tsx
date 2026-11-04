@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptBlock, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { DAY_OFF_NO_RIGHT_TEXT, NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptBlock, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
+import { canManageMoney } from "@/lib/money-effects";
+import { useAuthStore } from "@/lib/store";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
 
 /** The lines «28.10 · 10:00 · Группа — была замена: Имя Ф.» of the lessons that came back without their substitute, by date and time. */
@@ -100,6 +102,8 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
  * The days off of the centre: the journal and the two actions (give a day off, cancel one).  For the owner and the administrator; it lives in «Настройки».
  */
 export function DaysOffPanel() {
+  // R3 #1 (I-6): giving or cancelling a day off cancels the lessons of the whole centre - the money (deductions, pay) moves with it: the money right only; the journal is for every manager
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
   const [days, setDays] = useState<DayOffOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -161,8 +165,9 @@ export function DaysOffPanel() {
           <h2 id="days-off-title" className="flex items-center gap-2 text-base font-bold text-slate-900"><CalendarOff className="h-4 w-4 text-slate-500" aria-hidden />{DAY_OFF_TITLE}</h2>
           <p className="mt-0.5 text-xs text-slate-500">Праздник или день, когда центр не работает: уроки всех групп отменяются сразу, деньги по ним не пересчитываются.</p>
         </div>
-        <button type="button" onClick={() => setCreating(true)} data-testid="day-off-new" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Назначить выходной</button>
+        {moneyRight && <button type="button" onClick={() => setCreating(true)} data-testid="day-off-new" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Назначить выходной</button>}
       </div>
+      {!moneyRight && <p data-testid="day-off-no-right" className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{DAY_OFF_NO_RIGHT_TEXT}</p>}
       {notice && (
         <div role="status" className={`space-y-1 rounded-xl px-3 py-2 text-xs font-medium ${noticeLines.length > 0 ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>
           <p>{notice}</p>
@@ -173,7 +178,7 @@ export function DaysOffPanel() {
       {unfinished && (
         <p role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900" data-testid="day-off-unfinished">
           Сервис экзаменов не ответил: часть уроков не отменена.
-          <button type="button" onClick={() => void proceed()} disabled={continuing} className="rounded-lg bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">{continuing ? "Продолжаем…" : "Продолжить"}</button>
+          {moneyRight && <button type="button" onClick={() => void proceed()} disabled={continuing} className="rounded-lg bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">{continuing ? "Продолжаем…" : "Продолжить"}</button>}
         </p>
       )}
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
@@ -184,7 +189,7 @@ export function DaysOffPanel() {
         const row = (day: DayOffOut) => (
           <li key={day.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
             <span className={day.active && day.dateTo >= formatBusinessDate() ? "text-slate-900" : "text-slate-400 line-through"}>{dayOffLine(day)}</span>
-            {day.active && day.dateTo >= formatBusinessDate() && <button type="button" onClick={() => setVoiding(day)} className="text-xs font-semibold text-primary-700 hover:underline">Отменить выходной</button>}
+            {moneyRight && day.active && day.dateTo >= formatBusinessDate() && <button type="button" onClick={() => setVoiding(day)} className="text-xs font-semibold text-primary-700 hover:underline">Отменить выходной</button>}
           </li>
         );
         return (

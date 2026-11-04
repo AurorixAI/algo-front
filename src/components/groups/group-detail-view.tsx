@@ -612,6 +612,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               initialMonth={searchParams?.get("month")}
               highlightLessonId={searchParams?.get("lesson")}
               highlightDate={searchParams?.get("date")}
+              highlightTeacherId={searchParams?.get("teacher")}
             />
           </motion.div>
         )}

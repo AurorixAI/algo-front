@@ -111,7 +111,9 @@ test("a row has a BUTTON for the main action («Отметить» / «Откр�
 
 test("journal link carries the lesson and its date; invalid parts are left out", () => {
   const a = action({ groupId: "G-7", lessonId: "s2", lessonDate: "2026-09-30" });
-  assert.equal(openLessons.journalHref("/admin/groups", a), "/admin/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30");
+  // R3 #25: the teacher of the row rides along (the start of «Кто провёл» of «Отметить посещаемость»)
+  assert.equal(openLessons.journalHref("/admin/groups", a), "/admin/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30&teacher=t1");
+  assert.equal(openLessons.journalHref("/admin/groups", action({ groupId: "G-7", lessonId: "s2", lessonDate: "2026-09-30", teacherId: null })), "/admin/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30");
   assert.equal(
     openLessons.journalHref("/owner/groups", action({ groupId: "G", lessonId: "lesson 1/x", lessonDate: "2026-09-30" })),
     "/owner/groups/G?tab=attendance&month=2026-09",
@@ -159,11 +161,11 @@ test("the teacher's group page honours the same deep link: ?tab=attendance opens
   // the link is one-shot: switching the tab (or the exam filter) drops it, so «Посещаемость» does not jump back to it
   assert.match(page, /router\.replace\(groupTabQuery\(searchParams\?\.toString\(\), newTab\)/);
   assert.match(exams, /const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);\s*next\.set\("tab", "exams"\);/);
-  assert.match(read("src/lib/group-workspace.ts"), /for \(const key of \["month", "lesson", "date"\]\) params\.delete\(key\);/);
+  assert.match(read("src/lib/group-workspace.ts"), /for \(const key of \["month", "lesson", "date", "teacher"\]\) params\.delete\(key\);/);
   // the link a teacher would get is the same one the open-lessons list builds for the other roles
   assert.equal(
     openLessons.journalHref("/teacher/groups", action({ groupId: "G-7", lessonId: "s2", lessonDate: "2026-09-30" })),
-    "/teacher/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30",
+    "/teacher/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30&teacher=t1",
   );
 });
 

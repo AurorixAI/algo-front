@@ -601,7 +601,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
-        ...(confirmNobodyCame ? { confirmNobodyCame: true } : {}),
+        confirmNobodyCame,          // R3 #8: `false` first (the server asks when nobody came: 409 NOBODY_CAME), `true` after the yes
       }));
       const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
       if (here) {

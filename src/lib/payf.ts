@@ -345,3 +345,6 @@ export function dayOffSummary(plan: Pick<DayOffPlan, "text">): string {
   const colon = text.indexOf(":");
   return colon > 0 ? text.slice(0, colon) : text;
 }
+
+/** R3 #1 (I-6): a day off cancels the lessons of every group at once - deductions of the students and the pay of the teachers move with it: the owner and an administrator with the money right give and cancel it. */
+export const DAY_OFF_NO_RIGHT_TEXT = "Назначить и отменить выходной день может владелец или администратор, которому владелец разрешил оплаты: уроки отменяются сразу, а это деньги. Журнал выходных вы видите.";

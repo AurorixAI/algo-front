@@ -24,6 +24,8 @@ import {
 import { LESSON_TYPES, type LessonType } from "@/lib/payroll";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { logicaError } from "@/lib/payments-logica";
+import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
+import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
@@ -56,6 +58,8 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
   const [impact, setImpact] = useState<{ key: string; data: LessonTypeImpact | null } | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
+  /** R3 #4: the change touches a closed month of the teacher (409 `PERIOD_CLOSED`) - the server's sentence and «Переоткрыть месяц» for who may (nothing is saved). */
+  const [closed, setClosed] = useState<PeriodClosedInfo | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -71,7 +75,7 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
     setLoadError(null);
     setValidFrom(today);
     setImpact(null);
-    setCheckError(null);
+    setCheckError(null); setClosed(null);
     setError(null);
     setSaving(false);
     orgApi.getGroupLessonTypes(groupId)
@@ -98,13 +102,13 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
     const token = impactSequence.current.next();
     if (!check.request || noop) {
       setChecking(false);
-      setCheckError(null);
+      setCheckError(null); setClosed(null);
       return () => { impactSequence.current.next(); };
     }
     const asked = check.request;
     const askedKey = key;
     setChecking(true);
-    setCheckError(null);
+    setCheckError(null); setClosed(null);
     const timer = setTimeout(() => {
       orgApi.setGroupLessonType(groupId, asked, { dryRun: true })
         .then((result) => {
@@ -117,6 +121,7 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
           setImpact(null);
           setChecking(false);
           setCheckError(logicaError(cause, "Не удалось проверить последствия").message);
+          setClosed(periodClosedOf(cause));
         });
     }, IMPACT_DEBOUNCE_MS);
     return () => {
@@ -138,12 +143,14 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
     if (!check.request || !ready || saving) return;
     setSaving(true);
     setError(null);
+    setClosed(null);
     try {
       const result = await orgApi.setGroupLessonType(groupId, check.request);
       onSaved(result);
       onClose();
     } catch (cause) {
       setError(logicaError(cause, "Не удалось сохранить тип занятий").message);
+      setClosed(periodClosedOf(cause));
     } finally {
       setSaving(false);
     }
@@ -204,7 +211,6 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
             <DateInput
               id="group-lesson-type-from"
               value={validFrom}
-              min={range.min}
               max={range.max}
               onChange={(next) => { setError(null); setValidFrom(next); }}
               className={`${PRICE_FIELD} sm:w-1/2`}
@@ -224,6 +230,8 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
               <p className="font-semibold text-slate-800">Что изменится</p>
               {checking || (!shown && !checkError) ? (
                 <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем последствия…</p>
+              ) : checkError && closed ? (
+                <PeriodClosedNotice info={closed} onReopened={() => { setClosed(null); setImpact(null); setImpactNonce((value) => value + 1); }} />
               ) : checkError ? (
                 <p role="alert" className="text-rose-700">
                   {checkError}{" "}
@@ -253,7 +261,9 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
             </div>
           )}
 
-          {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+          {error && (closed && !checkError
+            ? <PeriodClosedNotice info={closed} onReopened={() => { setClosed(null); setError(null); }} />
+            : <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>)}
         </form>
       )}
     </Modal>

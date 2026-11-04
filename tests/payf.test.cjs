@@ -254,7 +254,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   const lines = (file) => read(file).split("\n").length;
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
-    "src/app/admin/settings/page.tsx": 107 + 6 + 1 /* WAVE E: the read-only e-mail component, the password check */, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 /* WB-P5 R3: the text of a 409 after a lost answer */, "src/components/payments/receipt-view.tsx": 297 + 3,
+    "src/app/admin/settings/page.tsx": 107 + 6 + 1 /* WAVE E: the read-only e-mail component, the password check */, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 /* WB-P5 R3: the text of a 409 after a lost answer */ + 8 /* Money-1 R3 #15: the dry run of the payment - one hook (`use-payment-effects`) and one block */, "src/components/payments/receipt-view.tsx": 297 + 3,
     "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 + 8 + 40 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3); + 40: Money-1 A2/A3 - three buttons and the three windows (own components) of «Вернуть урок» (held), «Вернуть в разбор», «Отменить решение»
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
@@ -299,7 +299,9 @@ test("the panel of the days off renders (before the list arrives) and the dialog
   const { DaysOffPanel } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = renderToStaticMarkup(React.createElement(DaysOffPanel));
   assert.match(html, /Выходной день центра/);
-  assert.match(html, /Назначить выходной/);
+  // R3 #1 (I-6): giving or cancelling a day off cancels the lessons of the whole centre - the money right only; nobody signed in = no right, the journal stays
+  assert.doesNotMatch(html, /Назначить выходной/);
+  assert.match(html, /data-testid="day-off-no-right"/);
   assert.match(html, /Загрузка…/);
   assert.match(html, /деньги по ним не пересчитываются/);
   const { DayOffDialog } = require(path.join(root, "src/components/schedule/day-off-dialog.tsx"));

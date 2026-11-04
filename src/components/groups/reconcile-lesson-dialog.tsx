@@ -27,6 +27,8 @@ export interface ReconcileTarget {
   /** `YYYY-MM-DD` */
   lessonDate: string;
   topic?: string | null;
+  /** R3 #25: the teacher of the row of «Требует разбора» (already the substitute when the day has one): «Кто провёл» starts with him. */
+  teacherId?: string | null;
 }
 
 /**
@@ -57,7 +59,8 @@ export function ReconcileLessonDialog({
       const result = await opsApi.lessonTeacherCandidates(target.groupId, target.lessonId, target.lessonDate);
       if (token !== requestRef.current) return;
       setList(result);
-      setPick(plannedTeacherId(result));
+      const fromRow = target.teacherId && (result.candidates ?? []).some((candidate) => candidate.teacherId === target.teacherId) ? target.teacherId : null;
+      setPick(fromRow ?? plannedTeacherId(result));
     } catch (failure) {
       if (token !== requestRef.current) return;
       setList(null);
@@ -75,8 +78,8 @@ export function ReconcileLessonDialog({
     else requestRef.current += 1;
   }, [target, load]);
 
-  const planned = plannedTeacherId(list);
   const candidates = list?.candidates ?? [];
+  const planned = (target?.teacherId && candidates.some((candidate) => candidate.teacherId === target.teacherId) ? target.teacherId : null) ?? plannedTeacherId(list);
   const nameOf = (id: string | null) => candidates.find((candidate) => candidate.teacherId === id)?.name ?? null;
 
   const submit = async () => {

@@ -3,7 +3,9 @@
  * The server decides what is open; this file only orders, words and links it.
  */
 import { MONTHS_SHORT_DATE } from "./ru-calendar";
-import type { OpenAttendanceAction } from "@/lib/api";
+import type { OpenActionsByMonth, OpenActionsMonth, OpenAttendanceAction } from "@/lib/api";
+import { formatDateRu } from "./business-time";
+import { pluralRu } from "./plural";
 
 const WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
@@ -51,6 +53,40 @@ export function openLessonStatusHint(action: Pick<OpenAttendanceAction, "actionT
   return action.actionType === "missed"
     ? "Урок был по расписанию, но журнал не открывали"
     : "Журнал открыт, урок не завершён";
+}
+
+// ── by month (Money-1 R3 #2) ────────────────────────────────────────────────────────────────────────────────
+
+/** «Сентябрь 2026 · 12 уроков»: the head of a month of the list. */
+export function monthHeading(month: Pick<OpenActionsMonth, "title" | "count">): string {
+  return `${month.title} · ${month.count} ${pluralRu(month.count, "урок", "урока", "уроков")}`;
+}
+
+/** «не отмечено 8 · не завершено 4»: what the unresolved lessons of the month are (a part that is 0 is left out). */
+export function monthCountsText(month: Pick<OpenActionsMonth, "missed" | "inProgress">): string {
+  return [month.missed > 0 ? `не отмечено ${month.missed}` : "", month.inProgress > 0 ? `не завершено ${month.inProgress}` : ""].filter(Boolean).join(" · ");
+}
+
+/** «Показаны уроки с 01.08.2026»: from which day the list is counted (the accounting start of the centre). */
+export function sinceLine(since: string | null | undefined): string | null {
+  const day = formatDateRu(since);
+  return day ? `Показаны неразобранные уроки с ${day}` : null;
+}
+
+/** The answer without the lessons `drop` names: the counters of the month and the total follow, a month without lessons goes (the row leaves at once; the re-read confirms it). */
+export function withoutOpenLessons(data: OpenActionsByMonth, drop: (item: OpenAttendanceAction) => boolean): OpenActionsByMonth {
+  const months = data.months
+    .map((month) => {
+      const items = month.items.filter((item) => !drop(item));
+      return { ...month, items, count: items.length, missed: items.filter((item) => item.actionType === "missed").length, inProgress: items.filter((item) => item.actionType === "in_progress").length };
+    })
+    .filter((month) => month.items.length > 0);
+  return { ...data, months, total: months.reduce((sum, month) => sum + month.count, 0) };
+}
+
+/** Every lesson of the months in one list (the badge and the re-read rules count this list). */
+export function openLessonsOf(data: OpenActionsByMonth | null | undefined): OpenAttendanceAction[] {
+  return data ? data.months.flatMap((month) => month.items) : [];
 }
 
 export const NO_TEACHER_LABEL = "Без преподавателя";
@@ -113,7 +149,7 @@ export function openLessonKey(action: Pick<OpenAttendanceAction, "actionType" | 
  */
 export function journalHref(
   groupsBasePath: string,
-  action: Pick<OpenAttendanceAction, "groupId" | "lessonDate"> & { lessonId?: string },
+  action: Pick<OpenAttendanceAction, "groupId" | "lessonDate"> & { lessonId?: string; teacherId?: string | null },
 ): string {
   const month = /^\d{4}-\d{2}/.exec(action.lessonDate)?.[0];
   const params = ["tab=attendance"];
@@ -121,6 +157,8 @@ export function journalHref(
   const date = parseIsoDate(action.lessonDate);
   if (month && date && action.lessonId && LESSON_ID_PATTERN.test(action.lessonId)) {
     params.push(`lesson=${encodeURIComponent(action.lessonId)}`, `date=${date}`);
+    // R3 #25: «Кто провёл» of the window «Отметить посещаемость» starts with the teacher of this row (already the substitute, when the day has one)
+    if (action.teacherId && LESSON_ID_PATTERN.test(action.teacherId)) params.push(`teacher=${encodeURIComponent(action.teacherId)}`);
   }
   return `${groupsBasePath}/${action.groupId}?${params.join("&")}`;
 }

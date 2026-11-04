@@ -29,14 +29,15 @@ test("A17 / A18: the answers of the server are read as they are", () => {
   assert.equal(T.lessonTypeStaleText(null), null);
 });
 
-test("the date window is the start of the last month .. today (also over the new year)", () => {
-  assert.deepEqual(T.lessonTypeDateRange("2026-10-21"), { min: "2026-09-01", max: "2026-10-21" });
-  assert.deepEqual(T.lessonTypeDateRange("2026-01-05"), { min: "2025-12-01", max: "2026-01-05" });
+test("the date window: no lower bound in the form (R3 #4: the accounting start and the closed month are the server's), not later than today", () => {
+  assert.deepEqual(T.lessonTypeDateRange("2026-10-21"), { max: "2026-10-21" });
   assert.equal(T.validateLessonTypeDate("2026-10-21", "2026-10-21"), null);
   assert.equal(T.validateLessonTypeDate("2026-09-01", "2026-10-21"), null);
-  assert.match(T.validateLessonTypeDate("2026-08-31", "2026-10-21"), /с 01\.09\.2026 по 21\.10\.2026/);
-  assert.match(T.validateLessonTypeDate("2026-10-22", "2026-10-21"), /по 21\.10\.2026/);
+  assert.equal(T.validateLessonTypeDate("2026-08-31", "2026-10-21"), null, "the start of the previous month is not a limit any more");
+  assert.equal(T.validateLessonTypeDate("2025-01-01", "2026-10-21"), null);
+  assert.match(T.validateLessonTypeDate("2026-10-22", "2026-10-21"), /не позже сегодняшнего дня \(21\.10\.2026\)/);
   assert.match(T.validateLessonTypeDate("", "2026-10-21"), /Укажите дату/);
+  assert.equal(T.LESSON_TYPE_RANGE_TEXT, undefined);
 });
 
 test("the request: type + «с» day; the type in force that day makes no request", () => {

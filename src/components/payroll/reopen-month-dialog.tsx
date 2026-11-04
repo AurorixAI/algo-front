@@ -10,9 +10,12 @@ import {
   REOPEN_REASON_PLACEHOLDER,
   REOPEN_TITLE,
   buildReopenBody,
+  isSheetChanged,
   reopenDescription,
   reopenErrorText,
+  revisionOf,
   validateReopenReason,
+  REOPEN_NO_SHEET_TEXT,
   type ReopenResult,
 } from "@/lib/closed-period";
 import { REASON_MAX } from "@/lib/payments";
@@ -23,6 +26,8 @@ export interface ReopenTarget {
   month: string;
   teacherId: string;
   teacherName: string | null;
+  /** The revision of the saved sheet the screen saw (`sheetRevision` of the list of months); absent: the dialog reads it itself when it opens. */
+  sheetRevision?: number | null;
 }
 
 /**
@@ -42,26 +47,54 @@ export function ReopenMonthDialog({
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);          // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
+  /** R3 #11: the revision of the sheet the person is looking at; undefined while it is being read; null: the teacher has no sheet in that month. */
+  const [revision, setRevision] = useState<number | null | undefined>(typeof target?.sheetRevision === "number" ? target.sheetRevision : undefined);
+  const reads = useRef(0);
+
+  /** Reads the list of months again: the revision to send (a sheet saved meanwhile has a new one). */
+  const readRevision = async (month: string, teacherId: string) => {
+    const token = ++reads.current;
+    setRevision(undefined);
+    try {
+      const periods = await orgApi.getPayrollPeriods(month);
+      if (token !== reads.current) return;
+      const next = revisionOf(periods, teacherId);
+      setRevision(next);
+      if (next === null) setError(REOPEN_NO_SHEET_TEXT);
+    } catch (cause) {
+      if (token !== reads.current) return;
+      setRevision(null);
+      setError(reopenErrorText(cause));
+    }
+  };
 
   useEffect(() => {
     setReason("");
     setBusy(false);
     setError(null);
     sending.current = false;
+    reads.current += 1;
+    if (!target) { setRevision(undefined); return; }
+    if (typeof target.sheetRevision === "number") setRevision(target.sheetRevision);
+    else void readRevision(target.month, target.teacherId);
+    // the revision is read when the dialog opens for a teacher and a month, not when the page behind it refreshes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.month, target?.teacherId]);
 
   const submit = async () => {
-    if (!target || busy || sending.current) return;
+    if (!target || busy || sending.current || typeof revision !== "number") return;
     const problem = validateReopenReason(reason);
     if (problem) { setError(problem); return; }
     sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.reopenPayrollPeriod(target.month, buildReopenBody(target.teacherId, reason));
+      const result = await orgApi.reopenPayrollPeriod(target.month, buildReopenBody(target.teacherId, reason, revision));
       onReopened(result, target);
     } catch (cause) {
       setError(reopenErrorText(cause));
+      // the sheet was saved again after the screen read it: read it again - the person looks at the new state and asks once more
+      if (isSheetChanged(cause)) void readRevision(target.month, target.teacherId);
     } finally {
       sending.current = false;
       setBusy(false);
@@ -82,7 +115,8 @@ export function ReopenMonthDialog({
           <button
             type="submit"
             form="reopen-month-form"
-            disabled={busy}
+            data-testid="reopen-submit"
+            disabled={busy || typeof revision !== "number"}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -105,6 +139,7 @@ export function ReopenMonthDialog({
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
         />
         <p className="text-xs text-slate-400">Причина и ваше имя останутся в журнале.</p>
+        {revision === undefined && <p role="status" data-testid="reopen-reading" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Проверяем ведомость…</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

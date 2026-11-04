@@ -462,7 +462,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
         </>
       ) : null}
       <ReopenMonthDialog
-        target={reopening && sheet && period ? { month: sheet.month, teacherId: sheet.teacher_id, teacherName: sheet.teacher_name } : null}
+        target={reopening && sheet && period ? { month: sheet.month, teacherId: sheet.teacher_id, teacherName: sheet.teacher_name, sheetRevision: period.sheetRevision } : null}
         onClose={() => setReopening(false)}
         onReopened={(result) => {
           setReopening(false);

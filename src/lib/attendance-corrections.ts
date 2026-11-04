@@ -12,9 +12,6 @@ export const BACKDATED_LABEL = "Оформлен задним числом";
 export const CORRECTED_LABEL = "Исправлено";
 export const RETURNED_LABEL = "Возвращён";
 
-/** Under the window of a correction of the teacher who corrects his OWN held lesson (Money-1 A5): the dry run of money is the money right's, so the rule is said in words. */
-export const TEACHER_CORRECTION_MONEY_NOTE = "Исправление может изменить занятия в пакетах учеников и вашу зарплату за этот месяц. Если месяц уже закрыт ведомостью, исправить урок нельзя — обратитесь к владельцу.";
-
 /** «Не был» / «Был» / «нет отметки» - the words of the cells. */
 export function markWord(mark: string | null | undefined): string {
   return mark && mark in MARK_CELL_LABEL ? MARK_CELL_LABEL[mark as MarkValue] : NO_MARK_TEXT;
@@ -44,9 +41,15 @@ function eventLines(event: { kind: AttendanceHistoryEvent["kind"]; by_name: stri
  * newest first.  An older server sends no `changes`: the head and the reason only.
  */
 export function correctionHintLines(correction: AttendanceCorrectionInfo, nameOf: (studentId: string) => string): string[] {
-  const lines = eventLines({ kind: "corrected", by_name: correction.by_name, at: correction.at, reason: correction.reason, changes: correction.changes }, nameOf);
+  const lines = eventLines({ kind: correction.kind === "returned" ? "returned" : "corrected", by_name: correction.by_name, at: correction.at, reason: correction.reason, changes: correction.changes }, nameOf);
   for (const event of correction.history ?? []) lines.push("", ...eventLines(event, nameOf));
   return lines;
+}
+
+/** R3 #25: the chip in the head of the column - «Урок возвращали» when the lesson was returned to «не проведён» (and held again) without a correction of the marks, else «Исправлено». */
+export const RETURNED_CHIP_LABEL = "Урок возвращали";
+export function correctionChipLabel(correction: Pick<AttendanceCorrectionInfo, "kind">): string {
+  return correction.kind === "returned" ? RETURNED_CHIP_LABEL : CORRECTED_LABEL;
 }
 
 /** «Оформлен задним числом: Иванов И., 05.11.2026 10:00» + «Провёл: Петров П.» when somebody other than the planned teacher taught it. */

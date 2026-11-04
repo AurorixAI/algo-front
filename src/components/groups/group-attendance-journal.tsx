@@ -106,7 +106,7 @@ import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { RETURN_LESSON_LABEL, RETURN_TO_REVIEW_LABEL, returnDoneDetails, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
 import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
-import { BACKDATED_LABEL, CORRECTED_LABEL, TEACHER_CORRECTION_MONEY_NOTE, backdatedHintLines, correctionHintLines } from "@/lib/attendance-corrections";
+import { BACKDATED_LABEL, backdatedHintLines, correctionChipLabel, correctionHintLines } from "@/lib/attendance-corrections";
 import { nobodyCameQuestion } from "@/lib/attendance-ops";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
@@ -133,6 +133,8 @@ interface GroupAttendanceJournalProps {
   /** `?lesson=` / `?date=` of a deep link (open-lessons list): this lesson's column is highlighted. */
   highlightLessonId?: string | null;
   highlightDate?: string | null;
+  /** R3 #25: the teacher of the row of «Требует разбора» the person came from - the start of «Кто провёл» of «Отметить посещаемость». */
+  highlightTeacherId?: string | null;
   /** The signed-in user: a teacher marks only the lessons he teaches (a substitute: his own; O5). */
   viewerId?: string | null;
 }
@@ -362,6 +364,7 @@ export function GroupAttendanceJournal({
   initialMonth = null,
   highlightLessonId = null,
   highlightDate = null,
+  highlightTeacherId = null,
   viewerId = null,
 }: GroupAttendanceJournalProps) {
   const { user } = useAuthStore();
@@ -1138,7 +1141,7 @@ export function GroupAttendanceJournal({
           records,
           ...(expectedVersion !== undefined ? { expectedVersion } : {}),
           ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
-          ...(confirmNobodyCame ? { confirmNobodyCame: true } : {}),
+          confirmNobodyCame,          // R3 #8: `false` first (the server asks when nobody came: 409 NOBODY_CAME), `true` after the yes
         });
         versionsRef.current = withSavedVersion(versionsRef.current, key, saved);
         const notice = examSyncNotice(saved?.examSync);
@@ -1254,7 +1257,8 @@ export function GroupAttendanceJournal({
     }
     if (action === "reconcile") {
       // Money-1 A6: the lesson is formalised afterwards - the money right says WHO taught it (the planned teacher by default)
-      setReconcileTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, topic: lesson.topic });
+      const fromRow = highlightTarget && highlightTarget.lessonId === lesson.id && highlightTarget.date === lesson.date ? highlightTeacherId : null;
+      setReconcileTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, topic: lesson.topic, teacherId: fromRow });
       return;
     }
 
@@ -1282,9 +1286,9 @@ export function GroupAttendanceJournal({
     correctionWarnings(correctionChanges, attendanceData?.excuses?.[correcting.key])
       .forEach((warning) => correctionWarningById.set(warning.studentId, warning.text));
   }
-  // Money-1 A3 (I-5): what the correction does to money is shown BEFORE «Сохранить исправление» (the packs of the students, the saved sheets of the teacher).  The dry run is the
-  // money right's (`attendance/impact`); the teacher correcting his own lesson sees the rule in words instead (the server answers him after the save).
-  const impactKey = correctionDialog && correcting && correctingLesson && moneyRight
+  // Money-1 A3 (I-5): what the correction does to money is shown BEFORE «Сохранить исправление» (the packs of the students, the saved sheets of the teacher).  `attendance/impact` answers the
+  // money right with the sums of the sheets and the teacher of THIS lesson without them (R3 #24: the month and the state only).
+  const impactKey = correctionDialog && correcting && correctingLesson
     ? `${correcting.key}|${JSON.stringify(Object.entries(correcting.draft).sort())}`
     : null;
   const { preview: impact, retry: retryImpact } = useMoneyPreview(impactKey, (signal) => {
@@ -1304,7 +1308,7 @@ export function GroupAttendanceJournal({
 
   const submitCorrection = async () => {
     if (!correcting || !correctionDialog || !correctingLesson) return;
-    if (moneyRight && !effectsAllowConfirm(impact)) return;      // the confirmation waits for the answer about money
+    if (!effectsAllowConfirm(impact)) return;      // the confirmation waits for the answer about money
     const error = validateCorrectionReason(correctionDialog.reason);
     if (error) {
       setCorrectionDialog({ ...correctionDialog, error, closed: null });
@@ -1537,7 +1541,7 @@ export function GroupAttendanceJournal({
                                 width={288}
                                 className="inline-flex border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
                               >
-                                {CORRECTED_LABEL}
+                                {correctionChipLabel(correction)}
                               </Hint>
                             </div>
                           )}
@@ -2080,7 +2084,7 @@ export function GroupAttendanceJournal({
               type="button"
               onClick={() => void submitCorrection()}
               data-testid="correction-submit"
-              disabled={correctionSaving || correctionChanges.length === 0 || (moneyRight && !effectsAllowConfirm(impact))}
+              disabled={correctionSaving || correctionChanges.length === 0 || !effectsAllowConfirm(impact)}
               className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {correctionSaving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -2117,11 +2121,8 @@ export function GroupAttendanceJournal({
                 ))}
               </ul>
             </div>
-            {moneyRight ? (
-              <MoneyEffectsBlock preview={impact} onRetry={retryImpact} />
-            ) : (
-              <p data-testid="correction-money-note" className="rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5 text-sm text-slate-800">{TEACHER_CORRECTION_MONEY_NOTE}</p>
-            )}
+            {/* R3 #24: the teacher of the lesson asks too - his block has the month and the state of the sheet, no sums */}
+            <MoneyEffectsBlock preview={impact} onRetry={retryImpact} />
             <div className="space-y-2">
               <label htmlFor="correction-reason" className="block text-[13px] font-semibold text-slate-500">Причина исправления</label>
               <textarea
@@ -2136,7 +2137,7 @@ export function GroupAttendanceJournal({
               />
               <div className="flex items-start justify-between gap-3 text-xs">
                 <span role={correctionDialog.error && !correctionDialog.closed ? "alert" : undefined} className={correctionDialog.error && !correctionDialog.closed ? "font-medium text-rose-600" : "text-slate-400"}>
-                  {(correctionDialog.closed ? null : correctionDialog.error) || (moneyRight ? effectsWaitReason(impact) : null) || "От 10 до 500 символов."}
+                  {(correctionDialog.closed ? null : correctionDialog.error) || effectsWaitReason(impact) || "От 10 до 500 символов."}
                 </span>
                 <span className="shrink-0 text-slate-400">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
               </div>
@@ -2155,6 +2156,7 @@ export function GroupAttendanceJournal({
       <LessonReturnDialog
         target={returnTarget}
         onClose={() => setReturnTarget(null)}
+        onStale={() => void loadAttendanceRef.current(true)}
         onDone={async (result, target) => {
           setReturnTarget(null);
           await loadAttendanceRef.current(true);

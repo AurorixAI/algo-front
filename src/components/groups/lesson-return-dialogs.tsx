@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isAttendanceConflict } from "@/lib/attendance-ops";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
@@ -9,7 +10,9 @@ import {
   RETURN_REASON_HINT,
   RETURN_REASON_LABEL,
   RETURN_REASON_PLACEHOLDER,
-  RETURN_REVIEW_DEDUCTION,
+  DEDUCTIONS_TITLE,
+  deductionsOf,
+  deductionText,
   RETURN_REVIEW_EXPLAIN,
   RETURN_REVIEW_PAY,
   RETURN_REVIEW_TITLE,
@@ -20,9 +23,11 @@ import {
 } from "@/lib/lesson-return";
 import { periodClosedOf } from "@/lib/closed-period";
 import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { effectsEmpty } from "@/lib/money-effects";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import type { ReturnHeldLessonResult, RestoreLessonResult } from "@/lib/ops-b-types";
 import { REASON_MAX } from "@/lib/payments";
+import { DRY_RUN_REASON } from "@/lib/payment-dry-run";
 import { Modal } from "@/components/ui/modal";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
@@ -35,9 +40,6 @@ export interface ReturnLessonTarget {
   /** `centre` / `holiday`: how a cancelled lesson was cancelled (the deduction line is said for `centre` only). */
   cancelKind?: string | null;
 }
-
-/** The dry run writes nothing, but the request is validated as a whole: it carries a reason of the minimum length. */
-const DRY_RUN_REASON = "Проверка последствий";
 
 const FIELD = "w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
@@ -58,11 +60,13 @@ function ReasonField({ id, value, onChange, disabled }: { id: string; value: str
  * «Переоткрыть месяц»).  The answer carries the same block for the toast.
  */
 export function LessonReturnDialog({
-  target, onClose, onDone, aboveLessonPanel = false,
+  target, onClose, onDone, onStale, aboveLessonPanel = false,
 }: {
   target: ReturnLessonTarget | null;
   onClose: () => void;
   onDone: (result: ReturnHeldLessonResult, target: ReturnLessonTarget) => void;
+  /** R3 #11: somebody changed the lesson after the window read it (409 `ATTENDANCE_CONFLICT`): the page behind reads it again. */
+  onStale?: () => void;
   aboveLessonPanel?: boolean;
 }) {
   const [reason, setReason] = useState("");
@@ -70,12 +74,13 @@ export function LessonReturnDialog({
   const sending = useRef(false);
   const [error, setError] = useState<unknown>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
-  const version = useRef<number | undefined>(undefined);
+  /** R3 #11: the version of the lesson the dry run read - the request carries it (`expectedVersion` is required), so a late duplicate cannot return the lesson twice. */
+  const [version, setVersion] = useState<number | undefined>(undefined);
   const key = target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}` : null;
   const { preview, retry } = useMoneyPreview(key, (signal) => {
     if (!target) return Promise.reject(new Error("no target"));
     return orgApi.returnHeldLesson(target.groupId, { lessonDate: target.lessonDate, lessonId: target.lessonId, reason: DRY_RUN_REASON, dryRun: true }, signal)
-      .then((answer) => { version.current = answer.version; return answer; });
+      .then((answer) => { setVersion(answer.version); return answer; });
   });
 
   useEffect(() => {
@@ -84,11 +89,12 @@ export function LessonReturnDialog({
     setError(null);
     setReasonError(null);
     sending.current = false;
-    version.current = undefined;
+    setVersion(undefined);
   }, [key]);
 
+  const canSend = effectsAllowConfirm(preview) && version !== undefined;
   const submit = async () => {
-    if (!target || busy || sending.current || !effectsAllowConfirm(preview)) return;
+    if (!target || busy || sending.current || !canSend || version === undefined) return;
     const problem = validateReturnReason(reason);
     if (problem) { setReasonError(problem); return; }
     sending.current = true;
@@ -96,11 +102,13 @@ export function LessonReturnDialog({
     setError(null);
     try {
       const result = await orgApi.returnHeldLesson(target.groupId, {
-        lessonDate: target.lessonDate, lessonId: target.lessonId, reason: reason.trim(), ...(version.current !== undefined ? { expectedVersion: version.current } : {}),
+        lessonDate: target.lessonDate, lessonId: target.lessonId, reason: reason.trim(), expectedVersion: version,
       });
       onDone(result, target);
     } catch (cause) {
       setError(cause);
+      // the lesson was changed (or returned and held again) after the window read it: read it again - the person looks at the new state and asks once more
+      if (isAttendanceConflict(cause)) { setVersion(undefined); retry(); onStale?.(); }
     } finally {
       sending.current = false;
       setBusy(false);
@@ -123,7 +131,7 @@ export function LessonReturnDialog({
             type="submit"
             form="lesson-return-form"
             data-testid="lesson-return-submit"
-            disabled={busy || !effectsAllowConfirm(preview)}
+            disabled={busy || !canSend}
             className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -165,6 +173,11 @@ export function ReturnToReviewDialog({
   const [error, setError] = useState<unknown>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
   const key = target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}` : null;
+  // R3 #23: the dry run of the return (`dryRun: true`) says what it does to the deductions of the students and the saved sheets BEFORE the button can be pressed
+  const { preview, retry } = useMoneyPreview(key, (signal) => {
+    if (!target) return Promise.reject(new Error("no target"));
+    return orgApi.restoreLesson(target.groupId, { lessonId: target.lessonId, lessonDate: target.lessonDate, reason: DRY_RUN_REASON, dryRun: true }, signal);
+  });
 
   useEffect(() => {
     setReason("");
@@ -175,7 +188,7 @@ export function ReturnToReviewDialog({
   }, [key]);
 
   const submit = async () => {
-    if (!target || busy || sending.current) return;
+    if (!target || busy || sending.current || !effectsAllowConfirm(preview)) return;
     const problem = validateReturnReason(reason);
     if (problem) { setReasonError(problem); return; }
     sending.current = true;
@@ -193,6 +206,10 @@ export function ReturnToReviewDialog({
   };
 
   const closed = periodClosedOf(error);
+  const wait = effectsWaitReason(preview);
+  const deductions = preview.status === "ready" ? deductionsOf(preview.answer) : [];
+  // the block says «деньги не изменятся» only when it is true: deductions that go away are money, listed above it
+  const showEffects = preview.status !== "ready" || deductions.length === 0 || (preview.effects !== null && !effectsEmpty(preview.effects));
   return (
     <Modal
       open={target !== null}
@@ -207,7 +224,7 @@ export function ReturnToReviewDialog({
             type="submit"
             form="return-review-form"
             data-testid="return-review-submit"
-            disabled={busy}
+            disabled={busy || !effectsAllowConfirm(preview)}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -219,13 +236,22 @@ export function ReturnToReviewDialog({
       <form id="return-review-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3 pb-2" noValidate>
         <div className="space-y-1 text-sm leading-6 text-slate-700">
           <p>{RETURN_REVIEW_EXPLAIN}</p>
-          {target?.cancelKind === "centre" && <p>{RETURN_REVIEW_DEDUCTION}</p>}
           <p>{RETURN_REVIEW_PAY}</p>
         </div>
+        {deductions.length > 0 && (
+          <section aria-label={DEDUCTIONS_TITLE} data-testid="return-review-deductions" className="rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5">
+            <p className="text-xs font-semibold text-slate-600">{DEDUCTIONS_TITLE}</p>
+            <ul className="mt-1 space-y-0.5">
+              {deductions.map((line) => <li key={line.studentId} className="text-sm text-slate-800">{deductionText(line)}</li>)}
+            </ul>
+          </section>
+        )}
+        {showEffects && <MoneyEffectsBlock preview={preview} onRetry={retry} aboveLessonPanel={aboveLessonPanel} />}
         <ReasonField id="return-review-reason" value={reason} onChange={(text) => { setReason(text); setReasonError(null); setError(null); }} disabled={busy} />
+        {wait && !busy && <p data-testid="return-review-wait" className="text-xs text-slate-500">{wait}</p>}
         {reasonError && <p role="alert" className="text-xs font-medium text-rose-700">{reasonError}</p>}
         {closed
-          ? <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={() => setError(null)} />
+          ? <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={() => { setError(null); retry(); }} />
           : error !== null && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{returnErrorText(error)}</p>}
       </form>
     </Modal>

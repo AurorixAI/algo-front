@@ -59,19 +59,17 @@ export function normalizeLessonTypeChanged(raw: Partial<GroupLessonTypeChanged>)
 
 // ── The date window ────────────────────────────────────────────────────────
 
-/** The server accepts «с начала прошлого месяца по сегодня» (422 LESSON_TYPE_RANGE otherwise). */
-export function lessonTypeDateRange(today: string): { min: string; max: string } {
-  const [year, month] = today.split("-").map(Number);
-  const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-  return { min: `${prev.year}-${String(prev.month).padStart(2, "0")}-01`, max: today };
+/**
+ * Money-1 R3 #4: the window «с начала прошлого месяца» is gone - the lower bound is the accounting start of the centre (422 `LESSON_TYPE_RANGE` in the server's words: «Тип занятий можно менять
+ * с начала учёта центра по сегодня») and a change that touches a CLOSED month of the teacher is 409 `PERIOD_CLOSED` (reopen the month first).  The form only knows the upper bound: not later than today.
+ */
+export function lessonTypeDateRange(today: string): { max: string } {
+  return { max: today };
 }
-
-export const LESSON_TYPE_RANGE_TEXT = "Тип занятий можно менять с начала прошлого месяца по сегодня";
 
 export function validateLessonTypeDate(validFrom: string, today: string): string | null {
   if (!isIsoDate(validFrom)) return "Укажите дату, с которой меняется тип занятий";
-  const { min, max } = lessonTypeDateRange(today);
-  if (validFrom < min || validFrom > max) return `${LESSON_TYPE_RANGE_TEXT}: с ${formatDateRu(min)} по ${formatDateRu(max)}`;
+  if (validFrom > lessonTypeDateRange(today).max) return `Тип занятий меняется не позже сегодняшнего дня (${formatDateRu(today)})`;
   return null;
 }
 

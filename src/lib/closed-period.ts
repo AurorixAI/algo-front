@@ -28,6 +28,8 @@ export interface PayrollPeriodItem {
   /** The business day the closing sheet was saved (`YYYY-MM-DD`); null while the month is open. */
   closedOn: string | null;
   sheetId: string | null;
+  /** R3 #11: the revision of the saved sheet the screen saw: «Переоткрыть месяц» sends it back (`sheet_revision`), so a late duplicate after a re-save is refused (409 `SHEET_CHANGED`). */
+  sheetRevision: number | null;
   reopened: PeriodReopened | null;
 }
 
@@ -58,6 +60,7 @@ export function normalizePeriods(raw: Partial<PayrollPeriods> | null | undefined
       state: item.state === "open" || item.state === "closed" || item.state === "reopened" ? item.state : "none",
       closedOn: item.closedOn ?? null,
       sheetId: item.sheetId ?? null,
+      sheetRevision: typeof item.sheetRevision === "number" && Number.isFinite(item.sheetRevision) ? item.sheetRevision : null,
       reopened: item.reopened ? { at: item.reopened.at ?? null, by: item.reopened.by ?? null, reason: item.reopened.reason ?? null } : null,
     }));
   return { month: String(raw?.month ?? ""), items };
@@ -142,22 +145,34 @@ export function validateReopenReason(reason: string | null | undefined): string 
   return null;
 }
 
-export function buildReopenBody(teacherId: string, reason: string): { teacher_id: string; reason: string } {
-  return { teacher_id: teacherId, reason: reason.trim() };
+export function buildReopenBody(teacherId: string, reason: string, sheetRevision: number): { teacher_id: string; reason: string; sheet_revision: number } {
+  return { teacher_id: teacherId, reason: reason.trim(), sheet_revision: sheetRevision };
+}
+
+/** 409 `SHEET_CHANGED` (the sheet was saved again after the screen read it): the screen reads the revision again and asks once more, with the server's sentence. */
+export function isSheetChanged(error: unknown): boolean {
+  return (error as { code?: unknown } | null | undefined)?.code === "SHEET_CHANGED";
+}
+
+/** The revision to send: the sheet's revision of the row of this teacher in the list of months; null when the teacher has no saved sheet there. */
+export function revisionOf(periods: PayrollPeriods | null | undefined, teacherId: string): number | null {
+  return periods?.items.find((item) => item.teacherId === teacherId)?.sheetRevision ?? null;
 }
 
 export function reopenToast(result: Pick<ReopenResult, "changed">): string {
   return result.changed ? REOPEN_DONE_TEXT : REOPEN_ALREADY_TEXT;
 }
 
-/** The words of the refusals of the reopening: the server's own text where it has one. */
+/**
+ * The words of the refusals of the reopening: the SERVER's own sentence for every coded refusal (`SHEET_NOT_FOUND`, `REASON_REQUIRED`, `REVISION_REQUIRED`, `SHEET_CHANGED`, `MONTH_INVALID`,
+ * `MONEY_RIGHT_REQUIRED`) - the catalogue of the server is the one source (R3 #16); ours only for a failure that has no text at all.
+ */
 export function reopenErrorText(error: unknown): string {
   const code = (error as { code?: unknown } | null | undefined)?.code;
   const message = error instanceof Error ? error.message.trim() : "";
+  if (message) return message;
   if (code === "SHEET_NOT_FOUND") return REOPEN_NO_SHEET_TEXT;
-  if (code === "REASON_REQUIRED") return "Укажите причину (от 3 до 500 символов)";
-  if (code === "MONEY_RIGHT_REQUIRED") return message || "Переоткрыть месяц может владелец или администратор, которому владелец разрешил оплаты";
-  return message || "Не удалось переоткрыть месяц. Данные не изменены.";
+  return "Не удалось переоткрыть месяц. Данные не изменены.";
 }
 
 // ── the refusal «месяц закрыт» on the screens of lessons ──────────────────────────────────────────

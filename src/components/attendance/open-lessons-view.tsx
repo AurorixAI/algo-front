@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Ban, ClipboardCheck, Loader2 } from "lucide-react";
-import { orgApi, type OpenAttendanceAction } from "@/lib/api";
+import { orgApi, type OpenActionsByMonth, type OpenAttendanceAction } from "@/lib/api";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 import { formatDateRu } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
@@ -11,6 +11,11 @@ import {
   formatLessonDate,
   groupOpenLessonsByTeacher,
   journalHref,
+  monthCountsText,
+  monthHeading,
+  openLessonsOf,
+  sinceLine,
+  withoutOpenLessons,
   openLessonActionLabel,
   openLessonKey,
   openLessonStatus,
@@ -24,6 +29,7 @@ import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/a
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
+import { canManageMoney } from "@/lib/money-effects";
 import { formatBusinessDate } from "@/lib/business-time";
 import { openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
@@ -58,8 +64,12 @@ const FOCUS_REFETCH_GAP_MS = 1500;
 export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) {
   const { showToast, toastNode } = useToast();
   const role = useAuthStore((state) => state.user?.org_role ?? null);
+  // R3 #14 / m14: «Отметить» a lesson nobody started formalises the pay of a teacher afterwards - the money right (an administrator without it still has «Урока не было» in the menu)
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
   const today = formatBusinessDate();
-  const [items, setItems] = useState<OpenAttendanceAction[]>([]);
+  /** R3 #2: the lessons by month (the oldest month first), with the day the list starts from. */
+  const [byMonth, setByMonth] = useState<OpenActionsByMonth | null>(null);
+  const items = useMemo(() => openLessonsOf(byMonth), [byMonth]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   // True while any list request is running: the badge-mismatch rule waits for it to finish.
@@ -93,11 +103,11 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     }
     try {
       const [data] = await Promise.all([
-        orgApi.getOpenAttendanceActions(),
+        orgApi.getOpenAttendanceActionsByMonth(),
         useExcuseBadge.getState().refresh(true),
       ]);
       if (!mountedRef.current || !sequence.isCurrent(token)) return;
-      setItems(Array.isArray(data) ? data : []);
+      setByMonth(data && Array.isArray(data.months) ? data : { total: 0, since: "", months: [] });
       loadedRef.current = true;
       setLoaded(true);
       setLoadError(null);
@@ -149,7 +159,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     void load({ silent: true });
   }, [badgeCount, items.length, loaded, refreshing, load]);
 
-  const groups = useMemo(() => groupOpenLessonsByTeacher(items), [items]);
+  const months = useMemo(() => (byMonth?.months ?? []).map((month) => ({ month, groups: groupOpenLessonsByTeacher(month.items) })), [byMonth]);
 
   // IA audit F5: the main action of this screen is a BUTTON of the row («Отметить» / «Открыть»); the menu keeps the rare one - «Урока не было»
   // (a lesson in progress has none: it is finished in the journal).
@@ -169,9 +179,9 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     // The row goes away at once; the re-read confirms it and refreshes the badge
     // (the badge catches up by itself, so it must not trigger a second re-read).
     handledBadgeRef.current = useExcuseBadge.getState().openLessons;
-    setItems((previous) => previous.filter((row) => !(
+    setByMonth((previous) => (previous ? withoutOpenLessons(previous, (row) => (
       row.actionType === "missed" && row.groupId === done.groupId && row.lessonId === done.lessonId && row.lessonDate === done.lessonDate
-    )));
+    )) : previous));
     showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
     await load({ silent: true });
   };
@@ -202,7 +212,14 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
         <EmptyState icon={ClipboardCheck} title="Все уроки закрыты" hint="Уроки, по которым не отмечена посещаемость или журнал не завершён, появятся здесь." />
       ) : (
         <section className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white">
+          {sinceLine(byMonth?.since) && <p data-testid="open-since" className="px-1 pb-2 text-xs text-slate-500 lg:px-4 lg:pt-3">{sinceLine(byMonth?.since)}</p>}
           <TableHeader show="lg" gridClass={COLS} labels={["Урок", "Группа", "Статус", ""]} aligns={["center", "center", "center", "right"]} />
+          {months.map(({ month, groups }) => (
+            <div key={month.month} data-testid="open-month" className="mt-6 first:mt-0 lg:mt-0">
+              <h3 className="flex flex-wrap items-baseline gap-x-2 px-1 pb-1.5 text-sm font-bold text-slate-900 lg:border-t lg:border-slate-200 lg:bg-slate-100/80 lg:px-4 lg:py-2">
+                <span>{monthHeading(month)}</span>
+                {monthCountsText(month) && <span className="text-xs font-medium text-slate-500">{monthCountsText(month)}</span>}
+              </h3>
           {groups.map((group) => (
             <div key={group.key} className="mt-5 first:mt-0 lg:mt-0 lg:border-t lg:border-slate-100 lg:first:border-t-0">
               <p className="mb-2 flex items-baseline gap-1.5 px-1 text-xs font-semibold text-slate-600 lg:mb-0 lg:bg-slate-50/70 lg:px-4 lg:py-2">
@@ -243,14 +260,14 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                         <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={LESSON_TOO_OLD_TEXT}>{access.hint}</p>
                       ) : (
                         <>
-                          <Link
+                          {(item.actionType === "in_progress" || role !== "admin" || moneyRight) && <Link
                             href={journalHref(groupsBasePath, item)}
                             data-testid="open-lesson-action"
                             aria-label={`${openLessonActionLabel(item)}: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
                             className={ACTION_BUTTON_CLASS}
                           >
                             {openLessonActionLabel(item)}
-                          </Link>
+                          </Link>}
                           {/* The «⋯» slot is always reserved: the menu when the row has actions, otherwise an invisible spacer of the same size,
                               so the primary buttons of all rows stand in one column. */}
                           <div className={MENU_SLOT_CLASS} data-testid="open-lesson-menu-slot">
@@ -270,6 +287,8 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                   );
                 })}
               </ul>
+            </div>
+          ))}
             </div>
           ))}
         </section>
