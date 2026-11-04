@@ -319,3 +319,20 @@ test("m4: «Сбросить решение» in a closed month - the sentence o
   assert.equal(await admin.page.locator('[data-testid="period-closed-reopen"]').count(), 0);
   await admin.page.close();
 });
+
+test("write-off: a submit that is not a press of the button (the form sent from elsewhere) while the effects are counted sends nothing", async () => {
+  const hold = deferred();
+  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
+    if (request.path !== "/auth/org/memberships/m1/writeoffs") return null;
+    return isDry(request) ? hold.promise.then(() => ({ json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } })) : { status: 201, json: fixture("e6_writeoff_40000") };
+  });
+  await page.evaluate(() => window.mount("writeoff"));
+  await page.waitForTimeout(400);
+  await page.fill("#writeoff-reason", "болезнь, договорились с родителем");
+  await page.waitForSelector('[data-testid="money-effects"][data-state="loading"]');
+  await page.evaluate(() => document.getElementById("writeoff-form").requestSubmit());
+  await page.waitForTimeout(300);
+  assert.equal(calls.filter((call) => !isDry(call)).length, 0, "the money was not written before the person saw what it does");
+  hold.open();
+  await page.close();
+});

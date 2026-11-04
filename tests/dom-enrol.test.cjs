@@ -86,3 +86,31 @@ test("R3 item 6: «Что переедет» is asked when somebody from another
   assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), false);
   await run.page.close();
 });
+
+test("R3 item 6: «Перевести» of the card of a student (the window «Перевести в другую группу») waits for «что переедет» too; the transfer goes with mode=transfer", async () => {
+  const hold = require("./helpers/dom-answers.cjs").deferred();
+  const run = await openPage(browser, "money.entry.tsx", (request) => {
+    if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра", class_level: 7, status: "active", teacher_id: "t1", teacher_name: "Каримова К." }, { id: "g2", name: "7-Б Геометрия", class_level: 7, status: "active", teacher_id: "t1", teacher_name: "Каримова К." }] };
+    if (request.method === "GET" && request.path === "/auth/org/members") return { json: [{ id: "t1", user_id: "t1", org_role: "teacher", first_name: "Каримова", last_name: "К." }] };
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/st1") {
+      if (/dry_run=true/.test(request.query)) return hold.promise.then(() => ({ json: { student_id: "st1", group_id: "g2", status: "added", dry_run: true, carried: [{ code: "PAYMENT_CARRIED", message: "Оплата перенесётся" }], money_effects: { students: [], payroll: [], text: "", dryRun: true } } }));
+      return { json: { student_id: "st1", group_id: "g2", status: "added", warnings: [] } };
+    }
+    return null;
+  });
+  await run.page.evaluate(() => window.mount("assign"));
+  await run.page.click('text=7-Б Геометрия');
+  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="loading"]');
+  const confirm = run.page.getByRole("button", { name: /Перевести/ }).last();
+  assert.equal(await confirm.isDisabled(), true, "the answer is not here: the button waits");
+  await run.page.evaluate(() => { const form = [...document.querySelectorAll("button")].find((button) => /Перевести/.test(button.textContent) && !button.disabled); return form; });
+  hold.open();
+  await run.page.waitForSelector('[data-testid="transfer-carried"]');
+  assert.equal(await confirm.isDisabled(), false);
+  await confirm.click();
+  await run.page.waitForFunction(() => document.body.textContent.includes("Перевод подтверждён"));
+  const sent = run.calls.filter((call) => call.method === "POST" && call.path === "/auth/org/groups/g2/students/st1");
+  assert.deepEqual(sent.map((call) => /dry_run=true/.test(call.query)), [true, false]);
+  assert.match(sent[1].query, /mode=transfer/);
+  await run.page.close();
+});
