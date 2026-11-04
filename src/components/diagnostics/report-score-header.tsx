@@ -82,6 +82,12 @@ export function ReportScoreHeader({ status, levelText, solved, total, correct, w
           )}
           <div className="mt-2 flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-slate-600 sm:justify-start">
             {solvedText && <span data-testid="diagnostic-report-solved" className="min-w-0 break-words text-center sm:text-left">{solvedText}</span>}
+            {/* Below xl the two stat cards on the right are hidden: the same two numbers stay on the card as a line (N03b-2, 375 / 1024). */}
+            {(correct != null || wrong != null) && (
+              <span data-testid="diagnostic-report-counts-inline" className="xl:hidden min-w-0 whitespace-nowrap text-center sm:text-left">
+                Верных: <span className="font-semibold text-slate-800">{correct ?? "—"}</span> · Ошибок: <span className="font-semibold text-slate-800">{wrong ?? "—"}</span>
+              </span>
+            )}
           </div>
         </div>
 

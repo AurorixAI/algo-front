@@ -44,7 +44,7 @@
  *   s2-noplan           errors, action_plan = []
  *   s3-errorfree-empty  error-free, no achievements, no plan
  *   s4-long             3 long chains (long skill names, wide LaTeX answers),
- *                       4 cognitive patterns with 3 examples, full boundary
+ *                       steps with the four lines (long tasks), map of checked topics, more difficulties, full boundary
  *                       (breakpoint_evidence "confirmed"; s2-noplan has "observed";
  *                       the 3rd chain has evidence_source "inferred" -> neutral marker)
  *   s5-pending          report pending (stays pending: watch the poll back off,
@@ -122,7 +122,7 @@ const baseMeta = (over = {}) => ({
   test_code: "SYN-0001",
   date: "2026-10-04",
   generated_on: "2026-10-12",
-  report_schema_version: 5,
+  report_schema_version: 8,
   degraded: [],
   total_questions: 12,
   questions_correct: 7,
@@ -134,6 +134,10 @@ const baseMeta = (over = {}) => ({
 const level = (over = {}) => ({ category: "below_grade", status: "below", provisional: false, theta: -0.9, se: 0.4, solved: 7, total: 12, ...over });
 
 const errorPattern = (i, long) => ({
+  answer_id: `ans-${i}`,
+  journal_no: i + 1,
+  is_deep_scan: false,
+  task_withdrawn: false,
   task_id: `T-${i}`,
   skill_id: `SK-${i}`,
   skill_name_ru: long ? LONG_SKILLS[i % LONG_SKILLS.length] : `Навык ${i + 1}`,
@@ -186,26 +190,6 @@ const chain = (i, long) => ({
   steps: [0, 1, 2].map((k) => chainStep(k, long)),
 });
 
-const cluster = (i, long) => ({
-  category: `cat_${i}`,
-  title: long ? `Систематическая ошибка в преобразованиях выражений со степенями и корнями (${i + 1})` : `Паттерн ${i + 1}`,
-  description: "Описание шаблона ошибки без утверждений о причинах.",
-  count: 3,
-  examples: [0, 1, 2].map((k) => ({
-    task_id: `EX-${i}-${k}`,
-    skill_id: `EXS-${i}-${k}`,
-    skill_name_ru: long ? LONG_SKILLS[k % LONG_SKILLS.length] : `Навык примера ${k + 1}`,
-    question_text: "Вычислите.",
-    question_latex: long ? LONG_STATEMENT : "Вычислите: $2+2$",
-    student_answer: "5",
-    student_answer_latex: long ? (k === 1 ? WIDE_MATRIX : WIDE_SUM) : "5",
-    correct_answer: "4",
-    correct_answer_latex: long ? WIDE_SUM : "4",
-    distractor_explanation: long ? "Ученик перепутал порядок действий. " + INLINE_WIDE : "Ученик перепутал порядок действий.",
-    distractor_explanation_latex: null,
-  })),
-});
-
 // breakpoint_evidence (backend _build_diagnostic_boundary): "confirmed" = reached by a deep-scan
 // chain (s4-long), "observed" = earliest grade with wrong answers only (s2-noplan).
 const boundary = (long, over = {}) => ({
@@ -219,16 +203,48 @@ const boundary = (long, over = {}) => ({
   ...over,
 });
 
+// Schema 8 step: the basis (rows of the journal), the material (bank tasks) and the check (one more task) next to the wording.
+// Step 3 (index 2) has no task in the bank: «задание этого навыка на занятии».
+const bankTask = (id, long) => ({
+  task_id: id,
+  question_text: long ? LONG_STATEMENT : `Вычислите значение выражения ${id}.`,
+  question_latex: long ? "Вычислите: " + WIDE_SUM : `Вычислите: $\\frac{${id.length}}{4}$`,
+});
 const planItem = (i, long, extra = {}) => ({
   priority: i + 1,
   skill_id: `PL-${i}`,
   skill_name_ru: long ? LONG_SKILLS[i % LONG_SKILLS.length] : `Навык плана ${i + 1}`,
+  topic_id: `TP-${i}`,
+  topic_name_ru: `Тема ${i + 1}`,
+  kind: "correction",
   action_title: long ? `Отработать: ${LONG_SKILLS[i % LONG_SKILLS.length]}` : `Отработать навык ${i + 1}`,
   full_description: "Решите серию задач по теме и сверьте результат с образцом.",
+  evidence_kind: i === 0 ? "confirmed_prerequisite" : "observed_error",
+  errors_count: 1,
+  evidence: [{ journal_no: i + 1, answer_id: `ans-${i}`, task_id: `T-${i}`, student_answer: "2", explanation: "Ученик сложил числители и знаменатели отдельно.", is_deep_scan: i === 0 && long }],
+  material: i === 2
+    ? { tasks: [], on_lesson: true, text: "задание этого навыка на занятии" }
+    : { tasks: [bankTask(`PL-${i}-b1`, long), bankTask(`PL-${i}-b2`, false), bankTask(`PL-${i}-b3`, false)], on_lesson: false },
+  check: i === 2
+    ? { statement: "Ученик решает без ошибки задание этого навыка из банка", task: null, on_lesson: true, text: "Ученик решает без ошибки задание этого навыка на занятии." }
+    : { statement: "Ученик решает без ошибки задание этого навыка из банка", task: bankTask(`PL-${i}-b4`, false), on_lesson: false, text: "Ученик решает без ошибки задание этого навыка из банка." },
+  source: "deterministic_fallback",
   ...extra,
 });
 
-const generation = (over = {}) => ({ status: "ready", stage: "ready", attempts: 1, is_current_schema: true, ...over });
+const checkedTopics = (long) => [
+  { topic_id: "TP-0", topic_name_ru: long ? LONG_SKILLS[0] : "Тема 1", checked: 4, errors: 2 },
+  { topic_id: "TP-1", topic_name_ru: "Тема 2", checked: 3, errors: 0 },
+  { topic_id: "TP-2", topic_name_ru: "Тема 3", checked: 5, errors: 2 },
+];
+const moreDifficulties = (long) => [
+  { topic_id: "TP-9", topic_name_ru: long ? LONG_SKILLS[3] : "Тема 10", skills: [
+    { skill_id: "MD-1", skill_name_ru: long ? LONG_SKILLS[2] : "Навык вне плана 1", errors: 1, journal_nos: [4] },
+    { skill_id: "MD-2", skill_name_ru: "Навык вне плана 2", errors: 2, journal_nos: [5, 6] },
+  ] },
+];
+
+const generation = (over = {}) => ({ status: "ready", stage: "ready", attempts: 1, is_current_schema: true, current_schema_version: 8, ...over });
 const envelope = (reportJson, gen = generation()) => ({
   session_id: "sess-synthetic",
   report_json: reportJson,
@@ -253,10 +269,16 @@ const errorFreeJson = (withAchievements, withPlan) => ({
   critical_gaps: [],
   error_patterns: [],
   root_cause_chains: [],
-  cognitive_error_types: [],
-  recommended_start: withPlan ? { skill_id: "PL-0", skill_name_ru: "Логарифмические уравнения", evidence: null } : null,
+  checked_topics: [{ topic_id: "TP-0", topic_name_ru: "Логарифмические уравнения", checked: 5, errors: 0 }, { topic_id: "TP-1", topic_name_ru: "Свойства степеней", checked: 7, errors: 0 }],
+  more_difficulties: [],
+  recommended_start: withPlan ? { skill_id: "PL-0", skill_name_ru: "Логарифмические уравнения", evidence_kind: "error_free_development" } : null,
   action_plan: withPlan
-    ? [{ priority: 1, skill_id: "PL-0", skill_name_ru: "Логарифмические уравнения", action_title: "Следующий шаг: логарифмические уравнения", full_description: "Расширьте подтверждённые навыки: решите несколько задач на логарифмы.", kind: "development" }]
+    ? [{ priority: 1, skill_id: "PL-0", skill_name_ru: "Логарифмические уравнения", action_title: "Следующий шаг: логарифмические уравнения", full_description: "Расширьте подтверждённые навыки: решите несколько задач на логарифмы.", kind: "development",
+        evidence_kind: "error_free_development", errors_count: 0,
+        evidence: [{ answer_id: "ok-1", task_id: "LOG-t1", student_answer: "4", correct: true }, { answer_id: "ok-2", task_id: "LOG-t2", student_answer: "x=2", correct: true }],
+        material: { tasks: [bankTask("LOG-b9", false), bankTask("LOG-b8", false)], on_lesson: false },
+        check: { statement: "Ученик решает без ошибки задание этого навыка из банка", task: bankTask("LOG-b7", false), on_lesson: false, text: "Ученик решает без ошибки задание этого навыка из банка." },
+        source: "deterministic_development" }]
     : [],
 });
 
@@ -269,13 +291,14 @@ const errorsJson = ({ long, plan, noPatterns, boundaryOver, metaOver }) => ({
   level: level({ provisional: long }),
   diagnostic_boundary: boundary(long, boundaryOver),
   root_cause_chains: long ? [0, 1, 2].map((i) => chain(i, true)) : [chain(0, false)],
-  cognitive_error_types: long ? [0, 1, 2, 3].map((i) => cluster(i, true)) : [],
+  checked_topics: checkedTopics(long),
+  more_difficulties: plan ? moreDifficulties(long) : [],
   achievements: [],
   strong_skills: [{ skill_id: "S-1", skill_name_ru: "Проценты", mastery_percent: 90 }],
   weak_skills: [{ skill_id: "W-1", skill_name_ru: "Дроби", mastery_percent: 30, status: "gap" }],
   critical_gaps: [],
   error_patterns: noPatterns ? [] : (long ? [0, 1, 2, 3] : [0, 1]).map((i) => errorPattern(i, long)),
-  recommended_start: plan ? { skill_id: "PL-0", skill_name_ru: long ? LONG_SKILLS[0] : "Навык плана 1", evidence: null } : null,
+  recommended_start: plan ? { skill_id: "PL-0", skill_name_ru: long ? LONG_SKILLS[0] : "Навык плана 1", evidence_kind: "confirmed_prerequisite" } : null,
   action_plan: plan ? (long ? [0, 1, 2] : [0, 1]).map((i) => planItem(i, long)) : [],
 });
 
@@ -320,7 +343,6 @@ const SCENARIOS = {
     const json = errorsJson({ long: false, plan: false });
     delete json.diagnostic_boundary;
     json.root_cause_chains = [];
-    json.cognitive_error_types = [];
     return envelope(json, generation({ status: "generating", stage: "collecting_evidence", is_current_schema: false }));
   },
   // real reports have 15-21 error records -> 5-7 journal pages; LaTeX answers, a wide formula every 4th record

@@ -25,6 +25,7 @@ export interface PlanStepLike {
   action_title?: string | null;
   estimated_hours?: number | null;
   kind?: string | null;
+  priority?: number | null;
 }
 
 export interface ReportShapeLike {
@@ -96,7 +97,7 @@ const asStrArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
 
 const REPORT_CONTENT_KEYS = [
-  "report_meta", "overall", "level", "error_patterns", "action_plan", "root_cause_chains", "cognitive_error_types",
+  "report_meta", "overall", "level", "error_patterns", "action_plan", "root_cause_chains", "checked_topics", "more_difficulties",
   "strong_skills", "weak_skills", "critical_gaps", "diagnostic_boundary", "achievements", "recommended_start",
 ];
 
@@ -141,13 +142,16 @@ function normalizeReportObject(raw: Obj): Obj {
       steps_count: typeof chain.steps_count === "number" ? chain.steps_count : steps.length,
     };
   });
-  out.cognitive_error_types = asObjArray(raw.cognitive_error_types).map((cluster) => {
-    const examples = asObjArray(cluster.examples);
-    // a missing count stays missing (the page hides the badge): examples are a sample, not the total
-    const out2: Obj = { ...cluster, examples };
-    if (typeof cluster.count !== "number") delete out2.count;
-    return out2;
-  });
+  // «Анализ мышления» (cognitive_error_types) is retired (R09): the key of an older report is dropped, never shown.
+  delete out.cognitive_error_types;
+  // schema 8: the map of checked topics and the skills with errors outside the plan. An absent key stays absent (an older report).
+  for (const key of ["checked_topics", "more_difficulties"]) {
+    if (Array.isArray(raw[key])) out[key] = asObjArray(raw[key]);
+    else delete out[key];
+  }
+  if (Array.isArray(out.more_difficulties)) {
+    out.more_difficulties = out.more_difficulties.map((group: Obj) => ({ ...group, skills: asObjArray(group.skills) }));
+  }
   if (isObj(raw.diagnostic_boundary)) {
     const b = raw.diagnostic_boundary;
     out.diagnostic_boundary = {
@@ -290,10 +294,9 @@ export function tabContentState(report: Obj | null | undefined): TabContentState
           : "records_unavailable";
 
   const hasChains = asObjArray(report?.root_cause_chains).length > 0;
-  const hasClusters = asObjArray(report?.cognitive_error_types).length > 0;
-  // the chains block renders for error-free and for other attempts alike
+  // the chains block renders for error-free and for other attempts alike (the map of checked topics sits above the tabs, not in this one)
   const skillsHaveContent =
-    hasChains || hasClusters ||
+    hasChains ||
     (errorFree ? reportAchievements(report).length > 0 : hasBoundaryData(report?.diagnostic_boundary));
 
   let planState: PlanTabState;
@@ -370,7 +373,7 @@ export function reportIdentity(response: { report_json?: unknown; generated_at?:
   return [
     meta.session_id, meta.generated_on, meta.report_schema_version, response?.generated_at,
     meta.total_questions, meta.questions_correct,
-    listLength(rj.error_patterns), listLength(rj.root_cause_chains), listLength(rj.cognitive_error_types),
+    listLength(rj.error_patterns), listLength(rj.root_cause_chains), listLength(rj.checked_topics), listLength(rj.more_difficulties),
     listLength(rj.achievements), listLength(rj.action_plan),
   ]
     .map((v) => (v === undefined || v === null ? "" : String(v)))
@@ -711,6 +714,8 @@ export function reportMetaInfo(
 const DEGRADED_REASON_TEXT: Record<string, string> = {
   skill_names: "названия тем могут отображаться неполностью",
   knowledge_hierarchy: "группировка по разделам может быть неполной",
+  task_status: "не удалось проверить, остались ли задания в банке",
+  bank_tasks: "задания банка для плана могут быть показаны не полностью",
 };
 
 /** Neutral note of a degraded report, worded by the backend's reasons. */
@@ -759,4 +764,111 @@ export function loadErrorInfo(
     retryable: true,
   };
 }
+// ─── N03b-2: the content of the report (schema 8) ────────────────────────────
+
+/** «Тема · проверено заданий N · с ошибкой k»: one count, the rule of the header (measured tasks); no share, no verdict. */
+export function checkedTopicLine(topic: { topic_name_ru?: unknown; topic_id?: unknown; checked?: unknown; errors?: unknown } | null | undefined): string {
+  const name = typeof topic?.topic_name_ru === "string" && topic.topic_name_ru.trim() ? topic.topic_name_ru.trim()
+    : typeof topic?.topic_id === "string" ? topic.topic_id : "—";
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? String(Math.max(0, Math.trunc(v))) : "—");
+  return `${name} · проверено заданий ${num(topic?.checked)} · с ошибкой ${num(topic?.errors)}`;
+}
+
+export const CHECKED_TOPICS_NOTE = "Считаются задания основного теста — те же, что в шапке уровня. Ответы углублённой проверки считаются отдельно.";
+export const MORE_DIFFICULTIES_TEXT = "Навыки с ошибками, которые не вошли в шаги плана:";
+export const TASK_WITHDRAWN_NOTE = "Задание снято после проверки";
+export const DEEP_SCAN_RU = "Углублённая проверка";
+
+/**
+ * Label of a plan step. «Развитие» belongs to a development step only (an attempt without errors);
+ * a correction step is «Шаг N», the first one is the start of the plan.
+ */
+export function stepBadgeLabel(step: PlanStepLike | null | undefined, index: number): string {
+  if (isDevelopmentStep(step)) return "Шаг развития";
+  const number = typeof step?.priority === "number" && step.priority > 0 ? step.priority : index + 1;
+  return index === 0 ? "Стартовый приоритет · Шаг 1" : `Шаг ${number}`;
+}
+
+export interface StepEvidenceLine {
+  /** Journal row number (a correction step) or null (a development step: a correct answer). */
+  journalNo: number | null;
+  answerId: string | null;
+  taskId: string | null;
+  /** The answer as stored (the page prefers the journal row's LaTeX form when it finds the row). */
+  answer: string | null;
+  correct: boolean;
+  explanation: string | null;
+  deepScan: boolean;
+}
+
+export interface StepTaskLine { taskId: string; text: string | null; latex: string | null }
+
+export interface StepLines {
+  /** «Основание»: null = the step carries none (a step of an older report). */
+  basis: StepEvidenceLine[] | null;
+  /** «Цель»: the skill. */
+  goal: string | null;
+  /** «Материал»: tasks, or a text («задание этого навыка на занятии»); null = an older report. */
+  material: { tasks: StepTaskLine[]; text: string | null } | null;
+  /** «Проверка»: the statement, a task or the lesson text; null = an older report. */
+  check: { text: string; task: StepTaskLine | null } | null;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
+const taskLine = (raw: unknown): StepTaskLine | null => {
+  if (!isObj(raw)) return null;
+  const taskId = strOrNull(raw.task_id);
+  return taskId ? { taskId, text: strOrNull(raw.question_text), latex: strOrNull(raw.question_latex) } : null;
+};
+
+/** The four lines of a plan step, read defensively: a step of an older report has none of them and the page shows the step as before. */
+export function planStepLines(step: Obj | null | undefined): StepLines {
+  const evidence = Array.isArray(step?.evidence) ? asObjArray(step!.evidence) : null;
+  const basis = evidence
+    ? evidence.map((e): StepEvidenceLine => ({
+        journalNo: typeof e.journal_no === "number" ? e.journal_no : null,
+        answerId: strOrNull(e.answer_id),
+        taskId: strOrNull(e.task_id),
+        answer: strOrNull(e.student_answer),
+        correct: e.correct === true,
+        explanation: strOrNull(e.explanation),
+        deepScan: e.is_deep_scan === true,
+      }))
+    : null;
+  const mat = isObj(step?.material) ? step!.material : null;
+  const chk = isObj(step?.check) ? step!.check : null;
+  const material = mat
+    ? {
+        tasks: (Array.isArray(mat.tasks) ? mat.tasks : []).map(taskLine).filter((t): t is StepTaskLine => t !== null),
+        text: strOrNull(mat.text),
+      }
+    : null;
+  const check = chk
+    ? {
+        text: strOrNull(chk.text) ?? strOrNull(chk.statement) ?? "",
+        task: taskLine(chk.task),
+      }
+    : null;
+  return { basis, goal: strOrNull(step?.skill_name_ru), material, check };
+}
+
+/** Does the step carry all four lines (a step of the current format)? */
+export const hasFourLines = (lines: StepLines): boolean =>
+  lines.basis !== null && lines.basis.length > 0 && lines.material !== null && lines.check !== null;
+
+/**
+ * Wrong answers of the journal, counted by ONE rule with the header of the level: the header's «Ошибок» is the measured tasks only,
+ * so the journal says how many of its rows are those and how many belong to the углублённая проверка (not in the level).
+ * null for a journal of an older report (its rows carry no flag): the page shows the plain length then.
+ */
+export function journalBreakdown(patterns: unknown): { measured: number; deepScan: number; withdrawn: number } | null {
+  const rows = asObjArray(patterns);
+  if (rows.length === 0 || !rows.every((row) => typeof row.is_deep_scan === "boolean")) return null;
+  const deepScan = rows.filter((row) => row.is_deep_scan === true).length;
+  return { measured: rows.length - deepScan, deepScan, withdrawn: rows.filter((row) => row.task_withdrawn === true).length };
+}
+
+/** Where a journal row sits: the page of the journal that shows row `no` (1-based), for the link from a plan step. */
+export const journalPageOf = (no: number, perPage: number): number => (perPage > 0 && no > 0 ? Math.floor((no - 1) / perPage) : 0);
+
 export * from "./answer-match";
