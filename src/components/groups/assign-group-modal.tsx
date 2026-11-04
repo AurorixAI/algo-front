@@ -27,6 +27,9 @@ import {
   targetGroupPriceText,
   type GroupPriceBrief,
 } from "@/lib/group-price";
+import { formConfirmState } from "@/lib/money-preview";
+import { useFormMoneyPreview } from "@/lib/use-money-preview";
+import { TransferPreviewBlock } from "./transfer-preview-block";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -209,7 +212,7 @@ export function AssignGroupModal({
   }, [groups, excluded, selectedTeacherId, search]);
 
   const handleAssign = async () => {
-    if (!selectedGroupId || assigning) return;
+    if (!selectedGroupId || assigning || !transferAllowed) return;
     if (excluded.has(selectedGroupId)) {
       setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
@@ -252,6 +255,14 @@ export function AssignGroupModal({
       setAssigning(false);
     }
   };
+
+  // R3 #15: «что переедет» - the dry run of the same transfer, asked when the group is chosen; «Перевести» waits for it (a first enrolment carries nothing: no ask)
+  const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
+  const transferKey = isTransfer && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error
+    ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}`
+    : null;
+  const transferPreview = useFormMoneyPreview(transferKey, (signal) => (selectedGroupId ? orgApi.dryRunTransferStudent(selectedGroupId, studentId, { price_override: dryException.request }, signal) : Promise.reject(new Error("no group"))));
+  const transferAllowed = formConfirmState(transferKey, transferPreview.preview).allowed;
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
   const selectedPriceLine = selectedGroup ? targetGroupPriceText(selectedGroup.price_current, priceLabel) : null;
@@ -314,7 +325,7 @@ export function AssignGroupModal({
       <button
         type="button"
         onClick={handleAssign}
-        disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning}
+        disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed}
         className={`w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${
           !selectedGroupId || excluded.has(selectedGroupId)
             ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none"
@@ -621,6 +632,8 @@ export function AssignGroupModal({
         )}
       </div>
     )}
+
+    {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} />}
 
     {assignmentError && (
       <div role="alert" className="mx-5 mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">

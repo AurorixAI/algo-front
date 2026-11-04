@@ -4,6 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { REASON_MAX } from "@/lib/payments";
 import { payError, validateReason } from "@/lib/payments-ledger";
+import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
 
 /** What is being cancelled: the key changes the state of the dialog, the rest is its wording. */
@@ -18,6 +21,8 @@ export interface VoidTarget {
   /** Label of the red button: «Отменить прощение». */
   action: string;
   run: (reason: string) => Promise<void>;
+  /** R3 #15: the dry run of the same request (`?dry_run=true`, any reason text): what the cancel does to the packs and the saved sheets; the red button waits for it. */
+  preview?: (signal: AbortSignal) => Promise<unknown>;
 }
 
 /** A reason of 3..500 characters and a red button: the shared cancel dialog of write-offs and refunds (a payment has its own). */
@@ -32,8 +37,14 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
     setError(null);
   }, [target?.key]);
 
+  const previewRef = target?.preview;
+  const effects = useMoneyPreview(target && previewRef ? target.key : null, (signal) => (previewRef ? previewRef(signal) : Promise.reject(new Error("no preview"))));
+  const asked = Boolean(target?.preview);
+  const waiting = asked ? effectsWaitReason(effects.preview) : null;
+  const allowed = !asked || effectsAllowConfirm(effects.preview);
+
   const submit = async () => {
-    if (!target || busy) return;
+    if (!target || busy || !allowed) return;
     const problem = validateReason(reason);
     if (problem) { setError(problem); return; }
     setBusy(true);
@@ -61,7 +72,8 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
           <button
             type="submit"
             form="record-void-form"
-            disabled={busy}
+            disabled={busy || !allowed}
+            aria-describedby={waiting ? "record-void-wait" : undefined}
             className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -82,6 +94,8 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
         />
         {target?.explain && <p className="text-xs text-slate-500">{target.explain}</p>}
+        {asked && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} />}
+        {waiting && <p id="record-void-wait" data-testid="record-void-wait" className="text-xs text-slate-500">{waiting}</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

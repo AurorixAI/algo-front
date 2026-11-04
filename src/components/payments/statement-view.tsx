@@ -58,6 +58,7 @@ import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
+import { DRY_RUN_REASON } from "@/lib/payment-dry-run";
 import { Checkbox } from "@/components/ui/checkbox";
 
 /**
@@ -241,6 +242,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.credit)}`,
           explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
           action: "Отменить прощение",
+          preview: (signal) => orgApi.dryRunVoidWriteoff(id, DRY_RUN_REASON, signal),
           run: async (reason) => { const result = await orgApi.voidWriteoff(id, reason); const note = toastWithEffects(result); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
         }),
       });
@@ -255,6 +257,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.outflow)}`,
           explain: "Деньги снова считаются у центра: сумма вернётся в аванс ученика. Запись останется в выписке серым с этой причиной.",
           action: "Отменить возврат",
+          preview: (signal) => orgApi.dryRunVoidRefund(id, DRY_RUN_REASON, signal),
           run: async (reason) => { const result = await orgApi.voidRefund(id, reason); const note = toastWithEffects(result); showToast("Возврат отменён", note.tone, note.details); changed(); },
         }),
       });

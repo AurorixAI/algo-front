@@ -49,6 +49,8 @@ import {
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
+import { usePaymentEffects } from "@/lib/use-payment-effects";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { groupPriceHref } from "@/lib/group-price";
 import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
 import { Modal } from "@/components/ui/modal";
@@ -165,6 +167,9 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       setTimeout(() => { if (amountInput.current && document.activeElement === amountInput.current) amountInput.current.select(); }, 0);
     },
   });
+
+  // R3 #15: what the payment will do to the packs and the saved sheets (a dry run while the form is filled; it never holds the till back)
+  const effects = usePaymentEffects({ active: open && ready, kind, membershipId: membership?.membership_id ?? null, paymentId: payment?.id ?? null, values, today });
 
   if (!membership) return null;
 
@@ -356,6 +361,9 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             ) : null}
             <RecalcNote lines={latest?.recalc} />
           </section>
+
+          {/* 2b. What it does to the packs of the students and the saved sheets (dry run) */}
+          {effects.shown && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} blocking={false} />}
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}
           <div>

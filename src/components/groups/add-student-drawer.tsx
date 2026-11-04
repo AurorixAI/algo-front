@@ -22,6 +22,9 @@ import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/stude
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
+import { formConfirmState } from "@/lib/money-preview";
+import { useFormMoneyPreview } from "@/lib/use-money-preview";
+import { TransferPreviewBlock } from "./transfer-preview-block";
 import { Modal } from "@/components/ui/modal";
 
 interface Student {
@@ -199,8 +202,17 @@ export function AddStudentDrawer({
   const today = formatBusinessDate();
   const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add");
 
+  // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
+  const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
+  const transferIds = Array.from(selected.keys()).sort();
+  const transferKey = open && transfers.length > 0 && mode === "transfer" && !dryException.error
+    ? `${groupId}|${transferIds.join(",")}|${JSON.stringify(dryException.request)}`
+    : null;
+  const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request }, signal));
+  const transferAllowed = formConfirmState(transferKey, transferPreview.preview).allowed;
+
   const handleAdd = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || !transferAllowed) return;
     const exception = moneyAvailable
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
@@ -355,12 +367,13 @@ export function AddStudentDrawer({
             />
           </div>
         )}
+        {transferKey !== null && <div className="-mx-5"><TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} /></div>}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
         )}
         <button
           onClick={handleAdd}
-          disabled={selected.size === 0 || adding}
+          disabled={selected.size === 0 || adding || !transferAllowed}
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {adding ? (

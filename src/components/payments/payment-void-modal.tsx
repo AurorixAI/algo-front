@@ -13,6 +13,10 @@ import {
   type PaymentOut,
 } from "@/lib/payments";
 import { payError } from "@/lib/payments-ledger";
+import { DRY_RUN_REASON } from "@/lib/payment-dry-run";
+import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
 
 /** What the dialog needs to know of the payment (the statement knows no more than this). */
@@ -38,8 +42,13 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
     setError(null);
   }, [payment?.id]);
 
+  // R3 #15: what the cancel does to the packs and the saved sheets - the dry run of the same request, asked when the window opens; the button waits for it
+  const paymentId = payment?.id ?? null;
+  const effects = useMoneyPreview(paymentId, (signal) => (paymentId ? orgApi.dryRunVoidPayment(paymentId, DRY_RUN_REASON, signal) : Promise.reject(new Error("no payment"))));
+  const waiting = payment ? effectsWaitReason(effects.preview) : null;
+
   const submit = async () => {
-    if (!payment || busy) return;
+    if (!payment || busy || !effectsAllowConfirm(effects.preview)) return;
     const problem = validateVoidReason(reason);
     if (problem) { setError(problem); return; }
     setBusy(true);
@@ -69,7 +78,8 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
           <button
             type="submit"
             form="payment-void-form"
-            disabled={busy}
+            disabled={busy || !effectsAllowConfirm(effects.preview)}
+            aria-describedby={waiting ? "payment-void-wait" : undefined}
             className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -96,6 +106,8 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
         {payment && isCarryOver(payment) && (
           <p className="text-xs text-slate-400">Исходная оплата в «{payment.carried_from?.group_name}» снова начнёт действовать.</p>
         )}
+        {payment && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} />}
+        {waiting && <p id="payment-void-wait" data-testid="payment-void-wait" className="text-xs text-slate-500">{waiting}</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

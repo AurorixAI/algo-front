@@ -41,6 +41,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
+import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
 import { canDecideMoney, decisionMatches, moneyRightLostFor, waitingCountFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
@@ -528,6 +529,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           onDecided={() => { void decisions.reload(true); refreshBadge(); }}
           showToast={showToast}
         />
+      )}
+
+      {/* R3 #28: the additional lessons that were decided (the money right only) - and the way to take a decision back */}
+      {!pendingTab && canDecideMoney(user) && !moneyRightLost && (
+        <DecidedOneOffsBlock showToast={showToast} onChanged={() => { void decisions.reload(true); refreshBadge(); }} />
       )}
 
       <SubstitutionPanel
