@@ -23,7 +23,9 @@ function server({ dry, real }) {
   };
 }
 
-async function fill(page) {
+/** The window resets its form once, right after it opens (the effect that makes it `ready` also asks the plan of the payment): the form is filled only after that first request, never before. */
+async function fill(page, calls) {
+  for (let waited = 0; !calls.some((call) => call.path.endsWith("/payments/preview")) && waited < 5000; waited += 25) await page.waitForTimeout(25);
   await page.fill("#payment-amount", "300000");
   await page.click('[data-testid="payment-methods"] >> text=Наличные');
 }
@@ -36,7 +38,7 @@ test("K1: «Внести» waits while the effects are counted; then it works; t
     real: () => ({ status: 201, json: created }),
   }));
   await page.evaluate(() => window.mount("till"));
-  await fill(page);
+  await fill(page, calls);
   await page.waitForFunction(() => document.querySelector('[data-testid="money-effects"][data-state="loading"]'));
   assert.equal(await page.isDisabled(SUBMIT), true, "the answer about money is not here: the button waits");
   assert.match(await page.textContent('[data-testid="money-effects"]'), /Считаем, что изменится с деньгами/, "and the block says why - once");
@@ -64,7 +66,7 @@ test("K1: a repeat after a lost answer keeps the SAME Idempotency-Key (one payme
     real: () => { attempts += 1; return attempts === 1 ? { status: 500, json: { detail: { code: "SERVER_ERROR", message: "Сервер не ответил" } } } : { status: 201, json: created }; },
   }));
   await page.evaluate(() => window.mount("till"));
-  await fill(page);
+  await fill(page, calls);
   await page.waitForFunction(() => document.querySelector('[data-testid="money-effects"][data-state="ready"]'));
   await page.click(SUBMIT);
   await page.waitForSelector('[role="alert"]:has-text("Сервер не ответил")');
@@ -85,7 +87,7 @@ test("K1: the calculation FAILED - the button is free and the line next to it sa
     real: () => ({ status: 201, json: created }),
   }));
   await page.evaluate(() => window.mount("till"));
-  await fill(page);
+  await fill(page, calls);
   await page.waitForSelector('[data-testid="till-effects-notice"]');
   assert.match(await page.textContent('[data-testid="till-effects-notice"]'), /Последствия для денег не удалось посчитать/);
   assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0, "the same fact is not said twice");
@@ -98,12 +100,12 @@ test("K1: the calculation FAILED - the button is free and the line next to it sa
 
 test("K1: the calculation could not COUNT (`unavailable: true`) - the same: a free button and the line next to it", async () => {
   const created = fixture("e1_create_300000");
-  const { page } = await openPage(browser, "money.entry.tsx", server({
+  const { page, calls } = await openPage(browser, "money.entry.tsx", server({
     dry: () => ({ json: { ...created, dry_run: true, money_effects: { students: [], payroll: [], unavailable: true, text: "", dryRun: true } } }),
     real: () => ({ status: 201, json: created }),
   }));
   await page.evaluate(() => window.mount("till"));
-  await fill(page);
+  await fill(page, calls);
   await page.waitForSelector('[data-testid="till-effects-notice"]');
   assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
   assert.equal(await page.isDisabled(SUBMIT), false);
@@ -119,7 +121,7 @@ test("K1: a change of the amount asks the dry run again - the old answer is neve
     real: () => ({ status: 201, json: created }),
   }));
   await page.evaluate(() => window.mount("till"));
-  await fill(page);
+  await fill(page, calls);
   await page.waitForFunction(() => document.querySelector('[data-testid="money-effects"][data-state="loading"]'));
   holds[0].open();
   await page.waitForFunction(() => document.querySelector('[data-testid="money-effects"][data-state="ready"]'));
