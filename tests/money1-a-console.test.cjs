@@ -83,7 +83,8 @@ test("the list of divergences: new ones first, then by centre; the filter by the
   assert.deepEqual(M.visibleFindings(FINDINGS, "I-9"), []);
   assert.deepEqual(FINDINGS.map((f) => f.id), ["f1", "f2", "f3", "f4"], "the answer of the server is not reordered in place");
   const facts = (id) => M.findingFacts(FINDINGS.find((f) => f.id === id)).map((row) => `${row.label}: ${plain(row.value)}`);
-  assert.deepEqual(facts("f2"), ["«Оплачено до»: 31.10.2026 → 15.11.2026", "Оплаченных уроков: 8 → 12", "Сумма оплат: 800 000 сум → 800 000 сум"]);
+  assert.deepEqual(facts("f2"), ["Оплаченных уроков: 8 → 12"], "«Сколько» says «оплачено до»; the facts add only what else moved (not what stood still)");
+  assert.deepEqual(M.findingFacts({ invariant: "I-2", details: { covered_through: ["2026-10-31", "2026-10-31"], lessons_covered: [8, 12], paid: [800000, 1000000] } }).map((row) => `${row.label}: ${plain(row.value)}`), ["Сумма оплат: 800 000 сум → 1 000 000 сум"]);
   assert.deepEqual(facts("f1"), ["Начислено: 500 000 сум", "Оплачено: 200 000 сум"]);
   assert.deepEqual(facts("f4"), ["Уроки (дата и группа): 2026-10-12|g1; 2026-10-14|g2"]);
 });

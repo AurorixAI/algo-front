@@ -14,7 +14,7 @@ const total = (amount: number) => new RegExp(`К выплате\\s*${moneyPatter
  *     line = round_half_up( price x percent / 100 x counted lessons / 12 )
  * where the price is the price of the GROUP (#105) or, for three of the students, an individual price with a reason.
  * -> «Сохранить» -> «начислить» for the student who never paid -> «Сохранить» (version 2) -> «История сохранений»;
- * -> the rate changes -> «Есть изменения» -> «Пересчитать».
+ * -> the rate changes -> «Есть изменения» -> «Пересохранить».
  *
  * Seeded lesson of today (one lesson per teacher, both completed):
  *   teacher 1, «Группа» (price of the group 600 000), 62.5 %:  Анвар 600 000 (the group's) present
@@ -27,7 +27,7 @@ test.beforeAll(async () => {
   org = await Org.create("Зарплата");
 });
 
-test("rate in «Сотрудники» -> «Рассчитать всех» -> total by the formula -> save -> «начислить» -> version 2 -> history -> new rate -> «Пересчитать»", async ({ signIn }) => {
+test("rate in «Сотрудники» -> «Рассчитать всех» -> total by the formula -> save -> «начислить» -> version 2 -> history -> new rate -> «Пересохранить»", async ({ signIn }) => {
   const month = businessNow().date.slice(0, 7);
   const t1 = await org.addStaff("teacher", "Групповой");
   const t2 = await org.addStaff("teacher", "Индивидуальный");
@@ -151,7 +151,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(card).toContainText(total(t1Total));
   await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4} в \d\d:\d\d/);
   await expect(card).toContainText("засчитано 3 посещения");
-  await expect(card.getByRole("button", { name: "Пересчитать" })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Пересохранить" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0); // no price field, no percent field
   await page.getByRole("checkbox", { name: /Начислить за неоплаченные уроки .*Неплательщик Эльдар/ }).check();
   await expect(card).toContainText(total(withEldar));
@@ -169,16 +169,16 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(history).toContainText(groupedDigits(t1Total));
   await expect(history).not.toContainText("редакци");
 
-  // --- the rate changes: the saved sheet is a snapshot, but it says the data moved and offers «Пересчитать»
+  // --- the rate changes: the saved sheet is a snapshot, but it says the data moved and offers «Пересохранить» (Money-1 A1b)
   await org.setPayrollRate(t1.userId, { group: "70" });
   await page.reload();
   await page.getByRole("tab", { name: "Ведомость" }).click();
-  await expect(card).toContainText("После сохранения изменились данные");
+  await expect(card).toContainText("После сохранения ведомость изменилась на");
   await expect(card).toContainText(/\+[\s\d]+\s*сум/); // the difference of the total
   await card.getByText("Что изменилось").click();
   await expect(card).toContainText(/ставка/i);
-  await card.getByRole("button", { name: "Пересчитать" }).click();
-  await expect(toast(page, /Ведомость пересчитана · версия 3/)).toBeVisible();
+  await card.getByRole("button", { name: "Пересохранить" }).click();
+  await expect(toast(page, /Ведомость пересохранена · версия 3/)).toBeVisible();
   await expect(card).toContainText("Ставка: Группа 70%");
 
   // --- and the API holds the same versions

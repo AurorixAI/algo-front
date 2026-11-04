@@ -83,12 +83,15 @@ export function findingAmount(finding: Pick<MoneyFinding, "invariant" | "expecte
 export function findingFacts(finding: Pick<MoneyFinding, "invariant" | "details">): Array<{ label: string; value: string }> {
   const details = finding.details ?? {};
   const out: Array<{ label: string; value: string }> = [];
+  // «Сколько» already says the first thing of I-2 that moved (one fact once, LESSONS 87): here only the other ones that moved, too
+  const moved = (["covered_through", "lessons_covered", "paid"] as const).filter((key) => { const value = pair(details[key]); return value !== null && value[0] !== value[1]; });
+  const rest = finding.invariant === "I-2" ? moved.slice(1) : [];
   const paidUntil = pair(details.covered_through);
-  if (paidUntil) out.push({ label: "«Оплачено до»", value: `${dayText(paidUntil[0])} → ${dayText(paidUntil[1])}` });
+  if (paidUntil && rest.includes("covered_through")) out.push({ label: "«Оплачено до»", value: `${dayText(paidUntil[0])} → ${dayText(paidUntil[1])}` });
   const lessons = pair(details.lessons_covered);
-  if (lessons) out.push({ label: "Оплаченных уроков", value: `${lessons[0] ?? DASH} → ${lessons[1] ?? DASH}` });
+  if (lessons && rest.includes("lessons_covered")) out.push({ label: "Оплаченных уроков", value: `${lessons[0] ?? DASH} → ${lessons[1] ?? DASH}` });
   const paid = pair(details.paid);
-  if (paid) out.push({ label: "Сумма оплат", value: `${money(num(paid[0]))} → ${money(num(paid[1]))}` });
+  if (paid && rest.includes("paid")) out.push({ label: "Сумма оплат", value: `${money(num(paid[0]))} → ${money(num(paid[1]))}` });
   if (num(details.charged) !== null) out.push({ label: "Начислено", value: money(num(details.charged)) });
   if (finding.invariant === "I-1" && num(details.paid) !== null) out.push({ label: "Оплачено", value: money(num(details.paid)) });
   const list = Array.isArray(details.lessons) ? details.lessons.filter((item): item is string => typeof item === "string") : [];
