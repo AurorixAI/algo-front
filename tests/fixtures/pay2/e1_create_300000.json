@@ -108,7 +108,9 @@
       "source": "group",
       "valid_from": "2026-01-01",
       "group_amount": 500000,
-      "reason": null
+      "reason": null,
+      "set_by_name": null,
+      "scheduled": null
     },
     "monthly_fee": 500000,
     "status": "expired",
@@ -119,6 +121,7 @@
     "lessons_total": null,
     "lessons_used": null,
     "lessons_left": null,
+    "paid_through_forecast": null,
     "last_payment": {
       "id": "00000000-0000-4000-8000-000000000018",
       "membership_id": "00000000-0000-4000-8000-000000000001",
@@ -192,5 +195,7 @@
     "bucket": null,
     "debt_reason": null,
     "reason": null
-  }
+  },
+  "money_effects": null,
+  "dry_run": false
 }

@@ -3,6 +3,7 @@
 import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import {
   effectsFailureText,
+  effectsFailureSoftText,
   EFFECTS_LOADING_TEXT,
   EFFECTS_NONE_TEXT,
   EFFECTS_RETRY_LABEL,
@@ -32,11 +33,13 @@ export function EffectLines({ effects }: { effects: MoneyEffects }) {
  * A refusal «месяц закрыт» is the same sentence and the button «Переоткрыть месяц» of `PeriodClosedNotice`, after which the dry run is asked again.
  */
 export function MoneyEffectsBlock({
-  preview, onRetry, aboveLessonPanel = false, className = "",
+  preview, onRetry, aboveLessonPanel = false, blocking = true, className = "",
 }: {
   preview: EffectsPreview;
   onRetry: () => void;
   aboveLessonPanel?: boolean;
+  /** false: the action does not wait for this block (a payment at the till) - a failure says the action is still possible. */
+  blocking?: boolean;
   className?: string;
 }) {
   if (preview.status === "idle") return null;
@@ -57,7 +60,7 @@ export function MoneyEffectsBlock({
           <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={onRetry} />
         ) : (
           <div role="alert" className="space-y-1.5">
-            <p className="text-sm font-medium text-rose-700">{effectsFailureText(preview.error)}</p>
+            <p className="text-sm font-medium text-rose-700">{blocking ? effectsFailureText(preview.error) : effectsFailureSoftText(preview.error)}</p>
             <button type="button" data-testid="money-effects-retry" onClick={onRetry} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">{EFFECTS_RETRY_LABEL}</button>
           </div>
         ))}

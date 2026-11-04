@@ -24,6 +24,11 @@
             "title": "Memberships With New Debt",
             "type": "integer"
           },
+          "openings_to_review": {
+            "default": 0,
+            "title": "Openings To Review",
+            "type": "integer"
+          },
           "refundable_delta": {
             "default": 0,
             "title": "Refundable Delta",
@@ -35,7 +40,8 @@
           "debt_delta",
           "memberships_with_changed_advance",
           "advance_delta",
-          "refundable_delta"
+          "refundable_delta",
+          "openings_to_review"
         ],
         "title": "AccountingStartImpact",
         "type": "object"
@@ -1839,6 +1845,11 @@
             ],
             "title": "Monthly Fee"
           },
+          "no_pay": {
+            "default": 0,
+            "title": "No Pay",
+            "type": "integer"
+          },
           "no_price_lessons": {
             "anyOf": [
               {
@@ -1907,6 +1918,11 @@
           "student_name": {
             "title": "Student Name",
             "type": "string"
+          },
+          "undecided": {
+            "default": 0,
+            "title": "Undecided",
+            "type": "integer"
           },
           "unpaid": {
             "default": 0,
@@ -2376,6 +2392,18 @@
               }
             ]
           },
+          "paid_through_forecast": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Through Forecast"
+          },
           "paid_until": {
             "anyOf": [
               {
@@ -2662,6 +2690,11 @@
             ],
             "title": "Teacher Name"
           },
+          "undecided_lessons": {
+            "default": 0,
+            "title": "Undecided Lessons",
+            "type": "integer"
+          },
           "warnings": {
             "$ref": "#/components/schemas/MonthWarnings"
           }
@@ -2679,10 +2712,30 @@
             "title": "No Fee",
             "type": "integer"
           },
+          "open_lesson_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Open Lesson Items",
+            "type": "array"
+          },
           "open_lessons": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "default": 0,
-            "title": "Open Lessons",
-            "type": "integer"
+            "title": "Open Lessons"
+          },
+          "open_lessons_unknown": {
+            "default": false,
+            "title": "Open Lessons Unknown",
+            "type": "boolean"
           },
           "pending_excused": {
             "default": 0,
@@ -3634,6 +3687,23 @@
               }
             ]
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "payment": {
             "$ref": "#/components/schemas/PaymentOut"
           },
@@ -3996,6 +4066,13 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "recalc": {
+            "items": {
+              "$ref": "#/components/schemas/RecalcOut"
+            },
+            "title": "Recalc",
+            "type": "array"
+          },
           "result": {
             "anyOf": [
               {
@@ -4027,7 +4104,8 @@
           "suggested_amount",
           "amount",
           "result",
-          "warnings"
+          "warnings",
+          "recalc"
         ],
         "title": "PaymentPreview",
         "type": "object"
@@ -4170,6 +4248,11 @@
             "minimum": 1.0,
             "title": "Billing Day",
             "type": "integer"
+          },
+          "centre_cancel_recalc": {
+            "default": false,
+            "title": "Centre Cancel Recalc",
+            "type": "boolean"
           },
           "dry_run": {
             "default": false,
@@ -4319,6 +4402,17 @@
               }
             ],
             "title": "Billing Day"
+          },
+          "centre_cancel_recalc": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Centre Cancel Recalc"
           },
           "excuse_deadline_days": {
             "anyOf": [
@@ -4642,6 +4736,11 @@
             "title": "Amount",
             "type": "integer"
           },
+          "confirm_overpay": {
+            "default": false,
+            "title": "Confirm Overpay",
+            "type": "boolean"
+          },
           "method": {
             "anyOf": [
               {
@@ -4670,6 +4769,17 @@
               }
             ],
             "title": "Note"
+          },
+          "overpay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpay"
           },
           "paid_on": {
             "anyOf": [
@@ -4707,8 +4817,19 @@
         "type": "object"
       },
       "PayoutError": {
-        "description": "409 ``DUPLICATE_PAYOUT`` carries ``payout_id``; the other codes: ``SHEET_NOT_SAVED`` / ``ALREADY_VOIDED`` (409),\n``AMOUNT_RANGE`` / ``PAID_ON_RANGE`` / ``METHOD_REQUIRED`` / ``REASON_REQUIRED`` / ``FINGERPRINT_REQUIRED`` /\n``DIVISOR_RANGE`` (422).",
+        "description": "409 ``DUPLICATE_PAYOUT`` carries ``payout_id``; 409 ``OVERPAY_CONFIRM_REQUIRED`` carries ``overpay`` and ``balance``; the other codes: ``SHEET_NOT_SAVED`` / ``ALREADY_VOIDED`` (409),\n``AMOUNT_RANGE`` / ``PAID_ON_RANGE`` / ``METHOD_REQUIRED`` / ``REASON_REQUIRED`` / ``FINGERPRINT_REQUIRED`` /\n``DIVISOR_RANGE`` (422).",
         "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
           "code": {
             "anyOf": [
               {
@@ -4723,6 +4844,17 @@
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "overpay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpay"
           },
           "payout_id": {
             "anyOf": [
@@ -4858,8 +4990,13 @@
         "type": "object"
       },
       "PayoutState": {
-        "description": "``target`` = ``fresh_total`` when the sheet is stale (``basis=\"fresh\"``), else the saved total (``basis=\"saved\"``;\n``fresh_total`` null when there is no rate / a manual price); ``balance = target - paid`` (negative = overpaid).",
+        "description": "``target`` = the SAVED total less the advance of the earlier months (Money-1 A1b; ``basis`` is always ``\"saved\"``, the field stays for the front).  ``fresh_total`` is null when there is no rate /\na manual price; when it differs from the saved total ``changed_by`` = fresh - saved (the line «изменилось на ±N», ``change_text``) and the owner re-saves the sheet; ``balance = target - paid`` (negative = overpaid).",
         "properties": {
+          "advance_out": {
+            "default": 0,
+            "title": "Advance Out",
+            "type": "integer"
+          },
           "balance": {
             "title": "Balance",
             "type": "integer"
@@ -4872,6 +5009,32 @@
             ],
             "title": "Basis",
             "type": "string"
+          },
+          "carry_in": {
+            "default": 0,
+            "title": "Carry In",
+            "type": "integer"
+          },
+          "carry_used": {
+            "default": 0,
+            "title": "Carry Used",
+            "type": "integer"
+          },
+          "change_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Text"
+          },
+          "changed_by": {
+            "default": 0,
+            "title": "Changed By",
+            "type": "integer"
           },
           "fresh_total": {
             "anyOf": [
@@ -4975,6 +5138,18 @@
             },
             "title": "History",
             "type": "array"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
           },
           "updated_at": {
             "anyOf": [
@@ -5520,7 +5695,7 @@
         "type": "object"
       },
       "PriceOut": {
-        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Оплата в месяц\" (calendar\nperiods) or \"Стоимость пакета\" (lesson packages) as the centre's billing mode says.",
+        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Цена в месяц\" (calendar\nperiods) or \"Цена пакета\" (lesson packages) as the centre's billing mode says.",
         "properties": {
           "amount": {
             "anyOf": [
@@ -5554,6 +5729,27 @@
               }
             ],
             "title": "Reason"
+          },
+          "scheduled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriceScheduled"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "set_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By Name"
           },
           "source": {
             "default": "none",
@@ -5953,6 +6149,48 @@
         "title": "PriceOverrideUpdate",
         "type": "object"
       },
+      "PriceScheduled": {
+        "description": "A future row of the individual price of a membership (``DELETE /org/memberships/{id}/price-override/{row_id}`` takes it back).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "row_id": {
+            "title": "Row Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          }
+        },
+        "required": [
+          "row_id",
+          "valid_from"
+        ],
+        "title": "PriceScheduled",
+        "type": "object"
+      },
       "PriceStepOut": {
         "description": "The price of a line changed inside the month: ``date`` is the first lesson day with this price.",
         "properties": {
@@ -6010,6 +6248,36 @@
           "message"
         ],
         "title": "RateChangeOut",
+        "type": "object"
+      },
+      "RecalcOut": {
+        "description": "PAY-F: one deduction «Перерасчёт: урок ДД.ММ отменён центром» (derived from the cancelled lesson, never stored).",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "lesson_date": {
+            "format": "date",
+            "title": "Lesson Date",
+            "type": "string"
+          },
+          "lesson_id": {
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_date",
+          "lesson_id",
+          "amount",
+          "text"
+        ],
+        "title": "RecalcOut",
         "type": "object"
       },
       "RecordVoid": {
@@ -6181,6 +6449,11 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "recalculated": {
+            "default": 0,
+            "title": "Recalculated",
+            "type": "integer"
+          },
           "remaining": {
             "default": 0,
             "title": "Remaining",
@@ -6222,6 +6495,7 @@
           "lessons",
           "paid",
           "written_off",
+          "recalculated",
           "unpaid",
           "remaining",
           "covered_days",
@@ -6384,6 +6658,17 @@
       "SheetCreate": {
         "description": "Save a sheet; if the teacher already has one for the month this is its next revision.",
         "properties": {
+          "confirm_open_lessons": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Open Lessons"
+          },
           "expected_fingerprint": {
             "anyOf": [
               {
@@ -6681,6 +6966,11 @@
             "title": "Total Amount",
             "type": "integer"
           },
+          "undecided_total": {
+            "default": 0,
+            "title": "Undecided Total",
+            "type": "integer"
+          },
           "unpaid_total": {
             "default": 0,
             "title": "Unpaid Total",
@@ -6800,6 +7090,14 @@
             "default": 0,
             "title": "No Fee",
             "type": "integer"
+          },
+          "open_lesson_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Open Lesson Items",
+            "type": "array"
           },
           "open_lessons": {
             "anyOf": [
@@ -6927,6 +7225,16 @@
             ],
             "title": "Reason"
           },
+          "recalc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecalcOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "receipt_no": {
             "anyOf": [
               {
@@ -7041,6 +7349,7 @@
           "from_membership_id",
           "to_group_name",
           "to_membership_id",
+          "recalc",
           "replaces_receipt_no",
           "replaces_amount",
           "replaced_by_receipt_no"
@@ -7239,7 +7548,8 @@
               "transfer_out",
               "opening_debt",
               "opening_paid_until",
-              "pause"
+              "pause",
+              "recalc"
             ],
             "title": "Type",
             "type": "string"
@@ -7331,6 +7641,11 @@
             ],
             "title": "Paid Until"
           },
+          "recalculated": {
+            "default": 0,
+            "title": "Recalculated",
+            "type": "integer"
+          },
           "reconciles": {
             "default": true,
             "title": "Reconciles",
@@ -7376,6 +7691,7 @@
           "paid",
           "transferred_in",
           "written_off",
+          "recalculated",
           "refunded",
           "transferred_out",
           "debt",
@@ -7455,7 +7771,7 @@
   "paths": {
     "/org/groups/{group_id}/lesson-type": {
       "put": {
-        "description": "Тип занятий группы с даты (по умолчанию сегодня; не раньше начала прошлого месяца). Список ведомостей — только владельцу.",
+        "description": "Тип занятий группы с даты (по умолчанию сегодня; не раньше начала учёта центра и не в закрытый месяц). Список ведомостей — только владельцу.",
         "parameters": [
           {
             "in": "path",
@@ -7553,7 +7869,7 @@
         "x-errors": [
           {
             "code": "LESSON_TYPE_RANGE",
-            "message": "Тип занятий можно менять с начала прошлого месяца по сегодня",
+            "message": "Тип занятий можно менять с начала учёта центра по сегодня",
             "status": 422
           }
         ]
@@ -7755,6 +8071,18 @@
               ],
               "title": "Mode",
               "type": "string"
+            }
+          },
+          {
+            "description": "только показать, что перенесётся (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только показать, что перенесётся (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           }
         ],
@@ -8444,12 +8772,17 @@
         "x-errors": [
           {
             "code": "PAUSE_RANGE",
-            "message": "Пауза начинается не раньше чем 30 дней назад | Пауза не длиннее 366 дней",
+            "message": "Пауза: «по» не раньше «с» | Пауза не длиннее 366 дней",
             "status": 422
           },
           {
             "code": "PAUSE_OVERLAP",
             "message": "Пауза пересекается с другой паузой этого ученика",
+            "status": 409
+          },
+          {
+            "code": "LESSON_IN_PROGRESS",
+            "message": "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены",
             "status": 409
           },
           {
@@ -8459,7 +8792,7 @@
           },
           {
             "code": "PAUSE_LOCKED",
-            "message": "Паузу нельзя сократить или отменить: дни старше 30 дней уже не меняются",
+            "message": "Месяц преподавателя закрыт ведомостью: паузу за эти дни не изменить. Владелец или администратор с правом оплат может переоткрыть месяц",
             "status": 422
           },
           {
@@ -8477,7 +8810,7 @@
     },
     "/org/memberships/{membership_id}/payments": {
       "post": {
-        "description": "Внести оплату. PAY-2: только сумма, дата, способ, примечание — период и распределение считает система\n(``allocation`` в ответе). ``Idempotency-Key`` защищает от двойного клика.",
+        "description": "Внести оплату. PAY-2: только сумма, дата, способ, примечание — период и распределение считает система\n(``allocation`` в ответе). ``Idempotency-Key`` защищает от двойного клика.  ``dry_run`` — окно подтверждения: что изменится в ведомостях (R3 #15).",
         "parameters": [
           {
             "in": "path",
@@ -8487,6 +8820,18 @@
               "format": "uuid",
               "title": "Membership Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается); ответ — как после оплаты, ``dry_run: true``",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается); ответ — как после оплаты, ``dry_run: true``",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {
@@ -9161,12 +9506,17 @@
         "x-errors": [
           {
             "code": "PAUSE_RANGE",
-            "message": "Пауза начинается не раньше чем 30 дней назад | Пауза не длиннее 366 дней",
+            "message": "Пауза: «по» не раньше «с» | Пауза не длиннее 366 дней",
             "status": 422
           },
           {
             "code": "PAUSE_OVERLAP",
             "message": "Пауза пересекается с другой паузой этого ученика",
+            "status": 409
+          },
+          {
+            "code": "LESSON_IN_PROGRESS",
+            "message": "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены",
             "status": 409
           },
           {
@@ -9176,7 +9526,7 @@
           },
           {
             "code": "PAUSE_LOCKED",
-            "message": "Паузу нельзя сократить или отменить: дни старше 30 дней уже не меняются",
+            "message": "Месяц преподавателя закрыт ведомостью: паузу за эти дни не изменить. Владелец или администратор с правом оплат может переоткрыть месяц",
             "status": 422
           },
           {
@@ -9285,14 +9635,14 @@
         ],
         "x-errors": [
           {
-            "code": "PAUSE_LOCKED",
-            "message": "Паузу нельзя сократить или отменить: дни старше 30 дней уже не меняются",
-            "status": 422
+            "code": "PAUSE_OVERLAPS_ATTENDED",
+            "message": "Ученик был отмечен на уроках {dates} — на эти даты паузу поставить нельзя",
+            "status": 409
           },
           {
-            "code": "PAUSE_BREAKS_REFUND",
-            "message": "Сначала отмените возврат: без паузы вернуть нечего",
-            "status": 409
+            "code": "PAUSE_LOCKED",
+            "message": "Месяц преподавателя закрыт ведомостью: паузу за эти дни не изменить. Владелец или администратор с правом оплат может переоткрыть месяц",
+            "status": 422
           },
           {
             "code": "REASON_REQUIRED",
@@ -9490,6 +9840,18 @@
               "format": "uuid",
               "title": "Payment Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {

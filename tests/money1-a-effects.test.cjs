@@ -16,7 +16,9 @@ const OWNER_DRY = {
   payroll: [{ month: "2026-10", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 475000, paid: 475000 }],
   text: "В пакеты учеников вернётся занятие: 2; ведомость Каримова К., октябрь 2026 изменится", dryRun: true,
 };
-const OWNER_DONE = { ...OWNER_DRY, dryRun: false, payroll: [{ ...OWNER_DRY.payroll[0], freshTotal: 425000, changedBy: -50000 }] };
+// R3 #22: the sum of the sheet is there BEFORE the action too (`freshBefore -> freshAfter`, `changedBy` signed - the effect of THIS action; `driftAfter` - fresh minus saved)
+const OWNER_DRY_SUMS = { ...OWNER_DRY, payroll: [{ ...OWNER_DRY.payroll[0], freshBefore: 475000, freshAfter: 425000, freshTotal: 425000, changedBy: -50000, driftAfter: -50000 }] };
+const OWNER_DONE = { ...OWNER_DRY_SUMS, dryRun: false };
 const ADMIN_DRY = { students: OWNER_DRY.students, payroll: [{ month: "2026-10", state: "open" }], text: "…", dryRun: true };
 
 test("normalize: a missing list is empty, a sum that is not a number is absent, a zero delta is no effect; no block at all is null", () => {
@@ -57,21 +59,50 @@ test("the lines BEFORE the action: the packs by name, the sheets as one sentence
 test("the lines AFTER the action: the owner gets the sum («−50 000 к сохранённой — пересохраните»), the others «изменилась»", () => {
   const owner = E.effectLines(E.normalizeMoneyEffects(OWNER_DONE), { done: true }).map((line) => plain(line.text));
   assert.equal(owner[0], "Иванов Иван: занятие вернули в пакет");
-  assert.equal(owner[2], "Ведомость Каримова К., октябрь 2026: −50 000 сум к сохранённой — пересохраните её");
-  const plus = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: 125000 }] }), { done: true });
-  assert.equal(plain(plus[0].text), "Ведомость Каримова К., октябрь 2026: +125 000 сум к сохранённой — пересохраните её");
+  assert.equal(owner[2], "Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум — пересохраните её");
+  const plus = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: 125000, driftAfter: 125000 }] }), { done: true });
+  assert.equal(plain(plus[0].text), "Ведомость Каримова К., октябрь 2026: изменилась на +125 000 сум — пересохраните её");
+  // the sheet had drifted before: «всего к сохранённой» says how far it is from the saved one now (the effect of this action alone is the first number)
+  const drifted = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: -50000, driftAfter: 25000 }] }), { done: true });
+  assert.equal(plain(drifted[0].text), "Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум (всего к сохранённой +25 000 сум) — пересохраните её");
   const admin = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-10", state: "closed" }, { month: "2026-09", state: "open" }] }), { done: true });
-  assert.deepEqual(admin.map((line) => plain(line.text)), ["Изменились ведомости: октябрь 2026; сентябрь 2026"]);
+  assert.deepEqual(admin.map((line) => plain(line.text)), ["Изменились ведомости: октябрь 2026 · месяц закрыт ведомостью; сентябрь 2026"]);
   assert.equal(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [] }), { done: true }).length, 0);
 });
 
-test("a closed month BEFORE the action is a warning with the way out; after it - not (a payment is allowed in a closed month, the sheet is re-saved)", () => {
+test("R3 #22: BEFORE the action the owner sees the sum of the sheet «было → станет» with the signed change; an administrator with the right sees the month only, no sums", () => {
+  const owner = E.effectLines(E.normalizeMoneyEffects(OWNER_DRY_SUMS)).map((line) => plain(line.text));
+  assert.equal(owner[2], "Ведомость Каримова К., октябрь 2026: 475 000 сум → 425 000 сум (−50 000 сум)");
+  const admin = E.effectLines(E.normalizeMoneyEffects({ ...ADMIN_DRY, payroll: [{ month: "2026-10", state: "open" }] })).map((line) => plain(line.text));
+  assert.equal(admin[2], "Изменится ведомость: октябрь 2026");
+  assert.ok(!/сум/.test(admin[2]));                                  // not one sum for the others (LESSONS 45)
+  // the fields are read as the server sends them
+  const line = E.normalizeMoneyEffects(OWNER_DRY_SUMS).payroll[0];
+  assert.deepEqual([line.freshBefore, line.freshAfter, line.changedBy, line.driftAfter], [475000, 425000, -50000, -50000]);
+});
+
+test("a closed month in a dry run of a payment: said as it is («месяц закрыт ведомостью»), a warning; the lesson flows refuse it with PERIOD_CLOSED instead (no «сначала переоткройте» in the lines)", () => {
   const closed = E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s", teacherId: "t" }], dryRun: true });
   const lines = E.effectLines(closed);
   assert.equal(lines.length, 1);
   assert.equal(lines[0].tone, "warn");
-  assert.equal(plain(lines[0].text), "Месяц закрыт: Каримова К., октябрь 2026. Сначала переоткройте его");
-  assert.equal(E.effectLines(closed, { done: true })[0].tone, "plain");
+  assert.equal(plain(lines[0].text), "Изменится ведомость: Каримова К., октябрь 2026 · месяц закрыт ведомостью");
+  assert.equal(E.effectLines(closed, { done: true })[0].tone, "warn");
+  const sums = E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s", teacherId: "t", freshBefore: 100000, freshAfter: 90000, changedBy: -10000 }], dryRun: true });
+  assert.equal(plain(E.effectLines(sums)[0].text), "Ведомость Каримова К., октябрь 2026: 100 000 сум → 90 000 сум (−10 000 сум) · месяц закрыт ведомостью");
+});
+
+test("R3 #15/#27: the numbers could not be counted (`unavailable: true`) is one warning line, not an error, and the block is not «деньги не изменятся»", () => {
+  const block = E.normalizeMoneyEffects({ students: [], payroll: [], unavailable: true, text: "", dryRun: true });
+  assert.equal(block.unavailable, true);
+  assert.equal(E.effectsEmpty(block), false);
+  const lines = E.effectLines(block);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].tone, "warn");
+  assert.match(plain(lines[0].text), /^Последствия для денег не удалось посчитать\. Действие можно выполнить/);
+  assert.match(plain(E.effectLines(block, { done: true })[0].text), /Действие выполнено; проверьте ведомости/);
+  assert.equal(E.effectsFailureSoftText({ status: 500 }), E.EFFECTS_FAILED_SOFT_TEXT);
+  assert.equal(E.effectsFailureSoftText({ status: 409, message: "Месяц закрыт" }), "Месяц закрыт");
 });
 
 test("toast: amber with the lines when a pack or a sheet was touched, plain success otherwise; the lines that were there stay first", () => {
@@ -167,12 +198,18 @@ test("the reopening: a reason of 3..500, the body, the toast of a repeat, the wo
   assert.equal(CP.validateReopenReason("abc"), null);
   assert.equal(CP.validateReopenReason("x".repeat(500)), null);
   assert.match(CP.validateReopenReason("x".repeat(501)), /не длиннее 500/);
-  assert.deepEqual(CP.buildReopenBody("t1", "  ошибочно отметили  "), { teacher_id: "t1", reason: "ошибочно отметили" });
+  // R3 #11: the reopening carries the revision of the sheet the screen saw (`sheet_revision`); 409 SHEET_CHANGED is its own kind of refusal
+  assert.deepEqual(CP.buildReopenBody("t1", "  ошибочно отметили  ", 3), { teacher_id: "t1", reason: "ошибочно отметили", sheet_revision: 3 });
+  assert.equal(CP.isSheetChanged({ status: 409, code: "SHEET_CHANGED" }), true);
+  assert.equal(CP.isSheetChanged({ status: 409, code: "PERIOD_CLOSED" }), false);
   assert.equal(CP.reopenToast({ changed: true }), "Месяц переоткрыт");
   assert.equal(CP.reopenToast({ changed: false }), "Месяц уже открыт");          // a double click: nothing is written twice (I-7)
-  assert.equal(CP.reopenErrorText({ code: "SHEET_NOT_FOUND", message: "x" }), "Ведомости за этот месяц нет: переоткрывать нечего");
-  assert.equal(CP.reopenErrorText({ code: "REASON_REQUIRED", message: "x" }), "Укажите причину (от 3 до 500 символов)");
-  assert.match(CP.reopenErrorText({ code: "MONEY_RIGHT_REQUIRED" }), /Переоткрыть месяц может владелец/);
+  // R3 #16: the sentence of the SERVER for every coded refusal (its catalogue is the one source); ours only where there is no text at all
+  for (const code of ["SHEET_NOT_FOUND", "REASON_REQUIRED", "REVISION_REQUIRED", "SHEET_CHANGED", "MONTH_INVALID", "MONEY_RIGHT_REQUIRED"]) {
+    const sentence = Object.assign(new Error(`Слова сервера: ${code}`), { code });
+    assert.equal(CP.reopenErrorText(sentence), `Слова сервера: ${code}`);
+  }
+  assert.equal(CP.reopenErrorText({ code: "SHEET_NOT_FOUND" }), "Ведомости за этот месяц нет: переоткрывать нечего");
   assert.equal(CP.reopenErrorText(new Error("Сервер недоступен")), "Сервер недоступен");
   assert.equal(CP.reopenErrorText(null), "Не удалось переоткрыть месяц. Данные не изменены.");
   assert.equal(plain(CP.reopenDescription("Каримова К.", "2026-10")), "Каримова К. · октябрь 2026");

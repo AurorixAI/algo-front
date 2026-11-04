@@ -29,7 +29,7 @@ import type {
   SubstitutionRequestMark,
   SubstitutionSummary,
 } from "./substitution-types";
-import type { LessonPurposeFields, MakeupCandidates, MoneyDecisionOut, OneOffDecision, OneOffDecisionAction, OneOffDecisionsOut, OneOffMoney } from "./one-off";
+import { normalizeDecided, type LessonPurposeFields, type MakeupCandidates, type MoneyDecisionOut, type OneOffDecision, type OneOffDecisionAction, type OneOffDecisionsOut, type OneOffMoney } from "./one-off";
 import { loginUrlForPage } from "./safe-redirect";
 import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
@@ -175,6 +175,11 @@ const AUTH_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://l
 const EXAM_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_EXAM_API_URL, "http://localhost:8003");
 
 const DIAG_API_V1 = serviceApiV1(process.env.NEXT_PUBLIC_DIAG_API_URL, "http://localhost:8002");
+
+/** R3 #15: the path of a dry run of a money action (`?dry_run=true`). */
+export function dryRunPath(path: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}dry_run=true`;
+}
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -977,6 +982,8 @@ export interface AttendanceCorrectionInfo {
   by_name: string | null;
   at: string | null;
   reason: string | null;
+  /** R3 #25: `returned` - the lesson was returned to «не проведён» and has no correction of marks (`changes` is empty); `corrected` - the last event is a correction of the marks. */
+  kind?: "corrected" | "returned";
   /** Money-1 A6: WHAT the last correction changed, per student. */
   changes?: AttendanceMarkChange[];
   /** Money-1 A6: the corrections and returns before it. */
@@ -1068,8 +1075,32 @@ export interface OpenAttendanceAction {
   version?: number | null;
   /** LOGIC-B (decision 7): the lesson is older than 7 days and only an administrator or the owner closes it. */
   requiresAdmin?: boolean;
+  /** R3 #2: true only where closed months were asked for on purpose (the payroll sheet). */
+  periodClosed?: boolean;
   ageDays?: number;
   isSubstitution?: boolean;
+}
+
+/** Money-1 R3 #2: the unresolved lessons of ONE month (the screen «Требует разбора» shows the months, the oldest first). */
+export interface OpenActionsMonth {
+  /** `YYYY-MM` */
+  month: string;
+  /** «Сентябрь 2026» */
+  title: string;
+  count: number;
+  /** Never started. */
+  missed: number;
+  /** Started and not finished. */
+  inProgress: number;
+  items: OpenAttendanceAction[];
+}
+
+/** `GET /auth/org/attendance/open-actions/by-month`. */
+export interface OpenActionsByMonth {
+  total: number;
+  /** The day the list starts from (the accounting start of the centre, never later than the start of last month), `YYYY-MM-DD`. */
+  since: string;
+  months: OpenActionsMonth[];
 }
 
 export interface AttendancePeriod {
@@ -1493,6 +1524,15 @@ export const orgApi = {
       warnings?: PaymentWarning[];
     }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}${query}`, { method: "POST", body });
   },
+  /** R3 #15: `mode=transfer&dry_run=true` - what a transfer would carry over (`carried: [{code, message}]`, the sums for the money right); nothing is written. */
+  dryRunTransferStudent: (groupId: string, studentId: string, options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
+    api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=transfer&dry_run=true`, {
+      method: "POST", body: options?.price_override ? { price_override: options.price_override } : undefined, signal,
+    }),
+  dryRunBulkTransfer: (groupId: string, studentIds: string[], options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
+    api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/bulk?mode=transfer&dry_run=true`, {
+      method: "POST", body: { student_ids: studentIds, ...(options?.price_override ? { price_override: options.price_override } : {}) }, signal,
+    }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}`, { method: "DELETE" }),
   /** One `price_override` (sum + reason) for everybody added, or none: the students follow the price of the group. */
@@ -1548,6 +1588,9 @@ export const orgApi = {
     api<MakeupCandidates>(`/auth/org/groups/${encodePathId(groupId)}/makeup-candidates`),
   /** #154 (owner / administrator): the additional lessons that wait for «Оплатить / Не оплачивать» (#159: a make-up never waits). */
   getOneOffDecisions: () => api<OneOffDecisionsOut>(`/auth/org/one-off-decisions`),
+  /** R3 #28 (the money right): the additional lessons that were decided in a month, the newest first. */
+  getDecidedOneOffs: (month: string, signal?: AbortSignal) =>
+    api<unknown>(`/auth/org/one-off-decisions/decided?month=${encodeURIComponent(month)}&limit=200`, { signal }).then(normalizeDecided),
   /** `undo` (Money-1 A3): takes the decision back while the month of the teacher is open. */
   decideOneOffMoney: (lessonId: string, decision: OneOffDecisionAction) =>
     api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),
@@ -1581,6 +1624,9 @@ export const orgApi = {
   // ── Attendance ────────────────────────────────────────────────────────
   getOpenAttendanceActions: () =>
     api<OpenAttendanceAction[]>("/auth/org/attendance/open-actions"),
+  /** R3 #2: the same lessons by month (the oldest month first) with the counters of each month; a teacher reads his lessons, the owner and the administrator all. */
+  getOpenAttendanceActionsByMonth: () =>
+    api<OpenActionsByMonth>("/auth/org/attendance/open-actions/by-month"),
   getGroupAttendance: (groupId: string, period?: string | AttendancePeriod) => {
     const params = new URLSearchParams();
     if (typeof period === "string") {
@@ -1638,8 +1684,8 @@ export const orgApi = {
     api<{ ok: boolean; cancelled: boolean; version?: number; warnings?: OpsWarning[] }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
 
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
-  restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string }) =>
-    api<RestoreLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/lessons/restore`, { method: "POST", body }),
+  restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean }, signal?: AbortSignal) =>
+    api<RestoreLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/lessons/restore`, { method: "POST", body, signal }),
 
   /** Money-1 A2: «Вернуть урок» of a HELD lesson (completed -> not held); `dryRun`: only what it does to money.  Owner / administrator with the money right. */
   returnHeldLesson: (groupId: string, body: { lessonDate: string; lessonId: string; reason: string; expectedVersion?: number; dryRun?: boolean }, signal?: AbortSignal) =>
@@ -1751,6 +1797,24 @@ export const orgApi = {
     api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
       method: "POST", body: { reason },
     }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  /**
+   * R3 #15: the same request with `?dry_run=true` and NO `Idempotency-Key` - nothing is written, the answer carries `money_effects` (what the action will do to the packs of the students
+   * and the saved sheets).  The body is the one the real request will send.  The answer is read by `moneyEffectsOf`, so it stays raw.
+   */
+  dryRunCreatePayment: (membershipId: string, data: PaymentCreate, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/payments`), { method: "POST", body: data, signal }),
+  dryRunReplacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/payments/${encodePathId(paymentId)}/replace`), { method: "POST", body: data, signal }),
+  dryRunVoidPayment: (paymentId: string, reason: string, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/payments/${encodePathId(paymentId)}/void`), { method: "POST", body: { reason }, signal }),
+  dryRunCreateWriteoff: (membershipId: string, data: WriteoffCreate, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`), { method: "POST", body: data, signal }),
+  dryRunVoidWriteoff: (writeoffId: string, reason: string, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/writeoffs/${encodePathId(writeoffId)}/void`), { method: "POST", body: { reason }, signal }),
+  dryRunCreateRefund: (membershipId: string, data: RefundCreate, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/refunds`), { method: "POST", body: data, signal }),
+  dryRunVoidRefund: (refundId: string, reason: string, signal?: AbortSignal) =>
+    api<unknown>(dryRunPath(`/auth/org/refunds/${encodePathId(refundId)}/void`), { method: "POST", body: { reason }, signal }),
   /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
   getPaymentPreview: (membershipId: string, q: PreviewQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();
@@ -1842,8 +1906,8 @@ export const orgApi = {
   /** Money-1 A1: the state of the month of every teacher with a saved sheet (`open` | `closed` | `reopened`); the owner and the administrator read it. */
   getPayrollPeriods: (month: string) =>
     api<PayrollPeriods>(`/auth/org/payroll-periods?month=${encodeURIComponent(month)}`).then(normalizePeriods),
-  /** Money-1 A1: «Переоткрыть месяц» (the money right; a reason; a repeat answers `changed: false`). */
-  reopenPayrollPeriod: (month: string, body: { teacher_id: string; reason: string }) =>
+  /** Money-1 A1: «Переоткрыть месяц» (the money right; a reason; `sheet_revision` of the sheet the screen saw - R3 #11; a repeat answers `changed: false`). */
+  reopenPayrollPeriod: (month: string, body: { teacher_id: string; reason: string; sheet_revision: number }) =>
     api<ReopenResult>(`/auth/org/payroll-periods/${encodePathId(month)}/reopen`, { method: "POST", body }),
   /** Every rate ever set for the teacher, newest first. */
   getPayrollRateHistory: (teacherId: string) =>

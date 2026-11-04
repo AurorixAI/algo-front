@@ -297,7 +297,7 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "LESSON_HAS_MARKS": return "У урока есть отметки или справки. Сначала снимите отметки";
     case "LESSON_CHANGED": return "Урок уже изменили: обновите страницу и повторите";
     case "REQUEST_REJECTED": return MOVE_REJECTED_HINT;
-    case "LESSON_IN_PROGRESS": return "Урок идёт: сначала завершите его, затем назначьте того, кто провёл";
+    case "LESSON_IN_PROGRESS": return detail?.message?.trim() || "Урок идёт: сначала завершите его, затем назначьте того, кто провёл";      // R3 #16: the server's catalogue speaks first
     case "DAY_OFF_EXISTS": return detail?.message?.trim() || "На эти даты уже назначен выходной с другой причиной";
     case "NO_CHANGES": return "Укажите хотя бы одно изменение постоянного расписания";
     case "DECISION_FAILED": return "Не удалось выполнить это решение. Остальные не затронуты — повторите позже";

@@ -350,6 +350,9 @@ export interface RestoreLessonResult {
   returnedToReview?: boolean;
   /** Money-1 A2: only with `returnedToReview` - the saved sheets of the teacher (`lib/money-effects.ts`). */
   moneyEffects?: unknown;
+  /** R3 #23 (the money right): whose deduction for the cancelled lesson goes away and by how much (`lib/lesson-return.ts`). */
+  deductions?: Array<{ studentId: string; name: string; amount: number }>;
+  dryRun?: boolean;
 }
 
 /** Money-1 A2: the answer of «Вернуть урок» of a held lesson (and of its dry run). */

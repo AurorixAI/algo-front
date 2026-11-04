@@ -24,6 +24,11 @@
             "title": "Memberships With New Debt",
             "type": "integer"
           },
+          "openings_to_review": {
+            "default": 0,
+            "title": "Openings To Review",
+            "type": "integer"
+          },
           "refundable_delta": {
             "default": 0,
             "title": "Refundable Delta",
@@ -35,7 +40,8 @@
           "debt_delta",
           "memberships_with_changed_advance",
           "advance_delta",
-          "refundable_delta"
+          "refundable_delta",
+          "openings_to_review"
         ],
         "title": "AccountingStartImpact",
         "type": "object"
@@ -596,6 +602,18 @@
               }
             ]
           },
+          "paid_through_forecast": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Through Forecast"
+          },
           "paid_until": {
             "anyOf": [
               {
@@ -1019,6 +1037,23 @@
               }
             ]
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "payment": {
             "$ref": "#/components/schemas/PaymentOut"
           },
@@ -1381,6 +1416,13 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "recalc": {
+            "items": {
+              "$ref": "#/components/schemas/RecalcOut"
+            },
+            "title": "Recalc",
+            "type": "array"
+          },
           "result": {
             "anyOf": [
               {
@@ -1412,7 +1454,8 @@
           "suggested_amount",
           "amount",
           "result",
-          "warnings"
+          "warnings",
+          "recalc"
         ],
         "title": "PaymentPreview",
         "type": "object"
@@ -1677,6 +1720,11 @@
             "title": "Billing Day",
             "type": "integer"
           },
+          "centre_cancel_recalc": {
+            "default": false,
+            "title": "Centre Cancel Recalc",
+            "type": "boolean"
+          },
           "excuse_deadline_days": {
             "default": 5,
             "maximum": 30.0,
@@ -1782,6 +1830,11 @@
             "minimum": 1.0,
             "title": "Billing Day",
             "type": "integer"
+          },
+          "centre_cancel_recalc": {
+            "default": false,
+            "title": "Centre Cancel Recalc",
+            "type": "boolean"
           },
           "dry_run": {
             "default": false,
@@ -1932,6 +1985,17 @@
             ],
             "title": "Billing Day"
           },
+          "centre_cancel_recalc": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Centre Cancel Recalc"
+          },
           "excuse_deadline_days": {
             "anyOf": [
               {
@@ -2068,6 +2132,23 @@
       },
       "PaymentVoided": {
         "properties": {
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "payment": {
             "$ref": "#/components/schemas/PaymentOut"
           },
@@ -2539,7 +2620,7 @@
         "type": "object"
       },
       "PriceOut": {
-        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Оплата в месяц\" (calendar\nperiods) or \"Стоимость пакета\" (lesson packages) as the centre's billing mode says.",
+        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Цена в месяц\" (calendar\nperiods) or \"Цена пакета\" (lesson packages) as the centre's billing mode says.",
         "properties": {
           "amount": {
             "anyOf": [
@@ -2574,6 +2655,27 @@
             ],
             "title": "Reason"
           },
+          "scheduled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriceScheduled"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "set_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By Name"
+          },
           "source": {
             "default": "none",
             "enum": [
@@ -2598,6 +2700,48 @@
           }
         },
         "title": "PriceOut",
+        "type": "object"
+      },
+      "PriceScheduled": {
+        "description": "A future row of the individual price of a membership (``DELETE /org/memberships/{id}/price-override/{row_id}`` takes it back).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "row_id": {
+            "title": "Row Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          }
+        },
+        "required": [
+          "row_id",
+          "valid_from"
+        ],
+        "title": "PriceScheduled",
         "type": "object"
       },
       "QuotePartOut": {
@@ -2658,6 +2802,36 @@
           "amount"
         ],
         "title": "QuotePartOut",
+        "type": "object"
+      },
+      "RecalcOut": {
+        "description": "PAY-F: one deduction «Перерасчёт: урок ДД.ММ отменён центром» (derived from the cancelled lesson, never stored).",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "lesson_date": {
+            "format": "date",
+            "title": "Lesson Date",
+            "type": "string"
+          },
+          "lesson_id": {
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_date",
+          "lesson_id",
+          "amount",
+          "text"
+        ],
+        "title": "RecalcOut",
         "type": "object"
       },
       "ReceiptItem": {
@@ -2902,6 +3076,10 @@
             ],
             "title": "Display Id"
           },
+          "group_id": {
+            "title": "Group Id",
+            "type": "string"
+          },
           "group_name": {
             "title": "Group Name",
             "type": "string"
@@ -2916,6 +3094,10 @@
               }
             ],
             "title": "Lessons Count"
+          },
+          "membership_id": {
+            "title": "Membership Id",
+            "type": "string"
           },
           "method": {
             "default": "unknown",
@@ -3027,6 +3209,13 @@
               }
             ]
           },
+          "recalc": {
+            "items": {
+              "$ref": "#/components/schemas/RecalcOut"
+            },
+            "title": "Recalc",
+            "type": "array"
+          },
           "receipt_no": {
             "title": "Receipt No",
             "type": "integer"
@@ -3063,6 +3252,10 @@
               }
             ],
             "title": "Replaces Receipt No"
+          },
+          "student_id": {
+            "title": "Student Id",
+            "type": "string"
           },
           "student_name": {
             "title": "Student Name",
@@ -3120,6 +3313,9 @@
           "org_name",
           "student_name",
           "group_name",
+          "student_id",
+          "membership_id",
+          "group_id",
           "amount",
           "amount_words",
           "currency",
@@ -3727,6 +3923,23 @@
             "title": "Advance Before",
             "type": "integer"
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "refund": {
             "$ref": "#/components/schemas/RefundOut"
           },
@@ -3738,7 +3951,9 @@
           "refund",
           "advance_before",
           "advance_after",
-          "row"
+          "row",
+          "money_effects",
+          "dry_run"
         ],
         "title": "RefundCreated",
         "type": "object"
@@ -3897,6 +4112,23 @@
       },
       "RefundVoided": {
         "properties": {
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "refund": {
             "$ref": "#/components/schemas/RefundOut"
           },
@@ -3906,7 +4138,9 @@
         },
         "required": [
           "refund",
-          "row"
+          "row",
+          "money_effects",
+          "dry_run"
         ],
         "title": "RefundVoided",
         "type": "object"
@@ -4065,6 +4299,11 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "recalculated": {
+            "default": 0,
+            "title": "Recalculated",
+            "type": "integer"
+          },
           "remaining": {
             "default": 0,
             "title": "Remaining",
@@ -4106,6 +4345,7 @@
           "lessons",
           "paid",
           "written_off",
+          "recalculated",
           "unpaid",
           "remaining",
           "covered_days",
@@ -4263,6 +4503,16 @@
             ],
             "title": "Reason"
           },
+          "recalc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecalcOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "receipt_no": {
             "anyOf": [
               {
@@ -4377,6 +4627,7 @@
           "from_membership_id",
           "to_group_name",
           "to_membership_id",
+          "recalc",
           "replaces_receipt_no",
           "replaces_amount",
           "replaced_by_receipt_no"
@@ -4575,7 +4826,8 @@
               "transfer_out",
               "opening_debt",
               "opening_paid_until",
-              "pause"
+              "pause",
+              "recalc"
             ],
             "title": "Type",
             "type": "string"
@@ -4667,6 +4919,11 @@
             ],
             "title": "Paid Until"
           },
+          "recalculated": {
+            "default": 0,
+            "title": "Recalculated",
+            "type": "integer"
+          },
           "reconciles": {
             "default": true,
             "title": "Reconciles",
@@ -4712,6 +4969,7 @@
           "paid",
           "transferred_in",
           "written_off",
+          "recalculated",
           "refunded",
           "transferred_out",
           "debt",
@@ -4818,6 +5076,23 @@
             "title": "Debt Before",
             "type": "integer"
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "row": {
             "$ref": "#/components/schemas/MembershipPaymentRow"
           },
@@ -4829,7 +5104,9 @@
           "writeoff",
           "debt_before",
           "debt_after",
-          "row"
+          "row",
+          "money_effects",
+          "dry_run"
         ],
         "title": "WriteoffCreated",
         "type": "object"
@@ -4954,6 +5231,23 @@
       },
       "WriteoffVoided": {
         "properties": {
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "money_effects": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Effects"
+          },
           "row": {
             "$ref": "#/components/schemas/MembershipPaymentRow"
           },
@@ -4963,7 +5257,9 @@
         },
         "required": [
           "writeoff",
-          "row"
+          "row",
+          "money_effects",
+          "dry_run"
         ],
         "title": "WriteoffVoided",
         "type": "object"
@@ -5038,7 +5334,7 @@
         ]
       },
       "post": {
-        "description": "Внести оплату. PAY-2: только сумма, дата, способ, примечание — период и распределение считает система\n(``allocation`` в ответе). ``Idempotency-Key`` защищает от двойного клика.",
+        "description": "Внести оплату. PAY-2: только сумма, дата, способ, примечание — период и распределение считает система\n(``allocation`` в ответе). ``Idempotency-Key`` защищает от двойного клика.  ``dry_run`` — окно подтверждения: что изменится в ведомостях (R3 #15).",
         "parameters": [
           {
             "in": "path",
@@ -5048,6 +5344,18 @@
               "format": "uuid",
               "title": "Membership Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается); ответ — как после оплаты, ``dry_run: true``",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается); ответ — как после оплаты, ``dry_run: true``",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {
@@ -5386,6 +5694,18 @@
               "format": "uuid",
               "title": "Membership Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           }
         ],
@@ -5735,6 +6055,18 @@
               "format": "uuid",
               "title": "Membership Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           }
         ],
@@ -6559,6 +6891,18 @@
             }
           },
           {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "header",
             "name": "Idempotency-Key",
             "required": false,
@@ -6632,6 +6976,18 @@
               "title": "Payment Id",
               "type": "string"
             }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -6689,6 +7045,18 @@
               "format": "uuid",
               "title": "Refund Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           }
         ],
@@ -6914,6 +7282,18 @@
               "format": "uuid",
               "title": "Writeoff Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "только последствия для денег (ничего не записывается)",
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "только последствия для денег (ничего не записывается)",
+              "title": "Dry Run",
+              "type": "boolean"
             }
           }
         ],

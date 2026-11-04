@@ -16,7 +16,7 @@ export type EffectsPreview =
   | { status: "idle" }
   | { status: "loading" }
   /** `effects` null: the server sent no block (an older one) - nothing is claimed about the money. */
-  | { status: "ready"; effects: MoneyEffects | null }
+  | { status: "ready"; effects: MoneyEffects | null; /** The whole answer of the dry run (a transfer reads its `carried` from it). */ answer?: unknown }
   | { status: "failed"; error: unknown };
 
 export const IDLE_PREVIEW: EffectsPreview = { status: "idle" };
@@ -25,7 +25,7 @@ export interface EffectsRun {
   /** The dry run; it must stop when `signal` is aborted. */
   load: (signal: AbortSignal) => Promise<unknown>;
   sequence: RequestSequence;
-  onReady: (effects: MoneyEffects | null) => void;
+  onReady: (effects: MoneyEffects | null, answer?: unknown) => void;
   onFailed: (error: unknown) => void;
 }
 
@@ -47,7 +47,7 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
     .then((answer) => {
       if (!live()) return;
       clearTimeout(giveUp);
-      run.onReady(moneyEffectsOf(answer));
+      run.onReady(moneyEffectsOf(answer), answer);
     })
     .catch((error) => {
       if (!live() || controller.signal.aborted) return;
@@ -64,6 +64,15 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
 /** The button of the confirmation may be pressed: the answer is here (or the server has none to give). Loading and failed hold it back. */
 export function effectsAllowConfirm(preview: EffectsPreview): boolean {
   return preview.status === "ready";
+}
+
+/**
+ * The confirmation of a FORM (an amount, a reason): while the form cannot be sent (`draftKey` null) there is nothing to ask and the button is as it was (a press shows what is wrong);
+ * once it can be sent, the button waits for the answer about money - always with a visible reason.
+ */
+export function formConfirmState(draftKey: string | null, preview: EffectsPreview): { allowed: boolean; reason: string | null } {
+  if (draftKey === null) return { allowed: true, reason: null };
+  return { allowed: effectsAllowConfirm(preview), reason: effectsWaitReason(preview) };
 }
 
 /** Why the button waits - always a visible reason (LESSONS 8): null when it does not. */

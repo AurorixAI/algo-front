@@ -34,9 +34,13 @@ export interface MoneyPayrollEffect {
   teacherName: string | null;
   savedTotal: number | null;
   paid: number | null;
-  /** The owner, after the action: the fresh total of the sheet and its difference from the saved one. */
+  /** The owner, also in a dry run (R3 #22): the fresh total of the sheet BEFORE and AFTER this action (`freshTotal` = `freshAfter`) and the effect of THIS action (`changedBy` = after - before). */
+  freshBefore: number | null;
+  freshAfter: number | null;
   freshTotal: number | null;
   changedBy: number | null;
+  /** The fresh total after the action less the SAVED one («всего к сохранённой»). */
+  driftAfter: number | null;
 }
 
 export interface MoneyEffects {
@@ -45,6 +49,8 @@ export interface MoneyEffects {
   text: string;
   /** The answer is a preview (nothing was written). */
   dryRun: boolean;
+  /** R3 #7: the server could not work the numbers out (the action itself is done / allowed): «последствия не удалось посчитать», not an error. */
+  unavailable: boolean;
 }
 
 const num = (value: unknown): number | null => {
@@ -76,10 +82,13 @@ export function normalizeMoneyEffects(raw: unknown): MoneyEffects | null {
       teacherName: str(item.teacherName),
       savedTotal: num(item.savedTotal),
       paid: num(item.paid),
+      freshBefore: num(item.freshBefore),
+      freshAfter: num(item.freshAfter),
       freshTotal: num(item.freshTotal),
       changedBy: num(item.changedBy),
+      driftAfter: num(item.driftAfter),
     }));
-  return { students, payroll, text: str(source.text) ?? "", dryRun: source.dryRun === true };
+  return { students, payroll, text: str(source.text) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true };
 }
 
 /** The block of an answer: `moneyEffects` (lessons) or `money_effects` (payments, rates, excuses) - one reader for both spellings. */
@@ -89,10 +98,15 @@ export function moneyEffectsOf(answer: unknown): MoneyEffects | null {
   return normalizeMoneyEffects(source.moneyEffects ?? source.money_effects);
 }
 
-/** The action moves nothing: no pack and no saved sheet is touched. */
+/** The action moves nothing: no pack and no saved sheet is touched (and the server did work the numbers out). */
 export function effectsEmpty(effects: MoneyEffects | null | undefined): boolean {
-  return !effects || (effects.students.length === 0 && effects.payroll.length === 0);
+  return !effects || (effects.students.length === 0 && effects.payroll.length === 0 && !effects.unavailable);
 }
+
+/** R3 #7: the numbers of the action could not be worked out; the action itself is not refused (or was done). */
+export const EFFECTS_UNAVAILABLE_TEXT = "Последствия для денег не удалось посчитать";
+export const EFFECTS_UNAVAILABLE_HINT = "Действие можно выполнить; ведомости проверьте после";
+export const EFFECTS_UNAVAILABLE_DONE_HINT = "Действие выполнено; проверьте ведомости";
 
 /** «октябрь 2026» - the month inside a sentence (no «г.»: a full stop in the middle of a sentence reads as its end). */
 export function monthInSentence(month: string): string {
@@ -132,6 +146,13 @@ export function effectsFailureText(error: unknown): string {
   return EFFECTS_FAILED_TEXT;
 }
 
+/** The same for an action that does not wait for the calculation (a payment at the till): the sentence of the server for a refusal, else «можно выполнить». */
+export const EFFECTS_FAILED_SOFT_TEXT = "Не удалось посчитать, что изменится с деньгами. Действие можно выполнить; ведомости проверьте после.";
+export function effectsFailureSoftText(error: unknown): string {
+  const text = effectsFailureText(error);
+  return text === EFFECTS_FAILED_TEXT ? EFFECTS_FAILED_SOFT_TEXT : text;
+}
+
 // ── the right ────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -149,7 +170,7 @@ export const MONEY_RIGHT_TEXT = "Это действие меняет деньг
 export interface EffectLine {
   key: string;
   text: string;
-  /** `warn`: a closed month - the action will be refused until it is reopened. */
+  /** `warn`: needs a look - a month the sheet has closed, numbers that could not be worked out. */
   tone: "plain" | "warn";
 }
 
@@ -158,12 +179,18 @@ function signedSum(delta: number): string {
   return `${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`;
 }
 
+/** «475 000 сум» for a sum in a line. */
+const sum = (value: number): string => formatMoney(value);
+
 /**
- * The sentences of money of an action (one per pack, one for the sheets, one per sheet the owner's sum is known for).
+ * The sentences of money of an action.
  *  - the packs: «Иванов Иван: занятие вернётся в пакет»;
- *  - the saved sheets before the action: «Изменится ведомость: Каримова К., октябрь 2026» / «Изменятся ведомости: …» (everybody else: «Изменится ведомость: октябрь 2026»);
- *  - after the action, the OWNER with the sum: «Ведомость Каримова К., октябрь 2026: +50 000 сум к сохранённой — пересохраните её» (the pay of the teachers is his);
- *  - a month a saved sheet has closed, BEFORE the action: «Месяц закрыт: Каримова К., октябрь 2026. Сначала переоткройте его» (warn) - the action would be refused.
+ *  - the saved sheets BEFORE the action, for the OWNER (R3 #22: the sum is there in a dry run, too): «Ведомость Каримова К., октябрь 2026: 475 000 сум → 600 000 сум (+125 000 сум)»;
+ *    everybody else gets the month only: «Изменится ведомость: октябрь 2026» (LESSONS 45: the pay of the teachers is the owner's);
+ *  - after the action: «Ведомость Каримова К., октябрь 2026: изменилась на +125 000 сум (всего к сохранённой +100 000 сум) — пересохраните её»;
+ *  - a month a saved sheet has closed is said as it is («месяц закрыт ведомостью»): a payment is allowed in it, the sheet is re-saved; a lesson action in a closed month is refused by the server
+ *    with its own sentence (`PERIOD_CLOSED`) and never reaches this block;
+ *  - the numbers could not be worked out (`unavailable`): one line, not an error.
  * `done`: the toast after the action (past tense).
  */
 export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean } = {}): EffectLine[] {
@@ -171,21 +198,27 @@ export function effectLines(effects: MoneyEffects | null | undefined, options: {
   const done = options.done === true;
   const lines: EffectLine[] = effects.students.map((student) => ({ key: `student:${student.studentId}`, text: studentEffectText(student, done), tone: "plain" }));
   const label = (line: MoneyPayrollEffect) => (line.teacherName || line.sheetId ? payrollLineLabel(line) : monthInSentence(line.month));
-  const closed = done ? [] : effects.payroll.filter((line) => line.state === "closed");
-  const rest = effects.payroll.filter((line) => !closed.includes(line));
-  const summed = done ? rest.filter((line) => line.changedBy) : [];
-  const plain = rest.filter((line) => !summed.includes(line));
+  const closedNote = (line: MoneyPayrollEffect) => (line.state === "closed" ? " · месяц закрыт ведомостью" : "");
+  const summed = effects.payroll.filter((line) => line.changedBy !== null && (line.freshBefore !== null || done));
+  const plain = effects.payroll.filter((line) => !summed.includes(line));
   if (plain.length > 0) {
     const many = plain.length > 1;
     const head = done ? (many ? "Изменились ведомости" : "Изменилась ведомость") : (many ? "Изменятся ведомости" : "Изменится ведомость");
-    lines.push({ key: "payroll", text: `${head}: ${plain.map(label).join("; ")}`, tone: "plain" });
+    lines.push({ key: "payroll", text: `${head}: ${plain.map((line) => `${label(line)}${closedNote(line)}`).join("; ")}`, tone: plain.some((line) => line.state === "closed") ? "warn" : "plain" });
   }
   for (const line of summed) {
-    lines.push({ key: `payroll:${line.month}:${line.teacherId ?? ""}`, text: `Ведомость ${label(line)}: ${signedSum(line.changedBy as number)} к сохранённой — пересохраните её`, tone: "plain" });
+    const key = `payroll:${line.month}:${line.teacherId ?? ""}`;
+    const change = signedSum(line.changedBy as number);
+    if (done) {
+      const drift = line.driftAfter !== null && line.driftAfter !== line.changedBy ? ` (всего к сохранённой ${signedSum(line.driftAfter)})` : "";
+      lines.push({ key, text: `Ведомость ${label(line)}: изменилась на ${change}${drift} — пересохраните её`, tone: "plain" });
+    } else if (line.freshBefore !== null && line.freshAfter !== null) {
+      lines.push({ key, text: `Ведомость ${label(line)}: ${sum(line.freshBefore)} → ${sum(line.freshAfter)} (${change})${closedNote(line)}`, tone: line.state === "closed" ? "warn" : "plain" });
+    } else {
+      lines.push({ key, text: `Ведомость ${label(line)}: изменится на ${change}${closedNote(line)}`, tone: line.state === "closed" ? "warn" : "plain" });
+    }
   }
-  for (const line of closed) {
-    lines.push({ key: `closed:${line.month}:${line.teacherId ?? ""}`, text: `Месяц закрыт: ${label(line)}. Сначала переоткройте его`, tone: "warn" });
-  }
+  if (effects.unavailable) lines.push({ key: "unavailable", text: `${EFFECTS_UNAVAILABLE_TEXT}. ${done ? EFFECTS_UNAVAILABLE_DONE_HINT : EFFECTS_UNAVAILABLE_HINT}`, tone: "warn" });
   if (lines.length === 0 && effects.text) lines.push({ key: "text", text: effects.text, tone: "plain" });
   return lines;
 }

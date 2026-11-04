@@ -86,6 +86,57 @@ export interface OneOffDecisionsOut {
   total: number;
   items: OneOffDecisionItem[];
 }
+/**
+ * R3 #28: a DECIDED additional lesson (`GET /auth/org/one-off-decisions/decided?month=`): the fields of a waiting one plus what was decided, by whom and when.
+ * `canUndo: false` - the month of the teacher is closed: «Переоткрыть месяц» first, then «Отменить решение» (the undo itself is `money-decision {"decision":"undo"}`).
+ */
+export interface DecidedOneOffItem extends OneOffDecisionItem {
+  money: "paid" | "none";
+  decidedAt: string | null;
+  decidedBy: { id: string; name: string; role: string } | null;
+  canUndo: boolean;
+  periodClosed: boolean;
+}
+export interface DecidedOneOffsOut {
+  total: number;
+  items: DecidedOneOffItem[];
+}
+
+export const DECIDED_TITLE = "Решённые дополнительные уроки";
+export const DECIDED_HINT = "Что решили по дополнительным урокам за месяц. Решение можно отменить, пока месяц преподавателя не закрыт.";
+export const DECIDED_EMPTY_TEXT = "В этом месяце по дополнительным урокам решений нет.";
+export const DECIDED_LOAD_ERROR_TEXT = "Не удалось загрузить решённые дополнительные уроки. Повторите попытку.";
+export const DECIDED_MONTH_CLOSED_TEXT = "Месяц закрыт ведомостью — сначала переоткройте его, потом отмените решение";
+
+/** What was decided, in words: the lesson was paid to the teacher or not. */
+export function decidedMoneyText(money: "paid" | "none"): string {
+  return money === "paid" ? "Оплачен преподавателю" : "Без оплаты";
+}
+
+/** «Рахимов Т. · 05.11.2026 14:20» - who decided and when (a piece that is not known is left out). */
+export function decidedByLine(item: Pick<DecidedOneOffItem, "decidedBy" | "decidedAt">, formatWhen: (value: string | null | undefined) => string): string {
+  return [item.decidedBy?.name ? `решил ${item.decidedBy.name}` : "", formatWhen(item.decidedAt)].filter(Boolean).join(" · ");
+}
+
+/** The answer of the list of decided lessons, read without surprises: a row with no lesson is dropped, `canUndo` is false unless the server said true. */
+export function normalizeDecided(raw: unknown): DecidedOneOffsOut {
+  const source = (raw ?? {}) as { total?: unknown; items?: unknown };
+  const items: DecidedOneOffItem[] = [];
+  for (const entry of Array.isArray(source.items) ? source.items : []) {
+    const row = entry as Partial<DecidedOneOffItem> | null;
+    if (!row || typeof row.lessonId !== "string" || typeof row.lessonDate !== "string") continue;
+    items.push({
+      ...(row as DecidedOneOffItem),
+      money: row.money === "paid" ? "paid" : "none",
+      decidedAt: row.decidedAt ?? null,
+      decidedBy: row.decidedBy ?? null,
+      canUndo: row.canUndo === true,
+      periodClosed: row.periodClosed === true,
+    });
+  }
+  return { total: typeof source.total === "number" ? source.total : items.length, items };
+}
+
 export type OneOffDecision = "pay" | "skip";
 /** Money-1 A3: `undo` takes the decision back (the lesson waits again) while the month of the teacher is open. */
 export type OneOffDecisionAction = OneOffDecision | "undo";
