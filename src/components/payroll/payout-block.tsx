@@ -52,14 +52,16 @@ export function SheetPayoutBlock({
             Выплата
             {chip && <span className={`rounded-2xl border px-2.5 py-0.5 text-xs font-semibold ${PAYOUT_CHIP_CLASS[chip.tone]}`}>{chip.text}</span>}
           </h2>
-          <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
-            {parts.map((part) => (
-              <div key={part.label}>
-                <dt className="text-xs text-slate-500">{part.label}</dt>
-                <dd className={`text-lg font-bold tabular-nums ${part.tone === "due" ? "text-amber-800" : part.tone === "over" ? "text-sky-800" : "text-slate-900"}`}>{part.value}</dd>
-              </div>
-            ))}
-          </dl>
+          {parts.length > 0 && (
+            <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+              {parts.map((part) => (
+                <div key={part.label}>
+                  <dt className="text-xs text-slate-500">{part.label}</dt>
+                  <dd className={`text-lg font-bold tabular-nums ${part.tone === "due" ? "text-amber-800" : part.tone === "over" ? "text-sky-800" : "text-slate-900"}`}>{part.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           {note && <p className="mt-1.5 text-sm text-slate-600" data-testid="payout-text">{note}</p>}
           {advanceLines(state).map((line) => <p key={line} className="mt-1 text-xs text-slate-500" data-testid="payout-advance">{line}</p>)}
           {state.fresh_total === null && state.state !== "settled" && (

@@ -14,7 +14,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { ExcuseDecisionBody } from "@/components/attendance/excuse-decision-body";
 import { orgApi } from "@/lib/api";
-import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { effectsAllowConfirm } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 
@@ -69,7 +69,6 @@ export function ExcuseDecisionDialog({
   );
   const moneyReady = !single || effectsAllowConfirm(preview);
   const canSubmit = canSubmitExcuseDecision(noteMode, note, busy) && moneyReady;
-  const waitReason = single ? effectsWaitReason(preview) : null;
 
   const submit = async () => {
     if (!target || sending.current || !canSubmit) return;
@@ -131,7 +130,6 @@ export function ExcuseDecisionDialog({
               />
             </div>
           )}
-          {waitReason && !busy && <p data-testid="excuse-decision-wait" className="pt-3 text-xs text-slate-500">{waitReason}</p>}
           {error && <p role="alert" className="pt-3 text-xs font-medium text-rose-600">{error}</p>}
           {noteMode === "none" && <div className="pb-2" />}
         </>

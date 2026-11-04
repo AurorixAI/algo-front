@@ -100,11 +100,11 @@ import {
 import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
-import { canManageMoney, effectLines, moneyEffectsOf } from "@/lib/money-effects";
+import { canManageMoney } from "@/lib/money-effects";
 import { periodClosedOf, REOPENED_THEN_REPEAT, type PeriodClosedInfo } from "@/lib/closed-period";
-import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
+import { effectsAllowConfirm } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
-import { RETURN_LESSON_LABEL, RETURN_TO_REVIEW_LABEL, returnDoneDetails, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
+import { RETURN_LESSON_LABEL, RETURN_TO_REVIEW_LABEL, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
 import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
 import { BACKDATED_LABEL, backdatedHintLines, correctionChipLabel, correctionHintLines } from "@/lib/attendance-corrections";
 import { nobodyCameQuestion } from "@/lib/attendance-ops";
@@ -112,6 +112,7 @@ import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } fro
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
+import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
 import { toastWithEffects } from "@/lib/money-effects";
 import { UNDO_DECISION_LABEL, UNDO_DECISION_TOAST, canUndoDecision } from "@/lib/one-off";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
@@ -385,6 +386,7 @@ export function GroupAttendanceJournal({
   const [openCell, setOpenCell] = useState<OpenAttendanceCell | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const { showToast, toastNode } = useToast();
+  const closedMonth = useClosedMonthDialog();
   const [columnMenu, setColumnMenu] = useState<{ key: string; anchor: MenuAnchor } | null>(null);
   const [columnBusyKey, setColumnBusyKey] = useState<string | null>(null);
   const [cancelMissed, setCancelMissed] = useState<CancelMissedTarget | null>(null);
@@ -927,6 +929,12 @@ export function GroupAttendanceJournal({
       return null;
     } catch (error) {
       const changed = excuseChange(error);
+      const closed = action === "reset" ? periodClosedOf(error) : null;
+      if (closed) {
+        // R3 m4: «Сбросить решение» in a closed month - the sentence of the server with «Переоткрыть месяц» (the right), then the reset is asked again
+        closedMonth.show(closed, () => void handleReview(excuse, lessonKey, studentId, action));
+        return null;
+      }
       if (changed) {
         const fresh = changed.item as { id?: string; status?: AttendanceExcuseInfo["status"] } | null;
         if (fresh && fresh.id === excuse.id && fresh.status) {
@@ -1120,7 +1128,7 @@ export function GroupAttendanceJournal({
     // finish itself waits behind every mark already queued.
     finishingKeyRef.current = key;
     let asked: LiveExamItem[] | null = null;
-    let nobodyCame = false;
+    let nobodyCame: string | null = null;
     let conflicted: Parameters<typeof setConflict>[0] = null;
     const task = saveQueueRef.current.then(async () => {
       const { rosterCount, markedCount } = markedInLesson(lesson);
@@ -1149,7 +1157,7 @@ export function GroupAttendanceJournal({
       } catch (error) {
         const failure = lessonFailure(error, "finish", "Не удалось завершить урок");
         if (failure.kind === "live_exam") { asked = failure.exams; return false; }
-        if (failure.kind === "nobody_came") { nobodyCame = true; return false; }
+        if (failure.kind === "nobody_came") { nobodyCame = failure.text; return false; }
         if (failure.kind === "conflict") {
           // O7: somebody saved the lesson first - my marks go to the dialog; «Оставить мои» repeats the finish
           conflicted = {
@@ -1182,8 +1190,8 @@ export function GroupAttendanceJournal({
       return "ask";
     }
     // Money-1 A6: nobody is «Был» / «Опоздал» - the finish makes the lesson held and PAID to the teacher: an explicit yes first, then the same finish carries it
-    if (nobodyCame) {
-      if (!(await askConfirm(nobodyCameQuestion()))) return "stopped";
+    if (nobodyCame !== null) {
+      if (!(await askConfirm(nobodyCameQuestion(nobodyCame)))) return "stopped";
       return finishLesson(lesson, acknowledgeLiveExam, true);
     }
     if (!finished) return "stopped";
@@ -1252,7 +1260,7 @@ export function GroupAttendanceJournal({
       return;
     }
     if (action === "return_review") {
-      setReviewTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null });
+      setReviewTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
       return;
     }
     if (action === "reconcile") {
@@ -1334,8 +1342,8 @@ export function GroupAttendanceJournal({
       await loadAttendanceRef.current(true);
       void useExcuseBadge.getState().refresh(true);
       // Money-1 A3: what the correction did to money (the packs of the students, the saved sheets of the teacher) - the toast says it
-      const effects = effectLines(moneyEffectsOf(saved), { done: true }).map((line) => line.text);
-      showToast(`Урок ${date} исправлен`, effects.length ? "warning" : "success", effects);
+      const money = toastWithEffects(saved);
+      showToast(`Урок ${date} исправлен`, money.tone, money.details);
     } catch (err) {
       const failure = lessonFailure(err, "save", "Не удалось сохранить исправление. Данные не изменены.");
       if (failure.kind === "conflict") {
@@ -2137,7 +2145,7 @@ export function GroupAttendanceJournal({
               />
               <div className="flex items-start justify-between gap-3 text-xs">
                 <span role={correctionDialog.error && !correctionDialog.closed ? "alert" : undefined} className={correctionDialog.error && !correctionDialog.closed ? "font-medium text-rose-600" : "text-slate-400"}>
-                  {(correctionDialog.closed ? null : correctionDialog.error) || effectsWaitReason(impact) || "От 10 до 500 символов."}
+                  {(correctionDialog.closed ? null : correctionDialog.error) || "От 10 до 500 символов."}
                 </span>
                 <span className="shrink-0 text-slate-400">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
               </div>
@@ -2160,8 +2168,8 @@ export function GroupAttendanceJournal({
         onDone={async (result, target) => {
           setReturnTarget(null);
           await loadAttendanceRef.current(true);
-          const details = returnDoneDetails(moneyEffectsOf(result));
-          showToast(returnDoneText(target.lessonDate, result.changed), details.length ? "warning" : "success", details);
+          const money = toastWithEffects(result);
+          showToast(returnDoneText(target.lessonDate, result.changed), money.tone, money.details);
         }}
       />
       <ReturnToReviewDialog
@@ -2170,8 +2178,8 @@ export function GroupAttendanceJournal({
         onDone={async (result, target) => {
           setReviewTarget(null);
           await loadAttendanceRef.current(true);
-          const details = returnDoneDetails(moneyEffectsOf(result));
-          showToast(returnReviewDoneText(target.lessonDate), details.length ? "warning" : "success", details);
+          const money = toastWithEffects(result);
+          showToast(returnReviewDoneText(target.lessonDate), money.tone, money.details);
         }}
       />
       {/* Money-1 A3: the decision on an additional lesson is taken back */}
@@ -2195,6 +2203,7 @@ export function GroupAttendanceJournal({
         }}
       />
 
+      {closedMonth.node}
       {toastNode}
     </div>
   );

@@ -101,8 +101,6 @@ test("R3 #15/#27: the numbers could not be counted (`unavailable: true`) is one 
   assert.equal(lines[0].tone, "warn");
   assert.match(plain(lines[0].text), /^Последствия для денег не удалось посчитать\. Действие можно выполнить/);
   assert.match(plain(E.effectLines(block, { done: true })[0].text), /Действие выполнено; проверьте ведомости/);
-  assert.equal(E.effectsFailureSoftText({ status: 500 }), E.EFFECTS_FAILED_SOFT_TEXT);
-  assert.equal(E.effectsFailureSoftText({ status: 409, message: "Месяц закрыт" }), "Месяц закрыт");
 });
 
 test("toast: amber with the lines when a pack or a sheet was touched, plain success otherwise; the lines that were there stay first", () => {
@@ -246,6 +244,7 @@ test("the asker: the answer is applied once, as the block of the answer; the one
     assert.deepEqual(seen, [["ready", 2]]);          // only the second answer, once
     cancelFirst();
     cancelSecond();
+    assert.equal(signals.length, 2, "both asks were made");
     assert.equal(signals.every((signal) => signal.aborted), true);
   } finally {
     timers.restore();
@@ -279,13 +278,10 @@ test("the asker: a request that does not answer in time FAILS (the window never 
   }
 });
 
-test("the button of a confirmation waits for the answer about money; the reason it waits is always said (LESSONS 8)", () => {
+test("the button of a confirmation waits for the answer about money (the block of the effects says why - «Считаем…» or the failure with «Повторить» - tested in tests/dom-windows.test.cjs)", () => {
   assert.equal(MP.effectsAllowConfirm({ status: "idle" }), false);
   assert.equal(MP.effectsAllowConfirm({ status: "loading" }), false);
   assert.equal(MP.effectsAllowConfirm({ status: "failed", error: new Error("x") }), false);
   assert.equal(MP.effectsAllowConfirm({ status: "ready", effects: null }), true);          // an older server: no block, nothing to wait for
   assert.equal(MP.effectsAllowConfirm({ status: "ready", effects: E.normalizeMoneyEffects(OWNER_DRY) }), true);
-  assert.equal(MP.effectsWaitReason({ status: "loading" }), "Считаем, что изменится с деньгами…");
-  assert.equal(MP.effectsWaitReason({ status: "failed", error: null }), "Сначала нужно увидеть, что изменится с деньгами");
-  assert.equal(MP.effectsWaitReason({ status: "ready", effects: null }), null);
 });

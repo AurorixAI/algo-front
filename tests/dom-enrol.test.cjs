@@ -60,3 +60,29 @@ test("M2: an administrator with `payments_access` and the owner keep the switch 
     await page.close();
   }
 });
+
+test("R3 item 6: «Что переедет» is asked when somebody from another group is chosen; «Зачислить» waits for it; a failure holds it with «Повторить», the retry opens it", async () => {
+  let attempts = 0;
+  const hold = require("./helpers/dom-answers.cjs").deferred();
+  const run = await openPage(browser, "enrol.entry.tsx", (request) => {
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && /dry_run=true/.test(request.query)) {
+      attempts += 1;
+      if (attempts === 1) return hold.promise.then(() => ({ status: 500, json: { detail: { code: "SERVER_ERROR", message: "Расчёт не удался" } } }));
+      return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, carried: [], money_effects: { students: [], payroll: [], text: "", dryRun: true } } };
+    }
+    return answer(request);
+  });
+  await run.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
+  await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
+  await run.page.click('button:has-text("Иванов Иван")');
+  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="loading"]');
+  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), true, "the answer is not here: the button waits");
+  hold.open();
+  await run.page.waitForSelector('[data-testid="transfer-preview-retry"]');
+  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), true, "a failure holds it too");
+  await run.page.click('[data-testid="transfer-preview-retry"]');
+  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  assert.match(await run.page.textContent('[data-testid="transfer-none"], [data-testid="transfer-carried-none"]'), /Оплаты и долги не переносятся/);
+  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), false);
+  await run.page.close();
+});

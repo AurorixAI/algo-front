@@ -63,6 +63,8 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { FileInput } from "@/components/ui/file-input";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
+import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
+import { periodClosedOf } from "@/lib/closed-period";
 import { MONEY_RIGHT_TEXT, canManageMoney, toastWithEffects } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 
@@ -444,6 +446,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
     }
   };
 
+  const closedMonth = useClosedMonthDialog();
   const resetDecision = async (item: AttendanceExcuseItem) => {
     markBusy(item.id, true);
     try {
@@ -455,7 +458,11 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
       await afterDecision(() => settleChange(updated), refreshBadge);
     } catch (error) {
       const changed = excuseChange(error);
-      if (changed) {
+      const closed = periodClosedOf(error);
+      if (closed) {
+        // R3 m4: the month of the teacher is closed - the sentence of the server with «Переоткрыть месяц» (the right), then the reset is asked again
+        closedMonth.show(closed, () => void resetDecision(item));
+      } else if (changed) {
         // Somebody changed it first: show the new state in the list and say so.
         await afterDecision(() => settleChange(changed.item), refreshBadge);
         showToast(changed.message, "warning");
@@ -915,6 +922,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         <p className="pb-2 text-sm text-slate-600">Файл будет удалён без возможности восстановления.</p>
       </Modal>
 
+      {closedMonth.node}
       {toastNode}
     </div>
   );

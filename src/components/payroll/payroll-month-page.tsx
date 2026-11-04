@@ -49,7 +49,7 @@ import {
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
-import { gateOfConfirmRefusal, isOpenLessonsConfirm, openLessonsGate } from "@/lib/payroll-open-lessons";
+import { openLessonsGate } from "@/lib/payroll-open-lessons";
 import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChangeLine, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
@@ -62,7 +62,7 @@ import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
 import { PeriodChip } from "./period-chip";
-import { confirmUnfinishedLessons } from "./confirm-open-lessons";
+import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { SheetSummaryCard } from "./sheet-summary";
 import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, WarningLinks, usePrintWithDates } from "./sheet-controls";
 
@@ -272,18 +272,13 @@ function PayrollMonthContent() {
     if (gate.kind === "unknown" && !(await confirmUnfinishedLessons(gate))) return;
     patchPreview(teacherId, { saving: true, error: null, rateMissing: null });
     try {
-      const send = (confirmOpenLessons: boolean) => orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null, confirmOpenLessons));
-      let saved;
-      try {
-        saved = await send(false);
-      } catch (first) {
-        if (!isOpenLessonsConfirm(first)) throw first;
-        if (monthRef.current !== requestedMonth) return;
-        patchPreview(teacherId, { saving: false });
-        if (!(await confirmUnfinishedLessons(gateOfConfirmRefusal(first)))) return;
-        patchPreview(teacherId, { saving: true, error: null });
-        saved = await send(true);
-      }
+      // the first request says `false`; the 409 of the server (new unresolved lessons) is asked in a window and only «Сохранить всё равно» sends the same request again with `true`
+      const outcome = await sendConfirmingOpenLessons(
+        (confirmOpenLessons) => orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null, confirmOpenLessons)),
+        (asking) => { if (monthRef.current === requestedMonth) patchPreview(teacherId, asking ? { saving: false } : { saving: true, error: null }); },
+      );
+      if (outcome.cancelled) return;
+      const saved = outcome.value;
       if (monthRef.current !== requestedMonth) return;
       showToast(`Ведомость сохранена${saved.revision ? ` · ${versionLabel(saved.revision)}` : ""}`);
       const remaining = Object.keys(previews).filter((id) => id !== teacherId);

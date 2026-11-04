@@ -19,6 +19,8 @@ import {
   type ReopenResult,
 } from "@/lib/closed-period";
 import { REASON_MAX } from "@/lib/payments";
+import { useDialogAction } from "@/lib/use-dialog-action";
+import { DialogError } from "@/components/money/dialog-error";
 import { Modal } from "@/components/ui/modal";
 
 export interface ReopenTarget {
@@ -44,9 +46,7 @@ export function ReopenMonthDialog({
   aboveLessonPanel?: boolean;
 }) {
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const sending = useRef(false);          // a second press in the same tick sees the state of the first one (rule 27)
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setError, run } = useDialogAction(target ? `${target.month}|${target.teacherId}` : null);
   /** R3 #11: the revision of the sheet the person is looking at; undefined while it is being read; null: the teacher has no sheet in that month. */
   const [revision, setRevision] = useState<number | null | undefined>(typeof target?.sheetRevision === "number" ? target.sheetRevision : undefined);
   const reads = useRef(0);
@@ -70,9 +70,6 @@ export function ReopenMonthDialog({
 
   useEffect(() => {
     setReason("");
-    setBusy(false);
-    setError(null);
-    sending.current = false;
     reads.current += 1;
     if (!target) { setRevision(undefined); return; }
     if (typeof target.sheetRevision === "number") setRevision(target.sheetRevision);
@@ -82,23 +79,16 @@ export function ReopenMonthDialog({
   }, [target?.month, target?.teacherId]);
 
   const submit = async () => {
-    if (!target || busy || sending.current || typeof revision !== "number") return;
+    if (!target || busy || typeof revision !== "number") return;
     const problem = validateReopenReason(reason);
     if (problem) { setError(problem); return; }
-    sending.current = true;
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       const result = await orgApi.reopenPayrollPeriod(target.month, buildReopenBody(target.teacherId, reason, revision));
       onReopened(result, target);
-    } catch (cause) {
-      setError(reopenErrorText(cause));
+    }, (cause) => {
       // the sheet was saved again after the screen read it: read it again - the person looks at the new state and asks once more
       if (isSheetChanged(cause)) void readRevision(target.month, target.teacherId);
-    } finally {
-      sending.current = false;
-      setBusy(false);
-    }
+    });
   };
 
   return (
@@ -140,7 +130,7 @@ export function ReopenMonthDialog({
         />
         <p className="text-xs text-slate-400">Причина и ваше имя останутся в журнале.</p>
         {revision === undefined && <p role="status" data-testid="reopen-reading" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Проверяем ведомость…</p>}
-        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+        <DialogError error={error} closed={null} text={(failure) => (typeof failure === "string" ? failure : reopenErrorText(failure))} onReopened={() => setError(null)} aboveLessonPanel={aboveLessonPanel} />
       </form>
     </Modal>
   );

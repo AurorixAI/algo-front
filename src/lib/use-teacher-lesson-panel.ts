@@ -594,7 +594,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
 
     if (!writes.begin(target.key)) return;
     // Money-1 A6: a finish where nobody is «Был» / «Опоздал» is a HELD lesson paid to the teacher - the server asks for a yes (409 NOBODY_CAME); asked after the write is released
-    let askNobody = false;
+    let askNobody: string | null = null;
     try {
       const finished = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic ?? undefined, {
         status: "completed" as const,
@@ -620,12 +620,12 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; nobody came - in the question below; anything else is the text of the panel
-      if (failure.kind === "nobody_came") askNobody = true;
+      if (failure.kind === "nobody_came") askNobody = failure.text;
       else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       writes.end(target.key);
     }
-    if (askNobody && (await askConfirm(nobodyCameQuestion()))) await handleFinishLesson(acknowledgeLiveExam, marks, true);
+    if (askNobody !== null && (await askConfirm(nobodyCameQuestion(askNobody)))) await handleFinishLesson(acknowledgeLiveExam, marks, true);
   };
 
   const handleCancelLesson = async () => {

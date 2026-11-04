@@ -799,7 +799,7 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   assert.match(month, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);
-  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, expectedFingerprint:/);
+  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id!, buildPatchBody\(sheet, edits, note, \{ recalculate, expectedFingerprint:/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /buildBlocks\(sheet, views\)/);
   // the types are the server's field names
   for (const field of ["lessons_without_teacher", "lessons_count", "period_start", "stale: boolean", "source_fee", "groups: PayrollGroupBlock[]", "dates: PayrollBlockDate[]",

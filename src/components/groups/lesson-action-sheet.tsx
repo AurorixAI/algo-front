@@ -22,10 +22,12 @@ import {
 } from "@/lib/schedule-card-actions";
 import { CANCEL_CONSEQUENCES, substitutionErrorText, type LessonMark } from "@/lib/substitutions";
 import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
-import { returnDoneDetails, returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
-import { canManageMoney, moneyEffectsOf } from "@/lib/money-effects";
+import { returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
+import { canManageMoney, toastWithEffects } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 import { LessonReturnDialog, ReturnToReviewDialog } from "./lesson-return-dialogs";
+import { RestoreConsequences, useRestorePreview } from "./restore-consequences";
+import { effectsAllowConfirm } from "@/lib/money-preview";
 import { UndoDecisionDialog } from "./undo-decision-dialog";
 import { UNDO_DECISION_TOAST } from "@/lib/one-off";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
@@ -55,7 +57,7 @@ const NO_MARKS: LessonMark[] = [];
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh, onReload,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -92,6 +94,8 @@ export function LessonActionSheet({
   onChanged: (text: string, notes?: string[]) => void;
   /** «Урок уже изменили — обновите»: the schedule is read again and the sheet closes. */
   onRefresh?: () => void;
+  /** R3 K2: somebody changed the lesson while a window over the sheet was open (409 `ATTENDANCE_CONFLICT` of «Вернуть урок»): the schedule behind is read again, the sheet and its window stay. */
+  onReload?: () => void;
 }) {
   // the step, the reason and the kind in ONE reducer: every step starts clean (`lib/cancel-sheet.ts`, tested)
   const [draft, dispatch] = useReducer(sheetReducer, FRESH_DRAFT);
@@ -120,6 +124,9 @@ export function LessonActionSheet({
   const [binding, setBinding] = useState<ExamBinding | null>(null);
   const today = useMemo(() => formatBusinessDate(), []);
   const checkToken = useRef(0);
+  // R3 K2: «Вернуть урок» of a cancelled lesson shows whose deduction goes away and what it does to the sheets BEFORE the button (the dry run of the same request)
+  const restorePreview = useRestorePreview(mode === "restore" && lesson ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null);
+  const restoreWaits = mode === "restore" && !effectsAllowConfirm(restorePreview.preview);
 
   const lessonStart = lesson ? lesson.startTime || lesson.start_time || "" : "";
   const lessonEnd = lesson?.endTime || "";
@@ -193,7 +200,7 @@ export function LessonActionSheet({
   const notRunHint = !pending && !check && !checkError ? (sameSlot ? "Выберите другую дату или время" : !validNew ? "Укажите новую дату и время: начало и окончание, конец позже начала" : null) : null;
 
   const submit = async () => {
-    if (!lesson || busy || sending.current) return;
+    if (!lesson || busy || restoreWaits || sending.current) return;
     if (mode === "reschedule") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { setError("Укажите новую дату урока"); return; }
       if (newDate < today) { setError("Новое время урока уже прошло"); return; }
@@ -263,7 +270,7 @@ export function LessonActionSheet({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || Boolean(reasonProblem) || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
+            disabled={busy || Boolean(reasonProblem) || restoreWaits || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -383,6 +390,7 @@ export function LessonActionSheet({
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
               <p className="text-xs leading-relaxed text-slate-500">{cancellationKind === "centre" ? RESTORE_NOTE_CENTRE : RESTORE_NOTE}</p>
+              <RestoreConsequences preview={restorePreview.preview} onRetry={restorePreview.retry} aboveLessonPanel={aboveLessonPanel} />
             </div>
           )}
 
@@ -413,7 +421,8 @@ export function LessonActionSheet({
             target={returning === "held" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null}
             aboveLessonPanel={aboveLessonPanel}
             onClose={() => setReturning(null)}
-            onDone={(result, target) => { setReturning(null); onChanged(returnDoneText(target.lessonDate, result.changed), returnDoneDetails(moneyEffectsOf(result))); }}
+            onStale={onReload}
+            onDone={(result, target) => { setReturning(null); onChanged(returnDoneText(target.lessonDate, result.changed), toastWithEffects(result).details); }}
           />
           <UndoDecisionDialog
             target={returning === "undo" ? { lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money } : null}
@@ -422,10 +431,10 @@ export function LessonActionSheet({
             onDone={() => { setReturning(null); onChanged(UNDO_DECISION_TOAST); }}
           />
           <ReturnToReviewDialog
-            target={returning === "review" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date, cancelKind: cancellationKind } : null}
+            target={returning === "review" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null}
             aboveLessonPanel={aboveLessonPanel}
             onClose={() => setReturning(null)}
-            onDone={(result, target) => { setReturning(null); onChanged(returnReviewDoneText(target.lessonDate), returnDoneDetails(moneyEffectsOf(result))); }}
+            onDone={(result, target) => { setReturning(null); onChanged(returnReviewDoneText(target.lessonDate), toastWithEffects(result).details); }}
           />
         </>
       )}

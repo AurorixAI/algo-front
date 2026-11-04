@@ -8,7 +8,6 @@
  */
 import { formatDateRu } from "./business-time";
 import { formatMoney, REASON_MAX, REASON_MIN } from "./payments";
-import { effectLines, type MoneyEffects } from "./money-effects";
 
 export const RETURN_LESSON_LABEL = "Вернуть урок";
 export const RETURN_TO_REVIEW_LABEL = "Вернуть в разбор";
@@ -68,11 +67,6 @@ export function returnDoneText(lessonDate: string, changed: boolean): string {
 
 export function returnReviewDoneText(lessonDate: string): string {
   return `Урок ${formatDateRu(lessonDate).slice(0, 5)} возвращён в «Незакрытые уроки»`;
-}
-
-/** The lines under the toast: what the return did to money (the sheets of the teacher, the packs of the students). */
-export function returnDoneDetails(effects: MoneyEffects | null | undefined): string[] {
-  return effectLines(effects, { done: true }).map((line) => line.text);
 }
 
 /** A lesson cancelled by hand that has begun and can go back to the review: not the original of a move, not cancelled by a day off (the day off is undone itself). */

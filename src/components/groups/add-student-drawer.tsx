@@ -22,7 +22,7 @@ import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/stude
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
-import { formConfirmState } from "@/lib/money-preview";
+import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
 import { canManageMoney } from "@/lib/money-effects";
@@ -215,7 +215,7 @@ export function AddStudentDrawer({
     ? `${groupId}|${transferIds.join(",")}|${JSON.stringify(dryException.request)}`
     : null;
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request }, signal));
-  const transferAllowed = formConfirmState(transferKey, transferPreview.preview).allowed;
+  const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;

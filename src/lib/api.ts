@@ -1075,8 +1075,6 @@ export interface OpenAttendanceAction {
   version?: number | null;
   /** LOGIC-B (decision 7): the lesson is older than 7 days and only an administrator or the owner closes it. */
   requiresAdmin?: boolean;
-  /** R3 #2: true only where closed months were asked for on purpose (the payroll sheet). */
-  periodClosed?: boolean;
   ageDays?: number;
   isSubstitution?: boolean;
 }

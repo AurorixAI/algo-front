@@ -602,7 +602,7 @@ test("R3 17: the move dialog runs lesson-move-check, and REQUEST_REJECTED switch
   assert.equal(lines.ok, false);
   assert.deepEqual(lines.lines, ["Администратор отклонил заявку по этому уроку"]);
   assert.equal(A.moveConfirmDisabled({ checking: false, failed: false, check: { ok: false } }), true, "the button is off on an answer that is not ok");
-  assert.match(sheet, /disabled=\{busy \|\| Boolean\(reasonProblem\) \|\| \(\(mode === "cancel" \|\| mode === "reschedule"\) && examState\.blocked\) \|\| \(mode === "reschedule" && confirmDisabled\)\}/);
+  assert.match(sheet, /disabled=\{busy \|\| Boolean\(reasonProblem\) \|\| restoreWaits \|\| \(\(mode === "cancel" \|\| mode === "reschedule"\) && examState\.blocked\) \|\| \(mode === "reschedule" && confirmDisabled\)\}/);
 });
 
 test("R3 18 / 20: the rate hint reads the org role only; every code has words of its own", () => {

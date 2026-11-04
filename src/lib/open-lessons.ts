@@ -55,6 +55,14 @@ export function openLessonStatusHint(action: Pick<OpenAttendanceAction, "actionT
     : "Журнал открыт, урок не завершён";
 }
 
+/** R3 #14 / m6: «Отметить» a lesson nobody started formalises the pay of a teacher afterwards - the money right; an administrator without it is told so where the button would be. */
+export const OPEN_LESSON_NO_RIGHT_TEXT = "Оформить прошедший урок может владелец или администратор с правом на деньги";
+
+/** Has the person the main button of the row: a lesson that is going on is everybody's; a lesson nobody started is for the owner, the teacher of it and an administrator with the money right. */
+export function canMarkOpenLesson(item: Pick<OpenAttendanceAction, "actionType">, role: string | null | undefined, moneyRight: boolean): boolean {
+  return item.actionType === "in_progress" || role !== "admin" || moneyRight;
+}
+
 // ── by month (Money-1 R3 #2) ────────────────────────────────────────────────────────────────────────────────
 
 /** «Сентябрь 2026 · 12 уроков»: the head of a month of the list. */

@@ -27,7 +27,7 @@ import {
   targetGroupPriceText,
   type GroupPriceBrief,
 } from "@/lib/group-price";
-import { formConfirmState } from "@/lib/money-preview";
+import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
@@ -262,7 +262,7 @@ export function AssignGroupModal({
     ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}`
     : null;
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => (selectedGroupId ? orgApi.dryRunTransferStudent(selectedGroupId, studentId, { price_override: dryException.request }, signal) : Promise.reject(new Error("no group"))));
-  const transferAllowed = formConfirmState(transferKey, transferPreview.preview).allowed;
+  const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
   const selectedPriceLine = selectedGroup ? targetGroupPriceText(selectedGroup.price_current, priceLabel) : null;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
+import { formatBusinessDate, formatDateRu, shiftMonthKey } from "@/lib/business-time";
 import { formatDateTimeRu } from "@/lib/attendance-excuses";
 import { monthTitle } from "@/lib/payroll";
 import {
@@ -100,7 +100,7 @@ export function DecidedRow({ item, onUndo, onReopened }: { item: DecidedOneOffIt
             type="button"
             data-testid="decided-undo"
             onClick={() => onUndo({ lessonId: item.lessonId, lessonDate: item.lessonDate, money: item.money })}
-            aria-label={`${UNDO_DECISION_BUTTON}: ${item.groupName}, ${item.lessonDate}`}
+            aria-label={`${UNDO_DECISION_BUTTON}: ${item.groupName}, ${formatDateRu(item.lessonDate)}`}
             className="h-9 w-full rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:w-auto"
           >
             {UNDO_DECISION_BUTTON}

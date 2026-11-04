@@ -2,9 +2,9 @@
 
 import { Info, Loader2 } from "lucide-react";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
-import { effectsFailureText, EFFECTS_LOADING_TEXT, EFFECTS_RETRY_LABEL } from "@/lib/money-effects";
+import { effectsFailureText, EFFECTS_RETRY_LABEL, TRANSFER_LOADING_TEXT } from "@/lib/money-effects";
 import type { EffectsPreview } from "@/lib/money-preview";
-import { CARRIED_NONE_TEXT, CARRIED_TITLE, carriedOf } from "@/lib/payment-dry-run";
+import { CARRIED_NONE_TEXT, CARRIED_TITLE, carriedOf } from "@/lib/dry-run";
 
 /**
  * R3 #15: «Что переедет в новую группу» before a transfer is confirmed - the dry run of the same request (`mode=transfer&dry_run=true`): the payments and debts the server
@@ -20,7 +20,7 @@ export function TransferPreviewBlock({ preview, onRetry }: { preview: EffectsPre
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-xs font-semibold text-slate-600">{CARRIED_TITLE}</p>
           {preview.status === "loading" ? (
-            <p role="status" className="flex items-center gap-1.5 text-sm text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />{EFFECTS_LOADING_TEXT.replace("с деньгами", "при переводе")}</p>
+            <p role="status" className="flex items-center gap-1.5 text-sm text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />{TRANSFER_LOADING_TEXT}</p>
           ) : (
             <div role="alert" className="space-y-1.5">
               <p className="text-sm font-medium text-rose-700">{effectsFailureText(preview.error)}</p>
@@ -47,7 +47,7 @@ export function TransferPreviewBlock({ preview, onRetry }: { preview: EffectsPre
           )}
         </div>
       </section>
-      <MoneyEffectsBlock preview={preview} onRetry={onRetry} />
+      <MoneyEffectsBlock preview={preview} onRetry={onRetry} variant="payment" />
     </div>
   );
 }

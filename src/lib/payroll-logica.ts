@@ -226,9 +226,11 @@ export function monthPayoutTail(teachers: ReadonlyArray<{ payout?: PayoutState |
 
 /** The block of a sheet: «К выплате 600 000 · Выплачено 475 000 · Доплатить 125 000» as parts, each with its tone. */
 export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> {
-  if (!state) return [];
+  // R3 m2 (rule 87): the month that is still open says it ONCE, in the sentence of the server («Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M» - `payoutNote`); the three figures
+  // would repeat that sentence word for word
+  if (!state || state.basis === "fresh") return [];
   const parts: Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> = [
-    { label: state.basis === "fresh" ? "Начислено сейчас" : "К выплате", value: formatMoney(state.target), tone: "plain" },
+    { label: "К выплате", value: formatMoney(state.target), tone: "plain" },
     ...(state.carry_used > 0 ? [{ label: "Аванс прошлого месяца", value: formatMoney(state.carry_used), tone: "plain" as const }] : []),
     { label: "Выплачено", value: formatMoney(state.paid), tone: "plain" },
   ];

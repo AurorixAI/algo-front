@@ -166,15 +166,17 @@ export const FINISH_LESSON_ACTION = "Завершить урок";
 /** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it is paid to the teacher; the server asks for an explicit yes. */
 export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и оплачен преподавателю";
 
-export function isNobodyCame(error: unknown): boolean {
-  return opsErrorCode(error) === "NOBODY_CAME";
-}
+/** Our words for the question when the answer of the server has none (R3 n6: the sentence of the server is the question when it came). */
+export const NOBODY_CAME_FALLBACK_QUESTION = "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».";
 
-/** The question before a finish where nobody came: the lesson is paid to the teacher; «Урока не было» is the other road. */
-export function nobodyCameQuestion(): ConfirmRequest {
+/**
+ * The question before a finish where nobody came: the lesson is paid to the teacher; «Урока не было» is the other road.  The sentence is the SERVER's (`message` of the 409 - when its
+ * catalogue changes, the screen follows); ours stands in only when the answer has none.
+ */
+export function nobodyCameQuestion(serverText?: string | null): ConfirmRequest {
   return {
     title: "Никто не пришёл",
-    message: "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».",
+    message: serverText?.trim() || NOBODY_CAME_FALLBACK_QUESTION,
     confirmLabel: "Завершить и оплатить",
     cancelLabel: "Вернуться",
   };

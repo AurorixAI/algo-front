@@ -1,26 +1,34 @@
-import { orgApi } from "@/lib/api";
 import { askConfirm } from "@/lib/confirm-dialog";
-import { openLessonItemKey, openLessonsQuestion, type OpenLessonsGate } from "@/lib/payroll-open-lessons";
-
-/** The names of the groups of the unfinished lessons (the items of the server carry ids only); an empty map when «Незакрытые уроки» cannot be read - the list then has dates. */
-async function groupNamesOfOpenLessons(): Promise<Map<string, string>> {
-  try {
-    const actions = await orgApi.getOpenAttendanceActions();
-    return new Map(actions.map((action) => [openLessonItemKey(action), action.groupName] as [string, string]));
-  } catch {
-    return new Map();
-  }
-}
+import { gateOfConfirmRefusal, isOpenLessonsConfirm, openLessonsQuestion, type OpenLessonsGate } from "@/lib/payroll-open-lessons";
 
 /**
- * Money-1 I-4: asked before a sheet of a month that is over is saved (the save closes the month).  true: save; false: the owner went back.
- * Nothing to ask (`none`) is a yes without a window.
+ * Money-1 I-4: asked before a sheet of a month that is over is saved (the save closes the month) - the one thing the server cannot see: a failed check (`unknown`).
+ * true: save; false: the owner went back.  Nothing to ask (`none`) is a yes without a window.
  */
 export async function confirmUnfinishedLessons(gate: OpenLessonsGate): Promise<boolean> {
   if (gate.kind === "none") return true;
-  // R3 #26: the items carry the group name; «Незакрытые уроки» is read only for an old answer without it
-  const needNames = gate.kind === "list" && gate.items.some((item) => !(item.groupName ?? "").trim());
-  const names = needNames ? await groupNamesOfOpenLessons() : new Map<string, string>();
-  const question = openLessonsQuestion(gate, names);
+  const question = openLessonsQuestion(gate);
   return question ? askConfirm(question) : true;
+}
+
+/**
+ * R3 m3: the save and the re-save of a sheet ask the owner what the SERVER asks.  `send(false)` first; when the server answers 409 `OPEN_LESSONS_CONFIRM_REQUIRED` (new unresolved lessons the
+ * owner has not confirmed), the window shows its sentence and its list, and only «Сохранить всё равно» sends the same request again with `true`.  Any other failure is thrown to the caller.
+ * `asking(true / false)` brackets the window, so a screen can stop showing «Сохраняем…» while the owner reads.
+ * Returns `{ cancelled: true }` when the owner went back (nothing was saved).
+ */
+export async function sendConfirmingOpenLessons<T>(
+  send: (confirmOpenLessons: boolean) => Promise<T>,
+  asking: (open: boolean) => void = () => {},
+): Promise<{ cancelled: false; value: T } | { cancelled: true }> {
+  try {
+    return { cancelled: false, value: await send(false) };
+  } catch (refusal) {
+    if (!isOpenLessonsConfirm(refusal)) throw refusal;
+    asking(true);
+    const yes = await confirmUnfinishedLessons(gateOfConfirmRefusal(refusal));
+    asking(false);
+    if (!yes) return { cancelled: true };
+    return { cancelled: false, value: await send(true) };
+  }
 }

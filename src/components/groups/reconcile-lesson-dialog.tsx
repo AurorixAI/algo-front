@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { opsApi, orgApi } from "@/lib/api";
 import { errorMessageOf } from "@/lib/ops-errors";
-import { periodClosedOf } from "@/lib/closed-period";
+import { useDialogAction } from "@/lib/use-dialog-action";
 import {
   RECONCILE_EXPLAIN,
   RECONCILE_PLANNED_NOTE,
@@ -19,7 +19,7 @@ import { lessonFailure } from "@/lib/attendance-ops";
 import type { LessonTeacherCandidates } from "@/lib/ops-b-types";
 import { Modal } from "@/components/ui/modal";
 import { Radio } from "@/components/ui/radio";
-import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { DialogError } from "@/components/money/dialog-error";
 
 export interface ReconcileTarget {
   groupId: string;
@@ -46,9 +46,7 @@ export function ReconcileLessonDialog({
   const [list, setList] = useState<LessonTeacherCandidates | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pick, setPick] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const sending = useRef(false);
-  const [error, setError] = useState<unknown>(null);
+  const { busy, error, setError, closed, run } = useDialogAction(target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}` : null);
   const requestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -71,9 +69,6 @@ export function ReconcileLessonDialog({
   useEffect(() => {
     setList(null);
     setPick(null);
-    setError(null);
-    setBusy(false);
-    sending.current = false;
     if (target) void load();
     else requestRef.current += 1;
   }, [target, load]);
@@ -83,25 +78,16 @@ export function ReconcileLessonDialog({
   const nameOf = (id: string | null) => candidates.find((candidate) => candidate.teacherId === id)?.name ?? null;
 
   const submit = async () => {
-    if (!target || busy || sending.current) return;
-    sending.current = true;
-    setBusy(true);
-    setError(null);
-    try {
+    if (!target || busy) return;
+    await run(async () => {
       const taughtBy = taughtByOf(pick, planned);
       await orgApi.reconcileMissedGroupAttendance(target.groupId, {
         lessonDate: target.lessonDate, lessonId: target.lessonId, ...(target.topic ? { topic: target.topic } : {}), ...(taughtBy ? { taughtBy } : {}),
       });
       onDone(target);
-    } catch (cause) {
-      setError(cause);
-    } finally {
-      sending.current = false;
-      setBusy(false);
-    }
+    });
   };
 
-  const closed = periodClosedOf(error);
   const payNote = target ? reconcilePayNote({ lessonDate: target.lessonDate, pickName: nameOf(pick), plannedName: nameOf(planned) }) : null;
   return (
     <Modal
@@ -155,9 +141,7 @@ export function ReconcileLessonDialog({
             {payNote && <p data-testid="reconcile-pay-note" className="text-xs font-medium text-amber-800">{payNote}</p>}
           </fieldset>
         )}
-        {closed
-          ? <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={() => setError(null)} />
-          : error !== null && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{lessonFailure(error, "reconcile", "Не удалось выполнить действие. Данные не изменены.").text}</p>}
+        <DialogError error={error} closed={closed} text={(failure) => lessonFailure(failure, "reconcile", "Не удалось выполнить действие. Данные не изменены.").text} onReopened={() => setError(null)} aboveLessonPanel={aboveLessonPanel} />
       </div>
     </Modal>
   );

@@ -58,7 +58,7 @@ import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
-import { DRY_RUN_REASON } from "@/lib/payment-dry-run";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { Checkbox } from "@/components/ui/checkbox";
 
 /**

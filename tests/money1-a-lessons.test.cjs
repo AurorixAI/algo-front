@@ -103,7 +103,7 @@ test("the block by state: loading says so; ready lists the packs and the sheets;
 
 // ── «Вернуть урок» (a held lesson) and «Вернуть в разбор» ──────────────────────────────────────────
 
-test("«Вернуть урок»: the dialog says what happens, has the reason and the one button; the button waits for the money (dry run), the request carries the version the dialog saw", () => {
+test("«Вернуть урок»: the dialog says what happens, has the reason and the one button; the button waits for the money (the live behaviour is in tests/dom-windows.test.cjs)", () => {
   signIn({ org_role: "owner" });
   const { LessonReturnDialog } = component("groups/lesson-return-dialogs.tsx");
   const markup = html(React.createElement(LessonReturnDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }));
@@ -111,28 +111,16 @@ test("«Вернуть урок»: the dialog says what happens, has the reason 
   for (const part of ["Вернуть урок 28.10?", "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново.", "не оплачивается преподавателю", "Причина", "Причина и ваше имя останутся в журнале урока.", "Назад"]) assert.ok(text.includes(part), part);
   assert.match(markup, /data-testid="lesson-return-submit"[^>]*disabled=""[^>]*>[\s\S]*?Вернуть урок<\/button>/, "no answer about money yet - the button waits");
   assert.equal(html(React.createElement(LessonReturnDialog, { target: null, onClose() {}, onDone() {} })), "");
-  const src = read("src/components/groups/lesson-return-dialogs.tsx");
-  assert.match(src, /orgApi\.returnHeldLesson\(target\.groupId, \{ lessonDate: target\.lessonDate, lessonId: target\.lessonId, reason: DRY_RUN_REASON, dryRun: true \}, signal\)/);
-  // R3 #11 (item 2): the version the dry run read is kept and ALWAYS sent (`expectedVersion` is required by the server), the button waits for both
-  assert.match(src, /\.then\(\(answer\) => \{ setVersion\(answer\.version\); return answer; \}\)/);
-  assert.match(src, /reason: reason\.trim\(\), expectedVersion: version,/);
-  assert.match(src, /const canSend = effectsAllowConfirm\(preview\) && version !== undefined;/);
-  assert.match(src, /if \(!target \|\| busy \|\| sending\.current \|\| !canSend \|\| version === undefined\) return;/);
-  assert.match(src, /disabled=\{busy \|\| !canSend\}/);
-  // 409 ATTENDANCE_CONFLICT: the window forgets the version, asks the dry run again and tells the page behind it to read the lesson again
-  assert.match(src, /if \(isAttendanceConflict\(cause\)\) \{ setVersion\(undefined\); retry\(\); onStale\?\.\(\); \}/);
-  assert.match(src, /const problem = validateReturnReason\(reason\);\s*if \(problem\) \{ setReasonError\(problem\); return; \}/);
+  // the dry run, the version, the conflict and the real request are read LIVE in tests/dom-windows.test.cjs
 });
 
 test("«Вернуть в разбор»: the dialog says the lesson comes back to «Незакрытые уроки»; the general deduction line is gone (the dry run names whose deduction it is); the reason is required", () => {
   const { ReturnToReviewDialog } = component("groups/lesson-return-dialogs.tsx");
-  const show = (cancelKind) => textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28", cancelKind }, onClose() {}, onDone() {} })));
-  const centre = show("centre");
+  const show = () => textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} })));
+  const centre = show();
   for (const part of ["Вернуть урок в разбор?", "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
-  assert.ok(!show("holiday").includes("исчезнет вычет"), "a holiday took nothing from the students");
-  assert.ok(!show(null).includes("исчезнет вычет"));
+  assert.ok(!centre.includes("исчезнет вычет"), "the general line is gone: the dry run says whose deduction it is");
   assert.match(textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }))), /Вернуть в разбор/);
-  assert.match(read("src/components/groups/lesson-return-dialogs.tsx"), /orgApi\.restoreLesson\(target\.groupId, \{ lessonId: target\.lessonId, lessonDate: target\.lessonDate, reason: reason\.trim\(\) \}\)/);
 });
 
 test("the words of the returns: the toast, the reason rules, the refusals in the server's own sentence", () => {
@@ -151,9 +139,12 @@ test("the words of the returns: the toast, the reason rules, the refusals in the
   assert.equal(RET.returnErrorText(Object.assign(new Error("Сейчас идёт урок группы"), { code: "LESSON_IN_PROGRESS" })), "Сейчас идёт урок группы");
   assert.equal(RET.returnErrorText(Object.assign(new Error("Отметки урока уже изменили"), { code: "ATTENDANCE_CONFLICT" })), "Отметки урока уже изменили. Мы прочитали урок заново: проверьте последствия и нажмите ещё раз.");
   assert.equal(RET.returnErrorText({ code: "LESSON_NOT_HELD" }), "Проведённого урока нет: возвращать нечего. Обновите страницу");
-  assert.deepEqual(RET.returnDoneDetails(E.moneyEffectsOf({ moneyEffects: { students: [], payroll: [{ month: "2026-10", state: "open", teacherName: "Каримова К.", sheetId: "s", changedBy: -50000 }], dryRun: false } })).map(plain),
-    ["Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум — пересохраните её"]);
-  assert.deepEqual(RET.returnDoneDetails(null), []);
+  // R3 m7: ONE helper makes the toast of every return / correction / decision
+  const toast = E.toastWithEffects({ moneyEffects: { students: [], payroll: [{ month: "2026-10", state: "open", teacherName: "Каримова К.", sheetId: "s", changedBy: -50000 }], dryRun: false } });
+  assert.deepEqual(toast.details.map(plain), ["Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум — пересохраните её"]);
+  assert.equal(toast.tone, "warning");
+  assert.deepEqual(E.toastWithEffects(null), { tone: "success", details: [] });
+  assert.equal(RET.returnDoneDetails, undefined, "no second way to word the toast");
 });
 
 // ── the money of a correction and of a decision on an excuse, BEFORE ──────────────────────────────────
@@ -170,7 +161,8 @@ test("the correction of a held lesson: the dry run (impact) is asked for the mon
   assert.doesNotMatch(journal, /correction-money-note/, "no general note instead of the block");
   assert.match(journal, /closed: periodClosedOf\(err\)/);
   assert.match(journal, /<PeriodClosedNotice\s+info=\{correctionDialog\.closed\}/);
-  assert.match(journal, /const effects = effectLines\(moneyEffectsOf\(saved\), \{ done: true \}\)\.map\(\(line\) => line\.text\);\s*showToast\(`Урок \$\{date\} исправлен`, effects\.length \? "warning" : "success", effects\)/);
+  assert.match(journal, /const money = toastWithEffects\(saved\);\s*showToast\(`Урок \$\{date\} исправлен`, money\.tone, money\.details\)/);
+  assert.doesNotMatch(journal, /returnDoneDetails|effectLines\(moneyEffectsOf/, "one helper for the toasts of money");
   assert.equal(COR.TEACHER_CORRECTION_MONEY_NOTE, undefined, "the rule in words is replaced by the real block");
   assert.match(read("src/lib/api.ts"), /attendanceCorrectionImpact: \(groupId: string, body: \{ lessonDate: string; lessonId: string; records: Record<string, string> \}, signal\?: AbortSignal\) =>\s*api<\{ ok: boolean; moneyEffects: unknown \}>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/attendance\/impact`/);
 });
@@ -248,21 +240,24 @@ test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says
   const failure = OPS.lessonFailure({ status: 409, code: "NOBODY_CAME", message: "Никто не пришёл. Если завершить, урок будет считаться проведённым и оплачен преподавателю. Если урока не было, нажмите «Урока не было»" }, "finish", "x");
   assert.equal(failure.kind, "nobody_came");
   assert.match(failure.text, /оплачен преподавателю/);
-  assert.equal(OPS.isNobodyCame({ code: "NOBODY_CAME" }), true);
-  assert.equal(OPS.isNobodyCame({ code: "ATTENDANCE_CONFLICT" }), false);
+  assert.equal(OPS.isNobodyCame, undefined, "dead code is gone: the kind of the failure is `nobody_came`");
+  // R3 n6: the question is the SERVER's sentence when it came; ours stands in only when the answer has none
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Слова сервера.").message, "Никто не пришёл. Слова сервера.");
+  assert.equal(OPS.nobodyCameQuestion("  ").message, OPS.NOBODY_CAME_FALLBACK_QUESTION);
+  assert.equal(OPS.nobodyCameQuestion().message, OPS.NOBODY_CAME_FALLBACK_QUESTION);
   const q = OPS.nobodyCameQuestion();
   assert.equal(q.title, "Никто не пришёл");
   assert.equal(q.message, "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».");
   assert.equal(q.confirmLabel, "Завершить и оплатить");
   assert.equal(q.cancelLabel, "Вернуться");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /if \(failure\.kind === "nobody_came"\) \{ nobodyCame = true; return false; \}/);
+  assert.match(journal, /if \(failure\.kind === "nobody_came"\) \{ nobodyCame = failure\.text; return false; \}/);
   // R3 #8: the FIRST request already says `confirmNobodyCame: false`; only the second one, after the yes, says true
   assert.match(journal, /status: "completed",[\s\S]{0,400}?\n\s*confirmNobodyCame,/);
-  assert.match(journal, /if \(nobodyCame\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
+  assert.match(journal, /if \(nobodyCame !== null\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(nobodyCame\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
   const panel = read("src/lib/use-teacher-lesson-panel.ts");
-  assert.match(panel, /if \(failure\.kind === "nobody_came"\) askNobody = true;/);
-  assert.match(panel, /if \(askNobody && \(await askConfirm\(nobodyCameQuestion\(\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);
+  assert.match(panel, /if \(failure\.kind === "nobody_came"\) askNobody = failure\.text;/);
+  assert.match(panel, /if \(askNobody !== null && \(await askConfirm\(nobodyCameQuestion\(askNobody\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);
   assert.match(panel, /\n\s*confirmNobodyCame,\s*\/\/ R3 #8/, "the first request carries the flag too (false)");
   assert.equal((panel.match(/handleFinishLesson\(acknowledgeLiveExam, marks, true\)/g) || []).length, 1, "true goes only with the second try");
   assert.equal((journal.match(/finishLesson\(lesson, acknowledgeLiveExam, true\)/g) || []).length, 1, "true goes only with the second try");

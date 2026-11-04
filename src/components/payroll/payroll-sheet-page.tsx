@@ -45,7 +45,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
 import { ReopenMonthDialog } from "./reopen-month-dialog";
-import { confirmUnfinishedLessons } from "./confirm-open-lessons";
+import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
 import { PayrollPageMenu } from "./month-status";
 import { SheetPayoutBlock } from "./payout-block";
@@ -249,18 +249,24 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       setDataChanged({ message: FINGERPRINT_REQUIRED_TEXT, fingerprint: null, acknowledged: false, actionLabel: "Проверить данные" });
       return;
     }
-    // Money-1 I-4: any save of a month that is over closes it - the unfinished lessons of the month (or «не удалось проверить») are named first
-    if (!(await confirmUnfinishedLessons(openLessonsGate({
+    // Money-1 I-4: any save of a month that is over closes it.  The unresolved lessons are the SERVER's question (R3 m3: `confirm_open_lessons` false -> 409 -> the window -> true, only about the
+    // lessons the owner has not confirmed yet); only «не удалось проверить» - which the server cannot see - is asked here
+    const checkGate = openLessonsGate({
       monthOpen: sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate()),
-      openLessons: freshWarnings?.open_lessons,
+      openLessons: null,
       unknown: warningsFailed || freshWarnings?.open_lessons_unknown === true,
-      items: freshWarnings?.open_lesson_items,
-    })))) return;
+    });
+    if (checkGate.kind === "unknown" && !(await confirmUnfinishedLessons(checkGate))) return;
     setSaving(true);
     setSaveError(null);
     setRateMissing(null);
     try {
-      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: fingerprint }));
+      const outcome = await sendConfirmingOpenLessons(
+        (confirmOpenLessons) => orgApi.patchPayrollSheet(sheet.id!, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: fingerprint, confirmOpenLessons })),
+        (asking) => setSaving(!asking),
+      );
+      if (outcome.cancelled) return;
+      const updated = outcome.value;
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
         `${recalculate ? "Ведомость пересохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
@@ -313,8 +319,9 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       stale: diff ? diff.stale : sheet.stale,
       dirty,
       updatedAt: sheet.updated_at,
-      // the diff when it is read; else what the payout state says the data moved by (Money-1 A1b: the same number from the server)
-      delta: diff?.stale ? diff.delta_amount : (sheet.payout?.changed_by ? sheet.payout.changed_by : null),
+      // ONE number (R3 unconfirmed 1): «изменилась на ±N» is `payout.changed_by` - the same fresh-minus-saved the month list shows (`diff.delta_amount` is the same difference by the same formula, `changed_by`
+      // is the one the server keeps on the sheet; the diff is for the lines).  null: the server could not count the fresh total (a rate is missing) - the card says only that the data changed.
+      delta: sheet.payout && sheet.payout.fresh_total !== null ? sheet.payout.changed_by : null,
     })
     : null;
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;

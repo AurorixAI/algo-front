@@ -1,24 +1,14 @@
-// «Деньги-1», пакет А (front), the round of the contract after the server's R3: the dry runs BEFORE the confirmation of payments, write-offs, refunds, transfers and the return of a
-// lesson «в разбор» (items 6, 7), «Требует разбора» by month (8), the decided additional lessons (14), the rights (17).  Contract: MONEY1_A_SERVER_REPORT.md,
-// «Изменения контракта после R3».  The dialogs are drawn on the server side; the hooks that ask the server are replaced by a state the test sets, so every state of the answer is READ like a person reads it.
+// «Деньги-1», пакет А (front), the round of the contract after the server's R3 - the PURE parts: the calls of the dry runs (`?dry_run=true`, no key, the same body), the draft of a payment,
+// the states of a confirmation, the words of the deductions, «Требует разбора» by month, the decided additional lessons.  The WINDOWS themselves (the real hooks, the real components,
+// the server answered by the test) are read in a real DOM: tests/dom-till.test.cjs, tests/dom-windows.test.cjs, tests/dom-enrol.test.cjs, tests/dom-hooks.test.cjs.
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const Module = require("node:module");
 const env = require("./helpers/money1-env.cjs");
 const { React, html, textOf, lib, component, read, signIn, plain } = env;
 
-// ── the answer of the dry run, as the test sets it ───────────────────────────────────────────────────
-const state = { preview: { status: "idle" } };
-const retries = [];
-const load = Module._load;
-Module._load = function (request, ...rest) {
-  if (request === "@/lib/use-money-preview") return { ...load.call(this, request, ...rest), useMoneyPreview: () => ({ preview: state.preview, retry: () => retries.push("retry") }), useFormMoneyPreview: () => ({ preview: state.preview, retry: () => retries.push("retry") }) };
-  if (request === "@/lib/use-payment-effects") return { usePaymentEffects: () => ({ shown: true, preview: state.preview, retry: () => retries.push("retry") }) };
-  return load.call(this, request, ...rest);
-};
 const E = lib("money-effects.ts");
 const MP = lib("money-preview.ts");
-const PD = lib("payment-dry-run.ts");
+const PD = lib("dry-run.ts");
 const OPEN = lib("open-lessons.ts");
 const OO = lib("one-off.ts");
 const RET = lib("lesson-return.ts");
@@ -29,6 +19,7 @@ const OWNER_DRY = {
   text: "…", dryRun: true,
 };
 const ready = (block, answer) => ({ status: "ready", effects: E.normalizeMoneyEffects(block), answer });
+const DEDUCTIONS = [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }, { studentId: "s2", name: "Петрова Мария", amount: 46000 }];
 const failed = (status = 500) => ({ status: "failed", error: Object.assign(new Error("x"), { status }) });
 
 // ── the calls: the dry run is the same request with `?dry_run=true`, NO Idempotency-Key, the same body ─────────────────────
@@ -74,16 +65,6 @@ test("R3 item 6: every dry run is the request of the action with `?dry_run=true`
   assert.deepEqual(calls[8].body, { student_ids: ["st1", "st2"] });
 });
 
-test("R3 item 6: the REAL request after the dry run is the same body with its Idempotency-Key and without `dry_run`", async () => {
-  const pay = { amount: 300000, paid_on: "2026-11-05", method: "cash" };
-  const calls = await recorded(async (api) => { await api.createPayment("m1", pay, "key-1"); await api.replacePayment("p1", pay, "key-2"); });
-  assert.equal(calls[0].url, "/auth/org/memberships/m1/payments");
-  assert.equal(calls[0].headers["Idempotency-Key"], "key-1");
-  assert.equal(calls[1].url, "/auth/org/payments/p1/replace");
-  assert.equal(calls[1].headers["Idempotency-Key"], "key-2");
-  assert.deepEqual(calls[0].body, pay);
-});
-
 test("R3 item 6: the draft of a payment - nothing to ask while the form cannot be sent; the key is everything the real request will carry; a correction carries its reason", () => {
   const values = { amount: "300 000", paidOn: "2026-11-05", method: "cash", note: "", reason: "" };
   assert.equal(PD.paymentDraft({ ...values, amount: "" }, "2026-11-05", "create"), null);
@@ -95,205 +76,6 @@ test("R3 item 6: the draft of a payment - nothing to ask while the form cannot b
   assert.notEqual(PD.paymentDraft({ ...values, note: "наличные" }, "2026-11-05", "create").key, draft.key, "another body - another ask");
   assert.deepEqual(PD.paymentDraft({ ...values, reason: " ошибка " }, "2026-11-05", "replace").body, { amount: 300000, paid_on: "2026-11-05", method: "cash", reason: "ошибка" });
   assert.deepEqual(PD.paymentDraft({ ...values, reason: "ошибка" }, "2026-11-05", "create").body, { amount: 300000, paid_on: "2026-11-05", method: "cash" }, "a new payment has no reason");
-});
-
-test("R3 item 6: a form asks only once it can be sent, and then its button waits for the answer, always with a reason said", () => {
-  assert.deepEqual(MP.formConfirmState(null, { status: "idle" }), { allowed: true, reason: null });
-  assert.equal(MP.formConfirmState("k", { status: "loading" }).allowed, false);
-  assert.equal(MP.formConfirmState("k", { status: "loading" }).reason, "Считаем, что изменится с деньгами…");
-  assert.equal(MP.formConfirmState("k", failed()).allowed, false);
-  assert.equal(MP.formConfirmState("k", failed()).reason, "Сначала нужно увидеть, что изменится с деньгами");
-  assert.deepEqual(MP.formConfirmState("k", { status: "ready", effects: null }), { allowed: true, reason: null });
-});
-
-// ── the windows ─────────────────────────────────────────────────────────────────────────────────────
-
-const PAYMENT = { id: "p1", paid_on: "2026-11-05", amount: 300000 };
-const voidModal = (ownerOrAdmin = { org_role: "owner" }) => {
-  signIn(ownerOrAdmin);
-  const { PaymentVoidModal } = component("payments/payment-void-modal.tsx");
-  return html(React.createElement(PaymentVoidModal, { payment: PAYMENT, studentName: "Иванов Иван", onClose() {}, onVoided() {} }));
-};
-
-test("R3 item 6: «Отменить оплату» - the owner reads the sheet «было → станет» before the red button; loading and a failure hold the button, with the reason said and «Повторить»", () => {
-  state.preview = ready(OWNER_DRY);
-  const done = voidModal();
-  const text = plain(textOf(done));
-  assert.match(done, /data-testid="money-effects"/);
-  assert.ok(text.includes("Иванов Иван: занятие спишется из пакета"));
-  assert.ok(text.includes("Ведомость Каримова К., октябрь 2026: 475 000 сум → 425 000 сум (−50 000 сум)"));
-  assert.doesNotMatch(done, /form="payment-void-form"[^>]*disabled=""/, "the answer is here - the button works");
-  state.preview = { status: "loading" };
-  const loading = voidModal();
-  assert.match(loading, /form="payment-void-form"[^>]*disabled=""/);
-  assert.match(loading, /data-testid="payment-void-wait"/);
-  assert.ok(plain(textOf(loading)).includes("Считаем, что изменится с деньгами…"));
-  state.preview = failed();
-  const broken = voidModal();
-  assert.match(broken, /form="payment-void-form"[^>]*disabled=""/);
-  assert.match(broken, /data-testid="money-effects-retry"/);
-  assert.match(broken, /data-testid="payment-void-wait"/, "and says why the button waits");
-});
-
-test("R3 item 6: an administrator with the right sees the month and the state of the sheet, no sum (LESSONS 45)", () => {
-  state.preview = ready({ students: [], payroll: [{ month: "2026-10", state: "open" }], text: "", dryRun: true });
-  const text = plain(textOf(voidModal({ org_role: "admin", payments_access: true })));
-  assert.ok(text.includes("Изменится ведомость: октябрь 2026"));
-  assert.ok(!text.includes("→") && !/сум\)/.test(text));
-});
-
-test("R3 item 6: a closed month in the dry run of a payment is a warning, not a refusal: the window still works (a payment is allowed in a closed month, the sheet is re-saved)", () => {
-  state.preview = ready({ students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s", teacherId: "t", freshBefore: 475000, freshAfter: 425000, changedBy: -50000 }], text: "", dryRun: true });
-  const markup = voidModal();
-  assert.ok(plain(textOf(markup)).includes("месяц закрыт ведомостью"));
-  assert.doesNotMatch(markup, /form="payment-void-form"[^>]*disabled=""/);
-});
-
-test("R3 item 15: the numbers could not be counted - one calm line, not an error; the action is still possible", () => {
-  state.preview = ready({ students: [], payroll: [], unavailable: true, text: "", dryRun: true });
-  const markup = voidModal();
-  assert.ok(plain(textOf(markup)).includes("Последствия для денег не удалось посчитать"));
-  assert.doesNotMatch(markup, /role="alert"/);
-  assert.doesNotMatch(markup, /form="payment-void-form"[^>]*disabled=""/);
-  assert.ok(!plain(textOf(markup)).includes("Деньги не изменятся"), "not «nothing changes»");
-});
-
-test("R3 item 6: «Отменить прощение» / «Отменить возврат» - the dry run rides on the target; without one the dialog is as it was", () => {
-  const { RecordVoidModal } = component("payments/record-void-modal.tsx");
-  const target = (preview) => ({ key: "w1", title: "Отменить прощение долга?", description: "05.11 · 40 000", action: "Отменить прощение", run: async () => {}, ...(preview ? { preview } : {}) });
-  state.preview = { status: "loading" };
-  const asked = html(React.createElement(RecordVoidModal, { target: target(() => Promise.resolve({})), onClose() {} }));
-  assert.match(asked, /form="record-void-form"[^>]*disabled=""/);
-  assert.match(asked, /data-testid="record-void-wait"/);
-  state.preview = ready(OWNER_DRY);
-  const done = html(React.createElement(RecordVoidModal, { target: target(() => Promise.resolve({})), onClose() {} }));
-  assert.match(done, /data-testid="money-effects"/);
-  assert.doesNotMatch(done, /form="record-void-form"[^>]*disabled=""/);
-  state.preview = { status: "loading" };
-  const plainTarget = html(React.createElement(RecordVoidModal, { target: target(null), onClose() {} }));
-  assert.doesNotMatch(plainTarget, /record-void-wait|money-effects/);
-  assert.doesNotMatch(plainTarget, /form="record-void-form"[^>]*disabled=""/);
-  const statement = read("src/components/payments/statement-view.tsx");
-  assert.match(statement, /preview: \(signal\) => orgApi\.dryRunVoidWriteoff\(id, DRY_RUN_REASON, signal\),\s*run: async \(reason\) => \{ const result = await orgApi\.voidWriteoff\(id, reason\);/);
-  assert.match(statement, /preview: \(signal\) => orgApi\.dryRunVoidRefund\(id, DRY_RUN_REASON, signal\),\s*run: async \(reason\) => \{ const result = await orgApi\.voidRefund\(id, reason\);/);
-});
-
-test("R3 item 6: the sources - every confirming dialog asks the dry run of the SAME body and sends nothing real before the answer is here", () => {
-  const writeoff = read("src/components/payments/writeoff-dialog.tsx");
-  assert.match(writeoff, /const draftBody = row && validateWriteoff\(values, debt\) === null \? buildWriteoffPayload\(values, today\) : null;/);
-  assert.match(writeoff, /orgApi\.dryRunCreateWriteoff\(row\.membership_id, draftBody, signal\)/);
-  assert.match(writeoff, /orgApi\.createWriteoff\(row\.membership_id, buildWriteoffPayload\(values, today\)\)/);
-  assert.match(writeoff, /if \(!row \|\| busy \|\| !allowed\) return;/);
-  assert.match(writeoff, /disabled=\{busy \|\| !allowed\}/);
-  const refund = read("src/components/payments/refund-dialog.tsx");
-  assert.match(refund, /const draftBody = row && validateRefund\(values, refundable\) === null \? buildRefundPayload\(values, today\) : null;/);
-  assert.match(refund, /orgApi\.dryRunCreateRefund\(row\.membership_id, draftBody, signal\)/);
-  assert.match(refund, /orgApi\.createRefund\(row\.membership_id, buildRefundPayload\(values, today\)\)/);
-  assert.match(refund, /if \(!row \|\| busy \|\| !allowed\) return;/);
-  assert.match(refund, /disabled=\{busy \|\| !allowed\}/);
-  const voidPayment = read("src/components/payments/payment-void-modal.tsx");
-  assert.match(voidPayment, /orgApi\.dryRunVoidPayment\(paymentId, DRY_RUN_REASON, signal\)/);
-  assert.match(voidPayment, /if \(!payment \|\| busy \|\| !effectsAllowConfirm\(effects\.preview\)\) return;/);
-  assert.match(voidPayment, /disabled=\{busy \|\| !effectsAllowConfirm\(effects\.preview\)\}/);
-  // a payment at the till: the block informs, the button is NOT held back (the till never waits for a calculation)
-  const dialog = read("src/components/payments/payment-dialog.tsx");
-  assert.match(dialog, /<MoneyEffectsBlock preview=\{effects\.preview\} onRetry=\{effects\.retry\} blocking=\{false\} \/>/);
-  assert.match(dialog, /disabled=\{busy \|\| blocker !== null\}/);
-  const hook = read("src/lib/use-payment-effects.ts");
-  assert.match(hook, /orgApi\.dryRunReplacePayment\(paymentId, body, signal\) : orgApi\.dryRunCreatePayment\(membershipId, body, signal\)/);
-});
-
-test("R3 item 6: a payment at the till - the block shows the sheet; a failed calculation says the payment can still be entered", () => {
-  signIn({ org_role: "owner" });
-  const { PaymentDialog } = component("payments/payment-dialog.tsx");
-  const membership = { membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А" };
-  const draw = () => html(React.createElement(PaymentDialog, { open: true, kind: "create", membership, onClose() {}, onSaved() {} }));
-  state.preview = ready(OWNER_DRY);
-  assert.ok(plain(textOf(draw())).includes("Ведомость Каримова К., октябрь 2026: 475 000 сум → 425 000 сум (−50 000 сум)"));
-  state.preview = failed();
-  const broken = plain(textOf(draw()));
-  assert.ok(broken.includes("Действие можно выполнить; ведомости проверьте после"));
-  assert.ok(!broken.includes("Без этого подтвердить нельзя"), "the till is not held back");
-  state.preview = failed(409);
-});
-
-test("R3 item 6: a transfer - «Что переедет в новую группу» lists what the server carries over; loading and a failure hold «Перевести»", () => {
-  const { TransferPreviewBlock } = component("groups/transfer-preview-block.tsx");
-  const draw = (preview) => html(React.createElement(TransferPreviewBlock, { preview, onRetry() {} }));
-  const carried = [{ code: "PAYMENT_CARRIED", message: "Оплата 300 000 сум перенесена в новую группу" }, { code: "DEBT_CARRIED", message: "Долг 50 000 сум перенесён" }];
-  const done = draw(ready({ students: [], payroll: [], text: "", dryRun: true }, { dry_run: true, carried }));
-  const text = plain(textOf(done));
-  assert.ok(text.includes("Что переедет в новую группу"));
-  assert.ok(text.includes("Оплата 300 000 сум перенесена в новую группу") && text.includes("Долг 50 000 сум перенесён"));
-  assert.match(done, /data-testid="transfer-carried"/);
-  const none = plain(textOf(draw(ready({ students: [], payroll: [], text: "", dryRun: true }, { dry_run: true, carried: [] }))));
-  assert.ok(none.includes("Оплаты и долги не переносятся"));
-  assert.match(draw({ status: "loading" }), /data-state="loading"/);
-  const broken = draw(failed());
-  assert.match(broken, /data-testid="transfer-preview-retry"/);
-  assert.equal(draw({ status: "idle" }), "");
-  assert.deepEqual(PD.carriedOf({ carried: [{ code: "A", message: " один " }, { code: "B" }, null] }).map((line) => line.message), ["один"]);
-  assert.deepEqual(PD.carriedOf({}), []);
-  for (const file of ["src/components/groups/assign-group-modal.tsx", "src/components/groups/add-student-drawer.tsx"]) {
-    const source = read(file);
-    assert.match(source, /formConfirmState\(transferKey, transferPreview\.preview\)\.allowed/, file);
-    assert.match(source, /<TransferPreviewBlock preview=\{transferPreview\.preview\} onRetry=\{transferPreview\.retry\} \/>/, file);
-  }
-  assert.match(read("src/components/groups/assign-group-modal.tsx"), /orgApi\.dryRunTransferStudent\(selectedGroupId, studentId, \{ price_override: dryException\.request \}, signal\)/);
-  assert.match(read("src/components/groups/add-student-drawer.tsx"), /orgApi\.dryRunBulkTransfer\(groupId, transferIds, \{ price_override: dryException\.request \}, signal\)/);
-  assert.match(read("src/components/groups/assign-group-modal.tsx"), /if \(!selectedGroupId \|\| assigning \|\| !transferAllowed\) return;/);
-  assert.match(read("src/components/groups/add-student-drawer.tsx"), /if \(selected\.size === 0 \|\| !transferAllowed\) return;/);
-});
-
-// ── item 7: «Урока не было» → «В разбор» ──────────────────────────────────────────────────────────
-
-const REVIEW = { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28", cancelKind: "centre" };
-const reviewDialog = () => {
-  signIn({ org_role: "owner" });
-  const { ReturnToReviewDialog } = component("groups/lesson-return-dialogs.tsx");
-  return html(React.createElement(ReturnToReviewDialog, { target: REVIEW, onClose() {}, onDone() {} }));
-};
-const DEDUCTIONS = [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }, { studentId: "s2", name: "Петрова Мария", amount: 46000 }];
-
-test("R3 item 7: «Вернуть в разбор» asks the dry run (`dryRun: true`) and shows WHOSE deduction goes away and how much, then the sheet of the teacher", () => {
-  state.preview = ready({ students: [], payroll: [{ month: "2026-10", state: "open", sheetId: "s", teacherId: "t", teacherName: "Каримова К.", freshBefore: 475000, freshAfter: 429000, changedBy: -46000 }], text: "У 2 учеников исчезнет вычет", dryRun: true }, { dryRun: true, deductions: DEDUCTIONS });
-  const done = reviewDialog();
-  const text = plain(textOf(done));
-  assert.match(done, /data-testid="return-review-deductions"/);
-  assert.ok(text.includes("Вычеты за этот урок исчезнут"));
-  assert.ok(text.includes("Иванов Иван: 46 000 сум") && text.includes("Петрова Мария: 46 000 сум"));
-  assert.ok(text.includes("Ведомость Каримова К., октябрь 2026: 475 000 сум → 429 000 сум (−46 000 сум)"));
-  assert.doesNotMatch(done, /data-testid="return-review-submit"[^>]*disabled=""/);
-  assert.ok(!text.includes("исчезнет вычет за этот урок (если центр"), "the general line is gone");
-});
-
-test("R3 item 7: deductions only - the block never says «деньги не изменятся» next to a deduction that goes away; with none, it says so", () => {
-  state.preview = ready({ students: [], payroll: [], text: "У 2 учеников исчезнет вычет за этот урок: 92 000 сум", dryRun: true }, { dryRun: true, deductions: DEDUCTIONS });
-  const text = plain(textOf(reviewDialog()));
-  assert.ok(text.includes("Иванов Иван: 46 000 сум"));
-  assert.ok(!text.includes("Деньги не изменятся"));
-  state.preview = ready({ students: [], payroll: [], text: "", dryRun: true }, { dryRun: true, deductions: [] });
-  const none = reviewDialog();
-  assert.doesNotMatch(none, /return-review-deductions/);
-  assert.ok(plain(textOf(none)).includes("Деньги не изменятся"));
-});
-
-test("R3 item 7: loading and a failure hold «Вернуть в разбор» (the reason is said); a closed month is the server's sentence with the way out", () => {
-  state.preview = { status: "loading" };
-  const loading = reviewDialog();
-  assert.match(loading, /data-testid="return-review-submit"[^>]*disabled=""/);
-  assert.match(loading, /data-testid="return-review-wait"/);
-  state.preview = failed();
-  assert.match(reviewDialog(), /data-testid="return-review-submit"[^>]*disabled=""/);
-  state.preview = { status: "failed", error: { status: 409, code: "PERIOD_CLOSED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт", detail: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." } } };
-  const closed = reviewDialog();
-  assert.match(closed, /data-testid="period-closed"/);
-  assert.match(closed, /data-testid="period-closed-reopen"/);
-  const src = read("src/components/groups/lesson-return-dialogs.tsx");
-  assert.match(src, /orgApi\.restoreLesson\(target\.groupId, \{ lessonId: target\.lessonId, lessonDate: target\.lessonDate, reason: DRY_RUN_REASON, dryRun: true \}, signal\)/);
-  assert.match(src, /if \(!target \|\| busy \|\| sending\.current \|\| !effectsAllowConfirm\(preview\)\) return;/);
-  assert.match(src, /disabled=\{busy \|\| !effectsAllowConfirm\(preview\)\}/);
-  assert.match(src, /orgApi\.restoreLesson\(target\.groupId, \{ lessonId: target\.lessonId, lessonDate: target\.lessonDate, reason: reason\.trim\(\) \}\)/, "the real request has no dryRun");
 });
 
 test("R3 item 7: the deductions of the answer are read without surprises", () => {
@@ -414,4 +196,44 @@ test("R3 item 5: the type of the lessons moves the pay of the teacher - the fiel
   assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с правом на оплаты");
   // R3 #4: no window «с начала прошлого месяца» in the form; a closed month is the server's 409 PERIOD_CLOSED with the way out
   assert.match(read("src/components/groups/group-lesson-type-dialog.tsx"), /PeriodClosedNotice/);
+});
+
+// ── the states of a confirmation (pure) ──────────────────────────────────────────────────────────────
+
+test("R3 K1 / m2: a FORM asks only once it can be sent and then waits for the answer; the TILL waits only while the answer is coming - a failed or an `unavailable` one lets it go, with a line", () => {
+  assert.equal(MP.formAllowsConfirm(null, { status: "idle" }), true, "the form cannot be sent: nothing to ask, the press shows what is wrong");
+  assert.equal(MP.formAllowsConfirm("k", { status: "loading" }), false);
+  assert.equal(MP.formAllowsConfirm("k", failed()), false);
+  assert.equal(MP.formAllowsConfirm("k", { status: "ready", effects: null }), true);
+  assert.equal(MP.tillAllowsConfirm(null, { status: "idle" }), true);
+  assert.equal(MP.tillAllowsConfirm("k", { status: "loading" }), false);
+  assert.equal(MP.tillAllowsConfirm("k", { status: "idle" }), false, "a key with no answer yet is not a free button");
+  assert.equal(MP.tillAllowsConfirm("k", failed()), true);
+  assert.equal(MP.tillAllowsConfirm("k", ready(OWNER_DRY)), true);
+  assert.equal(MP.tillNotice("k", failed()), MP.TILL_NOT_COUNTED_TEXT);
+  assert.equal(MP.tillNotice("k", ready({ students: [], payroll: [], unavailable: true, text: "", dryRun: true })), MP.TILL_NOT_COUNTED_TEXT);
+  assert.equal(MP.tillNotice("k", ready(OWNER_DRY)), null);
+  assert.equal(MP.tillNotice("k", { status: "loading" }), null);
+  assert.equal(MP.tillNotice(null, failed()), null);
+  assert.match(MP.TILL_NOT_COUNTED_TEXT, /^Последствия для денег не удалось посчитать/);
+  assert.equal(typeof MP.effectsWaitReason, "undefined", "the reason is said by the block, not repeated under the field (rule 87)");
+});
+
+test("R3 m1: the empty block of a payment says what stays - the pay of the teachers - not «деньги не изменятся» (the debt of the student changes)", () => {
+  assert.equal(E.EFFECTS_NONE_PAYMENTS_TEXT, "Ведомости преподавателей не изменятся.");
+  assert.notEqual(E.EFFECTS_NONE_PAYMENTS_TEXT, E.EFFECTS_NONE_TEXT);
+  assert.match(E.EFFECTS_NONE_TEXT, /^Деньги не изменятся/, "the words for a lesson stay");
+});
+
+test("R3 m7: the cancel of a payment is the one window of the cancels of money; a carry-over is named by words, never «0 сум»", () => {
+  const { paymentVoidTarget } = component("payments/payment-void-modal.tsx");
+  const carried = paymentVoidTarget({ id: "p1", paid_on: "2026-10-22", amount: 0, carried_from: { group_name: "7-А", payment_id: "p0", paid_on: "2026-10-01", amount: 300000, method: "cash" } }, "Иванов Иван", () => {});
+  assert.doesNotMatch(String(carried.description), /(^|\D)0\sсум/);
+  assert.ok(carried.explain.some((line) => /Исходная оплата в «7-А» снова начнёт действовать/.test(line)));
+  assert.ok(!carried.explain.some((line) => /Деньги группы распределятся заново/.test(line)));
+  const plainPayment = paymentVoidTarget({ id: "p2", paid_on: "2026-10-22", amount: 300000 }, "Иванов Иван", () => {});
+  assert.ok(plainPayment.explain.some((line) => /Деньги группы распределятся заново/.test(line)));
+  assert.equal(plainPayment.key, "p2");
+  assert.equal(typeof plainPayment.preview, "function", "the dry run rides on the target");
+  assert.equal(plainPayment.action, "Отменить оплату");
 });

@@ -129,7 +129,15 @@ export function studentEffectText(effect: MoneyStudentEffect, done = false): str
 export const EFFECTS_TITLE = "Что будет с деньгами";
 /** An action that moves no pack and no saved sheet says so (I-5: a list of consequences is always there, also when it is empty). */
 export const EFFECTS_NONE_TEXT = "Деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты.";
+/**
+ * The same for a payment, a cancel of it, a refund, a write-off and a transfer (R3 m1): the debt of the student DOES change - the window says that in its own line - so «деньги не изменятся»
+ * would be false there; what stays is the pay of the teachers.
+ */
+export const EFFECTS_NONE_PAYMENTS_TEXT = "Ведомости преподавателей не изменятся.";
+/** Which words a block of effects speaks in: the lessons (the pay of a teacher and the packs) or the money of a student. */
+export type EffectsVariant = "lesson" | "payment";
 export const EFFECTS_LOADING_TEXT = "Считаем, что изменится с деньгами…";
+export const TRANSFER_LOADING_TEXT = "Считаем, что изменится при переводе…";
 export const EFFECTS_FAILED_TEXT = "Не удалось посчитать, что изменится с деньгами. Без этого подтвердить нельзя.";
 export const EFFECTS_RETRY_LABEL = "Повторить";
 export const REOPEN_MONTH_LABEL = "Переоткрыть месяц";
@@ -144,13 +152,6 @@ export function effectsFailureText(error: unknown): string {
   const message = typeof source?.message === "string" ? source.message.trim() : "";
   if (status >= 400 && status < 500 && message && source?.code !== "EFFECTS_TIMEOUT") return message;
   return EFFECTS_FAILED_TEXT;
-}
-
-/** The same for an action that does not wait for the calculation (a payment at the till): the sentence of the server for a refusal, else «можно выполнить». */
-export const EFFECTS_FAILED_SOFT_TEXT = "Не удалось посчитать, что изменится с деньгами. Действие можно выполнить; ведомости проверьте после.";
-export function effectsFailureSoftText(error: unknown): string {
-  const text = effectsFailureText(error);
-  return text === EFFECTS_FAILED_TEXT ? EFFECTS_FAILED_SOFT_TEXT : text;
 }
 
 // ── the right ────────────────────────────────────────────────────────────────────────────────────

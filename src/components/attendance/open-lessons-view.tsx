@@ -13,6 +13,8 @@ import {
   journalHref,
   monthCountsText,
   monthHeading,
+  canMarkOpenLesson,
+  OPEN_LESSON_NO_RIGHT_TEXT,
   openLessonsOf,
   sinceLine,
   withoutOpenLessons,
@@ -260,14 +262,16 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                         <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={LESSON_TOO_OLD_TEXT}>{access.hint}</p>
                       ) : (
                         <>
-                          {(item.actionType === "in_progress" || role !== "admin" || moneyRight) && <Link
+                          {canMarkOpenLesson(item, role, moneyRight) ? <Link
                             href={journalHref(groupsBasePath, item)}
                             data-testid="open-lesson-action"
                             aria-label={`${openLessonActionLabel(item)}: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
                             className={ACTION_BUTTON_CLASS}
                           >
                             {openLessonActionLabel(item)}
-                          </Link>}
+                          </Link> : (
+                            <p data-testid="open-lesson-no-right" className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500">{OPEN_LESSON_NO_RIGHT_TEXT}</p>
+                          )}
                           {/* The «⋯» slot is always reserved: the menu when the row has actions, otherwise an invisible spacer of the same size,
                               so the primary buttons of all rows stand in one column. */}
                           <div className={MENU_SLOT_CLASS} data-testid="open-lesson-menu-slot">

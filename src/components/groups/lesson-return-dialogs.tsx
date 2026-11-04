@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { isAttendanceConflict } from "@/lib/attendance-ops";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -10,9 +10,6 @@ import {
   RETURN_REASON_HINT,
   RETURN_REASON_LABEL,
   RETURN_REASON_PLACEHOLDER,
-  DEDUCTIONS_TITLE,
-  deductionsOf,
-  deductionText,
   RETURN_REVIEW_EXPLAIN,
   RETURN_REVIEW_PAY,
   RETURN_REVIEW_TITLE,
@@ -21,24 +18,22 @@ import {
   returnTitle,
   validateReturnReason,
 } from "@/lib/lesson-return";
-import { periodClosedOf } from "@/lib/closed-period";
-import { effectsAllowConfirm, effectsWaitReason } from "@/lib/money-preview";
-import { effectsEmpty } from "@/lib/money-effects";
+import { effectsAllowConfirm } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
+import { useDialogAction } from "@/lib/use-dialog-action";
 import type { ReturnHeldLessonResult, RestoreLessonResult } from "@/lib/ops-b-types";
 import { REASON_MAX } from "@/lib/payments";
-import { DRY_RUN_REASON } from "@/lib/payment-dry-run";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { Modal } from "@/components/ui/modal";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
-import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { DialogError } from "@/components/money/dialog-error";
+import { RestoreConsequences, useRestorePreview } from "./restore-consequences";
 
 export interface ReturnLessonTarget {
   groupId: string;
   lessonId: string;
   /** `YYYY-MM-DD` */
   lessonDate: string;
-  /** `centre` / `holiday`: how a cancelled lesson was cancelled (the deduction line is said for `centre` only). */
-  cancelKind?: string | null;
 }
 
 const FIELD = "w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -70,53 +65,34 @@ export function LessonReturnDialog({
   aboveLessonPanel?: boolean;
 }) {
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const sending = useRef(false);
-  const [error, setError] = useState<unknown>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
   /** R3 #11: the version of the lesson the dry run read - the request carries it (`expectedVersion` is required), so a late duplicate cannot return the lesson twice. */
   const [version, setVersion] = useState<number | undefined>(undefined);
   const key = target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}` : null;
+  const { busy, error, setError, closed, run } = useDialogAction(key);
   const { preview, retry } = useMoneyPreview(key, (signal) => {
     if (!target) return Promise.reject(new Error("no target"));
     return orgApi.returnHeldLesson(target.groupId, { lessonDate: target.lessonDate, lessonId: target.lessonId, reason: DRY_RUN_REASON, dryRun: true }, signal)
       .then((answer) => { setVersion(answer.version); return answer; });
   });
-
-  useEffect(() => {
-    setReason("");
-    setBusy(false);
-    setError(null);
-    setReasonError(null);
-    sending.current = false;
-    setVersion(undefined);
-  }, [key]);
+  useEffect(() => { setReason(""); setReasonError(null); setVersion(undefined); }, [key]);
 
   const canSend = effectsAllowConfirm(preview) && version !== undefined;
   const submit = async () => {
-    if (!target || busy || sending.current || !canSend || version === undefined) return;
+    if (!target || busy || !canSend || version === undefined) return;
     const problem = validateReturnReason(reason);
     if (problem) { setReasonError(problem); return; }
-    sending.current = true;
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       const result = await orgApi.returnHeldLesson(target.groupId, {
         lessonDate: target.lessonDate, lessonId: target.lessonId, reason: reason.trim(), expectedVersion: version,
       });
       onDone(result, target);
-    } catch (cause) {
-      setError(cause);
+    }, (cause) => {
       // the lesson was changed (or returned and held again) after the window read it: read it again - the person looks at the new state and asks once more
       if (isAttendanceConflict(cause)) { setVersion(undefined); retry(); onStale?.(); }
-    } finally {
-      sending.current = false;
-      setBusy(false);
-    }
+    });
   };
 
-  const closed = periodClosedOf(error);
-  const wait = effectsWaitReason(preview);
   return (
     <Modal
       open={target !== null}
@@ -144,11 +120,8 @@ export function LessonReturnDialog({
         <p className="text-sm leading-6 text-slate-700">{RETURN_LESSON_EXPLAIN}</p>
         <MoneyEffectsBlock preview={preview} onRetry={retry} aboveLessonPanel={aboveLessonPanel} />
         <ReasonField id="lesson-return-reason" value={reason} onChange={(text) => { setReason(text); setReasonError(null); setError(null); }} disabled={busy} />
-        {wait && !busy && <p data-testid="lesson-return-wait" className="text-xs text-slate-500">{wait}</p>}
         {reasonError && <p role="alert" className="text-xs font-medium text-rose-700">{reasonError}</p>}
-        {closed
-          ? <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={() => { setError(null); retry(); }} />
-          : error !== null && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{returnErrorText(error)}</p>}
+        <DialogError error={error} closed={closed} text={returnErrorText} onReopened={() => { setError(null); retry(); }} aboveLessonPanel={aboveLessonPanel} />
       </form>
     </Modal>
   );
@@ -168,48 +141,23 @@ export function ReturnToReviewDialog({
   aboveLessonPanel?: boolean;
 }) {
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const sending = useRef(false);
-  const [error, setError] = useState<unknown>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
   const key = target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}` : null;
+  const { busy, error, setError, closed, run } = useDialogAction(key);
   // R3 #23: the dry run of the return (`dryRun: true`) says what it does to the deductions of the students and the saved sheets BEFORE the button can be pressed
-  const { preview, retry } = useMoneyPreview(key, (signal) => {
-    if (!target) return Promise.reject(new Error("no target"));
-    return orgApi.restoreLesson(target.groupId, { lessonId: target.lessonId, lessonDate: target.lessonDate, reason: DRY_RUN_REASON, dryRun: true }, signal);
-  });
-
-  useEffect(() => {
-    setReason("");
-    setBusy(false);
-    setError(null);
-    setReasonError(null);
-    sending.current = false;
-  }, [key]);
+  const { preview, retry } = useRestorePreview(target);
+  useEffect(() => { setReason(""); setReasonError(null); }, [key]);
 
   const submit = async () => {
-    if (!target || busy || sending.current || !effectsAllowConfirm(preview)) return;
+    if (!target || busy || !effectsAllowConfirm(preview)) return;
     const problem = validateReturnReason(reason);
     if (problem) { setReasonError(problem); return; }
-    sending.current = true;
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       const result = await orgApi.restoreLesson(target.groupId, { lessonId: target.lessonId, lessonDate: target.lessonDate, reason: reason.trim() });
       onDone(result, target);
-    } catch (cause) {
-      setError(cause);
-    } finally {
-      sending.current = false;
-      setBusy(false);
-    }
+    });
   };
 
-  const closed = periodClosedOf(error);
-  const wait = effectsWaitReason(preview);
-  const deductions = preview.status === "ready" ? deductionsOf(preview.answer) : [];
-  // the block says «деньги не изменятся» only when it is true: deductions that go away are money, listed above it
-  const showEffects = preview.status !== "ready" || deductions.length === 0 || (preview.effects !== null && !effectsEmpty(preview.effects));
   return (
     <Modal
       open={target !== null}
@@ -238,21 +186,10 @@ export function ReturnToReviewDialog({
           <p>{RETURN_REVIEW_EXPLAIN}</p>
           <p>{RETURN_REVIEW_PAY}</p>
         </div>
-        {deductions.length > 0 && (
-          <section aria-label={DEDUCTIONS_TITLE} data-testid="return-review-deductions" className="rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5">
-            <p className="text-xs font-semibold text-slate-600">{DEDUCTIONS_TITLE}</p>
-            <ul className="mt-1 space-y-0.5">
-              {deductions.map((line) => <li key={line.studentId} className="text-sm text-slate-800">{deductionText(line)}</li>)}
-            </ul>
-          </section>
-        )}
-        {showEffects && <MoneyEffectsBlock preview={preview} onRetry={retry} aboveLessonPanel={aboveLessonPanel} />}
+        <RestoreConsequences preview={preview} onRetry={retry} aboveLessonPanel={aboveLessonPanel} />
         <ReasonField id="return-review-reason" value={reason} onChange={(text) => { setReason(text); setReasonError(null); setError(null); }} disabled={busy} />
-        {wait && !busy && <p data-testid="return-review-wait" className="text-xs text-slate-500">{wait}</p>}
         {reasonError && <p role="alert" className="text-xs font-medium text-rose-700">{reasonError}</p>}
-        {closed
-          ? <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={() => { setError(null); retry(); }} />
-          : error !== null && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{returnErrorText(error)}</p>}
+        <DialogError error={error} closed={closed} text={returnErrorText} onReopened={() => { setError(null); retry(); }} aboveLessonPanel={aboveLessonPanel} />
       </form>
     </Modal>
   );

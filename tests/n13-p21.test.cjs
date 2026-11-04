@@ -99,7 +99,7 @@ test("enrolment toast: partial and failed batches", () => {
 
 // ---- the screens use the helpers ----------------------------------------------------
 
-test("payment history, payments page and the void dialog never print «0 сум» for a carry-over", () => {
+test("payment history and payments page never print «0 сум» for a carry-over", () => {
   // IA audit F10: the card keeps one line of the history («Последняя оплата»); it names a carry-over by words, never «0 сум»
   const history = read("src/lib/membership-actions.ts");
   assert.match(history, /paymentAmountLabel\(last\)/);
@@ -110,10 +110,7 @@ test("payment history, payments page and the void dialog never print «0 сум�
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /paymentAmountLabel\(last\)/);
   assert.doesNotMatch(page, /formatMoney\(last\.amount\)/);
-  const voidModal = read("src/components/payments/payment-void-modal.tsx");
-  assert.match(voidModal, /paymentAmountLabel\(payment\)/);
-  assert.match(voidModal, /!isCarryOver\(payment\)/);
-  assert.match(voidModal, /снова начнёт действовать/);
+  // the window of the cancel (names a carry-over by words, says the original payment works again) is read as a window in tests/money1-a-contract.test.cjs
 });
 
 test("transfer hint: drawer and «Перевести» modal, only via transferPaymentHint", () => {

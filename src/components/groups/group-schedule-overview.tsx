@@ -543,6 +543,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             seriesError={seriesError}
             onChanged={(text, notes) => { setSheetLesson(null); showToast(text, notes?.length ? "warning" : "success", notes); void loadSchedule(); }}
             onRefresh={() => { setSheetLesson(null); void loadSchedule(); }}
+            onReload={() => void loadSchedule()}
           />
         );
       })()}

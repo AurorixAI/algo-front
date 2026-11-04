@@ -248,7 +248,7 @@ test("the method is required: Save is off with a hint until one is chosen", () =
   assert.equal(X.payBlocker(form, "2026-10-22", null), "Выберите способ оплаты");
   assert.equal(X.payBlocker({ ...form, method: "click" }, "2026-10-22", null), null);
   const dialog = read("src/components/payments/payment-dialog.tsx");
-  assert.match(dialog, /disabled=\{busy \|\| blocker !== null\}/);
+  assert.match(dialog, /disabled=\{busy \|\| blocker !== null \|\| !effects\.allows\}/);   // R3 K1: and the answer about money (the DOM test of the till reads it live)
   assert.match(dialog, /id="payment-blocker"/);
   assert.match(dialog, /aria-describedby=\{blocker \? "payment-blocker" : undefined\}/);
 });

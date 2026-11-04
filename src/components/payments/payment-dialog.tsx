@@ -168,9 +168,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     },
   });
 
-  // R3 #15: what the payment will do to the packs and the saved sheets (a dry run while the form is filled; it never holds the till back)
+  // R3 #15 / K1: what the payment will do to the packs and the saved sheets (a dry run while the form is filled)
   const effects = usePaymentEffects({ active: open && ready, kind, membershipId: membership?.membership_id ?? null, paymentId: payment?.id ?? null, values, today });
-
   if (!membership) return null;
 
   const latest = state.preview;
@@ -198,7 +197,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   };
 
   const submit = async () => {
-    if (busy || saved) return;
+    if (busy || saved || !effects.allows) return;
     const problem = validatePaymentForm(values, today) ?? leftProblem;
     if (problem) { setError(problem); return; }
     setBusy(true);
@@ -248,6 +247,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           {blocker && !busy && (
             <p id="payment-blocker" data-testid="payment-blocker" className="text-xs text-slate-500 sm:text-right">{blocker}</p>
           )}
+          {effects.notice && !busy && <p data-testid="till-effects-notice" className="text-xs font-medium text-amber-800 sm:text-right">{effects.notice}</p>}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
             <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
               Отмена
@@ -255,7 +255,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             <button
               type="submit"
               form="payment-form"
-              disabled={busy || blocker !== null}
+              disabled={busy || blocker !== null || !effects.allows}
               aria-describedby={blocker ? "payment-blocker" : undefined}
               className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -362,8 +362,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             <RecalcNote lines={latest?.recalc} />
           </section>
 
-          {/* 2b. What it does to the packs of the students and the saved sheets (dry run) */}
-          {effects.shown && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} blocking={false} />}
+          {/* 2b. What it does to the packs of the students and the saved sheets (dry run); when it could not be counted, the line next to the button says so */}
+          {effects.key !== null && !effects.notice && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} variant="payment" />}
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}
           <div>

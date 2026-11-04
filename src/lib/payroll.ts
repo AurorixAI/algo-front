@@ -542,6 +542,8 @@ export interface PayrollPatchBody {
   /** With `recalculate`: the `source_fingerprint` of the data the owner looked at (409 SHEET_DATA_CHANGED when it moved). */
   expected_fingerprint?: string;
   note?: string;
+  /** R3 m3 (I-4): the same field and the same question as the first save: `false` -> 409 `OPEN_LESSONS_CONFIRM_REQUIRED` about the NEW unresolved lessons; `true` - the owner said «сохранить всё равно». */
+  confirm_open_lessons?: boolean;
 }
 
 /** The name of a teacher the server could not name. */
@@ -1010,7 +1012,7 @@ export function buildPatchBody(
   sheet: PayrollSheet,
   edits: SheetEdits,
   note: string,
-  options: { recalculate?: boolean; expectedFingerprint?: string | null } = {},
+  options: { recalculate?: boolean; expectedFingerprint?: string | null; confirmOpenLessons?: boolean } = {},
 ): PayrollPatchBody {
   const body: PayrollPatchBody = { revision: sheet.revision ?? 1 };
   const overrides = buildLineOverrides(sheet, edits);
@@ -1022,6 +1024,7 @@ export function buildPatchBody(
   }
   const cleaned = cleanNote(note);
   if (cleaned) body.note = cleaned;
+  if (options.confirmOpenLessons !== undefined) body.confirm_open_lessons = options.confirmOpenLessons;
   return body;
 }
 

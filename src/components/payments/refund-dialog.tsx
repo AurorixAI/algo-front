@@ -6,9 +6,7 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, formatMoneyInput, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type RefundCreated } from "@/lib/payments";
 import { buildRefundPayload, METHODS, payError, refundPreviewText, validateRefund, type RefundFormValues } from "@/lib/payments-ledger";
-import { formConfirmState } from "@/lib/money-preview";
-import { useFormMoneyPreview } from "@/lib/use-money-preview";
-import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
+import { FormEffects, useDryRunForm } from "@/components/money/form-effects";
 import { Modal } from "@/components/ui/modal";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -45,8 +43,8 @@ export function RefundDialog({
   // R3 #15: what the refund does to the packs and the saved sheets - the dry run of the SAME body, asked once the form can be sent; the button waits for the answer
   const draftBody = row && validateRefund(values, refundable) === null ? buildRefundPayload(values, today) : null;
   const draftKey = draftBody && row ? `${row.membership_id}|${JSON.stringify(draftBody)}` : null;
-  const effects = useFormMoneyPreview(draftKey, (signal) => (draftBody && row ? orgApi.dryRunCreateRefund(row.membership_id, draftBody, signal) : Promise.reject(new Error("no draft"))));
-  const { allowed, reason: waiting } = formConfirmState(draftKey, effects.preview);
+  const effects = useDryRunForm(draftKey, (signal) => (draftBody && row ? orgApi.dryRunCreateRefund(row.membership_id, draftBody, signal) : Promise.reject(new Error("no draft"))));
+  const allowed = effects.allowed;
 
   const submit = async () => {
     if (!row || busy || !allowed) return;
@@ -79,7 +77,6 @@ export function RefundDialog({
             type="submit"
             form="refund-form"
             disabled={busy || !allowed}
-            aria-describedby={waiting ? "refund-wait" : undefined}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -141,8 +138,7 @@ export function RefundDialog({
           <p className="mt-1 text-xs text-slate-500">Оплаты остаются в истории, в выписке появится запись о возврате. Её можно отменить.</p>
         </div>
 
-        {draftKey !== null && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} />}
-        {waiting && <p id="refund-wait" data-testid="refund-wait" className="text-xs text-slate-500">{waiting}</p>}
+        <FormEffects form={effects} />
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>
