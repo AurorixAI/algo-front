@@ -537,3 +537,13 @@ test("menus: panels are role=group, so no aria-haspopup=true; triggers point to 
   // the lesson dialog menu really has menu / menuitem roles, so aria-haspopup="menu" stays
   assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /aria-haspopup="menu"/);
 });
+
+test("rel-n4: a panel opened by a click focuses ITSELF, not the first row (no focus ring on an unchosen row, owner 04.11); a key press focuses the first row", () => {
+  const src = read("src/components/ui/floating-panel.tsx");
+  assert.match(src, /addEventListener\("keydown", \(\) => \{ openedByKeyboard = true; \}, true\)/);
+  assert.match(src, /addEventListener\("pointerdown", \(\) => \{ openedByKeyboard = false; \}, true\)/);
+  assert.match(src, /const target = openedByKeyboard \? menu\?\.querySelector<HTMLElement>\(ROW_SELECTOR\) : menu;/);
+  assert.match(src, /tabIndex=\{-1\}/, "the panel can hold focus");
+  assert.match(src, /text-left outline-none/, "the panel itself draws no ring");
+  assert.match(src, /next = index < 0 \? rows\.length - 1/, "ArrowUp from the panel reaches the last row");
+});

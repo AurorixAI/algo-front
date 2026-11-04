@@ -8,6 +8,14 @@ import { useFloatingPlacement } from "@/lib/use-floating-placement";
 /** Keyboard-reachable rows of a menu (buttons / links). */
 const ROW_SELECTOR = 'button:not([disabled]), a[href], [role="menuitem"]:not([disabled])';
 
+// How the person reached the panel: a key press, or a mouse / touch.  Only a keyboard opening moves focus onto the first
+// row - after a click Safari draws its focus ring on that row although nothing was chosen (owner 04.11).
+let openedByKeyboard = false;
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", () => { openedByKeyboard = true; }, true);
+  document.addEventListener("pointerdown", () => { openedByKeyboard = false; }, true);
+}
+
 /**
  * Menu / popover of a «⋯» or filter button.  It is rendered into <body> with position: fixed, so no
  * `overflow-hidden` / `overflow-x-auto` ancestor, transformed card or modal body can clip it; it opens
@@ -70,11 +78,14 @@ export function FloatingPanel({
     onAnchorHidden: () => onCloseRef.current(),
   });
 
-  // Focus moves into the panel once it has been placed (keyboard and screen-reader users).
+  // Focus moves into the panel once it has been placed (keyboard and screen-reader users): onto the first row after a
+  // key press, onto the panel itself after a click or a tap (no ring on a row nobody chose; ArrowDown still reaches the rows).
   const placed = placement !== null;
   useEffect(() => {
     if (!open || !placed) return;
-    menuRef.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus({ preventScroll: true });
+    const menu = menuRef.current;
+    const target = openedByKeyboard ? menu?.querySelector<HTMLElement>(ROW_SELECTOR) : menu;
+    target?.focus({ preventScroll: true });
   }, [open, placed]);
 
   useEffect(() => {
@@ -106,7 +117,7 @@ export function FloatingPanel({
       const index = rows.indexOf(document.activeElement as HTMLElement);
       let next: number | null = null;
       if (event.key === "ArrowDown") next = (index + 1) % rows.length;
-      else if (event.key === "ArrowUp") next = (index - 1 + rows.length) % rows.length;
+      else if (event.key === "ArrowUp") next = index < 0 ? rows.length - 1 : (index - 1 + rows.length) % rows.length; // from the panel itself: the last row
       else if (event.key === "Home") next = 0;
       else if (event.key === "End") next = rows.length - 1;
       if (next === null) return;
@@ -125,6 +136,7 @@ export function FloatingPanel({
   return createPortal(
     <div
       ref={menuRef}
+      tabIndex={-1}
       id={id}
       role={role}
       aria-label={label}
@@ -134,7 +146,7 @@ export function FloatingPanel({
         if ((event.target as Element).closest?.(ROW_SELECTOR)) triggerRef.current?.focus({ preventScroll: true });
       }}
       onClick={(event) => event.stopPropagation()}
-      className={`${zIndexClass} text-left ${className}`}
+      className={`${zIndexClass} text-left outline-none ${className}`}
     >
       {children}
     </div>,
