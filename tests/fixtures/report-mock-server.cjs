@@ -74,6 +74,7 @@
  *   s9-regeneration-placeholder  report_json = {"_regeneration": {...}} only (no report yet): pending UI + polling, then the report
  *   s7-404              GET /auth/org/diagnostics/<id> -> 404
  *   s8-degraded         current schema but report_meta.degraded = ["skill_names"]
+ *   s14-bank-degraded   the bank was not read at build time: degraded ["bank_tasks"], steps without material / check
  *
  * Student flows (any code), for the option cards of OptionGrid with a very wide LaTeX option:
  *   http://127.0.0.1:3204/d/ui-wide   diagnostic: 3 tasks (1st and 3rd carry the wide option), POSTs counted
@@ -235,7 +236,7 @@ const planItem = (i, long, extra = {}) => ({
 const checkedTopics = (long) => [
   { topic_id: "TP-0", topic_name_ru: long ? LONG_SKILLS[0] : "Тема 1", checked: 4, errors: 2 },
   { topic_id: "TP-1", topic_name_ru: "Тема 2", checked: 3, errors: 0 },
-  { topic_id: "TP-2", topic_name_ru: "Тема 3", checked: 5, errors: 2 },
+  { topic_id: "TP-2", topic_name_ru: "Тема 3", checked: 5, errors: 3 },
 ];
 const moreDifficulties = (long) => [
   { topic_id: "TP-9", topic_name_ru: long ? LONG_SKILLS[3] : "Тема 10", skills: [
@@ -244,10 +245,27 @@ const moreDifficulties = (long) => [
   ] },
 ];
 
+// ONE count in every scenario (Д15): the header (level.solved / total, report_meta questions_correct / total_questions), the journal (rows of the
+// measured tasks) and the map of checked topics say the same: sum(checked) = total, sum(errors) = total - correct = measured journal rows.
+// Scenarios that replace the journal after the fact (s10, s11, s12 ...) are brought to it here, once, when the envelope is made.
+function syncCounts(json) {
+  if (!json || typeof json !== "object" || !Array.isArray(json.checked_topics) || !Array.isArray(json.error_patterns)) return json;
+  const wrong = json.error_patterns.filter((row) => !row.is_deep_scan).length;
+  if (wrong === 0) return json;
+  const correct = json.report_meta.questions_correct;
+  const total = correct + wrong;
+  json.report_meta.total_questions = total;
+  if (json.level) { json.level.solved = correct; json.level.total = total; }
+  const a = Math.ceil(total / 3), b = Math.floor((total - a) / 2), c = total - a - b;
+  const e0 = Math.min(a, Math.ceil(wrong / 2)), e2 = Math.min(c, wrong - e0), e1 = wrong - e0 - e2;
+  json.checked_topics = [[a, e0], [b, e1], [c, e2]].map(([checked, errors], i) => ({ ...(json.checked_topics[i] || { topic_id: `TP-${i}`, topic_name_ru: `Тема ${i + 1}` }), checked, errors }));
+  return json;
+}
+
 const generation = (over = {}) => ({ status: "ready", stage: "ready", attempts: 1, is_current_schema: true, current_schema_version: 8, ...over });
 const envelope = (reportJson, gen = generation()) => ({
   session_id: "sess-synthetic",
-  report_json: reportJson,
+  report_json: syncCounts(reportJson),
   report_generation: gen,
   narrative_ru: null,
 });
@@ -352,6 +370,13 @@ const SCENARIOS = {
     json.report_meta.questions_correct = 12;
     json.report_meta.total_questions = 33;
     return envelope(json);
+  },
+  // the bank was not read when the report was built (content-service unavailable): the steps have a basis but no material / check,
+  // report_meta.degraded = ["bank_tasks"], the report is not current and is built again by itself
+  "s14-bank-degraded": () => {
+    const json = errorsJson({ long: false, plan: true, metaOver: { degraded: ["bank_tasks"] } });
+    json.action_plan = json.action_plan.map((step) => ({ ...step, material: null, check: null }));
+    return envelope(json, generation({ status: "failed", stage: "failed", attempts: 3, is_current_schema: false }));
   },
   // MCQ records whose stored answer is an OLD option text (a content repair changed the option) or the plain /
   // Unicode form of a LaTeX option. Card 1: no option matches -> «Выбранный ответ ученика (вариант из прежней
@@ -631,9 +656,14 @@ function handle(req, res) {
   return send(res, 404, { detail: `Unhandled synthetic path: ${path}` });
 }
 
-http.createServer((req, res) => {
-  if (LATENCY > 0) setTimeout(() => handle(req, res), LATENCY);
-  else handle(req, res);
-}).listen(PORT, "127.0.0.1", () => {
-  console.log(`report mock API on http://127.0.0.1:${PORT} (role default: ${defaultRole}, flip after ${FLIP_AFTER})`);
-});
+module.exports = { SCENARIOS };
+
+// `require` of this file (the test of the counts) only reads the scenarios; the server starts when it is run as a script.
+if (require.main === module) {
+  http.createServer((req, res) => {
+    if (LATENCY > 0) setTimeout(() => handle(req, res), LATENCY);
+    else handle(req, res);
+  }).listen(PORT, "127.0.0.1", () => {
+    console.log(`report mock API on http://127.0.0.1:${PORT} (role default: ${defaultRole}, flip after ${FLIP_AFTER})`);
+  });
+}

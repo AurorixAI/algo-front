@@ -711,16 +711,23 @@ export function reportMetaInfo(
   };
 }
 
+/** Reasons that are about the bank of tasks: the report is built again by itself. */
+const BANK_REASONS = ["task_status", "bank_tasks"];
+export const BANK_DEGRADED_NOTE = "Материал из банка заданий не загрузился — отчёт будет пересобран автоматически.";
+
 const DEGRADED_REASON_TEXT: Record<string, string> = {
   skill_names: "названия тем могут отображаться неполностью",
   knowledge_hierarchy: "группировка по разделам может быть неполной",
-  task_status: "не удалось проверить, остались ли задания в банке",
-  bank_tasks: "задания банка для плана могут быть показаны не полностью",
 };
 
 /** Neutral note of a degraded report, worded by the backend's reasons. */
 export function degradedNote(reasons: string[] | null | undefined): string {
-  const parts = (reasons ?? []).map((r) => DEGRADED_REASON_TEXT[r]).filter(Boolean);
+  const list = reasons ?? [];
+  if (list.some((r) => BANK_REASONS.includes(r))) {
+    const rest = list.filter((r) => !BANK_REASONS.includes(r)).map((r) => DEGRADED_REASON_TEXT[r]).filter(Boolean);
+    return rest.length > 0 ? `${BANK_DEGRADED_NOTE} Также: ${rest.join("; ")}.` : BANK_DEGRADED_NOTE;
+  }
+  const parts = list.map((r) => DEGRADED_REASON_TEXT[r]).filter(Boolean);
   const detail = parts.length > 0 ? parts.join("; ") : "некоторые данные могут отображаться неполностью";
   return `При подготовке отчёта часть справочных данных была недоступна: ${detail}.`;
 }
@@ -806,6 +813,8 @@ export interface StepTaskLine { taskId: string; text: string | null; latex: stri
 export interface StepLines {
   /** «Основание»: null = the step carries none (a step of an older report). */
   basis: StepEvidenceLine[] | null;
+  /** Wrong answers of the skill that the basis does not quote (it quotes at most five): «и ещё N (в журнале)». */
+  basisMore: number;
   /** «Цель»: the skill. */
   goal: string | null;
   /** «Материал»: tasks, or a text («задание этого навыка на занятии»); null = an older report. */
@@ -849,12 +858,37 @@ export function planStepLines(step: Obj | null | undefined): StepLines {
         task: taskLine(chk.task),
       }
     : null;
-  return { basis, goal: strOrNull(step?.skill_name_ru), material, check };
+  const total = typeof step?.errors_count === "number" && Number.isFinite(step.errors_count) ? step.errors_count : 0;
+  const basisMore = basis ? Math.max(0, total - basis.filter((b) => !b.correct).length) : 0;
+  return { basis, basisMore, goal: strOrNull(step?.skill_name_ru), material, check };
 }
 
-/** Does the step carry all four lines (a step of the current format)? */
+/** Does the step carry all four lines (a step of the current format whose bank was read)? */
 export const hasFourLines = (lines: StepLines): boolean =>
   lines.basis !== null && lines.basis.length > 0 && lines.material !== null && lines.check !== null;
+
+/**
+ * Does the step have the basis of the current format?  Then the page shows it as a step with lines: the goal is the heading, then the basis,
+ * the material and the check.  A material / check that is missing (the bank was not read when the report was built) is said so,
+ * never replaced by «на занятии».
+ */
+export const hasStepLines = (lines: StepLines): boolean => lines.basis !== null && lines.basis.length > 0;
+
+export const BANK_NOT_LOADED_TEXT = "Не загружено: банк заданий был недоступен при сборке отчёта";
+
+/** Short note of a step that is a prerequisite of another skill: said once, without repeating the names. */
+export function prerequisiteNote(step: { evidence_kind?: unknown } | null | undefined): string | null {
+  if (step?.evidence_kind === "confirmed_prerequisite") return "Подтверждённый пререквизит";
+  if (step?.evidence_kind === "observed_prerequisite") return "Затруднение найдено углублённой проверкой";
+  return null;
+}
+
+/**
+ * The wording of a step is shown when the model wrote it or when it is a development step.  The wording from the data of a correction step
+ * retells the basis (rows of the journal, the explanation of the chosen answer) that the next line already shows: it is not shown (rule 87).
+ */
+export const showsStepDescription = (step: { source?: unknown; kind?: unknown } | null | undefined, structured: boolean): boolean =>
+  !structured || step?.source === "ai" || step?.kind === "development";
 
 /**
  * Wrong answers of the journal, counted by ONE rule with the header of the level: the header's «Ошибок» is the measured tasks only,

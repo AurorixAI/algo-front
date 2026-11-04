@@ -8,8 +8,8 @@ import { ReportScoreHeader } from "@/components/diagnostics/report-score-header"
 import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
   AI_FAILED_NOTE, CHECKED_TOPICS_NOTE, DEEP_SCAN_RU, MORE_DIFFICULTIES_TEXT, TASK_WITHDRAWN_NOTE,
-  breakpointCopy, checkedTopicLine, clampPage, createReportPoller, degradedNote, hasBoundaryData, hasFourLines, hoursLabel, isDevelopmentStep,
-  journalBreakdown, journalPageOf, planStepLines, stepBadgeLabel,
+  breakpointCopy, checkedTopicLine, clampPage, createReportPoller, degradedNote, hasBoundaryData, hasStepLines, hoursLabel, isDevelopmentStep,
+  journalBreakdown, journalPageOf, planStepLines, prerequisiteNote, showsStepDescription, stepBadgeLabel, BANK_NOT_LOADED_TEXT,
   isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, pagerItems, planNotBuiltText, recommendedStartName,
   reportIdentity, reportJsonState, reportMetaInfo, reportWrongCount, resolveAchievements, skillsEmptyText,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
@@ -1633,6 +1633,10 @@ export default function DiagnosticReportPage() {
                   {rj.action_plan.map((item, idx) => {
                     const isFirst = item.priority === 1 || idx === 0;
                     const hours = stepHours(item);
+                    // A step of the current format: the goal is the heading, then the basis / material / check (the skill is named ONCE).
+                    const lines = planStepLines(item as any);
+                    const structured = hasStepLines(lines);
+                    const prerequisite = structured ? prerequisiteNote(item as any) : null;
 
                     return (
                       <div key={item.priority || idx} className="relative flex items-start gap-4 sm:gap-6 group">
@@ -1668,7 +1672,7 @@ export default function DiagnosticReportPage() {
                                 {stepBadgeLabel(item, idx)}
                               </span>
 
-                              {item.skill_name_ru && item.action_title && item.action_title !== item.skill_name_ru && (
+                              {!structured && item.skill_name_ru && item.action_title && item.action_title !== item.skill_name_ru && (
                                 <span className="text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded">
                                   {item.skill_name_ru}
                                 </span>
@@ -1683,12 +1687,23 @@ export default function DiagnosticReportPage() {
                             )}
                           </div>
 
-                          {/* Title */}
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
-                            {item.action_title || item.skill_name_ru}
-                          </h3>
+                          {/* Title: the goal of the step (the skill) with its caption; a step of an older report keeps its own title */}
+                          {structured ? (
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-semibold text-slate-500">Цель</div>
+                              <h3 data-testid="diagnostic-report-step-goal" className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
+                                {lines.goal || item.skill_name_ru}
+                              </h3>
+                              {prerequisite && <div className="mt-0.5 text-xs text-slate-500">{prerequisite}</div>}
+                            </div>
+                          ) : (
+                            <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
+                              {item.action_title || item.skill_name_ru}
+                            </h3>
+                          )}
 
-                          {/* Description / Practice Strategy */}
+                          {/* Description: the model's wording (the wording from the data would retell the basis below) */}
+                          {showsStepDescription(item as any, structured) && (
                           <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal break-words">
                             {(item.full_description || "")
                               .replace(
@@ -1697,11 +1712,10 @@ export default function DiagnosticReportPage() {
                               )
                               .trim()}
                           </p>
+                          )}
 
-                          {/* The four lines of the step (schema 8). A step of an older report has none of them and stays as it was. */}
-                          {(() => {
-                            const lines = planStepLines(item as any);
-                            if (!hasFourLines(lines)) return null;
+                          {/* The lines of the step (schema 8). A step of an older report has none of them and stays as it was. */}
+                          {structured && (() => {
                             const journalRow = (answerId: string | null) => (answerId ? rj.error_patterns.find((e) => e.answer_id === answerId) : undefined);
                             return (
                               <dl data-testid="diagnostic-report-step-lines" className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 bg-slate-50/50 text-xs sm:text-sm">
@@ -1742,10 +1756,14 @@ export default function DiagnosticReportPage() {
                                       );
                                     })}
                                   </ul>
+                                  {lines.basisMore > 0 && (
+                                    <div data-testid="diagnostic-report-step-basis-more" className="mt-1.5 text-xs text-slate-500">и ещё {lines.basisMore} (в журнале)</div>
+                                  )}
                                 </StepLine>
-                                <StepLine label="Цель" testId="diagnostic-report-step-goal">{lines.goal || item.skill_name_ru}</StepLine>
                                 <StepLine label="Материал" testId="diagnostic-report-step-material">
-                                  {lines.material && lines.material.tasks.length > 0 ? (
+                                  {lines.material === null ? (
+                                    <span className="text-slate-500">{BANK_NOT_LOADED_TEXT}</span>
+                                  ) : lines.material.tasks.length > 0 ? (
                                     <ul className="space-y-2">
                                       {lines.material.tasks.map((task) => (
                                         <li key={task.taskId}><TaskRef task={task} /></li>
@@ -1756,10 +1774,14 @@ export default function DiagnosticReportPage() {
                                   )}
                                 </StepLine>
                                 <StepLine label="Проверка" testId="diagnostic-report-step-check">
-                                  <div className="space-y-1">
-                                    <div>{lines.check?.text}</div>
-                                    {lines.check?.task && <TaskRef task={lines.check.task} />}
-                                  </div>
+                                  {lines.check === null ? (
+                                    <span className="text-slate-500">{BANK_NOT_LOADED_TEXT}</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div>{lines.check.text}</div>
+                                      {lines.check.task && <TaskRef task={lines.check.task} />}
+                                    </div>
+                                  )}
                                 </StepLine>
                               </dl>
                             );

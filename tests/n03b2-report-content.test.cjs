@@ -124,8 +124,11 @@ test("a journal row is found by its number: the page of the journal that holds i
 
 test("the page prints the four labels, the lines of a step only for a step that has them, and «Ещё затруднения» under the plan", () => {
   const page = code(read(PAGE));
-  for (const label of ["Основание", "Цель", "Материал", "Проверка"]) assert.match(page, new RegExp(`<StepLine label="${label}"`));
-  assert.match(page, /if \(!hasFourLines\(lines\)\) return null;/);
+  for (const label of ["Основание", "Материал", "Проверка"]) assert.match(page, new RegExp(`<StepLine label="${label}"`));
+  // the goal is the heading of the step, with its caption «Цель» - not a fourth row (the skill is named once, rule 87)
+  assert.doesNotMatch(page, /<StepLine label="Цель"/);
+  assert.match(page, /<div className="text-\[11px\] font-semibold text-slate-500">Цель<\/div>/);
+  assert.match(page, /structured && \(\(\) => \{/);
   assert.match(page, /Ещё затруднения/);
   assert.match(page, /rj\.more_difficulties && rj\.more_difficulties\.length > 0/);
   // a step line is a row of a list with a label above the text on a phone, beside it from sm; the text wraps
@@ -195,6 +198,82 @@ test("an older report (schema < 8) gets the «старый формат» note a
   const n = R.normalizeReportJson(old);
   assert.equal(R.tabContentState(n).plan, "plan");
   assert.equal(R.hasFourLines(R.planStepLines(n.action_plan[0])), false);
-  assert.match(R.degradedNote(["task_status"]), /банке/);
-  assert.match(R.degradedNote(["bank_tasks"]), /задания банка/);
+  assert.equal(R.degradedNote(["task_status"]), "Материал из банка заданий не загрузился — отчёт будет пересобран автоматически.");
+  assert.equal(R.degradedNote(["bank_tasks"]), R.BANK_DEGRADED_NOTE);
+  assert.match(R.degradedNote(["bank_tasks", "skill_names"]), /пересобран автоматически\. Также: названия тем/);
+  assert.match(R.degradedNote(["skill_names"]), /справочных данных/);
+});
+
+// ── R3 ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+test("a step names its skill once: the heading is the goal, no badge with the name, the wording of the data is not shown", () => {
+  const lines = R.planStepLines(step());
+  assert.equal(R.hasStepLines(lines), true);
+  const page = code(read(PAGE));
+  assert.match(page, /\{!structured && item\.skill_name_ru && item\.action_title/);   // the name badge only for a step of an older report
+  assert.match(page, /showsStepDescription\(item as any, structured\)/);
+  // the wording from the data retells the basis: not shown; the model's wording and a development step are
+  assert.equal(R.showsStepDescription({ source: "deterministic_fallback", kind: "correction" }, true), false);
+  assert.equal(R.showsStepDescription({ source: "ai", kind: "correction" }, true), true);
+  assert.equal(R.showsStepDescription({ source: "deterministic_development", kind: "development" }, true), true);
+  assert.equal(R.showsStepDescription({ source: "deterministic_fallback" }, false), true);   // a step of an older report is shown as before
+  assert.equal(R.prerequisiteNote({ evidence_kind: "confirmed_prerequisite" }), "Подтверждённый пререквизит");
+  assert.equal(R.prerequisiteNote({ evidence_kind: "observed_prerequisite" }), "Затруднение найдено углублённой проверкой");
+  assert.equal(R.prerequisiteNote({ evidence_kind: "observed_error" }), null);
+});
+
+test("more than five wrong answers: the basis says «и ещё N (в журнале)»", () => {
+  const evidence = Array.from({ length: 5 }, (_, i) => ({ journal_no: i + 1, answer_id: `a${i}`, task_id: `T${i}`, student_answer: "1" }));
+  assert.equal(R.planStepLines(step({ evidence, errors_count: 8 })).basisMore, 3);
+  assert.equal(R.planStepLines(step({ evidence, errors_count: 5 })).basisMore, 0);
+  assert.equal(R.planStepLines(step({ evidence, errors_count: undefined })).basisMore, 0);
+  assert.equal(R.planStepLines({ kind: "development", errors_count: 0, evidence: [{ answer_id: "x", task_id: "T", correct: true }] }).basisMore, 0);
+  assert.match(code(read(PAGE)), /и ещё \{lines\.basisMore\} \(в журнале\)/);
+});
+
+test("a bank that was not read: the step keeps its basis, material and check say so - never «на занятии»", () => {
+  const lines = R.planStepLines(step({ material: null, check: null }));
+  assert.equal(R.hasStepLines(lines), true);
+  assert.equal(R.hasFourLines(lines), false);
+  assert.equal(lines.material, null);
+  assert.equal(lines.check, null);
+  const page = code(read(PAGE));
+  assert.equal((page.match(/BANK_NOT_LOADED_TEXT/g) || []).length >= 3, true);        // import + material + check
+  assert.match(R.BANK_NOT_LOADED_TEXT, /Не загружено/);
+  assert.doesNotMatch(R.BANK_NOT_LOADED_TEXT, /на занятии/);
+});
+
+test("the degraded note sits in the meta block above the summary and the plan", () => {
+  const page = code(read(PAGE));
+  assert.ok(page.indexOf('data-testid="diagnostic-report-degraded"') > 0);
+  assert.ok(page.indexOf('data-testid="diagnostic-report-degraded"') < page.indexOf("Краткое резюме"));
+  assert.match(page, /degradedNote\(meta\.degradedReasons\)/);
+});
+
+// ── one count in the mock: header = journal = map ──────────────────────────────────────────────────────────
+
+test("every scenario of the mock has ONE count: sum of the map = total, sum of its errors = total - correct = «Ошибок» = measured journal rows", () => {
+  const { SCENARIOS } = require(path.join(root, "tests/fixtures/report-mock-server.cjs"));
+  let checked = 0;
+  for (const [name, make] of Object.entries(SCENARIOS)) {
+    const envelope = make(99);
+    const report = envelope && envelope.report_json;
+    if (!report || typeof report !== "object" || !Array.isArray(report.checked_topics)) continue;
+    checked += 1;
+    const meta = report.report_meta;
+    const checkedSum = report.checked_topics.reduce((sum, t) => sum + t.checked, 0);
+    const errorsSum = report.checked_topics.reduce((sum, t) => sum + t.errors, 0);
+    assert.equal(checkedSum, meta.total_questions, `${name}: map = total`);
+    assert.equal(errorsSum, R.reportWrongCount(meta), `${name}: map errors = «Ошибок» of the header`);
+    if (report.level) assert.equal(report.level.total, meta.total_questions, `${name}: level.total`);
+    if (report.level) assert.equal(report.level.total - report.level.solved, errorsSum, `${name}: level.solved`);
+    const journal = R.journalBreakdown(report.error_patterns);
+    if (journal) assert.equal(journal.measured, errorsSum, `${name}: journal rows = «Ошибок»`);
+    for (const t of report.checked_topics) assert.ok(t.errors <= t.checked, `${name}: a topic has no more errors than tasks`);
+  }
+  assert.ok(checked >= 10, "the scenarios were found (rule 94: a loop over nothing proves nothing)");
+  // the new scenario of the degraded report
+  const degraded = SCENARIOS["s14-bank-degraded"](1).report_json;
+  assert.deepEqual(degraded.report_meta.degraded, ["bank_tasks"]);
+  assert.ok(degraded.action_plan.every((step) => step.material === null && step.check === null && step.evidence.length > 0));
 });
