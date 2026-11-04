@@ -75,36 +75,35 @@ test("useMoneyPreview: a failure is «failed»; «Повторить» asks agai
 });
 
 test("useFormMoneyPreview: typing asks ONCE after the form stood still; in between the block says «loading» (never idle, never the old answer); no key = idle and no ask", async () => {
-  const { page } = await mount("probe", { kind: "form", delayMs: 60 });
+  const { page } = await mount("probe", { kind: "form", delayMs: 500 });
   await page.evaluate(() => window.setKey("A"));
   await page.evaluate(() => window.setKey("AB"));
   await page.evaluate(() => window.setKey("ABC"));
-  await settle(page, 200);
+  await page.waitForFunction(() => window.__loads.length === 1, null, { timeout: 5000 });
   assert.equal(await page.evaluate(() => window.__loads.length), 1, "one ask for the three keystrokes");
   assert.equal(await page.evaluate(() => window.__loads[0].key), "ABC");
   await answer(page, 0, { for: "ABC" });
   await settle(page);
   await page.evaluate(() => window.setKey("ABCD"));
-  await settle(page, 20);
+  await settle(page, 30);
   const seen = await renders(page);
   assert.ok(!seen.includes("ABCD=ready:ABC"), `the answer of ABC must not stand for ABCD: ${seen}`);
   assert.ok(!seen.some((text) => /^(A|AB|ABC|ABCD)=idle$/.test(text)), `no idle for a key at any time: ${seen}`);
-  await settle(page, 200);
-  assert.equal(await page.evaluate(() => window.__loads.length), 2);
+  await page.waitForFunction(() => window.__loads.length === 2, null, { timeout: 5000 });
   await page.evaluate(() => window.setKey(null));
-  await settle(page, 200);
+  await settle(page, 800);
   assert.equal(await page.evaluate(() => window.__loads.length), 2, "no key - no ask");
   assert.equal((await renders(page)).at(-1), "-=idle");
   await page.close();
 });
 
 test("useDebouncedValue: the first value is at once; a change is delivered after it stood still, and only the last of a burst", async () => {
-  const { page } = await mount("debounced", { delayMs: 60 });
+  const { page } = await mount("debounced", { delayMs: 500 });
   assert.deepEqual(await renders(page), ["a/a"]);
   await page.evaluate(() => { window.setValue("b"); window.setValue("c"); window.setValue("d"); });
-  await settle(page, 20);
+  await settle(page, 30);
   assert.equal(await page.textContent("#state"), "d/a", "not yet");
-  await settle(page, 200);
+  await page.waitForFunction(() => document.getElementById("state").textContent === "d/d", null, { timeout: 5000 });
   assert.equal(await page.textContent("#state"), "d/d");
   const seen = await renders(page);
   assert.ok(!seen.some((text) => text === "d/b" || text === "d/c"), `the middle values of a burst are never delivered: ${seen}`);
