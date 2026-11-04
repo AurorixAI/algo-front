@@ -41,6 +41,8 @@ async function openPanel(screen, s, which) {
   await s.click(s.clickable(new RegExp(GROUP_OF[which])));
   return s;
 }
+/** Where the teacher can start «Урока не было» now: the rows of the «⋯» menu and the buttons of the state card - ONE of them at a time. */
+const cancelEntries = (s) => ({ menu: menuItems(s).filter((i) => i.key === "cancel").length, card: s.buttons(/^Урока не было$/).length });
 const marksButton = (s, student, title) => s.all((n) => n.tag === "button" && typeof n.props.title === "string" && n.props.title.startsWith(`Отметить «${title}»`))[student];
 const menuItems = (s) => s.opaque("LessonActionsMenu").flatMap((m) => m.props.groups.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label }))));
 const inProgress = (world, l, records) => world.setLessonState(l, { status: "in_progress", version: 1, roster: ["s1", "s2"], ...(records ? { records } : {}) });
@@ -284,11 +286,10 @@ scenario("C9", "finish refused: the panel stays, with the text of the refusal", 
   assert.ok(s.hasButton(/Завершить урок/));
 });
 
-scenario("C10", "«Урока не было» of a lesson that passed: the menu offers it, a short reason is refused, a good one goes to the server", async ({ screen, world }) => {
+scenario("C10", "«Урока не было» of a lesson that passed: the card offers it, a short reason is refused, a good one goes to the server", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");
-  const item = menuItems(s).find((i) => i.key === "cancel");
-  assert.ok(item, "«Урока не было» is in the menu of the lesson");
-  item.onSelect();
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "«Урока не было» is on the card of the lesson");
+  await s.click(/^Урока не было$/);
   await s.settle();
   const panel = () => s.opaque("LessonCancelPanel")[0].props;
   assert.equal(panel().binding.canCancel, true);
@@ -310,7 +311,7 @@ scenario("C10", "«Урока не было» of a lesson that passed: the menu 
 
 scenario("C11", "«Урока не было» refused by the server: the text is in the panel, the lesson is still not cancelled", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");
-  menuItems(s).find((i) => i.key === "cancel").onSelect();
+  await s.click(/^Урока не было$/);
   await s.settle();
   s.opaque("LessonCancelPanel")[0].props.onReason(REASON);
   await s.settle();
@@ -323,23 +324,20 @@ scenario("C11", "«Урока не было» refused by the server: the text is
 scenario("C12", "cancellation is not offered while the exam service forbids it", async ({ screen, world }) => {
   world.bindingCanCancel = false;
   const s = await openPanel(screen, await startScreen(screen, world), "over");
-  menuItems(s).find((i) => i.key === "cancel").onSelect();
+  await s.click(/^Урока не было$/);
   await s.settle();
   await s.call(() => s.opaque("LessonCancelPanel")[0].props.onConfirm());
   assert.equal(world.called("cancelMissedGroupAttendance").length, 0);
 });
 
-scenario("C12a", "E-UX1: an unstarted lesson that passed offers «Начать урок» and «Урока не было» under the text; the second is the menu row itself, the same cancellation", async ({ screen, world }) => {
+scenario("C12a", "E-UX1: an unstarted lesson that passed offers «Начать урок» and «Урока не было» under the text; the menu does not repeat the second (one action - one place)", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");
-  const item = menuItems(s).find((i) => i.key === "cancel");
-  assert.ok(item, "the menu offers the cancellation");
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "ONE entry: the card");
   assert.ok(s.hasButton(/^Начать урок$/), "the start");
-  const button = s.button(/^Урока не было$/);
-  assert.equal(button.props.onClick, item.onSelect, "ONE handler: the button is not a second implementation of the menu row");
   assert.equal(s.opaque("LessonCancelPanel").length, 0);
   await s.click(/^Урока не было$/);
   await s.settle();
-  assert.equal(s.opaque("LessonCancelPanel").length, 1, "the same panel with the reason as after the menu row");
+  assert.equal(s.opaque("LessonCancelPanel").length, 1, "the panel with the reason");
   assert.equal(world.called("cancelMissedGroupAttendance").length, 0, "the click only opens the panel: nothing is sent before the reason");
   s.opaque("LessonCancelPanel")[0].props.onReason(REASON);
   await s.settle();
@@ -349,18 +347,15 @@ scenario("C12a", "E-UX1: an unstarted lesson that passed offers «Начать �
   assert.equal(sent[0].args[1].lessonId, "L-over");
 });
 
-scenario("C12b", "E-UX1: where the menu has no cancellation (a lesson in time), the card has no «Урока не было» either", async ({ screen, world }) => {
+scenario("C12b", "E-UX1: a lesson in time offers no cancellation anywhere (neither the card nor the menu)", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "live");
-  assert.equal(menuItems(s).some((i) => i.key === "cancel"), false);
-  assert.equal(s.hasButton(/^Урока не было$/), false);
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 0 });
   assert.ok(s.hasButton(/^Начать урок$/));
 });
 
-scenario("C12d", "E-UX1 (R3): «Урока не было» is disabled while a start is on its way (and the label is the one of the menu row)", async ({ screen, world }) => {
+scenario("C12d", "E-UX1 (R3): «Урока не было» is disabled while a start is on its way", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");
-  const item = menuItems(s).find((i) => i.key === "cancel");
   assert.equal(s.button(/^Урока не было$/).props.disabled, false);
-  assert.equal(item.label, "Урока не было", "the label is the one of the menu row");
   const gate = harness.deferred();
   world.hold.startGroupAttendance = gate;
   const start = s.button(/^Начать урок$/).props.onClick();
@@ -396,7 +391,7 @@ scenario("C12f", "E-UX1 (R3): the way out of a past lesson / of a lesson after a
   world.openActions = [];
   let s = await openPanel(screen, await startScreen(screen, world), "past");
   assert.ok(s.has(/Начать его нельзя: урок запускается только в день проведения\./));
-  assert.equal(s.button(/^Урока не было$/).props.onClick, menuItems(s).find((i) => i.key === "cancel").onSelect);
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "no task: the card, not the menu");
   await s.click(/^Урока не было$/);
   await s.settle();
   assert.equal(s.opaque("LessonCancelPanel").length, 1);
@@ -406,7 +401,10 @@ scenario("C12f", "E-UX1 (R3): the way out of a past lesson / of a lesson after a
   try {
     s = await openPanel(screen, await startScreen(screen, world2), "past");
     assert.ok(s.hasButton(/Разобрать пропущенный урок/));
-    assert.equal(s.hasButton(/^Урока не было$/), false, "with a task the dialog offers both outcomes");
+    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "with a task the card has «Разобрать» (the dialog offers both outcomes); «Урока не было» stays in the menu");
+    menuItems(s).find((i) => i.key === "cancel").onSelect();
+    await s.settle();
+    assert.equal(s.opaque("LessonCancelPanel").length, 1, "the menu row opens the panel with the reason");
   } finally { world2.restore(); }
 }, { only: ["schedule"] });
 
@@ -415,7 +413,7 @@ scenario("C12g", "E-UX1 (R3): a lesson after which another one was started has �
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.ok(s.has(/Урок больше нельзя начать/), "the card found");
   assert.ok(s.has(/Отметки за этот урок недоступны — отмените его с причиной/));
-  assert.equal(s.button(/^Урока не было$/).props.onClick, menuItems(s).find((i) => i.key === "cancel").onSelect);
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 });
 });
 
 scenario("C12h", "E-UX1 (R3): the list of the server's tasks unread: «Повторить» and no «Урока не было» (it is not known whether the lesson is to be reconciled)", async ({ screen, world }) => {
@@ -424,8 +422,50 @@ scenario("C12h", "E-UX1 (R3): the list of the server's tasks unread: «Повт�
   assert.ok(s.has(/Не удалось проверить, нужно ли оформить урок\./));
   assert.ok(s.hasButton(/^Повторить$/));
   assert.equal(s.hasButton(/^Урока не было$/), false);
+  assert.equal(cancelEntries(s).menu, 1, "the card has no cancellation, so the row stays in the menu (as before)");
   assert.equal(s.has(/Начать его нельзя/), false, "one line");
 }, { only: ["schedule"] });
+
+scenario("C12j", "one action - one place: in every state the cancellation has exactly one entry (the card or the menu, never both); the «⋯» goes when nothing is left", async ({ screen, world }) => {
+  // overdue and no task: the card
+  let s = await openPanel(screen, await startScreen(screen, world), "over");
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "overdue");
+  world.restore();
+  // an empty roster: the card shows no actions at all (nobody to mark) - the row stays in the menu
+  const empty = createWorld();
+  empty.rosters["G-over"] = [];
+  try {
+    s = await openPanel(screen, await startScreen(screen, empty), "over");
+    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "an empty roster: the menu");
+  } finally { empty.restore(); }
+});
+
+scenario("C12k", "one action - one place, a past day: no task - the card; with a task - the menu (the card says «Разобрать»); the list unread - the menu (the card says «Повторить»)", async ({ screen, world }) => {
+  world.openActions = [];
+  let s = await openPanel(screen, await startScreen(screen, world), "past");
+  assert.deepEqual(cancelEntries(s), { menu: 0, card: 1 }, "no task");
+  world.restore();
+  const withTask = createWorld();
+  withTask.openActions = [withTask.openAction(LESSONS.past)];
+  try {
+    s = await openPanel(screen, await startScreen(screen, withTask), "past");
+    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "a task");
+  } finally { withTask.restore(); }
+  const unread = createWorld();
+  unread.failNext.getOpenAttendanceActions = new Error("503");
+  try {
+    s = await openPanel(screen, await startScreen(screen, unread), "past");
+    assert.deepEqual(cancelEntries(s), { menu: 1, card: 0 }, "the list unread");
+  } finally { unread.restore(); }
+}, { only: ["schedule"] });
+
+scenario("C12l", "one action - one place: the «⋯» button is not shown when the card took the only row of the menu", async ({ screen, world }) => {
+  // a lesson of today that passed: no move (the hour rule), no «Не смогу провести» (after the start) - the card took the last row
+  const s = await openPanel(screen, await startScreen(screen, world), "over");
+  assert.ok(s.hasButton(/^Урока не было$/), "the card found");
+  assert.deepEqual(menuItems(s).map((i) => i.key), []);
+  assert.equal(s.opaque("LessonActionsMenu").length, 0, "an empty menu has no «⋯»");
+});
 
 scenario("C12i", "E-A11Y (R3): the window of the lesson takes the focus (tabIndex -1) and the cancellation form takes it at once (autoFocus)", async ({ screen, world }) => {
   const s = await openPanel(screen, await startScreen(screen, world), "over");

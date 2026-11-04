@@ -23,7 +23,7 @@ import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
   type LessonPanelSnapshot, type PanelLesson,
 } from "./lesson-panel-data";
-import { lessonPanelBanner } from "./lesson-panel-view";
+import { cancelShownInCard, lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
 import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
@@ -757,8 +757,15 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       startTime: activeLesson.startTime, endTime: activeLesson.endTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, host.user?.id),
     })
     : null;
+  const allMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } });
+  const cancelItem = allMenuItems.find((item) => item.key === "cancel") ?? null;
+  /** «Урока не было»: the state card shows it, or the menu does - never both (`cancelShownInCard`). */
+  const cancelCardItem = cancelItem && cancelShownInCard({
+    banner, overviewShown: !ledByOther && !loadingStudents && groupStudents.length > 0 && !isMarkingAttendance,
+    attendanceSaved: isAttendanceSaved, missedUnknown: activeMissedUnknown, missedAction: Boolean(activeMissedAction),
+  }) ? cancelItem : null;
   /** The rows of the group «Этот урок» of the «⋯» menu: the teacher's own actions on the lesson. */
-  const lessonMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } });
+  const lessonMenuItems = cancelCardItem ? allMenuItems.filter((item) => item !== cancelCardItem) : allMenuItems;
 
   /** The Escape key: false when a layer of the panel (a conflict, a running exam, the move dialog) keeps it; closes the menu first. True when the key was used up. */
   const consumeEscape = (): boolean => {
@@ -779,7 +786,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape,
     // the rules, read once
     banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedUnknown, retryOpenActions: host.retryOpenActions, lessonTooOld, activeSubsequentLesson,
-    ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, consumeEscape, getSubsequentStartedLesson, todayDayOfWeek, businessDate,
+    ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, consumeEscape, getSubsequentStartedLesson, todayDayOfWeek, businessDate,
     // the handlers
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openCancelLessonPanel,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,

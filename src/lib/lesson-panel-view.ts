@@ -50,3 +50,23 @@ export function lessonPanelBanner(input: {
   if (input.time?.isPastEndTime) return "overdue";
   return "ready";
 }
+
+/**
+ * Does the state card of the overview show «Урока не было» itself (given that the teacher may cancel the lesson at all)?  ONE answer for the card and the «⋯» menu: what the card shows the menu does not repeat
+ * (one action - one place on the screen), and where the card has no such button (a task «Разобрать», marking of the roster, an empty roster) the row stays in the menu.
+ */
+export function cancelShownInCard(input: {
+  banner: LessonPanelBanner;
+  /** The overview with a state card is on the screen (not a lesson led by another, not loading, not an empty roster, not the marking step). */
+  overviewShown: boolean;
+  /** «Overdue»: the marks are saved already - the card offers no actions. */
+  attendanceSaved: boolean;
+  /** «Past»: the list of the server's tasks could not be read ("Повторить" instead) / holds a task of this lesson ("Разобрать" instead). */
+  missedUnknown: boolean;
+  missedAction: boolean;
+}): boolean {
+  if (!input.overviewShown) return false;
+  if (input.banner === "overdue") return !input.attendanceSaved;
+  if (input.banner === "past") return !input.missedUnknown && !input.missedAction;
+  return input.banner === "subsequent";
+}

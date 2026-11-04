@@ -79,7 +79,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
-    activeMissedAction, activeMissedUnknown, retryOpenActions, activeSubsequentLesson, ledByOther, lessonMenuItems, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
+    activeMissedAction, activeMissedUnknown, retryOpenActions, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
@@ -98,9 +98,6 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
       }] : [],
     }] : []),
   ];
-
-  // the state card of an unstarted lesson offers the SAME cancellation as the menu row: taken from the menu, so the conditions are in one place
-  const cancelMenuItem = lessonMenuItems.find((item) => item.key === "cancel");
 
   // The keyboard and the focus of the windows (shared with `Modal`): Tab stays inside the topmost window, the focus goes to the lesson window when it opens
   // and returns to the card that opened it.  Escape stays with the screen (`consumeEscape` first: a layer of the panel keeps the key), so the layers get a no-op for it.
@@ -457,7 +454,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             </div>
                           </div>
                           {/* the way out: with a task of the server «Разобрать» (the dialog offers both outcomes); the list unread: «Повторить» (no cancellation before we know); else the cancellation with a reason */}
-                          {(activeMissedUnknown || activeMissedAction || cancelMenuItem) && (
+                          {(activeMissedUnknown || activeMissedAction || cancelCardItem) && (
                             <div className={BANNER_ACTIONS}>
                               {activeMissedUnknown && (
                                 <button
@@ -477,7 +474,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                   Разобрать пропущенный урок
                                 </button>
                               )}
-                              {!activeMissedUnknown && !activeMissedAction && cancelMenuItem && <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />}
+                              {cancelCardItem && <CancelLessonButton item={cancelCardItem} busy={savingAttendance} />}
                             </div>
                           )}
                         </div>
@@ -504,9 +501,9 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                               </p>
                             </div>
                           </div>
-                          {cancelMenuItem && (
+                          {cancelCardItem && (
                             <div className={BANNER_ACTIONS}>
-                              <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />
+                              <CancelLessonButton item={cancelCardItem} busy={savingAttendance} />
                             </div>
                           )}
                         </div>
@@ -548,8 +545,8 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                                   <Play className="w-3.5 h-3.5 fill-white" />
                                   Начать урок
                                 </button>
-                                {/* the SAME action as the row of the «⋯» menu (one rule of when it is offered: `teacherCancelOffer`) */}
-                                {cancelMenuItem && <CancelLessonButton item={cancelMenuItem} busy={savingAttendance} />}
+                                {/* the row of the «⋯» menu moved here: the card shows it, the menu then does not (`cancelShownInCard`) */}
+                                {cancelCardItem && <CancelLessonButton item={cancelCardItem} busy={savingAttendance} />}
                               </div>
                               <p className="mt-2 sm:pl-[3.625rem] text-xs text-slate-500">Время начала запишется в момент нажатия.</p>
                             </>
