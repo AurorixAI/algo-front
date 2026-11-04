@@ -113,6 +113,15 @@ export default function TeacherSchedulePage() {
       void orgApi.getOpenAttendanceActions().then((list) => { setOpenAttendanceActions(list); setOpenActionsKnown(true); }).catch(() => setOpenActionsKnown(false));
     },
     lessonFromAction: lessonFromAttendanceAction,
+    // «Открыть урок <дата>» of a lesson moved away: the week of the new lesson comes into view and its panel opens in the week mode (owner decision 04.11)
+    openMoved: (lesson) => {
+      const date = lesson.occurrenceDate || businessDate;
+      if (!(viewMode === "today" && date === businessDate)) {
+        setViewMode("week");
+        setWeekOffset(weekOffsetForDate(date, businessDateWithOffset(0)));
+      }
+      openLesson(lesson, viewMode === "today" && date === businessDate ? "today" : "week");
+    },
     onWritten: (event) => {
       const { lesson } = event;
       const isToday = event.date === businessDate;
@@ -1307,13 +1316,19 @@ export default function TeacherSchedulePage() {
                         || (l.occurrenceDate === businessDate ? lessonStatusMap[l.id] : undefined);
                       const off = outOfPlan({ status: weekStatus, outcome: l.substitutionOutcome });
                       if (off) {
-                        // moved away / cancelled: a muted card, the time struck through, one chip, nothing to press; not in the plan
+                        // moved away / cancelled: a muted card (the time struck through, one chip, not in the plan) that opens the SAME panel as the card of the day list
+                        // (owner decision 04.11: it was «nothing to press» since 22.10, S06)
                         return (
                           <div
                             key={l.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`${l.groupName}, ${timeRange(l.startTime, l.endTime)}: ${off === "moved" ? movedAwayChip(l.substitutionOutcome?.movedTo) : "Отменён"}. Подробности`}
+                            onClick={() => openLesson(l, "week")}
+                            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openLesson(l, "week"); } }}
                             data-testid="week-card-muted"
                             data-out={off}
-                            className="rounded-xl border border-slate-200 border-l-4 border-l-slate-300 bg-slate-50 p-2.5 text-left opacity-75"
+                            className="cursor-pointer rounded-xl border border-slate-200 border-l-4 border-l-slate-300 bg-slate-50 p-2.5 text-left opacity-75 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary-500"
                           >
                             <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-400 line-through">
                               <Clock className="h-3 w-3 shrink-0" />

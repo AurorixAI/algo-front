@@ -751,7 +751,7 @@ test("schedule cards v2 (owner review 22.10): titles, room, teacher line, moved 
   assert.equal(C.movedReasonOf("Перенесён на 29.10, 16:00–17:30: Личные обстоятельства"), "Личные обстоятельства");
   assert.equal(C.movedReasonOf("Каникулы"), null);
   assert.deepEqual(C.sheetNotes({ moved: true, movedToText: "пн, 26.10, 10:00", reason: "Перенесён на 26.10, 10:00–11:00: Перенос по просьбе преподавателя", cancelled: true }),
-    ["Перенесён на пн, 26.10, 10:00", "Причина: Перенос по просьбе преподавателя"]);
+    ["Урок перенесён на пн, 26.10, 10:00", "Причина: Перенос по просьбе преподавателя"]);
   assert.deepEqual(C.sheetNotes({ moved: false, reason: "Каникулы центра", cancelled: true }), ["Причина: Каникулы центра"]);
   assert.deepEqual(C.sheetNotes({ moved: false, reason: null, cancelled: false }), []);
   assert.equal(C.normalizeTime("930"), "09:30");

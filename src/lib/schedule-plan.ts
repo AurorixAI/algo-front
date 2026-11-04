@@ -3,7 +3,7 @@
  *
  * A lesson moved away («Перенесён на сб, 24.10, 14:00») or cancelled is not a lesson of the plan: it is not in «План недели», in the
  * number of «На неделю» or in «Завершено x из y» — the new lesson of the move counts instead.  Its card is muted: the time struck
- * through, one chip, nothing to press.  The time of every card reads «11:00–12:00» (an en dash, no spaces), as on the group's cards.
+ * through, one chip; it is pressable and opens the panel of the lesson, as the card of the day list does (owner decision 04.11; from 22.10 to 04.11 it was «nothing to press»).  The time of every card reads «11:00–12:00» (an en dash, no spaces), as on the group's cards.
  * Pure functions: no React, no network.
  */
 import type { SubstitutionMovedTo, SubstitutionOutcome } from "./substitution-types";

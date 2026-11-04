@@ -18,17 +18,18 @@ import {
 } from "lucide-react";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
-import { formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { formatDayMonthRu, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonCancelPanel } from "@/components/substitutions/lesson-cancel-panel";
 import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup, type LessonMenuItem } from "@/components/substitutions/teacher-lesson-controls";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
-import { showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
+import { movedToLabel, showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
 import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { roomLabel } from "@/lib/schedule-slots";
-import { timeRange } from "@/lib/schedule-plan";
+import { isMovedAway, timeRange } from "@/lib/schedule-plan";
+import { movedAwayLines } from "@/lib/schedule-card-actions";
 import { focusEntryAgain } from "@/lib/focus-entry";
 import { pluralRu } from "@/lib/payments";
 import { DAYS } from "@/lib/schedule-time";
@@ -77,7 +78,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const {
-    activeLesson, setActiveLesson, requestClose, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
+    activeLesson, setActiveLesson, requestClose, movedTarget, openMovedLesson, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
@@ -103,6 +104,10 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   const menuShown = Boolean((recurring?.canRevise || (activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson)) && menuGroups.some((group) => group.items.length > 0));
   // the menu that loses its last row (the card took «Урока не было» when the roster was read) is closed with its button: no invisible menu that eats the first Escape
   useEffect(() => { if (!menuShown && isLessonMenuOpen) setIsLessonMenuOpen(false); }, [menuShown, isLessonMenuOpen, setIsLessonMenuOpen]);
+
+  // a lesson moved away says where it went (one text with the sheet of the administrator) instead of «Урок отменён»
+  const movedOutcome = activeLesson && isMovedAway(activeLesson.substitutionOutcome) ? activeLesson.substitutionOutcome : null;
+  const movedAway = movedOutcome ? movedAwayLines({ movedToText: movedOutcome.movedTo ? movedToLabel(movedOutcome.movedTo) : null, reason: activeCancellationReason }) : null;
 
   // The keyboard and the focus of the windows (shared with `Modal`): Tab stays inside the topmost window, the focus goes to the lesson window when it opens
   // and returns to the card that opened it.  Escape stays with the screen (`consumeEscape` first: a layer of the panel keeps the key), so the layers get a no-op for it.
@@ -349,11 +354,23 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
                               <X className="w-5 h-5" />
                             </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-900">Урок отменён</p>
-                              <p className="text-xs text-slate-600 mt-0.5">Причина: {activeCancellationReason || "не указана"}</p>
-                            </div>
+                            {movedAway ? (
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{movedAway.title}</p>
+                                {movedAway.reason && <p className="text-xs text-slate-600 mt-0.5">Причина: {movedAway.reason}</p>}
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">Урок отменён</p>
+                                <p className="text-xs text-slate-600 mt-0.5">Причина: {activeCancellationReason || "не указана"}</p>
+                              </div>
+                            )}
                           </div>
+                          {movedAway && movedTarget && (
+                            <button type="button" onClick={openMovedLesson} className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors shrink-0">
+                              Открыть урок {formatDayMonthRu(movedTarget.occurrenceDate)}
+                            </button>
+                          )}
                         </div>
                       ) : banner === "completed" ? (
                         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">

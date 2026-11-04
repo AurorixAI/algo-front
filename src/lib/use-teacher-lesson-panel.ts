@@ -31,9 +31,10 @@ import { reasonProblemFor } from "./reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "./schedule-card-actions";
 import { getLessonTimeStatus } from "./schedule-time";
 import { narrowToFrozenRoster, type RosterSource } from "./substitutions";
-import type { SubstitutionRequestMark } from "./substitution-types";
+import type { SubstitutionOutcome, SubstitutionRequestMark } from "./substitution-types";
 import { sendTeacherCancel } from "./teacher-cancel";
 import { useLessonMarksOps } from "./use-lesson-marks-ops";
+import { useMovedLessonTarget } from "./moved-lesson";
 import { useNow } from "./use-now";
 import { getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import type { LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
@@ -57,6 +58,8 @@ export interface TeacherPanelLesson extends PanelLesson {
   isOneOff?: boolean;
   createdBy?: { id?: string | null } | null;
   movedFrom?: unknown;
+  /** The cancelled original of a move says where it went. */
+  substitutionOutcome?: SubstitutionOutcome | null;
   replacedBy?: { id: string; name: string } | null;
   substitutionRequest?: SubstitutionRequestMark | null;
   teacherId?: string | null;
@@ -119,6 +122,8 @@ export interface TeacherLessonPanelHost<L extends TeacherPanelLesson> {
   onWritten: (event: LessonWriteEvent<L>) => void;
   /** A refusal that arrives when the panel of its lesson is gone: the screen shows it (a toast with the reason). */
   notifyRefusal: (notice: string, reason: string) => void;
+  /** Open the lesson a move led to (the screen may bring its week into view); without it the panel simply shows that lesson. */
+  openMoved?: (lesson: L) => void;
   /** «Урока не было» of a past lesson went through (the notes of the server, if any); the screen reloads what it shows. */
   onMissedCancelled: (notes: string[]) => void;
 }
@@ -304,6 +309,9 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   /** Open a lesson: the panel of its journal. */
   const openLesson = (lesson: L) => { setActiveLesson(lesson); };
   const closePanel = () => { setActiveLesson(null); };
+  /** The new lesson of the move this (cancelled) one was taken away by - only while the teacher still has it - and the way to it. */
+  const movedTarget = useMovedLessonTarget(activeLesson, host.user?.id, businessDate);
+  const openMovedLesson = () => { if (movedTarget) (hostRef.current.openMoved ?? openLesson)(movedTarget); };
 
   /**
    * Closing the panel by hand (the cross, the dark background, Escape, «Готово»): with marks that were NOT saved the person is asked first (the platform's own question,
@@ -779,7 +787,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
 
   return {
     // state
-    activeLesson, setActiveLesson, openLesson, closePanel, requestClose,
+    activeLesson, setActiveLesson, openLesson, closePanel, requestClose, movedTarget, openMovedLesson,
     activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, isAttendanceDirty, attendanceError,
     activeTeacherInfo, activeRequestMark, activeRosterSource,

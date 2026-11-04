@@ -248,13 +248,25 @@ export function movedReasonOf(text: string | null | undefined): string | null {
   return match ? match[1].trim() || null : null;
 }
 
+/**
+ * What is said of a lesson moved away - ONE text for the panel of the teacher and the sheet of the administrator (owner decision 04.11):
+ * «Урок перенесён на чт, 29.10, 16:00» (without a place: «Урок перенесён») and the reason alone (the server writes «Перенесён на 29.10, 16:00–17:30: Личные обстоятельства»).
+ */
+export function movedAwayLines(input: { movedToText?: string | null; reason: string | null | undefined }): { title: string; reason: string | null } {
+  const reason = movedReasonOf(input.reason) ?? ((input.reason ?? "").trim() || null);
+  return {
+    title: input.movedToText ? `Урок перенесён на ${input.movedToText}` : "Урок перенесён",
+    reason: reason && !/^Перенесён на /.test(reason) ? reason : null,
+  };
+}
+
 /** The lines of the sheet of a cancelled / moved lesson: where it went and the reason in full; [] for an ordinary lesson. */
 export function sheetNotes(input: { moved: boolean; movedToText?: string | null; reason: string | null | undefined; cancelled: boolean }): string[] {
   const lines: string[] = [];
   if (input.moved) {
-    if (input.movedToText) lines.push(`Перенесён на ${input.movedToText}`);
-    const reason = movedReasonOf(input.reason) ?? ((input.reason ?? "").trim() || null);
-    if (reason && !/^Перенесён на /.test(reason)) lines.push(`Причина: ${reason}`);
+    const moved = movedAwayLines(input);
+    if (input.movedToText) lines.push(moved.title);
+    if (moved.reason) lines.push(`Причина: ${moved.reason}`);
   } else if (input.cancelled && (input.reason ?? "").trim()) {
     lines.push(`Причина: ${(input.reason ?? "").trim()}`);
   }

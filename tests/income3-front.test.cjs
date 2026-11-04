@@ -274,8 +274,11 @@ test("the teacher's schedule page is wired to it: the muted card, the counts fro
   assert.match(page, /data-testid="week-card-muted"/);
   assert.match(page, /movedAwayChip\(l\.substitutionOutcome\?\.movedTo\)/);
   const at = page.indexOf('data-testid="week-card-muted"');
-  const card = page.slice(at - 200, at + 900);
-  assert.doesNotMatch(card, /onClick|openLesson/, "no action on a muted card");
+  const card = page.slice(at - 1000, at + 900);
+  // owner decision 04.11 (REL-N2): the muted card (S06, 22.10: «nothing to press») now opens the same panel as the card of the day list; the style stays muted
+  assert.match(card, /onClick=\{\(\) => openLesson\(l, "week"\)\}/, "the muted card opens the panel of the lesson");
+  assert.match(card, /role="button"/);
+  assert.match(card, /opacity-75/, "and stays muted");
   assert.match(card, /line-through/);
   assert.match(page, /weekPlanDescription\(weekKpi, completedLessonsProgressLabel\)/);
   assert.match(page, /isMovedAway\(lesson\.substitutionOutcome\)\) \{\s*return \{ lesson, lifecycle, label: "Перенесён"/);
