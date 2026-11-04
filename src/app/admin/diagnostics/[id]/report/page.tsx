@@ -7,9 +7,11 @@ import { levelStatusLabel, resolveReportLevel, type ReportLevel } from "@/lib/di
 import { ReportScoreHeader } from "@/components/diagnostics/report-score-header";
 import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
-  AI_FAILED_NOTE, breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
+  AI_FAILED_NOTE, CHECKED_TOPICS_NOTE, DEEP_SCAN_RU, MORE_DIFFICULTIES_TEXT, TASK_WITHDRAWN_NOTE,
+  breakpointCopy, checkedTopicLine, clampPage, createReportPoller, degradedNote, hasBoundaryData, hasStepLines, hoursLabel, isDevelopmentStep,
+  journalBreakdown, journalPageOf, planStepLines, prerequisiteNote, showsStepDescription, stepBadgeLabel, BANK_NOT_LOADED_TEXT,
   isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, pagerItems, planNotBuiltText, recommendedStartName,
-  reportIdentity, reportJsonState, reportMetaInfo, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
+  reportIdentity, reportJsonState, reportMetaInfo, reportWrongCount, resolveAchievements, skillsEmptyText,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
   type ReportPollerState,
 } from "@/lib/diagnostic-report";
@@ -30,10 +32,8 @@ import {
   HelpCircle,
   Sparkles,
   GitBranch,
-  Brain,
   ShieldAlert,
   Anchor,
-  Lock,
   ChevronDown,
   ChevronUp,
   ArrowRight,
@@ -88,11 +88,20 @@ interface ErrorPattern {
   correct_answer_latex?: string | null;
   distractor_explanation?: string | null;
   distractor_explanation_latex?: string | null;
+  /** Schema 8: the 1-based number of the row (a plan step refers to it), the deep-scan flag, the task taken out of the bank. */
+  answer_id?: string | null;
+  journal_no?: number | null;
+  is_deep_scan?: boolean;
+  task_withdrawn?: boolean;
 }
 interface ActionItem {
   priority: number; skill_name_ru: string;
   skill_id?: string;
   action_title: string; full_description: string;
+  /** Schema 8: the basis (journal rows), the material and the check; absent in a step of an older report. */
+  evidence?: unknown;
+  material?: unknown;
+  check?: unknown;
   /** Present only when the report has a real basis for a duration; never invented. */
   estimated_hours?: number | null;
   /** "development" = next growth step of an error-free attempt (no deficit implied). */
@@ -148,24 +157,10 @@ interface DiagnosticBoundary {
   blocked_skills: string[];
 }
 
-interface CognitiveErrorCluster {
-  category: string;
-  title: string;
-  description: string;
-  count: number;
-  examples: Array<{
-    task_id: string;
-    skill_id: string;
-    skill_name_ru: string;
-    question_text?: string | null;
-    question_latex?: string | null;
-    student_answer?: string | null;
-    student_answer_latex?: string | null;
-    correct_answer?: string | null;
-    correct_answer_latex?: string | null;
-    distractor_explanation?: string | null;
-    distractor_explanation_latex?: string | null;
-  }>;
+interface CheckedTopic { topic_id?: string; topic_name_ru?: string; checked?: number; errors?: number; }
+interface MoreDifficultyGroup {
+  topic_id?: string | null; topic_name_ru?: string | null;
+  skills: Array<{ skill_id?: string; skill_name_ru?: string; errors?: number; journal_nos?: number[] }>;
 }
 
 /**
@@ -196,11 +191,14 @@ interface ReportJson {
   level?: ReportLevel | null;
   diagnostic_boundary?: DiagnosticBoundary;
   root_cause_chains?: RootCauseChain[];
-  cognitive_error_types?: CognitiveErrorCluster[];
+  /** Schema 8: per topic, the measured tasks checked and the wrong ones (the rule of the header). */
+  checked_topics?: CheckedTopic[];
+  /** Schema 8: skills with errors that are not a step of the plan, by topic. */
+  more_difficulties?: MoreDifficultyGroup[];
   /** Topics solved without a single wrong attempt (schema 5). */
   achievements?:  Achievement[];
   /** The one recommended start == first plan step (schema 5). */
-  recommended_start?: { skill_id?: string | null; skill_name_ru?: string | null; evidence?: string | null } | null;
+  recommended_start?: { skill_id?: string | null; skill_name_ru?: string | null; evidence_kind?: string | null } | null;
   strong_skills:  StrongSkill[];
   weak_skills:    WeakSkill[];
   critical_gaps:  CriticalGap[];
@@ -253,6 +251,31 @@ function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title:
  * Tab / Enter / Space work, prev / next are disabled at the ends, the current page is
  * aria-current, the compact counter is a polite live region.
  */
+/** One labelled line of a plan step (Основание / Цель / Материал / Проверка): the label above the text on a phone, beside it from sm. */
+function StepLine({ label, testId, children }: { label: string; testId: string; children: React.ReactNode }) {
+  return (
+    <div data-testid={testId} className="grid grid-cols-1 gap-x-3 gap-y-1 px-3 py-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <dt className="text-[11px] font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words text-slate-800">{children}</dd>
+    </div>
+  );
+}
+
+/** A bank task as a reference: its code and, under it, the statement. */
+function TaskRef({ task }: { task: { taskId: string; text: string | null; latex: string | null } }) {
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <span className="inline-block max-w-full break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">{task.taskId}</span>
+      {(task.text || task.latex) && (
+        <TaskStatement
+          task={{ question_text: task.text || "", question_latex: task.latex }}
+          className="min-w-0 max-w-full text-xs leading-snug text-slate-700 break-words"
+        />
+      )}
+    </div>
+  );
+}
+
 function JournalPager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
   const arrow = "w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors";
   return (
@@ -343,7 +366,6 @@ export default function DiagnosticReportPage() {
   const [errorPage, setErrorPage]     = useState(0);
   const [activeTab, setActiveTab]     = useState<ReportTab>("journal");
   const [expandedChains, setExpandedChains]     = useState<number[]>([]);
-  const [expandedClusters, setExpandedClusters] = useState<string[]>([]);
 
   const toggleChain = (idx: number) => {
     setExpandedChains((prev) =>
@@ -359,21 +381,16 @@ export default function DiagnosticReportPage() {
     }
   };
 
-  const toggleCluster = (cat: string) => {
-    setExpandedClusters((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
-  };
+  const ERRORS_PER_PAGE = 3;
 
-  const toggleAllClusters = (allCats: string[]) => {
-    if (expandedClusters.length === allCats.length) {
-      setExpandedClusters([]);
-    } else {
-      setExpandedClusters(allCats);
+  // A plan step refers to rows of the journal: «№ 3» opens the journal on the page that holds that row.
+  const openJournalRow = (no: number) => {
+    setActiveTab("journal");
+    setErrorPage(journalPageOf(no, ERRORS_PER_PAGE));
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => document.getElementById(`journal-row-${no}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
     }
   };
-
-  const ERRORS_PER_PAGE = 3;
 
   useEffect(() => {
     let cancelled = false;
@@ -479,7 +496,6 @@ export default function DiagnosticReportPage() {
   useEffect(() => {
     setErrorPage(0);
     setExpandedChains([]);
-    setExpandedClusters([]);
   }, [reportKey]);
 
   if (loading) {
@@ -556,11 +572,13 @@ export default function DiagnosticReportPage() {
   // report_json arrived but is not a report object (string, list ...): not renderable, not poll-able
   const reportInvalid = !rj && reportJsonState(report?.report_json) === "invalid";
   const wrongCount = rj ? reportWrongCount(rj.report_meta) : null;
+  // The journal lists every wrong answer; the header counts the measured tasks only. The journal says how many rows are which.
+  const journalCounts = rj ? journalBreakdown(rj.error_patterns) : null;
   const levelText = rj ? ((level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru || null) : null;
   const tabDefs: Array<{
     key: ReportTab; label: string; Icon: any; iconClass: string; badge: number; badgeClass: string;
   }> = [
-    { key: "journal", label: "Журнал ошибок", Icon: FileText, iconClass: "text-rose-500", badge: rj?.error_patterns.length ?? 0, badgeClass: "bg-rose-100 text-rose-700" },
+    { key: "journal", label: "Журнал ошибок", Icon: FileText, iconClass: "text-rose-500", badge: journalCounts?.measured ?? rj?.error_patterns.length ?? 0, badgeClass: "bg-rose-100 text-rose-700" },
     { key: "skills", label: "Анализ навыков", Icon: GitBranch, iconClass: "text-indigo-500", badge: rj?.root_cause_chains?.length ?? 0, badgeClass: "bg-indigo-100 text-indigo-700" },
     { key: "plan", label: "План обучения", Icon: ListChecks, iconClass: "text-emerald-500", badge: 0, badgeClass: "" },
   ];
@@ -875,6 +893,27 @@ export default function DiagnosticReportPage() {
             </motion.div>
           )}
 
+          {/* ── Map of checked topics (R14): a plain list, one count with the header, no shares, no verdict colours ── */}
+          {rj.checked_topics && rj.checked_topics.length > 0 && (
+            <motion.div variants={fade} data-testid="diagnostic-report-checked-topics" className="min-w-0 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+              <div className="px-4 sm:px-6 pt-4 pb-2">
+                <h2 className="text-sm font-bold text-slate-900">Проверенные темы</h2>
+                <p className="mt-0.5 text-xs text-slate-500 break-words">{CHECKED_TOPICS_NOTE}</p>
+              </div>
+              <ul className="divide-y divide-slate-100 pb-1.5">
+                {rj.checked_topics.map((topic, i) => (
+                  <li
+                    key={topic.topic_id || i}
+                    data-testid="diagnostic-report-checked-topic"
+                    className="min-w-0 px-4 sm:px-6 py-2 text-[13px] leading-snug text-slate-800 break-words"
+                  >
+                    {checkedTopicLine(topic)}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+
           {/* ── SECTION TABS SWITCHER ── */}
           <motion.div
             variants={fade}
@@ -933,16 +972,25 @@ export default function DiagnosticReportPage() {
                   </div>
                   {totalPages > 1 && <JournalPager page={page} totalPages={totalPages} onChange={setErrorPage} />}
                 </div>
+                {journalCounts && (
+                  <p data-testid="diagnostic-report-journal-count" className="px-4 sm:px-6 lg:px-8 py-3 border-b border-slate-100 text-xs text-slate-600 leading-relaxed break-words">
+                    Неверных ответов основного теста: <span className="font-semibold text-slate-800">{journalCounts.measured}</span>
+                    {wrongCount === journalCounts.measured && " — столько же, сколько «Ошибок» в шапке"}.
+                    {journalCounts.deepScan > 0 && (
+                      <> Ответов с ошибкой в углублённой проверке: <span className="font-semibold text-slate-800">{journalCounts.deepScan}</span> — они в уровень не входят.</>
+                    )}
+                  </p>
+                )}
 
                 {/* ── Error Entries ── */}
                 <div className="divide-y divide-slate-100/80">
                   {pageErrors.map((err, i) => {
-                    const globalIdx = page * ERRORS_PER_PAGE + i + 1;
+                    const globalIdx = typeof err.journal_no === "number" ? err.journal_no : page * ERRORS_PER_PAGE + i + 1;
                     const isDistractor = err.eval_category === "distractor";
                     const hasMcqOptions = err.answer_options && err.answer_options.length > 0;
 
                     return (
-                      <div key={i} className="min-w-0 px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-5 sm:space-y-6 hover:bg-slate-50/30 transition-colors">
+                      <div key={i} id={`journal-row-${globalIdx}`} className="min-w-0 px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-5 sm:space-y-6 hover:bg-slate-50/30 transition-colors">
 
                         {/* ── Entry Top Bar: number pill + skill name ── */}
                         <div className="flex items-center gap-2 flex-wrap">
@@ -952,6 +1000,16 @@ export default function DiagnosticReportPage() {
                           {err.skill_name_ru && (
                             <span className="min-w-0 text-xs font-semibold text-slate-500 break-words">
                               {err.skill_name_ru}
+                            </span>
+                          )}
+                          {err.is_deep_scan && (
+                            <span className="text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                              {DEEP_SCAN_RU}
+                            </span>
+                          )}
+                          {err.task_withdrawn && (
+                            <span data-testid="diagnostic-report-task-withdrawn" className="text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded">
+                              {TASK_WITHDRAWN_NOTE}
                             </span>
                           )}
                         </div>
@@ -1281,7 +1339,7 @@ export default function DiagnosticReportPage() {
                       <div>
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
                           <span className="min-w-0 break-words text-xs font-semibold text-slate-800 flex items-center gap-2">
-                            <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                            <FileText className="w-4 h-4 text-slate-500 flex-shrink-0" />
                             Ошибки в текущем классе
                           </span>
                           <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
@@ -1308,12 +1366,12 @@ export default function DiagnosticReportPage() {
                 </div>
               )}
 
-              {/* ── Block 2: Root-Cause Descent Chains (Deep Scan) ── */}
+              {/* ── Block 2: Root-Cause Descent Chains (deep scan) ── */}
               {rj.root_cause_chains && rj.root_cause_chains.length > 0 && (
                 <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-4">
                   <SectionHeader
                     icon={GitBranch}
-                    title="Цепочки диагностического спуска (Deep Scan)"
+                    title={`Цепочки диагностического спуска (${DEEP_SCAN_RU.toLowerCase()})`}
                     count={rj.root_cause_chains.length}
                     action={
                       <button
@@ -1391,7 +1449,7 @@ export default function DiagnosticReportPage() {
                                             </div>
                                             <span className="min-w-0 break-words text-xs sm:text-sm font-semibold text-slate-900">{st.skill_name_ru}</span>
                                             <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded whitespace-nowrap">
-                                              {st.grade} класс {st.is_deep_scan && "· Deep Scan"}
+                                              {st.grade} класс {st.is_deep_scan && `· ${DEEP_SCAN_RU}`}
                                             </span>
                                           </div>
                                           <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-md border ${outcome === "correct" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : outcome === "wrong" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
@@ -1478,132 +1536,6 @@ export default function DiagnosticReportPage() {
                 </div>
               )}
 
-              {/* ── Block 3: Cognitive Error Patterns ── */}
-              {rj.cognitive_error_types && rj.cognitive_error_types.length > 0 && (
-                <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-4">
-                  <SectionHeader
-                    icon={Brain}
-                    title="Когнитивные паттерны ошибок (Анализ мышления)"
-                    count={rj.cognitive_error_types.length}
-                    action={
-                      <button
-                        type="button"
-                        onClick={() => toggleAllClusters((rj.cognitive_error_types || []).map((cg: any) => cg.category))}
-                        className="text-xs font-semibold text-primary-700 hover:text-primary-800 hover:underline cursor-pointer transition-colors"
-                      >
-                        {expandedClusters.length === (rj.cognitive_error_types || []).length ? "Свернуть все" : "Развернуть все"}
-                      </button>
-                    }
-                  />
-                  <div className="space-y-3.5">
-                    {rj.cognitive_error_types.map((cg) => {
-                      const isExpanded = expandedClusters.includes(cg.category);
-                      const hasExamples = cg.examples && cg.examples.length > 0;
-
-                      return (
-                        <div key={cg.category} id={`cluster-card-${cg.category}`} className="min-w-0 border border-slate-200 rounded-xl p-4 sm:p-6 bg-white shadow-2xs space-y-4 hover:border-slate-300 transition-colors">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="space-y-1.5 flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                                <span className="min-w-0 break-words text-sm font-bold text-slate-900">{cg.title}</span>
-                                {typeof cg.count === "number" && (
-                                  <span className="text-xs font-bold bg-rose-50 text-rose-800 px-2.5 py-0.5 rounded-full border border-rose-200/80 flex-shrink-0">
-                                    {errorsLabel(cg.count)}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-600 leading-relaxed break-words">{cg.description}</p>
-                            </div>
-
-                            {hasExamples && (
-                              <button
-                                onClick={() => toggleCluster(cg.category)}
-                                className="text-xs font-semibold text-primary-700 hover:text-primary-800 flex items-center gap-1.5 cursor-pointer transition-colors flex-shrink-0 self-start sm:self-center"
-                              >
-                                <span>{isExpanded ? "Скрыть примеры" : "Показать примеры заданий"}</span>
-                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Examples in horizontal columns with smooth accordion animation */}
-                          <AnimatePresence initial={false}>
-                            {isExpanded && hasExamples && (
-                              <motion.div
-                                key={`cluster-content-${cg.category}`}
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                                className="overflow-hidden border-t border-slate-100 pt-4"
-                              >
-                                <div className={`grid grid-cols-1 ${cg.examples.length === 2 ? "lg:grid-cols-2" : cg.examples.length >= 3 ? "lg:grid-cols-2 xl:grid-cols-3" : ""} gap-4`}>
-                                  {cg.examples.map((ex, exIdx) => {
-                                    const ansText = ex.student_answer_latex || ex.student_answer || "";
-                                    const isLong = ansText.length > 35 || ansText.includes("\n");
-
-                                    return (
-                                      <div key={exIdx} className="min-w-0 p-3 sm:p-5 rounded-xl bg-slate-50/70 border border-slate-200/90 text-xs flex flex-col h-full space-y-3.5">
-                                        <div className="min-w-0 space-y-3">
-                                          <div className="font-bold text-slate-800 text-xs break-words">{ex.skill_name_ru}</div>
-
-                                          {(ex.question_latex || ex.question_text) && (
-                                            <div className="min-w-0 p-3 rounded-lg bg-white border border-slate-200/80 text-slate-900 text-xs leading-relaxed">
-                                              <TaskStatement task={{ question_text: ex.question_text || "", question_latex: ex.question_latex }} />
-                                            </div>
-                                          )}
-
-                                          {isLong ? (
-                                            <div className="min-w-0 space-y-2">
-                                              <div className="min-w-0 p-3 rounded-xl bg-white border border-slate-200/80 space-y-1 shadow-2xs">
-                                                <span className="text-xs font-semibold text-slate-500 block">Ответ ученика:</span>
-                                                <div className="min-w-0 max-w-full overflow-x-auto text-sm sm:text-base font-normal text-rose-700 leading-relaxed">
-                                                  <MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" />
-                                                </div>
-                                              </div>
-                                              {ex.correct_answer && (
-                                                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                                                  <span className="text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                  <div className="min-w-0 max-w-full flex-1 basis-32 overflow-x-auto font-normal text-sm sm:text-base text-emerald-700"><MathRenderer block text={ex.correct_answer_latex || ex.correct_answer} className="min-w-0 max-w-full" /></div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                              <div className="flex min-w-0 max-w-full items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                                                <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Ответ ученика:</span>
-                                                <div className="min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base text-rose-700"><MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" /></div>
-                                              </div>
-                                              {ex.correct_answer && (
-                                                <div className="flex min-w-0 max-w-full items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                                                  <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                  <div className="min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base text-emerald-700"><MathRenderer block text={ex.correct_answer_latex || ex.correct_answer} className="min-w-0 max-w-full" /></div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        {(ex.distractor_explanation_latex || ex.distractor_explanation) && (
-                                          <div className="min-w-0 mt-auto pt-3 border-t border-slate-200/70 text-slate-700 text-xs sm:text-sm leading-relaxed">
-                                            <span className="font-semibold text-slate-900 block mb-1 text-xs">Причина ошибки:</span>
-                                            <MathRenderer block text={ex.distractor_explanation_latex || ex.distractor_explanation || ""} className="min-w-0 max-w-full break-words" />
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
             </motion.div>
           )}
 
@@ -1670,11 +1602,11 @@ export default function DiagnosticReportPage() {
                         <GitBranch className="w-4 h-4 text-primary-600" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[11px] font-medium text-slate-500">Структура трека</div>
+                        <div className="text-[11px] font-medium text-slate-500">Состав плана</div>
                         <div className="text-sm font-bold text-slate-900 line-clamp-2 break-words">
                           {development
                             ? "шаг развития"
-                            : `${stagesLabel(rj.action_plan.length)} освоения`}
+                            : stepsLabel(rj.action_plan.length)}
                         </div>
                       </div>
                     </div>
@@ -1701,6 +1633,10 @@ export default function DiagnosticReportPage() {
                   {rj.action_plan.map((item, idx) => {
                     const isFirst = item.priority === 1 || idx === 0;
                     const hours = stepHours(item);
+                    // A step of the current format: the goal is the heading, then the basis / material / check (the skill is named ONCE).
+                    const lines = planStepLines(item as any);
+                    const structured = hasStepLines(lines);
+                    const prerequisite = structured ? prerequisiteNote(item as any) : null;
 
                     return (
                       <div key={item.priority || idx} className="relative flex items-start gap-4 sm:gap-6 group">
@@ -1733,12 +1669,10 @@ export default function DiagnosticReportPage() {
                                     : "bg-slate-100 text-slate-700 border-slate-200/80"
                                 }`}
                               >
-                                {isDevelopmentStep(item)
-                                  ? "Шаг развития"
-                                  : isFirst ? "Стартовый приоритет · Шаг 1" : `Шаг ${item.priority || idx + 1} · Развитие`}
+                                {stepBadgeLabel(item, idx)}
                               </span>
 
-                              {item.skill_name_ru && item.action_title && item.action_title !== item.skill_name_ru && (
+                              {!structured && item.skill_name_ru && item.action_title && item.action_title !== item.skill_name_ru && (
                                 <span className="text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded">
                                   {item.skill_name_ru}
                                 </span>
@@ -1753,12 +1687,23 @@ export default function DiagnosticReportPage() {
                             )}
                           </div>
 
-                          {/* Title */}
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
-                            {item.action_title || item.skill_name_ru}
-                          </h3>
+                          {/* Title: the goal of the step (the skill) with its caption; a step of an older report keeps its own title */}
+                          {structured ? (
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-semibold text-slate-500">Цель</div>
+                              <h3 data-testid="diagnostic-report-step-goal" className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
+                                {lines.goal || item.skill_name_ru}
+                              </h3>
+                              {prerequisite && <div className="mt-0.5 text-xs text-slate-500">{prerequisite}</div>}
+                            </div>
+                          ) : (
+                            <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
+                              {item.action_title || item.skill_name_ru}
+                            </h3>
+                          )}
 
-                          {/* Description / Practice Strategy */}
+                          {/* Description: the model's wording (the wording from the data would retell the basis below) */}
+                          {showsStepDescription(item as any, structured) && (
                           <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal break-words">
                             {(item.full_description || "")
                               .replace(
@@ -1767,12 +1712,112 @@ export default function DiagnosticReportPage() {
                               )
                               .trim()}
                           </p>
+                          )}
+
+                          {/* The lines of the step (schema 8). A step of an older report has none of them and stays as it was. */}
+                          {structured && (() => {
+                            const journalRow = (answerId: string | null) => (answerId ? rj.error_patterns.find((e) => e.answer_id === answerId) : undefined);
+                            return (
+                              <dl data-testid="diagnostic-report-step-lines" className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 bg-slate-50/50 text-xs sm:text-sm">
+                                <StepLine label="Основание" testId="diagnostic-report-step-basis">
+                                  <ul className="space-y-2">
+                                    {(lines.basis || []).map((line, li) => {
+                                      const row = journalRow(line.answerId);
+                                      const shown = row ? pickAnswerDisplayText(row.student_answer || "", row.student_answer_latex) : (line.answer || "");
+                                      const explanation = row
+                                        ? pickAnswerDisplayText(row.distractor_explanation || "", row.distractor_explanation_latex)
+                                        : (line.explanation || "");
+                                      return (
+                                        <li key={li} className="min-w-0 space-y-0.5">
+                                          <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                                            {line.journalNo !== null ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => openJournalRow(line.journalNo as number)}
+                                                className="rounded bg-slate-900 px-1.5 py-0.5 text-[11px] font-bold text-white hover:bg-slate-700"
+                                                title="Открыть строку журнала"
+                                              >
+                                                № {line.journalNo}
+                                              </button>
+                                            ) : (
+                                              <span className="text-slate-500">Верный ответ</span>
+                                            )}
+                                            <span className="text-slate-600">{line.correct ? "в задании" : "выбран ответ"}</span>
+                                            {line.correct && line.taskId && <span className="break-all font-mono text-[11px] text-slate-700">{line.taskId}</span>}
+                                            {shown && <MathRenderer text={shown} className="min-w-0 max-w-full break-words text-slate-900" />}
+                                            {line.deepScan && <span className="text-[11px] text-slate-500">({DEEP_SCAN_RU.toLowerCase()})</span>}
+                                          </div>
+                                          {explanation && (
+                                            <div className="min-w-0 text-xs text-slate-600 break-words">
+                                              Причина по банку: <MathRenderer text={explanation} className="min-w-0 max-w-full break-words" />
+                                            </div>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                  {lines.basisMore > 0 && (
+                                    <div data-testid="diagnostic-report-step-basis-more" className="mt-1.5 text-xs text-slate-500">и ещё {lines.basisMore} (в журнале)</div>
+                                  )}
+                                </StepLine>
+                                <StepLine label="Материал" testId="diagnostic-report-step-material">
+                                  {lines.material === null ? (
+                                    <span className="text-slate-500">{BANK_NOT_LOADED_TEXT}</span>
+                                  ) : lines.material.tasks.length > 0 ? (
+                                    <ul className="space-y-2">
+                                      {lines.material.tasks.map((task) => (
+                                        <li key={task.taskId}><TaskRef task={task} /></li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    lines.material?.text || "задание этого навыка на занятии"
+                                  )}
+                                </StepLine>
+                                <StepLine label="Проверка" testId="diagnostic-report-step-check">
+                                  {lines.check === null ? (
+                                    <span className="text-slate-500">{BANK_NOT_LOADED_TEXT}</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div>{lines.check.text}</div>
+                                      {lines.check.task && <TaskRef task={lines.check.task} />}
+                                    </div>
+                                  )}
+                                </StepLine>
+                              </dl>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
                   })}
 
                 </div>
+
+                {/* ── Skills with errors that did not fit into the steps ── */}
+                {rj.more_difficulties && rj.more_difficulties.length > 0 && (
+                  <div data-testid="diagnostic-report-more-difficulties" className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-3">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Ещё затруднения</h3>
+                      <p className="mt-0.5 text-xs text-slate-500 break-words">{MORE_DIFFICULTIES_TEXT}</p>
+                    </div>
+                    <ul className="space-y-2.5">
+                      {rj.more_difficulties.map((group, gi) => (
+                        <li key={group.topic_id || gi} className="min-w-0 text-sm text-slate-800">
+                          <div className="font-semibold break-words">{group.topic_name_ru || group.topic_id}</div>
+                          <ul className="mt-0.5 space-y-0.5 pl-4 list-disc marker:text-slate-300">
+                            {group.skills.map((skill, si) => (
+                              <li key={skill.skill_id || si} className="break-words text-[13px] text-slate-700">
+                                {skill.skill_name_ru || skill.skill_id}
+                                {typeof skill.errors === "number" && ` · ошибок: ${skill.errors}`}
+                                {Array.isArray(skill.journal_nos) && skill.journal_nos.length > 0 && ` (журнал: ${skill.journal_nos.map((n) => `№${n}`).join(", ")})`}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </motion.div>
             );
           })()}

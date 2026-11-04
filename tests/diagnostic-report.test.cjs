@@ -99,9 +99,11 @@ test("normalizeReportJson: old / partial report_json never leaves a missing list
   assert.equal(R.normalizeReportJson([]), null);
   assert.equal(R.normalizeReportJson("x"), null);
   const n = R.normalizeReportJson({ report_meta: {} }); // the thinnest real report
-  for (const key of ["error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "root_cause_chains", "cognitive_error_types"]) {
+  for (const key of ["error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "root_cause_chains"]) {
     assert.deepEqual(n[key], [], key);
   }
+  // schema 8 lists exist in schema 8 only: absent stays absent (an older report), present stays a list; the retired key never survives
+  assert.equal("checked_topics" in n || "more_difficulties" in n || "cognitive_error_types" in n, false);
   // `achievements` exists in schema 5 only: absent stays absent, present stays (even empty)
   assert.equal("achievements" in n, false);
   assert.deepEqual(R.normalizeReportJson({ achievements: [] }).achievements, []);
@@ -119,13 +121,12 @@ test("normalizeReportJson: old / partial report_json never leaves a missing list
 test("normalizeReportJson: partial chain / cluster / boundary objects get safe lists and counts", () => {
   const n = R.normalizeReportJson({
     root_cause_chains: [{ source_skill_name: "A" }, { steps: [{}, {}], steps_count: 5 }],
-    cognitive_error_types: [{ category: "c1" }, { category: "c2", examples: [{}, {}, {}], count: 9 }],
+    cognitive_error_types: [{ category: "c1" }],
     diagnostic_boundary: { anchor_level: "5 класс", anchor_skills: ["Дроби", 7, ""] },
   });
   assert.deepEqual(n.root_cause_chains.map((c) => [c.steps.length, c.steps_count]), [[0, 0], [2, 5]]);
-  // a missing count is NOT replaced by the number of examples (a sample, not the total)
-  assert.deepEqual(n.cognitive_error_types.map((c) => [c.examples.length, c.count]), [[0, undefined], [3, 9]]);
-  assert.equal("count" in n.cognitive_error_types[0], false);
+  // «Анализ мышления» is retired (R09): the key of an older stored report is dropped on the way in
+  assert.equal("cognitive_error_types" in n, false);
   assert.deepEqual(n.diagnostic_boundary.anchor_skills, ["Дроби"]);
   assert.deepEqual(n.diagnostic_boundary.breakpoint_skills, []);
   assert.equal(n.diagnostic_boundary.blocked_level, "");
@@ -172,7 +173,9 @@ test("skills tab is never blank: content or the placeholder", () => {
   const boundary = { anchor_level: "5 класс", anchor_skills: ["Дроби"], breakpoint_level: "", breakpoint_skills: [], blocked_level: "", blocked_skills: [] };
   assert.equal(R.tabContentState({ report_meta: errorMeta, diagnostic_boundary: boundary }).skills, "content");
   assert.equal(R.tabContentState({ report_meta: errorMeta, root_cause_chains: [{}] }).skills, "content");
-  assert.equal(R.tabContentState({ report_meta: errorMeta, cognitive_error_types: [{}] }).skills, "content");
+  // the retired «Анализ мышления» is no content of the tab; the map of checked topics sits above the tabs
+  assert.equal(R.tabContentState({ report_meta: errorMeta, cognitive_error_types: [{}] }).skills, "empty");
+  assert.equal(R.tabContentState({ report_meta: errorMeta, checked_topics: [{}] }).skills, "empty");
   // old report: nothing of boundary / chains / patterns
   assert.equal(R.tabContentState({ report_meta: errorMeta, error_patterns: [{}] }).skills, "empty");
   assert.equal(R.tabContentState({ report_meta: errorMeta, diagnostic_boundary: { anchor_skills: [] } }).skills, "empty");
@@ -803,7 +806,7 @@ test("report identity changes when the report is replaced, not when it is polled
     generated_at: generatedAt,
     report_json: {
       report_meta: { session_id: "S1", generated_on: "2026-10-12", report_schema_version: 5, total_questions: 12, questions_correct: 7, ...over },
-      error_patterns: [{}, {}, {}], root_cause_chains: [{}], cognitive_error_types: [{}], achievements: [], action_plan: [{}, {}],
+      error_patterns: [{}, {}, {}], root_cause_chains: [{}], checked_topics: [{}], achievements: [], action_plan: [{}, {}],
       ...lists,
     },
   });
@@ -817,7 +820,7 @@ test("report identity changes when the report is replaced, not when it is polled
   // (a rebuild updates the row), so both stay equal - the CONTENT shape tells the reports apart.
   assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { error_patterns: [{}] })), base);
   assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { root_cause_chains: [{}, {}, {}] })), base);
-  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { cognitive_error_types: [] })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { checked_topics: [] })), base);
   assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { achievements: [{}] })), base);
   assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { action_plan: [] })), base);
   assert.notEqual(R.reportIdentity(full({ total_questions: 14 })), base);
@@ -906,12 +909,13 @@ test("report page contract (N04 round 3): owner-decision wording, no duration pr
   const page = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
   assert.equal(/первопричин/i.test(page), false, "O4: no «первопричин» wording on the page");
   assert.ok(page.includes('label: "Анализ навыков"'));
-  assert.ok(page.includes('title="Цепочки диагностического спуска (Deep Scan)"'));
+  assert.ok(page.includes("Цепочки диагностического спуска (${DEEP_SCAN_RU.toLowerCase()})"));
+  assert.equal(/Deep Scan/.test(page), false, "no «Deep Scan» on screen: the label is «Углублённая проверка»");
   assert.equal(page.includes("Обычно подготовка занимает"), false);
   assert.equal(/до минуты/.test(page), false);
   assert.ok(page.includes("clampPage(errorPage"));
   assert.ok(page.includes("reportIdentity(report)"));
-  assert.ok(page.includes("setExpandedChains([])") && page.includes("setExpandedClusters([])"));
+  assert.ok(page.includes("setExpandedChains([])") && !page.includes("setExpandedClusters"));
   assert.ok(page.includes("meta.oldFormat"));
   assert.equal(page.includes("skillsEmptyText(meta.legacy)"), false);
   assert.ok(page.includes("isInferredChain(ch)"));
