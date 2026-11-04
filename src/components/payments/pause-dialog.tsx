@@ -118,7 +118,8 @@ export function PauseDialog({
   }, [open, membershipId, ready, key, calcNonce]);
 
   const save = async () => {
-    if (busy) return;
+    // the button of the footer waits for the calculation; the form must wait for it too (a submit from elsewhere - Enter in a field, a window inside it - is not a press of the button)
+    if (busy || checking || calcFailure !== null || !ready) return;
     const refusal = validatePause(values, today);
     if (refusal) { setError(refusal); return; }
     setBusy(true);

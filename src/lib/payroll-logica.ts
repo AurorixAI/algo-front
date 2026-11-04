@@ -7,7 +7,7 @@
  * Pure: no React, no network.
  */
 import { MONTHS_GENITIVE } from "./ru-calendar";
-import { formatMoneyInput } from "./money-format";
+import { formatMoneyInput, formatSignedMoney } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -263,7 +263,7 @@ export function payoutChangedBy(state: Pick<PayoutState, "changed_by"> | null | 
 export function payoutChangeLine(state: Pick<PayoutState, "changed_by" | "change_text"> | null | undefined): { text: string; title: string | null } | null {
   const delta = payoutChangedBy(state);
   if (delta === 0) return null;
-  return { text: `изменилось на ${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`, title: state?.change_text ?? null };
+  return { text: `изменилось на ${formatSignedMoney(delta)}`, title: state?.change_text ?? null };
 }
 
 // ── The form «Отметить выплату» ─────────────────────────────────────────────

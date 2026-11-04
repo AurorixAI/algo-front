@@ -11,7 +11,7 @@
  *
  * Pure: no React, no network.
  */
-import { formatMoney } from "./money-format";
+import { formatMoney, formatSignedMoney } from "./money-format";
 import { canDecideMoney } from "./one-off";
 import { monthTitle } from "./payroll";
 
@@ -174,10 +174,7 @@ export interface EffectLine {
   tone: "plain" | "warn";
 }
 
-/** «+50 000 сум» / «−50 000 сум» (a real minus sign). */
-function signedSum(delta: number): string {
-  return `${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`;
-}
+const signedSum = formatSignedMoney;
 
 /** «475 000 сум» for a sum in a line. */
 const sum = (value: number): string => formatMoney(value);

@@ -15,6 +15,11 @@ export function formatMoney(value: number | null | undefined): string {
   return `${sign}${groupDigits(String(Math.abs(amount)))}${NBSP}сум`;
 }
 
+/** «−16 666 сум» / «+4 000 сум» (a real minus sign): the ONE way a change of a sum is written. */
+export function formatSignedMoney(delta: number): string {
+  return `${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`;
+}
+
 /** Amount for an input field: thousands separated, no unit. */
 export function formatMoneyInput(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";

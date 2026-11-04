@@ -9,6 +9,7 @@
  * UX-2: a sheet has no price and no rate to edit - the price is set in «Цены групп», the rate in «Сотрудники».
  */
 import { formatMoney, pluralRu } from "./payments";
+import { formatSignedMoney } from "./money-format";
 import { EXCUSE_REVIEW_LABEL } from "./attendance-marks";
 import {
   capitalizeFirst,
@@ -1181,10 +1182,7 @@ export function versionLabel(revision: number): string {
   return `версия ${revision}`;
 }
 
-/** «−16 666 сум» / «+4 000 сум» (a real minus sign). */
-export function formatSignedMoney(delta: number): string {
-  return `${delta < 0 ? "−" : "+"}${formatMoney(Math.abs(delta))}`;
-}
+export { formatSignedMoney };
 
 // ── The card on top of a sheet ──────────────────────────────────────────────
 

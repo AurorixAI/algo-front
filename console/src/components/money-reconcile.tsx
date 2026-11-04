@@ -16,6 +16,7 @@ import {
   MONEY_PAGE_SUBTITLE,
   MONEY_PAGE_TITLE,
   findingAmount,
+  findingKey,
   findingFacts,
   findingMonth,
   invariantLabel,
@@ -51,7 +52,9 @@ export function MoneyReconcileView({ data, loading, refreshing, error, onReload 
   onReload: () => void;
 }) {
   const [invariant, setInvariant] = useState("");
-  const [open, setOpen] = useState<MoneyFinding | null>(null);
+  // R3 (unconfirmed 3): the open divergence is kept by its STABLE key and looked up in the data on every render - after «Обновить» the panel shows the fresh numbers, or closes when the divergence is gone
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const open = useMemo(() => (openKey === null ? null : (data?.findings ?? []).find((finding) => findingKey(finding) === openKey) ?? null), [data, openKey]);
   const latest = data?.latest ?? null;
   const findings = useMemo(() => visibleFindings(data?.findings ?? [], invariant), [data, invariant]);
 
@@ -115,7 +118,7 @@ export function MoneyReconcileView({ data, loading, refreshing, error, onReload 
               columns={findingColumns}
               rows={findings}
               rowKey={(r) => r.id}
-              onOpen={setOpen}
+              onOpen={(finding) => setOpenKey(findingKey(finding))}
               openLabel={(r) => `Открыть расхождение: ${r.orgName ?? "центр"}, ${invariantLabel(r.invariant)}`}
               selectedKey={open?.id}
               empty={invariant ? { title: "Таких расхождений нет", text: "Измените или сбросьте фильтр." } : { title: "Расхождений нет", text: "Последняя проверка: всё сошлось." }}
@@ -129,7 +132,7 @@ export function MoneyReconcileView({ data, loading, refreshing, error, onReload 
         </div>
       )}
 
-      <Modal open={Boolean(open)} placement="right" maxWidthClassName="max-w-lg" title={open ? `${open.orgName ?? "Центр"} · ${invariantLabel(open.invariant)}` : "Расхождение"} description={open?.what ?? undefined} onClose={() => setOpen(null)} bodyClassName="flex-1 overflow-y-auto px-5 py-4">
+      <Modal open={Boolean(open)} placement="right" maxWidthClassName="max-w-lg" title={open ? `${open.orgName ?? "Центр"} · ${invariantLabel(open.invariant)}` : "Расхождение"} description={open?.what ?? undefined} onClose={() => setOpenKey(null)} bodyClassName="flex-1 overflow-y-auto px-5 py-4">
         {open && <FindingDetail finding={open} />}
       </Modal>
     </>

@@ -2,7 +2,7 @@
  * «Сверка денег» (Money-1 A7): the words of the nightly check of the money, in one place.  The server (`GET /platform/money-reconcile`) gives runs and the divergences of the newest
  * one - ids, months, sums and a sentence per invariant, no name of a person; a centre never reads it.  Pure: no React, no network.
  */
-import { formatMoney } from "@/lib/money-format";
+import { formatMoney, formatSignedMoney } from "@/lib/money-format";
 import { monthYearLabelRu } from "@/lib/business-time";
 import { DASH, fmtDateTime } from "./format";
 import type { Tone } from "./labels";
@@ -56,13 +56,41 @@ export function findingMonth(finding: Pick<MoneyFinding, "month">): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** «Строки 475 000 сум · итог 600 000 сум» / «По учёту … · по долгу …» / «Уроков без проведения: 2»: what does not add up, by the invariant. */
+/**
+ * R3 M3: the kinds of divergence of I-1 and I-3 (`details.what` of `src/auth/money_reconcile.py`) and what `expected` / `actual` MEAN in each - sums of money in one, a count of lessons or
+ * lines in another; a sum must never be read as a number of lessons.  Every kind says its own pair of facts.
+ */
+const PAIRS: Record<string, (expected: number | null, actual: number | null, details: Record<string, unknown>) => string> = {
+  // I-1: the ledger of a membership
+  identity: (e, a) => `По начислениям и оплатам ${money(e)} · по долгу и авансу ${money(a)}`,
+  statement: (e, a) => `По долгу и авансу ${money(e)} · итог выписки ${money(a)}`,
+  paid_rows: (e, a) => `Оплаты по записям ${money(e)} · в расчёте ${money(a)}`,
+  refund_rows: (e, a) => `Возвраты по записям ${money(e)} · в расчёте ${money(a)}`,
+  outflow_exceeds_inflow: (e, a) => `Пришло ${money(e)} · ушло ${money(a)}`,
+  writeoff_exceeds_charged: (e, a) => `Начислено ${money(e)} · прощено ${money(a)}`,
+  // I-3: a saved sheet of payroll
+  total: (e, a) => `Строки ${money(e)} · итог ${money(a)}`,
+  not_held: (_e, a) => `Оплачено уроков, которых не было: ${a ?? DASH}`,
+  line_without_marks: (_e, a) => `Строк без оплаченных отметок: ${a ?? DASH}`,
+  drift: (e, a, details) => {
+    const change = num(details.changedBy);
+    return `Сохранено ${money(a)} · сейчас считается ${money(e)}${change === null ? "" : ` (изменилось на ${formatSignedMoney(change)})`}`;
+  },
+};
+
+/** The kinds of divergence this screen knows how to word (a new kind of the server is shown by its numbers, never by a wrong unit). */
+export const KNOWN_KINDS = Object.keys(PAIRS);
+
+/** «Строки 475 000 сум · итог 600 000 сум» / «Оплаты по записям … · в расчёте …» / «Строк без оплаченных отметок: 2»: what does not add up, by the invariant and the kind. */
 export function findingAmount(finding: Pick<MoneyFinding, "invariant" | "expected" | "actual" | "details">): string {
   const expected = num(finding.expected);
   const actual = num(finding.actual);
   const details = finding.details ?? {};
   switch (finding.invariant) {
-    case "I-1": return `По учёту ${money(expected)} · по долгу ${money(actual)}`;
+    case "I-1": {
+      const kind = typeof details.what === "string" ? PAIRS[details.what] : undefined;
+      return kind ? kind(expected, actual, details) : `Ожидалось ${expected ?? DASH} · найдено ${actual ?? DASH}`;
+    }
     case "I-2": {
       const paidUntil = pair(details.covered_through);
       if (paidUntil && paidUntil[0] !== paidUntil[1]) return `Оплачено до ${dayText(paidUntil[0])} → ${dayText(paidUntil[1])}`;
@@ -72,11 +100,18 @@ export function findingAmount(finding: Pick<MoneyFinding, "invariant" | "expecte
       if (paid) return `Оплаты ${money(num(paid[0]))} → ${money(num(paid[1]))}`;
       return DASH;
     }
-    case "I-3":
-      return details.what === "total" ? `Строки ${money(expected)} · итог ${money(actual)}` : `Уроков без проведения: ${actual ?? DASH}`;
+    case "I-3": {
+      const kind = typeof details.what === "string" ? PAIRS[details.what] : undefined;
+      return kind ? kind(expected, actual, details) : `Ожидалось ${expected ?? DASH} · найдено ${actual ?? DASH}`;
+    }
     case "I-4": return `Неразобранных уроков: ${actual ?? DASH}`;
     default: return expected === null && actual === null ? DASH : `${money(expected)} → ${money(actual)}`;
   }
+}
+
+/** The key of a divergence that stays the same between nights (the centre, the invariant and the subject): the open panel finds its divergence again after a re-read. */
+export function findingKey(finding: Pick<MoneyFinding, "orgId" | "invariant" | "subjectKey">): string {
+  return `${finding.orgId}|${finding.invariant}|${finding.subjectKey}`;
 }
 
 /** The extra facts of the open divergence (ids and counts of the server's `details`, in words); never a name. */

@@ -140,7 +140,7 @@ export function LessonReturnDialog({
         </>
       )}
     >
-      <form id="lesson-return-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3 pb-2" noValidate>
+      <form id="lesson-return-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-3 pb-2" noValidate>
         <p className="text-sm leading-6 text-slate-700">{RETURN_LESSON_EXPLAIN}</p>
         <MoneyEffectsBlock preview={preview} onRetry={retry} aboveLessonPanel={aboveLessonPanel} />
         <ReasonField id="lesson-return-reason" value={reason} onChange={(text) => { setReason(text); setReasonError(null); setError(null); }} disabled={busy} />
@@ -233,7 +233,7 @@ export function ReturnToReviewDialog({
         </>
       )}
     >
-      <form id="return-review-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3 pb-2" noValidate>
+      <form id="return-review-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-3 pb-2" noValidate>
         <div className="space-y-1 text-sm leading-6 text-slate-700">
           <p>{RETURN_REVIEW_EXPLAIN}</p>
           <p>{RETURN_REVIEW_PAY}</p>

@@ -25,6 +25,9 @@ import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { formConfirmState } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { canManageMoney } from "@/lib/money-effects";
+import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
+import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 
 interface Student {
@@ -85,7 +88,10 @@ export function AddStudentDrawer({
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
   // Students already in another group: move them here or keep both groups.
-  const [mode, setMode] = useState<GroupJoinMode>("transfer");
+  const [chosenMode, setMode] = useState<GroupJoinMode>("transfer");
+  // R3 M2: a transfer moves money - the money right only; without it the mode is «add» and the switch is not there
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
+  const mode = effectiveEnrolMode(chosenMode, moneyRight);
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
@@ -291,7 +297,12 @@ export function AddStudentDrawer({
       footerClassName="p-3 sm:p-4 space-y-2 sm:space-y-3"
       footer={
         <>
-        {transfers.length > 0 && (
+        {transfers.length > 0 && !moneyRight && (
+          <div role="note" data-testid="enrol-second-group" className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {transfers.map((t) => <p key={t.id}>{secondGroupLine(t)}</p>)}
+          </div>
+        )}
+        {transfers.length > 0 && moneyRight && (
           <fieldset>
             <legend className="mb-1 text-xs font-semibold text-slate-600">
               {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}

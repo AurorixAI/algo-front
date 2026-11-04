@@ -1,0 +1,219 @@
+{
+ "findings": [
+  {
+   "id": "f1",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": 300000,
+   "actual": 250000,
+   "details": {
+    "what": "identity",
+    "charged": 500000,
+    "paid": 200000
+   },
+   "isNew": true
+  },
+  {
+   "id": "f2",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1:statement",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": -250000,
+   "actual": -300000,
+   "details": {
+    "what": "statement"
+   },
+   "isNew": false
+  },
+  {
+   "id": "f3",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1:paid",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": 250000,
+   "actual": 200000,
+   "details": {
+    "what": "paid_rows"
+   },
+   "isNew": true
+  },
+  {
+   "id": "f4",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1:refunded",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": 40000,
+   "actual": 0,
+   "details": {
+    "what": "refund_rows"
+   },
+   "isNew": false
+  },
+  {
+   "id": "f5",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1:writeoff",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": 300000,
+   "actual": 350000,
+   "details": {
+    "what": "writeoff_exceeds_charged"
+   },
+   "isNew": true
+  },
+  {
+   "id": "f6",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-1",
+   "what": "долг, начислено и оплачено не сходятся",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1:outflow",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": 100000,
+   "actual": 450000,
+   "details": {
+    "what": "outflow_exceeds_inflow"
+   },
+   "isNew": false
+  },
+  {
+   "id": "f7",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-3",
+   "what": "в сохранённой ведомости зарплата не сходится с уроками",
+   "subjectKey": "sheet-total:00000000-0000-0000-0000-0000000000c1",
+   "subjectId": "00000000-0000-0000-0000-0000000000c1",
+   "month": "2026-10",
+   "expected": 475000,
+   "actual": 600000,
+   "details": {
+    "what": "total"
+   },
+   "isNew": true
+  },
+  {
+   "id": "f8",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-3",
+   "what": "в сохранённой ведомости зарплата не сходится с уроками",
+   "subjectKey": "sheet-lessons:00000000-0000-0000-0000-0000000000c1",
+   "subjectId": "00000000-0000-0000-0000-0000000000c1",
+   "month": "2026-10",
+   "expected": 0,
+   "actual": 1,
+   "details": {
+    "what": "not_held",
+    "lessons": [
+     "2026-10-07|g1"
+    ]
+   },
+   "isNew": false
+  },
+  {
+   "id": "f9",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-3",
+   "what": "в сохранённой ведомости зарплата не сходится с уроками",
+   "subjectKey": "sheet-marks:00000000-0000-0000-0000-0000000000c1",
+   "subjectId": "00000000-0000-0000-0000-0000000000c1",
+   "month": "2026-10",
+   "expected": 0,
+   "actual": 1,
+   "details": {
+    "what": "line_without_marks",
+    "lines": [
+     "L2"
+    ]
+   },
+   "isNew": true
+  },
+  {
+   "id": "f10",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-3",
+   "what": "в сохранённой ведомости зарплата не сходится с уроками",
+   "subjectKey": "sheet-drift:00000000-0000-0000-0000-0000000000c1",
+   "subjectId": "00000000-0000-0000-0000-0000000000c1",
+   "month": "2026-10",
+   "expected": 600000,
+   "actual": 475000,
+   "details": {
+    "what": "drift",
+    "changedBy": 125000
+   },
+   "isNew": false
+  },
+  {
+   "id": "f11",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-4",
+   "what": "в закрытом месяце остался неразобранный урок",
+   "subjectKey": "closed-open-lessons:00000000-0000-0000-0000-0000000000d1:2026-10",
+   "subjectId": "00000000-0000-0000-0000-0000000000d1",
+   "month": "2026-10",
+   "expected": 0,
+   "actual": 2,
+   "details": {
+    "lessons": [
+     "2026-10-12|g1",
+     "2026-10-14|g2"
+    ]
+   },
+   "isNew": true
+  },
+  {
+   "id": "f12",
+   "orgId": "00000000-0000-0000-0000-0000000000a1",
+   "orgName": "Центр «Альфа»",
+   "invariant": "I-2",
+   "what": "«оплачено до» изменилось без записи в журнале",
+   "subjectKey": "membership:00000000-0000-0000-0000-0000000000b1",
+   "subjectId": "00000000-0000-0000-0000-0000000000b1",
+   "month": null,
+   "expected": null,
+   "actual": null,
+   "details": {
+    "covered_through": [
+     "2026-10-31",
+     "2026-11-15"
+    ],
+    "lessons_covered": [
+     null,
+     null
+    ],
+    "paid": [
+     300000,
+     300000
+    ]
+   },
+   "isNew": false
+  }
+ ]
+}

@@ -125,7 +125,7 @@ export function ReopenMonthDialog({
         </>
       )}
     >
-      <form id="reopen-month-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-2 pb-2" noValidate>
+      <form id="reopen-month-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>
         <p className="text-sm leading-6 text-slate-700">{REOPEN_EXPLAIN}</p>
         <label htmlFor="reopen-month-reason" className="block pt-1 text-xs font-semibold text-slate-600">{REOPEN_REASON_LABEL}</label>
         <textarea

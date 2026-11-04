@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { lockScroll } from "@/lib/scroll-lock";
 import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
 import { modalLayout, shouldRememberOpener } from "@/lib/modal-layout";
+
+/**
+ * R3 M1: the `submit` of a React portal climbs the REACT tree, not the DOM one: a dialog opened from inside a form (the notice «Переоткрыть месяц» in the form of a pause) would send
+ * the form around it.  A dialog is a boundary - what is submitted inside it is its own.
+ */
+export function stopFormSubmit(event: { stopPropagation: () => void }): void {
+  event.stopPropagation();
+}
 
 /** A click on the backdrop right after the dialog opened is the tail of the double click that opened it: not a dismissal. */
 export const BACKDROP_GRACE_MS = 300;
@@ -157,6 +165,8 @@ export function Modal({
   // On open focus the first field (or the first control); on close return focus to the opener.
   useDialogFocus(open, dialogRef, { ready: mounted });
 
+  // LESSONS 94: the dialog is named by its own heading.
+  const titleId = useId();
   const side = placement === "right" || placement === "sheet";
   // A bottom sheet slides up, a side sheet slides in; the choice is made when the dialog opens (the viewport is known by then).
   const slideUp = placement === "sheet" && mounted && typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
@@ -171,7 +181,7 @@ export function Modal({
           </div>
         )}
         <div className="min-w-0">
-          <h2 className={layout.title}>{title}</h2>
+          <h2 id={titleId} className={layout.title}>{title}</h2>
           {description && <div className="mt-1 text-xs text-slate-500">{description}</div>}
         </div>
       </div>
@@ -210,7 +220,8 @@ export function Modal({
                 tabIndex={-1}
                 role="dialog"
                 aria-modal="true"
-                aria-label={title}
+                aria-labelledby={titleId}
+                onSubmit={stopFormSubmit}
                 initial={slideUp ? { y: "100%" } : { x: "100%" }}
                 animate={slideUp ? { y: 0 } : { x: 0 }}
                 exit={slideUp ? { y: "100%" } : { x: "100%" }}
@@ -229,7 +240,8 @@ export function Modal({
                 tabIndex={-1}
                 role="dialog"
                 aria-modal="true"
-                aria-label={title}
+                aria-labelledby={titleId}
+                onSubmit={stopFormSubmit}
                 initial={{ opacity: 0, scale: 0.96, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 10 }}
