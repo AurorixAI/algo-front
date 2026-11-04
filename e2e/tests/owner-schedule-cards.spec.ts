@@ -103,7 +103,8 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await expect(moved).not.toContainText("Отменён");
   await moved.click();
   const movedSheet = page.getByRole("dialog", { name: "Для переноса" });
-  await expect(movedSheet).toContainText(/Перенесён на \S+, \d\d\.\d\d, 19:00/);
+  // one text with the teacher's panel (owner decision 04.11, `movedAwayLines`)
+  await expect(movedSheet).toContainText(/Урок перенесён на \S+, \d\d\.\d\d, 19:00/);
   await expect(movedSheet).toContainText("Причина: Перенос по просьбе преподавателя");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
