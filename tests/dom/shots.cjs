@@ -1,0 +1,113 @@
+// R3 (unconfirmed 4): `node tests/dom/shots.cjs <out dir> [css file]` - PNGs of the windows of the round at 1280 and 375, by the REAL components in the REAL Modal, with checks: no horizontal scroll of the page, no
+// control of a window outside the screen, no window wider than the screen.  The same stub of the server as the DOM tests; the tailwind CSS of the project is the second argument.
+const fs = require("node:fs");
+const path = require("node:path");
+const out = process.argv[2];
+if (process.argv[3]) process.env.DOM_CSS = process.argv[3];
+const { launch, openPage } = require("../helpers/dom-page.cjs");
+const { fixture, OWNER_EFFECTS, EMPTY_EFFECTS } = require("../helpers/dom-answers.cjs");
+
+const isDry = (call) => /dry_run=true/.test(call.query);
+const PAUSE_LOCKED = { code: "PAUSE_LOCKED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 03.11.2026. Чтобы исправить, владелец переоткрывает месяц.", month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-03" };
+const STUDENT = { id: "st1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "active", group_id: "g1", current_group_id: "g1", groups_count: 1 };
+const DAYS_OFF = [{ id: "d1", dateFrom: "2026-11-23", dateTo: "2026-11-23", reason: "Праздник", createdAt: "2026-11-01T10:00:00", createdByName: "Арслан", voidedAt: null, active: true }];
+const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, refundable: 344000 };
+const MEMBERSHIP = { membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" };
+
+const server = (request) => {
+  const { method, path: p } = request;
+  if (method === "GET" && p === "/auth/org/memberships/m1/pauses") return { json: [] };
+  if (method === "POST" && p === "/auth/org/memberships/m1/pauses" && isDry(request)) return { status: 422, json: { detail: PAUSE_LOCKED } };
+  if (method === "GET" && p === "/auth/org/payroll-periods") return { json: { month: "2026-10", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-10", state: "closed", closedOn: "2026-11-03", sheetId: "s1", sheetRevision: 3, reopened: null }] } };
+  if (method === "GET" && p === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра" }, { id: "g2", name: "7-Б Геометрия" }] };
+  if (method === "GET" && p === "/auth/org/students") return { json: { items: [STUDENT], total: 1 } };
+  if (method === "POST" && p === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, carried: [{ code: "PAYMENT_CARRIED", message: "Оплата 300 000 сум перенесётся в новую группу" }, { code: "DEBT_CARRIED", message: "Долг 50 000 сум перенесётся вместе с учеником" }], money_effects: { ...OWNER_EFFECTS, students: [{ studentId: "st1", name: "Иванов Иван", delta: 1 }] } } };
+  if (method === "GET" && p === "/auth/org/days-off") return { json: DAYS_OFF };
+  if (method === "POST" && p === "/auth/org/days-off/preview") return { json: { dateFrom: "2026-11-23", dateTo: "2026-11-23", cancellable: [{ lessonId: "l1", groupId: "g1", groupName: "7-А Алгебра", date: "2026-11-23", startTime: "16:00", endTime: "17:00" }], blocked: [], alreadyCancelled: 0, groups: 1, text: "Будет отменён 1 урок в 1 группе" } };
+  if (method === "POST" && p === "/auth/org/memberships/m1/payments" && isDry(request)) return { json: { ...fixture("e1_create_300000"), dry_run: true, money_effects: OWNER_EFFECTS } };
+  if (method === "GET" && p === "/auth/org/memberships/m1/payments/preview") return { json: fixture("e1_preview_300000") };
+  if (method === "POST" && p === "/auth/org/payments/p1/void" && isDry(request)) return { json: { ...fixture("e1_void_300000"), money_effects: OWNER_EFFECTS } };
+  if (method === "POST" && p === "/auth/org/memberships/m1/writeoffs" && isDry(request)) return { json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } };
+  if (method === "POST" && p === "/auth/org/groups/g1/lessons/restore") return { json: { ok: true, restored: false, dryRun: true, returnedToReview: true, moneyEffects: OWNER_EFFECTS, deductions: [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }, { studentId: "s2", name: "Петрова Мария", amount: 46000 }, { studentId: "s3", name: "Сидоров Пётр", amount: 46000 }] } };
+  return null;
+};
+
+// every window of the round: the scenario, what to do after it is mounted, and the name of the picture
+const SHOTS = [
+  { name: "01-till", entry: "money.entry.tsx", mount: "till", user: undefined, act: async (page) => {
+    await page.waitForTimeout(600);
+    await page.fill("#payment-amount", "300000");
+    await page.click('[data-testid="payment-methods"] >> text=Наличные');
+    await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  } },
+  { name: "02-pause-closed", entry: "shots.entry.tsx", mount: "pause", act: async (page) => {
+    await page.waitForSelector("#pause-last");
+    const today = await page.evaluate(() => new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10));
+    const last = new Date(Date.parse(today) + 3 * 86400000).toISOString().slice(0, 10);
+    await page.fill("#pause-last", `${last.slice(8, 10)}${last.slice(5, 7)}${last.slice(0, 4)}`);
+    await page.waitForSelector('[data-testid="period-closed-reopen"]');
+  } },
+  { name: "03-pause-reopen-nested", entry: "shots.entry.tsx", mount: "pause", act: async (page) => {
+    await page.waitForSelector("#pause-last");
+    const today = await page.evaluate(() => new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10));
+    const last = new Date(Date.parse(today) + 3 * 86400000).toISOString().slice(0, 10);
+    await page.fill("#pause-last", `${last.slice(8, 10)}${last.slice(5, 7)}${last.slice(0, 4)}`);
+    await page.click('[data-testid="period-closed-reopen"]');
+    await page.fill("#reopen-month-reason", "ошибочно отметили урок");
+    await page.waitForSelector('[data-testid="reopen-submit"]:not([disabled])');
+  } },
+  { name: "04-add-student-owner-transfer", entry: "shots.entry.tsx", mount: "addStudent", act: async (page) => {
+    await page.fill('input[placeholder^="Поиск по имени"]', "Ив");
+    await page.click('button:has-text("Иванов Иван")');
+    await page.waitForSelector('[data-testid="transfer-carried"]');
+  } },
+  { name: "05-add-student-admin-no-right", entry: "shots.entry.tsx", mount: "addStudent", user: { role: "admin", org_role: "admin", payments_access: false }, act: async (page) => {
+    await page.fill('input[placeholder^="Поиск по имени"]', "Ив");
+    await page.click('button:has-text("Иванов Иван")');
+    await page.waitForSelector('[data-testid="enrol-second-group"]');
+  } },
+  { name: "06-days-off-owner", entry: "shots.entry.tsx", mount: "daysOff", act: async (page) => { await page.waitForSelector('[data-testid="day-off-new"]'); } },
+  { name: "07-days-off-admin-no-right", entry: "shots.entry.tsx", mount: "daysOff", user: { role: "admin", org_role: "admin", payments_access: false }, act: async (page) => { await page.waitForSelector('[data-testid="day-off-no-right"]'); } },
+  { name: "08-day-off-dialog", entry: "shots.entry.tsx", mount: "dayOffDialog", act: async (page) => {
+    await page.waitForTimeout(500);
+    const field = page.locator('input[placeholder="дд.мм.гггг"]').nth(1);
+    await field.fill("23112026");
+    await page.waitForTimeout(800);
+  } },
+  { name: "09-void-payment", entry: "money.entry.tsx", mount: "voidPayment", act: async (page) => { await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); await page.fill("#record-void-reason", "оплата внесена по ошибке"); } },
+  { name: "10-writeoff", entry: "money.entry.tsx", mount: "writeoff", act: async (page) => { await page.waitForTimeout(500); await page.fill("#writeoff-reason", "болезнь, договорились с родителем"); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); } },
+  { name: "11-return-to-review", entry: "money.entry.tsx", mount: "review", act: async (page) => { await page.waitForSelector('[data-testid="return-review-deductions"]'); await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке"); } },
+  { name: "12-open-lessons-question", entry: "shots.entry.tsx", mount: "openLessonsQuestion", act: async (page) => { await page.waitForSelector('[role="dialog"]'); } },
+  { name: "13-payout-open-month", entry: "shots.entry.tsx", mount: "payoutBlock", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
+  { name: "14-payout-dialog-open-month", entry: "shots.entry.tsx", mount: "payoutDialog", act: async (page) => { await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(300); } },
+  { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
+];
+
+(async () => {
+  fs.mkdirSync(out, { recursive: true });
+  const browser = await launch();
+  const report = [];
+  for (const shot of SHOTS) {
+    for (const [width, height] of [[1280, 900], [375, 812]]) {
+      const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
+      await page.evaluate(([fn, name, user]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }]);
+      try { await shot.act(page); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }
+      await page.waitForTimeout(500);
+      const metrics = await page.evaluate(() => {
+        const vw = window.innerWidth;
+        const dialog = document.querySelector('[role="dialog"]');
+        const box = dialog ? dialog.getBoundingClientRect() : null;
+        const controls = [...document.querySelectorAll('[role="dialog"] button, [role="dialog"] a, [role="dialog"] input, [role="dialog"] textarea')].filter((el) => el.getBoundingClientRect().width > 0)
+          .filter((el) => { const r = el.getBoundingClientRect(); return r.right > vw + 1 || r.left < -1; }).map((el) => (el.textContent || el.getAttribute("aria-label") || el.tagName).trim().slice(0, 30));
+        const cut = dialog ? [...dialog.querySelectorAll("button")].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent.trim().slice(0, 30)) : [];
+        return { scrollX: document.documentElement.scrollWidth - vw, dialogWider: box ? Math.round(box.right - vw) : null, outside: controls, truncated: cut };
+      });
+      const file = path.join(out, `${shot.name}-${width}.png`);
+      await page.screenshot({ path: file });
+      report.push(`${shot.name} ${width}: pageScroll=${metrics.scrollX} dialogOverflow=${metrics.dialogWider} controlsOutside=${JSON.stringify(metrics.outside)} buttonsCut=${JSON.stringify(metrics.truncated)}${errors.filter((e) => !/404|Failed to load/.test(e)).length ? ` errors=${errors.length}` : ""}`);
+      await page.close();
+    }
+  }
+  await browser.close();
+  console.log(report.join("\n"));
+})();
