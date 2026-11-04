@@ -277,3 +277,13 @@ test("every scenario of the mock has ONE count: sum of the map = total, sum of i
   assert.deepEqual(degraded.report_meta.degraded, ["bank_tasks"]);
   assert.ok(degraded.action_plan.every((step) => step.material === null && step.check === null && step.evidence.length > 0));
 });
+
+test("rel-n4: the bank code of a task is never shown on the report (owner 04.11) - only its statement", () => {
+  const page = code(read(PAGE));
+  const ref = page.slice(page.indexOf("function TaskRef"), page.indexOf("function JournalPager"));
+  assert.ok(ref.length > 100, "TaskRef is found");
+  assert.ok(ref.includes("TaskStatement"), "TaskRef shows the statement");
+  assert.doesNotMatch(ref, /\{task\.taskId\}/, "TaskRef renders no code");
+  assert.doesNotMatch(page, /\{line\.taskId\}/, "a basis line renders no code");
+  assert.doesNotMatch(page, /"в задании"/, "no dangling «в задании» without a code");
+});

@@ -261,16 +261,17 @@ function StepLine({ label, testId, children }: { label: string; testId: string; 
   );
 }
 
-/** A bank task as a reference: its code and, under it, the statement. */
+/** A bank task as a reference: its statement only - the bank code is internal and not shown to staff (owner 04.11). */
 function TaskRef({ task }: { task: { taskId: string; text: string | null; latex: string | null } }) {
   return (
-    <div className="min-w-0 space-y-0.5">
-      <span className="inline-block max-w-full break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">{task.taskId}</span>
-      {(task.text || task.latex) && (
+    <div className="min-w-0">
+      {task.text || task.latex ? (
         <TaskStatement
           task={{ question_text: task.text || "", question_latex: task.latex }}
           className="min-w-0 max-w-full text-xs leading-snug text-slate-700 break-words"
         />
+      ) : (
+        <span className="text-xs text-slate-500">Задание из банка</span>
       )}
     </div>
   );
@@ -1740,10 +1741,9 @@ export default function DiagnosticReportPage() {
                                                 № {line.journalNo}
                                               </button>
                                             ) : (
-                                              <span className="text-slate-500">Верный ответ</span>
+                                              <span className="text-slate-500">Верный ответ:</span>
                                             )}
-                                            <span className="text-slate-600">{line.correct ? "в задании" : "выбран ответ"}</span>
-                                            {line.correct && line.taskId && <span className="break-all font-mono text-[11px] text-slate-700">{line.taskId}</span>}
+                                            {!line.correct && <span className="text-slate-600">выбран ответ</span>}
                                             {shown && <MathRenderer text={shown} className="min-w-0 max-w-full break-words text-slate-900" />}
                                             {line.deepScan && <span className="text-[11px] text-slate-500">({DEEP_SCAN_RU.toLowerCase()})</span>}
                                           </div>
