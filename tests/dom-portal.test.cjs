@@ -15,6 +15,9 @@ test("M1: the submit of a window inside a form does not reach the form around it
   await page.click("#inner-submit");
   await page.waitForTimeout(100);
   assert.deepEqual(await page.evaluate(() => window.__log), ["inner submit"], "the inner form is sent, the outer one is not");
+  // n2 (LESSONS 94): the dialog is named by its own heading, not by a copy of the text
+  const named = await page.evaluate(() => { const dialog = document.querySelector('[role="dialog"]'); const id = dialog.getAttribute("aria-labelledby"); return { id: Boolean(id), text: id ? document.getElementById(id)?.textContent : null, label: dialog.getAttribute("aria-label"), modal: dialog.getAttribute("aria-modal") }; });
+  assert.deepEqual(named, { id: true, text: "Вложенное окно", label: null, modal: "true" });
   assert.deepEqual(errors, []);
   await page.close();
 });

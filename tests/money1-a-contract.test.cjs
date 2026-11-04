@@ -237,3 +237,15 @@ test("R3 m7: the cancel of a payment is the one window of the cancels of money; 
   assert.equal(typeof plainPayment.preview, "function", "the dry run rides on the target");
   assert.equal(plainPayment.action, "Отменить оплату");
 });
+
+test("R3 n5: one literal for each sentence of the block of effects (no copy, no `.replace` of a sentence); the reason of a dry run lives in the shared module", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const all = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? all(path.join(dir, entry.name)) : [path.join(dir, entry.name)])).filter((file) => /\.(ts|tsx)$/.test(file));
+  const sources = all(path.join(env.root, "src")).map((file) => fs.readFileSync(file, "utf8")).join("\n");
+  assert.equal(sources.split("Считаем, что изменится с деньгами").length - 1, 1, "the loading sentence is written once");
+  assert.equal(sources.split("Считаем, что изменится при переводе").length - 1, 1);
+  assert.equal(sources.split("Проверка последствий").length - 1, 1, "the reason of a dry run is written once");
+  assert.doesNotMatch(sources, /EFFECTS_LOADING_TEXT\.replace/);
+  assert.equal(PD.DRY_RUN_REASON, "Проверка последствий");
+});
