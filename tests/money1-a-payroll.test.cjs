@@ -88,10 +88,12 @@ test("both pages ask BEFORE they save: the preview of the month page and every s
   const savePreview = month.slice(month.indexOf("const savePreview"), month.indexOf("const rerunPreview"));
   assert.ok(savePreview.indexOf("confirmUnfinishedLessons(") > 0 && savePreview.indexOf("confirmUnfinishedLessons(") < savePreview.indexOf("orgApi.savePayrollSheet("), "asked before the request");
   assert.ok(savePreview.indexOf("confirmUnfinishedLessons(") < savePreview.indexOf("patchPreview(teacherId, { saving: true"), "asked before the button turns to «saving»");
+  assert.match(savePreview, /if \(!\(await confirmUnfinishedLessons\(openLessonsGate\(\{\s*monthOpen: preview\.sheet\.month_open,[\s\S]*?\}\)\)\)\) return;/, "a «no» stops the saving");
   assert.match(savePreview, /unknown: warnings\.open_lessons === null/);
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
   const apply = page.slice(page.indexOf("const apply = async"), page.indexOf("const download = async"));
   assert.ok(apply.indexOf("confirmUnfinishedLessons(") > 0 && apply.indexOf("confirmUnfinishedLessons(") < apply.indexOf("orgApi.patchPayrollSheet("));
+  assert.match(apply, /if \(!\(await confirmUnfinishedLessons\(openLessonsGate\(\{\s*monthOpen: sheet\.month_open \|\| isOpenMonth\(sheet\.month, formatBusinessDate\(\)\),[\s\S]*?\}\)\)\)\) return;/, "a «no» stops the saving");
   assert.match(apply, /unknown: warningsFailed \|\| freshWarnings\?\.open_lessons_unknown === true/);
   assert.match(apply, /items: freshWarnings\?\.open_lesson_items/);
 });
