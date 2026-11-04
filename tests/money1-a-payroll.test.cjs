@@ -83,13 +83,20 @@ test("the question names the lessons (date, group when it is known, what is wron
   assert.match(OL.openLessonsQuestion({ kind: "list", count: 1, items: [ITEMS[0]] }).message, /^В месяце 1 незакрытый урок:/);
 });
 
-test("both pages ask BEFORE they save: the preview of the month page and every save of the sheet page", () => {
+test("both pages ask BEFORE they save: the month page asks what the server asks (R3 #21: confirm_open_lessons false -> 409 -> the list -> true), the sheet page keeps its own gate (PATCH has no flag)", () => {
   const month = read("src/components/payroll/payroll-month-page.tsx");
   const savePreview = month.slice(month.indexOf("const savePreview"), month.indexOf("const rerunPreview"));
-  assert.ok(savePreview.indexOf("confirmUnfinishedLessons(") > 0 && savePreview.indexOf("confirmUnfinishedLessons(") < savePreview.indexOf("orgApi.savePayrollSheet("), "asked before the request");
-  assert.ok(savePreview.indexOf("confirmUnfinishedLessons(") < savePreview.indexOf("patchPreview(teacherId, { saving: true"), "asked before the button turns to «saving»");
-  assert.match(savePreview, /if \(!\(await confirmUnfinishedLessons\(openLessonsGate\(\{\s*monthOpen: preview\.sheet\.month_open,[\s\S]*?\}\)\)\)\) return;/, "a «no» stops the saving");
+  // «не удалось проверить» is the one thing the server cannot see: asked here, before the request, and a «no» stops the saving
+  assert.match(savePreview, /if \(gate\.kind === "unknown" && !\(await confirmUnfinishedLessons\(gate\)\)\) return;/, "a «no» stops the saving");
+  assert.ok(savePreview.indexOf("gate.kind === \"unknown\"") < savePreview.indexOf("patchPreview(teacherId, { saving: true"), "asked before the button turns to «saving»");
   assert.match(savePreview, /unknown: warnings\.open_lessons === null/);
+  // the first request says `false`; the 409 of the server is answered with the list it sent; only «Сохранить всё равно» sends the same request again with `true`
+  assert.match(savePreview, /saved = await send\(false\);/);
+  assert.match(savePreview, /if \(!isOpenLessonsConfirm\(first\)\) throw first;/);
+  assert.match(savePreview, /if \(!\(await confirmUnfinishedLessons\(gateOfConfirmRefusal\(first\)\)\)\) return;/);
+  assert.match(savePreview, /saved = await send\(true\);/);
+  assert.ok(savePreview.indexOf("send(false)") < savePreview.indexOf("confirmUnfinishedLessons(gateOfConfirmRefusal") && savePreview.indexOf("confirmUnfinishedLessons(gateOfConfirmRefusal") < savePreview.indexOf("send(true)"));
+  assert.match(savePreview, /buildSaveBody\(preview\.sheet, preview\.edits, preview\.note, existing \? existing\.revision : null, confirmOpenLessons\)/);
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
   const apply = page.slice(page.indexOf("const apply = async"), page.indexOf("const download = async"));
   assert.ok(apply.indexOf("confirmUnfinishedLessons(") > 0 && apply.indexOf("confirmUnfinishedLessons(") < apply.indexOf("orgApi.patchPayrollSheet("));
@@ -181,9 +188,9 @@ test("«Переоткрыть месяц»: the dialog says what opening does, 
   assert.match(open, /<textarea id="reopen-month-reason"[^>]*maxLength="500"|maxlength="500"/i);
   assert.equal(html(React.createElement(ReopenMonthDialog, { target: null, onClose() {}, onReopened() {} })), "");
   const src = read("src/components/payroll/reopen-month-dialog.tsx");
-  assert.match(src, /if \(!target \|\| busy \|\| sending\.current\) return;/);          // LESSONS 27: a ref against a double press
+  assert.match(src, /if \(!target \|\| busy \|\| sending\.current \|\| typeof revision !== "number"\) return;/);          // LESSONS 27: a ref against a double press; R3 #11: nothing without the revision
   assert.match(src, /const problem = validateReopenReason\(reason\);\s*if \(problem\) \{ setError\(problem\); return; \}/);
-  assert.match(src, /orgApi\.reopenPayrollPeriod\(target\.month, buildReopenBody\(target\.teacherId, reason\)\)/);
+  assert.match(src, /orgApi\.reopenPayrollPeriod\(target\.month, buildReopenBody\(target\.teacherId, reason, revision\)\)/);
 });
 
 test("the notice of a closed month in a lesson window: the server's sentence for everybody, the button ONLY for the money right (owner, administrator with the right)", () => {
@@ -214,7 +221,7 @@ test("the sheet page and the month page read the state of the month from GET pay
   assert.match(month, /period=\{periodView\(periodOf\(periods, teacher\.teacher_id\)\)\}/);
   const api = read("src/lib/api.ts");
   assert.match(api, /getPayrollPeriods: \(month: string\) =>\s*api<PayrollPeriods>\(`\/auth\/org\/payroll-periods\?month=\$\{encodeURIComponent\(month\)\}`\)/);
-  assert.match(api, /reopenPayrollPeriod: \(month: string, body: \{ teacher_id: string; reason: string \}\) =>\s*api<ReopenResult>\(`\/auth\/org\/payroll-periods\/\$\{encodePathId\(month\)\}\/reopen`, \{ method: "POST", body \}\)/);
+  assert.match(api, /reopenPayrollPeriod: \(month: string, body: \{ teacher_id: string; reason: string; sheet_revision: number \}\) =>\s*api<ReopenResult>\(`\/auth\/org\/payroll-periods\/\$\{encodePathId\(month\)\}\/reopen`, \{ method: "POST", body \}\)/);
 });
 
 test("the client: the two calls go to the paths of the contract with the body of the contract", async () => {
@@ -231,7 +238,7 @@ test("the client: the two calls go to the paths of the contract with the body of
   try {
     const periods = await orgApi.getPayrollPeriods("2026-10");
     assert.equal(periods.items[0].state, "closed");
-    const done = await orgApi.reopenPayrollPeriod("2026-10", CP.buildReopenBody("t1", "ошибка"));
+    const done = await orgApi.reopenPayrollPeriod("2026-10", CP.buildReopenBody("t1", "ошибка", 4));
     assert.equal(done.state, "reopened");
   } finally {
     global.fetch = original;
@@ -239,5 +246,86 @@ test("the client: the two calls go to the paths of the contract with the body of
   assert.match(calls[0].url, /\/auth\/org\/payroll-periods\?month=2026-10$/);
   assert.equal(calls[0].method, "GET");
   assert.match(calls[1].url, /\/auth\/org\/payroll-periods\/2026-10\/reopen$/);
-  assert.deepEqual([calls[1].method, calls[1].body], ["POST", { teacher_id: "t1", reason: "ошибка" }]);
+  assert.deepEqual([calls[1].method, calls[1].body], ["POST", { teacher_id: "t1", reason: "ошибка", sheet_revision: 4 }]);
+});
+
+// ── R3 #11 (item 1): «Переоткрыть месяц» carries the revision of the sheet the screen saw ─────────────────────
+
+test("R3 item 1: the reopening sends `sheet_revision`; the button waits for it; 409 SHEET_CHANGED reads it again and asks once more (a late duplicate cannot reopen a month twice)", () => {
+  assert.equal(CP.buildReopenBody("t1", " ошибка ", 7).sheet_revision, 7);
+  assert.equal(CP.revisionOf({ items: [{ teacherId: "t1", sheetRevision: 5, state: "closed", month: "2026-10" }] }, "t1"), 5);
+  assert.equal(CP.revisionOf({ items: [{ teacherId: "t1", sheetRevision: null, state: "none", month: "2026-10" }] }, "t1"), null);
+  assert.equal(CP.revisionOf({ items: [] }, "t1"), null);
+  const src = read("src/components/payroll/reopen-month-dialog.tsx");
+  assert.match(src, /typeof revision !== "number"\) return;/, "no request without a revision");
+  assert.match(src, /if \(isSheetChanged\(cause\)\) void readRevision\(target\.month, target\.teacherId\);/);
+  const open = html(React.createElement(component("payroll/reopen-month-dialog.tsx").ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." }, onClose() {}, onReopened() {} }));
+  assert.match(open, /data-testid="reopen-reading"/, "while the revision is read the dialog says so");
+  assert.match(open, /data-testid="reopen-submit"[^>]*disabled/, "and the button waits");
+  const known = html(React.createElement(component("payroll/reopen-month-dialog.tsx").ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", sheetRevision: 3 }, onClose() {}, onReopened() {} }));
+  assert.ok(!/reopen-reading/.test(known));
+});
+
+// ── R3 #21 (item 10): the save with `confirm_open_lessons` ───────────────────────────────────────────────
+
+test("R3 item 10: the body of a save carries `confirm_open_lessons`; the 409 OPEN_LESSONS_CONFIRM_REQUIRED becomes the list (date, group) and «Сохранить всё равно»", () => {
+  const body = (flag) => R.buildSaveBody(sheet({ saved: false, revision: null }), { lines: {}, groups: {} }, "", null, flag);
+  assert.equal(body(false).confirm_open_lessons, false);
+  assert.equal(body(true).confirm_open_lessons, true);
+  assert.ok(!("confirm_open_lessons" in body(undefined)), "nothing is sent when the caller did not ask");
+  const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "x", detail: { message: "x", count: 2, items: [
+    { lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" },
+    { lessonDate: "2026-10-14", groupId: "g2", groupName: "9-Б Геометрия", lessonId: "l2", kind: "in_progress" }] } };
+  assert.equal(OL.isOpenLessonsConfirm(refusal), true);
+  assert.equal(OL.isOpenLessonsConfirm({ status: 409, code: "SHEET_REVISION_CONFLICT" }), false);
+  const gate = OL.gateOfConfirmRefusal(refusal);
+  assert.deepEqual([gate.kind, gate.count, gate.items.length], ["list", 2, 2]);
+  const q = OL.openLessonsQuestion(gate);
+  assert.equal(q.title, "Сохранить ведомость с незакрытыми уроками?");
+  assert.equal(q.confirmLabel, "Сохранить всё равно");
+  const lines = q.message.split("\n");
+  assert.ok(lines.includes("12.10 · 7-А Алгебра · Посещаемость не отмечена"), "the group name is the server's `groupName`");
+  assert.ok(lines.includes("14.10 · 9-Б Геометрия · Урок не завершён"));
+  // a refusal without a list still asks (the count is the server's)
+  assert.equal(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 3 } }).count, 3);
+  assert.equal(OL.openLessonItemLine({ lessonDate: "2026-10-12", groupId: "g", lessonId: "l", kind: "missed", groupName: "  " }, new Map()), "12.10 · Посещаемость не отмечена");
+});
+
+test("R3 item 9: `open_lesson_items` carry `groupName` - the question needs no second request for the names", () => {
+  const src = read("src/components/payroll/confirm-open-lessons.ts");
+  assert.match(src, /needNames = gate\.kind === "list" && gate\.items\.some\(\(item\) => !\(item\.groupName \?\? ""\)\.trim\(\)\)/);
+  const item = { lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" };
+  assert.equal(OL.openLessonItemLine(item), "12.10 · 7-А Алгебра · Посещаемость не отмечена");
+  assert.equal(OL.openLessonItemLine(item, new Map([[OL.openLessonItemKey(item), "другое имя"]])), "12.10 · 7-А Алгебра · Посещаемость не отмечена", "the server's name wins over the map");
+});
+
+// ── R3 #20 (item 11): an OPEN month is paid by what is accrued now ─────────────────────────────────────
+
+const FRESH = { saved_total: 400000, fresh_total: 600000, target: 600000, paid: 475000, balance: 125000, state: "due", basis: "fresh", changed_by: 200000, change_text: null,
+  text: "Месяц открыт: начислено сейчас 600 000 сум, выплачено 475 000 сум, к выплате 125 000 сум", items: [], carry_in: 0, carry_used: 0, advance_out: 0 };
+
+test("R3 item 11: an open month says «начислено сейчас N, выплачено M, к выплате N−M» (the server's sentence) and labels the sum «Начислено сейчас»; a closed month is as before", () => {
+  const state = Y.normalizePayoutState(FRESH);
+  assert.equal(state.basis, "fresh");
+  assert.equal(Y.payoutNote(state), FRESH.text);
+  const parts = Y.sheetPayoutParts(state).map((part) => [part.label, plain(part.value)]);
+  assert.deepEqual(parts.map((part) => part[0]), ["Начислено сейчас", "Выплачено", "Осталось выплатить"]);
+  assert.equal(plain(Y.payoutChip(state).text), "Выплачено 475 000 сум из 600 000 сум");
+  const closed = Y.normalizePayoutState({ ...FRESH, basis: "saved", text: "Выплачено 475 000 из 600 000" });
+  assert.equal(Y.payoutNote(closed), null, "the closed month keeps its chip and figures, no extra sentence");
+  assert.equal(Y.sheetPayoutParts(closed)[0].label, "К выплате");
+  // the sentence is on the screens: the block of a sheet and the window of the payout
+  signIn({ org_role: "owner" });
+  const { SheetPayoutBlock } = component("payroll/payout-block.tsx");
+  const block = textOf(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout: FRESH, onChanged() {} })));
+  assert.ok(block.includes("Месяц открыт: начислено сейчас 600 000 сум, выплачено 475 000 сум, к выплате 125 000 сум"));
+  assert.ok(block.includes("Начислено сейчас"));
+});
+
+test("R3 item 11: a payout above what is accrued needs the owner's yes («больше начисленного сейчас»); the closed month keeps «больше остатка»", () => {
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "fresh")), "Выплата больше начисленного сейчас на 25 000 сум — записать как аванс?");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "saved")), "Выплата больше остатка на 25 000 сум — записать как аванс?");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Выплата больше остатка на 25 000 сум — записать как аванс?");
+  assert.deepEqual(Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" }, 25000), { amount: 150000, paid_on: "2026-11-05", method: "cash", confirm_overpay: true, overpay: 25000 });
+  assert.ok(!("confirm_overpay" in Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" })), "never sent by default");
 });

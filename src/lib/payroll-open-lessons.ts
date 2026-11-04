@@ -45,10 +45,23 @@ export function openLessonItemKey(item: Pick<OpenLessonItem, "lessonId" | "lesso
   return `${item.lessonId}|${item.lessonDate}`;
 }
 
-/** «14.10 · 8-Б · Посещаемость не отмечена» (the group is left out when its name is not known). */
-export function openLessonItemLine(item: OpenLessonItem, groupNames: ReadonlyMap<string, string>): string {
+/** «14.10 · 8-Б · Посещаемость не отмечена» (the group is the server's `groupName`, else from the map of «Незакрытые уроки», else left out). */
+export function openLessonItemLine(item: OpenLessonItem, groupNames: ReadonlyMap<string, string> = new Map()): string {
   const day = formatDateRu(item.lessonDate).slice(0, 5);
-  return [day, groupNames.get(openLessonItemKey(item)), openLessonKindText(item.kind)].filter(Boolean).join(" · ");
+  return [day, (item.groupName ?? "").trim() || groupNames.get(openLessonItemKey(item)), openLessonKindText(item.kind)].filter(Boolean).join(" · ");
+}
+
+/** 409 `OPEN_LESSONS_CONFIRM_REQUIRED` of the saving of a sheet: the owner is asked, the same request goes again with `confirm_open_lessons: true`. */
+export function isOpenLessonsConfirm(error: unknown): boolean {
+  return (error as { code?: unknown } | null | undefined)?.code === "OPEN_LESSONS_CONFIRM_REQUIRED";
+}
+
+/** The gate of that refusal: the count and the lessons the server named (`detail.count`, `detail.items`). */
+export function gateOfConfirmRefusal(error: unknown): OpenLessonsGate {
+  const detail = ((error as { detail?: unknown } | null | undefined)?.detail ?? {}) as { count?: unknown; items?: unknown };
+  const items = Array.isArray(detail.items) ? (detail.items as OpenLessonItem[]).filter((item) => item && typeof item.lessonDate === "string") : [];
+  const count = typeof detail.count === "number" && Number.isFinite(detail.count) ? detail.count : items.length;
+  return { kind: "list", count: Math.max(count, items.length), items };
 }
 
 export const OPEN_LESSONS_SAVE_LABEL = "Сохранить всё равно";

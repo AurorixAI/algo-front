@@ -228,7 +228,7 @@ export function monthPayoutTail(teachers: ReadonlyArray<{ payout?: PayoutState |
 export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> {
   if (!state) return [];
   const parts: Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> = [
-    { label: "К выплате", value: formatMoney(state.target), tone: "plain" },
+    { label: state.basis === "fresh" ? "Начислено сейчас" : "К выплате", value: formatMoney(state.target), tone: "plain" },
     ...(state.carry_used > 0 ? [{ label: "Аванс прошлого месяца", value: formatMoney(state.carry_used), tone: "plain" as const }] : []),
     { label: "Выплачено", value: formatMoney(state.paid), tone: "plain" },
   ];
@@ -243,6 +243,8 @@ export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{
  */
 export function payoutNote(state: PayoutState | null | undefined): string | null {
   if (!state || !state.text) return null;
+  // R3 #20: a month that is still open is paid by what is accrued NOW - the sentence of the server says it: «Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M»
+  if (state.basis === "fresh") return state.text;
   return state.state === "settled" && state.paid === 0 && state.carry_used > 0 ? state.text : null;
 }
 
@@ -311,8 +313,11 @@ export function buildPayoutBody(values: PayoutFormValues, confirmedOverpay: numb
 }
 
 /** MN-32: the question of the window when the SERVER says the payout is above the balance (it counts the balance under the lock of the sheet, the screen may be stale). */
-export function payoutOverpayQuestion(overpay: number): string {
-  return `Выплата больше остатка на ${formatMoney(overpay)} — записать как аванс?`;
+export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis"] = "saved"): string {
+  // an open month is paid by what is accrued now (R3 #20): the payout above it is an advance on what the month has not earned yet
+  return basis === "fresh"
+    ? `Выплата больше начисленного сейчас на ${formatMoney(overpay)} — записать как аванс?`
+    : `Выплата больше остатка на ${formatMoney(overpay)} — записать как аванс?`;
 }
 
 export const PAYOUT_ADVANCE_LABEL = "Записать как аванс";

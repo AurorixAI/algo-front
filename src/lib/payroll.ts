@@ -331,6 +331,8 @@ export interface PayrollGroupBlock {
 export interface OpenLessonItem {
   lessonDate: string;
   groupId: string;
+  /** R3 #26: the name of the group (the list of the warning and of the question is readable without a second request). */
+  groupName?: string | null;
   lessonId: string;
   kind: string;
 }
@@ -528,6 +530,8 @@ export interface PayrollSaveBody {
   revision?: number;
   /** `source_fingerprint` of the preview the owner looked at: if the data moved since, nothing is saved (409 SHEET_DATA_CHANGED). */
   expected_fingerprint?: string;
+  /** R3 #21: `false` - a month that is over with an unfinished lesson of the teacher answers 409 `OPEN_LESSONS_CONFIRM_REQUIRED` (the lessons) instead of saving; `true` - the owner said «сохранить всё равно». */
+  confirm_open_lessons?: boolean;
 }
 
 export interface PayrollPatchBody {
@@ -987,7 +991,7 @@ export function cleanNote(text: string): string | undefined {
 }
 
 /** `existingRevision`: the version of the sheet the teacher already has for the month (required then), else null. */
-export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: string, existingRevision: number | null): PayrollSaveBody {
+export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: string, existingRevision: number | null, confirmOpenLessons?: boolean): PayrollSaveBody {
   const overrides = buildLineOverrides(sheet, edits);
   const body: PayrollSaveBody = { month: sheet.month, teacher_id: sheet.teacher_id };
   if (overrides.length > 0) body.line_overrides = overrides;
@@ -996,6 +1000,7 @@ export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: stri
   if (existingRevision !== null) body.revision = existingRevision;
   // The preview the owner is looking at: if the data moved since, the server saves nothing.
   if (sheet.source_fingerprint) body.expected_fingerprint = sheet.source_fingerprint;
+  if (confirmOpenLessons !== undefined) body.confirm_open_lessons = confirmOpenLessons;
   return body;
 }
 

@@ -60,7 +60,7 @@ test("the dialog asks only what the server asked, and sends the flag only on «�
   assert.match(dialog, /overpay !== null \? PAYOUT_ADVANCE_LABEL : "Сохранить"/);
   assert.match(dialog, /overpay !== null \? \(\) => setOverpay\(null\) : onClose/, "«Отмена» of the question returns to the form, of the form closes");
   assert.match(dialog, /if \(sending\.current\) return;\s+sending\.current = true;/, "a second Enter / click before the next render (LESSONS 27)");
-  assert.match(dialog, /payoutOverpayQuestion\(overpay\)/);
+  assert.match(dialog, /payoutOverpayQuestion\(overpay, state\?\.basis\)/);
 });
 
 test("MUTATIONS: the guards removed from a copy of the dialog are caught by the same pins", () => {

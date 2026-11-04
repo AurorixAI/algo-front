@@ -49,7 +49,7 @@ import {
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
-import { openLessonsGate } from "@/lib/payroll-open-lessons";
+import { gateOfConfirmRefusal, isOpenLessonsConfirm, openLessonsGate } from "@/lib/payroll-open-lessons";
 import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChangeLine, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
@@ -260,17 +260,30 @@ function PayrollMonthContent() {
     if (!preview || preview.saving) return;
     const existing = teachers.find((teacher) => teacher.teacher_id === teacherId)?.sheet ?? null;
     const requestedMonth = month;
-    // Money-1 I-4: the save of a month that is over closes it - the unfinished lessons (or «не удалось проверить») are named first
+    // Money-1 I-4: the save of a month that is over closes it.  The unfinished lessons are the server's question (R3 #21: 409 `OPEN_LESSONS_CONFIRM_REQUIRED`,
+    // asked below); only «не удалось проверить» - which the server cannot see - is asked here
     const warnings = preview.sheet.warnings;
-    if (!(await confirmUnfinishedLessons(openLessonsGate({
+    const gate = openLessonsGate({
       monthOpen: preview.sheet.month_open,
       openLessons: warnings.open_lessons,
       unknown: warnings.open_lessons === null,
       items: warnings.open_lesson_items,
-    })))) return;
+    });
+    if (gate.kind === "unknown" && !(await confirmUnfinishedLessons(gate))) return;
     patchPreview(teacherId, { saving: true, error: null, rateMissing: null });
     try {
-      const saved = await orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null));
+      const send = (confirmOpenLessons: boolean) => orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null, confirmOpenLessons));
+      let saved;
+      try {
+        saved = await send(false);
+      } catch (first) {
+        if (!isOpenLessonsConfirm(first)) throw first;
+        if (monthRef.current !== requestedMonth) return;
+        patchPreview(teacherId, { saving: false });
+        if (!(await confirmUnfinishedLessons(gateOfConfirmRefusal(first)))) return;
+        patchPreview(teacherId, { saving: true, error: null });
+        saved = await send(true);
+      }
       if (monthRef.current !== requestedMonth) return;
       showToast(`Ведомость сохранена${saved.revision ? ` · ${versionLabel(saved.revision)}` : ""}`);
       const remaining = Object.keys(previews).filter((id) => id !== teacherId);

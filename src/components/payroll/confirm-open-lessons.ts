@@ -18,7 +18,9 @@ async function groupNamesOfOpenLessons(): Promise<Map<string, string>> {
  */
 export async function confirmUnfinishedLessons(gate: OpenLessonsGate): Promise<boolean> {
   if (gate.kind === "none") return true;
-  const names = gate.kind === "list" && gate.items.length > 0 ? await groupNamesOfOpenLessons() : new Map<string, string>();
+  // R3 #26: the items carry the group name; «Незакрытые уроки» is read only for an old answer without it
+  const needNames = gate.kind === "list" && gate.items.some((item) => !(item.groupName ?? "").trim());
+  const names = needNames ? await groupNamesOfOpenLessons() : new Map<string, string>();
   const question = openLessonsQuestion(gate, names);
   return question ? askConfirm(question) : true;
 }
