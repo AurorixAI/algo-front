@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 
@@ -15,6 +16,8 @@ export interface LessonCancelBinding {
 /**
  * W1 F1: «Урока не было» on the lesson panel of the TEACHER - the reason and the exam note, one panel for the schedule and the dashboard (it was two copies).
  * The kind of the cancellation is never asked here: a teacher always cancels «по вине центра» (the server decides, S3).
+ * The minimum of the reason is a quiet grey line from the start (as on the other forms); it turns red only after an attempt to send a short reason or after
+ * the person leaves the field - the button stays pressable, so the attempt is answered with the reason, not with a dead button.
  */
 export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, binding, reason, onReason, busy, onConfirm, onBack }: {
   /** YYYY-MM-DD */
@@ -31,6 +34,12 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
   onBack: () => void;
 }) {
   const problem = reasonProblemFor("cancel", reason);
+  const [asked, setAsked] = useState(false);        // a short reason was sent, or the field was left
+  const showProblem = asked && Boolean(problem);
+  const confirm = () => {
+    if (problem) { setAsked(true); return; }
+    onConfirm();
+  };
   return (
     <div data-testid="lesson-cancel-panel" className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
       <div>
@@ -50,19 +59,22 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
         autoFocus={autoFocus}
         value={reason}
         onChange={(event) => onReason(event.target.value)}
+        onBlur={() => setAsked(true)}
         maxLength={REASON_LIMITS.cancel.max}
         rows={3}
         placeholder="Причина (обязательно)"
         aria-label="Причина"
+        aria-invalid={showProblem || undefined}
+        aria-describedby={problem ? "lesson-cancel-reason-hint" : undefined}
         className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
       />
-      {problem && <p data-testid="reason-hint" className="text-xs text-rose-700/80">{problem}</p>}
+      {problem && <p id="lesson-cancel-reason-hint" data-testid="reason-hint" role={showProblem ? "alert" : undefined} className={`text-xs ${showProblem ? "font-medium text-rose-700" : "text-slate-500"}`}>{problem}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onBack} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white">Назад</button>
         <button
           type="button"
-          onClick={onConfirm}
-          disabled={busy || Boolean(problem) || (binding !== undefined && (!binding || binding.loading || !binding.canCancel))}
+          onClick={confirm}
+          disabled={busy || (binding !== undefined && (!binding || binding.loading || !binding.canCancel))}
           className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Сохранение..." : oneOff ? "Отменить урок" : "Урока не было"}

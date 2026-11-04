@@ -529,7 +529,7 @@ test("R3 6: F9 is ONE compact row with a count that opens; «Замена сня
   assert.ok(S.expiringText(2, "2026-10-29").length < 80, "one line on a phone, not a paragraph");
 });
 
-test("R3 8: a required field switches the button off and says why in a short line (restore, kind, cancel, the exams tick, the cancel panel)", () => {
+test("R3 8: a required field switches the button off and says why in a short line (restore, kind, cancel, the exams tick); the cancel panel keeps the button pressable and answers the attempt (REL-N2)", () => {
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /disabled=\{busy \|\| Boolean\(reasonProblem\)/, "restore / kind / cancel / move: no reason - no button");
   assert.match(sheet, /data-testid="reason-hint"/);
@@ -540,7 +540,7 @@ test("R3 8: a required field switches the button off and says why in a short lin
   const render = (reason, binding) => renderToStaticMarkup(React.createElement(LessonCancelPanel, { date: "2026-10-20", binding, reason, onReason() {}, busy: false, onConfirm() {}, onBack() {} }));
   const empty = render("", { loading: false, attached: false, canCancel: true });
   assert.match(empty, /data-testid="reason-hint"/);
-  assert.match(empty, /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "empty reason: the button is off");
+  assert.doesNotMatch(empty, /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "empty reason: the button is pressable, the attempt is answered with the reason (REL-N2)");
   assert.doesNotMatch(render("Болел", { loading: false, attached: false, canCancel: true }), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/);
   assert.match(render("Болел", { loading: false, attached: false, canCancel: false, message: "Идёт экзамен" }), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "a blocking exam: off");
   assert.doesNotMatch(render("Болел", undefined), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "the list of missed lessons asks no exam: the button waits for nothing");
