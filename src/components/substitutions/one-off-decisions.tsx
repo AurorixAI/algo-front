@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { capitalizeFirst } from "@/lib/business-time";
 import {
   DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText, payrollWarning, shortDay,
+  decisionAskedLine, decisionLessonLine, decisionNote, decisionPayLines, decisionQuestion, decisionToast, decisionWhoLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText, payrollWarning, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
 
@@ -182,6 +182,11 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
             <p className="text-slate-600">
               {decisionNote(dialog.decision)}
             </p>
+            {decisionPayLines(dialog.item, dialog.decision).length > 0 && (
+              <ul data-testid="one-off-decision-pay" className="space-y-0.5 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800">
+                {decisionPayLines(dialog.item, dialog.decision).map((line) => <li key={line}>{line}</li>)}
+              </ul>
+            )}
             {warning && (
               <p role="alert" data-testid="one-off-decision-warning" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-relaxed text-amber-900">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{warning}</span>

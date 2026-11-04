@@ -262,12 +262,12 @@ test("A: the row of money - the lesson, who held it, how many came; no amount; t
   assert.doesNotMatch(plain, /сум|so'm|\d\s?\d{3}\s?(UZS|сум)/i, "no amount anywhere");
 });
 
-test("A: the buttons are named by the short day, never an ISO date (F3); the window says «нельзя изменить» for BOTH choices (F4)", () => {
+test("A: the buttons are named by the short day, never an ISO date (F3); the window says «можно отменить» for BOTH choices (F4; Money-1 A3: the decision is reversible while the month is open)", () => {
   const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   assert.match(html, /aria-label="Оплатить: 7-А, чт 05\.11"/);
   assert.match(html, /aria-label="Не оплачивать: 7-А, чт 05\.11"/);
   assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
-  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение нельзя изменить\.$/);
+  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение можно отменить, пока месяц преподавателя не закрыт\.$/);
   assert.match(O.decisionNote("pay"), /^Урок войдёт в сумму преподавателя/);
   assert.match(O.decisionNote("skip"), /^Преподавателю за этот урок не заплатят\./);
   assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision\)/);

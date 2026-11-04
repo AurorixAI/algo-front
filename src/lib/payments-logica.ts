@@ -339,7 +339,6 @@ export function openingImpactLines(impact: ImpactMoney | null | undefined): stri
 
 // ── Decision 2: pause ───────────────────────────────────────────────────────
 
-export const PAUSE_BACKDATE_DAYS = 30;
 export const PAUSE_MAX_DAYS = 366;
 export const PAUSE_REASON_MAX = 300;
 
@@ -387,15 +386,11 @@ export function emptyPauseValues(today: string): PauseFormValues {
   return { first: today, last: "", reason: "" };
 }
 
-/** The earliest day a pause may start (today − 30 days). */
-export function pauseEarliest(today: string): string {
-  return addIsoDays(today, -PAUSE_BACKDATE_DAYS);
-}
-
-/** «Задним числом — не больше 30 дней: с 21.09.2026». */
-export function pauseBackdateHint(today: string): string {
-  return `Задним числом можно не больше ${PAUSE_BACKDATE_DAYS} дней — не раньше ${formatDateRu(pauseEarliest(today))}`;
-}
+/**
+ * Money-1 A1: a pause may start in the past as long as the month of the teacher of the group is not closed by a saved sheet (the server judges: 422 `PAUSE_LOCKED` with the month and the
+ * teacher).  It used to be «не больше 30 дней» - a rule of its own; the closed month is now the one rule of every action with the past.
+ */
+export const PAUSE_BACKDATE_HINT = "Задним числом можно, пока месяц преподавателя не закрыт ведомостью";
 
 /** Number of days of a pause, both ends included (0 for a broken range). */
 export function pauseDays(first: string, last: string): number {
@@ -407,7 +402,6 @@ export function validatePause(values: PauseFormValues, today: string): string | 
   if (!isIsoDate(values.first)) return "Укажите, с какого дня пауза";
   if (!isIsoDate(values.last)) return "Укажите, по какой день пауза";
   if (values.last < values.first) return "Пауза заканчивается раньше, чем начинается";
-  if (values.first < pauseEarliest(today)) return `Пауза начинается не раньше чем ${PAUSE_BACKDATE_DAYS} дней назад (${formatDateRu(pauseEarliest(today))})`;
   if (pauseDays(values.first, values.last) > PAUSE_MAX_DAYS) return `Пауза не длиннее ${PAUSE_MAX_DAYS} дней`;
   if (values.reason.trim().length > PAUSE_REASON_MAX) return `Причина не длиннее ${PAUSE_REASON_MAX} символов`;
   return null;

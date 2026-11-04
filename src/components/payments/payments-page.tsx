@@ -36,6 +36,7 @@ import {
   type PaymentSaveResult,
   type PeriodMode,
 } from "@/lib/payments";
+import { toastWithEffects } from "@/lib/money-effects";
 import {
   canRefund,
   canWriteOff,
@@ -256,7 +257,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }, [load, loadNarrowedCounts, refreshSummary]);
 
   const onSaved = (result: PaymentSaveResult) => {
-    showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], "success", savedPaymentDetails(result.allocation));
+    const note = toastWithEffects(result, savedPaymentDetails(result.allocation));
+    showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], note.tone, note.details);
     afterChange();
   };
 
@@ -455,19 +457,19 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         payment={voidTarget?.payment ?? null}
         studentName={voidTarget?.studentName}
         onClose={() => setVoidTarget(null)}
-        onVoided={() => { showToast("Оплата отменена"); afterChange(); }}
+        onVoided={(result) => { const note = toastWithEffects(result); showToast("Оплата отменена", note.tone, note.details); afterChange(); }}
       />
       <WriteoffDialog
         row={writeoffRow}
         studentName={writeoffRow?.student_name ?? ""}
         onClose={() => setWriteoffRow(null)}
-        onDone={(result) => { showToast("Долг прощён", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); afterChange(); }}
+        onDone={(result) => { const note = toastWithEffects(result, [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); showToast("Долг прощён", note.tone, note.details); afterChange(); }}
       />
       <RefundDialog
         row={refundRow}
         studentName={refundRow?.student_name ?? ""}
         onClose={() => setRefundRow(null)}
-        onDone={(result) => { showToast("Аванс возвращён", "success", [`Возвращено ${formatMoney(result.refund.amount)}`]); afterChange(); }}
+        onDone={(result) => { const note = toastWithEffects(result, [`Возвращено ${formatMoney(result.refund.amount)}`]); showToast("Аванс возвращён", note.tone, note.details); afterChange(); }}
       />
 
       {toastNode}

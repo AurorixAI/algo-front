@@ -25,6 +25,7 @@ import { defaultDiagnosticKind, diagnosticLink, diagnosticsAllowed, isShareableI
 import { type MembershipPaymentRow } from "@/lib/payments";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
+import { canManageMoney } from "@/lib/money-effects";
 import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime, monthYearLabelRu, shiftMonthKey } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
@@ -774,6 +775,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               profile={profile}
               groupsBasePath={groupsBasePath}
               isTeacher={isTeacher}
+              moneyRight={canManageMoney(user)}
               onAssign={openAssign}
               onNotify={showToast}
               onChanged={(kind) => { void usePaymentsSummary.getState().refresh(true); if (kind === "left") void loadProfile(); }}

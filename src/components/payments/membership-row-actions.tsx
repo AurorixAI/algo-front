@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eraser, PiggyBank, Tag, Undo2 } from "lucide-react";
+import { toastWithEffects } from "@/lib/money-effects";
 import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { membershipActionKeys, membershipActionLabel, type MembershipActionKey } from "@/lib/membership-actions";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -54,13 +55,13 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
         row={open === "writeoff" ? row : null}
         studentName={studentName}
         onClose={close}
-        onDone={(result) => { onRowChange(result.row, "writeoff"); onNotify("Долг прощён", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); }}
+        onDone={(result) => { onRowChange(result.row, "writeoff"); const note = toastWithEffects(result, [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); onNotify("Долг прощён", note.tone, note.details); }}
       />
       <RefundDialog
         row={open === "refund" ? row : null}
         studentName={studentName}
         onClose={close}
-        onDone={(result) => { onRowChange(result.row, "refund"); onNotify("Аванс возвращён", "success", [`Возвращено ${formatMoney(result.refund.amount)}`]); }}
+        onDone={(result) => { onRowChange(result.row, "refund"); const note = toastWithEffects(result, [`Возвращено ${formatMoney(result.refund.amount)}`]); onNotify("Аванс возвращён", note.tone, note.details); }}
       />
       <IndividualPriceDialog
         open={open === "price"}

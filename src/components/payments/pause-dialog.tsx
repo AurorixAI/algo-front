@@ -13,9 +13,8 @@ import {
   isReasonRequired,
   livePauses,
   logicaError,
-  pauseBackdateHint,
+  PAUSE_BACKDATE_HINT,
   pauseCalcLines,
-  pauseEarliest,
   pauseEndAction,
   pauseEndDay,
   pauseLine,
@@ -27,6 +26,8 @@ import {
   type PauseSaved,
 } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
+import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -55,7 +56,10 @@ export function PauseDialog({
   const [values, setValues] = useState<PauseFormValues>(() => emptyPauseValues(today));
   const [pauses, setPauses] = useState<PauseOut[] | null>(null);
   const [calc, setCalc] = useState<PauseSaved | null>(null);
-  const [calcFailure, setCalcFailure] = useState<{ message: string; dates: string[] } | null>(null);
+  const [calcFailure, setCalcFailure] = useState<{ message: string; dates: string[]; closed: PeriodClosedInfo | null } | null>(null);
+  /** Money-1 A1: the month of the teacher is closed (422 `PAUSE_LOCKED`): the sentence of the server and «Переоткрыть месяц» (the right) instead of a bare red line. */
+  const [errorClosed, setErrorClosed] = useState<PeriodClosedInfo | null>(null);
+  const [calcNonce, setCalcNonce] = useState(0);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,13 +109,13 @@ export function PauseDialog({
           if (!sequence.current.isCurrent(token)) return;
           const failure = logicaError(cause, "Не удалось посчитать паузу");
           setChecking(false);
-          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message, dates: failure.dates });
+          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message, dates: failure.dates, closed: periodClosedOf(cause) });
         });
     }, CALC_DEBOUNCE_MS);
     return () => { clearTimeout(timer); sequence.current.next(); };
     // `values` is a new object on every render; `key` stands for its content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, membershipId, ready, key]);
+  }, [open, membershipId, ready, key, calcNonce]);
 
   const save = async () => {
     if (busy) return;
@@ -125,6 +129,7 @@ export function PauseDialog({
       onClose();
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось поставить паузу");
+      setErrorClosed(periodClosedOf(cause));
       setError(failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message);
     } finally {
       setBusy(false);
@@ -151,6 +156,7 @@ export function PauseDialog({
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось изменить паузу");
       // REASON_REQUIRED: money is affected, the reason field opens; PAUSE_RANGE (a day older than 30 days) says so inline
+      setErrorClosed(periodClosedOf(cause));
       if (isReasonRequired(failure) && acting.action === "end") { setEndNeedsReason(true); setError(`${failure.message}. Укажите причину.`); }
       else setError(failure.message);
     } finally {
@@ -188,14 +194,14 @@ export function PauseDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="pause-first" className={PRICE_LABEL}>С</label>
-            <DateInput id="pause-first" value={values.first} min={pauseEarliest(today)} onChange={(next) => { setError(null); setValues({ ...values, first: next }); }} className={PRICE_FIELD} />
+            <DateInput id="pause-first" value={values.first} onChange={(next) => { setError(null); setValues({ ...values, first: next }); }} className={PRICE_FIELD} />
           </div>
           <div>
             <label htmlFor="pause-last" className={PRICE_LABEL}>По</label>
             <DateInput id="pause-last" value={values.last} min={values.first || undefined} onChange={(next) => { setError(null); setValues({ ...values, last: next }); }} className={PRICE_FIELD} />
           </div>
         </div>
-        <p className="-mt-2 text-xs text-slate-500">{pauseBackdateHint(today)}. Дни паузы не входят в стоимость, место в группе сохраняется.</p>
+        <p className="-mt-2 text-xs text-slate-500">{PAUSE_BACKDATE_HINT}. Дни паузы не входят в стоимость, место в группе сохраняется.</p>
 
         <div>
           <label htmlFor="pause-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-400">(необязательно)</span></label>
@@ -209,7 +215,9 @@ export function PauseDialog({
             {checking ? (
               <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>
             ) : calcFailure ? (
-              <p role="alert" className="font-medium text-rose-700">{calcFailure.message}</p>
+              calcFailure.closed
+                ? <PeriodClosedNotice info={calcFailure.closed} onReopened={() => setCalcNonce((value) => value + 1)} />
+                : <p role="alert" className="font-medium text-rose-700">{calcFailure.message}</p>
             ) : (
               <>
                 {lines.map((line) => <p key={line}>{line}</p>)}
@@ -224,7 +232,9 @@ export function PauseDialog({
           </div>
         )}
 
-        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+        {error && (errorClosed
+          ? <PeriodClosedNotice info={errorClosed} onReopened={() => { setError(null); setErrorClosed(null); setCalcNonce((value) => value + 1); }} />
+          : <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>)}
       </form>
 
       {hasPauses && (

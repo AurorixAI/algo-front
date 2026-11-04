@@ -23,7 +23,7 @@ interface PaymentVoidModalProps {
   payment: VoidablePayment | null;
   studentName?: string;
   onClose: () => void;
-  onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void;
+  onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }) => void;
 }
 
 /** «Отменить оплату»: a reason of 3..500 characters is required; the record stays in the history, grey. */

@@ -35,6 +35,8 @@ interface StudentGroupsBlockProps {
   groupsBasePath: string;
   /** A teacher never sees (and never requests) money. */
   isTeacher: boolean;
+  /** Money-1 A4 (I-6): a transfer carries the paid days and the advance of the student, a pause takes days off the bill - the owner and an administrator with the money right only. An absent flag is no right. */
+  moneyRight?: boolean;
   onAssign: (mode: "transfer" | "add") => void;
   /** A toast of the card (a pause set, a student taken out of a group). */
   onNotify?: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
@@ -48,7 +50,7 @@ interface StudentGroupsBlockProps {
  * («Пауза…» / «Закончить паузу», the chip «На паузе до …») and «Убрать из группы…» are in the «⋯» of the group's card;
  * «Зачислить в группу» and «Перевести в другую группу» are the two buttons of the block.
  */
-export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssign, onNotify, onChanged }: StudentGroupsBlockProps) {
+export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRight = false, onAssign, onNotify, onChanged }: StudentGroupsBlockProps) {
   const memberships = profileMemberships(profile);
   // Staff add and transfer; nobody does it while the student is in the archive (he is brought back first).
   const { groupActions, showBanner: archived } = studentArchiveAccess({ isTeacher, status: profile.student.status });
@@ -71,7 +73,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
   useEffect(() => { void loadPauses(); }, [loadPauses]);
 
   const menuFor = (item: StudentGroupMembership): RowMenuItem[] =>
-    groupMenuItems({ pauses: pauses[item.membership_id], today, hasMembershipId: Boolean(item.membership_id) }).map((entry) =>
+    groupMenuItems({ pauses: pauses[item.membership_id], today, hasMembershipId: Boolean(item.membership_id) }).filter((entry) => moneyRight || entry.key !== "pause").map((entry) =>
       entry.key === "pause"
         ? { key: "pause", label: entry.label, icon: entry.label === END_PAUSE_MENU_LABEL ? PlayCircle : PauseCircle, onSelect: () => setPauseFor(item) }
         : { key: "leave", label: entry.label, icon: UserMinus, danger: true, onSelect: () => setLeaveFor(item) });
@@ -91,14 +93,16 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
               <Plus className="h-3.5 w-3.5" />
               {ENROL_ACTION_LABEL}
             </button>
-            <button
-              type="button"
-              onClick={() => onAssign("transfer")}
-              data-testid="enrol-transfer"
-              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              {TRANSFER_ACTION_LABEL}
-            </button>
+            {moneyRight && (
+              <button
+                type="button"
+                onClick={() => onAssign("transfer")}
+                data-testid="enrol-transfer"
+                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {TRANSFER_ACTION_LABEL}
+              </button>
+            )}
           </div>
         )}
       </div>

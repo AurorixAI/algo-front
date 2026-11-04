@@ -258,6 +258,17 @@ export function ArchiveDialogBody({
       ))}
 
       {view.offersCancelMissed && (
+        <div data-testid="archive-missed" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-3">
+          {view.missedLessons.length > 0 && (
+            <ul aria-label="Пропущенные уроки" className="space-y-0.5 text-sm text-slate-800">
+              {view.missedLessons.map((line) => <li key={line}>{line}</li>)}
+            </ul>
+          )}
+          {view.cancelConsequence && <p data-testid="archive-missed-consequence" className="text-sm font-medium text-amber-900">{view.cancelConsequence}</p>}
+        </div>
+      )}
+
+      {view.offersCancelMissed && (
         <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm transition-colors ${cancelMissed ? "border-primary-300 bg-primary-50/50" : "border-slate-200 bg-white"}`}>
           <Checkbox
             className="mt-0.5"

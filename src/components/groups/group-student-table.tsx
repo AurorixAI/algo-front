@@ -1,5 +1,7 @@
 "use client";
 
+import { canManageMoney } from "@/lib/money-effects";
+import { useAuthStore } from "@/lib/store";
 import { useState } from "react";
 import { displayPhone } from "@/lib/phone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,7 +41,9 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
   const pathname = usePathname();
   const isTeacher = pathname?.startsWith("/teacher");
   const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
-  const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher) });
+  // Money-1 A4 (I-6): a transfer carries the paid days and the advance of the student - the money right only
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
+  const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher && moneyRight) });
   const removable = menuKeys.length > 0;
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
 

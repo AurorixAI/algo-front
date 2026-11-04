@@ -2,7 +2,7 @@
  * O4 / F2 (LOGIC-B): archiving a group is an operation with a preflight (`archive-impact`) and a read-only result.
  * Pure helpers behind the dialog «Архивировать группу», the banners of an archived group and the return from the archive.
  */
-import { formatUtcNaiveAsBusinessDate } from "./business-time";
+import { formatDayMonthRu, formatUtcNaiveAsBusinessDate } from "./business-time";
 import { opsErrorCode, opsErrorDetail } from "./ops-errors";
 import type { ArchiveBlocker, ArchiveBlockerCode, ArchiveImpact, TeacherInactiveDetail } from "./ops-b-types";
 import { pluralRu } from "./plural";
@@ -28,6 +28,19 @@ export const OPEN_LESSON_TEXT = "Идёт урок. Завершите или о
 
 export function missedLessonsText(count: number): string {
   return `Не закрыто пропущенных уроков: ${count}.`;
+}
+
+/** The cap of the list of the missed lessons in the window (the rest is «и ещё N»). */
+export const MISSED_LIST_LIMIT = 8;
+
+/** What cancelling the missed lessons at the archiving does to money, said BEFORE the choice - the sentence of the server; its words when an older answer has none. */
+export const MISSED_CANCEL_CONSEQUENCE = "Если отменить эти уроки при архивации, за них не начислят ученикам и не заплатят преподавателям. Сначала разберите их, если они были";
+
+/** «12.10, 10:00–11:30 · Каримова К.» - one missed lesson of the list (the time and the teacher only when the server names them). */
+export function missedLessonLine(lesson: { lessonDate: string; startTime?: string | null; endTime?: string | null; teacherName?: string | null }): string {
+  const time = lesson.startTime ? (lesson.endTime ? `${lesson.startTime}–${lesson.endTime}` : lesson.startTime) : "";
+  const when = [formatDayMonthRu(lesson.lessonDate), time].filter(Boolean).join(", ");
+  return [when, (lesson.teacherName ?? "").trim()].filter(Boolean).join(" · ");
 }
 
 export function liveExamText(title: string): string {
@@ -61,6 +74,13 @@ export function blockerOf(impact: ArchiveImpact | null | undefined, code: Archiv
   return impact?.blockers?.find((blocker) => blocker.code === code);
 }
 
+/** The lines of the list of missed lessons, capped, with «и ещё N» for the rest (the server's `count` may exceed the list). */
+export function missedLessonLines(lessons: ReadonlyArray<Parameters<typeof missedLessonLine>[0]>, count: number): string[] {
+  const lines = lessons.slice(0, MISSED_LIST_LIMIT).map(missedLessonLine).filter(Boolean);
+  const rest = Math.max(count, lessons.length) - lines.length;
+  return rest > 0 ? [...lines, `и ещё ${rest}`] : lines;
+}
+
 export interface ArchiveDialogView {
   /** the button «В архив» may send */
   canSubmit: boolean;
@@ -69,6 +89,9 @@ export interface ArchiveDialogView {
   /** the choice «Отменить их при архивации» is on offer (missed lessons are the only thing in the way, or one of them) */
   offersCancelMissed: boolean;
   missedCount: number;
+  /** Money-1 A6 (П8): the missed lessons (the ones the cancellation would close) and what closing them does to money; empty / null without the blocker. */
+  missedLessons: string[];
+  cancelConsequence: string | null;
   students: Array<{ id: string; name: string; displayId?: string | null }>;
   /** the lines that do not block */
   notes: string[];
@@ -113,6 +136,8 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
     stops,
     offersCancelMissed: missedCount > 0,
     missedCount,
+    missedLessons: missedLessonLines(missed?.lessons ?? [], missedCount),
+    cancelConsequence: missed ? (missed.cancelConsequence?.trim() || MISSED_CANCEL_CONSEQUENCE) : null,
     students: students?.students ?? [],
     notes,
     examServiceDown,

@@ -108,6 +108,8 @@ export function lessonTypeKey(request: LessonTypeRequest | null): string {
 // ── Words ──────────────────────────────────────────────────────────────────
 
 /** Under the field «Тип занятий» of the edit form: the header of the group has no «Изменить…», the change is made here. */
+/** Money-1 A4 (I-6): the type of the lessons moves the pay of the teacher - the owner and an administrator with the money right change it. */
+export const LESSON_TYPE_NO_RIGHT_NOTE = "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с правом на оплаты";
 export const LESSON_TYPE_EDIT_NOTE = "Если изменить тип, перед сохранением покажем, с какой даты он действует и что изменится в зарплате";
 
 /** The edit form changed the type of the lessons (it then goes through the dialog «Тип занятий», not through the plain save). */

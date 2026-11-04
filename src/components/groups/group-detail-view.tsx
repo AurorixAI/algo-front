@@ -28,7 +28,8 @@ import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-er
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
 import { LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { GroupLessonTypeDialog } from "@/components/groups/group-lesson-type-dialog";
-import { LESSON_TYPE_EDIT_NOTE, lessonTypeChangedInEdit, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
+import { canManageMoney } from "@/lib/money-effects";
+import { LESSON_TYPE_EDIT_NOTE, LESSON_TYPE_NO_RIGHT_NOTE, lessonTypeChangedInEdit, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
 import { useToast } from "@/components/ui/toast";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
@@ -67,6 +68,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   const isTeacher = workspace === "teacher";
   const canManage = !isTeacher;
   const user = useAuthStore((state) => state.user);
+  const moneyRight = canManageMoney(user);
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -396,11 +398,12 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                   <Select
                     label="Тип занятий"
                     value={editState.lesson_type}
+                    disabled={!moneyRight}
                     onChange={(e) => setEditState((s) => ({ ...s, lesson_type: normalizeLessonType(e.target.value) }))}
                     options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
                   />
-                  {/* LOGIC-A B1: the server writes the type history from today */}
-                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-edit-note">{LESSON_TYPE_EDIT_NOTE}</p>
+                  {/* LOGIC-A B1: the server writes the type history from today; Money-1 A4: the type moves the pay of the teacher - the money right only */}
+                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-edit-note">{moneyRight ? LESSON_TYPE_EDIT_NOTE : LESSON_TYPE_NO_RIGHT_NOTE}</p>
                 </div>
 
                 {/* Description */}
