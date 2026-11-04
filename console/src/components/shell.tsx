@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Inbox, LifeBuoy, LogOut, Menu, ScrollText, ShieldCheck, UserCog, Users, X, type LucideIcon } from "lucide-react";
+import { Building2, Inbox, LifeBuoy, LogOut, Menu, Scale, ScrollText, ShieldCheck, UserCog, Users, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { consoleApi } from "../lib/api";
 import { SessionGate, useSession } from "../lib/session";
@@ -19,6 +19,7 @@ const ICONS: Record<NavItem["key"], LucideIcon> = {
   team: UserCog,
   roles: ShieldCheck,
   audit: ScrollText,
+  money: Scale,
 };
 
 /** Dispatched after a request changes status, so the sidebar badge does not wait for its timer. */

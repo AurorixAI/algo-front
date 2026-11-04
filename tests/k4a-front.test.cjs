@@ -304,7 +304,7 @@ test("the replies are sent once too, in the cabinet and in the console", () => {
 
 test("the console: the section «Обращения» is for support.manage only, after «Заявки»", () => {
   const nav = perms.NAV_ITEMS.map((i) => i.key);
-  assert.deepEqual(nav, ["requests", "support", "centres", "users", "team", "roles", "audit"]);
+  assert.deepEqual(nav, ["requests", "support", "centres", "users", "team", "roles", "audit", "money"]);          // Money-1 A7: + «Сверка денег» (audit.view)
   const staff = (permissions, owner = false) => ({ is_owner: owner, permissions });
   assert.deepEqual(perms.visibleNav(staff(["support.manage"])).map((i) => i.label), ["Обращения"]);
   assert.deepEqual(perms.visibleNav(staff(["requests.view", "orgs.view"])).map((i) => i.key), ["requests", "centres"]);

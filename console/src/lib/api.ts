@@ -14,6 +14,7 @@ import type {
   LimitsResult,
   LinkSent,
   Me,
+  MoneyReconcile,
   Org,
   OrgCard,
   Page,
@@ -139,6 +140,11 @@ export function createConsoleApi(config: Partial<JsonClientConfig> = {}, hooks: 
       update: (userId: string, patch: { role_id?: string; is_active?: boolean; is_owner?: boolean; first_name?: string; last_name?: string }) =>
         send<Staff>("PATCH", `/staff/${seg(userId)}`, patch),
       resetPassword: (userId: string, password: string) => send<{ ok: boolean }>("POST", `/staff/${seg(userId)}/reset-password`, { password }),
+    },
+
+    /** Money-1 A7: the nightly check of the money of all centres - the last runs and the divergences of the newest one (`audit.view`). */
+    moneyReconcile: {
+      get: (limit = 30, signal?: AbortSignal) => get<MoneyReconcile>("/money-reconcile", { limit }, signal),
     },
 
     audit: {

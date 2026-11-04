@@ -9,7 +9,7 @@ export function can(me: Rights, key: string): boolean {
 }
 
 export interface NavItem {
-  key: "requests" | "support" | "centres" | "users" | "team" | "roles" | "audit";
+  key: "requests" | "support" | "centres" | "users" | "team" | "roles" | "audit" | "money";
   label: string;
   href: string;
   /** The permission that shows the item (the server checks it again on every call). */
@@ -25,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "team", label: "Команда", href: "/team/", permission: "team.manage" },
   { key: "roles", label: "Роли", href: "/roles/", permission: "team.manage" },
   { key: "audit", label: "Журнал", href: "/audit/", permission: "audit.view" },
+  { key: "money", label: "Сверка денег", href: "/money-reconcile/", permission: "audit.view" },
 ];
 
 export function visibleNav(me: Rights): NavItem[] {

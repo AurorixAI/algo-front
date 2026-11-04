@@ -313,3 +313,50 @@ export interface SupportTicketCard extends SupportTicket {
   messages: SupportThreadMessage[];
   history: AuditRow[];
 }
+
+// ── «Сверка денег» (Money-1 A7): GET /platform/money-reconcile, the right `audit.view` ──────────────────────
+
+/** `running` - идёт; `clean` - всё сошлось; `findings` - есть расхождения; `failed` - не удалось проверить центры. */
+export type MoneyRunStatus = "running" | "clean" | "findings" | "failed";
+/** `sent` - письмо команде ушло; `skipped` - нового нет, письма не нужно; `failed` - письмо не ушло; null - письмо не запрашивалось. */
+export type MoneyRunMail = "sent" | "skipped" | "failed" | null;
+
+export interface MoneyRun {
+  id: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  status: MoneyRunStatus;
+  centresChecked: number;
+  findings: number;
+  newFindings: number;
+  mail: MoneyRunMail;
+  /** «не удалось проверить центров: 2» - a run with findings can carry it, too. */
+  error: string | null;
+}
+
+export type MoneyInvariant = "I-1" | "I-2" | "I-3" | "I-4";
+
+/** One divergence of the newest run.  Ids, months and sums only - no name of a person (the server promises it). */
+export interface MoneyFinding {
+  id: string;
+  orgId: string;
+  orgName: string | null;
+  invariant: MoneyInvariant;
+  /** The server's sentence of the invariant. */
+  what: string | null;
+  subjectKey: string;
+  subjectId: string | null;
+  /** `YYYY-MM` or null. */
+  month: string | null;
+  expected: number | null;
+  actual: number | null;
+  details: Record<string, unknown> | null;
+  /** Was not in the previous check of the same centre. */
+  isNew: boolean;
+}
+
+export interface MoneyReconcile {
+  runs: MoneyRun[];
+  latest: MoneyRun | null;
+  findings: MoneyFinding[];
+}
