@@ -222,7 +222,7 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
       ? (partial.bucket === "past_debt" ? pastAfter : currentAfter)
       : sum(partial.segment_remaining_after);
     if (first) first = `${first}, за ${name} останется ${money(partialLeft)}`;
-    else if (partial.bucket === "past_debt") first = `Оплатит часть долга за ${name}, останется ${money(partialLeft)}`;
+    else if (partial.bucket === "past_debt") first = `Оплатит часть долга, за ${name} останется ${money(partialLeft)}`;
     else first = `Оплатит ${name} частично, останется ${money(partialLeft)}`;
   }
   // «хватит на 12 уроков»: only the lessons count the dialog already shows in its quiet line («осталось N»); nothing new is computed.
@@ -240,7 +240,9 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
 
   // what is left after saving: the running period is not a debt, so only an overdue rest is named as one
   if (partial) {
-    if (partial.bucket === "past_debt" && pastAfter > partialLeft) sentences.push(debtLeftSentence(preview, debtAfter, pastAfter));
+    // walk of 05.11, round 3 (LESSONS 104: the part next to the whole): the rest of the period is said with its name above, and the WHOLE debt after saving - the one every other screen shows - in the
+    // sentence of its own; it is left out only when it is the same number (the running period alone: nothing else is owed)
+    if (debtAfter > partialLeft) sentences.push(debtLeftSentence(preview, debtAfter, pastAfter));
   } else if (debtAfter > 0) {
     if (pastAfter === 0 && currentAfter > 0) {
       const running = splitDueSegments(preview).running;

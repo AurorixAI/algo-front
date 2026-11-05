@@ -76,6 +76,19 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
       setTimeout(() => { void askConfirm(openLessonsQuestion(gateOfConfirmRefusal(refusal))!); }, 50);
       break;
     }
+    case "sheetReopened": {
+      const sheet = { ...SHEET, month: "2026-10", month_open: false, total_amount: 475000, stale: false, updated_at: "2026-11-03T05:00:00",
+        payout: { saved_total: 475000, fresh_total: 475000, target: 475000, paid: 0, balance: 475000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "Не выплачено", items: [], carry_in: 0, carry_used: 0, advance_out: 0 } };
+      const status = sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: String(sheet.updated_at), delta: null, reopened: true });
+      root.render((
+        <div className="mx-auto max-w-[1100px] space-y-5 p-4">
+          <SheetSummaryCard sheet={sheet as never} total={475000} accrued={0} status={status} savedBy="Рустам Валиев" busy={false} onPrimary={noop} onPrint={noop} onExcel={noop}
+            period={{ tone: "reopened", label: "Месяц переоткрыт", hint: "", canReopen: false }} onReopen={noop} />
+          <SheetPayoutBlock sheetId="s1" month="2026-10" teacherName="Эргашев К." payout={sheet.payout as never} onChanged={noop} />
+        </div>
+      ));
+      break;
+    }
     case "sheetOpenOverpaid":
     case "sheetClosedOverpaid":
     case "sheetClosedPart": {

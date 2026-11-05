@@ -36,7 +36,7 @@ import {
   type RatesNow,
   type SheetEdits,
 } from "@/lib/payroll";
-import { periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
+import { CLOSE_MONTH_DONE, periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
@@ -268,8 +268,9 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       if (outcome.cancelled) return;
       const updated = outcome.value;
       if (sheetIdRef.current !== requestedFor) return;
+      const closedAgain = period?.state === "reopened";
       showToast(
-        `${recalculate ? "Ведомость пересохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
+        `${closedAgain ? CLOSE_MONTH_DONE : recalculate ? "Ведомость пересохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
       );
       loads.current.next();
       setDataChanged(null);
@@ -322,6 +323,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       // ONE number (R3 unconfirmed 1): «изменилась на ±N» is `payout.changed_by` - the same fresh-minus-saved the month list shows (`diff.delta_amount` is the same difference by the same formula, `changed_by`
       // is the one the server keeps on the sheet; the diff is for the lines).  null: the server could not count the fresh total (a rate is missing) - the card says only that the data changed.
       delta: sheet.payout && sheet.payout.fresh_total !== null ? sheet.payout.changed_by : null,
+      reopened: period?.state === "reopened",
     })
     : null;
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;

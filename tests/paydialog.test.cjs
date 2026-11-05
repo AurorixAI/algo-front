@@ -117,10 +117,10 @@ test("= debt + current: pays October too, until 31 October, no debt left", () =>
 
 test("< debt: partial - August closes, September keeps 92 000", () => {
   const p = plan(500000);
-  assert.equal(said(p), "Закроет долг за август, за сентябрь останется 92 000 сум.");
+  assert.equal(said(p), "Закроет долг за август, за сентябрь останется 92 000 сум. Всего долга останется 642 000 сум, из них за прошлые месяцы — 92 000 сум.");
   assert.deepEqual(lines(p), [["Долг за август (остаток)", 42000], ["Долг за сентябрь (часть)", 458000]]);
   // smaller than the first period: a part of the debt only, and the whole overdue rest is said once
-  assert.equal(said(plan(30000)), "Оплатит часть долга за август, останется 12 000 сум. Всего долга останется 1 112 000 сум, из них за прошлые месяцы — 562 000 сум.");
+  assert.equal(said(plan(30000)), "Оплатит часть долга, за август останется 12 000 сум. Всего долга останется 1 112 000 сум, из них за прошлые месяцы — 562 000 сум.");
 });
 
 test("part of the running period after the debt: «за октябрь останется …»", () => {
@@ -156,14 +156,14 @@ test("D-1: «Всего долга останется» is the debt the toast sh
 test("D-1: «Исправить оплату» - the corrected amount (400 000 → 200 000) says 1 000 000 after, the overdue part is separate", () => {
   const p = preview({ segments: WALK(), amount: 200000, asOf: "2026-11-05" });
   assert.equal(p.result.debt_after, 1000000);
-  assert.equal(said(X.planView(p)), "Оплатит часть долга за сентябрь, останется 200 000 сум. Всего долга останется 1 000 000 сум, из них за прошлые месяцы — 600 000 сум.");
+  assert.equal(said(X.planView(p)), "Оплатит часть долга, за сентябрь останется 200 000 сум. Всего долга останется 1 000 000 сум, из них за прошлые месяцы — 600 000 сум.");
   assert.equal(debtLeftIn(X.planView(p).sentence), p.result.debt_after);
 });
 
 test("D-1: no overdue part named when the whole debt is overdue; a package or a shifted period is not called a month", () => {
   // nothing of the running month is due: the whole rest is the overdue one, one number
   const overdueOnly = preview({ segments: [seg("aug", "2026-08-01", "2026-08-31", 550000, 0, "past_debt"), seg("sep", "2026-09-01", "2026-09-30", 550000, 0, "past_debt")], amount: 100000 });
-  assert.equal(said(X.planView(overdueOnly)), "Оплатит часть долга за август, останется 450 000 сум. Всего долга останется 1 000 000 сум.");
+  assert.equal(said(X.planView(overdueOnly)), "Оплатит часть долга, за август останется 450 000 сум. Всего долга останется 1 000 000 сум.");
   // packages
   const packages = preview({ mode: "lessons", segments: [seg("p0", "2026-08-25", "2026-09-21", 600000, 0, "past_debt", "package"), seg("p1", "2026-09-25", "2026-10-21", 600000, 0, "past_debt", "package"), seg("p2", "2026-10-23", "2026-10-26", 100000, 0, "current", "package")], amount: 300000 });
   assert.match(said(X.planView(packages)), /Всего долга останется 1 000 000 сум, из них за прошлые пакеты — 900 000 сум\.$/);
@@ -190,6 +190,45 @@ test("D-1: for every amount the debt named in the window is the debt after (debt
     }
   }
   assert.ok(checked >= 15, `the sweep reached ${checked} sentences that name the debt`);
+});
+
+// Re-walk of 05.11 (D-1, partial payment; LESSONS 104: the part next to the whole): October 400 000 is overdue, November 400 000 is running.
+const OCT_NOV = () => [seg("oct", "2026-10-01", "2026-10-31", 400000, 0, "past_debt"), seg("nov", "2026-11-01", "2026-11-30", 400000, 0, "current")];
+
+test("D-1 partial: «останется 300 000» is the rest of October (named), the WHOLE debt 700 000 is the sentence of its own; the same for «Исправить оплату» 250 000 (150 000 / 550 000)", () => {
+  const pay = preview({ segments: OCT_NOV(), amount: 100000, asOf: "2026-11-05" });
+  assert.equal(pay.result.debt_after, 700000);
+  assert.equal(said(X.planView(pay)), "Оплатит часть долга, за октябрь останется 300 000 сум. Всего долга останется 700 000 сум, из них за прошлые месяцы — 300 000 сум.");
+  const fix = preview({ segments: OCT_NOV(), amount: 250000, asOf: "2026-11-05" });
+  assert.equal(fix.result.debt_after, 550000);
+  assert.equal(said(X.planView(fix)), "Оплатит часть долга, за октябрь останется 150 000 сум. Всего долга останется 550 000 сум, из них за прошлые месяцы — 150 000 сум.");
+  // the running period alone, partly paid: nothing else is owed, so the whole is the same number and is not said a second time
+  const only = preview({ segments: [seg("nov", "2026-11-01", "2026-11-30", 400000, 0, "current")], amount: 100000, asOf: "2026-11-05" });
+  assert.equal(said(X.planView(only)), "Оплатит ноябрь частично, останется 300 000 сум.");
+  assert.doesNotMatch(said(X.planView(only)), /Всего долга/);
+});
+
+test("D-1 partial: for EVERY partial amount the whole debt is said, and it is debt_after (the sweep over all the shapes of the walk)", () => {
+  let partials = 0;
+  for (const [segments, step] of [[OCT_NOV(), 10000], [WALK(), 25000], [SEGS(), 21000]]) {
+    for (let amount = step; amount <= 1500000; amount += step) {
+      const p = preview({ segments, amount, asOf: "2026-11-05" });
+      const view = X.planView(p);
+      const text = plain(view.sentence);
+      const allocations = p.result.allocations.filter((item) => item.amount > 0);
+      const partial = [...allocations].reverse().find((item) => item.bucket !== "advance" && !item.closes);
+      if (!partial) continue;
+      const left = partial.segment_remaining_after;
+      if (p.result.debt_after > left) {
+        partials += 1;
+        assert.equal(debtLeftIn(text), p.result.debt_after, `${amount}: the whole debt is said: ${text}`);
+        assert.ok(text.includes(`останется ${plain(P.formatMoney(left))}`), `${amount}: the rest of the period is said too: ${text}`);
+      } else {
+        assert.equal(debtLeftIn(text), null, `${amount}: the same number is not said twice: ${text}`);
+      }
+    }
+  }
+  assert.ok(partials >= 30, `the sweep reached ${partials} partial payments with a larger whole`);
 });
 
 test("> total: an advance, until the date the server gives", () => {
@@ -227,7 +266,7 @@ test("a year that is not this year is named; a period that is not a month is nam
   const over = X.planView(L.normalizePreview(fixture("e1_preview_790000")));
   assert.equal(said(over), "Закроет долг за период 15.09–14.10 и оплатит период 15.10–14.11, 21 000 сум останутся авансом (хватит до 15 ноября).");
   const part = X.planView(L.normalizePreview(fixture("e1_preview_250000")));
-  assert.equal(said(part), "Оплатит часть долга за период 15.09–14.10, останется 19 000 сум.");
+  assert.equal(said(part), "Оплатит часть долга, за период 15.09–14.10 останется 19 000 сум. Всего долга останется 519 000 сум, из них за прошлые периоды — 19 000 сум.");
   assert.deepEqual(lines(part), [["Долг за 15.09–14.10 (часть)", 250000]]);
 });
 

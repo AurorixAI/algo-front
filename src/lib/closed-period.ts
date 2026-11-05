@@ -102,7 +102,7 @@ export function periodView(item: Pick<PayrollPeriodItem, "state" | "closedOn" | 
     return {
       tone: "reopened",
       label: "Месяц переоткрыт",
-      hint: `Уроки этого месяца можно исправлять.${who} Когда закончите, пересохраните ведомость — месяц закроется снова.`,
+      hint: `Уроки этого месяца можно исправлять.${who} Когда закончите, сохраните ведомость — месяц закроется снова.`,
       canReopen: false,
     };
   }
@@ -129,7 +129,14 @@ export const REOPEN_TITLE = "Переоткрыть месяц?";
 export const REOPEN_BUTTON = "Переоткрыть месяц";
 export const REOPEN_REASON_LABEL = "Причина";
 export const REOPEN_REASON_PLACEHOLDER = "Например: ошибочно отметили «Урока не было», нужно исправить";
-export const REOPEN_EXPLAIN = "Пока месяц открыт, уроки этого месяца можно исправлять: отметки, справки, паузы, смену преподавателя. Ведомость и выплата сами не меняются — после исправлений пересохраните ведомость, и месяц закроется снова.";
+export const REOPEN_EXPLAIN = "Пока месяц открыт, уроки этого месяца можно исправлять: отметки, справки, паузы, смену преподавателя. Ведомость и выплата сами не меняются — после исправлений сохраните ведомость, и месяц закроется снова.";
+/**
+ * The one button of a REOPENED month (walk of 05.11, round 3): the month is closed again only by a save of the sheet - also when nothing has changed since (the lessons were put back as they were), so the button
+ * is there always, not only when the data moved.  The server takes the save without changes (`PATCH … recalculate`), and the save after the reopening is what closes the month.
+ */
+export const CLOSE_MONTH_LABEL = "Сохранить и закрыть месяц";
+/** The toast after it. */
+export const CLOSE_MONTH_DONE = "Ведомость сохранена, месяц закрыт";
 export const REOPEN_DONE_TEXT = "Месяц переоткрыт";
 export const REOPEN_ALREADY_TEXT = "Месяц уже открыт";
 export const REOPEN_NO_SHEET_TEXT = "Ведомости за этот месяц нет: переоткрывать нечего";

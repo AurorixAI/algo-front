@@ -1260,7 +1260,7 @@ export type SheetCardTone = "preview" | "saved" | "changed" | "dirty";
 export interface SheetCardStatus {
   tone: SheetCardTone;
   text: string;
-  /** The one main button of the card: «Сохранить» (a calculation not saved yet), «Пересохранить» (the data changed after the saving - Money-1 A1b); null: none. */
+  /** The one main button of the card: «Сохранить» (a calculation not saved yet), «Пересохранить» (the data changed after the saving - Money-1 A1b; a REOPENED month: «Сохранить и закрыть месяц», always); null: none. */
   action: "save" | "recalculate" | null;
 }
 
@@ -1275,6 +1275,8 @@ export function sheetCardStatus(input: {
   updatedAt: string | null | undefined;
   /** What a recalculation would change in the total (the diff); null while it is not known. */
   delta: number | null;
+  /** Money-1 A1 (walk of 05.11, round 3): the month of this teacher is REOPENED - the sheet has its button also when nothing changed: the save is what closes the month again. */
+  reopened?: boolean;
 }): SheetCardStatus {
   if (input.dirty) return { tone: "dirty", text: "Есть несохранённые правки", action: null };
   if (!input.saved) return { tone: "preview", text: "Не сохранено", action: "save" };
@@ -1288,7 +1290,7 @@ export function sheetCardStatus(input: {
   }
   const when = formatUtcNaiveAsBusinessDateTime(input.updatedAt);
   const [day, time] = when.split(" ");
-  return { tone: "saved", text: day && time ? `Сохранено ${day} в ${time}` : "Сохранено", action: null };
+  return { tone: "saved", text: day && time ? `Сохранено ${day} в ${time}` : "Сохранено", action: input.reopened ? "recalculate" : null };
 }
 
 // ── Warnings ────────────────────────────────────────────────────────────────

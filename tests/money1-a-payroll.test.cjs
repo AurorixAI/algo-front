@@ -197,7 +197,7 @@ test("the sheet: a closed month has the chip and the button; reopened says what 
   assert.doesNotMatch(card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), undefined), /reopen-month/);
   const reopened = textOf(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}));
   assert.ok(reopened.includes("Месяц переоткрыт"));
-  assert.ok(reopened.includes("Исправьте уроки и пересохраните ведомость — месяц закроется снова"));
+  assert.ok(reopened.includes("Исправьте уроки и сохраните ведомость — месяц закроется снова"));
   assert.doesNotMatch(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}), /reopen-month/);
   const open = card(CP.periodView({ state: "open", closedOn: null, reopened: null }), () => {});
   assert.ok(textOf(open).includes("Месяц открыт"));
@@ -209,7 +209,7 @@ test("«Переоткрыть месяц»: the dialog says what opening does, 
   const { ReopenMonthDialog } = component("payroll/reopen-month-dialog.tsx");
   const open = html(React.createElement(ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." }, onClose() {}, onReopened() {} }));
   const text = textOf(open);
-  for (const part of ["Переоткрыть месяц?", "Каримова К. · октябрь 2026", "Пока месяц открыт, уроки этого месяца можно исправлять", "после исправлений пересохраните ведомость, и месяц закроется снова", "Причина", "Причина и ваше имя останутся в журнале", "Назад"]) {
+  for (const part of ["Переоткрыть месяц?", "Каримова К. · октябрь 2026", "Пока месяц открыт, уроки этого месяца можно исправлять", "после исправлений сохраните ведомость, и месяц закроется снова", "Причина", "Причина и ваше имя останутся в журнале", "Назад"]) {
     assert.ok(text.includes(part), part);
   }
   assert.match(open, /<button type="submit" form="reopen-month-form"[^>]*>[\s\S]*?Переоткрыть месяц<\/button>/);
@@ -546,5 +546,33 @@ test("4б: in an open month the counts stand in the brackets of «Сохране
   // a closed month: the counts are the sheet's own, the line is as it was
   const closed = card(CLOSED_SEP);
   assert.ok(closed.includes("засчитано 3 посещения") && !closed.includes("Сохранено 03.11"), closed);
+});
+
+// ── round 3 (re-walk of 05.11): a REOPENED month is closed again by a save, also when nothing changed ──────────────────────
+
+test("round 3: the status of a sheet in a reopened month has the button always («Сохранить и закрыть месяц»); a closed or ordinary month does not; a sheet that moved keeps its button", () => {
+  const base = { saved: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: null };
+  assert.equal(R.sheetCardStatus({ ...base, stale: false, reopened: true }).action, "recalculate", "nothing changed, the month is open: the save is what closes it");
+  assert.equal(R.sheetCardStatus({ ...base, stale: false, reopened: true }).tone, "saved", "the status line is the usual «Сохранено …»");
+  assert.equal(R.sheetCardStatus({ ...base, stale: false }).action, null, "a closed / ordinary month: no button without a change");
+  assert.equal(R.sheetCardStatus({ ...base, stale: false, reopened: false }).action, null);
+  assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: 5000, reopened: true }).action, "recalculate");
+  assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: 5000, reopened: true }).tone, "changed", "a sheet that moved says so");
+  assert.equal(R.sheetCardStatus({ ...base, stale: false, reopened: true, dirty: true }).action, null, "unsaved edits: the bar of the page saves them");
+  assert.equal(R.sheetCardStatus({ saved: false, stale: null, dirty: false, updatedAt: null, delta: null, reopened: true }).action, "save", "a calculation not saved yet: «Сохранить»");
+  assert.equal(CP.CLOSE_MONTH_LABEL, "Сохранить и закрыть месяц");
+});
+
+test("round 3: the card of a sheet names the button by the state of the month - «Сохранить и закрыть месяц» in a reopened one, «Пересохранить» in a moved sheet of a month that is not reopened", () => {
+  signIn({ org_role: "owner" });
+  const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
+  const card = (period, stale, reopened) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ stale }), total: 475000, accrued: 0, busy: false, onPrimary() {}, onPrint() {}, period,
+    status: R.sheetCardStatus({ saved: true, stale, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: stale ? 5000 : null, reopened }) }))));
+  const reopenedView = CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null });
+  assert.ok(card(reopenedView, false, true).includes("Сохранить и закрыть месяц"));
+  assert.ok(!card(reopenedView, false, true).includes("Пересохранить"));
+  assert.ok(card(reopenedView, true, true).includes("Сохранить и закрыть месяц"), "also when it moved: one button, it closes the month");
+  assert.ok(card(CP.periodView({ state: "open", closedOn: null, reopened: null }), true, false).includes("Пересохранить"));
+  assert.ok(!card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), false, false).includes("Сохранить и закрыть месяц"));
 });
 

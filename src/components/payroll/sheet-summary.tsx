@@ -17,7 +17,7 @@ import {
 } from "@/lib/payroll";
 import { RESAVE_LABEL, savedFactsLine, sheetHeadline, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
-import { REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
+import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
 import { PeriodChip } from "./period-chip";
 
@@ -78,7 +78,8 @@ export function SheetSummaryCard({
     ? warningViews(counts, counts === sheet.warnings ? { noFeeHref: sheetNoFeeHref(sheet), openUnknown: sheet.id === null && counts.open_lessons === null } : {}).filter((view) => view.key !== "unpaid")
     : [];
   const changed = status.tone === "changed";
-  const primaryLabel = status.action === "recalculate" ? RESAVE_LABEL : "Сохранить";
+  // a REOPENED month is closed again by a save, with or without changes: its button says so
+  const primaryLabel = status.action === "recalculate" ? (period?.tone === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL) : "Сохранить";
   return (
     <section
       aria-label="Итог ведомости"
@@ -153,7 +154,7 @@ export function SheetSummaryCard({
           {period.canReopen && onReopen && (
             <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
           )}
-          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и пересохраните ведомость — месяц закроется снова</span>}
+          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и сохраните ведомость — месяц закроется снова</span>}
         </div>
       )}
 

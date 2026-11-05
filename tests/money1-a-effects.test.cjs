@@ -190,7 +190,7 @@ test("the state of the month: closed has the way out, reopened says what to do n
   assert.match(closed.hint, /03\.11\.2026/);
   const reopened = CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: { at: "2026-11-05T09:00:00", by: "Арслан", reason: "ошибка" } });
   assert.deepEqual([reopened.tone, reopened.label, reopened.canReopen], ["reopened", "Месяц переоткрыт", false]);
-  assert.match(reopened.hint, /пересохраните ведомость — месяц закроется снова/);
+  assert.match(reopened.hint, /сохраните ведомость — месяц закроется снова/);
   assert.match(reopened.hint, /Арслан/);
   const open = CP.periodView({ state: "open", closedOn: null, reopened: null });
   assert.deepEqual([open.tone, open.label, open.canReopen], ["open", "Месяц открыт", false]);
