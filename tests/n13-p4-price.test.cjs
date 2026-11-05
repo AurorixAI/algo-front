@@ -684,7 +684,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // some kinds have a rate, one has not: what is set, then the link
   assert.ok(textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] })).includes("Группа 50% · Индивидуально не задана · Указать"));
   // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
-  assert.match(html, /xl:text-center">\s*<span[^>]*xl:hidden">К выплате/);
+  assert.match(html, /xl:text-center"[^>]*>\s*<span[^>]*xl:hidden">К выплате/);
   assert.match(html, /xl:w-32/);
   assert.doesNotMatch(html, /Действия: Иванов|aria-haspopup/);
   // an action that is running disables the buttons of the others
