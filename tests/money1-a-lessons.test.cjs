@@ -208,8 +208,8 @@ test("the decision on an excuse: ONE excuse asks the dry run and its button wait
   assert.equal(q.confirmLabel, "Сбросить решение");
   assert.equal(q.cancelLabel, "Отмена");
   assert.equal(q.message.split("\n").slice(-2).join(" | "), "Иванов Иван: занятие вернётся в пакет | Изменится ведомость: Каримова К., октябрь 2026");
-  assert.match(q.message, /Что будет с деньгами:/);
-  assert.match(XD.resetDecisionQuestion([]).message, /деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты/);
+  assert.match(q.message, /Что изменится:/);
+  assert.match(XD.resetDecisionQuestion([]).message, /деньги не изменятся: пакеты учеников и сохранённая зарплата не затронуты/);
   assert.doesNotMatch(XD.resetDecisionQuestion(null).message, /деньги/, "an older server: nothing is claimed about the money");
   const helper = read("src/components/attendance/confirm-excuse-reset.ts");
   assert.match(helper, /orgApi\.resetAttendanceExcuse\(excuse\.id, \{ expected_status: excuse\.status \}, \{ dryRun: true \}\)/);

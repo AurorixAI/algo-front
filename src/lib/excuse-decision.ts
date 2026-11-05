@@ -261,7 +261,7 @@ export function previewTargets<T>(items: readonly T[], max = 5): { shown: T[]; m
  * server (empty: nothing moves); null: the server sent no block (an older one) - nothing is claimed about the money.
  */
 export function resetDecisionQuestion(moneyLines: string[] | null): ConfirmRequest {
-  const money = moneyLines === null ? [] : ["", "Что будет с деньгами:", ...(moneyLines.length > 0 ? moneyLines : ["деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты"])];
+  const money = moneyLines === null ? [] : ["", "Что изменится:", ...(moneyLines.length > 0 ? moneyLines : ["деньги не изменятся: пакеты учеников и сохранённая зарплата не затронуты"])];
   return {
     title: "Сбросить решение по пропуску?",
     message: ["Пропуск снова будет ждать решения: пока он не решён, урок засчитывается как обычный.", ...money].join("\n"),

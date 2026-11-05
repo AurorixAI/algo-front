@@ -221,3 +221,16 @@ test("R3 n5: one literal for each sentence of the block of effects (no copy, no 
   assert.doesNotMatch(sources, /EFFECTS_LOADING_TEXT\.replace/);
   assert.equal(PD.DRY_RUN_REASON, "Проверка последствий");
 });
+
+test("UX pack §5.1-тер, the server's `GET /auth/org/payroll/changed-months`: the path, the shape {items:[{month,teachers}]}, the junk is dropped, an error means no bar; `balanceAfter` of a line wins over the screen's own count", async () => {
+  const calls = await recorded(async (api) => { await api.getChangedPayrollMonths(); });
+  assert.deepEqual(calls.map((call) => [call.method, call.url]), [["GET", "/auth/org/payroll/changed-months"]]);
+  const original = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200, headers: new Map([["content-type", "application/json"]]), json: async () => ({ items: [{ month: "2026-09", teachers: 2 }, { month: "2026-10", teachers: 0 }, { month: "bad", teachers: 3 }, { month: "2026-11", teachers: 1 }] }), text: async () => "{}" });
+  try { assert.deepEqual(await lib("api.ts").orgApi.getChangedPayrollMonths(), [{ month: "2026-09", teachers: 2 }, { month: "2026-11", teachers: 1 }]); } finally { global.fetch = original; }
+  // the server's own `balanceAfter` (it knows the advance of the earlier months): negative - paid ahead
+  const line = (over) => E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-11", state: "open", sheetId: "s", teacherId: "t", teacherName: "Эргашев К.", savedTotal: 0, paid: 150000, freshBefore: 100000, freshAfter: 165834, freshTotal: 165834, changedBy: 65834, driftAfter: 165834, ...over }], dryRun: true }).payroll[0];
+  assert.equal(plain(E.paidLine(line({}))), "Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум", "without the field: the screen's count");
+  assert.equal(plain(E.paidLine(line({ balanceAfter: 5834 }))), "Уже выплачено 150 000 сум — до новой суммы останется 5 834 сум", "the server's number wins (the advance of the earlier months is taken off)");
+  assert.equal(plain(E.paidLine(line({ balanceAfter: -2000 }))), "Уже выплачено 150 000 сум — это на 2 000 сум больше новой суммы: выплачено вперёд");
+});

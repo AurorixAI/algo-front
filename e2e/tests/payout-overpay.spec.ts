@@ -69,7 +69,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await expect(dialog.getByLabel("Сумма")).toHaveValue(new RegExp(`^${moneyPattern(sheetTotal)}$`)); // the default is what is left
   await dialog.getByLabel("Сумма").fill("40 000");
   await dialog.getByRole("radio", { name: "Наличные" }).click();
-  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await dialog.getByRole("button", { name: /Записать выплату/ }).click();
   const question = dialog.getByTestId("payout-overpay");
   await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше начисленного сейчас — запишем как выплату вперёд`));
   await expect(dialog.getByRole("button", { name: /Записать выплату вперёд/ })).toBeVisible();
@@ -87,7 +87,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   expect(await org.owner.api.get("/auth/org/payroll/payouts", { month })).toEqual([]);
 
   // --- again, and this time «Записать выплату вперёд»
-  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await dialog.getByRole("button", { name: /Записать выплату/ }).click();
   await expect(question).toBeVisible();
   await dialog.getByRole("button", { name: /Записать выплату вперёд/ }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(40000)}`))).toBeVisible();
@@ -117,7 +117,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   const again = page.getByRole("dialog", { name: "Записать выплату" });
   await again.getByLabel("Сумма").fill("1 000");
   await again.getByRole("radio", { name: "Наличные" }).click();
-  await again.getByRole("button", { name: "Сохранить" }).click();
+  await again.getByRole("button", { name: /Записать выплату/ }).click();
   await expect(again.getByTestId("payout-overpay")).toContainText(new RegExp(`Выплата больше начисленного сейчас на\\s*${moneyPattern(1000)}\\s*сум`));
   await again.getByRole("button", { name: "Отмена" }).click();
   await again.getByRole("button", { name: "Отмена" }).click(); // the second «Отмена» closes the window
@@ -156,7 +156,7 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   const overpay = page.getByRole("dialog", { name: "Записать выплату" });
   await overpay.getByLabel("Сумма").fill("115 000");
   await overpay.getByRole("radio", { name: "Наличные" }).click();
-  await overpay.getByRole("button", { name: "Сохранить" }).click();
+  await overpay.getByRole("button", { name: /Записать выплату/ }).click();
   const question = overpay.getByTestId("payout-overpay");
   await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты`));
   await shot(page, project, "05-closed-month-overpay-question");
@@ -187,7 +187,7 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   await block.getByRole("button", { name: "Записать выплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Записать выплату" });
   await dialog.getByRole("radio", { name: "Наличные" }).click();
-  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await dialog.getByRole("button", { name: /Записать выплату/ }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(85000)}`))).toBeVisible();
   await expect(block).toContainText("Выплачено полностью");
   // voiding the advance payout of the PAST month takes the carry away from this month at once (nothing was stored)

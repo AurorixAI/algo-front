@@ -725,7 +725,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
                             <p className="mt-0.5 text-[11px] text-slate-500">{formatIsoDateLabel(exam.lessonDate, { day: "numeric", month: "long", year: "numeric" })} · {exam.deliveryMode === "print" ? "Печатный" : "Онлайн"}</p>
                           </div>
                           <span className={`shrink-0 text-[11px] font-semibold ${exam.canRelease ? "text-emerald-700" : "text-rose-700"}`}>
-                            {exam.canRelease ? "Вернётся в черновик" : exam.blockerReason ?? "Требует разбора"}
+                            {exam.canRelease ? "Вернётся в черновик" : exam.blockerReason ?? "Нужно проверить"}
                           </span>
                         </div>
                       </div>
