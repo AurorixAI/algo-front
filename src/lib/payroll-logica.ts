@@ -295,6 +295,36 @@ export function sheetHeadline(input: { total: number; dirty: boolean; payout: Pa
   return { label: "Начислено сейчас", value: state.fresh_total, saved: `Сохранено${on}: ${formatMoney(state.saved_total)}` };
 }
 
+/** The facts that describe the SAVED sheet (not the rate in force): what was counted, what is without pay, what waits for a decision. */
+const SAVED_FACT = /^(засчитано|без оплаты|не решено)/;
+
+/**
+ * The line of facts of an OPEN month's card (walk of 05.11, 4б): the big number is what is accrued now, and the counts under it belong to the SAVED sheet - so they stand in its brackets:
+ * «Сохранено 03.11: 45 000 сум (засчитано 3 посещения) · Ставка: Группа 50%».  The rate is the one in force, it stays outside.
+ */
+export function savedFactsLine(saved: string, facts: ReadonlyArray<string>): string {
+  const counted = facts.filter((fact) => SAVED_FACT.test(fact));
+  const rest = facts.filter((fact) => !SAVED_FACT.test(fact));
+  return [counted.length > 0 ? `${saved} (${counted.join(", ")})` : saved, ...rest].join(" · ");
+}
+
+/**
+ * What kind of payout a line of the history is (walk of 05.11, 4а): the line says the KIND («аванс» - the payout goes beyond what the month asks for), never the state of the month - the state is
+ * the chip's word («Выплачено полностью», «Переплачено …»).  A payout is walked in the order it was made: the part that lies above `target` is the advance.  null: an ordinary payout.
+ */
+export function payoutKindMark(state: Pick<PayoutState, "items" | "target">, item: Pick<PayoutOut, "id">): string | null {
+  let before = 0;
+  for (const payout of state.items) {
+    if (payout.voided_at) continue;
+    if (payout.id === item.id) {
+      if (before >= state.target) return "аванс";
+      return before + payout.amount > state.target ? "с авансом" : null;
+    }
+    before += payout.amount;
+  }
+  return null;
+}
+
 /** Money-1 A1b: the one button of a sheet whose data moved after the saving (it was «Пересчитать»): the new version holds the fresh numbers. */
 export const RESAVE_LABEL = "Пересохранить";
 

@@ -10,6 +10,7 @@ import {
   advanceLines,
   livePayouts,
   payoutError,
+  payoutKindMark,
   payoutLine,
   sheetPayoutChip,
   validatePayoutVoid,
@@ -64,7 +65,7 @@ export function SheetPayoutBlock({
 
       {(live.length > 0 || cancelled.length > 0) && (
         <ul aria-label="Выплаты" className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
-          {state.items.map((item) => <PayoutItem key={item.id} item={item} onChanged={onChanged} />)}
+          {state.items.map((item) => <PayoutItem key={item.id} item={item} kind={payoutKindMark(state, item)} onChanged={onChanged} />)}
         </ul>
       )}
 
@@ -73,7 +74,7 @@ export function SheetPayoutBlock({
   );
 }
 
-function PayoutItem({ item, onChanged }: { item: PayoutOut; onChanged: (text: string) => void }) {
+function PayoutItem({ item, kind, onChanged }: { item: PayoutOut; /** `payoutKindMark`: «аванс» / «с авансом» / null (an ordinary payout). */ kind: string | null; onChanged: (text: string) => void }) {
   const [voiding, setVoiding] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,7 +103,9 @@ function PayoutItem({ item, onChanged }: { item: PayoutOut; onChanged: (text: st
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className={`min-w-0 break-words ${cancelled ? "line-through" : ""}`}>
           {payoutLine(item)}
-          {item.note ? <span className="text-slate-500"> · {item.note}</span> : null}
+          {/* the KIND of the payout (never the state of the month: the chip says that); the person's own note is a quotation, so it does not read as a status */}
+          {kind && !cancelled ? <span data-testid="payout-kind" className="font-semibold text-sky-800"> · {kind}</span> : null}
+          {item.note ? <span className="italic text-slate-500"> · «{item.note}»</span> : null}
         </p>
         {!cancelled && !voiding && (
           <button type="button" onClick={() => { setVoiding(true); setError(null); }} className="text-xs font-semibold text-rose-700 hover:underline">Отменить</button>

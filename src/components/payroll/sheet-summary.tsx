@@ -15,7 +15,7 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { RESAVE_LABEL, sheetHeadline, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, savedFactsLine, sheetHeadline, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
@@ -70,7 +70,7 @@ export function SheetSummaryCard({
   onNote?: (text: string) => void;
 }) {
   const facts = sheetFactsParts(sheet, accrued, ratesNow);
-  // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one is the first words of the line of facts (they describe the saved sheet)
+  // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one opens the line of facts with the counts in its brackets (they describe the saved sheet)
   const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
   // «без оплаты» is already in the line of facts under the total: the card does not say it twice
   const counts = warnings === undefined ? sheet.warnings : warnings;
@@ -88,7 +88,7 @@ export function SheetSummaryCard({
         <div className="min-w-0">
           <p className="text-sm text-slate-500" data-testid="payroll-total-label">{headline.label}</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
-          <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved, ...facts, writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
+          <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? savedFactsLine(headline.saved, facts) : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {(sheet.undecided_total ?? 0) > 0 && (
             <p data-testid="sheet-undecided" className="mt-1.5 text-sm text-amber-800 print:hidden">
               Дополнительные уроки ждут решения об оплате.{" "}

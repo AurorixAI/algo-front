@@ -29,6 +29,7 @@ import {
   monthFileName,
   monthRateSummary,
   monthSummary,
+  teacherMonthSum,
   monthTitle,
   parseMonthParam,
   payrollErrorText,
@@ -625,6 +626,7 @@ export function TeacherRow({
   /** «Отметить выплату» (the menu of the row); absent: no menu. */
 }) {
   const status = sheetStatus(teacher.sheet);
+  const sum = teacher.sheet ? teacherMonthSum(teacher) : null;
   const chip = payoutChip(normalizePayoutState(teacher.payout));
   const change = payoutChangeLine(normalizePayoutState(teacher.payout));
   const action = rowAction(teacher.sheet);
@@ -661,9 +663,11 @@ export function TeacherRow({
         )}
       </div>
 
-      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-center">
-        <span className="mr-1.5 text-xs font-normal text-slate-400 xl:hidden">К выплате</span>
-        {teacher.sheet ? formatMoney(teacher.sheet.total_amount) : <span className="font-normal text-slate-400">—</span>}
+      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-center" data-testid="teacher-sum">
+        <span className="mr-1.5 text-xs font-normal text-slate-400 xl:hidden">{sum?.fresh ? "Начислено сейчас" : "К выплате"}</span>
+        {sum ? formatMoney(sum.amount) : <span className="font-normal text-slate-400">—</span>}
+        {/* D-2: an open month is paid by what is accrued now (the card of the sheet says the same) */}
+        {sum?.fresh && <p className="hidden text-xs font-normal text-slate-500 xl:block">начислено сейчас</p>}
       </div>
 
       {/* LOGIC-A decision 6: how much of the pay has been paid out */}

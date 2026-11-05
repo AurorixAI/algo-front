@@ -464,3 +464,87 @@ test("R3 item 11: a payout above what is accrued needs the owner's yes («бол
   assert.deepEqual(Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" }, 25000), { amount: 150000, paid_on: "2026-11-05", method: "cash", confirm_overpay: true, overpay: 25000 });
   assert.ok(!("confirm_overpay" in Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" })), "never sent by default");
 });
+
+// ── D-2 of the LIST (walk of 05.11, second part): the row and the head of the list say what the sheet says ─────────────────
+
+const rowOf = (payout, extra = {}) => ({ teacher_id: "t1", teacher_name: "Эргашев К.", lessons_count: 9, lesson_types: [], rates: { group: "50" }, missing_rates: [], warnings: {},
+  sheet: { id: "s1", revision: 1, total_amount: payout.saved_total, stale: payout.changed_by !== 0, updated_at: "2026-11-03T05:00:00" }, payout, ...extra });
+// the server of the walk: November is open, saved 45 000, accrued now 120 834, paid 150 000 (the list said «переплачено 105 000», the sheet 29 166)
+const OPEN_NOV = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834, items: [itemOf(150000)] });
+const CLOSED_SEP = stateOf({ saved_total: 860000, target: 860000, paid: 860000, balance: 0, state: "settled", basis: "saved", changed_by: 0 });
+
+test("D-2 list: the sum of an open month's row is what is accrued now; the head says the same and its tail is the balance of the rows (29 166, not 105 000)", () => {
+  const teachers = [rowOf(OPEN_NOV)];
+  assert.deepEqual(R.teacherMonthSum(teachers[0]), { amount: 120834, fresh: true });
+  const head = R.monthSummary("2026-11", teachers);
+  assert.equal(head.label, "Начислено сейчас за ноябрь:");
+  assert.equal(head.amount, 120834);
+  assert.equal(plain(Y.monthPayoutTail(teachers)), "выплачено 150 000 сум · переплачено 29 166 сум");
+  // the head and the tail are one arithmetic: accrued - paid = what is overpaid
+  assert.equal(head.amount - 150000, -29166);
+  assert.equal(plain(Y.payoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Переплачено 29 166 сум", "the chip of the row = the chip of the block of the sheet");
+  assert.equal(plain(Y.sheetPayoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Переплачено 29 166 сум");
+  // a closed month: the saved sum, «К выплате», as before; a month with no payout field (an older server) too
+  assert.deepEqual(R.teacherMonthSum(rowOf(CLOSED_SEP)), { amount: 860000, fresh: false });
+  assert.equal(R.monthSummary("2026-09", [rowOf(CLOSED_SEP)]).label, "К выплате за сентябрь:");
+  assert.deepEqual(R.teacherMonthSum({ sheet: { total_amount: 1000 } }), { amount: 1000, fresh: false });
+  // one reopened + one closed in a month: «К выплате», the sum is each teacher's own (accrued now / saved)
+  const mixed = R.monthSummary("2026-10", [rowOf(OPEN_NOV), rowOf(CLOSED_SEP)]);
+  assert.deepEqual([mixed.label, mixed.amount], ["К выплате за октябрь:", 120834 + 860000]);
+  // the server could not count the fresh total (a rate is missing): the saved sum stands
+  assert.deepEqual(R.teacherMonthSum(rowOf({ ...OPEN_NOV, basis: "saved", fresh_total: null })), { amount: 45000, fresh: false });
+  assert.equal(R.monthSummary("2026-11", [{ sheet: null }]).amount, null);
+});
+
+test("D-2 list: the row of an open month says «начислено сейчас» under the sum, the chip says the balance of the sheet; the row of a closed month is as before", () => {
+  signIn({ org_role: "owner" });
+  const { TeacherRow } = component("payroll/payroll-month-page.tsx");
+  const draw = (payout) => plain(textOf(html(React.createElement(TeacherRow, { teacher: rowOf(payout), month: "2026-11", busy: false, onCalculate() {}, onOpen() {} }))));
+  const open = draw(OPEN_NOV);
+  assert.ok(open.includes("120 834 сум") && open.includes("начислено сейчас") && open.includes("Переплачено 29 166 сум"), open);
+  assert.ok(open.includes("изменилось на +75 834 сум"), "the line of the change is the row's, as before");
+  assert.equal(times(open, 45000), 0, "the saved sum is not a second «К выплате» of the row");
+  assert.equal(times(open, 105000), 0, "the old number of the list");
+  const closed = draw(CLOSED_SEP);
+  assert.ok(closed.includes("860 000 сум") && !closed.includes("начислено сейчас"), closed);
+});
+
+// ── 4а: the line of a payout says its KIND, never the state of the month ───────────────────────────────
+
+test("4а: a payout above the sum of the month is marked «аванс» / «с авансом» (the kind); the person's own note is a quotation, so «выплачено полностью» in it cannot read as a state next to «Переплачено»", () => {
+  const items = [{ ...itemOf(500000), id: "a" }, { ...itemOf(376666), id: "b", note: "выплачено полностью" }, { ...itemOf(50000), id: "c" }, { ...itemOf(10000), id: "d", voided_at: "2026-11-04T10:00:00" }];
+  const state = Y.normalizePayoutState(stateOf({ saved_total: 860000, target: 860000, paid: 926666, balance: -66666, state: "overpaid", items }));
+  assert.equal(Y.payoutKindMark(state, { id: "a" }), null, "500 000 of 860 000: an ordinary payout");
+  assert.equal(Y.payoutKindMark(state, { id: "b" }), "с авансом", "the payout that crosses 860 000");
+  assert.equal(Y.payoutKindMark(state, { id: "c" }), "аванс", "after the month is covered everything is an advance");
+  assert.equal(Y.payoutKindMark(state, { id: "d" }), null, "a cancelled payout is not counted");
+  assert.equal(Y.payoutKindMark({ items: [], target: 0 }, { id: "z" }), null);
+  // a month covered by the advance of earlier months (target 0): every payout is an advance
+  assert.equal(Y.payoutKindMark({ items: [itemOf(1000)], target: 0 }, { id: "p1" }), "аванс");
+  const block = wordsOf(stateOf({ saved_total: 860000, target: 860000, paid: 876666, balance: -16666, state: "overpaid", advance_out: 16666, items: [{ ...itemOf(876666), note: "выплачено полностью" }] }));
+  assert.ok(block.includes("Переплачено 16 666 сум") && block.includes("с авансом"), block);
+  assert.ok(block.includes("«выплачено полностью»"), "the note is shown as the person's own words in quotation marks");
+  assert.ok(!/ · выплачено полностью/.test(block), "not as a bare status after the line of the payout");
+  const plainPayout = wordsOf(stateOf({ paid: 100000, balance: 760000, state: "due", items: [itemOf(100000)] }));
+  assert.ok(!plainPayout.includes("аванс"), "an ordinary payout has no mark");
+});
+
+// ── 4б: the counts belong to the saved sheet ─────────────────────────────────────────────────────────
+
+test("4б: in an open month the counts stand in the brackets of «Сохранено 03.11: 45 000 сум (засчитано 3 посещения)», the rate stays outside", () => {
+  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения"])), "Сохранено 03.11: 45 000 сум (засчитано 3 посещения) · Ставка: Группа 50%");
+  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения", "без оплаты 8 посещений у 1 ученика"])), "Сохранено 03.11: 45 000 сум (засчитано 3 посещения, без оплаты 8 посещений у 1 ученика) · Ставка: Группа 50%");
+  assert.equal(Y.savedFactsLine("Сохранено: 1", ["Ставка: Группа 50%"]), "Сохранено: 1 · Ставка: Группа 50%");
+  signIn({ org_role: "owner" });
+  const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
+  const open = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 0, balance: 120834, state: "unpaid", basis: "fresh", changed_by: 75834 });
+  const card = (payout) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ month: "2026-11", total_amount: 45000, stale: true, counted_total: 3, payout }), total: 45000, accrued: 0, busy: false, onPrimary() {}, onPrint() {},
+    status: R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: 75834 }) }))));
+  const text = card(open);
+  assert.ok(text.includes("Сохранено 03.11: 45 000 сум (засчитано 3 посещения)"), text);
+  assert.ok(!/сум · .*засчитано 3 посещения/.test(text.replace("(засчитано 3 посещения)", "")), "the counts are not left next to «Начислено сейчас»");
+  // a closed month: the counts are the sheet's own, the line is as it was
+  const closed = card(CLOSED_SEP);
+  assert.ok(closed.includes("засчитано 3 посещения") && !closed.includes("Сохранено 03.11"), closed);
+});
+

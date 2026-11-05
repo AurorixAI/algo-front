@@ -1123,13 +1123,27 @@ export interface MonthSummary {
   saved: string;
 }
 
-export function monthSummary(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet">>): MonthSummary {
+export function monthSummary(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet" | "payout">>): MonthSummary {
   const saved = teachers.filter((teacher) => teacher.sheet);
+  const sums = saved.map(teacherMonthSum);
+  // D-2 (walk of 05.11): the month that is still open is paid by what is accrued now; when every saved sheet of the list is such, the line says so (as the card of a sheet does)
+  const open = sums.length > 0 && sums.every((sum) => sum.fresh);
   return {
-    label: `К выплате за ${monthNameRu(month).toLowerCase()}:`,
-    amount: saved.length > 0 ? saved.reduce((sum, teacher) => sum + (teacher.sheet?.total_amount ?? 0), 0) : null,
+    label: `${open ? "Начислено сейчас за" : "К выплате за"} ${monthNameRu(month).toLowerCase()}:`,
+    amount: saved.length > 0 ? sums.reduce((total, sum) => total + sum.amount, 0) : null,
     saved: `сохранено ${saved.length} из ${teachers.length}`,
   };
+}
+
+/**
+ * The sum the list names for a teacher with a saved sheet (D-2 of the walk of 05.11): an OPEN month (`payout.basis` is `fresh`, the field of the server - no dates are looked at) is by what is
+ * accrued NOW (`payout.fresh_total`, the number of the card of the sheet), otherwise it is the saved total of the sheet.  The payout chip and the line «выплачено / переплачено» of the list
+ * come from the same `payout`, so the list and the sheet say one thing.
+ */
+export function teacherMonthSum(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout">): { amount: number; fresh: boolean } {
+  const payout = teacher.payout;
+  if (payout && payout.basis === "fresh" && typeof payout.fresh_total === "number") return { amount: payout.fresh_total, fresh: true };
+  return { amount: teacher.sheet?.total_amount ?? 0, fresh: false };
 }
 
 /** «К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3» (one line; «—» while nothing is saved). */
