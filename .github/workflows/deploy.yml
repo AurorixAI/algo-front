@@ -87,6 +87,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # tests/dom-*.test.cjs run the real components in headless Chromium (the same @playwright/test as e2e.yml): without the browser they FAIL, they are not skipped
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
       - name: Canonical question display contract
         run: npm run test:display
 
