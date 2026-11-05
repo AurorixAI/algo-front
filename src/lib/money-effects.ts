@@ -13,6 +13,7 @@
  */
 import { formatMoney, formatSignedMoney } from "./money-format";
 import { canDecideMoney } from "./one-off";
+import { pluralRu } from "./plural";
 import { monthTitle } from "./payroll";
 
 export type PeriodState = "none" | "open" | "closed" | "reopened";
@@ -185,7 +186,8 @@ const sum = (value: number): string => formatMoney(value);
  *  - the packs: «Иванов Иван: занятие вернётся в пакет»;
  *  - the saved sheets BEFORE the action, for the OWNER (R3 #22: the sum is there in a dry run, too): «Ведомость Каримова К., октябрь 2026: 475 000 сум → 600 000 сум (+125 000 сум)»;
  *    everybody else gets the month only: «Изменится ведомость: октябрь 2026» (LESSONS 45: the pay of the teachers is the owner's);
- *  - after the action: «Ведомость Каримова К., октябрь 2026: изменилась на +125 000 сум (всего к сохранённой +100 000 сум) — пересохраните её»;
+ *  - after the action: «Ведомость Каримова К., октябрь 2026: изменилась на +125 000 сум (всего к сохранённой +100 000 сум) — пересохраните её»; when the sheet is as saved again
+ *    (`driftAfter` 0: a cancelled payment took back what had moved it) nothing is asked: «… — снова как сохранённая, пересохранять не нужно»;
  *  - a month a saved sheet has closed is said as it is («месяц закрыт ведомостью»): a payment is allowed in it, the sheet is re-saved; a lesson action in a closed month is refused by the server
  *    with its own sentence (`PERIOD_CLOSED`) and never reaches this block;
  *  - the numbers could not be worked out (`unavailable`): one line, not an error.
@@ -202,12 +204,29 @@ export function effectLines(effects: MoneyEffects | null | undefined, options: {
   if (plain.length > 0) {
     const many = plain.length > 1;
     const head = done ? (many ? "Изменились ведомости" : "Изменилась ведомость") : (many ? "Изменятся ведомости" : "Изменится ведомость");
-    lines.push({ key: "payroll", text: `${head}: ${plain.map((line) => `${label(line)}${closedNote(line)}`).join("; ")}`, tone: plain.some((line) => line.state === "closed") ? "warn" : "plain" });
+    // N-5 (walk of 05.11): the sheets of two teachers are named by the month only (LESSONS 45), so their lines are the same words twice - one line with the count
+    const groups = new Map<string, number>();
+    for (const line of plain) {
+      const text = `${label(line)}${closedNote(line)}`;
+      groups.set(text, (groups.get(text) ?? 0) + 1);
+    }
+    const counted = (text: string, count: number) => (count > 1 ? `${count} ${pluralRu(count, ["ведомость", "ведомости", "ведомостей"])} · ${text}` : text);
+    const entries = [...groups.entries()];
+    const text = entries.length === 1 && entries[0][1] > 1
+      ? `${done ? "Изменились" : "Изменятся"} ${counted(entries[0][0], entries[0][1])}`
+      : `${head}: ${entries.map(([line, count]) => counted(line, count)).join("; ")}`;
+    lines.push({ key: "payroll", text, tone: plain.some((line) => line.state === "closed") ? "warn" : "plain" });
   }
   for (const line of summed) {
     const key = `payroll:${line.month}:${line.teacherId ?? ""}`;
     const change = signedSum(line.changedBy as number);
     if (done) {
+      // N-4 (walk of 05.11): the action undid what had moved the sheet - it is as saved again, nothing to re-save; an action that did not move the sheet at all has no news
+      if (line.changedBy === 0) continue;
+      if (line.driftAfter === 0) {
+        lines.push({ key, text: `Ведомость ${label(line)}: изменилась на ${change} — снова как сохранённая, пересохранять не нужно`, tone: "plain" });
+        continue;
+      }
       const drift = line.driftAfter !== null && line.driftAfter !== line.changedBy ? ` (всего к сохранённой ${signedSum(line.driftAfter)})` : "";
       lines.push({ key, text: `Ведомость ${label(line)}: изменилась на ${change}${drift} — пересохраните её`, tone: "plain" });
     } else if (line.freshBefore !== null && line.freshAfter !== null) {

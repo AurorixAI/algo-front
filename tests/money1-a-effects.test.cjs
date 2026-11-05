@@ -65,9 +65,31 @@ test("the lines AFTER the action: the owner gets the sum («−50 000 к сох�
   // the sheet had drifted before: «всего к сохранённой» says how far it is from the saved one now (the effect of this action alone is the first number)
   const drifted = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: -50000, driftAfter: 25000 }] }), { done: true });
   assert.equal(plain(drifted[0].text), "Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум (всего к сохранённой +25 000 сум) — пересохраните её");
+  // N-4 (walk of 05.11): a cancelled payment took back what had moved the sheet - it is as saved again, so no «пересохраните»; a change that is not zero from the saved asks as before
+  const back = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: -133333, driftAfter: 0 }] }), { done: true });
+  assert.equal(plain(back[0].text), "Ведомость Каримова К., октябрь 2026: изменилась на −133 333 сум — снова как сохранённая, пересохранять не нужно");
+  assert.ok(!/пересохраните/.test(back[0].text) && !/\+0/.test(back[0].text), "no «+0 сум» and no request to re-save");
+  assert.ok(/пересохраните её/.test(drifted[0].text) && /пересохраните её/.test(plus[0].text), "a sheet that differs from the saved one still asks");
+  // an action that did not move the sheet at all has no line about it
+  assert.equal(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: 0, driftAfter: 0 }] }), { done: true }).length, 0);
+  assert.equal(E.toastWithEffects({ moneyEffects: { students: [], payroll: [{ ...OWNER_DONE.payroll[0], changedBy: -133333, driftAfter: 0 }], dryRun: false } }).tone, "warning");
   const admin = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-10", state: "closed" }, { month: "2026-09", state: "open" }] }), { done: true });
   assert.deepEqual(admin.map((line) => plain(line.text)), ["Изменились ведомости: октябрь 2026 · месяц закрыт ведомостью; сентябрь 2026"]);
   assert.equal(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [] }), { done: true }).length, 0);
+  // N-5 (walk of 05.11): two sheets of two teachers named by the month only are the same words twice - one line with the count
+  const twin = [{ month: "2026-09", state: "closed" }, { month: "2026-09", state: "closed" }];
+  assert.deepEqual(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: twin })).map((line) => plain(line.text)), ["Изменятся 2 ведомости · сентябрь 2026 · месяц закрыт ведомостью"]);
+  assert.deepEqual(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: twin }), { done: true }).map((line) => plain(line.text)), ["Изменились 2 ведомости · сентябрь 2026 · месяц закрыт ведомостью"]);
+  assert.equal(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: twin }))[0].tone, "warn");
+  const five = Array.from({ length: 5 }, () => ({ month: "2026-09", state: "open" }));
+  assert.equal(plain(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: five }))[0].text), "Изменятся 5 ведомостей · сентябрь 2026");
+  // different words stay apart (and a repeated one inside them is counted); one sheet is as before
+  const mixed = E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [...twin, { month: "2026-10", state: "open" }] }));
+  assert.equal(plain(mixed[0].text), "Изменятся ведомости: 2 ведомости · сентябрь 2026 · месяц закрыт ведомостью; октябрь 2026");
+  assert.equal(plain(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [twin[0]] }))[0].text), "Изменится ведомость: сентябрь 2026 · месяц закрыт ведомостью");
+  // the owner's lines name the teachers - they are different, nothing is merged
+  const named = (name) => ({ month: "2026-09", state: "closed", teacherName: name, sheetId: `s-${name}`, teacherId: `t-${name}` });
+  assert.match(plain(E.effectLines(E.normalizeMoneyEffects({ students: [], payroll: [named("Каримова К."), named("Рахимов Т.")] }))[0].text), /^Изменятся ведомости: Каримова К., сентябрь 2026 · месяц закрыт ведомостью; Рахимов Т., сентябрь 2026/);
 });
 
 test("R3 #22: BEFORE the action the owner sees the sum of the sheet «было → станет» with the signed change; an administrator with the right sees the month only, no sums", () => {
