@@ -112,6 +112,22 @@ test("D-4: a closed month - the row has its buttons off and «Переоткры
   await view.page.close();
 });
 
+test("D-4: «Переоткрыть месяц» from the row of the queue - after it the list is read again (the row is free)", async () => {
+  const { page, calls } = await open((request) => {
+    if (request.method === "GET" && request.path === "/auth/org/payroll-periods") return { json: { month: "2026-11", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-11", state: "closed", closedOn: "2026-11-02", sheetId: "s1", sheetRevision: 3, reopened: null }] } };
+    if (request.path === "/auth/org/payroll-periods/2026-11/reopen") return { json: { ok: true, changed: true, teacherId: "t1", month: "2026-11", state: "reopened", closedOn: "2026-11-02", sheetId: "s1", reopened: { at: "2026-11-05T09:00:00", by: "Арслан", reason: "ошибка" } } };
+    return null;
+  }, { items: [ITEM({ periodClosed: true })] }, OWNER);
+  await page.click('[data-testid="period-closed-reopen"]');
+  await page.fill("#reopen-month-reason", "ошибочно отметили урок");
+  await page.waitForSelector('[data-testid="reopen-submit"]:not([disabled])');
+  await page.click('[data-testid="reopen-submit"]');
+  await page.waitForFunction(() => window.__log.includes("retry"));
+  assert.deepEqual(calls.filter((call) => call.path.endsWith("/reopen")).map((call) => call.body.reason), ["ошибочно отметили урок"]);
+  assert.equal(decisionCalls(calls).length, 0, "reopening is not a decision");
+  await page.close();
+});
+
 test("D-4: 409 PERIOD_CLOSED of the dry run - the same refusal as an excuse («Переоткрыть месяц» inside the block), the button off, the real request never goes", async () => {
   const { page, calls } = await open((request) => (request.path.endsWith("/money-decision") ? { status: 409, json: { detail: PERIOD_CLOSED } } : null), { items: [ITEM()] }, OWNER);
   await page.click('button[aria-label^="Оплатить"]');
