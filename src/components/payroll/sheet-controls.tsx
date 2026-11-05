@@ -279,23 +279,40 @@ export function DiffDetails({ diff }: { diff: PayrollDiff }) {
 export function WarningLinks({ views, label }: { views: WarningView[]; label: string }) {
   if (views.length === 0) return null;
   return (
-    <ul aria-label={label} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 print:hidden">
+    <ul aria-label={label} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 print:hidden">
       {views.map((view, index) => (
-        <li key={view.key} className={`text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
-          {index === views.length - 1 ? (
-            // the «?» never wraps alone onto a new line: it stays with the last warning
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
-              <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="inline-flex text-slate-400">
-                <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
-              </Hint>
-            </span>
-          ) : (
-            <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+        <li key={view.key} className={`min-w-0 break-words text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
+          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+          {/* the «?» stays at the end of the last warning; the TEXT wraps inside its own cell (a nowrap here made a long warning run over the next column, walk of 05.11) */}
+          {index === views.length - 1 && (
+            <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-400">
+              <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
+            </Hint>
           )}
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The line «требует внимания» of a row of the month list (UX round of the owner 05.11): what needs an ACTION, ONE paragraph, the parts separated by «·», each a link to where it is done, one «?» at
+ * the end.  It wraps inside its own cell (`min-w-0`, `break-words`) and never runs over the next column.
+ */
+export function AttentionLine({ views, label }: { views: WarningView[]; label: string }) {
+  if (views.length === 0) return null;
+  return (
+    <p aria-label={label} data-testid="teacher-attention" className="mt-1 min-w-0 break-words text-xs leading-5 text-amber-800 print:hidden">
+      {views.map((view, index) => (
+        <span key={view.key}>
+          {index > 0 && " · "}
+          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+        </span>
+      ))}
+      <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-400">
+        <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
+      </Hint>
+    </p>
   );
 }
 

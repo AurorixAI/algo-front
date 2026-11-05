@@ -49,7 +49,7 @@ import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/ce
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
-import { effectLines, moneyEffectsOf } from "@/lib/money-effects";
+import { effectLines, effectLineTexts, moneyEffectsOf } from "@/lib/money-effects";
 import { DivisorEffects } from "@/components/payroll/divisor-effects";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -257,7 +257,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
       const updated = await orgApi.setPayrollDivisor(buildDivisorBody(parsed.value, validFrom));
       setLoaded(updated);
       setText(String(updated.divisor));
-      setEffects(effectLines(moneyEffectsOf(updated), { done: true }).map((line) => line.text));
+      setEffects(effectLineTexts(effectLines(moneyEffectsOf(updated), { done: true })));
       setSave({ saving: false, saved: true, error: null });
       setTimeout(() => setSave((previous) => ({ ...previous, saved: false })), 3000);
     } catch (e: any) {

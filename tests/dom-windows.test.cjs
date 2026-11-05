@@ -31,7 +31,7 @@ test("cancel of a payment: the dry run first (reason «Проверка посл
   assert.match(await page.textContent('[data-testid="money-effects"]'), /Считаем/);
   hold.open();
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /475\s000\sсум\s→\s425\s000\sсум\s\(−50\s000\sсум\)/);
+  assert.match(await page.textContent('[data-testid="money-effects"]'), /Зарплата за октябрь(?: 2026)? уменьшится:\s*Каримова К\. — −50\s000\sсум \(было 475\s000, станет 425\s000\)/);
   await page.fill("#record-void-reason", "оплата внесена по ошибке");
   await page.click('button[form="record-void-form"]');
   await page.waitForFunction(() => window.__log.includes("voided"));

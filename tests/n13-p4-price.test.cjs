@@ -648,17 +648,18 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, month: "2026-10", busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
   const html = render();
   const text = textOf(html);
-  assert.ok(text.includes("Есть изменения"));
+  assert.ok(text.includes("Есть изменения"), "the sum did not move (no payout state): the plain chip");
   assert.ok(text.includes(H.statusHint(teacher.sheet))); // the explanation is read by a screen reader and shown on hover / tap
   assert.ok(text.includes("12 уроков за месяц"));
-  assert.ok(text.includes("Группа 50% · Индивидуально 40%"));
+  assert.ok(text.includes("Группа 50%") && text.includes("Индив. 40%"), "the rate: short lines one under the other");
+  assert.ok(!text.includes("Группа 50% · Индивидуально 40%"), "no «·» and no long names in the cell");
   assert.ok(text.includes("900 000 сум"));
-  // the warnings: one line under the name, each one a link to where it is fixed, in the right units
+  // UX round of the owner (05.11): under the name ONE line of what needs an ACTION, each one a link to where it is done; «N учеников не оплатили часть уроков» is a note - it is on the sheet
   assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
   assert.match(html, /href="\/owner\/payments\/prices"[^>]*>у 2 учеников нет цены</);
-  assert.match(html, /href="\/owner\/payments\?bucket=debt"[^>]*>140 посещений без оплаты</);
-  assert.equal((html.match(/<ul/g) || []).length, 1);
-  assert.ok(text.includes("Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости."));
+  assert.doesNotMatch(html, /140 посещений|не оплатил|bucket=debt/, "the note is not in the list");
+  assert.equal((html.match(/data-testid="teacher-attention"/g) || []).length, 1, "one line");
+  assert.equal((html.match(/<ul/g) || []).length, 0);
   // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»
   assert.doesNotMatch(html, /type="checkbox"|<input/);
   // ONE action by the status: data changed -> the sheet is opened (its card has the one «Пересчитать»)
@@ -668,7 +669,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const saved = render({ sheet: { ...teacher.sheet, stale: false }, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
   assert.ok(textOf(saved).includes("Сохранено 02.10"));
   assert.match(saved, /aria-label="Открыть: Иванов Пётр"/);
-  assert.doesNotMatch(saved, /<ul/); // no warnings, no line
+  assert.doesNotMatch(saved, /teacher-attention/); // nothing to do, no line
   // a sheet that was never calculated
   const fresh = textOf(render({ sheet: null }));
   assert.ok(fresh.includes("Не рассчитано"));
@@ -682,7 +683,8 @@ test("the month list: a status chip with its explanation, warnings in one line w
   assert.match(missing, /<button[^>]*disabled=""[^>]*aria-label="Рассчитать: Иванов Пётр"|<button[^>]*aria-label="Рассчитать: Иванов Пётр"[^>]*disabled=""/);
   assert.match(missing, /title="Сначала задайте ставку в «Сотрудниках»"/);
   // some kinds have a rate, one has not: what is set, then the link
-  assert.ok(textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] })).includes("Группа 50% · Индивидуально не задана · Указать"));
+  const partial = textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] }));
+  assert.ok(partial.includes("Группа 50%") && partial.includes("Индив. — нет ставки") && partial.includes("Указать"));
   // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
   assert.match(html, /xl:text-center"[^>]*>\s*<span[^>]*xl:hidden">К выплате/);
   assert.match(html, /xl:w-32/);

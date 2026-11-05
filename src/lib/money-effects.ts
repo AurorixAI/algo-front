@@ -14,7 +14,9 @@
 import { formatMoney, formatSignedMoney } from "./money-format";
 import { canDecideMoney } from "./one-off";
 import { pluralRu } from "./plural";
+import { formatBusinessDate } from "./business-time";
 import { monthTitle } from "./payroll";
+import { MONTHS_NOMINATIVE } from "./ru-calendar";
 
 export type PeriodState = "none" | "open" | "closed" | "reopened";
 
@@ -171,77 +173,115 @@ export const MONEY_RIGHT_TEXT = "Это действие меняет деньг
 
 export interface EffectLine {
   key: string;
+  /** The line itself; for the pay of the teachers - its heading («Зарплата за сентябрь вырастет:»). */
   text: string;
-  /** `warn`: needs a look - a month the sheet has closed, numbers that could not be worked out. */
+  /** Under the heading: one line per teacher («Эргашев К. — +133 333 сум (было 860 000, станет 993 333)»). */
+  items?: string[];
+  /** After them: what the person has to do («Сентябрь уже закрыт: … пересохраните их, чтобы выплатить разницу»).  Only when something has to be done. */
+  note?: string;
+  /** `warn`: needs an action - a month the sheet has closed that must be saved again, numbers that could not be worked out.  Everything else is information. */
   tone: "plain" | "warn";
+}
+
+/** Every line of the lines as plain texts (a toast, a question): the heading, its items, its note. */
+export function effectLineTexts(lines: ReadonlyArray<EffectLine>): string[] {
+  return lines.flatMap((line) => [line.text, ...(line.items ?? []), ...(line.note ? [line.note] : [])]);
 }
 
 const signedSum = formatSignedMoney;
 
 /** «475 000 сум» for a sum in a line. */
 const sum = (value: number): string => formatMoney(value);
+/** «860 000» - the sum without the word «сум» (inside a bracket that already follows «+133 333 сум»). */
+const bare = (value: number): string => formatMoney(value).replace(/[\s\u00a0]*сум$/, "");
+
+const monthName = (month: string, today: string, capitalized = false): string => {
+  const [year, number] = month.split("-");
+  const name = MONTHS_NOMINATIVE[Number(number) - 1] ?? month;
+  const text = year && year !== today.slice(0, 4) ? `${name} ${year}` : name;
+  return capitalized ? text.charAt(0).toLocaleUpperCase("ru-RU") + text.slice(1) : text;
+};
+
+/**
+ * The pay of the teachers, ONE form for the window and the toast, grouped by the month (UX round of the owner, 05.11):
+ *   Зарплата за сентябрь вырастет:
+ *     Эргашев К. — +133 333 сум (было 860 000, станет 993 333)
+ *     Мирзаева Л. — +13 333 сум (было 36 666, станет 49 999)
+ *   Сентябрь уже закрыт: после сохранения в ведомостях появится «изменилась на …» — пересохраните их, чтобы выплатить разницу.
+ * The verb follows the sign (вырастет / уменьшится / изменится; after the action выросла / уменьшилась / изменилась).  The last sentence only for a CLOSED month (the sheet has to be saved
+ * again for the difference to be paid out) - a month that is open has none; a sheet that is as saved again after the action says so and asks nothing.  An administrator with the right gets
+ * no names and no sums (LESSONS 45): «Изменится зарплата за сентябрь — 2 преподавателя.» and, for a closed month, that the owner saves the sheets again.
+ */
+function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean, today: string): EffectLine[] {
+  const months = [...new Set(payroll.map((line) => line.month))].sort();
+  const out: EffectLine[] = [];
+  for (const month of months) {
+    const lines = payroll.filter((line) => line.month === month);
+    // an action that did not move a sheet has no news about it (in the preview too: nothing to say)
+    const moved = lines.filter((line) => line.changedBy !== 0);
+    if (moved.length === 0) continue;
+    const m = monthName(month, today);
+    const owner = moved.some((line) => line.teacherName || line.sheetId);
+    const counted = moved.filter((line) => line.changedBy !== null);
+    const closed = moved.filter((line) => line.state === "closed" && !(done && line.driftAfter === 0));
+    const count = closed.length;
+    const them = count > 1 ? "их" : "её";
+    const sheets = count > 1 ? "ведомостях" : "ведомости";
+    let note: string | undefined;
+    if (count > 0) {
+      note = owner
+        ? `${monthName(month, today, true)} ${done ? "закрыт" : "уже закрыт"}: ${done ? "в" : "после сохранения в"} ${sheets} ${done ? "появилось" : "появится"} «изменилась на …» — пересохраните ${them}, чтобы выплатить разницу.`
+        : `${monthName(month, today, true)} уже закрыт: после сохранения в ${sheets} появится «изменилась на …» — владельцу нужно пересохранить ${them}.`;
+    }
+    const tone: EffectLine["tone"] = count > 0 ? "warn" : "plain";
+    const key = `payroll:${month}`;
+    if (!owner) {
+      const n = moved.length;
+      out.push({ key, text: `${done ? "Изменилась" : "Изменится"} зарплата за ${m} — ${n} ${pluralRu(n, ["преподаватель", "преподавателя", "преподавателей"])}.`, note, tone });
+      continue;
+    }
+    if (counted.length === 0) {
+      const names = moved.map((line) => line.teacherName || "преподаватель");
+      const who = names.join(", ");
+      out.push({ key, text: `${done ? "Изменилась" : "Изменится"} зарплата за ${m} — ${who}${who.endsWith(".") ? "" : "."}`, note, tone });
+      continue;
+    }
+    const ups = counted.filter((line) => (line.changedBy as number) > 0).length;
+    const downs = counted.filter((line) => (line.changedBy as number) < 0).length;
+    const verb = ups > 0 && downs === 0 ? (done ? "выросла" : "вырастет") : downs > 0 && ups === 0 ? (done ? "уменьшилась" : "уменьшится") : (done ? "изменилась" : "изменится");
+    const items = moved.map((line) => {
+      const name = line.teacherName || "Преподаватель";
+      if (line.changedBy === null) return name;
+      const sums = line.freshBefore !== null && line.freshAfter !== null ? ` (было ${bare(line.freshBefore)}, ${done ? "стало" : "станет"} ${bare(line.freshAfter)})` : "";
+      return `${name} — ${signedSum(line.changedBy)}${sums}${done && line.driftAfter === 0 ? " — снова как сохранённая" : ""}`;
+    });
+    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, note, tone });
+  }
+  return out;
+}
 
 /**
  * The sentences of money of an action.
  *  - the packs: «Иванов Иван: занятие вернётся в пакет»;
- *  - the saved sheets BEFORE the action, for the OWNER (R3 #22: the sum is there in a dry run, too): «Ведомость Каримова К., октябрь 2026: 475 000 сум → 600 000 сум (+125 000 сум)»;
- *    everybody else gets the month only: «Изменится ведомость: октябрь 2026» (LESSONS 45: the pay of the teachers is the owner's);
- *  - after the action: «Ведомость Каримова К., октябрь 2026: изменилась на +125 000 сум (всего к сохранённой +100 000 сум) — пересохраните её»; when the sheet is as saved again
- *    (`driftAfter` 0: a cancelled payment took back what had moved it) nothing is asked: «… — снова как сохранённая, пересохранять не нужно»;
- *  - a month a saved sheet has closed is said as it is («месяц закрыт ведомостью»): a payment is allowed in it, the sheet is re-saved; a lesson action in a closed month is refused by the server
- *    with its own sentence (`PERIOD_CLOSED`) and never reaches this block;
+ *  - the pay of the teachers by month (`payrollGroups`): the owner sees who and by how much, everybody else the month and how many;
  *  - the numbers could not be worked out (`unavailable`): one line, not an error.
- * `done`: the toast after the action (past tense).
+ * `done`: the toast after the action (past tense).  `today` (business date) decides whether a month is named with its year.
  */
-export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean } = {}): EffectLine[] {
+export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean; today?: string } = {}): EffectLine[] {
   if (!effects) return [];
   const done = options.done === true;
   const lines: EffectLine[] = effects.students.map((student) => ({ key: `student:${student.studentId}`, text: studentEffectText(student, done), tone: "plain" }));
-  const label = (line: MoneyPayrollEffect) => (line.teacherName || line.sheetId ? payrollLineLabel(line) : monthInSentence(line.month));
-  const closedNote = (line: MoneyPayrollEffect) => (line.state === "closed" ? " · месяц закрыт ведомостью" : "");
-  const summed = effects.payroll.filter((line) => line.changedBy !== null && (line.freshBefore !== null || done));
-  const plain = effects.payroll.filter((line) => !summed.includes(line));
-  if (plain.length > 0) {
-    const many = plain.length > 1;
-    const head = done ? (many ? "Изменились ведомости" : "Изменилась ведомость") : (many ? "Изменятся ведомости" : "Изменится ведомость");
-    // N-5 (walk of 05.11): the sheets of two teachers are named by the month only (LESSONS 45), so their lines are the same words twice - one line with the count
-    const groups = new Map<string, number>();
-    for (const line of plain) {
-      const text = `${label(line)}${closedNote(line)}`;
-      groups.set(text, (groups.get(text) ?? 0) + 1);
-    }
-    const counted = (text: string, count: number) => (count > 1 ? `${count} ${pluralRu(count, ["ведомость", "ведомости", "ведомостей"])} · ${text}` : text);
-    const entries = [...groups.entries()];
-    const text = entries.length === 1 && entries[0][1] > 1
-      ? `${done ? "Изменились" : "Изменятся"} ${counted(entries[0][0], entries[0][1])}`
-      : `${head}: ${entries.map(([line, count]) => counted(line, count)).join("; ")}`;
-    lines.push({ key: "payroll", text, tone: plain.some((line) => line.state === "closed") ? "warn" : "plain" });
-  }
-  for (const line of summed) {
-    const key = `payroll:${line.month}:${line.teacherId ?? ""}`;
-    const change = signedSum(line.changedBy as number);
-    if (done) {
-      // N-4 (walk of 05.11): the action undid what had moved the sheet - it is as saved again, nothing to re-save; an action that did not move the sheet at all has no news
-      if (line.changedBy === 0) continue;
-      if (line.driftAfter === 0) {
-        lines.push({ key, text: `Ведомость ${label(line)}: изменилась на ${change} — снова как сохранённая, пересохранять не нужно`, tone: "plain" });
-        continue;
-      }
-      const drift = line.driftAfter !== null && line.driftAfter !== line.changedBy ? ` (всего к сохранённой ${signedSum(line.driftAfter)})` : "";
-      lines.push({ key, text: `Ведомость ${label(line)}: изменилась на ${change}${drift} — пересохраните её`, tone: "plain" });
-    } else if (line.freshBefore !== null && line.freshAfter !== null) {
-      lines.push({ key, text: `Ведомость ${label(line)}: ${sum(line.freshBefore)} → ${sum(line.freshAfter)} (${change})${closedNote(line)}`, tone: line.state === "closed" ? "warn" : "plain" });
-    } else {
-      lines.push({ key, text: `Ведомость ${label(line)}: изменится на ${change}${closedNote(line)}`, tone: line.state === "closed" ? "warn" : "plain" });
-    }
-  }
+  lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate()));
   if (effects.unavailable) lines.push({ key: "unavailable", text: `${EFFECTS_UNAVAILABLE_TEXT}. ${done ? EFFECTS_UNAVAILABLE_DONE_HINT : EFFECTS_UNAVAILABLE_HINT}`, tone: "warn" });
   if (lines.length === 0 && effects.text) lines.push({ key: "text", text: effects.text, tone: "plain" });
   return lines;
 }
 
-/** The toast of a done action that may have moved money: amber when a pack or a saved sheet was touched, with the lines under the text. `details`: the lines that were there already. */
+/**
+ * The toast of a done action that may have moved money: the lines of the window in the past tense under the text.  Amber only when the person has to DO something (a closed month whose sheet
+ * is to be saved again, numbers that could not be worked out); an ordinary change is a plain toast.  `details`: the lines that were there already.
+ */
 export function toastWithEffects(answer: unknown, details: string[] = []): { tone: "success" | "warning"; details: string[] } {
-  const lines = effectLines(moneyEffectsOf(answer), { done: true }).map((line) => line.text);
-  return { tone: lines.length > 0 ? "warning" : "success", details: [...details, ...lines] };
+  const lines = effectLines(moneyEffectsOf(answer), { done: true });
+  return { tone: lines.some((line) => line.tone === "warn") ? "warning" : "success", details: [...details, ...effectLineTexts(lines)] };
 }

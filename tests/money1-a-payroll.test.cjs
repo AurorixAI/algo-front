@@ -159,7 +159,7 @@ test("A24 / A25: the data FELL by 125 000 - the payout is still by the saved 600
   assert.equal(plain(Y.payoutChip(voided).text), "Выплачено 475 000 сум из 600 000 сум");
 });
 
-test("the month row: ONE payout chip, the change after the saving under it («изменилось на +125 000»), ONE status, the state of the month under it, ONE action", () => {
+test("the month row: ONE payout chip (only the state of the payout), the change after the saving ONCE - in the status chip -, the state of the month, ONE action", () => {
   const { TeacherRow } = component("payroll/payroll-month-page.tsx");
   const payout = named("logicA", "A21_");
   const teacher = { teacher_id: "t1", teacher_name: "Каримова К.", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [],
@@ -168,23 +168,27 @@ test("the month row: ONE payout chip, the change after the saving under it («и
   const closed = row(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }));
   const text = textOf(closed);
   assert.ok(text.includes("Выплачено полностью"));
-  assert.ok(text.includes("изменилось на +125 000 сум"));
-  assert.ok(text.includes("Есть изменения"));
+  assert.ok(text.includes("Изменилась на +125 000 сум"), "the change is the chip of the status");
+  assert.ok(!text.includes("Есть изменения") && !text.includes("изменилось на"), "once: not «Есть изменения» and not a second line under the payout");
   assert.ok(text.includes("Месяц закрыт"));
   assert.match(closed, /data-testid="period-chip"[^>]*data-tone="closed"/);
-  assert.match(closed, /data-testid="payout-change"/);
+  assert.doesNotMatch(closed, /data-testid="payout-change"/);
   assert.equal((closed.match(/aria-label="Открыть: Каримова К\."/g) || []).length, 1, "one action");
   assert.doesNotMatch(closed, /Переоткрыть месяц/, "the way out is on the sheet, not in the row");
   const reopened = textOf(row(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null })));
   assert.ok(reopened.includes("Месяц переоткрыт"));
   assert.ok(!textOf(row(null)).includes("Месяц "), "no state read, nothing said");
-  assert.ok(textOf(row(CP.periodView({ state: "open", closedOn: null, reopened: null }))).includes("Месяц открыт"));
-  // no change: no line
-  const calm = html(React.createElement(TeacherRow, { teacher: { ...teacher, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} }));
-  assert.doesNotMatch(calm, /payout-change/);
+  const open = row(CP.periodView({ state: "open", closedOn: null, reopened: null }));
+  assert.ok(textOf(open).includes("Месяц открыт"));
+  assert.match(open, /data-testid="period-open"/, "an open month is a small word, not a chip");
+  assert.doesNotMatch(open, /data-testid="period-chip"/);
+  // the sum did not change: «Есть изменения» is not invented, and nothing is said about a change
+  const calm = textOf(html(React.createElement(TeacherRow, { teacher: { ...teacher, sheet: { ...teacher.sheet, stale: false }, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} })));
+  assert.ok(!calm.includes("изменилась") && !calm.includes("Изменилась") && !calm.includes("Есть изменения"));
+  // the data moved but the sum did not (or could not be counted): the plain chip
+  const same = textOf(html(React.createElement(TeacherRow, { teacher: { ...teacher, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} })));
+  assert.ok(same.includes("Есть изменения"));
 });
-
-// ── the sheet: «Месяц закрыт» + «Переоткрыть месяц» ───────────────────────────────────────────────
 
 test("the sheet: a closed month has the chip and the button; reopened says what to do next and has no button; open has the chip only; the owner decides (no handler, no button)", () => {
   signIn({ org_role: "owner" });
@@ -502,7 +506,8 @@ test("D-2 list: the row of an open month says «начислено сейчас�
   const draw = (payout) => plain(textOf(html(React.createElement(TeacherRow, { teacher: rowOf(payout), month: "2026-11", busy: false, onCalculate() {}, onOpen() {} }))));
   const open = draw(OPEN_NOV);
   assert.ok(open.includes("120 834 сум") && open.includes("начислено сейчас") && open.includes("Переплачено 29 166 сум"), open);
-  assert.ok(open.includes("изменилось на +75 834 сум"), "the line of the change is the row's, as before");
+  assert.ok(open.includes("Изменилась на −45 000 сум") || open.includes("Изменилась на +75 834 сум"), "the change after the saving is said ONCE - in the status chip");
+  assert.ok(!open.includes("изменилось на"), "not under the payout");
   assert.equal(times(open, 45000), 0, "the saved sum is not a second «К выплате» of the row");
   assert.equal(times(open, 105000), 0, "the old number of the list");
   const closed = draw(CLOSED_SEP);

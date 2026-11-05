@@ -17,12 +17,23 @@ import { periodClosedOf } from "@/lib/closed-period";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
 
-/** The lines of money of a done action (the toast and the note under a form use the same lines). */
+/**
+ * The lines of money of an action (the same ones the toast carries).  The pay of the teachers is a heading, a line per teacher and - only when something has to be done - a sentence of what
+ * (an amber one, UX round of the owner 05.11); everything else is information.
+ */
 export function EffectLines({ effects }: { effects: MoneyEffects }) {
   return (
-    <ul className="space-y-0.5">
+    <ul className="space-y-1.5">
       {effectLines(effects).map((line) => (
-        <li key={line.key} className={`text-sm ${line.tone === "warn" ? "font-medium text-amber-900" : "text-slate-800"}`}>{line.text}</li>
+        <li key={line.key} data-testid="effect-line" className="text-sm text-slate-800">
+          <p className={line.tone === "warn" && !line.note ? "font-medium text-amber-900" : undefined}>{line.text}</p>
+          {line.items && line.items.length > 0 && (
+            <ul className="mt-0.5 space-y-0.5 pl-3">
+              {line.items.map((item) => <li key={item} className="tabular-nums">{item}</li>)}
+            </ul>
+          )}
+          {line.note && <p className="mt-1 font-medium text-amber-900" data-testid="effect-note">{line.note}</p>}
+        </li>
       ))}
     </ul>
   );
@@ -48,7 +59,7 @@ export function MoneyEffectsBlock({
   if (preview.status === "idle") return null;
   if (preview.status === "ready" && preview.effects === null) return null;      // the server sent no block: nothing is claimed about the money
   const closed = preview.status === "failed" ? periodClosedOf(preview.error) : null;
-  const none = preview.status === "ready" && preview.effects !== null && effectsEmpty(preview.effects);
+  const none = preview.status === "ready" && preview.effects !== null && (effectsEmpty(preview.effects) || effectLines(preview.effects).length === 0);
   const warn = preview.status === "ready" && preview.effects !== null && effectLines(preview.effects).some((line) => line.tone === "warn");
   const tone = closed || warn ? "border-amber-200 bg-amber-50" : none ? "border-slate-200 bg-slate-50" : "border-primary-100 bg-primary-50/60";
   return (

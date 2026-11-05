@@ -426,7 +426,8 @@ test("the sheet block and the month row draw the payout", () => {
   const teacher = { teacher_id: "t", teacher_name: "Каримова", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: { id: "s1", revision: 1, total_amount: 475000, stale: true, updated_at: null }, warnings: {}, payout: due };
   const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.ok(row.includes("Выплачено полностью"));
-  assert.ok(plain(row).includes("изменилось на +125 000 сум"), "the month row names the change after the saving");
+  assert.ok(plain(row).includes("Изменилась на +125 000 сум"), "the month row names the change after the saving - ONCE, in the status chip (UX round of the owner 05.11)");
+  assert.ok(!plain(row).includes("изменилось на"), "not a second time under the payout");
   const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.match(rowHtml, /data-testid="payout-chip"/);
   assert.doesNotMatch(rowHtml, /Действия: Каримова/); // owner 22.10: no «⋯» on the month row

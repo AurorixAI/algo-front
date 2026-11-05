@@ -1075,6 +1075,51 @@ export function monthRateSummary(teacher: Pick<PayrollMonthTeacher, "rates" | "m
   return { text: rateParts(entries).join(" · "), missing };
 }
 
+const RATE_SHORT_LABEL: Record<LessonType, string> = { group: "Группа", mini_group: "Мини-гр.", pair: "Парный", individual: "Индив." };
+
+/**
+ * The rate cell of a row of the month list, as SHORT lines one under the other («Группа 50%» / «Индив. 60%»: no «·», nothing that breaks in the middle of a word, UX round of the owner 05.11).
+ * `none`: no rate at all (the cell says «Не задана» and has the link «Указать»); a kind with no rate is «Парный — нет ставки».
+ */
+export function monthRateLines(teacher: Pick<PayrollMonthTeacher, "rates" | "missing_rates" | "lesson_types">): { lines: string[]; missing: boolean; none: boolean } {
+  const rates = teacher.rates ?? {};
+  const missingTypes = (teacher.missing_rates ?? []).map(normalizeLessonType);
+  const types = new Set<LessonType>([...Object.keys(rates).map(normalizeLessonType), ...missingTypes]);
+  const entries = [...types].map((type) => ({ type, percent: rates[type] ?? null })).sort((a, b) => typeOrderCompare(a.type, b.type));
+  const missing = entries.some((entry) => entry.percent === null);
+  if (entries.length === 0 || entries.every((entry) => entry.percent === null)) return { lines: [], missing: entries.length > 0, none: entries.length > 0 };
+  return { lines: entries.map((entry) => (entry.percent === null ? `${RATE_SHORT_LABEL[entry.type]} — нет ставки` : `${RATE_SHORT_LABEL[entry.type]} ${percentShort(entry.percent)}`)), missing, none: false };
+}
+
+export const UNDECIDED_HINT = "Дополнительные уроки, оплату которых ещё никто не решил: пока не решено, в сумму они не входят. Решите «Оплатить / Не оплачивать» в «Заменах».";
+
+/**
+ * What of a teacher's month NEEDS AN ACTION, in ONE line under the name («1 незакрытый урок · 1 доп. урок ждёт решения»), each part a link to where it is done.  Only actions: an unfinished lesson,
+ * an excuse that waits, a missing price, an additional lesson nobody decided.  «N учеников не оплатили часть уроков» is a note, not an action: it stays on the sheet (UX round of the owner 05.11).
+ */
+export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" | "undecided_lessons">): WarningView[] {
+  const views = warningViews(teacher.warnings).filter((view) => view.key !== "unpaid");
+  const undecided = Math.max(0, Math.floor(Number(teacher.undecided_lessons) || 0));
+  if (undecided > 0) {
+    views.push({
+      key: "undecided",
+      text: `${undecided} ${pluralRu(undecided, ["доп. урок ждёт решения", "доп. урока ждут решения", "доп. уроков ждут решения"])}`,
+      href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены",
+    });
+  }
+  return views;
+}
+
+/**
+ * The status chip of a row: the change after the saving is said ONCE, here - «Изменилась на +75 834» (instead of «Есть изменения» and a second line under the payout).  When the data moved but the
+ * sum is the same (or cannot be counted) it stays «Есть изменения».
+ */
+export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout">): SheetStatusView {
+  const base = sheetStatus(teacher.sheet);
+  const delta = teacher.payout && teacher.payout.fresh_total !== null && teacher.payout.fresh_total !== undefined ? Number(teacher.payout.changed_by) || 0 : 0;
+  return base.tone === "changed" && delta !== 0 ? { tone: "changed", label: `Изменилась на ${formatSignedMoney(delta)}` } : base;
+}
+
 // ── The page of a month ─────────────────────────────────────────────────────
 
 export interface CalculationGate {
@@ -1298,7 +1343,7 @@ export function sheetCardStatus(input: {
 export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students" | "open_lesson_items">;
 
 export interface WarningView {
-  key: WarningKey;
+  key: WarningKey | "undecided";
   text: string;
   href: string;
   tone: "warning" | "info";

@@ -27,7 +27,9 @@ import {
   lessonsOfMonthText,
   lessonsWithoutTeacherText,
   monthFileName,
-  monthRateSummary,
+  monthRateLines,
+  rowStatus,
+  teacherAttention,
   monthSummary,
   teacherMonthSum,
   monthTitle,
@@ -35,13 +37,10 @@ import {
   payrollErrorText,
   rowAction,
   sheetCardStatus,
-  sheetStatus,
   sheetTotal,
   teacherLabel,
   teacherRateHref,
-  undecidedLessonsText,
   versionLabel,
-  warningViews,
   type PayrollErrorLike,
   type PayrollMonthOverview,
   type PayrollMonthTeacher,
@@ -51,7 +50,7 @@ import {
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChangeLine, payoutChip } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { askConfirm } from "@/lib/confirm-dialog";
@@ -65,10 +64,10 @@ import { PayrollSheetTable } from "./sheet-table";
 import { PeriodChip } from "./period-chip";
 import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { SheetSummaryCard } from "./sheet-summary";
-import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, WarningLinks, usePrintWithDates } from "./sheet-controls";
+import { AttentionLine, ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, usePrintWithDates } from "./sheet-controls";
 
 /** Преподаватель | Ставка | К выплате | Выплата | Статус | action.  Identity left, rate, payout and status centred, the money of the ledger right. */
-const GRID = "xl:grid xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-start xl:gap-x-3";
+const GRID = "xl:grid xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,1fr)] xl:items-start xl:gap-x-3";
 
 interface Preview {
   sheet: PayrollSheet;
@@ -453,7 +452,7 @@ function PayrollMonthContent() {
           <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
             <TableHeader
               show="xl"
-              gridClass="xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)]"
+              gridClass="xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,1fr)]"
               labels={["Преподаватель", "Ставка", "К выплате", "Выплата", "Статус", ""]}
               aligns={["left", "center", "center", "center", "center", "center"]}
               hints={[undefined, RATE_COLUMN_HINT]}
@@ -625,41 +624,38 @@ export function TeacherRow({
   onOpen: () => void;
   /** «Отметить выплату» (the menu of the row); absent: no menu. */
 }) {
-  const status = sheetStatus(teacher.sheet);
+  const status = rowStatus(teacher);
   const sum = teacher.sheet ? teacherMonthSum(teacher) : null;
   const chip = payoutChip(normalizePayoutState(teacher.payout));
-  const change = payoutChangeLine(normalizePayoutState(teacher.payout));
   const action = rowAction(teacher.sheet);
-  const rate = monthRateSummary(teacher);
-  const warnings = warningViews(teacher.warnings);
+  const rate = monthRateLines(teacher);
+  const attention = teacherAttention(teacher);
   const rateMissing = (teacher.missing_rates ?? []).length > 0;
   const blocked = action.kind !== "open" && rateMissing;
   const run = action.kind === "open" ? onOpen : onCalculate;
 
   return (
-    <li className={`rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-4 xl:py-4 ${GRID}`}>
+    <li className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-4 xl:py-4 ${GRID}`}>
       <div className="min-w-0">
         <p className="min-w-0 break-words text-sm font-semibold text-slate-900">{teacher.teacher_name}</p>
         <p className="text-xs text-slate-500">{lessonsOfMonthText(teacher.lessons_count)}</p>
-        {warnings.length > 0 && (
-          <div className="mt-1">
-            <WarningLinks views={warnings} label={`Предупреждения: ${teacher.teacher_name}`} />
-          </div>
-        )}
-        {undecidedLessonsText(teacher.undecided_lessons) && (
-          <p data-testid="teacher-undecided" className="mt-1 text-xs font-medium text-amber-800">{undecidedLessonsText(teacher.undecided_lessons)} — в сумму не входят</p>
-        )}
+        {/* ONE line of what needs an action (UX round of the owner 05.11); the notes («N учеников не оплатили…») are on the sheet */}
+        {attention.length > 0 && <AttentionLine views={attention} label={`Требует внимания: ${teacher.teacher_name}`} />}
       </div>
 
-      <div className="mt-3 text-sm text-slate-700 xl:mt-0 xl:text-center">
+      <div className="mt-3 min-w-0 text-sm text-slate-700 xl:mt-0 xl:text-center" data-testid="teacher-rate">
         <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Ставка</span>
-        {/* no rate at all: just the link that sets it; some kinds only: what is set, then the link */}
-        {rate.text !== "Не задана" && <span>{rate.text}</span>}
+        {/* short lines one under the other; no rate at all: just the link that sets it; some kinds only: what is set, then the link */}
+        {rate.lines.length > 0 && (
+          <span className="inline-flex flex-col align-top xl:flex">
+            {/* «Группа 50%» never breaks inside; a line «… — нет ставки» may wrap between words */}
+            {rate.lines.map((line) => <span key={line} className={line.includes("нет ставки") ? "break-words" : "whitespace-nowrap"}>{line}</span>)}
+          </span>
+        )}
+        {/* no rate at all: only the link that sets it */}
+        {rate.lines.length === 0 && !rate.none && <span>—</span>}
         {rate.missing && (
-          <>
-            {rate.text !== "Не задана" && " · "}
-            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
-          </>
+          <Link href={teacherRateHref(teacher.teacher_id, month)} className="block font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
         )}
       </div>
 
@@ -670,7 +666,7 @@ export function TeacherRow({
         {sum?.fresh && <p className="hidden text-xs font-normal text-slate-500 xl:block">начислено сейчас</p>}
       </div>
 
-      {/* LOGIC-A decision 6: how much of the pay has been paid out */}
+      {/* LOGIC-A decision 6: how much of the pay has been paid out - the chip of the state of the payout and nothing else (the change after the saving is said once, in the status) */}
       <div className="mt-1 min-w-0 text-sm xl:mt-0 xl:text-center">
         <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Выплата</span>
         {chip ? (
@@ -678,13 +674,14 @@ export function TeacherRow({
         ) : (
           <span className="text-slate-400">—</span>
         )}
-        {/* Money-1 A1b: the payout stands by the saved sum; a change of the data after the saving is said here and cleared by «Пересохранить» on the sheet */}
-        {change && <p data-testid="payout-change" title={change.title ?? undefined} className="mt-1 text-xs font-medium text-amber-800">{change.text}</p>}
       </div>
 
       <div className="mt-2 min-w-0 space-y-1 xl:mt-0 xl:text-center">
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
-        {period && <div><PeriodChip view={period} /></div>}
+        {/* the state of the month: a closed / reopened one is a chip (it asks something of the owner); an open one is a small word */}
+        {period && (period.tone === "open"
+          ? <p data-testid="period-open" className="text-[11px] leading-4 text-slate-500">{period.label}</p>
+          : <div><PeriodChip view={period} /></div>)}
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 xl:mt-0 xl:justify-center">

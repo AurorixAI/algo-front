@@ -44,7 +44,7 @@ test("K1: «Внести» waits while the effects are counted; then it works; t
   assert.match(await page.textContent('[data-testid="money-effects"]'), /Считаем, что изменится с деньгами/, "and the block says why - once");
   hold.open();
   await page.waitForFunction(() => document.querySelector('[data-testid="money-effects"][data-state="ready"]'));
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /475\s000\sсум\s→\s425\s000\sсум/);
+  assert.match(await page.textContent('[data-testid="money-effects"]'), /Зарплата за октябрь(?: 2026)? уменьшится:\s*Каримова К\. — −50\s000\sсум \(было 475\s000, станет 425\s000\)/);
   assert.equal(await page.isDisabled(SUBMIT), false);
   await page.click(SUBMIT);
   await page.waitForFunction(() => window.__log.includes("saved") || window.__log.includes("close"));

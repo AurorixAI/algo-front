@@ -368,7 +368,9 @@ test("A: the facts of the sheet and of the month say «не решено»", () 
   assert.equal(P.undecidedLessonsText(undefined), null);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /не решено: \{line\.undecided\}/);
   assert.match(read("src/components/payroll/sheet-summary.tsx"), /sheet\.undecided_total/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /undecidedLessonsText\(teacher\.undecided_lessons\)/);
+  // UX round of the owner (05.11): the month list says it in the ONE line of what needs an action («1 доп. урок ждёт решения», a link to «Замены»), not as a second red line
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /teacherAttention\(teacher\)/);
+  assert.equal(P.teacherAttention({ warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }, undecided_lessons: 2 })[0].text, "2 доп. урока ждут решения");
 });
 
 // ── A: the marks of a lesson ────────────────────────────────────────────────────────────────────────────────

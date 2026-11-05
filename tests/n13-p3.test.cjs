@@ -795,7 +795,7 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
   assert.match(read("src/components/payroll/how-it-works.tsx"), /payrollFormulaText\(divisor, priceLabel\)/);
-  assert.match(month, /<WarningLinks views=\{warnings\}/);
+  assert.match(month, /<AttentionLine views=\{attention\}/);          // UX round of the owner (05.11): ONE line of what needs an action under the name
   assert.match(month, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);

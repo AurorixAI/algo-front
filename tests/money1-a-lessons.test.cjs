@@ -92,7 +92,8 @@ test("the block by state: loading says so; ready lists the packs and the sheets;
   assert.equal(show({ status: "idle" }), "");
   assert.ok(textOf(show({ status: "loading" })).includes("Считаем, что изменится с деньгами…"));
   const ready = textOf(show({ status: "ready", effects: E.normalizeMoneyEffects(DRY) }));
-  for (const part of ["Что будет с деньгами", "Иванов Иван: занятие вернётся в пакет", "Петрова Мария: занятие вернётся в пакет", "Изменится ведомость: Каримова К., октябрь 2026"]) assert.ok(ready.includes(part), part);
+  for (const part of ["Что будет с деньгами", "Иванов Иван: занятие вернётся в пакет", "Петрова Мария: занятие вернётся в пакет", "Изменится зарплата за"]) assert.ok(ready.includes(part), part);
+  assert.match(ready, /Изменится зарплата за (октябрь|[а-я]+ 2026) — Каримова К\./);
   const none = show({ status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [], text: "", dryRun: true }) });
   assert.ok(textOf(none).includes("Деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты."));
   assert.equal(show({ status: "ready", effects: null }), "");
@@ -150,8 +151,8 @@ test("the words of the returns: the toast, the reason rules, the refusals in the
   assert.equal(RET.returnErrorText({ code: "LESSON_NOT_HELD" }), "Проведённого урока нет: возвращать нечего. Обновите страницу");
   // R3 m7: ONE helper makes the toast of every return / correction / decision
   const toast = E.toastWithEffects({ moneyEffects: { students: [], payroll: [{ month: "2026-10", state: "open", teacherName: "Каримова К.", sheetId: "s", changedBy: -50000 }], dryRun: false } });
-  assert.deepEqual(toast.details.map(plain), ["Ведомость Каримова К., октябрь 2026: изменилась на −50 000 сум — пересохраните её"]);
-  assert.equal(toast.tone, "warning");
+  assert.match(toast.details.map(plain).join(" | "), /^Зарплата за [а-я0-9 ]+ уменьшилась: \| Каримова К\. — −50 000 сум$/);
+  assert.equal(toast.tone, "success", "an open month: an ordinary change, not a call to act");
   assert.deepEqual(E.toastWithEffects(null), { tone: "success", details: [] });
   assert.equal(RET.returnDoneDetails, undefined, "no second way to word the toast");
 });
@@ -432,8 +433,10 @@ test("payments, forgiveness, refunds, rates, the divisor: every caller shows `mo
   // the answers in the shape of the server (pay2 fixtures + the new block)
   const voided = { payment: { id: "p" }, row: {}, money_effects: { students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s", teacherId: "t", changedBy: -125000 }], text: "", dryRun: false } };
   const note = E.toastWithEffects(voided);
-  assert.equal(note.tone, "warning");
-  assert.equal(plain(note.details[0]), "Ведомость Каримова К., октябрь 2026: изменилась на −125 000 сум — пересохраните её");
+  assert.equal(note.tone, "warning", "a closed month: the sheet is to be saved again");
+  assert.match(plain(note.details[0]), /^Зарплата за [а-я0-9 ]+ уменьшилась:$/);
+  assert.equal(plain(note.details[1]), "Каримова К. — −125 000 сум");
+  assert.match(plain(note.details[2]), /закрыт: в ведомости появилось «изменилась на …» — пересохраните её, чтобы выплатить разницу\.$/);
 });
 
 // ── the rights in the rest of the screens ──────────────────────────────────────────────────────────────

@@ -16,6 +16,12 @@ import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisio
 import { PayrollSheetPage } from "@/components/payroll/payroll-sheet-page";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { useToast } from "@/components/ui/toast";
+import { TeacherRow } from "@/components/payroll/payroll-month-page";
+import { TableHeader } from "@/components/attendance/table-chrome";
+import { PayrollMonthSummary } from "@/components/payroll/month-status";
+import { monthSummary } from "@/lib/payroll";
+import { monthPayoutTail } from "@/lib/payroll-logica";
+import { periodView } from "@/lib/closed-period";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
@@ -103,6 +109,22 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "decisionsToast":
       root.render(<DecisionsWithToast items={props.items} />);
       break;
+    case "monthRows": {
+      // the list of the month as the page draws it, in a box as wide as the content area of the screen (the test chooses the width and the viewport)
+      const teachers = props.teachers as any[];
+      root.render((
+        <div style={{ width: props.width ?? (window.innerWidth >= 1280 ? 1000 : window.innerWidth >= 1024 ? 740 : window.innerWidth - 32) }} className="mx-auto space-y-2 py-2">
+          <PayrollMonthSummary summary={monthSummary("2026-11", teachers)} month="2026-11" open payoutText={monthPayoutTail(teachers)} />
+          <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
+            <TableHeader show="xl" gridClass="xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,1fr)]" labels={["Преподаватель", "Ставка", "К выплате", "Выплата", "Статус", ""]} aligns={["left", "center", "center", "center", "center", "center"]} />
+            <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
+              {teachers.map((teacher) => <TeacherRow key={teacher.teacher_id} teacher={teacher} month="2026-11" period={periodView(teacher.__period)} busy={false} onCalculate={() => {}} onOpen={() => {}} />)}
+            </ul>
+          </div>
+        </div>
+      ));
+      break;
+    }
     case "journal":
       root.render(<GroupAttendanceJournal groupId="g1" students={props.students ?? []} canEdit adminMode groupName="7-А Алгебра" initialMonth={props.month ?? null} />);
       break;

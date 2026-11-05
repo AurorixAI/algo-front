@@ -332,7 +332,8 @@ test("the group block: the total of the group is the last row of its table, not 
   }
   const links = renderToStaticMarkup(React.createElement(WarningLinks, { views: R.warningViews({ open_lessons: 1, pending_excused: 2, no_fee: 0, unpaid: 0 }), label: "x" }));
   const lastItem = links.slice(links.lastIndexOf("<li"));
-  assert.match(lastItem, /whitespace-nowrap/);
+  assert.doesNotMatch(lastItem, /whitespace-nowrap/, "the text wraps inside its cell: a nowrap made a long warning run over the next column (walk of 05.11)");
+  assert.match(lastItem, /min-w-0 break-words/);
   assert.ok(lastItem.includes("уважительные ждут решения") && lastItem.includes('aria-label="Что это значит"'), "the «?» is inside the last warning's item");
   assert.equal((links.match(/<li/g) || []).length, 2);
 });

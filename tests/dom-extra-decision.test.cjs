@@ -42,9 +42,9 @@ test("D-4: «Оплатить» - the window first asks the server what the deci
   hold.open();
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   const effects = await flat(page, '[data-testid="money-effects"]');
-  assert.match(effects, /Ведомость Каримова К\., ноябрь 2026: 0 сум → 125 000 сум \(\+125 000 сум\)/);
+  assert.match(effects, /Зарплата за ноябрь(?: 2026)? вырастет:\s*Каримова К\. — \+125 000 сум \(было 0, станет 125 000\)/);
   const dialog = await flat(page, '[role="dialog"]');
-  assert.equal((dialog.match(/125\s000/g) || []).length, 2, "the sum of the sheet (after, change) - the estimate of the row is not said a third time");
+  assert.equal((dialog.match(/125\s000/g) || []).length, 2, "the change and the sum after - the estimate of the row is not said a third time");
   assert.ok(!dialog.includes("Преподавателю ≈"), "the estimate is the line of the sheet now");
   assert.match(dialog, /Оплата — по числу учеников: 3/);
   assert.ok(!dialog.includes("Ведомость за ноябрь 2026 г. уже"), "an unpaid sheet: no extra warning");
@@ -78,7 +78,7 @@ test("D-4: an administrator with the right sees the month and the state of the s
   await page.click('button[aria-label^="Оплатить"]');
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   const dialog = await flat(page, '[role="dialog"]');
-  assert.match(dialog, /Изменится ведомость: ноябрь 2026/);
+  assert.match(dialog, /Изменится зарплата за ноябрь(?: 2026)? — 1 преподаватель\./);
   assert.ok(!/[\d]\s?\d{3}\s*сум/.test(dialog), `no sum for an administrator: ${dialog}`);
   assert.ok(!dialog.includes("Ведомость за ноябрь 2026 г. уже сохранена"), "the administrator's «уже сохранена» is the block above, not said twice");
   await page.close();
@@ -196,7 +196,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
   await run.page.waitForSelector('[data-testid="decided-undo"]');
   await run.page.click('[data-testid="decided-undo"]');
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Ведомость Каримова К\., ноябрь 2026: 125 000 сум → 0 сум \(−125 000 сум\)/);
+  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата за ноябрь(?: 2026)? уменьшится:\s*Каримова К\. — −125 000 сум \(было 125 000, станет 0\)/);
   assert.ok(!(await flat(run.page, '[role="dialog"]')).includes("Сейчас урок оплачивается преподавателю"), "no second telling of the same");
   await run.page.close();
 
@@ -219,7 +219,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
 
 test("R2-2б: after «Оплатить» and «Не оплачивать» the page shows the toast «Решение записано …» with the line of the sheet (as every money action does)", async () => {
   for (const [label, decision, effects, expected] of [
-    ["Оплатить", "pay", [SHEET()], /Решение записано: преподавателю будет оплачено[\s\S]*Ведомость Каримова К\., ноябрь 2026: изменилась на \+125 000 сум/],
+    ["Оплатить", "pay", [SHEET()], /Решение записано: преподавателю будет оплачено[\s\S]*Зарплата за ноябрь(?: 2026)? выросла:[\s\S]*Каримова К\. — \+125 000 сум \(было 0, стало 125 000\)/],
     ["Не оплачивать", "skip", [], /Решение записано: без оплаты/],
   ]) {
     const run = await openPage(browser, "money.entry.tsx", (request) => {
