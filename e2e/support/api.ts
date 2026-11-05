@@ -88,7 +88,7 @@ export class Api {
     for (const [k, v] of Object.entries(opts.query ?? {})) {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
     }
-    const res = await fetch(url, {
+    const send = () => fetch(url, {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -96,6 +96,12 @@ export class Api {
         ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    });
+    // A seed that runs in the container (`support/payroll-seed.ts`, several seconds) leaves this client's keep-alive socket idle for as long as the server keeps it (uvicorn: 5 s): the first request
+    // after it can find the socket closed ("other side closed").  Nothing was sent, so a READ is simply asked again; a write is never repeated here.
+    const res = await send().catch((error) => {
+      if (method !== "GET") throw error;
+      return send();
     });
     const text = await res.text();
     let data: any = text;

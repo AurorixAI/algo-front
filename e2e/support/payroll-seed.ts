@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
 
 /**
- * Wave B P4 (R3 3): a SAVED payroll sheet of a month that has not come yet - the real calculation needs lessons, and a lesson of the next month cannot be held today.
+ * Wave B P4 (R3 3): a SAVED payroll sheet of a month the real calculation cannot make - it needs lessons, and a lesson of the next month cannot be held today, nor one of the past.
  * The sheet is written inside the auth container of THIS stack (the same way `support/console.ts` seeds the console); everything after that goes through the real API and screens.
  * One line with a hand-set price keeps the saved total as the target (no «fresh» calculation of a month without lessons).
+ * It is saved NOW: a sheet of a PAST month is therefore saved after the end of that month - the month is CLOSED (it hands an advance on); a sheet of the current or a coming month is OPEN.
  */
 const PROJECT = process.env.E2E_PROJECT || "algo-e2e";
 
@@ -32,8 +33,8 @@ with db_session() as db:
     print(row.id)
 `;
 
-/** Writes the sheet and returns its id. */
-export function seedNextMonthSheet(ownerUserId: string, teacherUserId: string, firstOfMonth: string, total: number): string {
+/** Writes the sheet (saved now) and returns its id. */
+export function seedSheet(ownerUserId: string, teacherUserId: string, firstOfMonth: string, total: number): string {
   const run = spawnSync("docker", ["exec", "-i", authContainer(), "python", "-", ownerUserId, teacherUserId, firstOfMonth, String(total)], { input: SCRIPT, encoding: "utf8" });
   if (run.status !== 0) throw new Error(`the sheet was not seeded: ${(run.stderr || run.stdout).slice(-600)}`);
   return run.stdout.trim().split("\n").pop() as string;
