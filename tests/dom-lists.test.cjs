@@ -1,4 +1,4 @@
-// «Деньги-1», пакет А, R3: the two lists of the round in a real DOM - «Требует разбора» by month (item 8, m6) and the decided additional lessons (item 14, n7).
+// «Деньги-1», пакет А, R3: the two lists of the round in a real DOM - «Уроки без отметки» by month (item 8, m6) and the decided additional lessons (item 14, n7).
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { launch, openPage } = require("./helpers/dom-page.cjs");
@@ -19,7 +19,7 @@ test("item 8: the months in the order of the server, the counters, the day the l
   await page.evaluate(() => window.mount("openLessons"));
   await page.waitForSelector('[data-testid="open-month"]');
   const text = (await page.textContent("body")).replace(/\s+/g, " ");
-  assert.match(text, /Показаны неразобранные уроки с 01\.09\.2026/);
+  assert.match(text, /Показаны уроки без отметки с 01\.09\.2026/);
   assert.ok(text.indexOf("Сентябрь 2026 · 2 урока") < text.indexOf("Октябрь 2026 · 1 урок"), "the oldest month first");
   assert.match(text, /не отмечено 1 · не завершено 1/);
   assert.match(text, /7-А Алгебра/);

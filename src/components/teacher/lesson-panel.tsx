@@ -147,7 +147,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
               >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                   <div>
-                    <p className="text-xs font-semibold text-rose-700">Требует разбора</p>
+                    <p className="text-xs font-semibold text-rose-700">Урок без отметки</p>
                     <h2 id="missed-lesson-title" className="mt-1 text-xl font-bold text-slate-900">Пропущенный урок</h2>
                   </div>
                   <button

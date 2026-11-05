@@ -306,7 +306,7 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "LESSON_TOO_OLD": return "Урок старше 7 дней — его закрывает администратор или владелец.";
     case "SERIES_ENDED": return detail?.message?.trim() || "Постоянный урок прекращается раньше этой даты: перенесите на более раннюю дату";
     case "CANCELLED_BY_DAY_OFF": return "Урок отменён выходным днём: чтобы изменить причину, измените сам выходной";
-    case "REASON_CHANGE_TOO_OLD": return "Причину можно изменить только у недавней отмены: урок вне окна «Незакрытых»";
+    case "REASON_CHANGE_TOO_OLD": return "Причину можно изменить только у недавней отмены: урок вне окна уроков без отметки";
     // «Вернуть урок» (S5)
     case "RESTORE_NOT_CANCELLED": return "Урок уже не отменён. Обновите страницу";
     case "RESTORE_MOVED": return detail?.message?.trim() || "Урок перенесён: чтобы вернуть его, отмените урок на новой дате и перенесите его обратно";
@@ -340,7 +340,7 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "LESSON_NOT_FOUND": return "Урока больше нет в расписании";
     case "LESSON_HAS_LIVE_EXAM": return detail?.message?.trim() || "У урока идёт экзамен: отменить его нельзя";
     case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
-    case "LESSON_OUTSIDE_WINDOW": return "Урок старше окна незакрытых уроков: назначить или отменить его нельзя — можно только отклонить запрос";
+    case "LESSON_OUTSIDE_WINDOW": return "Урок старше окна уроков без отметки: назначить или отменить его нельзя — можно только отклонить запрос";
     default: return server;
   }
 }
@@ -730,14 +730,14 @@ export function moveExplain(groupTeacherName: string | null | undefined): string
   return `${MOVE_EXPLAIN_TEXT} Новый урок проведёт преподаватель группы${name ? ` (${name})` : ""}. Замена, назначенная на исходный урок, на новый не переходит. Отменённый урок вернуть нельзя.`;
 }
 
-/** «Урок остаётся за Ивановым И. Если он не придёт, урок попадёт в «Незакрытые».» - a surname that cannot be declined by rule gets the neutral wording. */
+/** «Урок остаётся за Ивановым И. Если он не придёт, урок попадёт в «Уроки без отметки».» - a surname that cannot be declined by rule gets the neutral wording. */
 export function rejectConsequence(teacherName: string): string {
   const instrumental = declineShortName(teacherName, "instrumental");
   // a short name already ends with the full stop of the initial
   const stop = (text: string) => (text.endsWith(".") ? text : `${text}.`);
-  if (!instrumental) return `Урок остаётся за преподавателем: ${stop(teacherName.trim())} Если урок не будет проведён, он попадёт в «Незакрытые».`;
+  if (!instrumental) return `Урок остаётся за преподавателем: ${stop(teacherName.trim())} Если урок не будет проведён, он попадёт в «Уроки без отметки».`;
   const she = FEMININE.test(teacherName.trim().split(/\s+/)[0]);
-  return `Урок остаётся за ${stop(instrumental)} Если ${she ? "она" : "он"} не придёт, урок попадёт в «Незакрытые».`;
+  return `Урок остаётся за ${stop(instrumental)} Если ${she ? "она" : "он"} не придёт, урок попадёт в «Уроки без отметки».`;
 }
 export const examDraftText = (title: string): string => `Экзамен «${title}» вернётся в черновик — привяжите его к новому уроку.`;
 export const examDraftCancelText = (title: string): string => `Экзамен «${title}» вернётся в черновик, код доступа будет закрыт.`;
@@ -901,7 +901,7 @@ export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): st
   else if (entry.code === "TEACHER_BUSY" && entry.conflicts?.[0]) {
     const first: TeacherConflict = entry.conflicts[0];
     text = `преподаватель занят: ${teacherConflictLine(first)}`;
-  } else if (entry.code === "LESSON_OUTSIDE_WINDOW") text = "урок старше окна незакрытых уроков";
+  } else if (entry.code === "LESSON_OUTSIDE_WINDOW") text = "урок старше окна уроков без отметки";
   else if (BULK_CANCEL_CODES.includes(entry.code)) text = substitutionErrorText(Object.assign(new Error(entry.message), { code: entry.code, detail: { code: entry.code, message: entry.message } }));
   return `${prefix}${text}`;
 }

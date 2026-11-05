@@ -1474,7 +1474,7 @@ export interface WarningView {
   tone: "warning" | "info";
   /** What the warning means and what to do about it: a tooltip next to the text. */
   hint: string;
-  /** Where the link leads, in words: «Посещаемость → Незакрытые уроки». */
+  /** Where the link leads, in words: «Посещаемость → Уроки без отметки». */
   target: string;
   /** The button of this item in the block «Что нужно сделать» of the sheet: «Отметить» / «Решить» / «Сохранить новую сумму» (UX pack §5.2-бис). */
   button?: string;
@@ -1493,19 +1493,19 @@ export const WARNING_BUTTONS = { open_lessons: "Отметить", pending_excus
 
 /** The link of a warning in words (a tooltip, a screen reader). */
 export const WARNING_TARGETS = {
-  open_lessons: "Посещаемость → Незакрытые уроки",
+  open_lessons: "Посещаемость → Уроки без отметки",
   pending_excused: "Посещаемость → Пропуски",
   no_fee: "Оплаты → Цены групп",
   unpaid: "Оплаты → Требуют оплаты",
 } as const;
 
-/** Money-1 A6 (П7): the check of the unfinished lessons failed - not «0 незакрытых». */
-export const OPEN_LESSONS_UNKNOWN_TEXT = "Не удалось проверить незакрытые уроки";
-export const OPEN_LESSONS_UNKNOWN_HINT = "Не получилось узнать, есть ли в месяце незакрытые уроки, поэтому «0» не показываем. Откройте «Посещаемость → Незакрытые уроки» и проверьте сами, прежде чем сохранять ведомость: месяц после этого закрывается.";
+/** Money-1 A6 (П7): the check of the unfinished lessons failed - not «0 уроков без отметки». */
+export const OPEN_LESSONS_UNKNOWN_TEXT = "Не удалось проверить уроки без отметки";
+export const OPEN_LESSONS_UNKNOWN_HINT = "Не получилось узнать, есть ли в месяце уроки без отметки, поэтому «0» не показываем. Откройте «Посещаемость → Уроки без отметки» и проверьте сами, прежде чем сохранять ведомость: месяц после этого закрывается.";
 
 /** What each warning means; the unpaid one says the lessons are not in the sum and can be added on the sheet. */
 export const WARNING_HINTS = {
-  open_lessons: "Урок проведён, но посещаемость не закрыта. Пока урок не закрыт, он не попадёт в расчёт. Откройте «Посещаемость → Незакрытые уроки» и закройте его.",
+  open_lessons: "Урок проведён, но посещаемость не закрыта. Пока урок не закрыт, он не попадёт в расчёт. Откройте «Посещаемость → Уроки без отметки» и закройте его.",
   pending_excused: "Уважительная причина ещё не подтверждена: пока ждёт решения, урок засчитывается преподавателю. Подтверждённая причина — урок не засчитывается.",
   no_fee: "У ученика нет цены (ни у его группы, ни индивидуальной), поэтому его уроки не оцениваются. Задайте цену в «Оплаты → Цены групп» или в карточке ученика.",
   unpaid: "Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости.",

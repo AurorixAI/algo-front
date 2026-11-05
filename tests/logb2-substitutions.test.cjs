@@ -486,9 +486,9 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
   assert.match(cancel, /Экзамен «Контрольная №3» уже идёт — отменить урок нельзя/);
   const reject = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "reject" }))));
   assert.match(reject, /Причина отказа \(её увидит преподаватель\)/);
-  assert.match(reject, /Урок остаётся за Ивановым И\. Если он не придёт, урок попадёт в «Незакрытые»\./);
-  assert.equal(S.rejectConsequence("Каримова Н."), "Урок остаётся за Каримовой Н. Если она не придёт, урок попадёт в «Незакрытые».");
-  assert.equal(S.rejectConsequence("Ким А."), "Урок остаётся за преподавателем: Ким А. Если урок не будет проведён, он попадёт в «Незакрытые».");
+  assert.match(reject, /Урок остаётся за Ивановым И\. Если он не придёт, урок попадёт в «Уроки без отметки»\./);
+  assert.equal(S.rejectConsequence("Каримова Н."), "Урок остаётся за Каримовой Н. Если она не придёт, урок попадёт в «Уроки без отметки».");
+  assert.equal(S.rejectConsequence("Ким А."), "Урок остаётся за преподавателем: Ким А. Если урок не будет проведён, он попадёт в «Уроки без отметки».");
   assert.deepEqual(S.moveCheckParams({ newDate: "2026-10-29", startTime: "16:00", endTime: "17:30", room: "", format: "offline", reason: "" }), { newDate: "2026-10-29", startTime: "16:00", endTime: "17:30" });
   assert.equal(S.moveCheckParams({ newDate: "", startTime: "16:00", endTime: "17:30", room: "", format: "offline", reason: "" }), null);
   assert.equal(S.moveCheckParams({ newDate: "2026-10-29", startTime: "17:30", endTime: "16:00", room: "", format: "offline", reason: "" }), null);

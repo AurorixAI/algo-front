@@ -1,5 +1,5 @@
 /**
- * "Незакрытые уроки": pure helpers for the administrators' list (no React, no Date drift).
+ * "Уроки без отметки": pure helpers for the administrators' list (no React, no Date drift).
  * The server decides what is open; this file only orders, words and links it.
  */
 import { MONTHS_SHORT_DATE } from "./ru-calendar";
@@ -78,7 +78,7 @@ export function monthCountsText(month: Pick<OpenActionsMonth, "missed" | "inProg
 /** «Показаны уроки с 01.08.2026»: from which day the list is counted (the accounting start of the centre). */
 export function sinceLine(since: string | null | undefined): string | null {
   const day = formatDateRu(since);
-  return day ? `Показаны неразобранные уроки с ${day}` : null;
+  return day ? `Показаны уроки без отметки с ${day}` : null;
 }
 
 /** The answer without the lessons `drop` names: the counters of the month and the total follow, a month without lessons goes (the row leaves at once; the re-read confirms it). */

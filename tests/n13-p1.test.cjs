@@ -330,7 +330,7 @@ test("excuses tab: month switcher instead of date fields, one tab needs no tab r
   assert.doesNotMatch(page, /<h2/);
 });
 
-// ---- N13 P1.1: "Незакрытые уроки" -------------------------------------------
+// ---- N13 P1.1: "Уроки без отметки" -------------------------------------------
 
 const openLessons = require(path.join(__dirname, "../src/lib/open-lessons.ts"));
 

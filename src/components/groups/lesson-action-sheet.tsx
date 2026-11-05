@@ -115,7 +115,7 @@ export function LessonActionSheet({
   const sending = useRef(false);           // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
-  /** Money-1 A2: the window of «Вернуть урок» (a held lesson) / «Вернуть в разбор» (a lesson that had begun) over the sheet. */
+  /** Money-1 A2: the window of «Вернуть урок» (a held lesson) / «Вернуть на отметку» (a lesson that had begun) over the sheet. */
   const [returning, setReturning] = useState<"held" | "review" | "undo" | null>(null);
   // the answer of the live check, tagged with the date and time it was asked for: an answer for other values is no answer
   const [result, setResult] = useState<{ key: string; out: MoveCheckOut | null; error: { text: string; stale: boolean } | null } | null>(null);

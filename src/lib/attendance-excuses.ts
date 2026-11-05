@@ -15,7 +15,7 @@ export type AdminLessonAction =
   | "finish"         // "Завершить урок"
   | "correct"        // "Исправить отметки"
   | "return"         // "Вернуть урок" (Money-1 A2): a held lesson goes back to «не проведён»
-  | "return_review"  // "Вернуть в разбор" (Money-1 A2): «Урока не было» said by mistake for a lesson that has begun
+  | "return_review"  // "Вернуть на отметку" (Money-1 A2): «Урока не было» said by mistake for a lesson that has begun
   | "undo_decision"; // "Отменить решение об оплате" (Money-1 A3): the decision on an additional lesson is taken back
 
 export const CORRECTION_REASON_MIN = 10;

@@ -1080,7 +1080,7 @@ export interface OpenAttendanceAction {
   isSubstitution?: boolean;
 }
 
-/** Money-1 R3 #2: the unresolved lessons of ONE month (the screen «Требует разбора» shows the months, the oldest first). */
+/** Money-1 R3 #2: the unresolved lessons of ONE month (the screen «Уроки без отметки» shows the months, the oldest first). */
 export interface OpenActionsMonth {
   /** `YYYY-MM` */
   month: string;

@@ -128,7 +128,7 @@ export function LessonReturnDialog({
 }
 
 /**
- * Money-1 A2: «Вернуть в разбор» - «Урока не было» said by mistake for a lesson that had begun: it goes back to «Незакрытые уроки» (owner / administrator with the money right, an
+ * Money-1 A2: «Вернуть на отметку» - «Урока не было» said by mistake for a lesson that had begun: it goes back to «Уроки без отметки» (owner / administrator with the money right, an
  * open month).  The server has no dry run for it, so the consequence is said in the window by the rule (the deduction of a cancellation «по вине центра» goes away; the teacher is paid
  * when the lesson is held); the answer carries the real block for the toast.
  */

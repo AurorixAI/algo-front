@@ -150,19 +150,19 @@ export function allocationLines(items: Allocation[] | null | undefined): Allocat
     .map((item) => ({ label: item.label, amount: sum(item.amount), bucket: item.bucket, closes: Boolean(item.closes), remainingAfter: nullableSum(item.segment_remaining_after) }));
 }
 
-/** «Закрыла долг 15.09–14.10 · 269 000 сум» */
+/** «Погашен долг за 15.09–14.10 · 269 000 сум» (the label is the server's) */
 export function allocationText(item: Pick<Allocation, "label" | "amount">): string {
   return `${item.label} · ${formatMoney(item.amount)}`;
 }
 
 /** Where the money of a saved payment went, for a toast: one line per period and the balance left. */
-/** «Баланс после оплаты: долг 469 000 сум» / «аванс 300 000 сум» / «0» (owner's vocabulary: one word for what is left). */
-export function balanceAfterText(debtAfter: number | null | undefined, advanceAfter: number | null | undefined, lead = "Баланс после оплаты"): string {
+/** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 300 000 сум» / «Остаток долга после оплаты: 0 сум» (UX pack §1, №14: the words of the receipt and the toast). */
+export function balanceAfterText(debtAfter: number | null | undefined, advanceAfter: number | null | undefined, lead = "после оплаты"): string {
   const debt = sum(debtAfter);
   const advance = sum(advanceAfter);
-  if (debt > 0) return `${lead}: долг ${formatMoney(debt)}`;
-  if (advance > 0) return `${lead}: аванс ${formatMoney(advance)}`;
-  return `${lead}: 0`;
+  if (debt > 0) return `Остаток долга ${lead}: ${formatMoney(debt)}`;
+  if (advance > 0) return `Аванс ${lead}: ${formatMoney(advance)}`;
+  return `Остаток долга ${lead}: ${formatMoney(0)}`;
 }
 
 export function savedPaymentDetails(allocation: AllocationSummary | null | undefined): string[] {
@@ -585,8 +585,8 @@ export const STATEMENT_TYPE_LABEL: Record<StatementRowType, string> = {
   payment: "Оплата",
   writeoff: "Долг прощён",
   refund: "Возврат",
-  transfer_in: "Перенос из группы",
-  transfer_out: "Перенос в группу",
+  transfer_in: "Деньги ученика перешли из группы",
+  transfer_out: "Деньги ученика перешли в группу",
   opening_debt: "Долг на начало учёта",
   opening_paid_until: "Оплачено до начала учёта",
   pause: "Пауза",
@@ -675,21 +675,21 @@ export const STATEMENT_HINTS = {
 } as const;
 
 /**
- * The tiles above the statement: Стоимость обучения · Оплачено · Баланс; «Прощено» and «Возвращено» (and the transfers) only
+ * The tiles above the statement: Стоимость обучения · Оплачено · Остаток; «Прощено» and «Возвращено» (and the transfers) only
  * when there is something, each with a hint saying what it is.
  */
 export function statementTotals(summary: StatementSummary | null | undefined): StatementTotal[] {
   if (!summary) return [];
   const money = (key: StatementTotal["key"], label: string, value: number, hint?: string): StatementTotal => ({ key, label, amount: sum(value), text: formatMoney(value), tone: "plain", hint });
   const out: StatementTotal[] = [money("charged", "Стоимость обучения", summary.charged), money("paid", "Оплачено", summary.paid)];
-  if (sum(summary.transferred_in) > 0) out.push(money("transferred_in", "Перенесено из групп", summary.transferred_in, STATEMENT_HINTS.transferred_in));
+  if (sum(summary.transferred_in) > 0) out.push(money("transferred_in", "Деньги из других групп", summary.transferred_in, STATEMENT_HINTS.transferred_in));
   if (sum(summary.written_off) > 0) out.push(money("written_off", "Прощено", summary.written_off, STATEMENT_HINTS.written_off));
   if (sum(summary.recalculated) > 0) out.push(money("recalculated", "Перерасчёт", sum(summary.recalculated), STATEMENT_HINTS.recalculated));
   if (sum(summary.refunded) > 0) out.push(money("refunded", "Возвращено", summary.refunded, STATEMENT_HINTS.refunded));
-  if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Перенесено в группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
+  if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Деньги в другие группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
   const left = sum(summary.advance) - sum(summary.debt);
   const cell = balanceCell(left);
-  out.push({ key: "balance", label: "Баланс", amount: Math.abs(left), text: cell.text, tone: cell.kind });
+  out.push({ key: "balance", label: "Остаток", amount: Math.abs(left), text: cell.text, tone: cell.kind });
   return out;
 }
 
@@ -804,12 +804,10 @@ export interface ReceiptFacts {
   lines: AllocationLine[];
   /** «Долг до оплаты: 769 000 сум». */
   debtBefore: string | null;
-  /** «Баланс после оплаты: долг 469 000 сум» / «аванс 21 000 сум» / «0». */
+  /** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 21 000 сум». */
   after: string | null;
   /** «Оплачено до: 15.10.2026 (было 27.09.2026)». */
   paidUntil: string | null;
-  /** «Цена периода: 500 000 сум». */
-  price: string | null;
 }
 
 /** The facts of a new receipt come from its snapshot; an old receipt (no allocations) is legacy. */
@@ -824,13 +822,12 @@ export function receiptFacts(receipt: {
   price_snapshot?: { amount: number | null; source: string } | null;
 }): ReceiptFacts {
   const legacy = !Array.isArray(receipt.allocations);
-  if (legacy) return { legacy: true, method: null, lines: [], debtBefore: null, after: null, paidUntil: null, price: null };
+  if (legacy) return { legacy: true, method: null, lines: [], debtBefore: null, after: null, paidUntil: null };
   const debtAfter = nullableSum(receipt.debt_after);
   const advanceAfter = nullableSum(receipt.advance_after);
   const before = receipt.paid_until_before ?? null;
   const after = receipt.paid_until_after ?? null;
   const debtBefore = nullableSum(receipt.debt_before);
-  const snapshotPrice = receipt.price_snapshot?.amount;
   return {
     legacy: false,
     method: receipt.method ? methodLabel(receipt.method) : null,
@@ -838,7 +835,6 @@ export function receiptFacts(receipt: {
     debtBefore: debtBefore !== null && debtBefore > 0 ? `Долг до оплаты: ${formatMoney(debtBefore)}` : null,
     after: debtAfter === null && advanceAfter === null ? null : balanceAfterText(debtAfter, advanceAfter),
     paidUntil: after ? `Оплачено до: ${formatDateRu(after)}${before && before !== after ? ` (было ${formatDateRu(before)})` : ""}` : null,
-    price: snapshotPrice !== null && snapshotPrice !== undefined ? `Цена периода: ${formatMoney(snapshotPrice)}` : null,
   };
 }
 

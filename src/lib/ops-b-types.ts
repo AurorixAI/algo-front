@@ -346,7 +346,7 @@ export interface RestoreLessonResult {
   /** «Экзамены, снятые с урока при его отмене, не вернутся — назначьте их заново» */
   examsNote?: string | null;
   warnings?: OpsWarning[];
-  /** Money-1 A2: a lesson that had begun («Урока не было» by mistake) went back to «Требует разбора», not to the schedule. */
+  /** Money-1 A2: a lesson that had begun («Урока не было» by mistake) went back to «Уроки без отметки», not to the schedule. */
   returnedToReview?: boolean;
   /** Money-1 A2: only with `returnedToReview` - the saved sheets of the teacher (`lib/money-effects.ts`). */
   moneyEffects?: unknown;

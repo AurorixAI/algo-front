@@ -69,7 +69,7 @@ test("every error code of the contract is handled by name in the front, or is sh
     EMAIL_INVALID: "the invitation form: the server text under the e-mail field",
     STATUS_USE_ARCHIVE_ACTION: "the front never sends `status` to a group any more",
     VERSION_REQUIRED: "«Вернуть урок» always sends `expectedVersion` read by its dry run; if a call is forced, the server text (R3 #16: no text of ours)",
-    RESTORE_BEFORE_START: "«Вернуть в разбор» of a lesson from before the books of the centre: the server text in the dialog (R3 #16: no text of ours)",
+    RESTORE_BEFORE_START: "«Вернуть на отметку» of a lesson from before the books of the centre: the server text in the dialog (R3 #16: no text of ours)",
   };
   for (const code of Object.keys(contract["x-errors"])) {
     const named = sources.includes(code);

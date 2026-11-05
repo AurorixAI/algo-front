@@ -88,8 +88,8 @@ function presentationFor(
   }
   if (status === "cancelled") {
     return {
-      label: "Отменён",
-      description: "Урок отменён — посещаемость недоступна",
+      label: "Не состоялся",
+      description: "Урока не было — посещаемость недоступна",
       badgeClassName: "bg-slate-100 text-slate-600 border-slate-200",
       icon: XCircle,
     };

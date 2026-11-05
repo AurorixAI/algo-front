@@ -176,7 +176,7 @@ test("S0 parity: every caller passes the accounting start and the date inputs ca
 test("opening balance fixtures: the impact in words, the card line, the void", () => {
   const a01 = named("A01_");
   const impact = G.normalizeImpact(a01.impact);
-  assert.deepEqual(G.openingImpactLines(impact).map(plain), ["Баланс: долг 213 000 сум → 0", "Оплачено до: 20.10.2026 → 31.10.2026", "Стоимость: −213 000 сум"]);
+  assert.deepEqual(G.openingImpactLines(impact).map(plain), ["Остаток: долг 213 000 сум → 0", "Оплачено до: 20.10.2026 → 31.10.2026", "Стоимость: −213 000 сум"]);
   assert.equal(G.openingSummary(a01.row.opening), "Оплачено до 31.10.2026 (до ALGO)");
   const a02 = named("A02_");
   assert.equal(plain(G.openingSummary(a02.row.opening)), "Долг на начало 250 000 сум на 30.09.2026");
@@ -203,7 +203,7 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   const saved = named("A06_");
   const calc = { pause: saved.pause, impact: G.normalizeImpact(saved.impact) };
   assert.deepEqual(G.pauseCalcLines(calc).map(plain), [
-    "Дни паузы не входят в стоимость: 5 дней, −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Баланс: долг 20 000 сум → аванс 80 000 сум",
+    "Дни паузы не входят в стоимость: 5 дней, −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Остаток: долг 20 000 сум → аванс 80 000 сум",
   ]);
   // a role without money sees no sum
   assert.deepEqual(G.pauseCalcLines({ pause: saved.pause, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
@@ -494,7 +494,7 @@ test("the fingerprint is required to save a calculation (F14)", () => {
 
 // ── the statement: the owner's vocabulary and the addendum ──────────────────────────────────
 
-test("statement: Стоимость | Оплачено | Баланс, the month's own charge, the exact remainder per allocation (E1)", () => {
+test("statement: Стоимость | Оплачено | Остаток, the month's own charge, the exact remainder per allocation (E1)", () => {
   const statement = L.normalizeStatement(pay2("e1_statement_790000"));
   const items = L.buildStatementItems(statement, null);
   // a month header is only the name of the month (owner 23.10: the figures are in the columns, the summary repeated them)
@@ -508,7 +508,7 @@ test("statement: Стоимость | Оплачено | Баланс, the month
   const tweaked = { ...statement, rows: statement.rows.map((row, index) => (index === 1 ? { ...row, details: { ...row.details, allocations: [{ ...first, segment_remaining_after: 111000 }] } } : row)) };
   assert.deepEqual(L.buildStatementItems(tweaked, null).filter((i) => i.kind === "row")[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 111 000)"]);
   // the totals and the balance
-  assert.deepEqual(L.statementTotals(statement.summary).map((t) => t.label), ["Стоимость обучения", "Оплачено", "Баланс"]);
+  assert.deepEqual(L.statementTotals(statement.summary).map((t) => t.label), ["Стоимость обучения", "Оплачено", "Остаток"]);
   assert.equal(L.balanceCell(0).text, "0");
   assert.equal(L.signedBalanceText(0), "0");
 });
@@ -543,7 +543,7 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   // «Простить долг» everywhere
   assert.equal(require(path.join(root, "src/components/payments/writeoff-dialog.tsx")).WRITEOFF_ACTION_LABEL, "Простить долг");
   assert.equal(L.validateWriteoff({ amount: "", all: true, reason: "ok ok" }, 0), "Долга нет — прощать нечего");
-  assert.equal(plain(L.balanceAfterText(469000, 0)), "Баланс после оплаты: долг 469 000 сум");
+  assert.equal(plain(L.balanceAfterText(469000, 0)), "Остаток долга после оплаты: 469 000 сум");
 });
 
 test("statement page: no old words are left on the money screens", () => {
@@ -551,7 +551,8 @@ test("statement page: no old words are left on the money screens", () => {
     "src/components/payments/payments-page.tsx", "src/lib/payments-ledger.ts", "src/lib/payments-income.ts", "src/lib/payments-logica.ts"];
   for (const file of files) {
     const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    assert.doesNotMatch(code, /Начислено|Списано|Списать долг|Остаток долга|Нет долга|Начисление"/, file);
+    assert.doesNotMatch(code, /Начислено|Списано|Списать долг|Нет долга|Начисление"/, file); // «Остаток долга» is the word of UX pack §1 / №14 since 05.11 (the receipt: «Остаток долга после оплаты»)
+    assert.doesNotMatch(code, /Баланс|Покрытие|Цена периода"/, file);
   }
 });
 

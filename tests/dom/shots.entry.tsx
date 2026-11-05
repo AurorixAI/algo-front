@@ -70,7 +70,7 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
       break;
     case "openLessonsQuestion": {
       root.render(<ConfirmHost />);
-      const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "x", detail: { message: "В месяце незакрытых уроков, которых вы ещё не подтверждали: 3. Они не попадут в ведомость, а месяц закроется. Сохранить всё равно?", count: 3, alreadyConfirmed: 2,
+      const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "x", detail: { message: "Уроков без отметки, которых вы ещё не подтверждали: 3. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?", count: 3, alreadyConfirmed: 2,
         items: [{ lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" }, { lessonDate: "2026-10-14", groupId: "g2", groupName: "9-Б Геометрия", lessonId: "l2", kind: "in_progress" }, { lessonDate: "2026-10-19", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l3", kind: "missed" }] } };
       setTimeout(() => { void askConfirm(openLessonsQuestion(gateOfConfirmRefusal(refusal))!); }, 50);
       break;

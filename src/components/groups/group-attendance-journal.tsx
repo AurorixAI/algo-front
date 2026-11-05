@@ -134,7 +134,7 @@ interface GroupAttendanceJournalProps {
   /** `?lesson=` / `?date=` of a deep link (open-lessons list): this lesson's column is highlighted. */
   highlightLessonId?: string | null;
   highlightDate?: string | null;
-  /** R3 #25: the teacher of the row of «Требует разбора» the person came from - the start of «Кто провёл» of «Отметить посещаемость». */
+  /** R3 #25: the teacher of the row of «Уроки без отметки» the person came from - the start of «Кто провёл» of «Отметить посещаемость». */
   highlightTeacherId?: string | null;
   /** The signed-in user: a teacher marks only the lessons he teaches (a substitute: his own; O5). */
   viewerId?: string | null;
@@ -301,7 +301,7 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
     };
   }
   if (status === "cancelled") {
-    return { label: "Отменён", className: "text-slate-500", description: "Урок отменён" };
+    return { label: "Не состоялся", className: "text-slate-500", description: "Урока не было: посещаемость недоступна" };
   }
   if (status === "in_progress" && lessonDate < today) {
     return {
@@ -2162,7 +2162,7 @@ export function GroupAttendanceJournal({
         )}
       </Modal>
 
-      {/* Money-1 A2: «Вернуть урок» (a held lesson) and «Вернуть в разбор» («Урока не было» by mistake) */}
+      {/* Money-1 A2: «Вернуть урок» (a held lesson) and «Вернуть на отметку» («Урока не было» by mistake) */}
       <LessonReturnDialog
         target={returnTarget}
         onClose={() => setReturnTarget(null)}

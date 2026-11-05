@@ -19,7 +19,7 @@ const FINDINGS = [
   { id: "f2", orgId: "o1", orgName: "Центр «Альфа»", invariant: "I-2", what: "«оплачено до» изменилось без записи в журнале", subjectKey: "membership:m2", subjectId: "m2", month: null, expected: null, actual: null,
     details: { covered_through: ["2026-10-31", "2026-11-15"], lessons_covered: [8, 12], paid: [800000, 800000] }, isNew: false },
   { id: "f3", orgId: "o2", orgName: "Бета", invariant: "I-3", what: "в сохранённой ведомости зарплата не сходится с уроками", subjectKey: "sheet-total:s1", subjectId: "s1", month: "2026-10", expected: 475000, actual: 500000, details: { what: "total" }, isNew: true },
-  { id: "f4", orgId: "o2", orgName: "Бета", invariant: "I-4", what: "в закрытом месяце остался неразобранный урок", subjectKey: "closed-open-lessons:t1:2026-10", subjectId: "t1", month: "2026-10", expected: 0, actual: 2, details: { lessons: ["2026-10-12|g1", "2026-10-14|g2"] }, isNew: false },
+  { id: "f4", orgId: "o2", orgName: "Бета", invariant: "I-4", what: "в закрытом месяце остался урок без отметки", subjectKey: "closed-open-lessons:t1:2026-10", subjectId: "t1", month: "2026-10", expected: 0, actual: 2, details: { lessons: ["2026-10-12|g1", "2026-10-14|g2"] }, isNew: false },
 ];
 const DATA = { runs: [RUN(), RUN({ id: "r0", status: "clean", findings: 0, newFindings: 0, mail: "skipped", startedAt: "2026-11-04T21:10:00" }), RUN({ id: "rx", status: "failed", findings: 0, newFindings: 0, mail: "failed", error: "не удалось проверить центров: 2" })], latest: RUN(), findings: FINDINGS };
 

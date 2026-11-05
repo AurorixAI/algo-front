@@ -40,7 +40,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
 
   // --- the statement: the allocation of the payment and what is left
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   const payment = page.getByTestId("statement-row-payment");
   await expect(payment).toContainText(new RegExp(`за \\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d — ${moneyPattern(200000)} \\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-month")).not.toContainText("стоимость"); // the month row is only the name (owner 23.10): the figures are in the columns
@@ -66,9 +66,9 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await download.saveAs(file);
   const sheet = readSheet(readZip(readFileSync(file)), "Выписка");
   // the layout: a compact title block (row 1 «Выписка — …»), the table header further down (found by its content, not by a row number)
-  const HEADER = ["Дата", "Операция", "Стоимость", "Оплачено", "Баланс", "Подробности"];
+  const HEADER = ["Дата", "Операция", "Стоимость", "Оплачено", "Остаток", "Подробности"];
   const header = sheet.find((r) => HEADER.every((h, i) => Object.values(r.cells)[i] === h));
-  expect(header, "the header row of the file: Дата | Операция | Стоимость | Оплачено | Баланс | Подробности").toBeTruthy();
+  expect(header, "the header row of the file: Дата | Операция | Стоимость | Оплачено | Остаток | Подробности").toBeTruthy();
   expect(header!.row, "the header sits below the title block").toBeGreaterThan(1);
   const title = sheet.find((r) => r.row === 1);
   expect(Object.values(title?.cells ?? {})[0] ?? "", "row 1 is the title").toMatch(/^Выписка — /);
@@ -84,13 +84,13 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   // --- the rest is paid: the debt is closed, the second payment leaves nothing «осталось»
   await org.pay(student.id, 300000, { method: "card" });
   await page.reload();
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   await expect(page.getByTestId("statement-row-payment")).toHaveCount(2);
   // the first payment keeps its history («осталось 300 000» was true when it was made); the second one closes the period
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 2" })).not.toContainText("осталось");
   await expect(page.getByTestId("statement-cell-balance").last()).toContainText("0"); // the period is closed: the chip says «0»
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
 
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();

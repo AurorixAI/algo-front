@@ -105,7 +105,7 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   const opening = page.getByTestId("statement-row-opening_paid_until");
   await expect(opening).toBeVisible();
   await expect(opening).toContainText(dm(paidUntil));
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   await expect.poll(async () => (await org.owner.api.get(`/auth/org/memberships/${memberships[0]}/statement`)).rows.some((r: any) => r.type === "opening_paid_until")).toBe(true);
 });
 

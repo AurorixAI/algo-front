@@ -35,7 +35,7 @@ export interface OpenLessonAccess {
 }
 
 /**
- * A row of «Незакрытые уроки» for this viewer: the server says `requiresAdmin` for a teacher and a lesson older than 7 days;
+ * A row of «Уроки без отметки» for this viewer: the server says `requiresAdmin` for a teacher and a lesson older than 7 days;
  * an older server says nothing, then the date decides.  Owner and administrator are never locked by the window.
  */
 export function openLessonAccess(

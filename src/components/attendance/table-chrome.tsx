@@ -3,7 +3,7 @@ import { HelpCircle } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 
 /**
- * Shared frame of both attendance tabs («Пропуски» and «Незакрытые уроки», #103): one header style, one
+ * Shared frame of both attendance tabs («Пропуски» and «Уроки без отметки», #103): one header style, one
  * row padding, one empty state.  The rule: text columns are left-aligned; a badge sits in its column with
  * its left edge on the left edge of the header, because the header and the rows use the very same grid
  * template and the very same horizontal padding.  Cells are top-aligned; a control taller than the 20 px

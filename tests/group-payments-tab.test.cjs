@@ -313,7 +313,7 @@ test("e2e finding: the debt chip of the group header is read again after the pri
 
 test("phone: the five tabs have short labels below sm (ids and the desktop names stay), the strip is full width and shows the active tab", () => {
   assert.deepEqual(Object.keys(G.GROUP_TAB_LABELS), ["students", "schedule", "exams", "attendance", "payments"]);
-  assert.equal(G.GROUP_TAB_LABELS.attendance.full, "Посещаемость");
+  assert.equal(G.GROUP_TAB_LABELS.attendance.full, "Журнал");
   assert.equal(G.GROUP_TAB_LABELS.attendance.short, "Журнал");
   assert.equal(G.GROUP_TAB_LABELS.payments.short, "Оплаты");
   // E-C: «Экзамены» is the fifth tab.  On a 375 px phone the page has 343 px and the five short labels need about 350: the strip scrolls INSIDE itself

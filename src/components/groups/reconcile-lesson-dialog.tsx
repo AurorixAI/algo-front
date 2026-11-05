@@ -27,7 +27,7 @@ export interface ReconcileTarget {
   /** `YYYY-MM-DD` */
   lessonDate: string;
   topic?: string | null;
-  /** R3 #25: the teacher of the row of «Требует разбора» (already the substitute when the day has one): «Кто провёл» starts with him. */
+  /** R3 #25: the teacher of the row of «Уроки без отметки» (already the substitute when the day has one): «Кто провёл» starts with him. */
   teacherId?: string | null;
 }
 

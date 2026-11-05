@@ -87,7 +87,7 @@ test("refund: one request once the method and the amount make it, no dry run", a
 
 // ── the return of a lesson ───────────────────────────────────────────────────────────────────────
 
-test("«Вернуть в разбор»: whose deduction goes away is listed above the block; the real request has the reason and no dryRun", async () => {
+test("«Вернуть на отметку»: whose deduction goes away is listed above the block; the real request has the reason and no dryRun", async () => {
   const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
     if (request.path !== "/auth/org/groups/g1/lessons/restore") return null;
     return request.body.dryRun
@@ -207,7 +207,7 @@ test("LESSONS 27: a double press of the red button sends ONE request (the window
   await page.close();
 });
 
-test("«Вернуть в разбор»: a closed month in the dry run is the sentence of the server with «Переоткрыть месяц»; the red button waits", async () => {
+test("«Вернуть на отметку»: a closed month in the dry run is the sentence of the server with «Переоткрыть месяц»; the red button waits", async () => {
   const { page } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/groups/g1/lessons/restore" ? { status: 409, json: { detail: PERIOD_CLOSED } } : null));
   await page.evaluate(() => window.mount("review"));
   await page.waitForSelector('[data-testid="period-closed"]');
@@ -217,7 +217,7 @@ test("«Вернуть в разбор»: a closed month in the dry run is the s
   await page.close();
 });
 
-test("«Вернуть в разбор»: deductions that go away are money - the block never says «Ведомости не изменятся» next to them; without deductions it says so", async () => {
+test("«Вернуть на отметку»: deductions that go away are money - the block never says «Ведомости не изменятся» next to them; without deductions it says so", async () => {
   const deductionsOnly = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/groups/g1/lessons/restore" ? { json: { ok: true, restored: false, dryRun: true, moneyEffects: EMPTY_EFFECTS, deductions: [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }] } } : null));
   await deductionsOnly.page.evaluate(() => window.mount("review"));
   await deductionsOnly.page.waitForSelector('[data-testid="return-review-deductions"]');

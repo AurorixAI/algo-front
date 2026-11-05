@@ -66,7 +66,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
           <dt className="text-slate-500">Ученик</dt>
           <dd className="break-words font-semibold">
             {receipt.student_name}
-            {receipt.display_id && <span className="ml-1.5 font-mono text-xs font-medium text-slate-500">ID {receipt.display_id}</span>}
+            {receipt.display_id && <span className="ml-1.5 whitespace-nowrap font-mono text-xs font-medium text-slate-500">ID {receipt.display_id}</span>}
           </dd>
         </div>
         <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
@@ -95,8 +95,8 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             )}
             {facts.paidUntil && (
               <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-                <dt className="text-slate-500">Покрытие</dt>
-                <dd className="font-medium">{facts.paidUntil.replace(/^Оплачено до: /, "оплачено до ")}</dd>
+                <dt className="text-slate-500">Оплачено до</dt>
+                <dd className="font-medium">{facts.paidUntil.replace(/^Оплачено до: /, "")}</dd>
               </div>
             )}
           </>
@@ -137,7 +137,6 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
           <div className="mt-2 space-y-0.5 text-xs text-slate-600">
             {facts.debtBefore && <p>{facts.debtBefore}</p>}
             {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}
-            {facts.price && <p>{facts.price}</p>}
           </div>
         </section>
       )}

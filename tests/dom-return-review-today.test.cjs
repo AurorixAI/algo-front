@@ -1,5 +1,5 @@
 // «Деньги-1», повторный обход stage 05.11, R2-4: a mistaken «Урока не было» of TODAY's lesson (its start has passed) is returned to the review at once - the column of the journal has «⋯» with
-// «Вернуть в разбор», the same window (deductions, month) and the same right as for an earlier day; a lesson of today that has not begun is not offered it (it is taken back from the schedule).
+// «Вернуть на отметку», the same window (deductions, month) and the same right as for an earlier day; a lesson of today that has not begun is not offered it (it is taken back from the schedule).
 // The REAL journal in a real DOM; the server answers through `route`; the clock of the page is fixed (LESSONS 37, 76: the test does not depend on the hour it is run).
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -44,17 +44,17 @@ const menuOf = async (page, ddmm) => {
   return items;
 };
 
-test("R2-4: the owner - «Вернуть в разбор» of a mistaken «Урока не было» of today (begun) as well as of an earlier day; a lesson of today that has not begun has no menu", async () => {
+test("R2-4: the owner - «Вернуть на отметку» of a mistaken «Урока не было» of today (begun) as well as of an earlier day; a lesson of today that has not begun has no menu", async () => {
   const { page } = await open({ role: "owner", org_role: "owner" });
   await page.waitForSelector("table");
-  assert.deepEqual(await menuOf(page, "05.11.2026"), ["Вернуть в разбор"], "an earlier day, as before");
+  assert.deepEqual(await menuOf(page, "05.11.2026"), ["Вернуть на отметку"], "an earlier day, as before");
   const today = await page.locator('button[aria-label^="Действия с уроком 06.11.2026"]').count();
   assert.equal(today, 1, "today: one column has the menu (the lesson that has begun), the other (not begun) has none");
-  assert.deepEqual(await menuOf(page, "06.11.2026"), ["Вернуть в разбор"]);
+  assert.deepEqual(await menuOf(page, "06.11.2026"), ["Вернуть на отметку"]);
   await page.close();
 });
 
-test("R2-4: the window is the same as for an earlier day - the deductions of the students and the month - and «Вернуть в разбор» of today's lesson goes to the server (restore) with the dry run first", async () => {
+test("R2-4: the window is the same as for an earlier day - the deductions of the students and the month - and «Вернуть на отметку» of today's lesson goes to the server (restore) with the dry run first", async () => {
   const seen = [];
   const { page } = await open({ role: "admin", org_role: "admin", payments_access: true }, (request) => {
     if (request.method === "POST" && request.path === "/auth/org/groups/g1/lessons/restore") {

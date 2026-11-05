@@ -61,19 +61,19 @@ export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): I
   };
 }
 
-/** «Баланс: долг 213 000 сум» / «аванс 80 000 сум» / «0» from a debt and an advance. */
+/** «долг 213 000 сум» / «аванс 80 000 сум» / «0» from a debt and an advance. */
 export function balanceWords(debt: number, advance: number): string {
   if (debt > 0) return `долг ${formatMoney(debt)}`;
   if (advance > 0) return `аванс ${formatMoney(advance)}`;
   return "0";
 }
 
-/** «Баланс: долг 20 000 сум → аванс 80 000 сум»; "" when nothing moves. */
+/** «Остаток: долг 20 000 сум → аванс 80 000 сум»; "" when nothing moves. */
 export function impactBalanceLine(impact: ImpactMoney | null | undefined): string {
   if (!impact) return "";
   const before = balanceWords(impact.debt_before, impact.advance_before);
   const after = balanceWords(impact.debt_after, impact.advance_after);
-  return before === after ? "" : `Баланс: ${before} → ${after}`;
+  return before === after ? "" : `Остаток: ${before} → ${after}`;
 }
 
 /** «Оплачено до: 30.10.2026 → 03.11.2026»; "" when it does not move. */

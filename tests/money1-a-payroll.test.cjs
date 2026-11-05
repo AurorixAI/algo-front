@@ -19,18 +19,18 @@ const sheet = (extra = {}) => ({
 
 // ── warnings: «не удалось проверить», never 0 ────────────────────────────────────────────────────
 
-test("the month overview: a failed check says «Не удалось проверить незакрытые уроки», never «0»; a count is a count; null of a SAVED sheet is «not looked up» and says nothing", () => {
+test("the month overview: a failed check says «Не удалось проверить уроки без отметки», never «0»; a count is a count; null of a SAVED sheet is «not looked up» and says nothing", () => {
   const base = { pending_excused: 0, no_fee: 0, unpaid: 0 };
   const unknown = R.warningViews({ ...base, open_lessons: null, open_lessons_unknown: true });
   assert.equal(unknown.length, 1);
-  assert.equal(unknown[0].text, "Не удалось проверить незакрытые уроки");
+  assert.equal(unknown[0].text, "Не удалось проверить уроки без отметки");
   assert.equal(unknown[0].key, "open_lessons");
   assert.match(unknown[0].hint, /проверьте сами, прежде чем сохранять ведомость/);
   assert.deepEqual(R.warningViews({ ...base, open_lessons: 3 }).map((v) => v.text), ["3 урока без отметки"]);
   assert.deepEqual(R.warningViews({ ...base, open_lessons: 0 }), []);
   assert.deepEqual(R.warningViews({ ...base, open_lessons: null }), []);                            // a saved sheet: not looked up
-  assert.deepEqual(R.warningViews({ ...base, open_lessons: null }, { openUnknown: true }).map((v) => v.text), ["Не удалось проверить незакрытые уроки"]);          // a calculation not saved yet
-  assert.equal(R.warningViews({ ...base, open_lessons: 2, open_lessons_unknown: true })[0].text, "Не удалось проверить незакрытые уроки");          // unknown wins over a stale count
+  assert.deepEqual(R.warningViews({ ...base, open_lessons: null }, { openUnknown: true }).map((v) => v.text), ["Не удалось проверить уроки без отметки"]);          // a calculation not saved yet
+  assert.equal(R.warningViews({ ...base, open_lessons: 2, open_lessons_unknown: true })[0].text, "Не удалось проверить уроки без отметки");          // unknown wins over a stale count
 });
 
 test("the card of a calculation not saved yet says it; the card of a saved sheet with the fresh counts of the month does the same", () => {
@@ -40,9 +40,9 @@ test("the card of a calculation not saved yet says it; the card of a saved sheet
   // UX pack §5.2-бис: what needs an action is the block «Что нужно сделать» over the card, not a line inside it
   const { SheetTodoBlock } = component("payroll/sheet-todo.tsx");
   const todo = (counts, options = {}) => textOf(html(React.createElement(SheetTodoBlock, { items: R.sheetTodoItems({ counts, ...options }) })));
-  assert.ok(todo(sheet({ id: null, saved: false }).warnings, { openUnknown: true }).includes("Не удалось проверить незакрытые уроки"), "a preview: null = the check failed");
+  assert.ok(todo(sheet({ id: null, saved: false }).warnings, { openUnknown: true }).includes("Не удалось проверить уроки без отметки"), "a preview: null = the check failed");
   assert.ok(!todo(sheet().warnings).includes("Не удалось проверить"), "a saved sheet: null = not looked up");
-  assert.ok(todo({ open_lessons: null, open_lessons_unknown: true, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("Не удалось проверить незакрытые уроки"));
+  assert.ok(todo({ open_lessons: null, open_lessons_unknown: true, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("Не удалось проверить уроки без отметки"));
   assert.ok(todo({ open_lessons: 2, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("2 урока без отметки"));
   assert.ok(!card({ sheet: sheet() }).includes("Не удалось проверить"), "the card itself carries no warnings any more");
 });
@@ -66,11 +66,11 @@ test("the gate: a month that is not over saves without a word; a failed check or
 });
 
 test("the question: the SERVER's sentence, the new lessons (date, group, what is wrong), a line about the earlier confirmed ones, «Сохранить всё равно» / «Отмена»; nothing that sends to a list where the lessons are not", () => {
-  const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "В месяце незакрытых уроков, которых вы ещё не подтверждали: 2. Они не попадут в ведомость, а месяц закроется. Сохранить всё равно?",
-    detail: { message: "В месяце незакрытых уроков, которых вы ещё не подтверждали: 2. Они не попадут в ведомость, а месяц закроется. Сохранить всё равно?", count: 2, alreadyConfirmed: 3,
+  const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "Уроков без отметки, которых вы ещё не подтверждали: 2. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?",
+    detail: { message: "Уроков без отметки, которых вы ещё не подтверждали: 2. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?", count: 2, alreadyConfirmed: 3,
       items: [{ lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" }, { lessonDate: "2026-10-14", groupId: "g2", groupName: "9-Б Геометрия", lessonId: "l2", kind: "in_progress" }] } };
   const q = OL.openLessonsQuestion(OL.gateOfConfirmRefusal(refusal));
-  assert.equal(q.title, "Сохранить ведомость с незакрытыми уроками?");
+  assert.equal(q.title, "Сохранить с уроками без отметки?");
   assert.equal(q.confirmLabel, "Сохранить всё равно");
   assert.equal(q.cancelLabel, "Отмена");
   const lines = q.message.split("\n");
@@ -81,10 +81,10 @@ test("the question: the SERVER's sentence, the new lessons (date, group, what is
   assert.doesNotMatch(q.message, /Закройте их в/, "the old advice sent the owner to a list that does not hold the lessons of a closed month");
   // nothing confirmed before: no such line; a refusal without a sentence: ours stands in, with the count
   const first = OL.openLessonsQuestion(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 1, items: [refusal.detail.items[0]] } }));
-  assert.match(first.message, /^В месяце 1 незакрытый урок, которых вы ещё не подтверждали/);
+  assert.match(first.message, /^Уроков без отметки, которых вы ещё не подтверждали: 1\. Они не попадут в зарплату/);
   assert.doesNotMatch(first.message, /подтвердили раньше/);
   const unknown = OL.openLessonsQuestion({ kind: "unknown" });
-  assert.equal(unknown.title, "Не удалось проверить незакрытые уроки");
+  assert.equal(unknown.title, "Не удалось проверить уроки без отметки");
   assert.match(unknown.message, /Если сохранить сейчас, месяц закроется/);
   assert.equal(OL.openLessonsQuestion({ kind: "none" }), null);
   // a long list is capped, the rest is counted
@@ -97,7 +97,7 @@ test("the question: the SERVER's sentence, the new lessons (date, group, what is
 test("m3: the save AND the re-save ask what the server asks - `false` first; the 409 is shown (its sentence, its list); only «Сохранить всё равно» sends the same request again with `true`", async () => {
   const CD = lib("confirm-dialog.ts");
   const { sendConfirmingOpenLessons } = require(path.join(env.root, "src/components/payroll/confirm-open-lessons.ts"));
-  const refusal = Object.assign(new Error("Сохранить всё равно?"), { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { message: "Новых незакрытых уроков: 1", count: 1, alreadyConfirmed: 0, items: [{ lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А", lessonId: "l1", kind: "missed" }] } });
+  const refusal = Object.assign(new Error("Сохранить всё равно?"), { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { message: "Новых уроков без отметки: 1", count: 1, alreadyConfirmed: 0, items: [{ lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А", lessonId: "l1", kind: "missed" }] } });
   const run = async (answerYes) => {
     const sent = [];
     const asked = [];
@@ -113,7 +113,7 @@ test("m3: the save AND the re-save ask what the server asks - `false` first; the
   assert.deepEqual(yes.outcome, { cancelled: false, value: { revision: 5 } });
   assert.deepEqual(yes.phases, [true, false], "the screen stops saying «Сохраняем…» while the window is open");
   assert.equal(yes.asked.length, 1);
-  assert.match(yes.asked[0].message, /^Новых незакрытых уроков: 1/);
+  assert.match(yes.asked[0].message, /^Новых уроков без отметки: 1/);
   assert.match(yes.asked[0].message, /12\.10 · 7-А · Посещаемость не отмечена/);
   const no = await run(false);
   assert.deepEqual(no.sent, [false], "«Отмена»: nothing is sent again");
@@ -320,7 +320,7 @@ test("R3 item 10: the body of a save carries `confirm_open_lessons`; the 409 OPE
   const gate = OL.gateOfConfirmRefusal(refusal);
   assert.deepEqual([gate.kind, gate.count, gate.items.length], ["list", 2, 2]);
   const q = OL.openLessonsQuestion(gate);
-  assert.equal(q.title, "Сохранить ведомость с незакрытыми уроками?");
+  assert.equal(q.title, "Сохранить с уроками без отметки?");
   assert.equal(q.confirmLabel, "Сохранить всё равно");
   const lines = q.message.split("\n");
   assert.ok(lines.includes("12.10 · 7-А Алгебра · Посещаемость не отмечена"), "the group name is the server's `groupName`");
@@ -334,7 +334,7 @@ test("R3 item 9: `open_lesson_items` carry `groupName` - the question needs no s
   const item = { lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" };
   assert.equal(OL.openLessonItemLine(item), "12.10 · 7-А Алгебра · Посещаемость не отмечена");
   assert.equal(OL.openLessonItemLine({ ...item, groupName: " " }), "12.10 · Посещаемость не отмечена", "no name - no group, and no second request for it");
-  assert.equal(OL.openLessonItemKey, undefined, "the list of «Незакрытые уроки» is not read for names any more");
+  assert.equal(OL.openLessonItemKey, undefined, "the list of «Уроки без отметки» is not read for names any more");
 });
 
 // ── R3 #20 (item 11): an OPEN month is paid by what is accrued now ─────────────────────────────────────

@@ -532,7 +532,7 @@ test("F31 (#157): a substitution row leads to its lesson in the journal (ONE lin
   assert.equal(OL.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-22", lessonId: "l1" }), "/owner/groups/g1?tab=attendance&month=2026-10&lesson=l1&date=2026-10-22");
 });
 
-test("F5 / F6 / d4: «Незакрытые уроки» has a button for the main action and «Урока не было» in «⋯»; «Пропуски» keeps at most three menu items", () => {
+test("F5 / F6 / d4: «Уроки без отметки» has a button for the main action and «Урока не было» in «⋯»; «Пропуски» keeps at most three menu items", () => {
   const open = read("src/components/attendance/open-lessons-view.tsx");
   assert.match(open, /data-testid="open-lesson-action"/);
   assert.equal(OL.openLessonActionLabel({ actionType: "missed" }), "Отметить");
@@ -612,7 +612,7 @@ test("F14: one <Chip> and one registry of statuses (exam, diagnostic, money) ins
   for (const file of ["src/components/payments/membership-payments.tsx", "src/components/groups/group-payments-tab.tsx", "src/components/payments/payments-page.tsx"]) assert.match(read(file), /<Chip\b/, file);
 });
 
-test("F17: one wording of the lesson actions by the date of the lesson, in the sheet, the journal and «Незакрытые уроки»", () => {
+test("F17: one wording of the lesson actions by the date of the lesson, in the sheet, the journal and «Уроки без отметки»", () => {
   const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
   assert.equal(A.cancelLessonLabel(false), "Отменить урок");
   assert.equal(A.cancelLessonLabel(true), "Урока не было");

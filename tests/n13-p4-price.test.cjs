@@ -429,7 +429,7 @@ test("every warning of the month is a link with a meaning and an action", () => 
   const views = R.warningViews({ open_lessons: 1, pending_excused: 2, no_fee: 4, unpaid: 140 });
   const byKey = Object.fromEntries(views.map((v) => [v.key, v]));
   assert.equal(byKey.open_lessons.href, "/owner/attendance?tab=open");
-  assert.equal(byKey.open_lessons.target, "Посещаемость → Незакрытые уроки");
+  assert.equal(byKey.open_lessons.target, "Посещаемость → Уроки без отметки");
   assert.equal(byKey.no_fee.text, "у 4 учеников нет цены");
   assert.equal(byKey.no_fee.href, "/owner/payments/prices");
   assert.equal(byKey.no_fee.target, "Оплаты → Цены групп");

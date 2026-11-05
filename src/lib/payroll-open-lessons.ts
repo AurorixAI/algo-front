@@ -1,7 +1,7 @@
 /**
  * Money-1 I-4 / A6 (П7): saving a sheet of a month that is over closes the month (`lib/closed-period.ts`), so the owner is told BEFORE which lessons of that month are not
  * closed yet (they do not reach the sheet) - or that the check could not be made («не удалось проверить», never «0»).  The list is the server's (`open_lesson_items`);
- * the group names come from «Незакрытые уроки» (the items carry ids only) and are left out when that list cannot be read.
+ * the group names come from «Уроки без отметки» (the items carry ids only) and are left out when that list cannot be read.
  *
  * Pure: no React, no network.
  */
@@ -33,7 +33,7 @@ export function openLessonsGate(input: {
   return count > 0 ? { kind: "list", count, items } : { kind: "none" };
 }
 
-/** `missed`: nobody marked it; `in_progress`: started and not finished (the words of «Незакрытые уроки»). */
+/** `missed`: nobody marked it; `in_progress`: started and not finished (the words of «Уроки без отметки»). */
 export function openLessonKindText(kind: string | null | undefined): string {
   return kind === "in_progress" ? OPEN_LESSON_IN_PROGRESS_LABEL : OPEN_LESSON_MISSED_LABEL;
 }
@@ -73,8 +73,8 @@ export function openLessonsQuestion(gate: OpenLessonsGate): ConfirmRequest | nul
   if (gate.kind === "none") return null;
   if (gate.kind === "unknown") {
     return {
-      title: "Не удалось проверить незакрытые уроки",
-      message: "Мы не смогли узнать, есть ли в этом месяце незакрытые уроки. Если сохранить сейчас, месяц закроется, а уроки, которые окажутся незакрытыми, в ведомость не попадут. Проверьте «Посещаемость → Незакрытые уроки» и сохраните снова.",
+      title: "Не удалось проверить уроки без отметки",
+      message: "Мы не смогли узнать, есть ли в этом месяце уроки без отметки. Если сохранить сейчас, месяц закроется, а уроки, которые окажутся незакрытыми, в ведомость не попадут. Проверьте «Посещаемость → Уроки без отметки» и сохраните снова.",
       confirmLabel: OPEN_LESSONS_SAVE_LABEL,
       cancelLabel: OPEN_LESSONS_BACK_LABEL,
     };
@@ -82,12 +82,11 @@ export function openLessonsQuestion(gate: OpenLessonsGate): ConfirmRequest | nul
   const shown = gate.items.slice(0, OPEN_LESSONS_LIST_LIMIT).map((item) => openLessonItemLine(item));
   const rest = gate.count - shown.length;
   const lines = rest > 0 ? [...shown, `и ещё ${rest}`] : shown;
-  const word = pluralRu(gate.count, "незакрытый урок", "незакрытых урока", "незакрытых уроков");
   const confirmed = gate.alreadyConfirmed ?? 0;
   return {
-    title: "Сохранить ведомость с незакрытыми уроками?",
+    title: "Сохранить с уроками без отметки?",
     message: [
-      gate.message || `В месяце ${gate.count} ${word}, которых вы ещё не подтверждали: они не попадут в ведомость, а месяц закроется. Сохранить всё равно?`,
+      gate.message || `Уроков без отметки, которых вы ещё не подтверждали: ${gate.count}. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?`,
       ...(lines.length > 0 ? ["", ...lines] : []),
       ...(confirmed > 0 ? ["", `Ещё ${confirmed} ${pluralRu(confirmed, "урок", "урока", "уроков")} вы подтвердили раньше.`] : []),
     ].join("\n"),

@@ -920,7 +920,7 @@ export function reviewParts(preview: OpeningBatchPreview): ReviewParts {
   ].join(", ");
   const notes: string[] = [];
   if (impact.advance_delta !== 0) notes.push(`Аванс учеников: ${signed(impact.advance_delta)}`);
-  if (impact.indirect_changed > 0) notes.push(`Баланс изменится ещё у ${impact.indirect_changed} ${atStudentsWord(impact.indirect_changed)}, связанных переводом`);
+  if (impact.indirect_changed > 0) notes.push(`Остаток изменится ещё у ${impact.indirect_changed} ${atStudentsWord(impact.indirect_changed)}, связанных переводом`);
   const changed = preview.summary.changed;
   return { headline: `Изменится ${changed} ${studentsWord(changed)}`, parts, effect, notes };
 }

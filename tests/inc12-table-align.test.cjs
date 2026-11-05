@@ -1,5 +1,5 @@
 // inc12 (stage screenshots of the owner, 23.10): four desktop tables where a header did not stand over its cells.
-// 1) «Незакрытые уроки»: the action cell of every row is the same (fixed primary button + an always reserved «⋯» slot);
+// 1) «Уроки без отметки»: the action cell of every row is the same (fixed primary button + an always reserved «⋯» slot);
 // 2) group page «Оплаты»: «Цена в месяц» and «Оплата» have their own fixed columns, centred (header + cells);
 // 3) «Оплаты» list: «Последняя оплата» centred (date / amount / the empty «—»);
 // 4) «Поступления» → journal: «Группа» and «Способ» centred, «Сумма» its own fixed column to the left, right-aligned, tabular.
@@ -16,7 +16,7 @@ const const_ = (src, name) => {
   return m[1];
 };
 
-test("inc12-1: every row of «Незакрытые уроки» has the same action cell: one button width, the «⋯» slot always reserved", () => {
+test("inc12-1: every row of «Уроки без отметки» has the same action cell: one button width, the «⋯» slot always reserved", () => {
   const src = read("src/components/attendance/open-lessons-view.tsx");
   const button = const_(src, "ACTION_BUTTON_CLASS");
   const slot = const_(src, "MENU_SLOT_CLASS");

@@ -1,4 +1,4 @@
-// «Деньги-1», пакет А (front), part 3 - the lessons (items 2-7, 9, 10): «Вернуть урок» / «Вернуть в разбор», the money of a correction and of a decision on an excuse BEFORE the button,
+// «Деньги-1», пакет А (front), part 3 - the lessons (items 2-7, 9, 10): «Вернуть урок» / «Вернуть на отметку», the money of a correction and of a decision on an excuse BEFORE the button,
 // «кто провёл», «Завершить» when nobody came, the archive, the journal «было → стало», the pause, the rights.  Contract: MONEY1_A_SERVER_REPORT.md.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -25,7 +25,7 @@ const DRY = { students: [{ studentId: "s1", name: "Иванов Иван", delta
 
 // ── who sees what (I-6) ──────────────────────────────────────────────────────────────────────────
 
-test("the lesson sheet: a held lesson offers «Вернуть урок» and a lesson cancelled by mistake «Вернуть в разбор» - to the money right only", () => {
+test("the lesson sheet: a held lesson offers «Вернуть урок» and a lesson cancelled by mistake «Вернуть на отметку» - to the money right only", () => {
   const base = { role: "owner", archived: false, today: "2026-11-05", hasTeacherInfo: true, startTime: "10:00", now: new Date("2026-11-05T09:00:00Z") };
   const completed = { ...base, state: "completed", date: "2026-10-28" };
   assert.deepEqual(SCA.scheduleCardActions({ ...completed, moneyRight: true }), ["journal", "returnHeld"]);
@@ -42,11 +42,11 @@ test("the lesson sheet: a held lesson offers «Вернуть урок» and a l
   assert.deepEqual(SCA.scheduleCardActions({ ...completed, moneyRight: true, undoDecision: true }), ["journal", "returnHeld", "undoDecision"]);
   assert.deepEqual(SCA.scheduleCardActions({ ...completed, moneyRight: false, undoDecision: true }), ["journal"]);
   assert.equal(SCA.SCHEDULE_ACTION_LABEL.returnHeld, "Вернуть урок");
-  assert.equal(SCA.SCHEDULE_ACTION_LABEL.returnReview, "Вернуть в разбор");
+  assert.equal(SCA.SCHEDULE_ACTION_LABEL.returnReview, "Вернуть на отметку");
   assert.equal(SCA.SCHEDULE_ACTION_LABEL.undoDecision, "Отменить решение");
 });
 
-test("the journal column: «Исправить отметки» and «Вернуть урок» of a held lesson, «Вернуть в разбор», «Отметить посещаемость» (who taught it) - the money right; «Урока не было» and «Завершить» - not", () => {
+test("the journal column: «Исправить отметки» and «Вернуть урок» of a held lesson, «Вернуть на отметку», «Отметить посещаемость» (who taught it) - the money right; «Урока не было» and «Завершить» - not", () => {
   const today = "2026-11-05";
   const withRight = (state, date, extra = {}) => AX.lessonAdminActions(state, date, today, { moneyRight: true, ...extra });
   const without = (state, date) => AX.lessonAdminActions(state, date, today, { moneyRight: false });
@@ -130,7 +130,7 @@ test("the block by state: loading says so; ready lists the packs and the sheets;
   assert.match(show({ status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [{ month: "2026-10", state: "closed", teacherName: "Каримова К.", sheetId: "s" }], dryRun: true }) }), /border-amber-200/, "a closed month is amber");
 });
 
-// ── «Вернуть урок» (a held lesson) and «Вернуть в разбор» ──────────────────────────────────────────
+// ── «Вернуть урок» (a held lesson) and «Вернуть на отметку» ──────────────────────────────────────────
 
 test("«Вернуть урок»: the dialog says what happens, has the reason and the one button; the button waits for the money (the live behaviour is in tests/dom-windows.test.cjs)", () => {
   signIn({ org_role: "owner" });
@@ -143,20 +143,20 @@ test("«Вернуть урок»: the dialog says what happens, has the reason 
   // the dry run, the version, the conflict and the real request are read LIVE in tests/dom-windows.test.cjs
 });
 
-test("«Вернуть в разбор»: the dialog says the lesson comes back to «Незакрытые уроки»; the general deduction line is gone (the dry run names whose deduction it is); the reason is required", () => {
+test("«Вернуть на отметку»: the dialog says the lesson comes back to «Уроки без отметки»; the general deduction line is gone (the dry run names whose deduction it is); the reason is required", () => {
   const { ReturnToReviewDialog } = component("groups/lesson-return-dialogs.tsx");
   const show = () => textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} })));
   const centre = show();
-  for (const part of ["Вернуть урок в разбор?", "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
+  for (const part of ["Вернуть урок на отметку?", "Урок снова появится в «Уроки без отметки»: отметьте на нём посещаемость или отмените его заново.", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
   assert.ok(!centre.includes("исчезнет вычет"), "the general line is gone: the dry run says whose deduction it is");
-  assert.match(textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }))), /Вернуть в разбор/);
+  assert.match(textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }))), /Вернуть на отметку/);
 });
 
 test("the words of the returns: the toast, the reason rules, the refusals in the server's own sentence", () => {
   assert.equal(RET.returnTitle("2026-10-28"), "Вернуть урок 28.10?");
   assert.equal(RET.returnDoneText("2026-10-28", true), "Урок 28.10 возвращён: он снова не проведён");
   assert.equal(RET.returnDoneText("2026-10-28", false), "Урок 28.10 уже не проведён");          // a repeat: nothing is done twice (I-7)
-  assert.equal(RET.returnReviewDoneText("2026-10-28"), "Урок 28.10 возвращён в «Незакрытые уроки»");
+  assert.equal(RET.returnReviewDoneText("2026-10-28"), "Урок 28.10 возвращён в «Уроки без отметки»");
   assert.match(RET.validateReturnReason("ab"), /не короче 3/);
   assert.equal(RET.validateReturnReason("abc"), null);
   assert.match(RET.validateReturnReason("x".repeat(501)), /не длиннее 500/);
@@ -251,7 +251,7 @@ test("who taught: the planned teacher by default (nothing is sent), `taughtBy` o
   const src = read("src/components/groups/reconcile-lesson-dialog.tsx");
   assert.match(src, /\.\.\.\(taughtBy \? \{ taughtBy \} : \{\}\)/);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  // R3 #25: «Кто провёл» starts with the teacher of the row of «Требует разбора» (the link carries `teacher=`), only for the lesson the person came for
+  // R3 #25: «Кто провёл» starts with the teacher of the row of «Уроки без отметки» (the link carries `teacher=`), only for the lesson the person came for
   assert.match(journal, /if \(action === "reconcile"\) \{[\s\S]*?setReconcileTarget\(\{ groupId, lessonId: lesson\.id, lessonDate: lesson\.date, topic: lesson\.topic, teacherId: fromRow \}\);\s*return;/);
   assert.match(journal, /highlightTarget && highlightTarget\.lessonId === lesson\.id && highlightTarget\.date === lesson\.date \? highlightTeacherId : null/);
   assert.match(read("src/components/groups/group-detail-view.tsx"), /highlightTeacherId=\{searchParams\?\.get\("teacher"\)\}/);

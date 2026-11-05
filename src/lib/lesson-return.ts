@@ -1,7 +1,7 @@
 /**
  * «Деньги-1» A2 (frontend): the words and rules of the two returns of a lesson that had begun:
  *  - «Вернуть урок» - a HELD lesson goes back to «не проведён» (`POST attendance/return`, a dry run first);
- *  - «Вернуть в разбор» - «Урока не было» said by mistake: the lesson is back in «Незакрытые уроки» (`POST lessons/restore` for a lesson that has begun).
+ *  - «Вернуть на отметку» - «Урока не было» said by mistake: the lesson is back in «Уроки без отметки» (`POST lessons/restore` for a lesson that has begun).
  * Both: the owner and an administrator with the money right, a reason, an open month of the teacher (the server answers 409 `PERIOD_CLOSED` otherwise).
  *
  * Pure: no React, no network.
@@ -10,7 +10,7 @@ import { formatDateRu } from "./business-time";
 import { formatMoney, REASON_MAX, REASON_MIN } from "./payments";
 
 export const RETURN_LESSON_LABEL = "Вернуть урок";
-export const RETURN_TO_REVIEW_LABEL = "Вернуть в разбор";
+export const RETURN_TO_REVIEW_LABEL = "Вернуть на отметку";
 export const RETURN_REASON_LABEL = "Причина";
 export const RETURN_REASON_PLACEHOLDER = "Например: нажали «Завершить» по ошибке, урока не было";
 export const RETURN_REASON_HINT = "Причина и ваше имя останутся в журнале урока.";
@@ -18,8 +18,8 @@ export const RETURN_REASON_HINT = "Причина и ваше имя остан�
 /** What the return of a held lesson does, in one sentence (the numbers of money are the dry run's, under it). */
 export const RETURN_LESSON_EXPLAIN = "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново. Пока он не завершён, он не списывается из пакетов учеников и не оплачивается преподавателю.";
 
-export const RETURN_REVIEW_TITLE = "Вернуть урок в разбор?";
-export const RETURN_REVIEW_EXPLAIN = "Урок снова появится в «Незакрытые уроки»: отметьте на нём посещаемость или отмените его заново.";
+export const RETURN_REVIEW_TITLE = "Вернуть урок на отметку?";
+export const RETURN_REVIEW_EXPLAIN = "Урок снова появится в «Уроки без отметки»: отметьте на нём посещаемость или отмените его заново.";
 /** R3 #23: the dry run of the return says WHOSE deduction for the cancelled lesson goes away and by how much (the money right only) - it replaces the general line. */
 export const DEDUCTIONS_TITLE = "Вычеты за этот урок исчезнут";
 
@@ -66,7 +66,7 @@ export function returnDoneText(lessonDate: string, changed: boolean): string {
 }
 
 export function returnReviewDoneText(lessonDate: string): string {
-  return `Урок ${formatDateRu(lessonDate).slice(0, 5)} возвращён в «Незакрытые уроки»`;
+  return `Урок ${formatDateRu(lessonDate).slice(0, 5)} возвращён в «Уроки без отметки»`;
 }
 
 /** A lesson cancelled by hand that has begun and can go back to the review: not the original of a move, not cancelled by a day off (the day off is undone itself). */

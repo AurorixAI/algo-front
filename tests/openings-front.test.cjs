@@ -338,7 +338,7 @@ test("review: 38 students «долга нет» and 4 debts of 1 250 000 in all 
   assert.equal(review.headline, "Изменится 42 ученика");
   assert.deepEqual(review.parts.map(plain), ["38 — долга на начало нет", "4 — долг 1 250 000 сум"]);
   assert.equal(plain(review.effect), "Должников станет 12, общий долг +1 250 000 сум");
-  assert.deepEqual(review.notes.map(plain), ["Аванс учеников: −300 000 сум", "Баланс изменится ещё у 2 учеников, связанных переводом"]);
+  assert.deepEqual(review.notes.map(plain), ["Аванс учеников: −300 000 сум", "Остаток изменится ещё у 2 учеников, связанных переводом"]);
   // nothing moves: the debtors and the debt stay
   const calm = O.normalizePreview({ ...preview, impact: { ...preview.impact, debtors_after: 8, debt_delta: 0, advance_delta: 0, indirect_changed: 0 } });
   assert.equal(O.reviewParts(calm).effect, "Число должников не изменится, общий долг не изменится");

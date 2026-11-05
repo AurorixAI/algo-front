@@ -86,7 +86,7 @@ export const VOID_PAYMENT_LABEL = "Отменить оплату";
 const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium";
 
 /**
- * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Стоимость | Оплачено | Баланс.
+ * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Стоимость | Оплачено | Остаток.
  * Charges are told in words (the month, the part of it, the price and where the price comes from), a payment says how it
  * was made and where each part of it went («за август — 69 000 (август закрыт)»), write-offs, refunds and transfers carry a
  * tag.  A light row per month names it; the switcher shows one month (with a line about the balance carried in) or all of them.
@@ -387,7 +387,7 @@ function Help({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** The title, who and which group, and the tiles: Стоимость обучения · Оплачено · Баланс (+ Прощено / Возвращено when there are some). */
+/** The title, who and which group, and the tiles: Стоимость обучения · Оплачено · Остаток (+ Прощено / Возвращено when there are some). */
 export function StatementHeader({ statement, studentLink, groupLink }: {
   statement: StatementOut;
   /** The card of the student on its «Оплаты» tab and the page of the group: the statement is no dead end (IA audit F28). */
@@ -431,8 +431,8 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
         </dl>
         <p className={`mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs ${reconciles ? "text-emerald-700" : "font-medium text-rose-700"}`} data-testid="statement-reconciles">
           {reconciles ? <Check className="h-3.5 w-3.5" aria-hidden /> : <AlertCircle className="h-3.5 w-3.5" aria-hidden />}
-          <span className="font-semibold">{reconciles ? "Сходится" : `Не сходится: расхождение ${formatMoney(Math.abs(statementDiff(statement.summary)))}`}</span>
-          <Help text={STATEMENT_HINTS.reconciles} label="Как проверяется «Сходится»" />
+          <span className="font-semibold">{reconciles ? "Всё сходится" : `Не сходится: расхождение ${formatMoney(Math.abs(statementDiff(statement.summary)))}`}</span>
+          <Help text={STATEMENT_HINTS.reconciles} label="Как проверяется «Всё сходится»" />
         </p>
       </section>
     </>
@@ -468,7 +468,7 @@ export function StatementTimeline({
             <span className={`${CELL_OPERATION} ${STATEMENT_ALIGN.operation}`}>Операция</span>
             <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Стоимость</span>
             <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Оплачено</span>
-            <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Баланс</span>
+            <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Остаток</span>
             <span className="sr-only">Действия</span>
           </div>
           <ol className="space-y-2.5 md:space-y-0 md:divide-y md:divide-slate-100">
@@ -626,7 +626,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </div>
 
       <div className={`flex items-center justify-between gap-3 md:items-start md:justify-center ${CELL_MONEY} ${STATEMENT_ALIGN.money}`} data-testid="statement-cell-balance">
-        <span className="text-xs text-slate-400 md:hidden">Баланс</span>
+        <span className="text-xs text-slate-400 md:hidden">Остаток</span>
         <BalanceChip balance={entry.balance} />
       </div>
 

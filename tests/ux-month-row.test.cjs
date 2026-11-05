@@ -20,7 +20,7 @@ test("a row's attention: ONE list of what needs an action - unfinished lessons, 
   const undecided = (n) => plain(R.teacherAttention({ warnings: WARN(), undecided_lessons: n })[0].text);
   assert.deepEqual([undecided(1), undecided(2), undecided(5), undecided(21)], ["1 доп. урок ждёт решения", "2 доп. урока ждут решения", "5 доп. уроков ждут решения", "21 доп. урок ждёт решения"]);
   // an unfinished check says so (a failure is not a zero)
-  assert.equal(plain(R.teacherAttention({ warnings: WARN({ open_lessons: null, open_lessons_unknown: true }), undecided_lessons: 0 })[0].text), "Не удалось проверить незакрытые уроки");
+  assert.equal(plain(R.teacherAttention({ warnings: WARN({ open_lessons: null, open_lessons_unknown: true }), undecided_lessons: 0 })[0].text), "Не удалось проверить уроки без отметки");
 });
 
 test("the rate cell: short lines one under the other, no «·»; «Индив.»; a kind with no rate says so; no rate at all is only the link that sets it", () => {

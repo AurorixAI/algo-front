@@ -84,7 +84,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(paymentRow).toContainText(`№ ${payment.receipt_no}`);
   await expect(paymentRow).toContainText(/наличные/i); // the method
   await expect(paymentRow.getByRole("list", { name: "Куда пошли деньги" })).toBeVisible(); // where the money went
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   // the statement leads on: the student's «Оплаты» tab and the group
   await expect(page.getByTestId("statement-student-link")).toHaveAttribute("href", new RegExp(`/owner/students/${student.id}\\?tab=payments$`));
   await expect(page.getByTestId("statement-group-link")).toHaveAttribute("href", new RegExp(`/owner/groups/${group.id}$`));

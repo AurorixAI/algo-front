@@ -17,7 +17,7 @@ export type ScheduleCardAction =
   | "journal"        // «Открыть в журнале»: a lesson that is held or going on
   | "restore"        // «Вернуть урок»: a cancelled lesson that has not started is planned again (W1 F3)
   | "returnHeld"     // «Вернуть урок» (Money-1 A2): a HELD lesson goes back to «не проведён» - the money right
-  | "returnReview"   // «Вернуть в разбор» (Money-1 A2): «Урока не было» said by mistake for a lesson that had begun - the money right
+  | "returnReview"   // «Вернуть на отметку» (Money-1 A2): «Урока не было» said by mistake for a lesson that had begun - the money right
   | "undoDecision"   // «Отменить решение об оплате» (Money-1 A3): the decision on an additional lesson is taken back - the money right
   | "editSeries"     // «Изменить постоянный урок»: the weekly lesson this one belongs to, from a future date
   | "endSeries";     // «Прекратить урок»: stop the weekly lesson from a future date
@@ -28,7 +28,7 @@ export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">
   mark: "Отметить посещаемость",
   restore: "Вернуть урок",
   returnHeld: "Вернуть урок",
-  returnReview: "Вернуть в разбор",
+  returnReview: "Вернуть на отметку",
   undoDecision: UNDO_DECISION_LABEL,
   journal: "Открыть в журнале",
   editSeries: "Изменить постоянный урок",
@@ -37,7 +37,7 @@ export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">
 
 /**
  * IA audit F17: ONE wording of what is done with a lesson, whichever screen does it (the sheet of the schedule, the column menu of the journal,
- * «Незакрытые уроки»): the same words for the same action, chosen by the DATE of the lesson - a lesson to come is «Отменить урок», one that has
+ * «Уроки без отметки»): the same words for the same action, chosen by the DATE of the lesson - a lesson to come is «Отменить урок», one that has
  * passed «Урока не было»; a past lesson is marked with «Отметить посещаемость».
  */
 export const CANCEL_PAST_LESSON_LABEL = "Урока не было";

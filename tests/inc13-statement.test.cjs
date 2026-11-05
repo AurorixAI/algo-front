@@ -151,7 +151,7 @@ test("inc13-5: date and the three money columns are centred with tabular digits,
   const src = read("src/components/payments/statement-view.tsx");
   // the header
   for (const [word, align] of [["Дата", "date"], ["Операция", "operation"]]) assert.match(src, new RegExp(`STATEMENT_ALIGN\\.${align}\\}\`\\}>${word}</span>`), word);
-  for (const word of ["Стоимость", "Оплачено", "Баланс"]) assert.match(src, new RegExp(`HEAD_MONEY\\} \\$\\{STATEMENT_ALIGN\\.money\\}\`\\}>${word}</span>`), word);
+  for (const word of ["Стоимость", "Оплачено", "Остаток"]) assert.match(src, new RegExp(`HEAD_MONEY\\} \\$\\{STATEMENT_ALIGN\\.money\\}\`\\}>${word}</span>`), word);
   // the band: a thin divider (slate-100) and a very light background; the same constant in header, rows and month rows
   const band = src.match(/const CELL_MONEY = "([^"]*)"/)[1];
   assert.match(band, /md:border-l md:border-slate-100/);

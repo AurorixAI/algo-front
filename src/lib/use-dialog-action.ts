@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { periodClosedOf, type PeriodClosedInfo } from "./closed-period";
 
 /**
- * R3 m7: the skeleton the money dialogs of lessons and months share («Вернуть урок», «Вернуть в разбор», «Переоткрыть месяц», «Отметить посещаемость», «Отменить решение», the cancels of a
+ * R3 m7: the skeleton the money dialogs of lessons and months share («Вернуть урок», «Вернуть на отметку», «Переоткрыть месяц», «Отметить посещаемость», «Отменить решение», the cancels of a
  * payment / write-off / refund): `busy`, a ref that holds a double press (LESSONS 27), the failure as it came, the reset when the dialog opens for another thing (`resetKey`),
  * and the closed month told apart from any other failure (`closed`: the sentence of the server and the way out).
  * `run(action)` sends once: a second call while one is in flight is refused; a thrown failure is kept in `error` (and given to `onError` first).

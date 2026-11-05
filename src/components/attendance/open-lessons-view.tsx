@@ -58,7 +58,7 @@ const MENU_SLOT_CLASS = "flex h-8 w-8 shrink-0 items-center justify-center";
 const FOCUS_REFETCH_GAP_MS = 1500;
 
 /**
- * "Незакрытые уроки": lessons an administrator still has to close, grouped by teacher.
+ * "Уроки без отметки": lessons an administrator still has to close, grouped by teacher.
  * The only action of a row is its «⋯» menu: open the journal at that lesson, or (for a lesson that
  * was never started) close it as «Урока не было». The list is re-read when the window gets focus
  * again, after every action, and when the menu badge disagrees with it.

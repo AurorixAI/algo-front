@@ -1,5 +1,5 @@
 // «Деньги-1», пакет А (front), the round of the contract after the server's R3 - the PURE parts: the calls of the dry runs (`?dry_run=true`, no key, the same body), the draft of a payment,
-// the states of a confirmation, the words of the deductions, «Требует разбора» by month, the decided additional lessons.  The WINDOWS themselves (the real hooks, the real components,
+// the states of a confirmation, the words of the deductions, «Уроки без отметки» by month, the decided additional lessons.  The WINDOWS themselves (the real hooks, the real components,
 // the server answered by the test) are read in a real DOM: tests/dom-till.test.cjs, tests/dom-windows.test.cjs, tests/dom-enrol.test.cjs, tests/dom-hooks.test.cjs.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -58,7 +58,7 @@ test("R3 item 7: the deductions of the answer are read without surprises", () =>
   assert.equal(plain(RET.deductionText({ studentId: "s", name: "Иванов Иван", amount: 46000 })), "Иванов Иван: 46 000 сум");
 });
 
-// ── item 8: «Требует разбора» by month ────────────────────────────────────────────────────────────
+// ── item 8: «Уроки без отметки» by month ────────────────────────────────────────────────────────────
 
 const lesson = (over) => ({ actionType: "missed", groupId: "g1", groupName: "7-А", classLevel: 7, lessonId: "l1", lessonDate: "2026-09-14", subject: "Алгебра", startTime: "10:00", endTime: "11:00", markedCount: 0, rosterCount: 8, remainingCount: 8, teacherId: "t1", teacherName: "Каримова К.", ...over });
 const BY_MONTH = { total: 3, since: "2026-09-01", months: [
@@ -71,7 +71,7 @@ test("R3 item 8: the heads of the months, the counters and the day the list star
   assert.equal(OPEN.monthHeading(BY_MONTH.months[1]), "Октябрь 2026 · 1 урок");
   assert.equal(OPEN.monthCountsText(BY_MONTH.months[0]), "не отмечено 1 · не завершено 1");
   assert.equal(OPEN.monthCountsText(BY_MONTH.months[1]), "не отмечено 1");
-  assert.equal(OPEN.sinceLine("2026-09-01"), "Показаны неразобранные уроки с 01.09.2026");
+  assert.equal(OPEN.sinceLine("2026-09-01"), "Показаны уроки без отметки с 01.09.2026");
   assert.equal(OPEN.sinceLine(""), null);
   assert.equal(OPEN.sinceLine(null), null);
   assert.deepEqual(OPEN.openLessonsOf(BY_MONTH).map((item) => item.lessonId), ["l1", "l2", "l3"], "the oldest month first, as the server sent it");

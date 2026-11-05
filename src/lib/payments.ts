@@ -135,7 +135,7 @@ export interface Allocation {
   bucket: AllocationBucket;
   /** The payment closed the period completely. */
   closes: boolean;
-  /** «Закрыла долг 15.09–14.10» / «На текущий период 15.10–14.11» / «Аванс на 15.11–14.12». */
+  /** «Погашен долг за 15.09–14.10» / «На текущий период 15.10–14.11» / «Аванс на 15.11–14.12». */
   label: string;
   /** The price of that period; null for «аванс на следующие уроки». */
   price: number | null;
@@ -436,7 +436,7 @@ export interface PreviewResult {
   partial_credit_after: number;
   lessons: PreviewLessons | null;
   price_ahead: PriceAhead[];
-  /** The server's sentence: «Закроет долг 269 000 · на текущий период 31 000 → оплачено до 15.10 · останется 469 000». */
+  /** The server's sentence: «Погасит долг 269 000 сум · на текущий период 31 000 сум → оплачено до 15.10 · останется 469 000 сум». */
   summary_text: string;
 }
 

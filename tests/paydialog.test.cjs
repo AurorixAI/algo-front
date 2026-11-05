@@ -150,7 +150,7 @@ test("D-1: «Всего долга останется» is the debt the toast sh
   assert.equal(said(X.planView(p)), "Погасит долг за сентябрь. Всего долга останется 800 000 сум, из них за прошлые месяцы — 400 000 сум.");
   assert.equal(debtLeftIn(X.planView(p).sentence), after);
   // the toast / card / statement say the same number through the same field
-  assert.equal(plain(L.balanceAfterText(after, p.result.advance_after)), "Баланс после оплаты: долг 800 000 сум");
+  assert.equal(plain(L.balanceAfterText(after, p.result.advance_after)), "Остаток долга после оплаты: 800 000 сум");
 });
 
 test("D-1: «Исправить оплату» - the corrected amount (400 000 → 200 000) says 1 000 000 after, the overdue part is separate", () => {
