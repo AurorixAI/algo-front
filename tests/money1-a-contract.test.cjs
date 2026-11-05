@@ -55,7 +55,10 @@ test("R3 item 7: the deductions of the answer are read without surprises", () =>
   assert.deepEqual(RET.deductionsOf({ deductions: [{ studentId: "x", name: "", amount: 5 }, { studentId: "y", name: "Без суммы", amount: 0 }, { studentId: "z", name: "Нечисло", amount: "много" }] }), []);
   assert.deepEqual(RET.deductionsOf(null), []);
   assert.deepEqual(RET.deductionsOf({}), []);
-  assert.equal(plain(RET.deductionText({ studentId: "s", name: "Иванов Иван", amount: 46000 })), "Иванов Иван: 46 000 сум");
+  assert.equal(plain(RET.deductionText({ studentId: "s", name: "Иванов Иван", amount: 46000 })), "Иванов Иван — 46 000 сум");
+  assert.equal(plain(RET.deductionsSentence([{ studentId: "a", name: "Нематов Жасур", amount: 40000 }, { studentId: "b", name: "Иванов Иван", amount: 80000 }])), "Ученикам снимем перерасчёт за этот урок: Нематов Жасур — 40 000 сум, Иванов Иван — 80 000 сум, всего 120 000 сум.");
+  assert.equal(plain(RET.deductionsSentence([{ studentId: "a", name: "Нематов Жасур", amount: 40000 }])), "Ученикам снимем перерасчёт за этот урок: Нематов Жасур — 40 000 сум.");
+  assert.equal(RET.deductionsSentence([]), "");
 });
 
 // ── item 8: «Уроки без отметки» by month ────────────────────────────────────────────────────────────

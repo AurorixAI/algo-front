@@ -320,7 +320,7 @@ test("write-off: an amount up to the debt (or all of it) and a reason; refund: u
   assert.equal(writeoff.debt_before - writeoff.debt_after, writeoff.writeoff.amount);
 
   assert.equal(L.validateRefund({ amount: "344 000", method: "cash", reason: "" }, 344000), null);
-  assert.equal(L.validateRefund({ amount: "344 000", method: null, reason: "" }, 344000), "Выберите, как вернули деньги");
+  assert.equal(L.validateRefund({ amount: "344 000", method: null, reason: "" }, 344000), "Выберите способ возврата");
   assert.equal(plain(L.validateRefund({ amount: "344 001", method: "cash", reason: "" }, 344000)), "Вернуть можно не больше 344 000 сум");
   assert.equal(L.validateRefund({ amount: "1", method: "cash", reason: "" }, 0), "Возвращать нечего");
   assert.deepEqual(L.buildRefundPayload({ amount: "344 000", method: "cash", reason: " ученик ушёл " }, "2026-10-25"), { amount: 344000, method: "cash", reason: "ученик ушёл", effective_on: "2026-10-25" });

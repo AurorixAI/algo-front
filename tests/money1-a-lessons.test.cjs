@@ -137,8 +137,9 @@ test("«Вернуть урок»: the dialog says what happens, has the reason 
   const { LessonReturnDialog } = component("groups/lesson-return-dialogs.tsx");
   const markup = html(React.createElement(LessonReturnDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }));
   const text = textOf(markup);
-  for (const part of ["Вернуть урок 28.10?", "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново.", "не оплачивается преподавателю", "Причина", "Причина и ваше имя останутся в журнале урока.", "Назад"]) assert.ok(text.includes(part), part);
-  assert.match(markup, /data-testid="lesson-return-submit"[^>]*disabled=""[^>]*>[\s\S]*?Вернуть урок<\/button>/, "no answer about money yet - the button waits");
+  for (const part of ["Вернуть урок 28.10?", "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново.", "не входит в зарплату преподавателя", "Причина (обязательно)", "Причина и ваше имя останутся в журнале урока.", "Отмена"]) assert.ok(text.includes(part), part);
+  assert.match(markup, /<button[^>]*data-testid="lesson-return-submit"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="lesson-return-submit"/, "no answer about money yet - the button waits");
+  assert.match(text, /Считаем, что изменится…/, "and says why (rule 3: an off button has its line «почему»)");
   assert.equal(html(React.createElement(LessonReturnDialog, { target: null, onClose() {}, onDone() {} })), "");
   // the dry run, the version, the conflict and the real request are read LIVE in tests/dom-windows.test.cjs
 });
@@ -147,7 +148,7 @@ test("«Вернуть на отметку»: the dialog says the lesson comes b
   const { ReturnToReviewDialog } = component("groups/lesson-return-dialogs.tsx");
   const show = () => textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} })));
   const centre = show();
-  for (const part of ["Вернуть урок на отметку?", "Урок снова появится в «Уроки без отметки»: отметьте на нём посещаемость или отмените его заново.", "Преподавателю урок оплатится, когда его проведут.", "Причина"]) assert.ok(centre.includes(part), part);
+  for (const part of ["Вернуть урок на отметку?", "Урок снова появится в «Уроки без отметки»: отметьте на нём посещаемость или отмените его заново.", "В зарплату преподавателя урок войдёт, когда его проведут.", "Причина (обязательно)"]) assert.ok(centre.includes(part), part);
   assert.ok(!centre.includes("исчезнет вычет"), "the general line is gone: the dry run says whose deduction it is");
   assert.match(textOf(html(React.createElement(ReturnToReviewDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }))), /Вернуть на отметку/);
 });
@@ -268,17 +269,19 @@ test("who taught: the planned teacher by default (nothing is sent), `taughtBy` o
 test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says the lesson will be PAID and where the other road is; `confirmNobodyCame` goes only after the yes", () => {
   const failure = OPS.lessonFailure({ status: 409, code: "NOBODY_CAME", message: "Никто не пришёл. Если завершить, урок будет считаться проведённым и оплачен преподавателю. Если урока не было, нажмите «Урока не было»" }, "finish", "x");
   assert.equal(failure.kind, "nobody_came");
-  assert.match(failure.text, /оплачен преподавателю/);
+  assert.match(failure.text, /оплачен преподавателю|войдёт в зарплату/);
   assert.equal(OPS.isNobodyCame, undefined, "dead code is gone: the kind of the failure is `nobody_came`");
-  // R3 n6: the question is the SERVER's sentence when it came; ours stands in only when the answer has none
-  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Слова сервера.").message, "Никто не пришёл. Слова сервера.");
-  assert.equal(OPS.nobodyCameQuestion("  ").message, OPS.NOBODY_CAME_FALLBACK_QUESTION);
-  assert.equal(OPS.nobodyCameQuestion().message, OPS.NOBODY_CAME_FALLBACK_QUESTION);
+  // UX pack №21: the title says «Никто не пришёл?», the text does not repeat it: the sentence of the SERVER about the money (when it came) + the other road
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя").message, "Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя.\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Слова сервера.").message, "Слова сервера.\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("  ").message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion().message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Урок войдёт в зарплату. Если урока не было, нажмите «Урока не было»").message, "Урок войдёт в зарплату. Если урока не было, нажмите «Урока не было».", "the server already names the other road - it is not said twice");
   const q = OPS.nobodyCameQuestion();
-  assert.equal(q.title, "Никто не пришёл");
-  assert.equal(q.message, "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».");
-  assert.equal(q.confirmLabel, "Завершить и оплатить");
-  assert.equal(q.cancelLabel, "Вернуться");
+  assert.equal(q.title, "Никто не пришёл?");
+  assert.doesNotMatch(q.message, /^Никто не пришёл/, "the text does not repeat the title");
+  assert.equal(q.confirmLabel, "Завершить урок");
+  assert.equal(q.cancelLabel, "Отмена");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /if \(failure\.kind === "nobody_came"\) \{ nobodyCame = failure\.text; return false; \}/);
   // R3 #8: the FIRST request already says `confirmNobodyCame: false`; only the second one, after the yes, says true

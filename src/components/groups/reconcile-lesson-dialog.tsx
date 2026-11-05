@@ -18,6 +18,7 @@ import {
 import { lessonFailure } from "@/lib/attendance-ops";
 import type { LessonTeacherCandidates } from "@/lib/ops-b-types";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Radio } from "@/components/ui/radio";
 import { DialogError } from "@/components/money/dialog-error";
 
@@ -96,20 +97,9 @@ export function ReconcileLessonDialog({
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="button"
-            data-testid="reconcile-submit"
-            onClick={() => void submit()}
-            disabled={busy || !pick}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {RECONCILE_SUBMIT}
-          </button>
-        </>
+        <ConfirmFooter primary={RECONCILE_SUBMIT} onPrimary={() => void submit()} busy={busy} disabled={!pick} why="Выберите, кто провёл урок." whyId="reconcile-why" onCancel={onClose} testId="reconcile-submit" />
       )}
     >
       <div className="space-y-3 pb-2">

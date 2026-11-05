@@ -6,6 +6,7 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { DAY_OFF_NO_RIGHT_TEXT, NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptBlock, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { canManageMoney } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
@@ -79,18 +80,14 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
       description={day ? `${day.reason} · ${dayOffSpan(day)}` : undefined}
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button type="button" onClick={() => void submit()} disabled={busy || !plan} data-testid="day-off-void-apply" className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Вернуть уроки
-          </button>
-        </>
-      }
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={(
+        // the main button is «Отменить выходной» (UX pack №12): the secondary one is «Не отменять»; off - with the line «почему»
+        <ConfirmFooter primary="Отменить выходной" onPrimary={() => void submit()} busy={busy} disabled={!plan} why="Проверяем уроки…" whyId="day-off-void-why" onCancel={onClose} testId="day-off-void-apply" />
+      )}
     >
       <div className="space-y-3 pb-2" aria-live="polite">
-        {!plan && !error && <p className="flex items-center gap-1.5 text-sm text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
+        {!plan && !error && <p className="flex items-center gap-1.5 text-sm text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
         {plan && <VoidPlanBody plan={plan} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </div>

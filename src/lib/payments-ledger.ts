@@ -558,7 +558,7 @@ export function validateRefund(values: RefundFormValues, refundable: number): st
   if (amount === null) return "Укажите сумму";
   if (amount < 1) return "Сумма должна быть больше нуля";
   if (amount > refundable) return `Вернуть можно не больше ${formatMoney(refundable)}`;
-  if (!values.method) return "Выберите, как вернули деньги";
+  if (!values.method) return "Выберите способ возврата";
   if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
   return null;
 }

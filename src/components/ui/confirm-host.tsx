@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { answerConfirm, askConfirm, currentConfirm, subscribeConfirm, type ConfirmRequest, type PendingConfirm } from "@/lib/confirm-dialog";
@@ -36,14 +37,17 @@ export function ConfirmHost() {
       aboveLessonPanel
       footer={
         <>
-          <Button variant="secondary" size="md" onClick={() => answerConfirm(false)}>{shown?.cancelLabel ?? "Отмена"}</Button>
-          <Button variant={shown?.tone === "danger" ? "danger" : "primary"} size="md" onClick={() => answerConfirm(true)}>
+          <Button variant="secondary" size="md" className="min-h-[44px] sm:min-h-0" onClick={() => answerConfirm(false)}>{shown?.cancelLabel ?? "Отмена"}</Button>
+          <Button variant={shown?.tone === "danger" ? "danger" : "primary"} size="md" className="min-h-[44px] sm:min-h-0" onClick={() => answerConfirm(true)}>
             {shown?.confirmLabel ?? "Да"}
           </Button>
         </>
       }
     >
       {shown?.message && <p className="whitespace-pre-line text-sm text-slate-600">{shown.message}</p>}
+      {shown?.link && (
+        <Link href={shown.link.href} onClick={() => answerConfirm(false)} data-testid="confirm-link" className="mt-3 inline-flex min-h-[40px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">{shown.link.label}</Link>
+      )}
     </Modal>
   );
 }

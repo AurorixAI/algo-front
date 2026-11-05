@@ -163,22 +163,26 @@ export const FINISH_LESSON_ACTION = "Завершить урок";
 
 // ── nobody came (Money-1 A6) ────────────────────────────────────────────────────────────────────
 
-/** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it is paid to the teacher; the server asks for an explicit yes. */
-export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и оплачен преподавателю";
+/** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it goes to the salary of the teacher; the server asks for an explicit yes. */
+export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя";
 
 /** Our words for the question when the answer of the server has none (R3 n6: the sentence of the server is the question when it came). */
-export const NOBODY_CAME_FALLBACK_QUESTION = "Урок будет оплачен преподавателю. Завершить?\nЕсли урока не было, вернитесь и нажмите «Урока не было».";
+export const NOBODY_CAME_FALLBACK_QUESTION = "Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя.";
+/** The other road, said once under the sentence of the money (UX pack №21). */
+export const NOBODY_CAME_OTHER_ROAD = "Если урока не было — вернитесь и нажмите «Урока не было».";
 
 /**
- * The question before a finish where nobody came: the lesson is paid to the teacher; «Урока не было» is the other road.  The sentence is the SERVER's (`message` of the 409 - when its
- * catalogue changes, the screen follows); ours stands in only when the answer has none.
+ * The question before a finish where nobody came (UX pack №21): the title says it («Никто не пришёл?»), the text does NOT repeat it - the sentence of the SERVER about the money (`message` of the 409
+ * without its first words «Никто не пришёл.»; ours stands in only when the answer has none) and the other road, «Урока не было».  Buttons: «Завершить урок» / «Отмена».
  */
 export function nobodyCameQuestion(serverText?: string | null): ConfirmRequest {
+  const said = (serverText ?? "").trim().replace(/^Никто не пришёл\.?\s*/i, "").replace(/^./, (c) => c.toUpperCase());
+  const money = said ? (/[.!?]$/.test(said) ? said : `${said}.`) : NOBODY_CAME_FALLBACK_QUESTION;
   return {
-    title: "Никто не пришёл",
-    message: serverText?.trim() || NOBODY_CAME_FALLBACK_QUESTION,
-    confirmLabel: "Завершить и оплатить",
-    cancelLabel: "Вернуться",
+    title: "Никто не пришёл?",
+    message: /Урока не было/.test(money) ? money : `${money}\n${NOBODY_CAME_OTHER_ROAD}`,
+    confirmLabel: FINISH_LESSON_ACTION,
+    cancelLabel: "Отмена",
   };
 }
 export const FINISH_LESSON_BACK = "Вернуться";

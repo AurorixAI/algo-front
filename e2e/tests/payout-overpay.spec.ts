@@ -74,7 +74,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше начисленного сейчас — запишем как выплату вперёд`));
   await expect(dialog.getByRole("button", { name: /Записать выплату вперёд/ })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Отмена" })).toBeVisible();
-  await expect(question).toContainText("Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца");       // R3 3 / #20: what the advance does in a month that is still going
+  await expect(question).toContainText("покроется начислениями до конца месяца; если останется — уменьшит следующую выплату");       // R3 3 / #20: what the advance does in a month that is still going
   await shot(page, project, "02-overpay-question");
   const none = await org.owner.api.get("/auth/org/payroll/payouts", { month });
   expect(none, "the refusal writes nothing").toEqual([]);
@@ -163,7 +163,7 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   await overpay.getByRole("button", { name: /Записать выплату вперёд/ }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(115000)}`))).toBeVisible();
   await expect(pastBlock).toContainText(new RegExp(`Выплачено больше на\\s*${moneyPattern(15000)}\\s*сум`));
-  await expect(pastBlock.getByTestId("payout-advance")).toHaveText("Переплата зачтётся в выплате следующего месяца");   // the chip says 15 000, the line only what happens to it
+  await expect(pastBlock.getByTestId("payout-advance")).toHaveText("Вычтем из следующей выплаты");   // the chip says 15 000, the line only what happens to it
   await expect(pastBlock.getByTestId("payout-advance")).not.toContainText(/\d/);
   await shot(page, project, "06-closed-month-overpaid");
 

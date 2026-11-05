@@ -8,6 +8,7 @@ import { REASON_LIMITS } from "@/lib/reason-rules";
 import { DAY_OFF_LIST_PREVIEW, EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, sortDayOffLessons, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { substitutionErrorText } from "@/lib/substitutions";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -106,21 +107,20 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
       description="Уроки этих дней отменятся у всех групп центра; ученики увидят причину."
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy || checking || problem !== null || !plan}
-            data-testid="day-off-apply"
-            className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {count > 0 ? "Отменить уроки" : "Сохранить выходной"}
-          </button>
-        </>
-      }
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={(
+        // UX pack №12 / rule 3: «Назначить выходной» (a day off can be cancelled - blue); off - with the line «почему»
+        <ConfirmFooter
+          primary="Назначить выходной"
+          onPrimary={() => void submit()}
+          busy={busy}
+          disabled={checking || problem !== null || !plan}
+          why={problem ?? (checking ? "Проверяем, какие уроки отменятся…" : "Выберите дни — покажем, какие уроки отменятся.")}
+          whyId="day-off-why"
+          onCancel={onClose}
+          testId="day-off-apply"
+        />
+      )}
     >
       <div className="space-y-4 pb-2">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

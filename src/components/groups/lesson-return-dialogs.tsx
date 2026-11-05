@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { isAttendanceConflict } from "@/lib/attendance-ops";
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
   RETURN_LESSON_EXPLAIN,
@@ -19,12 +18,14 @@ import {
   validateReturnReason,
 } from "@/lib/lesson-return";
 import { effectsAllowConfirm } from "@/lib/money-preview";
+import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { useDialogAction } from "@/lib/use-dialog-action";
 import type { ReturnHeldLessonResult, RestoreLessonResult } from "@/lib/ops-b-types";
 import { REASON_MAX } from "@/lib/payments";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { DialogError } from "@/components/money/dialog-error";
 import { RestoreConsequences, useRestorePreview } from "./restore-consequences";
@@ -44,7 +45,7 @@ function ReasonField({ id, value, onChange, disabled }: { id: string; value: str
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-xs font-semibold text-slate-600">{RETURN_REASON_LABEL}</label>
       <textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} maxLength={REASON_MAX} rows={3} autoFocus disabled={disabled} placeholder={RETURN_REASON_PLACEHOLDER} className={FIELD} />
-      <p className="text-xs text-slate-400">{RETURN_REASON_HINT}</p>
+      <p className="text-xs text-slate-600">{RETURN_REASON_HINT}</p>
     </div>
   );
 }
@@ -100,20 +101,19 @@ export function LessonReturnDialog({
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="submit"
-            form="lesson-return-form"
-            data-testid="lesson-return-submit"
-            disabled={busy || !canSend}
-            className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {RETURN_LESSON_LABEL}
-          </button>
-        </>
+        // UX pack №12 / rule 3: the lesson can be held again - the main button is blue and names the action; off - with the line «почему»
+        <ConfirmFooter
+          primary={RETURN_LESSON_LABEL}
+          submitFor="lesson-return-form"
+          busy={busy}
+          disabled={!canSend || validateReturnReason(reason) !== null}
+          why={!canSend ? EFFECTS_LOADING_TEXT : validateReturnReason(reason)}
+          whyId="lesson-return-why"
+          onCancel={onClose}
+          testId="lesson-return-submit"
+        />
       )}
     >
       <form id="lesson-return-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-3 pb-2" noValidate>
@@ -165,20 +165,18 @@ export function ReturnToReviewDialog({
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="submit"
-            form="return-review-form"
-            data-testid="return-review-submit"
-            disabled={busy || !effectsAllowConfirm(preview)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {RETURN_TO_REVIEW_LABEL}
-          </button>
-        </>
+        <ConfirmFooter
+          primary={RETURN_TO_REVIEW_LABEL}
+          submitFor="return-review-form"
+          busy={busy}
+          disabled={!effectsAllowConfirm(preview) || validateReturnReason(reason) !== null}
+          why={!effectsAllowConfirm(preview) ? EFFECTS_LOADING_TEXT : validateReturnReason(reason)}
+          whyId="return-review-why"
+          onCancel={onClose}
+          testId="return-review-submit"
+        />
       )}
     >
       <form id="return-review-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-3 pb-2" noValidate>

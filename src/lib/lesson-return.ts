@@ -11,17 +11,17 @@ import { formatMoney, REASON_MAX, REASON_MIN } from "./payments";
 
 export const RETURN_LESSON_LABEL = "Вернуть урок";
 export const RETURN_TO_REVIEW_LABEL = "Вернуть на отметку";
-export const RETURN_REASON_LABEL = "Причина";
+export const RETURN_REASON_LABEL = "Причина (обязательно)";
 export const RETURN_REASON_PLACEHOLDER = "Например: нажали «Завершить» по ошибке, урока не было";
 export const RETURN_REASON_HINT = "Причина и ваше имя останутся в журнале урока.";
 
 /** What the return of a held lesson does, in one sentence (the numbers of money are the dry run's, under it). */
-export const RETURN_LESSON_EXPLAIN = "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново. Пока он не завершён, он не списывается из пакетов учеников и не оплачивается преподавателю.";
+export const RETURN_LESSON_EXPLAIN = "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново. Пока он не завершён, он не списывается из пакетов учеников и не входит в зарплату преподавателя.";
 
 export const RETURN_REVIEW_TITLE = "Вернуть урок на отметку?";
 export const RETURN_REVIEW_EXPLAIN = "Урок снова появится в «Уроки без отметки»: отметьте на нём посещаемость или отмените его заново.";
-/** R3 #23: the dry run of the return says WHOSE deduction for the cancelled lesson goes away and by how much (the money right only) - it replaces the general line. */
-export const DEDUCTIONS_TITLE = "Вычеты за этот урок исчезнут";
+/** UX pack №20: the dry run of the return says WHOSE recalculation for the cancelled lesson goes away and by how much (the money right only); the word of the dictionary is «перерасчёт». */
+export const DEDUCTIONS_TITLE = "Ученикам снимем перерасчёт за этот урок";
 
 export interface DeductionLine {
   studentId: string;
@@ -44,9 +44,16 @@ export function deductionsOf(answer: unknown): DeductionLine[] {
 }
 
 export function deductionText(line: DeductionLine): string {
-  return `${line.name}: ${formatMoney(line.amount)}`;
+  return `${line.name} — ${formatMoney(line.amount)}`;
 }
-export const RETURN_REVIEW_PAY = "Преподавателю урок оплатится, когда его проведут.";
+
+/** «Ученикам снимем перерасчёт за этот урок: Нематов Жасур — 40 000 сум, Иванов Иван — 40 000 сум, всего 80 000 сум.» (one student: no «всего»). Empty list - "". */
+export function deductionsSentence(lines: ReadonlyArray<DeductionLine>): string {
+  if (lines.length === 0) return "";
+  const total = lines.reduce((all, line) => all + line.amount, 0);
+  return `${DEDUCTIONS_TITLE}: ${lines.map(deductionText).join(", ")}${lines.length > 1 ? `, всего ${formatMoney(total)}` : ""}.`;
+}
+export const RETURN_REVIEW_PAY = "В зарплату преподавателя урок войдёт, когда его проведут.";
 
 export function validateReturnReason(reason: string | null | undefined): string | null {
   const text = (reason ?? "").trim();

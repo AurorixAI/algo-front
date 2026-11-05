@@ -240,7 +240,7 @@ test("2. where it lives: the owner's settings (a section), the administrator's s
   assert.match(read("src/app/admin/settings/page.tsx"), /<DaysOffPanel \/>/);
   assert.match(read("src/components/schedule/lesson-slot-fields.tsx"), /<DayOffWarning date=\{date\} \/>/);
   const dialog = read("src/components/schedule/day-off-dialog.tsx");
-  assert.match(dialog, /Отменить уроки/);                                                             // the button of the spec
+  assert.match(dialog, /Назначить выходной/);                                                         // UX pack №12: the button names the action
   assert.match(dialog, /previewDayOff/);
   assert.match(dialog, /Не будут отменены/);
   const panel = read("src/components/schedule/days-off-panel.tsx");

@@ -29,6 +29,8 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
+import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
 
@@ -176,19 +178,19 @@ export function PauseDialog({
       description={`${studentName} · ${groupName}`}
       onClose={onClose}
       busy={busy}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Закрыть</button>
-          <button
-            type="submit"
-            form="pause-form"
-            disabled={busy || !ready || checking || calcFailure !== null}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && acting === null && <Loader2 className="h-4 w-4 animate-spin" />}
-            Поставить на паузу
-          </button>
-        </>
+        // UX pack №12 / rule 3: the pause can be ended - blue; the main button names the action; off - with the line «почему»
+        <ConfirmFooter
+          primary="Поставить на паузу"
+          submitFor="pause-form"
+          busy={busy && acting === null}
+          disabled={busy || !ready || checking || calcFailure !== null}
+          why={checking ? EFFECTS_LOADING_TEXT : calcFailure !== null ? "Не удалось посчитать паузу — повторите." : "Укажите, с какого по какое число пауза."}
+          whyId="pause-why"
+          onCancel={onClose}
+          testId="pause-submit"
+        />
       )}
     >
       <form id="pause-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4 pb-2" noValidate>

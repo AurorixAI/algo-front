@@ -153,7 +153,7 @@ test("a day off: the dry run lists the lessons «группа · дата · в�
   const second = page.getByRole("dialog", { name: "Выходной день центра" });
   await fillDate(second.getByLabel("Первый день"), d2);
   await second.getByLabel("Причина").fill("Навруз");
-  await expect(second.getByTestId("day-off-apply")).toHaveText("Сохранить выходной");
+  await expect(second.getByTestId("day-off-apply")).toHaveText("Назначить выходной");
   await second.getByTestId("day-off-apply").click();
   await expect(page.getByTestId("days-off-list")).toContainText("Навруз");
   await page.getByTestId("days-off-list").getByRole("listitem").filter({ hasText: "Хайит" }).getByRole("button", { name: "Отменить выходной" }).click();

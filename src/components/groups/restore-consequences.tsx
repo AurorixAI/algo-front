@@ -1,7 +1,7 @@
 "use client";
 
 import { orgApi } from "@/lib/api";
-import { DEDUCTIONS_TITLE, deductionsOf, deductionText } from "@/lib/lesson-return";
+import { DEDUCTIONS_TITLE, deductionsOf, deductionsSentence } from "@/lib/lesson-return";
 import { effectsEmpty } from "@/lib/money-effects";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
@@ -28,11 +28,8 @@ export function RestoreConsequences({ preview, onRetry, aboveLessonPanel = false
   return (
     <>
       {deductions.length > 0 && (
-        <section aria-label={DEDUCTIONS_TITLE} data-testid="return-review-deductions" className="rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5">
-          <p className="text-xs font-semibold text-slate-600">{DEDUCTIONS_TITLE}</p>
-          <ul className="mt-1 space-y-0.5">
-            {deductions.map((line) => <li key={line.studentId} className="text-sm text-slate-800">{deductionText(line)}</li>)}
-          </ul>
+        <section aria-label={DEDUCTIONS_TITLE} data-testid="return-review-deductions" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+          <p className="text-sm text-slate-800">{deductionsSentence(deductions)}</p>
         </section>
       )}
       {showEffects && <MoneyEffectsBlock preview={preview} onRetry={onRetry} aboveLessonPanel={aboveLessonPanel} />}

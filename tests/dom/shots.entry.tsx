@@ -17,6 +17,7 @@ import { ConfirmHost } from "@/components/ui/confirm-host";
 import { askConfirm } from "@/lib/confirm-dialog";
 import { gateOfConfirmRefusal, openLessonsQuestion } from "@/lib/payroll-open-lessons";
 import { useAuthStore } from "@/lib/store";
+import { nobodyCameQuestion, NOBODY_CAME_TEXT } from "@/lib/attendance-ops";
 
 const w = window as any;
 const FRESH = { saved_total: 400000, fresh_total: 600000, target: 600000, paid: 475000, balance: 125000, state: "due", basis: "fresh", changed_by: 200000, change_text: null,
@@ -73,6 +74,11 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
       const refusal = { status: 409, code: "OPEN_LESSONS_CONFIRM_REQUIRED", message: "x", detail: { message: "Уроков без отметки, которых вы ещё не подтверждали: 3. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?", count: 3, alreadyConfirmed: 2,
         items: [{ lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" }, { lessonDate: "2026-10-14", groupId: "g2", groupName: "9-Б Геометрия", lessonId: "l2", kind: "in_progress" }, { lessonDate: "2026-10-19", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l3", kind: "missed" }] } };
       setTimeout(() => { void askConfirm(openLessonsQuestion(gateOfConfirmRefusal(refusal))!); }, 50);
+      break;
+    }
+    case "nobodyCame": {
+      root.render(<ConfirmHost />);
+      setTimeout(() => { void askConfirm(nobodyCameQuestion(NOBODY_CAME_TEXT)); }, 50);
       break;
     }
     case "sheetReopened": {

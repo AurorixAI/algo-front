@@ -27,6 +27,7 @@ import { logicaError } from "@/lib/payments-logica";
 import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Select } from "@/components/ui/select";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -163,22 +164,9 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
       description={groupName}
       onClose={onClose}
       busy={saving}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            form="group-lesson-type-form"
-            disabled={!ready || saving}
-            title={noop ? "Такой тип с этого дня уже действует" : ready ? undefined : "Кнопка включится, когда будут показаны последствия"}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Сохранить
-          </button>
-        </>
+        <ConfirmFooter primary="Сохранить тип занятий" submitFor="group-lesson-type-form" busy={saving} disabled={!ready} why={noop ? "Такой тип с этого дня уже действует." : "Кнопка включится, когда будут показаны последствия."} whyId="lesson-type-why" onCancel={onClose} testId="lesson-type-submit" />
       )}
     >
       {loadError ? (

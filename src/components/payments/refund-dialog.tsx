@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { formatMoney, formatMoneyInput, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type RefundCreated } from "@/lib/payments";
+import { formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type RefundCreated } from "@/lib/payments";
 import { buildRefundPayload, METHODS, payError, refundPreviewText, validateRefund, type RefundFormValues } from "@/lib/payments-ledger";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
@@ -39,6 +38,8 @@ export function RefundDialog({
   }, [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patch = (next: Partial<RefundFormValues>) => { setError(null); setValues((previous) => ({ ...previous, ...next })); };
+  const refundAmount = parseMoneyInput(values.amount);
+  const blocker = row ? validateRefund(values, refundable) : null;
 
   const submit = async () => {
     if (!row || busy) return;
@@ -65,7 +66,10 @@ export function RefundDialog({
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary="Вернуть деньги" submitFor="refund-form" busy={busy} onCancel={onClose} />}
+      footer={(
+        // UX pack №22 / rule 3: the main button names the action and the sum; off - with the line «почему»
+        <ConfirmFooter primary={`${REFUND_ACTION_LABEL}${refundAmount !== null && refundAmount > 0 ? ` ${formatMoney(refundAmount)}` : ""}`} submitFor="refund-form" busy={busy} disabled={blocker !== null} why={blocker} whyId="refund-why" onCancel={onClose} testId="refund-submit" />
+      )}
     >
       <form id="refund-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">
@@ -84,13 +88,13 @@ export function RefundDialog({
               autoFocus
               className={`${FIELD} pr-12`}
             />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
           </div>
           <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{refundPreviewText(values, refundable)}</p>
         </div>
 
         <div>
-          <span id="refund-method-label" className={LABEL}>Как вернули</span>
+          <span id="refund-method-label" className={LABEL}>Способ возврата</span>
           <div role="radiogroup" aria-labelledby="refund-method-label" className="flex flex-wrap gap-1.5">
             {METHODS.map((method) => (
               <button
@@ -108,7 +112,7 @@ export function RefundDialog({
         </div>
 
         <div>
-          <label htmlFor="refund-reason" className={LABEL}>Причина <span className="font-normal text-slate-400">(необязательно)</span></label>
+          <label htmlFor="refund-reason" className={LABEL}>Причина <span className="font-normal text-slate-500">(необязательно)</span></label>
           <input
             id="refund-reason"
             value={values.reason}

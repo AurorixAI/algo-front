@@ -111,7 +111,7 @@ const SHOTS = [
   { name: "09-void-payment", entry: "money.entry.tsx", mount: "voidPayment", act: async (page) => { await page.waitForSelector("#record-void-reason"); await page.fill("#record-void-reason", "оплата внесена по ошибке"); } },
   { name: "10-writeoff", entry: "money.entry.tsx", mount: "writeoff", act: async (page) => { await page.waitForTimeout(500); await page.fill("#writeoff-reason", "болезнь, договорились с родителем"); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]'); } },
   { name: "11-return-to-review", entry: "money.entry.tsx", mount: "review", act: async (page) => { await page.waitForSelector('[data-testid="return-review-deductions"]'); await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке"); } },
-  { name: "12-open-lessons-question", entry: "shots.entry.tsx", mount: "openLessonsQuestion", act: async (page) => { await page.waitForSelector('[role="dialog"]'); } },
+  { name: "18-save-with-open-lessons", entry: "shots.entry.tsx", mount: "openLessonsQuestion", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="confirm-link"]'); } },
   { name: "13-payout-open-month", entry: "shots.entry.tsx", mount: "payoutBlock", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "14-payout-dialog-open-month", entry: "shots.entry.tsx", mount: "payoutDialog", act: async (page) => { await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(300); } },
   { name: "16-sheet-open-overpaid", entry: "shots.entry.tsx", mount: "sheetOpenOverpaid", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
@@ -164,6 +164,11 @@ const SHOTS = [
     act: async (page) => { await page.fill("#payout-amount", "657 500"); await page.click('[role="radio"]:has-text("Наличные")'); await page.click('[data-testid="payout-submit"]'); await page.waitForSelector('[data-testid="payout-overpay"]'); } },
   { name: "13-replace", entry: "money.entry.tsx", mount: "replace", props: { membership: TOSHMATOV }, preview: replacePreview, sizes: [[1280, 900], [1024, 900], [375, 812]],
     act: async (page) => { await page.waitForSelector('[data-testid="payment-replace-change"]'); await page.fill("#payment-amount", "200 000"); await page.waitForSelector('[data-testid="payment-plan-rows"]'); } },
+  // UX pack №18, №20, №21, №22, №12 (wave в)
+  { name: "21-nobody-came", entry: "shots.entry.tsx", mount: "nobodyCame", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[role="dialog"]'); } },
+  { name: "20-return-to-review", entry: "money.entry.tsx", mount: "review", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="return-review-deductions"]'); await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке"); } },
+  { name: "22-refund", entry: "money.entry.tsx", mount: "refund", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector("#refund-amount"); await page.click('[role="radio"]:has-text("Наличные")'); } },
+  { name: "12-day-off-dialog", entry: "shots.entry.tsx", mount: "dayOffDialog", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForTimeout(500); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 

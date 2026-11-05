@@ -234,21 +234,6 @@ export function sheetPayoutChip(state: PayoutState | null | undefined): PayoutCh
   }
 }
 
-/** The block of a sheet: «К выплате 600 000 · Выплачено 475 000 · Доплатить 125 000» as parts, each with its tone. */
-export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> {
-  // R3 m2 (rule 87): the month that is still open says it ONCE, in the sentence of the server («Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M» - `payoutNote`); the three figures
-  // would repeat that sentence word for word
-  if (!state || state.basis === "fresh") return [];
-  const parts: Array<{ label: string; value: string; tone: "plain" | "due" | "over" }> = [
-    { label: "К выплате", value: formatMoney(state.target), tone: "plain" },
-    ...(state.carry_used > 0 ? [{ label: "Аванс прошлого месяца", value: formatMoney(state.carry_used), tone: "plain" as const }] : []),
-    { label: "Выплачено", value: formatMoney(state.paid), tone: "plain" },
-  ];
-  if (state.balance > 0) parts.push({ label: "Осталось выплатить", value: formatMoney(state.balance), tone: "due" });
-  else if (state.balance < 0) parts.push({ label: "Переплачено", value: formatMoney(-state.balance), tone: "over" });
-  return parts;
-}
-
 /**
  * The server's sentence under the figures, only when it says what the chip and the figures do not (rel-b3 walk: «Переплачено 25 000» stood
  * three times): a month the advance of the earlier months closed whole.
@@ -421,12 +406,12 @@ export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis
 /** The name of the main button when the payout is above the rest and the person confirms it (the amount is added by the window). */
 export const PAYOUT_ADVANCE_LABEL = "Записать выплату вперёд";
 /** An OPEN month is paid by what is accrued now and hands nothing on yet (`advance_out = 0`): only what is left of the overpay at the END of the month goes on. */
-export const PAYOUT_ADVANCE_HINT_OPEN = "Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца";
+export const PAYOUT_ADVANCE_HINT_OPEN = "Покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.";
 
 /**
  * Under the chip of a sheet: only what the chip and the card do not say, and no number twice (walk of 05.11, D-3, rule 87).
  * The advance of the earlier months is named with its sum (nothing else on the screen says it); the overpay of a CLOSED month is already in the chip, so the line says only what
- * happens to it («Переплата зачтётся в выплате следующего месяца»), and the sum is repeated only when it is not the chip's (the advance then includes what is left of earlier ones).
+ * happens to it («Вычтем из следующей выплаты»), and the sum is repeated only when it is not the chip's (the advance then includes what is left of earlier ones).
  * An OPEN month hands nothing on yet: the overpay may still be earned back.  Empty when there is nothing to add.
  */
 export function advanceLines(state: PayoutState | null | undefined): string[] {
@@ -440,8 +425,8 @@ export function advanceLines(state: PayoutState | null | undefined): string[] {
     if (state.state === "overpaid") lines.push(PAYOUT_ADVANCE_HINT_OPEN);
   } else if (state.advance_out > 0) {
     lines.push(state.state === "overpaid" && state.advance_out === -state.balance
-      ? "Переплата зачтётся в выплате следующего месяца"
-      : `Аванс ${formatMoney(state.advance_out)} зачтётся в выплате следующего месяца`);
+      ? "Вычтем из следующей выплаты"
+      : `Аванс ${formatMoney(state.advance_out)} вычтем из следующей выплаты`);
   }
   return lines;
 }

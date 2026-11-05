@@ -15,6 +15,7 @@ import { REASON_MAX } from "@/lib/payments";
 import { useReopenMonth, type ReopenTarget } from "@/lib/use-reopen-month";
 import { DialogError } from "@/components/money/dialog-error";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 
 export type { ReopenTarget };
 
@@ -41,20 +42,9 @@ export function ReopenMonthDialog({
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="reopen-month-form"
-            data-testid="reopen-submit"
-            disabled={busy || typeof revision !== "number"}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {REOPEN_BUTTON}
-          </button>
-        </>
+        <ConfirmFooter primary={REOPEN_BUTTON} submitFor="reopen-month-form" busy={busy} disabled={typeof revision !== "number"} why="Загружаем версию зарплаты…" whyId="reopen-why" onCancel={onClose} testId="reopen-submit" />
       )}
     >
       <form id="reopen-month-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>

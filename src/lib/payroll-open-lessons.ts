@@ -7,7 +7,7 @@
  */
 import { formatDateRu } from "./business-time";
 import type { ConfirmRequest } from "./confirm-dialog";
-import { OPEN_LESSON_IN_PROGRESS_LABEL, OPEN_LESSON_MISSED_LABEL } from "./open-lessons";
+import { journalHref, OPEN_LESSON_IN_PROGRESS_LABEL, OPEN_LESSON_MISSED_LABEL } from "./open-lessons";
 import { pluralRu } from "./plural";
 import type { OpenLessonItem } from "./payroll";
 
@@ -65,32 +65,54 @@ export function gateOfConfirmRefusal(error: unknown): OpenLessonsGate {
   return { kind: "list", count: Math.max(count, items.length), items, message: said || null, alreadyConfirmed: confirmed };
 }
 
-export const OPEN_LESSONS_SAVE_LABEL = "Сохранить всё равно";
+export const OPEN_LESSONS_SAVE_LABEL = "Сохранить и закрыть месяц";
 export const OPEN_LESSONS_BACK_LABEL = "Отмена";
+export const OPEN_LESSONS_TITLE = "Сохранить с уроками без отметки?";
+export const OPEN_LESSONS_JOURNAL_LABEL = "Открыть журнал";
+const CLOSES_MONTH = "После сохранения месяц закроется.";
 
-/** The question before the save; null: nothing to ask. */
+/** «14.10 · 8-Б» - a lesson of the list of the question (UX pack №18); a lesson that was started and not finished says so. */
+export function openLessonQuestionLine(item: OpenLessonItem): string {
+  const day = formatDateRu(item.lessonDate).slice(0, 5);
+  return [day, (item.groupName ?? "").trim(), item.kind === "in_progress" ? "урок не завершён" : ""].filter(Boolean).join(" · ");
+}
+
+/** Where the lesson is marked: the journal of its group at the day (the first lesson of the list); null without a group. */
+export function openLessonJournalHref(item: OpenLessonItem | undefined, groupsBasePath = "/owner/groups"): string | null {
+  return item?.groupId ? journalHref(groupsBasePath, { groupId: item.groupId, lessonDate: item.lessonDate, lessonId: item.lessonId }) : null;
+}
+
+/**
+ * The question before the save of a month that is over (UX pack №18): «1 урок без отметки не попадёт в зарплату: 12.10 · Геометрия 8.  [Открыть журнал]  После сохранения месяц закроется.»
+ * The lessons are the server's (`items`, `count`); the buttons are «Отмена» / «Сохранить и закрыть месяц»; null: nothing to ask.
+ */
 export function openLessonsQuestion(gate: OpenLessonsGate): ConfirmRequest | null {
   if (gate.kind === "none") return null;
   if (gate.kind === "unknown") {
     return {
       title: "Не удалось проверить уроки без отметки",
-      message: "Мы не смогли узнать, есть ли в этом месяце уроки без отметки. Если сохранить сейчас, месяц закроется, а уроки, которые окажутся незакрытыми, в ведомость не попадут. Проверьте «Посещаемость → Уроки без отметки» и сохраните снова.",
+      message: `Мы не смогли узнать, есть ли в этом месяце уроки без отметки. Если они есть, в зарплату они не попадут. ${CLOSES_MONTH}`,
       confirmLabel: OPEN_LESSONS_SAVE_LABEL,
       cancelLabel: OPEN_LESSONS_BACK_LABEL,
     };
   }
-  const shown = gate.items.slice(0, OPEN_LESSONS_LIST_LIMIT).map((item) => openLessonItemLine(item));
+  const shown = gate.items.slice(0, OPEN_LESSONS_LIST_LIMIT).map((item) => openLessonQuestionLine(item));
   const rest = gate.count - shown.length;
-  const lines = rest > 0 ? [...shown, `и ещё ${rest}`] : shown;
+  const lines = rest > 0 && shown.length > 0 ? [...shown, `и ещё ${rest}`] : shown;
+  const head = `${gate.count} ${pluralRu(gate.count, "урок без отметки не попадёт", "урока без отметки не попадут", "уроков без отметки не попадут")} в зарплату${lines.length > 0 ? ":" : "."}`;
   const confirmed = gate.alreadyConfirmed ?? 0;
+  const href = openLessonJournalHref(gate.items[0]);
   return {
-    title: "Сохранить с уроками без отметки?",
+    title: OPEN_LESSONS_TITLE,
     message: [
-      gate.message || `Уроков без отметки, которых вы ещё не подтверждали: ${gate.count}. Они не попадут в зарплату, а месяц закроется. Сохранить всё равно?`,
-      ...(lines.length > 0 ? ["", ...lines] : []),
+      head,
+      ...lines,
       ...(confirmed > 0 ? ["", `Ещё ${confirmed} ${pluralRu(confirmed, "урок", "урока", "уроков")} вы подтвердили раньше.`] : []),
+      "",
+      CLOSES_MONTH,
     ].join("\n"),
     confirmLabel: OPEN_LESSONS_SAVE_LABEL,
     cancelLabel: OPEN_LESSONS_BACK_LABEL,
+    ...(href ? { link: { label: OPEN_LESSONS_JOURNAL_LABEL, href } } : {}),
   };
 }

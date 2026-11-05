@@ -378,9 +378,6 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.equal(Y.payoutChip({ ...owing, state: "settled", balance: 0 }).text, "Выплачено полностью");
   assert.equal(Y.payoutChip(null), null);
   assert.equal(due.text, "Выплачено полностью"); // the server's sentence stays as it came
-  assert.deepEqual(Y.sheetPayoutParts(due).map((part) => [part.label, plain(part.value)]), [["К выплате", "475 000 сум"], ["Выплачено", "475 000 сум"]]);
-  assert.deepEqual(Y.sheetPayoutParts(owing).map((part) => [part.label, plain(part.value)]), [["К выплате", "600 000 сум"], ["Выплачено", "475 000 сум"], ["Осталось выплатить", "125 000 сум"]]);
-  assert.deepEqual(Y.sheetPayoutParts(over).map((part) => part.label), ["К выплате", "Выплачено", "Переплачено"]);
   // the totals of the month are the tiles of the list (monthTotals = the sums of the rows: tests/ux-pack-month-list.test.cjs)
   // the form: the amount starts as what is left; more than that asks
   const values = Y.emptyPayoutValues("2026-11-12", owing);

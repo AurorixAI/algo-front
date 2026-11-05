@@ -80,14 +80,15 @@ test("MUTATIONS: the guards removed from a copy of the dialog are caught by the 
 
 test("R3 3: the advance of the earlier months is a part of the block, a line under it and a hint in the window", () => {
   const state = Y.normalizePayoutState({ saved_total: 100000, fresh_total: null, target: 70000, paid: 0, balance: 70000, state: "unpaid", basis: "saved", text: "Не выплачено", items: [], carry_in: 30000, carry_used: 30000, advance_out: 0 });
-  assert.deepEqual(Y.sheetPayoutParts(state).map((part) => [part.label, plain(part.value)]), [["К выплате", "70 000 сум"], ["Аванс прошлого месяца", "30 000 сум"], ["Выплачено", "0 сум"], ["Осталось выплатить", "70 000 сум"]]);
+  assert.equal(Y.sheetPayoutParts, undefined, "UX pack №9/№10: the three figures of the window are one line (payoutHeadline)");
+  assert.equal(plain(Y.payoutHeadline(state)), "К выплате 70 000 сум", "the window: ONE line");
   assert.deepEqual(Y.advanceLines(state).map(plain), ["Аванс прошлого месяца: 30 000 сум — зачтён, к выплате меньше на эту сумму"]);
   const over = Y.normalizePayoutState({ ...state, target: 100000, paid: 125000, balance: -25000, state: "overpaid", carry_in: 0, carry_used: 0, advance_out: 25000 });
   // D-3 (rule 87): the chip already says «Переплачено 25 000», so the line says only what happens to it
   assert.equal(plain(Y.sheetPayoutChip(over).text), "Выплачено больше на 25 000 сум");
-  assert.deepEqual(Y.advanceLines(over).map(plain), ["Переплата зачтётся в выплате следующего месяца"]);
+  assert.deepEqual(Y.advanceLines(over).map(plain), ["Вычтем из следующей выплаты"]);
   // the advance that is not the chip's sum (earlier advances left over) keeps its number
-  assert.deepEqual(Y.advanceLines({ ...over, advance_out: 40000 }).map(plain), ["Аванс 40 000 сум зачтётся в выплате следующего месяца"]);
+  assert.deepEqual(Y.advanceLines({ ...over, advance_out: 40000 }).map(plain), ["Аванс 40 000 сум вычтем из следующей выплаты"]);
   assert.deepEqual(Y.advanceLines(null), []);
   // R3 #20: a CLOSED month hands the advance on as it is; an OPEN one hands nothing on yet - only what is left at the END of the month
   assert.equal(Y.payoutAdvanceHint, undefined, "UX pack №9: the question is one plaque with the whole sentence - no second hint line");

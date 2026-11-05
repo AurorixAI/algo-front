@@ -14,6 +14,8 @@ export interface ConfirmRequest {
   cancelLabel?: string;
   /** `danger` (red button) for something that cannot be undone; default `primary`. */
   tone?: "primary" | "danger";
+  /** A way to the place where the thing is fixed (UX pack №18: «Открыть журнал»); the question is answered «no» when it is followed. */
+  link?: { label: string; href: string };
 }
 
 export interface PendingConfirm extends ConfirmRequest {
