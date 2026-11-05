@@ -58,7 +58,16 @@ test("the journal column: «Исправить отметки» and «Верну
   assert.deepEqual(withRight("scheduled", "2026-10-28"), ["reconcile", "cancel_missed"]);
   assert.deepEqual(without("scheduled", "2026-10-28"), ["cancel_missed"]);
   assert.deepEqual(without("in_progress", today), ["finish"]);
+  // R2-4 (re-walk of 05.11): a mistaken «Урока не было» of TODAY is returned as soon as the lesson has begun - the server tells them apart by the start of the lesson (`starts_at <= now`), not by the date
+  assert.deepEqual(withRight("cancelled", today, { started: true }), ["return_review"], "today, begun");
+  assert.deepEqual(withRight("cancelled", today, { started: false }), [], "today, not begun: it is taken back from the schedule («Вернуть урок»)");
+  assert.deepEqual(withRight("cancelled", today), [], "the start is not known: nothing is guessed");
+  assert.deepEqual(without("cancelled", today, { started: true }), [], "without the money right nothing");
+  assert.deepEqual(withRight("cancelled", today, { started: true, cancelKind: "day_off" }), [], "a day off is undone by the day off");
+  assert.deepEqual(withRight("cancelled", today, { started: true, moved: true }), [], "the original of a move is not returned");
+  assert.deepEqual(withRight("cancelled", "2026-11-20", { started: true }), [], "a future day is never begun, whatever is said");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /const started = lessonHasStarted\(\{ date: lesson\.date, today, startTime: lesson\.startTime \|\| lesson\.start_time \}\);/);
   assert.match(journal, /const actionsFor = \(lesson: Lesson, key: string, lessonStatus: string\): AdminLessonAction\[\] => \{\s*if \(!canEdit\) return \[\];\s*if \(!adminMode\) return lessonTeacherActions\(lessonStatus, lesson\.date, today, !lessonIsOthers\(key\)\);/);
   assert.match(journal, /const reviewable = adminMode && moneyRight && !inCorrection && Boolean\(excuse\);/);
   assert.match(journal, /canReplaceTeacher\("admin", lessonStatus\) && \(moneyRight \|\| lessonStatus !== "completed"\)/);

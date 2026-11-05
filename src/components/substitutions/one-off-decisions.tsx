@@ -12,6 +12,7 @@ import {
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
 import { periodClosedOf } from "@/lib/closed-period";
+import { toastWithEffects } from "@/lib/money-effects";
 import { effectsAllowConfirm } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
@@ -95,7 +96,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
   onRetry: () => void;
   /** The lesson was decided (or somebody did it before): the page reads the list and the counters again. */
   onDecided: (lessonId: string) => void;
-  showToast: (text: string, type: "success" | "error" | "warning") => void;
+  showToast: (text: string, type: "success" | "error" | "warning", details?: string[]) => void;
 }) {
   const [dialog, setDialog] = useState<{ item: OneOffDecisionItem; decision: OneOffDecision } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,8 +120,9 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
     setBusy(true);
     setProblem(null);
     try {
-      await orgApi.decideOneOffMoney(dialog.item.lessonId, dialog.decision);
-      showToast(decisionToast(dialog.decision), "success");
+      const result = await orgApi.decideOneOffMoney(dialog.item.lessonId, dialog.decision);
+      const note = toastWithEffects(result);
+      showToast(decisionToast(dialog.decision), note.tone, note.details);
       setDialog(null);
       onDecided(dialog.item.lessonId);
     } catch (failure) {

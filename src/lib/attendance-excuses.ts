@@ -36,6 +36,11 @@ export interface AdminActionRights {
   moved?: boolean;
   /** An additional lesson whose payment was decided (`canUndoDecision`): the decision can be taken back. */
   undoDecision?: boolean;
+  /**
+   * The lesson of TODAY has begun (its start time has passed in business time: `lessonHasStarted`).  A cancelled lesson of today that has begun is a mistaken «Урока не было» and goes back to the review
+   * as well as one of an earlier day; the server tells them apart by the start of the lesson, not by the date (`restore_lesson`: `starts_at <= now`).  Absent: not known - today stays «not yet».
+   */
+  started?: boolean;
 }
 
 /**
@@ -47,12 +52,15 @@ export interface AdminActionRights {
  * - past + in_progress (forgotten)    -> finish (+ cancel is not offered: marks exist)
  * - today + in_progress               -> finish
  * - completed                         -> correct / return (the money right: a held lesson is money of the students and of the teacher)
- * - cancelled before today            -> return_review (the money right; not the original of a move, not a day off)
+ * - cancelled before today, or today and begun -> return_review (the money right; not the original of a move, not a day off); a cancelled lesson that has not begun is taken back from the schedule
  * - future, today-not-started         -> nothing
  */
 export function lessonAdminActions(state: string, date: string, today: string, rights: AdminActionRights): AdminLessonAction[] {
   if (state === "completed") return rights.moneyRight ? ["correct", "return", ...(rights.undoDecision ? ["undo_decision" as const] : [])] : [];
-  if (state === "cancelled") return rights.moneyRight && date < today && !rights.moved && rights.cancelKind !== "day_off" ? ["return_review"] : [];
+  if (state === "cancelled") {
+    const begun = date < today || (date === today && rights.started === true);
+    return rights.moneyRight && begun && !rights.moved && rights.cancelKind !== "day_off" ? ["return_review"] : [];
+  }
   if (date > today) return [];
   if (state === "in_progress") return ["finish"];
   if (state === "scheduled" && date < today) return rights.moneyRight ? ["reconcile", "cancel_missed"] : ["cancel_missed"];

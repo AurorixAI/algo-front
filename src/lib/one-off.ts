@@ -516,8 +516,9 @@ export const UNDO_DECISION_TOAST = "Решение отменено: урок с
 export function canUndoDecision(lesson: Pick<LessonPurposeFields, "purpose" | "money"> | null | undefined, moneyRight: boolean): boolean {
   return moneyRight && lesson?.purpose === "extra" && (lesson.money === "paid" || lesson.money === "none");
 }
-export const DECISION_PAY_TOAST = "Преподавателю будет оплачено";
-export const DECISION_SKIP_TOAST = "Решено: без оплаты";
+// R2-2б (re-walk of 05.11): the toast says that the decision is WRITTEN and what it is; under it the lines of money as after every money action (`toastWithEffects`)
+export const DECISION_PAY_TOAST = "Решение записано: преподавателю будет оплачено";
+export const DECISION_SKIP_TOAST = "Решение записано: без оплаты";
 export function decisionToast(decision: OneOffDecision): string {
   return decision === "pay" ? DECISION_PAY_TOAST : DECISION_SKIP_TOAST;
 }

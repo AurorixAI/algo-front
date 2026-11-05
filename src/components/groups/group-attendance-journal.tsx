@@ -97,7 +97,7 @@ import {
   notYourLessonText,
   substituteLabel,
 } from "@/lib/lesson-teacher";
-import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
+import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasStarted, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
 import { canManageMoney } from "@/lib/money-effects";
@@ -697,7 +697,9 @@ export function GroupAttendanceJournal({
     if (!canEdit) return [];
     if (!adminMode) return lessonTeacherActions(lessonStatus, lesson.date, today, !lessonIsOthers(key));
     const moved = lessonStatus === "cancelled" && lesson.substitutionOutcome?.kind === "rescheduled";
-    return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight) });
+    // R2-4 (walk of 05.11): a cancelled lesson of TODAY that has begun goes back to the review at once (the start of the lesson, like the server), not the next day
+    const started = lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time });
+    return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight), started });
   };
 
   const handleSelectStatus = async (
@@ -2186,10 +2188,11 @@ export function GroupAttendanceJournal({
       <UndoDecisionDialog
         target={undoTarget}
         onClose={() => setUndoTarget(null)}
-        onDone={async () => {
+        onDone={async (result) => {
           setUndoTarget(null);
           await loadAttendanceRef.current(true);
-          showToast(UNDO_DECISION_TOAST);
+          const money = toastWithEffects(result);
+          showToast(UNDO_DECISION_TOAST, money.tone, money.details);
         }}
       />
       {/* Money-1 A6: «Отметить посещаемость» of a lesson formalised afterwards - WHO taught it */}

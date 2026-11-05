@@ -6,6 +6,7 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate, formatDateRu, shiftMonthKey } from "@/lib/business-time";
 import { formatDateTimeRu } from "@/lib/attendance-excuses";
 import { monthTitle } from "@/lib/payroll";
+import { toastWithEffects } from "@/lib/money-effects";
 import {
   DECIDED_EMPTY_TEXT, DECIDED_HINT, DECIDED_LOAD_ERROR_TEXT, DECIDED_MONTH_CLOSED_TEXT, DECIDED_TITLE, UNDO_DECISION_BUTTON, UNDO_DECISION_TOAST,
   decidedByLine, decidedMoneyText, decisionLessonLine, decisionWhoLine, type DecidedOneOffItem,
@@ -17,7 +18,7 @@ import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
  * R3 #28 (the money right): «Решённые дополнительные уроки» of a month on the tab «Решённые» of «Замены» - what was decided (paid to the teacher or not), who decided and when.
  * «Отменить решение» is there while the month of the teacher is open (`canUndo`); for a closed month the row says so and offers «Переоткрыть месяц» - the undo follows.
  */
-export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text: string, type: "success" | "error" | "warning") => void; onChanged?: () => void }) {
+export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text: string, type: "success" | "error" | "warning", details?: string[]) => void; onChanged?: () => void }) {
   const [month, setMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [items, setItems] = useState<DecidedOneOffItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -76,7 +77,7 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
       <UndoDecisionDialog
         target={undo}
         onClose={() => setUndo(null)}
-        onDone={() => { setUndo(null); showToast(UNDO_DECISION_TOAST, "success"); void load(true); onChanged?.(); }}
+        onDone={(result) => { setUndo(null); const note = toastWithEffects(result); showToast(UNDO_DECISION_TOAST, note.tone, note.details); void load(true); onChanged?.(); }}
       />
     </section>
   );

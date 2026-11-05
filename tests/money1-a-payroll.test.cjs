@@ -531,18 +531,23 @@ test("4а: a payout above the sum of the month is marked «аванс» / «с �
 
 // ── 4б: the counts belong to the saved sheet ─────────────────────────────────────────────────────────
 
-test("4б: in an open month the counts stand in the brackets of «Сохранено 03.11: 45 000 сум (засчитано 3 посещения)», the rate stays outside", () => {
-  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения"])), "Сохранено 03.11: 45 000 сум (засчитано 3 посещения) · Ставка: Группа 50%");
-  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения", "без оплаты 8 посещений у 1 ученика"])), "Сохранено 03.11: 45 000 сум (засчитано 3 посещения, без оплаты 8 посещений у 1 ученика) · Ставка: Группа 50%");
+test("4б + R2-2в: in an open month the counts follow «Сохранено 03.11: 45 000 сум —», the rate stays outside, and there is no bracket inside a bracket", () => {
+  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения"])), "Сохранено 03.11: 45 000 сум — засчитано 3 посещения · Ставка: Группа 50%");
+  assert.equal(plain(Y.savedFactsLine("Сохранено 03.11: 45\u00a0000 сум", ["Ставка: Группа 50%", "засчитано 3 посещения", "без оплаты 8 посещений у 1 ученика"])), "Сохранено 03.11: 45 000 сум — засчитано 3 посещения, без оплаты 8 посещений у 1 ученика · Ставка: Группа 50%");
   assert.equal(Y.savedFactsLine("Сохранено: 1", ["Ставка: Группа 50%"]), "Сохранено: 1 · Ставка: Группа 50%");
+  // the line of the walk: a count that carries a bracket of its own (and «начислено …» of the unpaid one) never lands inside another bracket
+  const walk = plain(Y.savedFactsLine("Сохранено 05.11: 120\u00a0834 сум", ["Ставка: Группа 50%", "засчитано 7 посещений", "без оплаты 1 посещение у 1 ученика (начислено 1)", "не решено 3 посещения (в сумму не входят)"]));
+  assert.equal(walk, "Сохранено 05.11: 120 834 сум — засчитано 7 посещений, без оплаты 1 посещение у 1 ученика (начислено 1), не решено 3 посещения (в сумму не входят) · Ставка: Группа 50%");
+  let depth = 0;
+  for (const char of walk) { depth += char === "(" ? 1 : char === ")" ? -1 : 0; assert.ok(depth <= 1, `a bracket inside a bracket: ${walk}`); }
   signIn({ org_role: "owner" });
   const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
   const open = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 0, balance: 120834, state: "unpaid", basis: "fresh", changed_by: 75834 });
   const card = (payout) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ month: "2026-11", total_amount: 45000, stale: true, counted_total: 3, payout }), total: 45000, accrued: 0, busy: false, onPrimary() {}, onPrint() {},
     status: R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: 75834 }) }))));
   const text = card(open);
-  assert.ok(text.includes("Сохранено 03.11: 45 000 сум (засчитано 3 посещения)"), text);
-  assert.ok(!/сум · .*засчитано 3 посещения/.test(text.replace("(засчитано 3 посещения)", "")), "the counts are not left next to «Начислено сейчас»");
+  assert.ok(text.includes("Сохранено 03.11: 45 000 сум — засчитано 3 посещения"), text);
+  assert.ok(!/сум · .*засчитано 3 посещения/.test(text), "the counts are not left next to «Начислено сейчас» on their own");
   // a closed month: the counts are the sheet's own, the line is as it was
   const closed = card(CLOSED_SEP);
   assert.ok(closed.includes("засчитано 3 посещения") && !closed.includes("Сохранено 03.11"), closed);
@@ -574,5 +579,19 @@ test("round 3: the card of a sheet names the button by the state of the month - 
   assert.ok(card(reopenedView, true, true).includes("Сохранить и закрыть месяц"), "also when it moved: one button, it closes the month");
   assert.ok(card(CP.periodView({ state: "open", closedOn: null, reopened: null }), true, false).includes("Пересохранить"));
   assert.ok(!card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), false, false).includes("Сохранить и закрыть месяц"));
+});
+
+test("R2-2а: the note above the table - only when the fresh total is not the saved one; the date of the saving; the button that renews the table", () => {
+  const moved = stateOf({ saved_total: 120834, fresh_total: 75834, target: 75834, basis: "fresh", changed_by: -45000 });
+  const note = (payout, extra = {}) => Y.savedTableNote({ payout, updatedAt: "2026-11-05T05:00:00", ...extra });
+  assert.equal(plain(note(moved)), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт");
+  assert.equal(plain(note(moved, { reopened: true })), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Сохранить и закрыть месяц» таблица покажет текущий расчёт");
+  assert.equal(plain(Y.savedTableNote({ payout: moved, updatedAt: null })), "Строки сохранённой ведомости — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт", "no date known: none is invented");
+  assert.equal(note(stateOf({ changed_by: 0 })), null, "nothing moved");
+  assert.equal(note(stateOf({ fresh_total: null, changed_by: 5000 })), null, "the fresh total cannot be counted: nothing to compare");
+  assert.equal(note(null), null);
+  assert.equal(note(undefined), null);
+  // a closed month whose data moved is the same: the table is the saved sheet there too
+  assert.ok(plain(note(stateOf({ basis: "saved", saved_total: 860000, fresh_total: 900000, changed_by: 40000 }))).includes("итог 860 000 сум"));
 });
 

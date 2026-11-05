@@ -414,8 +414,8 @@ test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
   assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · был 1 из 2");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);
   assert.equal(O.decisionAskedLine({ purpose: "makeup", createdBy: { id: "t", name: "Рахимов Т.", role: "teacher" } }), null);
-  assert.equal(O.decisionToast("pay"), "Преподавателю будет оплачено");
-  assert.equal(O.decisionToast("skip"), "Решено: без оплаты");
+  assert.equal(O.decisionToast("pay"), "Решение записано: преподавателю будет оплачено");
+  assert.equal(O.decisionToast("skip"), "Решение записано: без оплаты");
 });
 
 // ── the defects of the walk on stage (29.10): D1 the sheet line of a make-up, D2 «Отработан → …» on the card of a student ───────────────────────────────

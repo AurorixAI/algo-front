@@ -43,7 +43,7 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, savedTableNote } from "@/lib/payroll-logica";
 import { ReopenMonthDialog } from "./reopen-month-dialog";
 import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
@@ -326,6 +326,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       reopened: period?.state === "reopened",
     })
     : null;
+  // R2-2а: the card says the number of now, the table (and the Excel file) the lines of the saved sheet - the table says so
+  const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout, updatedAt: sheet.updated_at, reopened: period?.state === "reopened" }) : null;
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
 
   return (
@@ -451,6 +453,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
+              {tableNote && <p data-testid="saved-table-note" className="text-xs text-slate-600">{tableNote}</p>}
               <PayrollSheetTable sheet={sheet} edits={edits} forceDates={printing} freshPrices={diff?.stale ? freshPricesOf(diff) : undefined} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
             </div>
           )}

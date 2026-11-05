@@ -428,7 +428,7 @@ export function LessonActionSheet({
             target={returning === "undo" ? { lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money } : null}
             aboveLessonPanel={aboveLessonPanel}
             onClose={() => setReturning(null)}
-            onDone={() => { setReturning(null); onChanged(UNDO_DECISION_TOAST); }}
+            onDone={(result) => { setReturning(null); onChanged(UNDO_DECISION_TOAST, toastWithEffects(result).details); }}
           />
           <ReturnToReviewDialog
             target={returning === "review" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null}

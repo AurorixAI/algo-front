@@ -7,6 +7,7 @@
  * Pure: no React, no network.
  */
 import { formatUtcNaiveAsBusinessDateTime } from "./business-time";
+import { CLOSE_MONTH_LABEL } from "./closed-period";
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoneyInput, formatSignedMoney } from "./money-format";
 import {
@@ -295,17 +296,31 @@ export function sheetHeadline(input: { total: number; dirty: boolean; payout: Pa
   return { label: "Начислено сейчас", value: state.fresh_total, saved: `Сохранено${on}: ${formatMoney(state.saved_total)}` };
 }
 
+/**
+ * The line above the table of a sheet whose data moved after the saving (re-walk of 05.11, R2-2а): the card says the number of NOW, the table and the Excel file are the lines of the SAVED sheet - the table
+ * names itself, so one sheet never reads as two totals.  null when the fresh total is the saved one (or cannot be counted): nothing to say.  `reopened`: the button that renews the table is the one
+ * that closes the month.
+ */
+export function savedTableNote(input: { payout: Partial<PayoutState> | null | undefined; updatedAt: string | null | undefined; reopened?: boolean }): string | null {
+  const state = normalizePayoutState(input.payout);
+  if (!state || state.fresh_total === null || state.changed_by === 0) return null;
+  const day = formatUtcNaiveAsBusinessDateTime(input.updatedAt).split(" ")[0] ?? "";
+  const on = /^\d{2}\.\d{2}\./.test(day) ? ` ${day.slice(0, 5)}` : "";
+  return `Строки сохранённой ведомости${on} — итог ${formatMoney(state.saved_total)}; после «${input.reopened ? CLOSE_MONTH_LABEL : RESAVE_LABEL}» таблица покажет текущий расчёт`;
+}
+
 /** The facts that describe the SAVED sheet (not the rate in force): what was counted, what is without pay, what waits for a decision. */
 const SAVED_FACT = /^(засчитано|без оплаты|не решено)/;
 
 /**
  * The line of facts of an OPEN month's card (walk of 05.11, 4б): the big number is what is accrued now, and the counts under it belong to the SAVED sheet - so they stand in its brackets:
- * «Сохранено 03.11: 45 000 сум (засчитано 3 посещения) · Ставка: Группа 50%».  The rate is the one in force, it stays outside.
+ * «Сохранено 03.11: 45 000 сум — засчитано 3 посещения · Ставка: Группа 50%».  The rate is the one in force, it stays outside.
  */
 export function savedFactsLine(saved: string, facts: ReadonlyArray<string>): string {
   const counted = facts.filter((fact) => SAVED_FACT.test(fact));
   const rest = facts.filter((fact) => !SAVED_FACT.test(fact));
-  return [counted.length > 0 ? `${saved} (${counted.join(", ")})` : saved, ...rest].join(" · ");
+  // R2-2в: a dash, not a bracket - a count may carry a bracket of its own («не решено 3 посещения (в сумму не входят)»), and a bracket inside a bracket reads badly
+  return [counted.length > 0 ? `${saved} — ${counted.join(", ")}` : saved, ...rest].join(" · ");
 }
 
 /**

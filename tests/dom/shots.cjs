@@ -18,7 +18,7 @@ const server = (request) => {
   const { method, path: p } = request;
   if (method === "GET" && p === "/auth/org/memberships/m1/pauses") return { json: [] };
   if (method === "POST" && p === "/auth/org/memberships/m1/pauses" && isDry(request)) return { status: 422, json: { detail: PAUSE_LOCKED } };
-  if (method === "GET" && p === "/auth/org/payroll-periods") return { json: { month: "2026-10", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-10", state: "closed", closedOn: "2026-11-03", sheetId: "s1", sheetRevision: 3, reopened: null }] } };
+  if (method === "GET" && p === "/auth/org/payroll-periods" && !/2026-11/.test(request.query)) return { json: { month: "2026-10", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-10", state: "closed", closedOn: "2026-11-03", sheetId: "s1", sheetRevision: 3, reopened: null }] } };
   if (method === "GET" && p === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра" }, { id: "g2", name: "7-Б Геометрия" }] };
   if (method === "GET" && p === "/auth/org/students") return { json: { items: [STUDENT], total: 1 } };
   if (method === "POST" && p === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, carried: [{ code: "PAYMENT_CARRIED", message: "Оплата 300 000 сум перенесётся в новую группу" }, { code: "DEBT_CARRIED", message: "Долг 50 000 сум перенесётся вместе с учеником" }], money_effects: { ...OWNER_EFFECTS, students: [{ studentId: "st1", name: "Иванов Иван", delta: 1 }] } } };
@@ -34,6 +34,22 @@ const server = (request) => {
   if (method === "GET" && p === "/auth/org/one-off-decisions/decided") return { json: { total: 2, items: [
     { lessonId: "l7", groupId: "g1", groupName: "7-А Алгебра", lessonDate: "2026-11-03", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "…", teacher: { id: "t1", name: "Каримова К." }, createdBy: null, studentsPresent: 2, studentsTotal: 3, payrollSheet: null, money: "paid", decidedAt: "2026-11-04T09:30:00", decidedBy: { id: "o1", name: "Арслан", role: "owner" }, canUndo: true, periodClosed: false }] } };
   if (method === "POST" && p === "/auth/org/one-off-lessons/l7/money-decision" && isDry(request)) return { json: { lessonId: "l7", money: "wait", dryRun: true, payrollSheet: null, moneyEffects: { students: [], dryRun: true, text: "", payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 125000, paid: 0, freshBefore: 125000, freshAfter: 0, freshTotal: 0, changedBy: -125000, driftAfter: -125000 }] } } };
+  // R2-2а: the sheet page of a month that is open and moved after the saving (saved 120 834, accrued now 75 834)
+  if (method === "GET" && p === "/auth/org/payroll/sheets/s1") return { json: { id: "s1", saved: true, month: "2026-11", period_start: "2026-11-01", period_end: "2026-11-30", month_open: true, teacher_id: "t1", teacher_name: "Эргашев К.", revision: 2,
+    percents: { group: "50" }, divisor_default: 12, lines: [], groups: [], total_amount: 120834, counted_total: 7, unpaid_total: 1, pending_excused_total: 0, undecided_total: 3, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1, unpaid_students: 1 }, written_off_total: 0,
+    payout: { saved_total: 120834, fresh_total: 75834, target: 75834, paid: 150000, balance: -74166, state: "overpaid", basis: "fresh", changed_by: -45000, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0 },
+    source_fingerprint: "fp", stale: true, note: null, created_by_name: "Арслан", created_at: "2026-11-05T05:00:00", updated_by_name: "Рустам Валиев", updated_at: "2026-11-05T05:00:00" } };
+  if (method === "GET" && p === "/auth/org/payroll/sheets/s1/diff") return { json: { sheet_id: "s1", revision: 2, stale: true, source_fingerprint: "fp2", saved_total: 120834, fresh_total: 75834, delta_amount: -45000, reasons: [], rate_changes: [], lines: [] } };
+  if (method === "GET" && p === "/auth/org/payroll-periods") return { json: { month: "2026-11", items: [{ teacherId: "t1", teacherName: "Эргашев К.", month: "2026-11", state: "open", closedOn: null, sheetId: "s1", sheetRevision: 2, reopened: null }] } };
+  if (method === "GET" && p === "/auth/org/payroll/months/2026-11") return { json: { month: "2026-11", period_start: "2026-11-01", period_end: "2026-11-30", month_open: true, divisor: 12, lessons_without_teacher: 0, teachers: [{ teacher_id: "t1", teacher_name: "Эргашев К.", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } }] } };
+  if (method === "GET" && p === "/auth/org/payroll/rates") return { json: { month: "2026-11", items: [] } };
+  if (method === "POST" && p === "/auth/org/one-off-lessons/l1/money-decision" && !isDry(request)) return { json: { lessonId: "l1", money: "paid", month: "2026-11", dryRun: false, payrollSheet: { month: "2026-11", status: "unpaid" }, moneyEffects: { students: [], dryRun: false, text: "", payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 0, paid: 0, freshBefore: 0, freshAfter: 125000, freshTotal: 125000, changedBy: 125000, driftAfter: 125000 }] } } };
+  if (method === "GET" && /^\/auth\/org\/groups\/g1\/attendance$/.test(p)) {
+    const today = new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() + 5 * 3600000 - 86400000).toISOString().slice(0, 10);
+    const lessons = [{ id: "a", instanceKey: `${yesterday}_a`, date: yesterday, startTime: "10:00", endTime: "11:00", status: "cancelled" }, { id: "b", instanceKey: `${today}_b`, date: today, startTime: "00:00", endTime: "00:30", status: "cancelled" }];
+    return { json: { groupId: "g1", lessons, records: {}, statuses: Object.fromEntries(lessons.map((item) => [item.instanceKey, "cancelled"])), cancellationKinds: Object.fromEntries(lessons.map((item) => [item.instanceKey, "centre"])), cancellationReasons: {}, versions: {}, excuses: {}, corrections: {}, lessonTeachers: {}, rosterStudentIds: {} } };
+  }
   return null;
 };
 
@@ -101,6 +117,14 @@ const SHOTS = [
     await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   } },
   { name: "25-sheet-reopened-no-changes", entry: "shots.entry.tsx", mount: "sheetReopened", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
+  { name: "26-sheet-saved-table-note", entry: "money.entry.tsx", mount: "sheetPage", act: async (page) => { await page.waitForSelector('[data-testid="saved-table-note"]'); } },
+  { name: "27-decision-toast", entry: "money.entry.tsx", mount: "decisionsToast", props: { items: [{ lessonId: "l1", groupId: "g1", groupName: "7-А Алгебра", lessonDate: "2026-11-03", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок — оплатить преподавателю?", teacher: { id: "t1", name: "Каримова К." }, createdBy: { id: "o1", name: "Арслан", role: "owner" }, studentsPresent: 2, studentsTotal: 3, studentsPaid: 3, moneyEstimate: { amount: 125000, reason: null }, payrollSheet: { month: "2026-11", status: "unpaid" }, periodClosed: false }] }, act: async (page) => {
+    await page.click('button[aria-label^="Оплатить: 7-А"]'); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); await page.click('[data-testid="one-off-decision-confirm"]'); await page.waitForSelector('[role="status"]');
+  } },
+  { name: "28-journal-return-review-today", entry: "money.entry.tsx", mount: "journal", props: { students: [{ id: "st1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "active", group_id: "g1", current_group_id: "g1", groups_count: 1 }] }, act: async (page) => {
+    await page.waitForSelector("table"); const today = await page.evaluate(() => { const d = new Date(Date.now() + 5 * 3600000); return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; });
+    await page.locator(`button[aria-label="Действия с уроком ${today}"]`).first().click(); await page.waitForSelector('[data-testid="menu-return-review"]');
+  } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 
@@ -112,7 +136,7 @@ const SHOTS = [
   for (const shot of SHOTS.filter((item) => !only || only.some((prefix) => item.name.startsWith(prefix)))) {
     for (const [width, height] of [[1280, 900], [375, 812]]) {
       const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
-      await page.evaluate(([fn, name, user]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }]);
+      await page.evaluate(([fn, name, user, props]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user, props)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }, shot.props ?? {}]);
       try { await shot.act(page); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }
       await page.waitForTimeout(500);
       const metrics = await page.evaluate(() => {

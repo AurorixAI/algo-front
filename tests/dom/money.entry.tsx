@@ -14,6 +14,8 @@ import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
 import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisions";
 import { PayrollSheetPage } from "@/components/payroll/payroll-sheet-page";
+import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
+import { useToast } from "@/components/ui/toast";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
@@ -25,6 +27,17 @@ const log = (text: string) => w.__log.push(text);
 
 const MEMBERSHIP = { membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" };
 const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, refundable: 344000 };
+
+/** The queue of the decisions with the REAL toast of the page: what a person sees after «Оплатить». */
+function DecisionsWithToast({ items }: { items: any[] }) {
+  const { showToast, toastNode } = useToast();
+  return (
+    <>
+      <OneOffDecisionsBlock items={items} loading={false} error={null} canDecide rightLost={false} onRightLost={() => log("right-lost")} onRetry={() => log("retry")} onDecided={(id: string) => log(`decided:${id}`)} showToast={showToast} />
+      {toastNode}
+    </>
+  );
+}
 
 function ClosedMonthProbe() {
   const closed = useClosedMonthDialog();
@@ -86,6 +99,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "decided":
       root.render(<DecidedOneOffsBlock showToast={(text: string) => log(`toast:${text}`)} onChanged={() => log("changed")} />);
+      break;
+    case "decisionsToast":
+      root.render(<DecisionsWithToast items={props.items} />);
+      break;
+    case "journal":
+      root.render(<GroupAttendanceJournal groupId="g1" students={props.students ?? []} canEdit adminMode groupName="7-А Алгебра" initialMonth={props.month ?? null} />);
       break;
     case "sheetPage":
       root.render(<PayrollSheetPage sheetId="s1" />);

@@ -214,3 +214,29 @@ test("D-5: «Отменить решение» - the window says what the sheet 
   assert.equal(decisionCalls(closed.calls).filter((call) => !isDry(call)).length, 0);
   await closed.page.close();
 });
+
+// ── R2-2б (re-walk of 05.11): the decision is confirmed by a toast with the money of it ───────────────────────────────
+
+test("R2-2б: after «Оплатить» and «Не оплачивать» the page shows the toast «Решение записано …» with the line of the sheet (as every money action does)", async () => {
+  for (const [label, decision, effects, expected] of [
+    ["Оплатить", "pay", [SHEET()], /Решение записано: преподавателю будет оплачено[\s\S]*Ведомость Каримова К\., ноябрь 2026: изменилась на \+125 000 сум/],
+    ["Не оплачивать", "skip", [], /Решение записано: без оплаты/],
+  ]) {
+    const run = await openPage(browser, "money.entry.tsx", (request) => {
+      if (!request.path.endsWith("/money-decision")) return null;
+      return { json: { ...answerOf(effects, isDry(request)), money: decision === "pay" ? "paid" : "none" } };
+    });
+    await run.page.evaluate(([who, props]) => window.mount("decisionsToast", who, props), [OWNER, { items: [ITEM()] }]);
+    await run.page.waitForSelector('[data-testid="one-off-decision-row"]');
+    await run.page.click(`button[aria-label^="${label}"]`);
+    await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+    await run.page.click('[data-testid="one-off-decision-confirm"]');
+    await run.page.waitForSelector('[role="status"]');
+    const toast = (await run.page.textContent('[role="status"]')).replace(/\s+/g, " ").replace(/ /g, " ");
+    assert.match(toast, expected, `${label}: ${toast}`);
+    await run.page.waitForSelector('[role="dialog"]', { state: "detached" });          // the window is closed (after its animation), the toast stays
+    assert.equal(await run.page.locator('[role="status"]').count() > 0, true);
+    await run.page.close();
+  }
+});
+

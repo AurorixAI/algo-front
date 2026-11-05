@@ -22,7 +22,7 @@ const PERIOD = (state) => ({ month: "2026-10", items: [{ teacherId: "t1", teache
 function server(state) {
   return (request) => {
     const { method, path } = request;
-    if (method === "GET" && path === "/auth/org/payroll/sheets/s1") return { json: SHEET(state.revision) };
+    if (method === "GET" && path === "/auth/org/payroll/sheets/s1") return { json: { ...SHEET(state.revision), ...(state.sheet ?? {}) } };
     if (method === "GET" && path === "/auth/org/payroll/sheets/s1/diff") return { json: { ...DIFF, revision: state.revision } };
     if (method === "GET" && path === "/auth/org/payroll-periods") return { json: PERIOD(state.period) };
     if (method === "GET" && path === "/auth/org/payroll/months/2026-10") return { json: { month: "2026-10", period_start: "2026-10-01", period_end: "2026-10-31", month_open: false, divisor: 12, lessons_without_teacher: 0, teachers: [{ teacher_id: "t1", teacher_name: "Каримова К.", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } }] } };
@@ -87,3 +87,30 @@ test("a refusal of the server is told in its words, the month stays open and the
   assert.match(await flat(page, '[data-testid="sheet-period"]'), /Месяц переоткрыт/);
   await page.close();
 });
+
+// ── R2-2а (re-walk of 05.11): the table names itself when it is not the number of the card ─────────────────────────────
+
+// the data moved after the saving: saved 120 834, accrued now 75 834 (the lesson was taken back); the month is open
+const MOVED = { month_open: true, stale: true, total_amount: 120834, payout: PAYOUT({ saved_total: 120834, fresh_total: 75834, target: 75834, balance: 75834, basis: "fresh", changed_by: -45000, text: "Месяц открыт: начислено сейчас 75 834, выплат нет, к выплате 75 834" }) };
+
+test("R2-2а: a sheet whose total moved after the saving - above the table «Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт»; the card says the number of now", async () => {
+  const { page } = await open({ revision: 2, period: "open", saved: [], refuse: false, sheet: MOVED });
+  await page.waitForSelector('[data-testid="saved-table-note"]');
+  assert.equal(await flat(page, '[data-testid="saved-table-note"]'), "Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт");
+  const card = await flat(page, '[aria-label="Итог ведомости"]');
+  assert.match(card, /Начислено сейчас\s*75 834 сум/);
+  assert.match(card, /Сохранено 03\.11: 120 834 сум/);
+  await page.close();
+});
+
+test("R2-2а: in a reopened month the note names the button that renews the table; with nothing changed there is no note", async () => {
+  const reopened = await open({ revision: 2, period: "reopened", saved: [], refuse: false, sheet: MOVED });
+  await reopened.page.waitForSelector('[data-testid="saved-table-note"]');
+  assert.match(await flat(reopened.page, '[data-testid="saved-table-note"]'), /после «Сохранить и закрыть месяц» таблица покажет текущий расчёт/);
+  await reopened.page.close();
+  const same = await open({ revision: 2, period: "reopened", saved: [], refuse: false });
+  await same.page.waitForSelector('[aria-label="Итог ведомости"]');
+  assert.equal(await same.page.locator('[data-testid="saved-table-note"]').count(), 0, "the fresh total is the saved one: the table needs no explanation");
+  await same.page.close();
+});
+
