@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { REVIEW_NOTE_MAX } from "@/lib/attendance-excuses";
 import {
   canSubmitExcuseDecision,
   excuseDecisionCopy,
+  excusesWord,
   excuseNoteToSend,
   type ExcuseDecision,
   type ExcuseDecisionSubject,
   type ExcuseNoteMode,
 } from "@/lib/excuse-decision";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
 import { ExcuseDecisionBody } from "@/components/attendance/excuse-decision-body";
 import { orgApi } from "@/lib/api";
 import { effectsAllowConfirm } from "@/lib/money-preview";
@@ -34,7 +36,7 @@ export interface ExcuseDecisionTarget {
  * is sent before the button is pressed, and pressing it twice sends once.
  *
  * Money-1 A3 (I-5): for ONE excuse the dialog also asks the server for the money of THIS decision (a dry run: the pack of the student, the saved sheets of the teacher)
- * and shows it as «Что будет с деньгами»; «Подтвердить» / «Отклонить» wait for that answer (a closed month: the server's sentence and «Переоткрыть месяц»).
+ * and shows it as «Что изменится»; «Подтвердить» / «Отклонить» wait for that answer (a closed month: the server's sentence and «Переоткрыть месяц»).
  */
 export function ExcuseDecisionDialog({
   target,
@@ -69,6 +71,9 @@ export function ExcuseDecisionDialog({
   );
   const moneyReady = !single || effectsAllowConfirm(preview);
   const canSubmit = canSubmitExcuseDecision(noteMode, note, busy) && moneyReady;
+  const count = target?.items.length ?? 1;
+  const verb = decision === "confirmed" ? "Подтвердить" : "Отклонить";
+  const decisionLabel = count > 1 ? `${verb} ${count} ${excusesWord(count)}` : `${verb} пропуск`;
 
   const submit = async () => {
     if (!target || sending.current || !canSubmit) return;
@@ -86,34 +91,25 @@ export function ExcuseDecisionDialog({
       title={copy.title}
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-          >
-            {copy.cancelLabel}
-          </button>
-          <button
-            type="button"
-            data-testid="excuse-decision-submit"
-            onClick={() => void submit()}
-            disabled={!canSubmit}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
-              decision === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
-            }`}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {copy.confirmLabel}
-          </button>
-        </>
-      }
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={(
+        // UX pack №11 / rule 3: the main button names the action («Подтвердить пропуск», «Отклонить 3 пропуска»); a decision can be reset - blue; off - with the line «почему»
+        <ConfirmFooter
+          primary={decisionLabel}
+          onPrimary={() => void submit()}
+          busy={busy}
+          disabled={!canSubmit}
+          why={!moneyReady ? EFFECTS_LOADING_TEXT : noteMode === "required" && note.trim().length === 0 ? "Напишите примечание." : null}
+          whyId="excuse-decision-why"
+          onCancel={onClose}
+          cancelLabel={copy.cancelLabel}
+          testId="excuse-decision-submit"
+        />
+      )}
     >
       {target && (
         <>
-          <ExcuseDecisionBody items={target.items} decision={target.decision} />
+          <ExcuseDecisionBody items={target.items} decision={target.decision} serverBlock={Boolean(single)} />
           {single && <MoneyEffectsBlock preview={preview} onRetry={retry} className="mt-3" />}
           {noteMode !== "none" && (
             <div className="space-y-1.5 pb-2 pt-3">
@@ -131,7 +127,6 @@ export function ExcuseDecisionDialog({
             </div>
           )}
           {error && <p role="alert" className="pt-3 text-xs font-medium text-rose-600">{error}</p>}
-          {noteMode === "none" && <div className="pb-2" />}
         </>
       )}
     </Modal>

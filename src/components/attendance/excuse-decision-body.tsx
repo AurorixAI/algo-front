@@ -21,7 +21,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
  * Body of the dialog (no modal frame, so node:test can render it): who, which lesson, why, and what the
  * decision changes.  One excuse shows the three facts; several show the count and the first few students.
  */
-export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionSubject[]; decision: ExcuseDecision }) {
+export function ExcuseDecisionBody({ items, decision, serverBlock = false }: { items: ExcuseDecisionSubject[]; decision: ExcuseDecision; /** The window draws the block «Что изменится» of the SERVER under this body: the rule is then plain lines without a title of its own (UX pack №11: ONE title). */ serverBlock?: boolean }) {
   // the sentences follow the current decision and the billing mode of EACH excuse (its student's latest payment)
   const copy = excuseDecisionCopy(decision, items.length, { excuses: items });
   const single = items.length === 1 ? items[0] : null;
@@ -64,18 +64,26 @@ export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionS
           <p className="min-w-0 text-sm text-amber-900">{lateNote}</p>
         </div>
       )}
-      <div
-        data-testid="excuse-decision-consequence"
-        className="flex items-start gap-2.5 rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5"
-      >
-        <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-slate-600">Что изменится</p>
+      {serverBlock ? (
+        <div data-testid="excuse-decision-consequence" className="space-y-0.5">
           {copy.consequenceLines.map((line) => (
-            <p key={line} className="mt-0.5 text-sm text-slate-800">{line}</p>
+            <p key={line} className="text-sm text-slate-700">{line}</p>
           ))}
         </div>
-      </div>
+      ) : (
+        <div
+          data-testid="excuse-decision-consequence"
+          className="flex items-start gap-2.5 rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5"
+        >
+          <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-600">Что изменится</p>
+            {copy.consequenceLines.map((line) => (
+              <p key={line} className="mt-0.5 text-sm text-slate-800">{line}</p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

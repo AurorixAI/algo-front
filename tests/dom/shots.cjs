@@ -169,6 +169,10 @@ const SHOTS = [
   { name: "20-return-to-review", entry: "money.entry.tsx", mount: "review", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="return-review-deductions"]'); await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке"); } },
   { name: "22-refund", entry: "money.entry.tsx", mount: "refund", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector("#refund-amount"); await page.click('[role="radio"]:has-text("Наличные")'); } },
   { name: "12-day-off-dialog", entry: "shots.entry.tsx", mount: "dayOffDialog", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForTimeout(500); } },
+  // UX pack №3 / №19, №23: the page of the sheet of a month that moved after the saving - the block «Что нужно сделать», the caption of the table, the print with ONE total, the reopened month
+  { name: "03-sheet-changed", entry: "money.entry.tsx", mount: "sheetPage", time: "2026-11-05T10:00:00+05:00", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="saved-table-note"]'); } },
+  { name: "03-sheet-changed-print", entry: "money.entry.tsx", mount: "sheetPage", time: "2026-11-05T10:00:00+05:00", media: "print", sizes: [[1280, 900]], act: async (page) => { await page.waitForSelector('[data-testid="sheet-print-totals"]'); } },
+  { name: "04-sheet-reopened", entry: "shots.entry.tsx", mount: "sheetReopened", sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 
@@ -184,6 +188,7 @@ const SHOTS = [
       currentExtra = shot.extra ?? null;
       const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
       if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
+      if (shot.media) await page.emulateMedia({ media: shot.media });
       if (shot.search) await page.evaluate((search) => { window.__search = search; }, shot.search);
       await page.evaluate(([fn, name, user, props]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user, props)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }, shot.props ?? {}]);
       try { await shot.act(page); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }

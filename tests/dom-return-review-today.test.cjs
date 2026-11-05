@@ -39,7 +39,8 @@ const menuOf = async (page, ddmm) => {
   const trigger = page.locator(`button[aria-label="Действия с уроком ${ddmm}"]`);
   if (await trigger.count() === 0) return null;
   await trigger.first().click();
-  const items = (await page.locator('[role="menuitem"]').allTextContents()).map((text) => text.replace(/\s+/g, " ").trim());
+  // the label of an item - without the grey line under it (UX pack №26: the consequence)
+  const items = await page.locator('[role="menuitem"]').evaluateAll((els) => els.map((el) => { const clone = el.cloneNode(true); clone.querySelectorAll('[data-testid="menu-hint"]').forEach((node) => node.remove()); return clone.textContent.replace(/\s+/g, " ").trim(); }));
   await page.keyboard.press("Escape");
   return items;
 };
@@ -89,4 +90,14 @@ test("R2-4: without the money right there is no menu at all (a day off and the o
   await dayOff.page.waitForSelector("table");
   assert.equal(await dayOff.page.locator('button[aria-label^="Действия с уроком"]').count(), 0, "a day off is undone by the day off itself");
   await dayOff.page.close();
+});
+
+test("UX pack №26: under the item of the menu of a column stands ONE grey line - what «Вернуть на отметку» does", async () => {
+  const { page } = await open({ role: "owner", org_role: "owner" });
+  await page.waitForSelector("table");
+  await page.locator('button[aria-label="Действия с уроком 05.11.2026"]').first().click();
+  await page.waitForSelector('[role="menuitem"]');
+  const hints = (await page.locator('[role="menuitem"] [data-testid="menu-hint"]').allTextContents()).map((text) => text.replace(/\s+/g, " ").trim());
+  assert.deepEqual(hints, ["Урок снова ждёт отметки; перерасчёт ученикам снимется."]);
+  await page.close();
 });

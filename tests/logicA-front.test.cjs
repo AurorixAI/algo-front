@@ -544,6 +544,18 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   assert.equal(plain(L.balanceAfterText(469000, 0)), "Остаток долга после оплаты: 469 000 сум");
 });
 
+test("UX pack №25: the notice of the debt stands only on «Главная», «Ученики» and the pages of «Оплаты» (not over the schedule, the journal, the salary; not on the list «Оплаты» itself)", () => {
+  const B = require(path.join(root, "src/lib/payments-banner.ts"));
+  const on = (pathname, base = "/owner/payments") => B.bannerShownOn(pathname, base);
+  for (const yes of ["/owner/dashboard", "/owner/students", "/owner/students/st1", "/owner/payments/statement/m1", "/owner/payments/receipt/p1", "/owner/payments/prices"]) assert.equal(on(yes), true, yes);
+  for (const no of ["/owner/payments", "/owner/payments/", "/owner/schedule", "/owner/groups", "/owner/groups/g1", "/owner/attendance", "/owner/payroll", "/owner/payroll/s1", "/owner/substitutions", "/owner/settings", "/owner/staff", null, undefined, ""]) assert.equal(on(no), false, String(no));
+  assert.equal(on("/admin/diagnostics", "/admin/payments"), true, "the home of an administrator");
+  assert.equal(on("/admin/students", "/admin/payments"), true);
+  assert.equal(on("/admin/payments", "/admin/payments"), false);
+  assert.equal(on("/admin/exams", "/admin/payments"), false);
+  assert.match(read("src/components/payments/payments-alert-banner.tsx"), /bannerShownOn\(pathname, paymentsBasePath\)/);
+});
+
 test("statement page: no old words are left on the money screens", () => {
   const files = ["src/components/payments/statement-view.tsx", "src/components/payments/writeoff-dialog.tsx", "src/components/payments/income-page.tsx", "src/components/payments/membership-payments.tsx",
     "src/components/payments/payments-page.tsx", "src/lib/payments-ledger.ts", "src/lib/payments-income.ts", "src/lib/payments-logica.ts"];
@@ -726,7 +738,7 @@ test("the banner speaks the language of the card «Долг учеников»: 
   assert.equal(B.debtBannerCopy({ debtors: null, debtTotal: 0, overdue: null }).count, 0);
   const banner = read("src/components/payments/payments-alert-banner.tsx");
   assert.match(banner, /debtBannerCopy\(/);
-  assert.match(banner, /!pathname\?\.startsWith\(paymentsBasePath\)/, "no banner on the «Оплаты» page itself");
+  assert.match(banner, /bannerShownOn\(pathname, paymentsBasePath\)/, "no banner on the «Оплаты» list itself, and only on the three places (UX pack №25)");
   assert.match(banner, /bucket=debt/);
 });
 

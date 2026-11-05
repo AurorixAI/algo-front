@@ -184,9 +184,9 @@ test("U4: the section «Оплата дополнительных уроков �
   assert.match(text(admin), /Решает владелец: 2 дополнительных урока/);
   assert.equal((admin.match(/data-testid="one-off-decision-row"/g) || []).length, 0, "collapsed");
   assert.match(admin, /aria-expanded="false"/);
-  // the order on the tab: the requests (they have a deadline), the section under them
+  // UX pack №16: the order on the tab - the decisions about the additional lessons (the owner's own task) OVER the table of the teachers' requests
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.ok(page.indexOf("<OneOffDecisionsBlock") > page.indexOf('data-testid="substitution-row"'), "the payments are under the requests");
+  assert.ok(page.indexOf("<OneOffDecisionsBlock") < page.indexOf('data-testid="substitution-row"'), "the decisions are over the table of the requests");
   assert.ok(page.indexOf("<OneOffDecisionsBlock") < page.indexOf("<SubstitutionPanel"));
 });
 

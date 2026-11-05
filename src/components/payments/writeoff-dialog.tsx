@@ -98,7 +98,7 @@ export function WriteoffDialog({
                 placeholder="50 000"
                 className={`${FIELD} pr-12`}
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
             </div>
           )}
           <p aria-live="polite" className="min-h-[1rem] text-xs text-slate-500">{preview}</p>

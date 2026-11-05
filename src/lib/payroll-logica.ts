@@ -270,16 +270,26 @@ export function sheetHeadline(input: { total: number; dirty: boolean; payout: Pa
 }
 
 /**
- * The line above the table of a sheet whose data moved after the saving (re-walk of 05.11, R2-2а): the card says the number of NOW, the table and the Excel file are the lines of the SAVED sheet - the table
- * names itself, so one sheet never reads as two totals.  null when the fresh total is the saved one (or cannot be counted): nothing to say.  `reopened`: the button that renews the table is the one
- * that closes the month.
+ * The caption in the HEAD of the table of a sheet whose data moved after the saving (UX pack №3 / №19; re-walk of 05.11, R2-2а): the card says the number of NOW, the table and the Excel file are the lines of
+ * the SAVED sheet - «Показана сохранённая версия — 120 834 сум», so one sheet never reads as two totals.  The button that renews the table is in the block «Что нужно сделать», not here.  null when the
+ * fresh total is the saved one (or cannot be counted): nothing to say.
  */
-export function savedTableNote(input: { payout: Partial<PayoutState> | null | undefined; updatedAt: string | null | undefined; reopened?: boolean }): string | null {
+export function savedTableNote(input: { payout: Partial<PayoutState> | null | undefined }): string | null {
   const state = normalizePayoutState(input.payout);
   if (!state || state.fresh_total === null || state.changed_by === 0) return null;
-  const day = formatUtcNaiveAsBusinessDateTime(input.updatedAt).split(" ")[0] ?? "";
-  const on = /^\d{2}\.\d{2}\./.test(day) ? ` ${day.slice(0, 5)}` : "";
-  return `Строки сохранённой ведомости${on} — итог ${formatMoney(state.saved_total)}; после «${input.reopened ? CLOSE_MONTH_LABEL : RESAVE_LABEL}» таблица покажет текущий расчёт`;
+  return `Показана сохранённая версия — ${formatMoney(state.saved_total)}`;
+}
+
+/**
+ * The TOTALS of the printed sheet of a changed month (UX pack №3 / №19): the print is a document - ONE total, the saved one («Итог ведомости 120 834 сум», the lines of the table add up to it) and ONE line
+ * about the accrual of today («Начислено на 05.11: 75 834 сум (месяц идёт)»).  null when nothing moved: the card prints as it is.  `today` is `YYYY-MM-DD`.
+ */
+export function sheetPrintTotals(input: { payout: Partial<PayoutState> | null | undefined; today: string }): { label: string; value: number; accruedLine: string } | null {
+  const state = normalizePayoutState(input.payout);
+  if (!state || state.fresh_total === null || state.changed_by === 0) return null;
+  const day = /^\d{4}-(\d{2})-(\d{2})/.exec(input.today);
+  const on = day ? ` на ${day[2]}.${day[1]}` : "";
+  return { label: "Итог ведомости", value: state.saved_total, accruedLine: `Начислено${on}: ${formatMoney(state.fresh_total)}${state.basis === "fresh" ? " (месяц идёт)" : " (данные изменились после сохранения)"}` };
 }
 
 /** The facts that describe the SAVED sheet (not the rate in force): what was counted, what is without pay, what waits for a decision. */

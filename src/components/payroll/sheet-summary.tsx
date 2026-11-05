@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Download, Loader2, Printer, RefreshCw, Save } from "lucide-react";
 import { formatMoney } from "@/lib/payments";
+import { formatBusinessDate } from "@/lib/business-time";
 import {
   NOTE_MAX_LENGTH,
   sheetFactsParts,
@@ -15,7 +16,7 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetPrintTotals, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails } from "./sheet-controls";
@@ -34,7 +35,7 @@ const DOT: Record<SheetCardStatus["tone"], string> = {
  * Excel and print are the quiet buttons of the corner.  The total here follows the unsaved edits, like the table.
  */
 export function SheetSummaryCard({
-  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow, warnings, period, onReopen,
+  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow, warnings, period, monthRunning = false, onReopen,
   onPrimary, onExcel, exporting, onPrint, note, onNote,
 }: {
   sheet: PayrollSheet;
@@ -59,6 +60,8 @@ export function SheetSummaryCard({
   warnings?: PayrollSheetWarnings | PayrollMonthWarnings | null;
   /** Money-1 A1: the state of the month of this teacher (a saved sheet only); `onReopen` is given to a person who may reopen it (the owner). */
   period?: PeriodView | null;
+  /** The month is still going: the page already says «месяц ещё идёт» - the chip «Месяц открыт» would say it twice (UX pack №23). */
+  monthRunning?: boolean;
   onReopen?: () => void;
   onPrimary: () => void;
   /** Absent for a calculation not saved yet: there is no file of it. */
@@ -73,6 +76,7 @@ export function SheetSummaryCard({
   // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one opens the line of facts with the counts in its brackets (they describe the saved sheet)
   const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
   const changed = status.tone === "changed";
+  const printTotals = status.tone === "dirty" ? null : sheetPrintTotals({ payout: sheet.payout, today: formatBusinessDate() });
   // a REOPENED month is closed again by a save, with or without changes: its button says so
   const primaryLabel = status.action === "recalculate" ? (period?.tone === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL) : "Сохранить";
   return (
@@ -81,13 +85,22 @@ export function SheetSummaryCard({
       className={`rounded-2xl border bg-white px-5 py-5 print:rounded-none print:border-slate-400 print:px-0 print:py-2 ${changed ? "border-amber-200 bg-amber-50/50" : "border-slate-200"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
+        <div className={`min-w-0 ${printTotals ? "print:hidden" : ""}`}>
           <p className="text-sm text-slate-500" data-testid="payroll-total-label">{headline.label}</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
           {/* a changed sheet: the line holds the rate only - the counts of the SAVED sheet are under «Что изменилось ▸» (UX pack №3) */}
           <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? splitSavedFacts(facts).rest.join(" · ") : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {sheet.note && <p className="mt-1.5 break-words text-sm text-slate-600">Примечание: {sheet.note}</p>}
         </div>
+        {/* UX pack №3 / №19: the PRINT of a changed sheet is a document with ONE total (the saved one) and one line about the accrual of today */}
+        {printTotals && (
+          <div className="hidden min-w-0 print:block" data-testid="sheet-print-totals">
+            <p className="text-sm text-black">{printTotals.label}</p>
+            <p className="mt-0.5 text-2xl font-bold tabular-nums text-black">{formatMoney(printTotals.value)}</p>
+            <p className="mt-1 text-xs text-black">{printTotals.accruedLine}</p>
+            {sheet.note && <p className="mt-1 break-words text-xs text-black">Примечание: {sheet.note}</p>}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           {onExcel && (
             <button
@@ -113,7 +126,8 @@ export function SheetSummaryCard({
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-3 print:hidden">
         <p role="status" className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
-          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />
+          {/* a reopened month is not «saved and done»: no green dot (UX pack №23) */}
+          {!(period?.tone === "reopened" && status.tone === "saved") && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />}
           <span className="min-w-0" data-testid="sheet-status-text">
             {headline.saved ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
             {status.tone === "saved" && savedBy ? <span className="text-slate-500"> · {savedBy}</span> : null}
@@ -134,7 +148,7 @@ export function SheetSummaryCard({
         )}
       </div>
 
-      {period && (
+      {period && !(period.tone === "open" && monthRunning && !period.canReopen) && (
         <div data-testid="sheet-period" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 print:hidden">
           <PeriodChip view={period} />
           {period.canReopen && onReopen && (

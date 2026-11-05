@@ -280,7 +280,7 @@ test("#103: every «Подтвердить» / «Отклонить» of the lis
   assert.match(dialog, /disabled=\{!canSubmit\}/);
   assert.match(dialog, /busy=\{busy\}/); // no close while the request runs
   assert.match(dialog, /\{copy\.cancelLabel\}/);
-  assert.match(dialog, /\{copy\.confirmLabel\}/);
+  assert.match(dialog, /primary=\{decisionLabel\}/);
 });
 
 // ── #103: one alignment axis ───────────────────────────────────────────────────────────────────
@@ -430,4 +430,19 @@ test("#102: a pending invite of an enrolled student shows «Ссылка» only;
   assert.match(page, /aria-label=\{`Карточка ученика: \$\{inv\.student_name\}`\}/);
   assert.match(page, /hover:text-primary-600 hover:underline focus-visible:underline/);
   assert.match(page, /focus-visible:ring-2 focus-visible:ring-primary-500/);
+});
+
+test("UX pack №11: the window of ONE excuse draws the block «Что изменится» of the SERVER, so the rule above it has no title of its own - ONE title, not two; the buttons name the action", () => {
+  const { ExcuseDecisionBody } = require(path.join(root, "src/components/attendance/excuse-decision-body.tsx"));
+  const subject = decision().subjectOfItem(item());
+  const solo = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed", serverBlock: true })));
+  assert.ok(solo.includes(PAYROLL_CONFIRM), "the rule is there");
+  assert.equal((solo.match(/Что изменится/g) || []).length, 0, "no title: the block of the server under it has it");
+  const alone = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed" })));
+  assert.equal((alone.match(/Что изменится/g) || []).length, 1, "a body without a block of the server keeps its own title");
+  const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
+  assert.match(dialog, /serverBlock=\{Boolean\(single\)\}/);
+  assert.match(dialog, /primary=\{decisionLabel\}/);
+  assert.match(dialog, /const decisionLabel = count > 1 \? `\$\{verb\} \$\{count\} \$\{excusesWord\(count\)\}` : `\$\{verb\} пропуск`;/);
+  assert.doesNotMatch(dialog, /<div className="pb-2" \/>/, "no empty block");
 });

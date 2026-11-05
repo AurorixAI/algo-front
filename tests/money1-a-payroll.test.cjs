@@ -443,7 +443,8 @@ test("D-2: an open month's card says «Начислено на сегодня 12
   assert.ok(text.includes("120 834 сум"));
   assert.ok(text.includes("Сохранено 3 ноября: 45 000 сум (+75 834)"), text);
   assert.ok(!text.includes("К выплате"), "the saved total is never «К выплате» in an open month");
-  assert.equal(times(text, 45000), 1, "the saved sum once");
+  assert.equal(times(text, 45000), 2, "the saved sum once on the screen + once in the print-only total (a document with ONE total, UX pack №3)");
+  assert.ok(text.includes("Итог ведомости"), "the printed document names its total");
   assert.ok(!text.includes("Сохранить новую сумму"), "the button that saves the new sum is the one of the block «Что нужно сделать», not the card's");
   // the same month, nothing changed since the saving: the fresh number is the saved one, no small line
   const same = card({ ...open, fresh_total: 45000, target: 45000, changed_by: 0, balance: -105000 }, { status: R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: null }) });
@@ -597,17 +598,20 @@ test("round 3: the card of a sheet names the button by the state of the month - 
   assert.ok(!card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), false, false).includes("Сохранить и закрыть месяц"));
 });
 
-test("R2-2а: the note above the table - only when the fresh total is not the saved one; the date of the saving; the button that renews the table", () => {
+test("UX pack №3 / №19: the caption in the head of the table - «Показана сохранённая версия — 120 834 сум», only when the fresh total is not the saved one; the print has ONE total", () => {
   const moved = stateOf({ saved_total: 120834, fresh_total: 75834, target: 75834, basis: "fresh", changed_by: -45000 });
-  const note = (payout, extra = {}) => Y.savedTableNote({ payout, updatedAt: "2026-11-05T05:00:00", ...extra });
-  assert.equal(plain(note(moved)), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт");
-  assert.equal(plain(note(moved, { reopened: true })), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Сохранить и закрыть месяц» таблица покажет текущий расчёт");
-  assert.equal(plain(Y.savedTableNote({ payout: moved, updatedAt: null })), "Строки сохранённой ведомости — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт", "no date known: none is invented");
+  const note = (payout) => Y.savedTableNote({ payout });
+  assert.equal(plain(note(moved)), "Показана сохранённая версия — 120 834 сум");
   assert.equal(note(stateOf({ changed_by: 0 })), null, "nothing moved");
   assert.equal(note(stateOf({ fresh_total: null, changed_by: 5000 })), null, "the fresh total cannot be counted: nothing to compare");
   assert.equal(note(null), null);
   assert.equal(note(undefined), null);
   // a closed month whose data moved is the same: the table is the saved sheet there too
-  assert.ok(plain(note(stateOf({ basis: "saved", saved_total: 860000, fresh_total: 900000, changed_by: 40000 }))).includes("итог 860 000 сум"));
+  assert.equal(plain(note(stateOf({ basis: "saved", saved_total: 860000, fresh_total: 900000, changed_by: 40000 }))), "Показана сохранённая версия — 860 000 сум");
+  // the printed sheet: the saved total + ONE line about the accrual of today (an open month: «месяц идёт»)
+  const print = Y.sheetPrintTotals({ payout: moved, today: "2026-11-05" });
+  assert.deepEqual([print.label, print.value, plain(print.accruedLine)], ["Итог ведомости", 120834, "Начислено на 05.11: 75 834 сум (месяц идёт)"]);
+  assert.match(plain(Y.sheetPrintTotals({ payout: stateOf({ basis: "saved", saved_total: 860000, fresh_total: 900000, changed_by: 40000 }), today: "2026-11-05" }).accruedLine), /^Начислено на 05\.11: 900 000 сум \(данные изменились после сохранения\)$/);
+  assert.equal(Y.sheetPrintTotals({ payout: stateOf({ changed_by: 0 }), today: "2026-11-05" }), null, "nothing moved: the card prints as it is");
 });
 

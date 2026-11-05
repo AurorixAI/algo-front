@@ -25,6 +25,7 @@ import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { CancelMissedLessonModal } from "@/components/attendance/cancel-missed-lesson-modal";
 import { GroupArchiveDialog } from "@/components/groups/group-archive-dialog";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { ReceiptSheet } from "@/components/payments/receipt-view";
 import { StudentGroupsBlock } from "@/components/students/student-groups-block";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
@@ -112,6 +113,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "archive":
       root.render(<GroupArchiveDialog open group={{ id: "g1", name: "Архив-тест 3" }} groupsBasePath="/owner/groups" onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);
+      break;
+    case "receipt":
+      root.render(<div className="mx-auto max-w-xl p-4"><ReceiptSheet receipt={props.receipt} /></div>);
       break;
     case "moneyDenied":
       root.render(<MoneyAccessDenied />);

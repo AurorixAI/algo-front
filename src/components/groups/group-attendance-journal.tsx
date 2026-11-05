@@ -108,6 +108,7 @@ import { RETURN_LESSON_LABEL, RETURN_TO_REVIEW_LABEL, returnDoneText, returnRevi
 import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
 import { BACKDATED_LABEL, backdatedHintLines, correctionChipLabel, correctionHintLines } from "@/lib/attendance-corrections";
 import { nobodyCameQuestion } from "@/lib/attendance-ops";
+import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
@@ -1485,6 +1486,13 @@ export function GroupAttendanceJournal({
                     const adminActions = !correcting ? actionsFor(lesson, key, lessonStatus) : [];
                     const teacherInfo = attendanceData?.lessonTeachers?.[key];
                     const teacherLabel = substituteLabel(teacherInfo);
+                    // UX pack №26: at most two chips in the head of a column, the rest behind «ещё N»
+                    const chipPlan = headerChipPlan({
+                      marks: [...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })],
+                      teacherLabel: teacherLabel || null,
+                      correctionLabel: correction && lessonStatus === "completed" ? correctionChipLabel(correction) : null,
+                      backdatedLabel: attendanceData?.backdated?.[key] ? BACKDATED_LABEL : null,
+                    });
                     // O5: the owner and the administrator can replace the teacher of a lesson that is not cancelled
                     const canReplace = adminMode && canEdit && !correcting && Boolean(teacherInfo) && canReplaceTeacher("admin", lessonStatus) && (moneyRight || lessonStatus !== "completed");      // Money-1 A4: the teacher of a HELD lesson is whose pay it is - the money right
                     return (
@@ -1527,11 +1535,11 @@ export function GroupAttendanceJournal({
                           {lesson.isRescheduled && (
                             <div className="text-[10px] font-semibold text-amber-700">Перенесён</div>
                           )}
-                          {teacherLabel && (
+                          {teacherLabel && chipPlan.teacher && (
                             <div className="mx-auto w-fit max-w-[120px] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800" title={teacherLabel}>{teacherLabel}</div>
                           )}
                           <LessonChips
-                            marks={[...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })]}
+                            marks={chipPlan.marks}
                             requestHref={adminMode ? (requestId) => substitutionsHref(substitutionsPathFor(user), requestId) : undefined}
                             className="justify-center"
                           />
@@ -1544,7 +1552,7 @@ export function GroupAttendanceJournal({
                           <div className={`text-[10px] font-semibold ${presentation.className}`}>
                             {presentation.label}
                           </div>
-                          {correction && lessonStatus === "completed" && (
+                          {correction && lessonStatus === "completed" && chipPlan.correction && (
                             <div>
                               <Hint
                                 text={correctionHintLines(correction, (studentId) => studentNameById.get(studentId) || "Ученик").join("\n")}
@@ -1555,7 +1563,7 @@ export function GroupAttendanceJournal({
                               </Hint>
                             </div>
                           )}
-                          {attendanceData?.backdated?.[key] && (
+                          {attendanceData?.backdated?.[key] && chipPlan.backdated && (
                             <div>
                               <Hint
                                 text={backdatedHintLines(attendanceData.backdated[key]).join("\n")}
@@ -1563,6 +1571,13 @@ export function GroupAttendanceJournal({
                                 className="inline-flex border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-tight text-sky-800"
                               >
                                 {BACKDATED_LABEL}
+                              </Hint>
+                            </div>
+                          )}
+                          {chipPlan.hidden.length > 0 && (
+                            <div data-testid="journal-more-chips">
+                              <Hint text={chipPlan.hidden.join("\n")} width={224} className="inline-flex border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                ещё {chipPlan.hidden.length}
                               </Hint>
                             </div>
                           )}
@@ -1935,15 +1950,15 @@ export function GroupAttendanceJournal({
               Урок {formatDateRu(lesson.date)}
             </p>
             {actions.includes("reconcile") && (
-              <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <ClipboardCheck className="h-4 w-4 text-primary-600" />
-                {MARK_LESSON_LABEL}
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+                <span className="min-w-0"><span className="block">{MARK_LESSON_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.reconcile} /></span>
               </button>
             )}
             {actions.includes("cancel_missed") && (
-              <button type="button" role="menuitem" onClick={() => void runColumnAction("cancel_missed", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <Ban className="h-4 w-4 text-slate-500" />
-                {cancelLessonLabel(true)}
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("cancel_missed", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Ban className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                <span className="min-w-0"><span className="block">{cancelLessonLabel(true)}</span><MenuHint text={COLUMN_ACTION_HINT.cancel_missed} /></span>
               </button>
             )}
             {actions.includes("finish") && (
@@ -1972,27 +1987,27 @@ export function GroupAttendanceJournal({
               </button>
             )}
             {actions.includes("correct") && (
-              <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <Pencil className="h-4 w-4 text-amber-600" />
-                {CORRECT_MARKS_LABEL}
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span className="min-w-0"><span className="block">{CORRECT_MARKS_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.correct} /></span>
               </button>
             )}
             {actions.includes("return") && (
-              <button type="button" role="menuitem" data-testid="menu-return-held" onClick={() => void runColumnAction("return", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <Undo2 className="h-4 w-4 text-rose-600" />
-                {RETURN_LESSON_LABEL}
+              <button type="button" role="menuitem" data-testid="menu-return-held" onClick={() => void runColumnAction("return", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Undo2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                <span className="min-w-0"><span className="block">{RETURN_LESSON_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.return} /></span>
               </button>
             )}
             {actions.includes("undo_decision") && (
-              <button type="button" role="menuitem" data-testid="menu-undo-decision" onClick={() => void runColumnAction("undo_decision", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <Undo2 className="h-4 w-4 text-amber-600" />
-                {UNDO_DECISION_LABEL}
+              <button type="button" role="menuitem" data-testid="menu-undo-decision" onClick={() => void runColumnAction("undo_decision", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Undo2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span className="min-w-0"><span className="block">{UNDO_DECISION_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.undo_decision} /></span>
               </button>
             )}
             {actions.includes("return_review") && (
-              <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <RotateCcw className="h-4 w-4 text-emerald-600" />
-                {RETURN_TO_REVIEW_LABEL}
+              <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <span className="min-w-0"><span className="block">{RETURN_TO_REVIEW_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.return_review} /></span>
               </button>
             )}
           </FloatingMenu>
@@ -2209,4 +2224,9 @@ export function GroupAttendanceJournal({
       {toastNode}
     </div>
   );
+}
+
+/** The quiet grey line under an item of the menu of a column: what the action does (UX pack №26). */
+function MenuHint({ text }: { text: string }) {
+  return <span data-testid="menu-hint" className="mt-0.5 block text-[11px] font-normal leading-snug text-slate-600">{text}</span>;
 }

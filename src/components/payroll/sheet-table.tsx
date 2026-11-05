@@ -123,7 +123,7 @@ function SheetLegend() {
     no_pay: "rounded bg-slate-100 px-1 text-[11px] font-semibold text-slate-500 print:bg-transparent print:text-black",
   };
   return (
-    <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
+    <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600 print:flex-nowrap print:gap-x-2 print:whitespace-nowrap print:px-1 print:text-[9px]">
       {SHEET_LEGEND.map((item) => (
         <li key={item.key}>
           <span className={looks[item.key]}>{item.mark}</span> — {item.text}
@@ -142,7 +142,7 @@ function SheetLegend() {
  * With the dates open, a block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
  */
 export function PayrollSheetTable({
-  sheet, edits, editable = true, onEdits, forceDates = false, priceLabel: priceLabelProp, freshPrices,
+  sheet, edits, editable = true, onEdits, forceDates = false, priceLabel: priceLabelProp, freshPrices, caption = null,
 }: {
   sheet: PayrollSheet;
   edits: SheetEdits;
@@ -154,6 +154,8 @@ export function PayrollSheetTable({
   priceLabel?: string;
   /** Membership id -> the price the recalculation would use, for a line saved with none (from the diff of the saved sheet). */
   freshPrices?: Record<string, number>;
+  /** UX pack №3 / №19: what the table is, in its head - «Показана сохранённая версия — 120 834 сум» (a changed sheet; it prints too). */
+  caption?: string | null;
 }) {
   const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
   const blocks = useMemo(() => buildBlocks(sheet, views), [sheet, views]);
@@ -163,11 +165,15 @@ export function PayrollSheetTable({
   const centreLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const priceColumn = priceColumnLabel(priceLabelProp ?? centreLabel);
 
+  const captionNode = caption ? <p data-testid="saved-table-note" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 print:rounded-none print:border-slate-400 print:bg-transparent">{caption}</p> : null;
   if (sheet.lines.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
-        В этом месяце у преподавателя нет учеников с засчитанными уроками.
-      </p>
+      <div className="space-y-3">
+        {captionNode}
+        <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+          В этом месяце у преподавателя нет учеников с засчитанными уроками.
+        </p>
+      </div>
     );
   }
 
@@ -182,6 +188,7 @@ export function PayrollSheetTable({
 
   return (
     <div className="min-w-0 space-y-4 print:space-y-4">
+      {captionNode}
       {blocks.map((block) => {
         const key = block.key || block.groupId || block.groupName;
         const showDates = forceDates || openDates.has(key);

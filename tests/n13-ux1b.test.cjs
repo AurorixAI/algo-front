@@ -320,7 +320,7 @@ test("«Подтвердить» and «Отклонить» sit side by side in 
   // the dialog keeps its protection and its texts
   const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
   assert.match(dialog, /if \(!target \|\| sending\.current \|\| !canSubmit\) return;/);
-  assert.match(dialog, /data-testid="excuse-decision-submit"/);
+  assert.match(dialog, /testId="excuse-decision-submit"/);
 });
 
 test("the waiting list is shown in urgency order and the column says it in words", () => {

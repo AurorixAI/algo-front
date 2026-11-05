@@ -41,7 +41,7 @@ function server(state) {
 async function open(state) {
   const run = await openPage(browser, "money.entry.tsx", server(state));
   await run.page.evaluate(() => window.mount("sheetPage", { role: "owner", org_role: "owner" }));
-  await run.page.waitForSelector('[data-testid="sheet-period"]');
+  await run.page.waitForSelector('[aria-label="Итог ведомости"]');   // the chip of a month that is still going is not drawn (UX pack №23: the page says «месяц ещё идёт» once)
   return run;
 }
 const flat = async (page, selector) => (await page.textContent(selector)).replace(/\s+/g, " ").replace(/ /g, " ");
@@ -52,12 +52,14 @@ test("a reopened month, nothing changed (stale=false): the button «Сохран
   const card = '[aria-label="Итог ведомости"]';
   await page.waitForSelector(`${card} button:has-text("Сохранить и закрыть месяц")`);
   assert.match(await flat(page, '[data-testid="sheet-period"]'), /Месяц переоткрыт/);
+  assert.equal(await page.locator('[aria-label="Итог ведомости"] span.bg-emerald-500').count(), 0, "UX pack №23: a reopened month is not «saved and done» - no green dot");
   assert.match(await flat(page, card), /Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова/);
   assert.equal(await page.locator(`${card} button:has-text("Пересохранить")`).count(), 0, "the word of a changed sheet is not here");
   assert.equal(await page.locator('[data-testid="reopen-month"]').count(), 0, "a month that is open is not reopened again");
   // the diff is read (the save needs the fingerprint of the data the owner looked at): the button is not blocked on it
   await page.click(`${card} button:has-text("Сохранить и закрыть месяц")`);
   await page.waitForSelector('[data-testid="sheet-period"]:has-text("Месяц закрыт")');
+  assert.equal(await page.locator('[aria-label="Итог ведомости"] span.bg-emerald-500').count(), 1, "closed again: the green dot is back");
   assert.match(await flat(page, "body"), /Зарплата сохранена, месяц закрыт · версия 3/, "the toast says that the month is closed");
   assert.equal(state.saved.length, 1, "one save");
   assert.equal(state.saved[0].recalculate, true, "the save without changes is a recalculation request: the server takes it (NOTHING_TO_CHANGE is for an empty change)");
@@ -96,7 +98,8 @@ const MOVED = { month_open: true, stale: true, total_amount: 120834, payout: PAY
 test("R2-2а: a sheet whose total moved after the saving - above the table «Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт»; the card says the number of now", async () => {
   const { page } = await open({ revision: 2, period: "open", saved: [], refuse: false, sheet: MOVED });
   await page.waitForSelector('[data-testid="saved-table-note"]');
-  assert.equal(await flat(page, '[data-testid="saved-table-note"]'), "Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт");
+  assert.equal(await flat(page, '[data-testid="saved-table-note"]'), "Показана сохранённая версия — 120 834 сум");
+  assert.equal(await page.locator('[data-testid="sheet-period"]').count(), 0, "UX pack №23: «Месяц открыт» is not a chip when the page says «месяц ещё идёт»");
   const card = await flat(page, '[aria-label="Итог ведомости"]');
   assert.match(card, /Начислено на сегодня\s*75 834 сум/);
   assert.match(card, /Сохранено 3 ноября: 120 834 сум \(−45 000\)/);
@@ -106,7 +109,7 @@ test("R2-2а: a sheet whose total moved after the saving - above the table «С�
 test("R2-2а: in a reopened month the note names the button that renews the table; with nothing changed there is no note", async () => {
   const reopened = await open({ revision: 2, period: "reopened", saved: [], refuse: false, sheet: MOVED });
   await reopened.page.waitForSelector('[data-testid="saved-table-note"]');
-  assert.match(await flat(reopened.page, '[data-testid="saved-table-note"]'), /после «Сохранить и закрыть месяц» таблица покажет текущий расчёт/);
+  assert.equal(await flat(reopened.page, '[data-testid="saved-table-note"]'), "Показана сохранённая версия — 120 834 сум", "the caption says what the table is; the button that renews it is in the block «Что нужно сделать»");
   await reopened.page.close();
   const same = await open({ revision: 2, period: "reopened", saved: [], refuse: false });
   await same.page.waitForSelector('[aria-label="Итог ведомости"]');

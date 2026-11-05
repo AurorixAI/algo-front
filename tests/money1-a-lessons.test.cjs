@@ -337,7 +337,7 @@ test("«Оформлен задним числом»: who and when, and who taug
   assert.deepEqual(COR.backdatedHintLines({ by_name: "Арслан", at: "2026-11-05T05:30:00", taught_by_name: null }), ["Оформлен задним числом: Арслан, 05.11.2026 10:30"]);
   assert.deepEqual(COR.backdatedHintLines({ by_name: "Арслан", at: "2026-11-05T05:30:00", taught_by_name: "Рахимов Т." }), ["Оформлен задним числом: Арслан, 05.11.2026 10:30", "Провёл: Рахимов Т."]);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /\{attendanceData\?\.backdated\?\.\[key\] && \(\s*<div>\s*<Hint\s+text=\{backdatedHintLines\(attendanceData\.backdated\[key\]\)\.join\("\\n"\)\}/);
+  assert.match(journal, /\{attendanceData\?\.backdated\?\.\[key\] && chipPlan\.backdated && \(\s*<div>\s*<Hint\s+text=\{backdatedHintLines\(attendanceData\.backdated\[key\]\)\.join\("\\n"\)\}/);
   assert.match(journal, /\{BACKDATED_LABEL\}/);
   assert.equal(COR.BACKDATED_LABEL, "Оформлен задним числом");
 });

@@ -32,7 +32,7 @@ import {
   tabLabel,
 } from "@/lib/substitutions";
 import type { DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
-import { DeadlineBadge, DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell } from "@/components/substitutions/journal-cells";
+import { DeadlineBadge, DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell, hasReason } from "@/components/substitutions/journal-cells";
 import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
 import { filterLabel } from "@/lib/cascading-filter";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -52,10 +52,15 @@ type Tab = "pending" | "decided";
 /** Columns of the wide layout (cards below `xl`, as the other tables of the admin screens). */
 const COLS_PENDING = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_220px_104px_40px]";
 const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_96px_minmax(0,1.1fr)_104px_40px]";
+/** UX pack №16: no column «Причина» when no row has one (an empty column is noise). */
+const COLS_PENDING_NO_REASON = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_220px_104px_40px]";
+const COLS_DECIDED_NO_REASON = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_104px_40px]";
 
 /** #157: everything is aligned to the left (the lesson, who -> whom, the reason, the result, when); «Решить» and «›» right (see table-chrome). */
 /** #159 U1: the header «Срок» and its values are centred (the rule of table-chrome: a deadline is short data). */
 const PENDING_ALIGNS: CellAlign[] = ["left", "left", "left", "center", "right", "right"];
+const PENDING_ALIGNS_NO_REASON: CellAlign[] = ["left", "left", "center", "right", "right"];
+const DECIDED_ALIGNS_NO_REASON: CellAlign[] = ["left", "left", "left", "left", "right"];
 const DECIDED_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "left", "right"];
 
 /**
@@ -288,7 +293,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   useEffect(() => { if (expiringOnly && !loading && expiringTotal === 0) setExpiringOnly(false); }, [expiringOnly, loading, expiringTotal]);
 
   const pendingTab = tab === "pending";
-  const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
+  const showReason = items.some(hasReason);
+  const cols = pendingTab ? (showReason ? COLS_PENDING : COLS_PENDING_NO_REASON) : (showReason ? COLS_DECIDED : COLS_DECIDED_NO_REASON);
   const selectedItems = items.filter((item) => selected.has(item.id));
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -395,6 +401,22 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         </div>
       )}
 
+      {/* UX pack №16: the decisions about the additional lessons stand OVER the table of the requests - they are the owner's own task, the table is the teachers' requests */}
+      {pendingTab && (
+        <OneOffDecisionsBlock
+          items={visibleDecisions}
+          canDecide={canDecideMoney(user)}
+          rightLost={moneyRightLost}
+          onRightLost={() => setMoneyLostFor({ profile: user })}
+          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
+          loading={decisions.loading}
+          error={decisions.error}
+          onRetry={() => void decisions.reload()}
+          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
+          showToast={showToast}
+        />
+      )}
+
       <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
@@ -414,8 +436,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <TableHeader
               show="xl"
               gridClass={cols}
-              labels={pendingTab ? ["Урок", "Преподаватель", "Причина", "Срок", "", ""] : ["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""]}
-              aligns={pendingTab ? PENDING_ALIGNS : DECIDED_ALIGNS}
+              labels={(pendingTab ? ["Урок", "Преподаватель", "Причина", "Срок", "", ""] : ["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""]).filter((label) => showReason || label !== "Причина")}
+              aligns={pendingTab ? (showReason ? PENDING_ALIGNS : PENDING_ALIGNS_NO_REASON) : (showReason ? DECIDED_ALIGNS : DECIDED_ALIGNS_NO_REASON)}
             />
             {/* «Выбрать все · N» is the first row of the list (a phone and the wide table alike) */}
             {pendingTab && (
@@ -460,7 +482,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       <>
                         {/* a phone: the reason and the deadline in one row (the deadline never breaks); the wide table: two cells */}
                         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 xl:contents">
-                          <div className="min-w-0"><ReasonCell item={item} withComment /></div>
+                          {showReason && <div className="min-w-0"><ReasonCell item={item} withComment /></div>}
                           <div className="flex min-w-0 justify-start xl:justify-center"><DeadlineBadge item={item} /></div>
                         </div>
                         <div className="flex items-center justify-end xl:-my-1.5">
@@ -477,7 +499,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                     ) : (
                       /* a phone: ONE row «[итог] [Причина] когда» (the chip first); the wide table: the cells in their columns */
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 xl:contents">
-                        <div className="min-w-0 max-xl:order-2"><ReasonCell item={item} /></div>
+                        {showReason && <div className="min-w-0 max-xl:order-2"><ReasonCell item={item} /></div>}
                         <div className="min-w-0 max-xl:order-1"><OutcomeChip item={item} /></div>
                         <div className="min-w-0 max-xl:order-3 max-xl:ml-auto"><WhenCell item={item} /></div>
                       </div>
@@ -515,22 +537,6 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
-      )}
-
-      {/* #159 U4: the payments are under the requests (the requests have a deadline, the payments have none) */}
-      {pendingTab && (
-        <OneOffDecisionsBlock
-          items={visibleDecisions}
-          canDecide={canDecideMoney(user)}
-          rightLost={moneyRightLost}
-          onRightLost={() => setMoneyLostFor({ profile: user })}
-          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
-          loading={decisions.loading}
-          error={decisions.error}
-          onRetry={() => void decisions.reload()}
-          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
-          showToast={showToast}
-        />
       )}
 
       {/* R3 #28: the additional lessons that were decided (the money right only) - and the way to take a decision back */}

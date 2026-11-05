@@ -245,7 +245,7 @@ export function ArchiveDialogBody({
               <li key={student.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2">
                 <p className="min-w-0 text-sm text-slate-900">
                   <span className="font-medium">{student.name}</span>
-                  {student.displayId && <span className="ml-2 text-xs text-slate-400">{student.displayId}</span>}
+                  {student.displayId && <span className="ml-2 text-xs text-slate-500">{student.displayId}</span>}
                 </p>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <button type="button" disabled={busy} onClick={() => onTransfer({ id: student.id, name: student.name })} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-primary-200 hover:text-primary-700 disabled:opacity-50">

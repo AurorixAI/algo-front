@@ -331,7 +331,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     })
     : null;
   // R2-2а: the card says the number of now, the table (and the Excel file) the lines of the saved sheet - the table says so
-  const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout, updatedAt: sheet.updated_at, reopened: period?.state === "reopened" }) : null;
+  const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout }) : null;
   // UX pack §5.2-бис: the block «Что нужно сделать» over the card - only what needs an action, each item with its button; the saving of a changed salary is the button of the item
   const counts = warningsFailed ? sheet?.warnings : freshWarnings;
   const todo = sheet ? sheetTodoItems({
@@ -446,6 +446,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 ratesNow={ratesNow}
                 warnings={warningsFailed ? undefined : freshWarnings}
                 period={periodView(period)}
+                monthRunning={Boolean(monthNote)}
                 onReopen={period && sheet.id ? () => setReopening(true) : undefined}
                 onPrimary={() => void apply(true)}
                 onExcel={() => void download()}
@@ -467,8 +468,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
-              {tableNote && <p data-testid="saved-table-note" className="text-xs text-slate-600">{tableNote}</p>}
-              <PayrollSheetTable sheet={sheet} edits={edits} forceDates={printing} freshPrices={diff?.stale ? freshPricesOf(diff) : undefined} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
+              <PayrollSheetTable caption={tableNote} sheet={sheet} edits={edits} forceDates={printing} freshPrices={diff?.stale ? freshPricesOf(diff) : undefined} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
             </div>
           )}
           {/* A direct child of the page, not of the tab panel: a sticky bar can only move inside its parent, and the

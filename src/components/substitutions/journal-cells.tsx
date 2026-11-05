@@ -83,6 +83,11 @@ function NoteMark({ text, icon: Icon, tone = "grey", testId }: { text: string; i
  *  - the colleague the teacher suggested (the tab «Ждут»): a mark «Предложил: …», or - when he does not lead any more - an amber warning with those words.
  * A record without a request (a move, an assignment) has no reason at all.
  */
+/** Has the row a reason to show (the cell would not be empty)?  A column that is empty in every row is not drawn (UX pack №16). */
+export function hasReason(item: SubstitutionItem): boolean {
+  return Boolean(systemReasonOf(item)?.label ?? reasonShort(item));
+}
+
 export function ReasonCell({ item, withComment = false }: { item: SubstitutionItem; withComment?: boolean }) {
   const system = systemReasonOf(item);
   const label = system?.label ?? reasonShort(item);

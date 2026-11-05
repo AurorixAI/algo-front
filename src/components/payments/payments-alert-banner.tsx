@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Wallet, X } from "lucide-react";
 import { bannerDismissed, debtorsCount } from "@/lib/payments";
-import { debtBannerCopy } from "@/lib/payments-banner";
+import { bannerShownOn, debtBannerCopy } from "@/lib/payments-banner";
 import { usePaymentsSummary, usePaymentsSummarySync } from "@/lib/payments-summary";
 
 const DISMISS_KEY = "algo.payments-banner.dismissed-at";
@@ -56,8 +56,8 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
 
   // The same numbers as the cards of «Оплаты»: the debtors, their debt, and how many of them are overdue.
   const copy = debtBannerCopy({ debtors: debtorsCount({ debtors, students_with_debt: studentsWithDebt }), debtTotal, overdue: studentsExpired });
-  // On the payments page itself the cards are in front of the user.
-  const visible = available && copy.count > 0 && !pathname?.startsWith(paymentsBasePath) && !bannerDismissed(dismissedAt, copy.count);
+  // UX pack №25: only «Главная», «Ученики» and the pages of «Оплаты» (not its list: the cards are in front of the user there)
+  const visible = available && copy.count > 0 && bannerShownOn(pathname, paymentsBasePath) && !bannerDismissed(dismissedAt, copy.count);
 
   return (
     <AnimatePresence initial={false}>

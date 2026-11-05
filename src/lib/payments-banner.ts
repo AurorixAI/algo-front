@@ -112,3 +112,17 @@ export function debtBannerCopy(input: DebtBannerInput): BannerCopy {
     compactPredicate: chip ? `${predicate}, ${overdue}\u00A0просрочено` : predicate,
   };
 }
+
+/**
+ * Where the notice of the debt is drawn (UX pack №25): only the pages where it is about what the person is doing - «Главная», «Ученики» and the section «Оплаты» - not over the schedule, the journal, the salary
+ * or the settings.  On the list «Оплаты» itself it stays out: the two cards of the page say the same numbers (a fact once).  `paymentsBasePath` is `/owner/payments` or `/admin/payments`; the home of the
+ * administrator is `/admin/diagnostics`.
+ */
+export function bannerShownOn(pathname: string | null | undefined, paymentsBasePath: string): boolean {
+  const path = (pathname ?? "").replace(/\/+$/, "");
+  const role = paymentsBasePath.replace(/\/payments\/?$/, "");
+  const home = role === "/admin" ? "/admin/diagnostics" : `${role}/dashboard`;
+  if (path === home) return true;
+  if (path === `${role}/students` || path.startsWith(`${role}/students/`)) return true;
+  return path.startsWith(`${paymentsBasePath}/`);   // the pages of the section (a statement, a receipt, the prices of the groups), not its list
+}

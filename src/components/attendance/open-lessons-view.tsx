@@ -239,7 +239,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
             <div key={group.key} className="mt-5 first:mt-0 lg:mt-0 lg:border-t lg:border-slate-100 lg:first:border-t-0">
               <p className="mb-2 flex items-baseline gap-1.5 px-1 text-xs font-semibold text-slate-600 lg:mb-0 lg:bg-slate-50/70 lg:px-4 lg:py-2">
                 <span className="min-w-0 break-words">{group.teacherName}</span>
-                <span className="font-medium text-slate-400">· {group.items.length}</span>
+                <span className="font-medium text-slate-500">· {group.items.length}</span>
               </p>
               <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:border-t lg:border-slate-100">
                 {group.items.map((item) => {

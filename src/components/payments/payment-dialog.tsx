@@ -297,7 +297,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
                 aria-describedby="payment-calc"
                 className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-4 pr-16 text-2xl font-semibold tabular-nums text-slate-900 outline-none placeholder:text-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
               />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">сум</span>
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500">сум</span>
             </div>
             {chips.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2" role="group" aria-label={QUICK_AMOUNTS_LABEL} data-testid="payment-chips">

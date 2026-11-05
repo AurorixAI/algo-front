@@ -193,7 +193,7 @@ test("payments notice: a calm light surface, rose only in the chip, one line on 
   assert.match(banner, /aria-label="Скрыть напоминание"/);
   // the role rules and the data source are as before
   assert.match(banner, /usePaymentsSummary\(\(state\) => state\.available\)/);
-  assert.match(banner, /pathname\?\.startsWith\(paymentsBasePath\)/);
+  assert.match(banner, /bannerShownOn\(pathname, paymentsBasePath\)/);
 });
 
 // ── 4. excuse decision after the deadline ─────────────────────────────────────────────────────────
