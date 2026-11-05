@@ -6,9 +6,9 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate, formatDateRu, shiftMonthKey } from "@/lib/business-time";
 import { formatDateTimeRu } from "@/lib/attendance-excuses";
 import { monthTitle } from "@/lib/payroll";
-import { toastWithEffects } from "@/lib/money-effects";
+import { movedByOf } from "@/lib/money-effects";
 import {
-  DECIDED_EMPTY_TEXT, DECIDED_HINT, DECIDED_LOAD_ERROR_TEXT, DECIDED_MONTH_CLOSED_TEXT, DECIDED_TITLE, UNDO_DECISION_BUTTON, UNDO_DECISION_TOAST,
+  DECIDED_EMPTY_TEXT, DECIDED_HINT, DECIDED_LOAD_ERROR_TEXT, DECIDED_MONTH_CLOSED_TEXT, DECIDED_TITLE, UNDO_DECISION_BUTTON, undoToastText,
   decidedByLine, decidedMoneyText, decisionLessonLine, decisionWhoLine, type DecidedOneOffItem,
 } from "@/lib/one-off";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
@@ -77,7 +77,7 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
       <UndoDecisionDialog
         target={undo}
         onClose={() => setUndo(null)}
-        onDone={(result) => { setUndo(null); const note = toastWithEffects(result); showToast(UNDO_DECISION_TOAST, note.tone, note.details); void load(true); onChanged?.(); }}
+        onDone={(result, done) => { setUndo(null); showToast(undoToastText(done.money, done.teacherName, movedByOf(result)), "success"); void load(true); onChanged?.(); }}
       />
     </section>
   );
@@ -89,7 +89,7 @@ export function DecidedRow({ item, onUndo, onReopened }: { item: DecidedOneOffIt
     <li data-testid="decided-row" className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-start md:justify-between md:gap-4">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">{decisionLessonLine(item)}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{decisionWhoLine(item)}</p>
+        <p className="mt-0.5 text-xs text-slate-600">{decisionWhoLine(item)}</p>
         <p className="mt-0.5 text-xs text-slate-500" data-testid="decided-by">
           <span className={`font-semibold ${item.money === "paid" ? "text-emerald-700" : "text-slate-700"}`}>{decidedMoneyText(item.money)}</span>
           {decidedByLine(item, formatDateTimeRu) ? ` · ${decidedByLine(item, formatDateTimeRu)}` : ""}
@@ -100,15 +100,16 @@ export function DecidedRow({ item, onUndo, onReopened }: { item: DecidedOneOffIt
           <button
             type="button"
             data-testid="decided-undo"
-            onClick={() => onUndo({ lessonId: item.lessonId, lessonDate: item.lessonDate, money: item.money })}
+            onClick={() => onUndo({ lessonId: item.lessonId, lessonDate: item.lessonDate, money: item.money, teacherName: item.teacher?.name ?? null })}
             aria-label={`${UNDO_DECISION_BUTTON}: ${item.groupName}, ${formatDateRu(item.lessonDate)}`}
-            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:w-auto"
+            className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:h-9 md:w-auto"
           >
             {UNDO_DECISION_BUTTON}
           </button>
         ) : (
           <PeriodClosedNotice
             info={{ month: item.lessonDate.slice(0, 7), teacherId: item.teacher?.id ?? null, teacherName: item.teacher?.name ?? null, closedOn: null, message: DECIDED_MONTH_CLOSED_TEXT }}
+            purpose="decision"
             onReopened={onReopened}
           />
         )}

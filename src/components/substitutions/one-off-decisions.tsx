@@ -6,14 +6,15 @@ import { orgApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { capitalizeFirst } from "@/lib/business-time";
 import {
-  DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_MONTH_CLOSED_TEXT, DECISION_NO_SHEET_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionNote, decisionPayLines, decisionQuestion, decisionSheetWarning, decisionToast, decisionWhoLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText,
+  DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_MONTH_CLOSED_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
+  decisionAskedLine, decisionLessonLine, decisionNoSheetText, decisionNote, decisionPayLines, decisionQuestion, decisionToastText, decisionWhoLine, decisionWindowLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText,
   previewNamesSheetSum, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
 import { periodClosedOf } from "@/lib/closed-period";
-import { toastWithEffects } from "@/lib/money-effects";
-import { effectsAllowConfirm } from "@/lib/money-preview";
+import { movedByOf } from "@/lib/money-effects";
+import { ConfirmFooter, CONFIRM_FOOTER_CLASS } from "@/components/money/dialog-footer";
+import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
@@ -37,11 +38,12 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
     <li data-testid="one-off-decision-row" data-period-closed={closed ? "true" : undefined} className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">{decisionLessonLine(item)}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{decisionWhoLine(item)}{asked ? ` · ${asked}` : ""}</p>
+        <p className="mt-0.5 text-xs text-slate-600">{decisionWhoLine(item)}{asked ? ` · ${asked}` : ""}</p>
         {closed && (
           <PeriodClosedNotice
             className="mt-1.5"
             info={{ month: item.payrollSheet?.month ?? item.lessonDate.slice(0, 7), teacherId: item.teacher?.id ?? null, teacherName: item.teacher?.name ?? null, closedOn: null, message: DECISION_MONTH_CLOSED_TEXT }}
+            purpose="decision"
             onReopened={() => onReopened?.()}
           />
         )}
@@ -53,7 +55,7 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
             disabled={closed}
             onClick={() => onPick(item, "pay")}
             aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-            className="h-9 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 md:flex-none"
+            className="h-10 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:flex-none"
           >
             {DECISION_PAY_LABEL}
           </button>
@@ -62,7 +64,7 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
             disabled={closed}
             onClick={() => onPick(item, "skip")}
             aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-            className="h-9 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 md:flex-none"
+            className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:flex-none"
           >
             {DECISION_SKIP_LABEL}
           </button>
@@ -121,15 +123,15 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
     setProblem(null);
     try {
       const result = await orgApi.decideOneOffMoney(dialog.item.lessonId, dialog.decision);
-      const note = toastWithEffects(result);
-      showToast(decisionToast(dialog.decision), note.tone, note.details);
+      // UX pack №1 / rule 4: ONE phrase («Урок включён в зарплату Эргашева К.: +45 000 сум»); the next step of a closed month lives on the sheet and in the list
+      showToast(decisionToastText(dialog.decision, dialog.item.teacher?.name, movedByOf(result)), "success");
       setDialog(null);
       onDecided(dialog.item.lessonId);
     } catch (failure) {
       if (isMoneyRightRefusal(failure)) {
         // the right was taken away between the opening of the window and the press: say it in words, close the window (it is not stuck), keep the queue
         onRightLost();
-        showToast(oneOffRefusalText(failure, "Решение об оплате принимает владелец или администратор с правом на оплаты"), "warning");
+        showToast(oneOffRefusalText(failure, "Решение по зарплате принимает владелец или администратор с доступом к деньгам"), "warning");
         setDialog(null);
       } else if (isAlreadyDecided(failure)) {
         // the other administrator was first (or the lesson is gone): say it, and the row leaves the list on the re-read
@@ -161,10 +163,10 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
     return loading ? <div className="flex items-center gap-2 px-1 text-xs text-slate-500" data-testid="one-off-decisions-loading"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Проверяем уроки, которые ждут решения…</div> : null;
   }
 
-  // an administrator's «Ведомость уже сохранена» is the block of the preview («Изменится ведомость: …»); only the owner's «уже выплачена» is added to it
-  const warning = dialog ? decisionSheetWarning(dialog.item.payrollSheet) : null;
+  // a month with no saved sheet: the block says what happens instead of «деньги не изменятся» (and, for the owner, about how much)
   const effects = preview.status === "ready" ? preview.effects : null;
   const payLines = dialog ? decisionPayLines(dialog.item, dialog.decision, preview.status === "ready" && !previewNamesSheetSum(effects)) : [];
+  const noSheetText = dialog ? [decisionNoSheetText(dialog.item.payrollSheet?.month ?? dialog.item.lessonDate.slice(0, 7), dialog.decision), ...payLines].join(" ").replace(/\.\s+Преподавателю ≈ ([^.]+)$/, " (≈ $1).") : undefined;
   const pick = (item: OneOffDecisionItem, decision: OneOffDecision) => { setProblem(null); setDialog({ item, decision }); };
   return (
     <section aria-label={DECISIONS_GROUP_TITLE} data-testid="one-off-decisions" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -194,46 +196,30 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
 
       <Modal
         open={dialog !== null}
-        title={dialog ? decisionQuestion(dialog.item) : ""}
-        description={dialog ? decisionLessonLine(dialog.item) : undefined}
+        title={dialog ? decisionQuestion(dialog.item, dialog.decision) : ""}
+        description={dialog ? decisionWindowLine(dialog.item) : undefined}
         onClose={close}
         busy={busy}
         maxWidthClassName="max-w-md"
+        footerClassName={CONFIRM_FOOTER_CLASS}
         footer={dialog ? (
-          <>
-            <button type="button" onClick={close} disabled={busy} className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button
-              type="button"
-              data-testid="one-off-decision-confirm"
-              onClick={() => void confirm()}
-              disabled={busy || !ready}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              {dialog.decision === "pay" ? DECISION_PAY_LABEL : DECISION_SKIP_LABEL}
-            </button>
-          </>
+          <ConfirmFooter
+            primary={dialog.decision === "pay" ? DECISION_PAY_LABEL : DECISION_SKIP_LABEL}
+            onPrimary={() => void confirm()}
+            testId="one-off-decision-confirm"
+            disabled={!ready}
+            busy={busy}
+            why={effectsWhyOff(preview)}
+            onCancel={close}
+          />
         ) : null}
       >
         {dialog && (
           <div className="space-y-3 text-sm text-slate-700">
-            <p>{capitalizeFirst(decisionWhoLine(dialog.item))}</p>
-            <p className="text-slate-600">
-              {decisionNote(dialog.decision)}
-            </p>
-            {payLines.length > 0 && (
-              <ul data-testid="one-off-decision-pay" className="space-y-0.5 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800">
-                {payLines.map((line) => <li key={line}>{line}</li>)}
-              </ul>
-            )}
-            <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={dialog.decision === "pay" ? DECISION_NO_SHEET_TEXT : undefined} />
-            {warning && (
-              <p role="alert" data-testid="one-off-decision-warning" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-relaxed text-amber-900">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{warning}</span>
-              </p>
-            )}
+            <p data-testid="one-off-decision-note">{decisionNote(dialog.decision, dialog.item.studentsPaid)}</p>
+            <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={noSheetText} withPaid closedPurpose="decision" />
             {problem && (
-              <p role="alert" data-testid="one-off-decision-error" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+              <p role="alert" data-testid="one-off-decision-error" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{problem}</span>
               </p>
             )}

@@ -645,8 +645,8 @@ export function staleSheetsText(impact: Pick<PriceImpact, "stale_payroll_sheets"
   if (count === 0) return null;
   const sheets = impact.stale_sheets ?? [];
   const text = sheets.length > 0
-    ? `Сохранённые ведомости зарплаты станут «данные изменились» (${count}); их надо будет пересчитать:`
-    : `Сохранённые ведомости зарплаты станут «данные изменились»: ${count}. Их надо будет пересчитать.`;
+    ? `Изменится сохранённая зарплата (${count}) — потом сохраните новую сумму:`
+    : `Изменится сохранённая зарплата: ${count}. Новую сумму сохранит владелец.`;
   const items = sheets.slice(0, STALE_LIST_LIMIT).map(staleSheetLabel);
   if (sheets.length > STALE_LIST_LIMIT) items.push(`и ещё ${sheets.length - STALE_LIST_LIMIT}`);
   return { text, items };

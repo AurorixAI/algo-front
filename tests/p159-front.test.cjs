@@ -31,7 +31,7 @@ const refusal = (code, detail = {}, status = 422) => Object.assign(new Error("se
 
 const decision = (over = {}) => ({
   lessonId: "one-off-1", groupId: "g1", groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00", purpose: "extra",
-  title: "Дополнительный урок — оплатить преподавателю?", teacher: { id: "t1", name: "Рахимов Т." }, createdBy: { id: "t1", name: "Рахимов Т.", role: "teacher" },
+  title: "Включить урок в зарплату преподавателя?", teacher: { id: "t1", name: "Рахимов Т." }, createdBy: { id: "t1", name: "Рахимов Т.", role: "teacher" },
   studentsPresent: 3, studentsTotal: 10, payrollSheet: null, ...over,
 });
 const block = (props) => renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {}, ...props }));
@@ -51,23 +51,23 @@ test("Ч1: an admin without the right sees ONE row «N урока ждут ре�
   assert.match(plain, /1 урок ждёт решения владельца/);
   assert.match(html, /aria-expanded="false"/, "collapsed");
   assert.doesNotMatch(plain, /7-А · чт 05\.11/, "the rows are behind the row");
-  assert.doesNotMatch(plain, /Оплатить|Не оплачивать/);
-  assert.doesNotMatch(html, /Оплатить<\/button>/);
+  assert.doesNotMatch(plain, /Включить в зарплату|Не включать/);
+  assert.doesNotMatch(html, /Включить в зарплату<\/button>/);
   // the row opened (the same row component, no buttons for him)
   const row = text(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })));
-  assert.match(row, /7-А · чт 05\.11 · 16:00–17:00/);
+  assert.match(row, /7-А · чт, 5 ноября · 16:00–17:00/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })), /<button/, "not a single button");
-  assert.match(O.DECISIONS_GROUP_HINT_VIEW, /Решение об оплате принимает владелец или администратор с правом на оплаты/);
+  assert.match(O.DECISIONS_GROUP_HINT_VIEW, /Решение по зарплате принимает владелец или администратор с доступом к деньгам/);
   // with the right the same rows have both buttons and the old hint
   const withRight = block({ canDecide: true });
-  assert.match(withRight, /Оплатить<\/button>/);
-  assert.match(withRight, /Не оплачивать<\/button>/);
-  assert.match(text(withRight), /Оплатить преподавателю или нет — решаете вы/);
+  assert.match(withRight, /Включить в зарплату<\/button>/);
+  assert.match(withRight, /Не включать<\/button>/);
+  assert.match(text(withRight), /Решаете вы: включить урок в зарплату преподавателя или нет/);
   assert.doesNotMatch(text(withRight), /Решение об оплате принимает владелец/);
 });
 
 test("Ч3: the right is taken away between the window and the press - the server's 403 has words, closes the window and takes the buttons away; nothing hangs", () => {
-  assert.equal(O.oneOffErrorText(refusal("MONEY_RIGHT_REQUIRED", {}, 403)), "Решение об оплате принимает владелец или администратор с правом на оплаты");
+  assert.equal(O.oneOffErrorText(refusal("MONEY_RIGHT_REQUIRED", {}, 403)), "Решение по зарплате принимает владелец или администратор с доступом к деньгам");
   assert.ok(O.ONE_OFF_CODES.includes("MONEY_RIGHT_REQUIRED"));
   assert.equal(O.isMoneyRightRefusal(refusal("MONEY_RIGHT_REQUIRED", {}, 403)), true);
   assert.equal(O.isMoneyRightRefusal(refusal("ALREADY_DECIDED", {}, 409)), false);
@@ -79,13 +79,13 @@ test("Ч3: the right is taken away between the window and the press - the server
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /canDecide=\{canDecideMoney\(user\)\}/, "the page gives the right from the profile");
 });
 
-test("Ч4: an admin without the right gets the radio of a teacher («Попросить оплатить» by default); with the right - «Без оплаты / Оплачивается»", () => {
+test("Ч4: an admin without the right gets the radio of a teacher («Попросить включить в зарплату» by default); with the right - «Без оплаты / Оплачивается»", () => {
   const noRight = O.oneOffRoleOf({ org_role: "admin" });
   assert.equal(noRight, "admin_ask");
-  assert.deepEqual(O.moneyChoicesFor(noRight).map((c) => [c.value, c.label]), [["wait", "Попросить оплатить"], ["none", "Без оплаты"]]);
+  assert.deepEqual(O.moneyChoicesFor(noRight).map((c) => [c.value, c.label]), [["wait", "Попросить включить в зарплату"], ["none", "Не включать в зарплату"]]);
   assert.deepEqual(O.emptyChoice(noRight), { purpose: null, money: "wait", target: "" });
   assert.deepEqual(O.choicePayload({ purpose: "extra", money: "wait", target: "" }), { purpose: "extra", money: "wait" });
-  assert.equal(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, noRight, null), "Выберите оплату преподавателю: без оплаты или оплачивается", "paid is not offered: the form refuses it before the server does");
+  assert.equal(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, noRight, null), "Выберите, включать ли урок в зарплату преподавателя", "paid is not offered: the form refuses it before the server does");
   const withRight = O.oneOffRoleOf({ org_role: "admin", payments_access: true });
   assert.equal(withRight, "manager");
   assert.deepEqual(O.moneyChoicesFor(withRight).map((c) => c.value), ["none", "paid"]);
@@ -96,9 +96,9 @@ test("Ч4: an admin without the right gets the radio of a teacher («Попро�
   assert.equal(O.oneOffErrorText(refusal("MONEY_RIGHT_REQUIRED", {}, 403)).includes("MONEY"), false);
 });
 
-test("Ч4: «Просит оплатить» names a teacher and an admin without the right; the owner's own lesson names nobody", () => {
-  assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "a", name: "Админов А.", role: "admin" } }), "Просит оплатить: Админов А.");
-  assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "t", name: "Рахимов Т.", role: "teacher" } }), "Просит оплатить: Рахимов Т.");
+test("Ч4: «Просит включить в зарплату» names a teacher and an admin without the right; the owner's own lesson names nobody", () => {
+  assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "a", name: "Админов А.", role: "admin" } }), "Просит включить в зарплату: Админов А.");
+  assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "t", name: "Рахимов Т.", role: "teacher" } }), "Просит включить в зарплату: Рахимов Т.");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);
 });
 
@@ -109,8 +109,8 @@ test("B: nothing on the screens speaks of an «empty make-up» that waits for a 
     const visible = read(file).split("\n").filter((line) => /["'`]/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
     assert.doesNotMatch(visible, /пуст\w+ отработк|отработк\w* без учеников|Отработка без учеников/i, file);
   }
-  assert.equal(O.DECISIONS_GROUP_TITLE, "Оплата дополнительных уроков");
-  assert.equal(O.decisionQuestion({ title: "" }), "Дополнительный урок — оплатить преподавателю?");
+  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: включить в зарплату?");
+  assert.equal(O.decisionQuestion({ title: "" }), "Включить урок в зарплату преподавателя?");
   const payroll = require(path.join(root, "src/lib/payroll.ts"));
   assert.doesNotMatch(payroll.UNDECIDED_MARK_HINT + payroll.NO_PAY_MARK_HINT, /отработк/i, "the hints of the sheet name no make-up");
   assert.match(O.MAKEUP_MONEY_NOTE, /Отработка — обычный урок/);

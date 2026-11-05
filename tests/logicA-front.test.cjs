@@ -195,7 +195,7 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   assert.equal(G.PAUSE_BACKDATE_DAYS, undefined);
   assert.equal(G.validatePause({ first: "2026-10-20", last: "2026-10-24", reason: "" }, today), null);
   assert.equal(G.validatePause({ first: "2026-09-01", last: "2026-10-24", reason: "" }, today), null);
-  assert.equal(G.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц преподавателя не закрыт ведомостью");
+  assert.equal(G.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц не закрыт");
   assert.match(G.validatePause({ first: "2026-10-24", last: "2026-10-20", reason: "" }, today), /раньше, чем начинается/);
   assert.match(G.validatePause({ first: "2026-10-20", last: "2028-01-01", reason: "" }, today), /не длиннее 366 дней/);
   assert.equal(G.pauseDays("2026-10-20", "2026-10-24"), 5);
@@ -209,7 +209,7 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   assert.deepEqual(G.pauseCalcLines({ pause: saved.pause, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
   const warnings = G.pauseWarnings(saved, today);
   assert.ok(warnings[0].startsWith("Пауза задним числом: уроки с 20.10 по 20.10 не будут засчитаны ни ученику, ни преподавателю"));
-  assert.ok(warnings.some((line) => /Ведомость за октябрь покажет «Есть изменения»/.test(line)));
+  assert.ok(warnings.some((line) => /Зарплата за октябрь изменится — потом сохраните новую сумму/.test(line)));
   assert.match(G.attendedText(["2026-10-12", "2026-10-14"]), /^Ученик был отмечен на уроках 12\.10, 14\.10 — на эти даты паузу поставить нельзя$/);
   // the chip: «На паузе до 20.10»; in the list and in the card
   assert.equal(G.pausedChipText({ from: "2026-10-11", to: "2026-10-20" }), "На паузе до 20.10");
@@ -365,15 +365,15 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.equal(due.state, "settled");
   assert.equal(Y.payoutChip(due).text, "Выплачено полностью");
   assert.equal(Y.payoutChangedBy(due), 125000);
-  assert.equal(plain(Y.payoutChangeLine(due).text), "изменилось на +125 000 сум");
+  assert.equal(plain(Y.payoutChangeLine(due).text), "Зарплата изменилась на +125 000 сум");
   assert.equal(Y.payoutChangeLine(due).title, "После сохранения ведомость изменилась на +125 000. Пересохраните ведомость, чтобы учесть");     // the server's sentence, as it came
   assert.equal(Y.payoutChangeLine(unpaid), null);
-  assert.equal(plain(Y.payoutChangeLine({ changed_by: -50000, change_text: null }).text), "изменилось на −50 000 сум");
+  assert.equal(plain(Y.payoutChangeLine({ changed_by: -50000, change_text: null }).text), "Зарплата изменилась на −50 000 сум");
   assert.deepEqual([lower.state, lower.target, lower.balance, lower.changed_by], ["settled", 600000, 0, -125000]);
-  assert.equal(plain(Y.payoutChangeLine(lower).text), "изменилось на −125 000 сум");
+  assert.equal(plain(Y.payoutChangeLine(lower).text), "Зарплата изменилась на −125 000 сум");
   // a month still owing: saved 600 000, paid 475 000
   const owing = { ...due, state: "due", target: 600000, saved_total: 600000, balance: 125000, changed_by: 0, change_text: null, text: "Выплачено 475 000 из 600 000 · осталось 125 000" };
-  assert.equal(plain(Y.payoutChip(over).text), "Переплачено 125 000 сум");
+  assert.equal(plain(Y.payoutChip(over).text), "Выплачено больше на 125 000 сум");
   assert.equal(plain(Y.payoutChip(owing).text), "Выплачено 475 000 сум из 600 000 сум");
   assert.equal(Y.payoutChip({ ...owing, state: "settled", balance: 0 }).text, "Выплачено полностью");
   assert.equal(Y.payoutChip(null), null);
@@ -381,10 +381,7 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.deepEqual(Y.sheetPayoutParts(due).map((part) => [part.label, plain(part.value)]), [["К выплате", "475 000 сум"], ["Выплачено", "475 000 сум"]]);
   assert.deepEqual(Y.sheetPayoutParts(owing).map((part) => [part.label, plain(part.value)]), [["К выплате", "600 000 сум"], ["Выплачено", "475 000 сум"], ["Осталось выплатить", "125 000 сум"]]);
   assert.deepEqual(Y.sheetPayoutParts(over).map((part) => part.label), ["К выплате", "Выплачено", "Переплачено"]);
-  assert.equal(plain(Y.monthPayoutText("2026-10", [{ payout: owing }, { payout: null }])), "К выплате за октябрь: 600 000 сум · выплачено 475 000 сум · осталось выплатить 125 000 сум");
-  assert.equal(Y.monthPayoutText("2026-10", [{ payout: null }]), null);
-  assert.equal(plain(Y.monthPayoutTail([{ payout: owing }, { payout: null }])), "выплачено 475 000 сум · осталось выплатить 125 000 сум");
-  assert.equal(Y.monthPayoutTail([{ payout: null }]), null);
+  // the totals of the month are the tiles of the list (monthTotals = the sums of the rows: tests/ux-pack-month-list.test.cjs)
   // the form: the amount starts as what is left; more than that asks
   const values = Y.emptyPayoutValues("2026-11-12", owing);
   assert.equal(values.amount, "125\u00a0000");     // WAVE E (DUP-6): the prefilled sum holds the same characters as a typed one
@@ -420,16 +417,16 @@ test("the sheet block and the month row draw the payout", () => {
   // one fact once (LESSONS 87): the change after the saving is said by the card of the sheet («Пересохранить»), not again under the payout
   assert.ok(!block.includes("изменилась на") && !block.includes("125 000"), block);
   const over = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: { ...named("A24_"), state: "overpaid", target: 350000, balance: -125000, changed_by: 0, change_text: null }, onChanged: () => undefined }));
-  assert.ok(over.includes("Переплачено 125 000 сум"));
+  assert.ok(over.includes("Выплачено больше на 125 000 сум"));
   assert.equal(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "К", payout: null, onChanged: () => undefined })), "");
   const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
   const teacher = { teacher_id: "t", teacher_name: "Каримова", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: { id: "s1", revision: 1, total_amount: 475000, stale: true, updated_at: null }, warnings: {}, payout: due };
   const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
-  assert.ok(row.includes("Выплачено полностью"));
-  assert.ok(plain(row).includes("Изменилась на +125 000 сум"), "the month row names the change after the saving - ONCE, in the status chip (UX round of the owner 05.11)");
+  assert.ok(row.includes("выплачено ✓"), "the column «Остаток» of the row says it (UX pack §5.2)");
+  assert.ok(plain(row).includes("Требует действия · 1"), "the month row names the change after the saving - ONCE, as an item of the ONE status chip (UX pack §5.2-бис)");
   assert.ok(!plain(row).includes("изменилось на"), "not a second time under the payout");
   const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
-  assert.match(rowHtml, /data-testid="payout-chip"/);
+  assert.match(rowHtml, /data-testid="teacher-rest"/, "the payout is the columns «Выплачено» and «Остаток» of the row (UX pack §5.2): no chip of its own");
   assert.doesNotMatch(rowHtml, /Действия: Каримова/); // owner 22.10: no «⋯» on the month row
 });
 
@@ -444,7 +441,7 @@ test("divisor by month: «С октября 2026 — 13 · раньше 12» (ch
   assert.deepEqual(Y.buildDivisorBody(13, "2026-10"), { divisor: 13, valid_from: "2026-10" });
   assert.equal(Y.divisorChangeText(13, "2026-10", 12), "С октября 2026 делитель 13 (сейчас 12). Старые месяцы не меняются.");
   assert.equal(Y.divisorChangeText(12, "2026-10", 12), "С октября 2026 делитель 12, как сейчас.");
-  assert.equal(Y.DIVISOR_HELP, "Старые месяцы не меняются. Ведомости, рассчитанные с другим делителем, покажут «Есть изменения».");
+  assert.equal(Y.DIVISOR_HELP, "Старые месяцы не меняются. Месяцы, рассчитанные с другим делителем, покажут «Данные изменились».");
   assert.equal(fixture("errors").DIVISOR_RANGE.body.detail.message, "Делитель: от 1 до 31");
   const page = read("src/app/owner/settings/page.tsx");
   assert.match(page, /orgApi\.setPayrollDivisor\(buildDivisorBody\(parsed\.value, validFrom\)\)/);

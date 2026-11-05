@@ -97,8 +97,8 @@ test("A: both forms and the lesson sheet use the same words (one function)", asy
 // ── A: the rights of each role (LESSONS 16, 17, 45) ─────────────────────────────────────────────────────────
 
 test("A: the money of an additional lesson by the role; no role is guessed", () => {
-  assert.deepEqual(O.moneyChoicesFor("teacher").map((c) => [c.value, c.label]), [["wait", "Прошу оплатить"], ["none", "Без оплаты"]]);
-  assert.deepEqual(O.moneyChoicesFor("manager").map((c) => [c.value, c.label]), [["none", "Без оплаты"], ["paid", "Оплачивается"]]);
+  assert.deepEqual(O.moneyChoicesFor("teacher").map((c) => [c.value, c.label]), [["wait", "Прошу включить в зарплату"], ["none", "Не включать в зарплату"]]);
+  assert.deepEqual(O.moneyChoicesFor("manager").map((c) => [c.value, c.label]), [["none", "Не включать в зарплату"], ["paid", "Включить в зарплату"]]);
   assert.deepEqual(O.moneyChoicesFor(null), []);
   assert.equal(O.oneOffRoleOf({ org_role: "owner" }), "manager");
   assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: true }), "manager");
@@ -169,7 +169,7 @@ test("A: the form asks «Что это за урок?» first; with candidates b
   assert.match(plain, /Отработка отменённого урока/);
   assert.match(plain, /Дополнительный урок/);
   assert.doesNotMatch(html, /aria-disabled="true"/);
-  assert.doesNotMatch(plain, /Оплата преподавателю/, "the money is shown after «Дополнительный»");
+  assert.doesNotMatch(plain, /Зарплата за урок/, "the money is shown after «Дополнительный»");
 });
 
 test("A: no cancelled lessons - the make-up is off and says WHY (the server's sentence)", () => {
@@ -205,22 +205,22 @@ test("A: the list of cancelled lessons shows date, time and the reason when the 
 
 test("A: «Дополнительный» - the money radios by the role and the line that the students pay nothing", () => {
   const manager = formHtml({ role: "manager", choice: { purpose: "extra", money: null, target: "" } });
-  assert.match(manager, /Оплата преподавателю/);
-  assert.match(manager, /Без оплаты/);
-  assert.match(manager, /Оплачивается/);
-  assert.doesNotMatch(manager, /Прошу оплатить/);
+  assert.match(manager, /Зарплата за урок/);
+  assert.match(manager, /Не включать в зарплату/);
+  assert.match(manager, /Включить в зарплату/);
+  assert.doesNotMatch(manager, /Прошу включить в зарплату/);
   assert.match(manager, /Ученикам дополнительный урок бесплатен/);
   const teacherRaw = renderToStaticMarkup(React.createElement(PURPOSE.OneOffPurposeFields, {
     idPrefix: "t", role: "teacher", choice: { purpose: "extra", money: "wait", target: "" }, onChoice() {}, makeup: { kind: "ready", data: { items: [], emptyReason: null } }, onReload() {},
   }));
-  assert.match(teacherRaw, /data-testid="t-money-wait"[^>]*checked=""|checked=""[^>]*data-testid="t-money-wait"/, "«Прошу оплатить» is the teacher's default");
+  assert.match(teacherRaw, /data-testid="t-money-wait"[^>]*checked=""|checked=""[^>]*data-testid="t-money-wait"/, "«Прошу включить в зарплату» is the teacher's default");
   const teacher = text(teacherRaw);
-  assert.match(teacher, /Прошу оплатить/);
-  assert.match(teacher, /Без оплаты/);
-  assert.doesNotMatch(teacher, /Оплачивается/);
+  assert.match(teacher, /Прошу включить в зарплату/);
+  assert.match(teacher, /Не включать в зарплату/);
+  assert.doesNotMatch(teacher, /Включить в зарплату/);
   assert.match(teacher, /Ученикам дополнительный урок бесплатен/);
   // nothing is asked of the money of a make-up
-  assert.doesNotMatch(formHtml({ choice: { purpose: "makeup", money: null, target: "" } }), /Оплата преподавателю/);
+  assert.doesNotMatch(formHtml({ choice: { purpose: "makeup", money: null, target: "" } }), /Зарплата за урок/);
 });
 
 test("A: both forms mount the same fields, always with the role and the group", () => {
@@ -247,30 +247,30 @@ const decision = (over = {}) => ({
 });
 
 test("A: the row of money - the lesson, who held it, how many came; no amount; two buttons; the question is the title of the section, not repeated (#159 U4)", () => {
-  // the teacher asked for his OWN lesson: «Просит оплатить» says nothing new and is not shown; an administrator asked for the lesson of another: it is
+  // the teacher asked for his OWN lesson: «Просит включить в зарплату» says nothing new and is not shown; an administrator asked for the lesson of another: it is
   const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "two", createdBy: { id: "a1", name: "Каримова Д.", role: "admin" } })], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   const plain = text(html);
-  assert.match(plain, /Оплата дополнительных уроков · 2/);
+  assert.match(plain, /Дополнительные уроки: включить в зарплату\? · 2/);
   assert.doesNotMatch(plain, /Дополнительный урок — оплатить преподавателю\?/, "the question is in the window, not in every row");
-  assert.match(plain, /7-А · чт 05\.11 · 16:00–17:00/);
-  assert.match(plain, /провёл Рахимов Т\. · были 3 из 10/);
-  assert.equal((plain.match(/Просит оплатить/g) || []).length, 1);
-  assert.match(plain, /Просит оплатить: Каримова Д\./);
-  assert.doesNotMatch(plain, /Просит оплатить: Рахимов/);
-  assert.match(html, /Оплатить<\/button>/);
-  assert.match(html, /Не оплачивать<\/button>/);
+  assert.match(plain, /7-А · чт, 5 ноября · 16:00–17:00/);
+  assert.match(plain, /провёл Рахимов Т\. · пришли 3 из 10/);
+  assert.equal((plain.match(/Просит включить в зарплату/g) || []).length, 1);
+  assert.match(plain, /Просит включить в зарплату: Каримова Д\./);
+  assert.doesNotMatch(plain, /Просит включить в зарплату: Рахимов/);
+  assert.match(html, /Включить в зарплату<\/button>/);
+  assert.match(html, /Не включать<\/button>/);
   assert.doesNotMatch(plain, /сум|so'm|\d\s?\d{3}\s?(UZS|сум)/i, "no amount anywhere");
 });
 
 test("A: the buttons are named by the short day, never an ISO date (F3); the window says «можно отменить» for BOTH choices (F4; Money-1 A3: the decision is reversible while the month is open)", () => {
   const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
-  assert.match(html, /aria-label="Оплатить: 7-А, чт 05\.11"/);
-  assert.match(html, /aria-label="Не оплачивать: 7-А, чт 05\.11"/);
+  assert.match(html, /aria-label="Включить в зарплату: 7-А, чт 05\.11"/);
+  assert.match(html, /aria-label="Не включать: 7-А, чт 05\.11"/);
   assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
-  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение можно отменить, пока месяц преподавателя не закрыт\.$/);
-  assert.match(O.decisionNote("pay"), /^Урок войдёт в сумму преподавателя/);
-  assert.match(O.decisionNote("skip"), /^Преподавателю за этот урок не заплатят\./);
-  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision\)/);
+  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение можно отменить, пока месяц не закрыт\.$/);
+  assert.match(O.decisionNote("pay"), /^Ученикам урок бесплатный\. В зарплату входят все ученики, включая «Не был»\./);
+  assert.match(O.decisionNote("skip"), /^Ученикам урок бесплатный\. В зарплату преподавателя он не войдёт\./);
+  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision, dialog\.item\.studentsPaid\)/);
 });
 
 test("A: the new refusals of the server have words, not codes (F5)", () => {
@@ -291,7 +291,7 @@ test("A: no rows - nothing is drawn; a failed read says so with «Повтори
 });
 
 test("A: the warning of a decision after the payment of the sheet", () => {
-  assert.equal(O.payrollWarning({ month: "2026-11", status: "settled" }), "Ведомость за ноябрь 2026 г. выплачена — изменится сумма: доплатить или переплата");
+  assert.equal(O.payrollWarning({ month: "2026-11", status: "settled" }), "Зарплата за ноябрь 2026 г. выплачена — изменится сумма: доплатить или переплата");
   assert.match(O.payrollWarning({ month: "2026-11", status: "due" }), /выплачена — изменится сумма/);
   assert.match(O.payrollWarning({ month: "2026-11", status: "overpaid" }), /выплачена — изменится сумма/);
   assert.equal(O.payrollWarning({ month: "2026-11", status: "unpaid" }), null, "the sheet is not paid yet - nothing to say");
@@ -299,7 +299,7 @@ test("A: the warning of a decision after the payment of the sheet", () => {
   assert.equal(O.payrollWarning({ month: "bad", status: "settled" }), null);
   // an administrator: the sheet exists, the status is the owner's (null) - said without «выплачена»
   const admin = O.payrollWarning({ month: "2026-11", status: null });
-  assert.match(admin, /^Ведомость за ноябрь 2026 г\. уже сохранена/);
+  assert.match(admin, /^Зарплата за ноябрь 2026 г\. уже сохранена/);
   assert.doesNotMatch(admin, /выплачена/);
 });
 
@@ -367,9 +367,9 @@ test("A: the facts of the sheet and of the month say «не решено»", () 
   assert.equal(P.undecidedLessonsText(0), null);
   assert.equal(P.undecidedLessonsText(undefined), null);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /не решено: \{line\.undecided\}/);
-  assert.match(read("src/components/payroll/sheet-summary.tsx"), /sheet\.undecided_total/);
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /undecidedVisits: sheet\.undecided_total/);   // UX pack §5.2-бис: the item «Решить» of the block «Что нужно сделать»
   // UX round of the owner (05.11): the month list says it in the ONE line of what needs an action («1 доп. урок ждёт решения», a link to «Замены»), not as a second red line
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /teacherAttention\(teacher\)/);
+  assert.match(read("src/lib/payroll.ts"), /export function rowStatus[\s\S]*teacherAttention\(teacher\)/);   // the items of the ONE status chip (UX pack §5.2-бис)
   assert.equal(P.teacherAttention({ warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }, undecided_lessons: 2 })[0].text, "2 доп. урока ждут решения");
 });
 
@@ -411,13 +411,14 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
 });
 
 test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
-  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт 05.11 · 16:00–17:00");
-  assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "провёл Рахимов Т. · были 0 из 8");
-  assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · был 1 из 2");
+  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт, 5 ноября · 16:00–17:00");
+  assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "провёл Рахимов Т. · пришли 0 из 8");
+  assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · пришёл 1 из 2");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);
   assert.equal(O.decisionAskedLine({ purpose: "makeup", createdBy: { id: "t", name: "Рахимов Т.", role: "teacher" } }), null);
-  assert.equal(O.decisionToast("pay"), "Решение записано: преподавателю будет оплачено");
-  assert.equal(O.decisionToast("skip"), "Решение записано: без оплаты");
+  assert.equal(O.decisionToastText("pay", "Эргашев К.", 45000).replace(/\u00a0/g, " "), "Урок включён в зарплату Эргашева К.: +45 000 сум");
+  assert.equal(O.decisionToastText("skip", "Эргашев К."), "Урок не включён в зарплату Эргашева К.");
+  assert.equal(O.decisionToastText("pay", "Ким А."), "Урок включён в зарплату преподавателя", "no sum for an administrator / a month with no saved sheet; a surname that does not decline is not guessed");
 });
 
 // ── the defects of the walk on stage (29.10): D1 the sheet line of a make-up, D2 «Отработан → …» on the card of a student ───────────────────────────────

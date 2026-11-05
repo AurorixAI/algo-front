@@ -22,9 +22,9 @@ test("A17 / A18: the answers of the server are read as they are", () => {
   const changed = T.normalizeLessonTypeChanged(fixture("A18_lesson_type_put_impact"));
   assert.equal(changed.current, "pair");
   assert.equal(changed.impact.stale_payroll_sheets, 1);
-  assert.deepEqual(T.lessonTypeStaleText(changed.impact), { text: "Ведомости, которые изменятся:", items: ["октябрь 2026 — Каримова"] });
+  assert.deepEqual(T.lessonTypeStaleText(changed.impact), { text: "Изменится сохранённая зарплата — потом сохраните новую сумму:", items: ["октябрь 2026 — Каримова"] });
   // an administrator gets no list: only the count
-  assert.deepEqual(T.lessonTypeStaleText({ stale_payroll_sheets: 2, stale_sheets: [] }), { text: "Ведомостей, которые изменятся: 2.", items: [] });
+  assert.deepEqual(T.lessonTypeStaleText({ stale_payroll_sheets: 2, stale_sheets: [] }), { text: "Изменится сохранённая зарплата: 2. Новую сумму сохранит владелец.", items: [] });
   assert.equal(T.lessonTypeStaleText({ stale_payroll_sheets: 0, stale_sheets: [] }), null);
   assert.equal(T.lessonTypeStaleText(null), null);
 });
@@ -58,7 +58,7 @@ test("words: the line, the history and the impact", () => {
   assert.equal(T.lessonTypeLine("group"), "Тип занятий: Группа");
   const history = T.normalizeLessonTypes(fixture("A17_lesson_types")).history;
   assert.deepEqual(history.map(T.lessonTypeHistoryLine), ["С самого начала — Группа", "С 15.10.2026 — Парный · Арслан"]);
-  assert.match(T.LESSON_TYPE_IMPACT_TEXT, /«Есть изменения»/);
+  assert.match(T.LESSON_TYPE_IMPACT_TEXT, /Сохранённая зарплата затронутых месяцев изменится/);
   assert.equal(T.LESSON_TYPE_CHANGE_LABEL, undefined); // no action in the header: the change is made in the edit form
   assert.match(T.lessonTypeFutureNote("2026-10-01", "2026-10-21"), /с 01\.10\.2026/);
   assert.equal(T.lessonTypeFutureNote("2026-10-21", "2026-10-21"), null);

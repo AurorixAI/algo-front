@@ -1445,9 +1445,9 @@ export function sheetCardStatus(input: {
   if (!input.saved) return { tone: "preview", text: "Не сохранено", action: "save" };
   if (input.stale) {
     const text = input.delta === null
-      ? "После сохранения данные изменились"
+      ? "После сохранения изменились данные"
       : input.delta === 0
-        ? "После сохранения данные изменились, сумма та же"
+        ? "После сохранения изменились данные, сумма та же"
         : `Зарплата изменилась на ${formatSignedMoney(input.delta)} — сохраните новую сумму`;
     return { tone: "changed", text, action: "recalculate" };
   }

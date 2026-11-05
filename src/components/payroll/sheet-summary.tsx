@@ -115,7 +115,7 @@ export function SheetSummaryCard({
         <p role="status" className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
           <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />
           <span className="min-w-0" data-testid="sheet-status-text">
-            {changed ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
+            {headline.saved ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
             {status.tone === "saved" && savedBy ? <span className="text-slate-500"> · {savedBy}</span> : null}
           </span>
         </p>
@@ -158,11 +158,11 @@ export function SheetSummaryCard({
         </div>
       )}
 
-      {changed && headline.saved && splitSavedFacts(facts).counted.length > 0 && (
+      {headline.saved && splitSavedFacts(facts).counted.length > 0 && (
         <details data-testid="sheet-changes" className="mt-3 text-sm text-slate-700 print:hidden">
           <summary className="cursor-pointer select-none font-semibold text-slate-800">Что изменилось</summary>
           <p className="mt-1 text-slate-600" data-testid="sheet-saved-facts">Сохранённая версия: {splitSavedFacts(facts).counted.join(", ")}</p>
-          {diff && <DiffDetails diff={diff} />}
+          {changed && diff && <DiffDetails diff={diff} />}
         </details>
       )}
       {changed && diff && !(headline.saved && splitSavedFacts(facts).counted.length > 0) && <DiffDetails diff={diff} />}

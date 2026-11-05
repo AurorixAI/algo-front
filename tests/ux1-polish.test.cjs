@@ -51,7 +51,7 @@ test("payroll: «Не задана ставка у N преподавателе�
 test("payroll: status chips start with a capital letter", () => {
   const R = lib("payroll.ts");
   assert.equal(R.sheetStatus(null).label, "Не рассчитано");
-  assert.equal(R.sheetStatus({ stale: true, updated_at: "2026-10-02T08:00:00" }).label, "Есть изменения");
+  assert.equal(R.sheetStatus({ stale: true, updated_at: "2026-10-02T08:00:00" }).label, "Данные изменились");
   assert.equal(R.sheetStatus({ stale: false, updated_at: "2026-10-02T08:00:00" }).label, "Сохранено 02.10");
 });
 

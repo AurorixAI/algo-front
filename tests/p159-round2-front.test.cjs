@@ -129,15 +129,15 @@ test("M1: the form of an admin without the right speaks for HIM; the teacher's w
   const admin = O.oneOffRoleOf({ org_role: "admin", payments_access: false });
   assert.equal(admin, "admin_ask");
   assert.deepEqual(O.moneyChoicesFor(admin), [
-    { value: "wait", label: "Попросить оплатить", hint: "Решит владелец или администратор с правом на оплаты после урока" },
-    { value: "none", label: "Без оплаты", hint: "Преподаватель ничего не получит за этот урок" },
+    { value: "wait", label: "Попросить включить в зарплату", hint: "Решит владелец или администратор с доступом к деньгам после урока" },
+    { value: "none", label: "Не включать в зарплату", hint: "Преподаватель ничего не получит за этот урок" },
   ]);
   const teacher = O.moneyChoicesFor(O.oneOffRoleOf({ org_role: "teacher" }));
   assert.deepEqual(teacher.map((c) => [c.value, c.label, c.hint]), [
-    ["wait", "Прошу оплатить", "После урока решит владелец или администратор с правом на оплаты"],
-    ["none", "Без оплаты", "За этот урок вы ничего не получите"],
+    ["wait", "Прошу включить в зарплату", "После урока решит владелец или администратор с доступом к деньгам"],
+    ["none", "Не включать в зарплату", "За этот урок вы ничего не получите"],
   ]);
-  assert.deepEqual(O.emptyChoice(admin), { purpose: null, money: "wait", target: "" }, "«Попросить оплатить» by default");
+  assert.deepEqual(O.emptyChoice(admin), { purpose: null, money: "wait", target: "" }, "«Попросить включить в зарплату» by default");
   assert.equal(O.choiceProblem({ purpose: "extra", money: "wait", target: "" }, admin, null), null);
   assert.notEqual(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, admin, null), null);
   assert.deepEqual(O.moneyChoicesFor(O.oneOffRoleOf({ org_role: "admin", payments_access: true })).map((c) => c.value), ["none", "paid"]);

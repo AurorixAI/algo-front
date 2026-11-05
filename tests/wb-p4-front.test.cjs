@@ -83,7 +83,7 @@ test("R3 3: the advance of the earlier months is a part of the block, a line und
   assert.deepEqual(Y.advanceLines(state).map(plain), ["Аванс прошлого месяца: 30 000 сум — зачтён, к выплате меньше на эту сумму"]);
   const over = Y.normalizePayoutState({ ...state, target: 100000, paid: 125000, balance: -25000, state: "overpaid", carry_in: 0, carry_used: 0, advance_out: 25000 });
   // D-3 (rule 87): the chip already says «Переплачено 25 000», so the line says only what happens to it
-  assert.equal(plain(Y.sheetPayoutChip(over).text), "Переплачено 25 000 сум");
+  assert.equal(plain(Y.sheetPayoutChip(over).text), "Выплачено больше на 25 000 сум");
   assert.deepEqual(Y.advanceLines(over).map(plain), ["Переплата зачтётся в выплате следующего месяца"]);
   // the advance that is not the chip's sum (earlier advances left over) keeps its number
   assert.deepEqual(Y.advanceLines({ ...over, advance_out: 40000 }).map(plain), ["Аванс 40 000 сум зачтётся в выплате следующего месяца"]);

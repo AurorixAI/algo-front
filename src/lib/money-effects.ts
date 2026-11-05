@@ -16,7 +16,7 @@ import { canDecideMoney } from "./one-off";
 import { pluralRu } from "./plural";
 import { formatBusinessDate } from "./business-time";
 import { monthTitle } from "./payroll";
-import { MONTHS_NOMINATIVE } from "./ru-calendar";
+import { monthLabel } from "./ru-calendar";
 
 export type PeriodState = "none" | "open" | "closed" | "reopened";
 
@@ -44,6 +44,8 @@ export interface MoneyPayrollEffect {
   changedBy: number | null;
   /** The fresh total after the action less the SAVED one («всего к сохранённой»). */
   driftAfter: number | null;
+  /** The owner: what is left to pay out after the action (the server counts it with the advance of the earlier months).  Not sent by the server yet - the screen then works it out for an open month (`paidLine`). */
+  balanceAfter: number | null;
 }
 
 export interface MoneyEffects {
@@ -90,6 +92,7 @@ export function normalizeMoneyEffects(raw: unknown): MoneyEffects | null {
       freshTotal: num(item.freshTotal),
       changedBy: num(item.changedBy),
       driftAfter: num(item.driftAfter),
+      balanceAfter: num(item.balanceAfter),
     }));
   return { students, payroll, text: str(source.text) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true };
 }
@@ -108,8 +111,8 @@ export function effectsEmpty(effects: MoneyEffects | null | undefined): boolean 
 
 /** R3 #7: the numbers of the action could not be worked out; the action itself is not refused (or was done). */
 export const EFFECTS_UNAVAILABLE_TEXT = "Последствия для денег не удалось посчитать";
-export const EFFECTS_UNAVAILABLE_HINT = "Действие можно выполнить; ведомости проверьте после";
-export const EFFECTS_UNAVAILABLE_DONE_HINT = "Действие выполнено; проверьте ведомости";
+export const EFFECTS_UNAVAILABLE_HINT = "Действие можно выполнить; зарплату проверьте после";
+export const EFFECTS_UNAVAILABLE_DONE_HINT = "Действие выполнено; проверьте зарплату";
 
 /** «октябрь 2026» - the month inside a sentence (no «г.»: a full stop in the middle of a sentence reads as its end). */
 export function monthInSentence(month: string): string {
@@ -128,20 +131,17 @@ export function studentEffectText(effect: MoneyStudentEffect, done = false): str
   return `${name}: ${done ? "занятие списали из пакета" : "занятие спишется из пакета"}`;
 }
 
-/** The title of the block in a window of confirmation. */
-export const EFFECTS_TITLE = "Что будет с деньгами";
-/** An action that moves no pack and no saved sheet says so (I-5: a list of consequences is always there, also when it is empty). */
-export const EFFECTS_NONE_TEXT = "Деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты.";
-/**
- * The same for a payment, a cancel of it, a refund, a write-off and a transfer (R3 m1): the debt of the student DOES change - the window says that in its own line - so «деньги не изменятся»
- * would be false there; what stays is the pay of the teachers.
- */
-export const EFFECTS_NONE_PAYMENTS_TEXT = "Ведомости преподавателей не изменятся.";
-/** Which words a block of effects speaks in: the lessons (the pay of a teacher and the packs) or the money of a student. */
-export type EffectsVariant = "lesson" | "payment";
-export const EFFECTS_LOADING_TEXT = "Считаем, что изменится с деньгами…";
+/** The ONE title of the block of consequences in every window of confirmation (UX pack 05.11, rule 1; vocabulary §1: not «Что будет с деньгами» / «Что будет после сохранения» / «Что переедет»). */
+export const EFFECTS_TITLE = "Что изменится";
+/** An action that moves no pack and no saved sheet says so in ONE grey line - no block, no title (UX pack, rule 1). */
+export const EFFECTS_NONE_TEXT = "Деньги не изменятся";
+
+/** Which words a block of effects speaks in: `lesson` - the lessons (the pay of a teacher and the packs; nothing moves: one grey line); `quiet` - a transfer of a student (nothing moves: nothing is said). */
+export type EffectsVariant = "lesson" | "quiet";
+/** Not drawn as a sentence any more (a skeleton of the size of the block stands in its place); it is the reading of the skeleton for a screen reader. */
+export const EFFECTS_LOADING_TEXT = "Считаем, что изменится…";
 export const TRANSFER_LOADING_TEXT = "Считаем, что изменится при переводе…";
-export const EFFECTS_FAILED_TEXT = "Не удалось посчитать, что изменится с деньгами. Без этого подтвердить нельзя.";
+export const EFFECTS_FAILED_TEXT = "Не удалось посчитать, что изменится. Без этого подтвердить нельзя.";
 export const EFFECTS_RETRY_LABEL = "Повторить";
 export const REOPEN_MONTH_LABEL = "Переоткрыть месяц";
 
@@ -167,7 +167,7 @@ export function canManageMoney(user: { org_role?: string | null; payments_access
   return canDecideMoney(user);
 }
 
-export const MONEY_RIGHT_TEXT = "Это действие меняет деньги: его выполняет владелец или администратор, которому владелец разрешил оплаты";
+export const MONEY_RIGHT_TEXT = "Это действие меняет деньги: его выполняет владелец или администратор с доступом к деньгам";
 
 // ── the lines of a window of confirmation / a toast ──────────────────────────────────────────────
 
@@ -177,7 +177,9 @@ export interface EffectLine {
   text: string;
   /** Under the heading: one line per teacher («Эргашев К. — +133 333 сум (было 860 000, станет 993 333)»). */
   items?: string[];
-  /** After them: what the person has to do («Сентябрь уже закрыт: … пересохраните их, чтобы выплатить разницу»).  Only when something has to be done. */
+  /** Under the items, plain: what is paid already («Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум»); only where the window asks for it (`withPaid`). */
+  after?: string[];
+  /** After them: what the person has to do («Сентябрь закрыт: сохраните новую сумму, чтобы она вошла в выплату»).  Only when something has to be done. */
   note?: string;
   /** `warn`: needs an action - a month the sheet has closed that must be saved again, numbers that could not be worked out.  Everything else is information. */
   tone: "plain" | "warn";
@@ -185,7 +187,7 @@ export interface EffectLine {
 
 /** Every line of the lines as plain texts (a toast, a question): the heading, its items, its note. */
 export function effectLineTexts(lines: ReadonlyArray<EffectLine>): string[] {
-  return lines.flatMap((line) => [line.text, ...(line.items ?? []), ...(line.note ? [line.note] : [])]);
+  return lines.flatMap((line) => [line.text, ...(line.items ?? []), ...(line.after ?? []), ...(line.note ? [line.note] : [])]);
 }
 
 const signedSum = formatSignedMoney;
@@ -195,54 +197,64 @@ const sum = (value: number): string => formatMoney(value);
 /** «860 000» - the sum without the word «сум» (inside a bracket that already follows «+133 333 сум»). */
 const bare = (value: number): string => formatMoney(value).replace(/[\s\u00a0]*сум$/, "");
 
-const monthName = (month: string, today: string, capitalized = false): string => {
-  const [year, number] = month.split("-");
-  const name = MONTHS_NOMINATIVE[Number(number) - 1] ?? month;
-  const text = year && year !== today.slice(0, 4) ? `${name} ${year}` : name;
-  return capitalized ? text.charAt(0).toLocaleUpperCase("ru-RU") + text.slice(1) : text;
-};
+export { monthLabel };
 
 /**
- * The pay of the teachers, ONE form for the window and the toast, grouped by the month (UX round of the owner, 05.11):
+ * The pay of the teachers, ONE form for the window and the toast, grouped by the month (UX round of the owner 05.11; UX pack, rule 1 and §1):
  *   Зарплата за сентябрь вырастет:
  *     Эргашев К. — +133 333 сум (было 860 000, станет 993 333)
  *     Мирзаева Л. — +13 333 сум (было 36 666, станет 49 999)
- *   Сентябрь уже закрыт: после сохранения в ведомостях появится «изменилась на …» — пересохраните их, чтобы выплатить разницу.
+ *   Сентябрь закрыт: сохраните новые суммы, чтобы они вошли в выплату.
  * The verb follows the sign (вырастет / уменьшится / изменится; after the action выросла / уменьшилась / изменилась).  The last sentence only for a CLOSED month (the sheet has to be saved
- * again for the difference to be paid out) - a month that is open has none; a sheet that is as saved again after the action says so and asks nothing.  An administrator with the right gets
- * no names and no sums (LESSONS 45): «Изменится зарплата за сентябрь — 2 преподавателя.» and, for a closed month, that the owner saves the sheets again.
+ * again for the difference to be paid out) - a month that is open has none; a sheet that is as saved again after the action says so and asks nothing.  An administrator with the money access gets
+ * no names and no sums (LESSONS 45), ONE line for all the months: «Изменится зарплата за сентябрь — 2 преподавателя, за октябрь — 1. Суммы видит владелец.» and, for a closed month, that the owner saves the new sum.
  */
-function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean, today: string): EffectLine[] {
+/**
+ * «Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум» (UX pack №1): the OWNER's line under a teacher whose OPEN (or reopened) month is paid by what is accrued now (`payroll_payouts.state_of`:
+ * `target = fresh_total`), so what is left is `freshAfter − paid`; a closed month is paid by its saved sum, which this action does not move, so the line is not said there.  The server's own
+ * `balanceAfter` wins when it sends it (it knows the advance of the earlier months, which the screen does not).  null: nothing paid yet, or the numbers are not there.
+ */
+export function paidLine(line: MoneyPayrollEffect): string | null {
+  if (line.state === "closed" || line.paid === null || line.paid <= 0 || line.freshAfter === null) return null;
+  const left = line.balanceAfter ?? line.freshAfter - line.paid;
+  const paid = `Уже выплачено ${sum(line.paid)}`;
+  if (left > 0) return `${paid} — до новой суммы останется ${sum(left)}`;
+  if (left === 0) return `${paid} — это вся новая сумма`;
+  return `${paid} — это на ${sum(-left)} больше новой суммы: выплачено вперёд`;
+}
+
+function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean, today: string, withPaid = false): EffectLine[] {
   const months = [...new Set(payroll.map((line) => line.month))].sort();
+  // an action that did not move a sheet has no news about it (in the preview too: nothing to say)
+  const groups = months
+    .map((month) => ({ month, moved: payroll.filter((line) => line.month === month && line.changedBy !== 0) }))
+    .filter((group) => group.moved.length > 0);
+  if (groups.length === 0) return [];
+  const owner = groups.some((group) => group.moved.some((line) => line.teacherName || line.sheetId));
+  const closedOf = (moved: ReadonlyArray<MoneyPayrollEffect>) => moved.filter((line) => line.state === "closed" && !(done && line.driftAfter === 0));
+
+  if (!owner) {
+    const parts = groups.map((group, index) => {
+      const n = group.moved.length;
+      return `за ${monthLabel(group.month, today)} — ${n}${index === 0 ? ` ${pluralRu(n, ["преподаватель", "преподавателя", "преподавателей"])}` : ""}`;
+    });
+    const closedMonths = groups.filter((group) => closedOf(group.moved).length > 0);
+    const several = closedMonths.some((group) => closedOf(group.moved).length > 1) || closedMonths.length > 1;
+    const names = closedMonths.map((group, index) => monthLabel(group.month, today, index === 0)).join(" и ");
+    const note = closedMonths.length > 0 ? `${names} ${closedMonths.length > 1 ? "закрыты" : "закрыт"}: владелец сохранит ${several ? "новые суммы" : "новую сумму"}.` : undefined;
+    return [{ key: "payroll:admin", text: `${done ? "Изменилась" : "Изменится"} зарплата ${parts.join(", ")}. Суммы видит владелец.`, note, tone: note ? "warn" : "plain" }];
+  }
+
   const out: EffectLine[] = [];
-  for (const month of months) {
-    const lines = payroll.filter((line) => line.month === month);
-    // an action that did not move a sheet has no news about it (in the preview too: nothing to say)
-    const moved = lines.filter((line) => line.changedBy !== 0);
-    if (moved.length === 0) continue;
-    const m = monthName(month, today);
-    const owner = moved.some((line) => line.teacherName || line.sheetId);
+  for (const { month, moved } of groups) {
+    const m = monthLabel(month, today);
     const counted = moved.filter((line) => line.changedBy !== null);
-    const closed = moved.filter((line) => line.state === "closed" && !(done && line.driftAfter === 0));
-    const count = closed.length;
-    const them = count > 1 ? "их" : "её";
-    const sheets = count > 1 ? "ведомостях" : "ведомости";
-    let note: string | undefined;
-    if (count > 0) {
-      note = owner
-        ? `${monthName(month, today, true)} ${done ? "закрыт" : "уже закрыт"}: ${done ? "в" : "после сохранения в"} ${sheets} ${done ? "появилось" : "появится"} «изменилась на …» — пересохраните ${them}, чтобы выплатить разницу.`
-        : `${monthName(month, today, true)} уже закрыт: после сохранения в ${sheets} появится «изменилась на …» — владельцу нужно пересохранить ${them}.`;
-    }
+    const count = closedOf(moved).length;
+    const note = count > 0 ? `${monthLabel(month, today, true)} закрыт: сохраните ${count > 1 ? "новые суммы, чтобы они вошли" : "новую сумму, чтобы она вошла"} в выплату.` : undefined;
     const tone: EffectLine["tone"] = count > 0 ? "warn" : "plain";
     const key = `payroll:${month}`;
-    if (!owner) {
-      const n = moved.length;
-      out.push({ key, text: `${done ? "Изменилась" : "Изменится"} зарплата за ${m} — ${n} ${pluralRu(n, ["преподаватель", "преподавателя", "преподавателей"])}.`, note, tone });
-      continue;
-    }
     if (counted.length === 0) {
-      const names = moved.map((line) => line.teacherName || "преподаватель");
-      const who = names.join(", ");
+      const who = moved.map((line) => line.teacherName || "преподаватель").join(", ");
       out.push({ key, text: `${done ? "Изменилась" : "Изменится"} зарплата за ${m} — ${who}${who.endsWith(".") ? "" : "."}`, note, tone });
       continue;
     }
@@ -255,7 +267,8 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
       const sums = line.freshBefore !== null && line.freshAfter !== null ? ` (было ${bare(line.freshBefore)}, ${done ? "стало" : "станет"} ${bare(line.freshAfter)})` : "";
       return `${name} — ${signedSum(line.changedBy)}${sums}${done && line.driftAfter === 0 ? " — снова как сохранённая" : ""}`;
     });
-    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, note, tone });
+    const after = withPaid ? moved.map((line) => paidLine(line)).filter((text): text is string => text !== null) : [];
+    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, ...(after.length > 0 ? { after } : {}), note, tone });
   }
   return out;
 }
@@ -267,11 +280,11 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
  *  - the numbers could not be worked out (`unavailable`): one line, not an error.
  * `done`: the toast after the action (past tense).  `today` (business date) decides whether a month is named with its year.
  */
-export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean; today?: string } = {}): EffectLine[] {
+export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean; today?: string; withPaid?: boolean } = {}): EffectLine[] {
   if (!effects) return [];
   const done = options.done === true;
   const lines: EffectLine[] = effects.students.map((student) => ({ key: `student:${student.studentId}`, text: studentEffectText(student, done), tone: "plain" }));
-  lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate()));
+  lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate(), options.withPaid === true));
   if (effects.unavailable) lines.push({ key: "unavailable", text: `${EFFECTS_UNAVAILABLE_TEXT}. ${done ? EFFECTS_UNAVAILABLE_DONE_HINT : EFFECTS_UNAVAILABLE_HINT}`, tone: "warn" });
   if (lines.length === 0 && effects.text) lines.push({ key: "text", text: effects.text, tone: "plain" });
   return lines;
@@ -284,4 +297,18 @@ export function effectLines(effects: MoneyEffects | null | undefined, options: {
 export function toastWithEffects(answer: unknown, details: string[] = []): { tone: "success" | "warning"; details: string[] } {
   const lines = effectLines(moneyEffectsOf(answer), { done: true });
   return { tone: lines.some((line) => line.tone === "warn") ? "warning" : "success", details: [...details, ...effectLineTexts(lines)] };
+}
+
+/** The sum an action moved, for a toast of ONE phrase («+45 000 сум»): the sum of `changedBy` of the lines of the answer - the owner's only; null for everybody else or when nothing moved. */
+export function movedByOf(answer: unknown): number | null {
+  const lines = moneyEffectsOf(answer)?.payroll.filter((line) => line.changedBy !== null && line.changedBy !== 0) ?? [];
+  return lines.length > 0 ? lines.reduce((all, line) => all + (line.changedBy as number), 0) : null;
+}
+
+/**
+ * The toast of an action on the STUDENT's money - a payment, its correction or cancel, a forgiven debt, a refund (UX pack §5.1-тер, decision of the owner 05.11): the pay of the teachers is NOT in it, whoever
+ * the person is.  The server still sends `moneyEffects.payroll`; the screen does not draw it in these windows.  The change lives where it is acted on - in «Зарплата» (the chip of the list, the bar over it).
+ */
+export function studentToast(details: string[] = []): { tone: "success"; details: string[] } {
+  return { tone: "success", details };
 }

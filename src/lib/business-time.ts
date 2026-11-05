@@ -243,6 +243,11 @@ export function formatDateRu(isoDate: string | null | undefined): string {
   return day ? `${isoDate!.slice(8, 10)}.${isoDate!.slice(5, 7)}.${isoDate!.slice(0, 4)}` : "";
 }
 
+/** YYYY-MM-DD -> «ср, 4 ноября» (UX pack §1: the dates of the headings of windows and of rows; tables and records keep «04.11.2026»); "" when it is not a real date. */
+export function formatWeekdayDate(isoDate: string | null | undefined): string {
+  return formatIsoDateLabel(isoDate ?? "", { weekday: "short", day: "numeric", month: "long" });
+}
+
 /** YYYY-MM-DD -> ДД.ММ; "" when it is not a real date. */
 export function formatDayMonthRu(isoDate: string | null | undefined): string {
   return formatDateRu(isoDate).slice(0, 5);

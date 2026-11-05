@@ -22,9 +22,9 @@ const SABINA = { sheet: { id: "s3", revision: 1, total_amount: 860000, stale: fa
 const TEACHERS = [KAMOL, LOLA, SABINA];
 
 test("the rows: the salary (accrued now / saved), what is paid, what is left - «вперёд» in an open month", () => {
-  assert.deepEqual(R.teacherMonthNumbers(KAMOL), { salary: 75834, caption: "начислено сейчас", paid: 150000, rest: { kind: "ahead", amount: 74166 } });
-  assert.deepEqual(R.teacherMonthNumbers(SABINA), { salary: 860000, caption: "сохранено", paid: 0, rest: { kind: "left", amount: 860000 } });
-  assert.deepEqual(R.teacherMonthNumbers(LOLA), { salary: null, caption: null, paid: null, rest: { kind: "none", amount: 0 } });
+  assert.deepEqual(R.teacherMonthNumbers(KAMOL), { salary: 75834, caption: "начислено сейчас", was: 120834, paid: 150000, rest: { kind: "ahead", amount: 74166 } });
+  assert.deepEqual(R.teacherMonthNumbers(SABINA), { salary: 860000, caption: "сохранено", was: null, paid: 0, rest: { kind: "left", amount: 860000 } });
+  assert.deepEqual(R.teacherMonthNumbers(LOLA), { salary: null, caption: null, was: null, paid: null, rest: { kind: "none", amount: 0 } });
 });
 
 test("a closed month paid more than saved says «больше», paid in full says «выплачено ✓», and nothing paid on a zero says nothing", () => {
@@ -60,10 +60,12 @@ test("the tiles are the sums of the rows - for any month (LESSONS 104)", () => {
   }
 });
 
-test("the status of the row is ONE chip: «Изменилась −45 000 сум» / «Не рассчитано»; the second small line only when the month differs (running: no «Месяц открыт»)", () => {
+test("the status of the row is ONE chip (see ux-month-row.test.cjs for the priority); the second small line only when the month differs (running: no «Месяц открыт»)", () => {
   const CL = require(path.join(root, "src/lib/closed-period.ts"));
-  assert.equal(plain(R.rowStatus(KAMOL).label), "Изменилась −45 000 сум");
-  assert.equal(R.rowStatus(LOLA).label, "Не рассчитано");
+  const WARN = { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 };
+  assert.equal(R.rowStatus({ ...KAMOL, warnings: { ...WARN, open_lessons: 1 }, undecided_lessons: 1 }).label, "Требует действия · 3", "an unfinished lesson, an additional lesson, the changed salary: ONE chip");
+  assert.equal(R.rowStatus({ ...LOLA, warnings: WARN, undecided_lessons: 0 }).label, "Не рассчитано");
+  assert.equal(R.rowStatus({ ...SABINA, warnings: WARN, undecided_lessons: 0 }).tone, "saved");
   const open = CL.periodView({ state: "open", closedOn: null, reopened: null });
   const closed = CL.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null });
   assert.equal(CL.monthPeriodView(open, true), null, "the header says the month is going");

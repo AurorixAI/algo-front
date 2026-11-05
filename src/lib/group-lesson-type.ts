@@ -116,8 +116,8 @@ export function lessonTypeChangedInEdit(saved: unknown, edited: unknown): boolea
 }
 export const LESSON_TYPE_DIALOG_TITLE = "Тип занятий";
 export const LESSON_TYPE_FROM_LABEL = "Тип занятий меняется с";
-export const LESSON_TYPE_IMPACT_TEXT = "Ведомости затронутых месяцев покажут «Есть изменения»: их нужно будет пересчитать. Внесённые оплаты и выплаты не меняются.";
-export const LESSON_TYPE_NO_SHEETS_TEXT = "Сохранённых ведомостей, которые изменятся, нет.";
+export const LESSON_TYPE_IMPACT_TEXT = "Сохранённая зарплата затронутых месяцев изменится: новую сумму нужно будет сохранить. Внесённые оплаты и выплаты не меняются.";
+export const LESSON_TYPE_NO_SHEETS_TEXT = "Сохранённая зарплата не изменится.";
 
 export function lessonTypeLine(type: unknown): string {
   return `Тип занятий: ${lessonTypeLabel(type)}`;
@@ -130,13 +130,13 @@ export function lessonTypeSheetLabel(sheet: LessonTypeSheet): string {
   return `${month} — ${who}`;
 }
 
-/** «Ведомости, которые изменятся: октябрь 2026 — Каримова» (owner) or the count (administrator). */
+/** «Изменится сохранённая зарплата: октябрь 2026 — Каримова» (owner) or the count (administrator). */
 export function lessonTypeStaleText(impact: LessonTypeImpact | null): { text: string; items: string[] } | null {
   if (!impact) return null;
   const count = Math.max(0, impact.stale_payroll_sheets | 0);
   if (count === 0) return null;
-  if (impact.stale_sheets.length > 0) return { text: "Ведомости, которые изменятся:", items: impact.stale_sheets.map(lessonTypeSheetLabel) };
-  return { text: `Ведомостей, которые изменятся: ${count}.`, items: [] };
+  if (impact.stale_sheets.length > 0) return { text: "Изменится сохранённая зарплата — потом сохраните новую сумму:", items: impact.stale_sheets.map(lessonTypeSheetLabel) };
+  return { text: `Изменится сохранённая зарплата: ${count}. Новую сумму сохранит владелец.`, items: [] };
 }
 
 /** «с 15.10.2026 — Парный · Арслан»; the seed row (2020-01-01) is «с самого начала». */
@@ -147,5 +147,5 @@ export function lessonTypeHistoryLine(row: LessonTypeRow): string {
 
 export function lessonTypeFutureNote(validFrom: string, today: string): string | null {
   if (!isIsoDate(validFrom) || validFrom >= today) return null;
-  return `Дата в прошлом: уроки с ${formatDateRu(validFrom)} в ведомостях зарплаты будут считаться по новому типу.`;
+  return `Дата в прошлом: уроки с ${formatDateRu(validFrom)} в зарплате будут считаться по новому типу.`;
 }

@@ -255,7 +255,8 @@ test("no component reveals content on mouse hover only: hover handlers have a fo
   const hoverHandlers = allTsx.filter((f) => /onMouseEnter|onMouseOver|onPointerEnter/.test(read(f)));
   // hint: hover + focus + click / Enter pin
   // income-parts: the donut «Чем платили» — the hover only HIGHLIGHTS a segment and its legend line (nothing is revealed by hover alone): focus does the same, a tap / Enter chooses it
-  assert.deepEqual(hoverHandlers.sort(), ["src/components/payments/income-parts.tsx", "src/components/ui/hint.tsx"]);
+  // row-status: the chip «Требует действия · N» of the month list opens its items on hover AND on focus AND on a tap / click (UX pack §5.2-бис)
+  assert.deepEqual(hoverHandlers.sort(), ["src/components/payments/income-parts.tsx", "src/components/payroll/row-status.tsx", "src/components/ui/hint.tsx"]);
   const donut = read("src/components/payments/income-parts.tsx");
   assert.match(donut, /onFocus: \(\) => setHover\(method\)/, "the donut: focus highlights too");
   assert.match(donut, /onClick=\{\(\) => pick\(segment\.method\)\}/, "the donut: a tap chooses");

@@ -632,9 +632,9 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /useUnsavedGuard\(dirty, UNSAVED_TEXT\)/);
   assert.match(month, /confirmLeave\(dirty, UNSAVED_TEXT\)/);
   assert.match(month, /parseMonthParam\(searchParams\?\.get\("month"\), today\)/);
-  assert.match(month, /Скачать Excel за месяц/);
+  assert.match(month, /Скачать Excel/);
   assert.match(month, /disabled=\{savedCount === 0 \|\| exporting\}/);
-  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutTail\(teachers\)\} \/>/);
+  assert.match(month, /<PayrollMonthSummary totals=\{totals\} month=\{month\} open=\{monthOpen\} \/>/);
   assert.match(month, /<PayrollPageMenu divisor=\{overview\.divisor\} \/>/);
   assert.match(month, /aria-label=\{`\$\{action\.label\}: \$\{teacher\.teacher_name\}`\}/);
   assert.doesNotMatch(month, /type="checkbox"|Процент для|sanitizePercentTyping/); // no selection, no percent field
@@ -795,7 +795,7 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
   assert.match(read("src/components/payroll/how-it-works.tsx"), /payrollFormulaText\(divisor, priceLabel\)/);
-  assert.match(month, /<AttentionLine views=\{attention\}/);          // UX round of the owner (05.11): ONE line of what needs an action under the name
+  assert.match(month, /<RowStatus status=\{status\}/);          // UX pack §5.2-бис: what needs an action is the items of the ONE status chip, not a line under the name
   assert.match(month, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);

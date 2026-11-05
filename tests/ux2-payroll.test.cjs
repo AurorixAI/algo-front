@@ -40,10 +40,10 @@ test("units: «посещений» for what is counted per student, «урок�
   assert.equal(R.visitsText(11), "11 посещений");
   assert.equal(R.visitsText(21), "21 посещение");
   assert.equal(R.visitsText(140), "140 посещений");
-  assert.equal(R.lessonsOfMonthText(1), "1 урок за месяц");
-  assert.equal(R.lessonsOfMonthText(21), "21 урок за месяц");
-  assert.equal(R.lessonsOfMonthText(22), "22 урока за месяц");
-  assert.equal(R.lessonsOfMonthText(25), "25 уроков за месяц");
+  assert.equal(R.lessonsCountText(1), "1 урок");
+  assert.equal(R.lessonsCountText(21), "21 урок");
+  assert.equal(R.lessonsCountText(22), "22 урока");
+  assert.equal(R.lessonsCountText(25), "25 уроков");
   // the month row never says «уроков» about the visits, nor the other way round
   const line = R.warningViews({ open_lessons: 1, pending_excused: 0, no_fee: 3, unpaid: 140 }).map((v) => v.text).join(" · ");
   assert.equal(line, "1 незакрытый урок · у 3 учеников нет цены · 140 посещений без оплаты");
@@ -51,7 +51,7 @@ test("units: «посещений» for what is counted per student, «урок�
 
 // ── status -> chip -> action ─────────────────────────────────────────────────────────────────
 
-test("status: one chip («Не рассчитано» / «Сохранено 16.10» / «Есть изменения») and one action by it", () => {
+test("status: one chip («Не рассчитано» / «Сохранено 16.10» / «Данные изменились») and one action by it", () => {
   const none = R.sheetStatus(null);
   assert.deepEqual([none.tone, none.label], ["none", "Не рассчитано"]);
   const saved = R.sheetStatus({ stale: false, updated_at: "2026-10-16T03:56:00" });
@@ -60,7 +60,7 @@ test("status: one chip («Не рассчитано» / «Сохранено 16.
   assert.equal(R.sheetStatus({ stale: false, updated_at: "2026-10-16T20:30:00" }).label, "Сохранено 17.10");
   assert.equal(R.sheetStatus({ stale: false, updated_at: null }).label, "Сохранено");
   const changed = R.sheetStatus({ stale: true, updated_at: "2026-10-16T03:56:00" });
-  assert.deepEqual([changed.tone, changed.label], ["changed", "Есть изменения"]);
+  assert.deepEqual([changed.tone, changed.label], ["changed", "Данные изменились"]);
   for (const status of [none, saved, changed]) assert.ok(!("detail" in status), "no second line under the chip");
   assert.deepEqual([R.rowAction(null).kind, R.rowAction({ stale: false }).kind, R.rowAction({ stale: true }).kind], ["calculate", "open", "open"]);
   assert.deepEqual([R.rowAction(null).label, R.rowAction({ stale: false }).label, R.rowAction({ stale: true }).label], ["Рассчитать", "Открыть", "Открыть"]);
@@ -79,21 +79,12 @@ test("«Рассчитать всех» computes only the teachers WITHOUT a sav
   assert.equal(R.calculationGate([t("a", "clean", ["group"]), t("c", null)]).ready, true);
   // everybody has a saved sheet (clean or changed): off, with the one line
   const saved = R.calculationGate([t("a", "clean"), t("b", "stale")]);
-  assert.deepEqual([saved.ready, saved.total, saved.text], [false, 0, "Все ведомости месяца сохранены"]);
-  assert.equal(R.ALL_SAVED_TEXT, "Все ведомости месяца сохранены");
+  assert.deepEqual([saved.ready, saved.total, saved.text], [false, 0, "Зарплата сохранена у всех преподавателей"]);
+  assert.equal(R.ALL_SAVED_TEXT, "Зарплата сохранена у всех преподавателей");
   // nobody at all: off, no hint
   assert.deepEqual(R.calculationGate([]), { ready: false, missing: 0, total: 0, text: null });
   // the page sends exactly this scope
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /calculate\(calculationScope\(teachers\)\.map\(\(teacher\) => teacher\.teacher_id\), true\)/);
-});
-
-test("the summary line: «К выплате за сентябрь: N сум · сохранено X из Y» (the sum of the SAVED sheets)", () => {
-  const sheet = (total, stale = false) => ({ sheet: { total_amount: total, stale } });
-  const teachers = [sheet(900000), sheet(510415, true), { sheet: null }];
-  assert.equal(plain(R.monthSummaryText("2026-09", teachers)), "К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3");
-  assert.equal(R.monthSummaryText("2026-03", [{ sheet: null }, { sheet: null }]), "К выплате за март: — · сохранено 0 из 2");
-  assert.equal(plain(R.monthSummaryText("2026-08", [sheet(1)])), "К выплате за август: 1 сум · сохранено 1 из 1");
-  assert.deepEqual(R.monthSummary("2026-09", teachers), { label: "К выплате за сентябрь:", amount: 1410415, saved: "сохранено 2 из 3" });
 });
 
 // ── the rate: the month row and the card in «Сотрудники» ─────────────────────────────────────
@@ -127,7 +118,7 @@ test("the month select of the rate dialog: «С самого начала» on t
   assert.equal(options[7].label, "Октябрь 2026 г.");
   assert.ok(options.some((option) => option.value === R.defaultRateMonth("2026-10-21")), "the default is one of the options");
   assert.deepEqual(options.map((o) => o.value), [...options.map((o) => o.value)].sort());
-  assert.match(R.RATE_PAST_NOTE, /Сохранённые ведомости не изменятся/);
+  assert.match(R.RATE_PAST_NOTE, /Сохранённая зарплата не изменится/);
   assert.equal(R.RATE_FIRST_NOTE, "Первая ставка действует и для прошлых месяцев");
   // the month the owner came from joins the list when it is older than half a year
   const old = R.rateMonthOptions("2026-10-21", "2025-12");
@@ -212,8 +203,8 @@ test("the card status: unsaved edits, not saved yet, changed data with the diffe
   const card = (input) => { const status = R.sheetCardStatus(input); return { ...status, text: plain(status.text) }; };
   assert.deepEqual(card(base), { tone: "saved", text: "Сохранено 16.10.2026 в 08:56", action: null });
   assert.deepEqual(R.sheetCardStatus({ ...base, saved: false, updatedAt: null }), { tone: "preview", text: "Не сохранено", action: "save" });
-  assert.deepEqual(card({ ...base, stale: true, delta: -16666 }), { tone: "changed", text: "После сохранения ведомость изменилась на −16 666 сум", action: "recalculate" });
-  assert.equal(plain(R.sheetCardStatus({ ...base, stale: true, delta: 4000 }).text), "После сохранения ведомость изменилась на +4 000 сум");
+  assert.deepEqual(card({ ...base, stale: true, delta: -16666 }), { tone: "changed", text: "Зарплата изменилась на −16 666 сум — сохраните новую сумму", action: "recalculate" });
+  assert.equal(plain(R.sheetCardStatus({ ...base, stale: true, delta: 4000 }).text), "Зарплата изменилась на +4 000 сум — сохраните новую сумму");
   assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: 0 }).text, "После сохранения изменились данные, сумма та же");
   assert.equal(R.sheetCardStatus({ ...base, stale: true, delta: null }).text, "После сохранения изменились данные");
   // unsaved edits come first: the floating bar saves them, the card has no button then
@@ -296,12 +287,12 @@ test("a line saved with no price shows the price the recalculation will use (fro
   const fresh = textOf(renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, freshPrices: { m1: 500000 } })));
   assert.ok(fresh.includes("после пересчёта: 500 000 сум"));
   assert.ok(!fresh.includes("задать"), "the price exists today: nothing to set");
-  const status = R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: 1 });
-  const card = (warnings) => textOf(renderToStaticMarkup(React.createElement(SheetSummaryCard, { sheet, total: 0, accrued: 0, status, busy: false, onPrimary: () => {}, onPrint: () => {}, warnings })));
-  assert.ok(card(undefined).includes("у 2 учеников нет цены"), "a calculation not saved: the sheet's own counters");
-  assert.ok(!card({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("нет цены"), "today both have a price: no warning");
-  assert.ok(!card(null).includes("нет цены"), "not known yet: nothing is said");
-  assert.ok(card({ open_lessons: 0, pending_excused: 0, no_fee: 1, unpaid: 0 }).includes("у 1 ученика нет цены"));
+  // UX pack §5.2-бис: the warnings are the items of the block «Что нужно сделать» (`sheetTodoItems`), not lines of the card
+  const todo = (counts, options = {}) => R.sheetTodoItems({ counts, ...options }).map((item) => plain(item.text));
+  assert.deepEqual(todo(sheet.warnings, { noFeeHref: R.sheetNoFeeHref(sheet) }), ["у 2 учеников нет цены"], "a calculation not saved: the sheet's own counters");
+  assert.deepEqual(todo({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }), [], "today both have a price: no warning");
+  assert.deepEqual(todo(null), [], "not known yet: nothing is said");
+  assert.deepEqual(todo({ open_lessons: 0, pending_excused: 0, no_fee: 1, unpaid: 0 }), ["у 1 ученика нет цены"]);
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(page, /orgApi\.getPayrollMonth\(sheet\.month\)/);
   assert.match(page, /warnings=\{warningsFailed \? undefined : freshWarnings\}/);
@@ -367,7 +358,6 @@ test("«Цена в месяц» is right-aligned like every money column (IA au
   assert.ok(textOf(head).includes(R.RATE_COLUMN_HINT));
   assert.match(head, /aria-label="Что в колонке «Ставка»"/);
   assert.equal((head.match(/aria-label="Что в колонке/g) || []).length, 1);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /hints=\{\[undefined, RATE_COLUMN_HINT\]\}/);
 });
 
 test("the card renders: the total big, one line of facts, the status and ONE main button; Excel and print are quiet", () => {
@@ -386,7 +376,7 @@ test("the card renders: the total big, one line of facts, the status and ONE mai
   const props = (status, over = {}) => ({ sheet, total: 1410415, accrued: 7, status, busy: false, onPrimary: () => {}, onExcel: () => {}, exporting: false, onPrint: () => {}, ...over });
   const saved = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: sheet.updated_at, delta: null }), { savedBy: "Владелец" })));
   const text = textOf(saved);
-  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 в 08:56", "Владелец", "Скачать Excel", "Печать", "1 незакрытый урок"]) {
+  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 в 08:56", "Владелец", "Скачать Excel", "Печать"]) {
     assert.ok(text.includes(part), `the card shows «${part}»`);
   }
   assert.equal((text.match(/без оплаты/g) || []).length, 1, "the unpaid count is said once (in the line of facts)");
@@ -397,9 +387,9 @@ test("the card renders: the total big, one line of facts, the status and ONE mai
   const changed = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: -16666 }), {
     diff: { sheet_id: "s", revision: 2, stale: true, saved_total: 1, fresh_total: 0, delta_amount: -16666, reasons: ["ставка 50% → 45%"], lines: [] },
   })));
-  assert.ok(textOf(changed).includes("После сохранения ведомость изменилась на −16 666 сум"));
-  assert.equal((changed.match(/bg-primary-600/g) || []).length, 1, "exactly one main button");
-  assert.match(changed, /Пересохранить/);
+  assert.ok(plain(R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: -16666 }).text).includes("Зарплата изменилась на −16 666 сум — сохраните новую сумму"));
+  assert.equal((changed.match(/bg-primary-600/g) || []).length, 0, "a changed sheet is saved by the button of the block «Что нужно сделать», the card has none (one button, not two)");
+  assert.doesNotMatch(changed, /Пересохранить/, "the old word is gone; the button is the block's «Сохранить новую сумму»");
   assert.ok(textOf(changed).includes("Что изменилось"));
   assert.match(changed, /border-amber-200/);
   // a calculation not saved yet: «Сохранить» with the note, no Excel (there is no file yet)

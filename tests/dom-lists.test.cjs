@@ -63,7 +63,7 @@ test("item 14 / n7: the decided lessons of the month; «Отменить реш�
   const label = await page.getAttribute('[data-testid="decided-undo"]', "aria-label");
   assert.match(label, /Отменить решение: 7-А Алгебра, 27\.10\.2026/, "a date a screen reader can read");
   assert.doesNotMatch(label, /2026-10-27/);
-  assert.match((await page.textContent('[data-testid="decided-by"]')).replace(/\s+/g, " "), /Оплачен преподавателю · решил Арслан · 28\.10\.2026 09:30/);
+  assert.match((await page.textContent('[data-testid="decided-by"]')).replace(/\s+/g, " "), /Включён в зарплату · решил Арслан · 28\.10\.2026 09:30/);
   await page.click('[data-testid="decided-undo"]');
   await page.click('[data-testid="undo-decision-submit"]');
   await page.waitForFunction(() => window.__log.includes("changed"));

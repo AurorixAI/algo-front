@@ -390,7 +390,7 @@ export function emptyPauseValues(today: string): PauseFormValues {
  * Money-1 A1: a pause may start in the past as long as the month of the teacher of the group is not closed by a saved sheet (the server judges: 422 `PAUSE_LOCKED` with the month and the
  * teacher).  It used to be «не больше 30 дней» - a rule of its own; the closed month is now the one rule of every action with the past.
  */
-export const PAUSE_BACKDATE_HINT = "Задним числом можно, пока месяц преподавателя не закрыт ведомостью";
+export const PAUSE_BACKDATE_HINT = "Задним числом можно, пока месяц не закрыт";
 
 /** Number of days of a pause, both ends included (0 for a broken range). */
 export function pauseDays(first: string, last: string): number {
@@ -444,7 +444,7 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));
   const changed = saved.payroll?.saved_sheets_changed ?? 0;
   if (changed > 0) {
-    out.push(`Ведомость за ${arr<string>(saved.payroll?.months).map(monthWordShort).join(", ") || "месяц"} покажет «Есть изменения»`);
+    out.push(`Зарплата за ${arr<string>(saved.payroll?.months).map(monthWordShort).join(", ") || "месяц"} изменится — потом сохраните новую сумму`);
   }
   return out;
 }
@@ -744,7 +744,7 @@ export function lostDaysOf(item: Pick<PriceImpactItem, "paid_until_before" | "pa
 
 /**
  * The block «Что изменится» of the price dialogs: «С этого дня у 2 учеников появится долг: 140 000 сум.» · «У 1 ученика аванс купит
- * меньше дней: оплачено до сдвинется на 2 дня.» · «Ведомости, которые покажут «Есть изменения»: 2».
+ * меньше дней: оплачено до сдвинется на 2 дня.» · «Изменится сохранённая зарплата: 2».
  */
 export function priceMoneyLines(money: PriceImpactMoney | null | undefined, staleSheets = 0): string[] {
   const out: string[] = [];
@@ -759,7 +759,7 @@ export function priceMoneyLines(money: PriceImpactMoney | null | undefined, stal
       if (money.advance_delta < 0) out.push(`Аванс уменьшится на ${formatMoney(-money.advance_delta)}.`);
     }
   }
-  if (staleSheets > 0) out.push(`Ведомости, которые покажут «Есть изменения»: ${staleSheets}`);
+  if (staleSheets > 0) out.push(`Изменится сохранённая зарплата: ${staleSheets}`);
   return out;
 }
 

@@ -34,15 +34,24 @@ test("the rate cell: short lines one under the other, no «·»; «Индив.»
   assert.ok(!lines({ group: "50", individual: "60" }).lines.join("").includes("·"));
 });
 
-test("the status chip of a row says the change after the saving ONCE: «Изменилась на +75 834 сум»; the plain «Есть изменения» only when the sum did not move or cannot be counted", () => {
+test("the status of a row is ONE chip by priority: «Требует действия · N» (the items - the changed salary among them) / «Не рассчитано» / «Сохранено 05.11»", () => {
   const sheet = (stale) => ({ id: "s", revision: 1, total_amount: 1, stale, updated_at: "2026-11-05T05:00:00" });
   const payout = (over = {}) => ({ fresh_total: 75834, changed_by: 75834, ...over });
-  assert.equal(plain(R.rowStatus({ sheet: sheet(true), payout: payout() }).label), "Изменилась на +75 834 сум");
-  assert.equal(plain(R.rowStatus({ sheet: sheet(true), payout: payout({ changed_by: -45000 }) }).label), "Изменилась на −45 000 сум");
-  assert.equal(R.rowStatus({ sheet: sheet(true), payout: payout() }).tone, "changed");
-  assert.equal(R.rowStatus({ sheet: sheet(true), payout: payout({ changed_by: 0 }) }).label, "Есть изменения");
-  assert.equal(R.rowStatus({ sheet: sheet(true), payout: payout({ fresh_total: null }) }).label, "Есть изменения", "the fresh total cannot be counted: the sum is not claimed");
-  assert.equal(R.rowStatus({ sheet: sheet(true), payout: null }).label, "Есть изменения", "an older answer");
-  assert.equal(R.rowStatus({ sheet: sheet(false), payout: payout() }).label, "Сохранено 05.11", "not stale: the saved chip, whatever the payout says");
-  assert.equal(R.rowStatus({ sheet: null, payout: null }).label, "Не рассчитано");
+  const row = (over) => ({ warnings: WARN(), undecided_lessons: 0, sheet: sheet(false), payout: payout(), ...over });
+  const moved = R.rowStatus(row({ sheet: sheet(true) }));
+  assert.deepEqual([moved.tone, moved.label], ["todo", "Требует действия · 1"]);
+  assert.equal(plain(moved.items[0].text), "Зарплата изменилась на +75 834 сум — сохраните новую сумму");
+  assert.equal(moved.items[0].key, "changed");
+  assert.equal(plain(R.rowStatus(row({ sheet: sheet(true), payout: payout({ changed_by: -45000 }) })).items[0].text), "Зарплата изменилась на −45 000 сум — сохраните новую сумму");
+  // the data moved but the sum did not (or cannot be counted): still an item, said without a sum
+  for (const over of [{ payout: payout({ changed_by: 0 }) }, { payout: payout({ fresh_total: null }) }, { payout: null }]) {
+    assert.equal(R.rowStatus(row({ sheet: sheet(true), ...over })).items[0].text, "Данные изменились — проверьте и сохраните новую сумму");
+  }
+  // priority: what needs an action wins over «Не рассчитано» and «Сохранено»; every kind of item counts
+  const busy = R.rowStatus(row({ sheet: sheet(true), warnings: WARN({ open_lessons: 1 }), undecided_lessons: 2 }));
+  assert.equal(busy.label, "Требует действия · 3");
+  assert.deepEqual(busy.items.map((item) => item.button), ["Отметить", "Решить", "Сохранить новую сумму"]);
+  assert.equal(R.rowStatus(row({ sheet: null, payout: null, warnings: WARN({ open_lessons: 1 }) })).label, "Требует действия · 1", "also a teacher with nothing saved");
+  assert.deepEqual([R.rowStatus(row({ sheet: null, payout: null })).tone, R.rowStatus(row({ sheet: null, payout: null })).label], ["none", "Не рассчитано"]);
+  assert.deepEqual([R.rowStatus(row()).tone, R.rowStatus(row()).label], ["saved", "Сохранено 05.11"]);
 });

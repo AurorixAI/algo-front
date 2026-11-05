@@ -1,26 +1,28 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatDateRu } from "@/lib/business-time";
+import { formatWeekdayDate } from "@/lib/business-time";
 import { useDialogAction } from "@/lib/use-dialog-action";
-import { DECISION_UNDO_NO_SHEET_TEXT, oneOffRefusalText, UNDO_DECISION_BUTTON, UNDO_DECISION_NOTE, UNDO_DECISION_TITLE, type MoneyDecisionOut, type OneOffMoney } from "@/lib/one-off";
-import { effectsAllowConfirm } from "@/lib/money-preview";
+import { DECISION_UNDO_NO_SHEET_TEXT, oneOffRefusalText, UNDO_DECISION_BUTTON, UNDO_DECISION_NOTE, undoDecisionTitle, type MoneyDecisionOut, type OneOffMoney } from "@/lib/one-off";
+import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { DialogError } from "@/components/money/dialog-error";
 
 export interface UndoDecisionTarget {
   lessonId: string;
   /** `YYYY-MM-DD` */
   lessonDate: string;
-  /** What was decided: `paid` (it is paid to the teacher) / `none` (without pay). */
+  /** What was decided: `paid` (it is in the pay of the teacher) / `none` (left out of it). */
   money: OneOffMoney | null | undefined;
+  /** «Эргашев К.» - the title names whose pay it leaves («Исключить урок из зарплаты Эргашева К.?»). */
+  teacherName?: string | null;
 }
 
 /**
- * Money-1 A3 (ЗП-07): «Отменить решение об оплате» of an additional lesson - the lesson waits for «Оплатить / Не оплачивать» again.  Possible while the month of the teacher is open
+ * Money-1 A3 (ЗП-07): «Отменить решение» of an additional lesson - the lesson waits for «Включить в зарплату / Не включать» again.  Possible while the month of the teacher is open
  * (otherwise the sentence of the server and «Переоткрыть месяц» for who may).  No reason is asked: both decisions stay in the audit.  D-5 of the walk of 05.11: the window says before the
  * press what it does to the saved sheet (the dry run), and a closed month blocks the button at once.
  */
@@ -46,31 +48,28 @@ export function UndoDecisionDialog({
   return (
     <Modal
       open={target !== null}
-      title={UNDO_DECISION_TITLE}
-      description={target ? `Дополнительный урок ${formatDateRu(target.lessonDate).slice(0, 5)}` : undefined}
+      title={undoDecisionTitle(target?.money, target?.teacherName)}
+      description={target ? `Дополнительный урок · ${formatWeekdayDate(target.lessonDate)}` : undefined}
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
       maxWidthClassName="max-w-md"
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="button"
-            data-testid="undo-decision-submit"
-            onClick={() => void submit()}
-            disabled={busy || !ready}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {UNDO_DECISION_BUTTON}
-          </button>
-        </>
+        <ConfirmFooter
+          primary={UNDO_DECISION_BUTTON}
+          onPrimary={() => void submit()}
+          testId="undo-decision-submit"
+          disabled={!ready}
+          busy={busy}
+          why={effectsWhyOff(preview)}
+          onCancel={onClose}
+        />
       )}
     >
       <div className="space-y-2 pb-2 text-sm leading-6 text-slate-700">
         <p>{UNDO_DECISION_NOTE}</p>
-        <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={target?.money === "paid" ? DECISION_UNDO_NO_SHEET_TEXT : undefined} aboveLessonPanel={aboveLessonPanel} />
+        <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={target?.money === "paid" ? DECISION_UNDO_NO_SHEET_TEXT : undefined} aboveLessonPanel={aboveLessonPanel} withPaid closedPurpose="decision" />
         <DialogError error={error} closed={closed} text={(failure) => oneOffRefusalText(failure, "Не удалось отменить решение. Данные не изменены.")} onReopened={() => { setError(null); retry(); }} aboveLessonPanel={aboveLessonPanel} />
       </div>
     </Modal>

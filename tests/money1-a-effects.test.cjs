@@ -58,7 +58,7 @@ test("the lines BEFORE the action: the packs by name; the pay of the teachers by
   const owner = say(OWNER_DRY.payroll, {}, OWNER_DRY.students);
   assert.deepEqual(words(owner), ["Иванов Иван: занятие вернётся в пакет", "Петрова Мария: занятие вернётся в пакет", "Изменится зарплата за октябрь — Каримова К."], "the sum of the sheet is not known: the month and who");
   const admin = words(say(ADMIN_DRY.payroll, {}, ADMIN_DRY.students));
-  assert.equal(admin[2], "Изменится зарплата за октябрь — 1 преподаватель.");          // LESSONS 45: the teacher of a sheet is the owner's
+  assert.equal(admin[2], "Изменится зарплата за октябрь — 1 преподаватель. Суммы видит владелец.");          // LESSONS 45: the teacher of a sheet is the owner's
   assert.ok(!admin.join(" ").includes("Каримова") && !/сум/.test(admin[2]));
   const spent = E.effectLines(E.normalizeMoneyEffects({ students: [{ studentId: "s", name: "Сидоров", delta: -1 }], payroll: [] }));
   assert.equal(spent[0].text, "Сидоров: занятие спишется из пакета");
@@ -69,14 +69,14 @@ test("UX round: a payment that raises the pay of two teachers of a CLOSED month 
   assert.equal(lines.length, 1);
   assert.equal(plain(lines[0].text), "Зарплата за сентябрь вырастет:");
   assert.deepEqual(lines[0].items.map(plain), ["Эргашев К. — +133 333 сум (было 860 000, станет 993 333)", "Мирзаева Л. — +13 333 сум (было 36 666, станет 49 999)"]);
-  assert.equal(plain(lines[0].note), "Сентябрь уже закрыт: после сохранения в ведомостях появится «изменилась на …» — пересохраните их, чтобы выплатить разницу.");
+  assert.equal(plain(lines[0].note), "Сентябрь закрыт: сохраните новые суммы, чтобы они вошли в выплату.");
   assert.equal(lines[0].tone, "warn");
   assert.ok(!/месяц закрыт ведомостью/.test(words(lines).join(" ")), "no jargon");
 });
 
 test("UX round: one teacher - «в ведомости … пересохраните её»; the pay goes DOWN - «уменьшится», the sign is −; a month that is open has no sentence of what to do and is not amber", () => {
   const one = say([sheetLine({})]);
-  assert.equal(plain(one[0].note), "Сентябрь уже закрыт: после сохранения в ведомости появится «изменилась на …» — пересохраните её, чтобы выплатить разницу.");
+  assert.equal(plain(one[0].note), "Сентябрь закрыт: сохраните новую сумму, чтобы она вошла в выплату.");
   const down = say([sheetLine({ freshBefore: 993333, freshAfter: 860000, changedBy: -133333, driftAfter: -133333 })]);
   assert.equal(plain(down[0].text), "Зарплата за сентябрь уменьшится:");
   assert.equal(plain(down[0].items[0]), "Эргашев К. — −133 333 сум (было 993 333, станет 860 000)");
@@ -93,27 +93,27 @@ test("UX round: one teacher - «в ведомости … пересохрани
 test("UX round: several months - one group per month in the order of the calendar; the year only when it is not this year", () => {
   const lines = say([sheetLine({ month: "2026-10", state: "open" }), sheetLine({}), sheetLine({ month: "2025-12", state: "open" })]);
   assert.deepEqual(lines.map((line) => plain(line.text)), ["Зарплата за декабрь 2025 вырастет:", "Зарплата за сентябрь вырастет:", "Зарплата за октябрь вырастет:"]);
-  assert.deepEqual(lines.map((line) => line.note ? plain(line.note).slice(0, 18) : null), [null, "Сентябрь уже закры", null]);
-  assert.equal(plain(say([sheetLine({ month: "2025-12", state: "closed" })])[0].note).slice(0, 25), "Декабрь 2025 уже закрыт: ");
+  assert.deepEqual(lines.map((line) => line.note ? plain(line.note).slice(0, 18) : null), [null, "Сентябрь закрыт: с", null]);
+  assert.equal(plain(say([sheetLine({ month: "2025-12", state: "closed" })])[0].note).slice(0, 25), "Декабрь 2025 закрыт: сохр");
 });
 
 test("UX round: an administrator with the right - the month and how many, no names, no sums; a closed month says that the OWNER saves the sheets again", () => {
   const two = say([{ month: "2026-09", state: "closed" }, { month: "2026-09", state: "closed" }]);
-  assert.deepEqual(words(two), ["Изменится зарплата за сентябрь — 2 преподавателя.", "Сентябрь уже закрыт: после сохранения в ведомостях появится «изменилась на …» — владельцу нужно пересохранить их."]);
+  assert.deepEqual(words(two), ["Изменится зарплата за сентябрь — 2 преподавателя. Суммы видит владелец.", "Сентябрь закрыт: владелец сохранит новые суммы."]);
   assert.equal(two[0].tone, "warn");
   const five = say(Array.from({ length: 5 }, () => ({ month: "2026-09", state: "open" })));
-  assert.deepEqual(words(five), ["Изменится зарплата за сентябрь — 5 преподавателей."]);
+  assert.deepEqual(words(five), ["Изменится зарплата за сентябрь — 5 преподавателей. Суммы видит владелец."]);
   assert.equal(five[0].tone, "plain");
   assert.ok(!/пересохраните/.test(words(two).join(" ")), "the administrator does not save the sheets: they are the owner's");
   const done = say([{ month: "2026-09", state: "closed" }], { done: true });
-  assert.equal(plain(done[0].text), "Изменилась зарплата за сентябрь — 1 преподаватель.");
+  assert.equal(plain(done[0].text), "Изменилась зарплата за сентябрь — 1 преподаватель. Суммы видит владелец.");
 });
 
 test("UX round: AFTER the action - the same words in the past tense; a sheet that is as saved again says so and asks nothing; an action that did not move a sheet has no line", () => {
   const done = say([sheetLine({ changedBy: 125000, freshBefore: 475000, freshAfter: 600000, driftAfter: 125000 })], { done: true });
   assert.equal(plain(done[0].text), "Зарплата за сентябрь выросла:");
   assert.equal(plain(done[0].items[0]), "Эргашев К. — +125 000 сум (было 475 000, стало 600 000)");
-  assert.equal(plain(done[0].note), "Сентябрь закрыт: в ведомости появилось «изменилась на …» — пересохраните её, чтобы выплатить разницу.");
+  assert.equal(plain(done[0].note), "Сентябрь закрыт: сохраните новую сумму, чтобы она вошла в выплату.");
   const down = say([sheetLine({ changedBy: -50000, freshBefore: 475000, freshAfter: 425000, driftAfter: -50000, state: "open" })], { done: true });
   assert.equal(plain(down[0].text), "Зарплата за сентябрь уменьшилась:");
   // N-4: a cancelled payment took back what had moved the sheet - it is as saved again, so nothing to save and no amber
@@ -124,7 +124,7 @@ test("UX round: AFTER the action - the same words in the past tense; a sheet tha
   assert.ok(!/пересохраните|\+0/.test(words(back).join(" ")));
   // one back to saved, one not: the sentence is for the one that is not
   const mixed = say([sheetLine({ changedBy: -133333, driftAfter: 0 }), SECOND({ driftAfter: 5000 })], { done: true });
-  assert.match(plain(mixed[0].note), /в ведомости появилось[^]*пересохраните её/);
+  assert.match(plain(mixed[0].note), /Сентябрь закрыт: сохраните новые суммы|Сентябрь закрыт: сохраните новую сумму/);
   assert.equal(say([sheetLine({ changedBy: 0, driftAfter: 0 })], { done: true }).length, 0, "the sheet did not move: no line");
   assert.equal(E.toastWithEffects({ moneyEffects: { students: [], payroll: [sheetLine({ changedBy: -133333, driftAfter: 0 })], dryRun: false } }).tone, "success", "nothing to do: not amber");
   // no sums known (an older answer): the sign only
@@ -140,7 +140,7 @@ test("UX round: the window and the toast are ONE function - the toast carries ev
   assert.equal(texts[1], "Иванов Иван: занятие вернули в пакет");
   assert.ok(texts.includes("Зарплата за сентябрь выросла:"));
   assert.ok(texts.some((line) => line.startsWith("Эргашев К. — +133 333 сум (было 860 000, стало 993 333)")));
-  assert.ok(texts.some((line) => line.startsWith("Сентябрь закрыт: в ведомостях появилось")));
+  assert.ok(texts.some((line) => line.startsWith("Сентябрь закрыт: сохраните новые суммы")));
   assert.deepEqual(texts.slice(1), E.effectLineTexts(E.effectLines(E.moneyEffectsOf(answer), { done: true })).map(plain), "the window's function, in the past tense, is the toast");
 });
 
@@ -160,7 +160,7 @@ test("R3 #15/#27: the numbers could not be counted (`unavailable: true`) is one 
   assert.equal(lines.length, 1);
   assert.equal(lines[0].tone, "warn");
   assert.match(plain(lines[0].text), /^Последствия для денег не удалось посчитать\. Действие можно выполнить/);
-  assert.match(plain(E.effectLines(block, { done: true })[0].text), /Действие выполнено; проверьте ведомости/);
+  assert.match(plain(E.effectLines(block, { done: true })[0].text), /Действие выполнено; проверьте зарплату/);
 });
 
 test("toast: the lines of the window in the past tense; amber ONLY when something has to be done (a closed month), a plain toast for an ordinary change; the lines that were there stay first", () => {
@@ -229,7 +229,7 @@ test("the state of the month: closed has the way out, reopened says what to do n
   assert.match(closed.hint, /03\.11\.2026/);
   const reopened = CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: { at: "2026-11-05T09:00:00", by: "Арслан", reason: "ошибка" } });
   assert.deepEqual([reopened.tone, reopened.label, reopened.canReopen], ["reopened", "Месяц переоткрыт", false]);
-  assert.match(reopened.hint, /сохраните ведомость — месяц закроется снова/);
+  assert.match(reopened.hint, /нажмите «Сохранить и закрыть месяц» — месяц закроется снова/);
   assert.match(reopened.hint, /Арслан/);
   const open = CP.periodView({ state: "open", closedOn: null, reopened: null });
   assert.deepEqual([open.tone, open.label, open.canReopen], ["open", "Месяц открыт", false]);
@@ -268,7 +268,7 @@ test("the reopening: a reason of 3..500, the body, the toast of a repeat, the wo
     const sentence = Object.assign(new Error(`Слова сервера: ${code}`), { code });
     assert.equal(CP.reopenErrorText(sentence), `Слова сервера: ${code}`);
   }
-  assert.equal(CP.reopenErrorText({ code: "SHEET_NOT_FOUND" }), "Ведомости за этот месяц нет: переоткрывать нечего");
+  assert.equal(CP.reopenErrorText({ code: "SHEET_NOT_FOUND" }), "Зарплата за этот месяц не сохранена: переоткрывать нечего");
   assert.equal(CP.reopenErrorText(new Error("Сервер недоступен")), "Сервер недоступен");
   assert.equal(CP.reopenErrorText(null), "Не удалось переоткрыть месяц. Данные не изменены.");
   assert.equal(plain(CP.reopenDescription("Каримова К.", "2026-10")), "Каримова К. · октябрь 2026");

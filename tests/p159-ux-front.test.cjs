@@ -1,5 +1,5 @@
 // #159 U1-U5, front: the screen «Замены» by the remarks of the owner of 29.10 - the deadline («Срок») in ONE function, the line of the requests that close on the 1st in plain
-// words, the comment of a teacher is a mark (not text) in the row, the payments are a section of the table under the requests with «Просит оплатить» only when the asker did not hold the lesson.
+// words, the comment of a teacher is a mark (not text) in the row, the payments are a section of the table under the requests with «Просит включить в зарплату» only when the asker did not hold the lesson.
 // Spec: artifacts/analysis/P159_SPEC.md, section U; LESSONS 17, 46, 50, 52, 55, 56.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -145,38 +145,38 @@ const decision = (over = {}) => ({
   teacher: { id: "t1", name: "Рахимов Т." }, createdBy: { id: "t1", name: "Рахимов Т.", role: "teacher" }, studentsPresent: 2, studentsTotal: 3, payrollSheet: null, ...over,
 });
 
-test("U4: «Просит оплатить» only when the one who asked is not the one who held the lesson", () => {
+test("U4: «Просит включить в зарплату» only when the one who asked is not the one who held the lesson", () => {
   assert.equal(O.decisionAskedLine(decision()), null, "the teacher asked for his own lesson");
-  assert.equal(O.decisionAskedLine(decision({ createdBy: { id: "a1", name: "Каримова Д.", role: "admin" } })), "Просит оплатить: Каримова Д.", "an administrator asked for the lesson of a teacher");
-  assert.equal(O.decisionAskedLine(decision({ createdBy: { id: "t2", name: "Петров Б.", role: "teacher" } })), "Просит оплатить: Петров Б.", "another teacher");
+  assert.equal(O.decisionAskedLine(decision({ createdBy: { id: "a1", name: "Каримова Д.", role: "admin" } })), "Просит включить в зарплату: Каримова Д.", "an administrator asked for the lesson of a teacher");
+  assert.equal(O.decisionAskedLine(decision({ createdBy: { id: "t2", name: "Петров Б.", role: "teacher" } })), "Просит включить в зарплату: Петров Б.", "another teacher");
   assert.equal(O.decisionAskedLine(decision({ createdBy: { id: "u", name: "Тестов О.", role: "owner" } })), null, "the owner decides: he does not ask");
   assert.equal(O.decisionAskedLine(decision({ createdBy: null })), null);
   assert.equal(O.decisionAskedLine(decision({ purpose: "makeup" })), null);
   // no ids on a side: the names say who is who; nothing is guessed from a missing id
   assert.equal(O.decisionAskedLine(decision({ createdBy: { name: "Рахимов Т.", role: "teacher" }, teacher: { name: "Рахимов Т." } })), null);
-  assert.equal(O.decisionAskedLine(decision({ createdBy: { name: "Иванов А.", role: "teacher" }, teacher: { name: "Рахимов Т." } })), "Просит оплатить: Иванов А.");
-  assert.equal(O.decisionAskedLine(decision({ teacher: null })), "Просит оплатить: Рахимов Т.", "nobody is named as the one who held it: the asker is shown");
+  assert.equal(O.decisionAskedLine(decision({ createdBy: { name: "Иванов А.", role: "teacher" }, teacher: { name: "Рахимов Т." } })), "Просит включить в зарплату: Иванов А.");
+  assert.equal(O.decisionAskedLine(decision({ teacher: null })), "Просит включить в зарплату: Рахимов Т.", "nobody is named as the one who held it: the asker is shown");
 });
 
-test("U4: «провёл Фамилия И. · были 2 из 3» - the verb agrees with the number", () => {
-  assert.equal(O.decisionWhoLine(decision()), "провёл Рахимов Т. · были 2 из 3");
-  assert.equal(O.presentLine(1, 10), "был 1 из 10");
-  assert.equal(O.presentLine(0, 10), "были 0 из 10");
-  assert.equal(O.presentLine(2, 3), "были 2 из 3");
-  assert.equal(O.presentLine(11, 15), "были 11 из 15");
-  assert.equal(O.presentLine(21, 25), "был 21 из 25");
-  assert.equal(O.presentLine(5, 5), "были 5 из 5");
+test("U4: «провёл Фамилия И. · пришли 2 из 3» - the verb agrees with the number", () => {
+  assert.equal(O.decisionWhoLine(decision()), "провёл Рахимов Т. · пришли 2 из 3");
+  assert.equal(O.presentLine(1, 10), "пришёл 1 из 10");
+  assert.equal(O.presentLine(0, 10), "пришли 0 из 10");
+  assert.equal(O.presentLine(2, 3), "пришли 2 из 3");
+  assert.equal(O.presentLine(11, 15), "пришли 11 из 15");
+  assert.equal(O.presentLine(21, 25), "пришёл 21 из 25");
+  assert.equal(O.presentLine(5, 5), "пришли 5 из 5");
 });
 
 test("U4: the section «Оплата дополнительных уроков · N» - one table section, the question is not repeated in a row; the admin without the right gets ONE collapsed row", () => {
-  assert.equal(O.DECISIONS_GROUP_TITLE, "Оплата дополнительных уроков");
+  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: включить в зарплату?");
   assert.equal(O.decisionsViewLine(1), "1 урок ждёт решения владельца");
   assert.equal(O.decisionsViewLine(2), "2 урока ждут решения владельца");
   assert.equal(O.decisionsViewLine(5), "5 уроков ждут решения владельца");
   assert.equal(O.decisionsViewLine(21), "21 урок ждёт решения владельца");
   const props = { loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} };
   const owner = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "b" })], canDecide: true, ...props }));
-  assert.match(text(owner), /Оплата дополнительных уроков · 2/);
+  assert.match(text(owner), /Дополнительные уроки: включить в зарплату\? · 2/);
   assert.equal((owner.match(/data-testid="one-off-decision-row"/g) || []).length, 2);
   assert.doesNotMatch(text(owner), /Дополнительный урок — оплатить преподавателю\?/);
   assert.doesNotMatch(owner, /bg-amber|border-amber/, "no yellow warning block");

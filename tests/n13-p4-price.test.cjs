@@ -191,10 +191,10 @@ test("saved payroll sheets that turn «данные изменились»: the 
       { sheet_id: "s2", month: "2026-10", teacher_id: "t2", teacher_name: null },
     ],
   });
-  assert.match(owner.text, /^Сохранённые ведомости зарплаты станут «данные изменились» \(2\)/);
+  assert.match(owner.text, /^Изменится сохранённая зарплата \(2\)/);
   assert.deepEqual(owner.items.map(plain), ["Иванова А. — сентябрь 2026", "преподаватель — октябрь 2026"]);
   const admin = G.staleSheetsText({ stale_payroll_sheets: 3, stale_sheets: [] });
-  assert.equal(admin.text, "Сохранённые ведомости зарплаты станут «данные изменились»: 3. Их надо будет пересчитать.");
+  assert.equal(admin.text, "Изменится сохранённая зарплата: 3. Новую сумму сохранит владелец.");
   assert.deepEqual(admin.items, []);
   // a long list is cut
   const many = Array.from({ length: 9 }, (_, i) => ({ sheet_id: `s${i}`, month: "2026-09", teacher_id: `t${i}`, teacher_name: `Учитель ${i}` }));
@@ -418,7 +418,7 @@ test("each status of a teacher's month has a short explanation", () => {
   const stale = H.statusHint({ revision: 3, stale: true });
   assert.match(stale, /версия 3/);
   assert.match(stale, /изменились посещаемость, оплаты, подтверждения пропусков, цены или ставка/);
-  assert.match(stale, /«Пересохранить»/);          // Money-1 A1b
+  assert.match(stale, /«Сохранить новую сумму»/);          // Money-1 A1b
   assert.equal(new Set([none, saved, stale]).size, 3);
   assert.deepEqual(H.savedRevisionLine(2).text, "Уже сохранена: версия 2. Новое сохранение создаст версию 3.");
   assert.match(H.savedRevisionLine(2).hint, /Прежняя версия останется в истории/);
@@ -648,17 +648,18 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, month: "2026-10", busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
   const html = render();
   const text = textOf(html);
-  assert.ok(text.includes("Есть изменения"), "the sum did not move (no payout state): the plain chip");
-  assert.ok(text.includes(H.statusHint(teacher.sheet))); // the explanation is read by a screen reader and shown on hover / tap
-  assert.ok(text.includes("12 уроков за месяц"));
+  assert.ok(text.includes("Требует действия · 3"), "ONE chip: an unfinished lesson, no price, and the data that moved after the saving (no payout state: «Данные изменились»)");
+  assert.ok(R.rowStatus({ ...teacher, undecided_lessons: 0 }).items.every((item) => item.hint), "every item says what it means");
+  assert.ok(text.includes("12 уроков"));
   assert.ok(text.includes("Группа 50%") && text.includes("Индив. 40%"), "the rate: short lines one under the other");
   assert.ok(!text.includes("Группа 50% · Индивидуально 40%"), "no «·» and no long names in the cell");
   assert.ok(text.includes("900 000 сум"));
   // UX round of the owner (05.11): under the name ONE line of what needs an ACTION, each one a link to where it is done; «N учеников не оплатили часть уроков» is a note - it is on the sheet
-  assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
-  assert.match(html, /href="\/owner\/payments\/prices"[^>]*>у 2 учеников нет цены</);
+  // UX pack §5.2-бис: those lines are the ITEMS of the one status chip (they open on hover, tap or focus), not an amber line under the name
+  const items = R.rowStatus({ ...teacher, undecided_lessons: 0 }).items;
+  assert.deepEqual(items.map((item) => [plain(item.text), item.href]), [["1 незакрытый урок", "/owner/attendance?tab=open"], ["у 2 учеников нет цены", "/owner/payments/prices"], ["Данные изменились — проверьте и сохраните новую сумму", "/owner/payroll/s1"]]);
   assert.doesNotMatch(html, /140 посещений|не оплатил|bucket=debt/, "the note is not in the list");
-  assert.equal((html.match(/data-testid="teacher-attention"/g) || []).length, 1, "one line");
+  assert.equal((html.match(/data-testid="teacher-attention"/g) || []).length, 0, "no amber line under the name");
   assert.equal((html.match(/<ul/g) || []).length, 0);
   // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»
   assert.doesNotMatch(html, /type="checkbox"|<input/);
@@ -671,7 +672,8 @@ test("the month list: a status chip with its explanation, warnings in one line w
   assert.match(saved, /aria-label="Открыть: Иванов Пётр"/);
   assert.doesNotMatch(saved, /teacher-attention/); // nothing to do, no line
   // a sheet that was never calculated
-  const fresh = textOf(render({ sheet: null }));
+  // (this teacher still has warnings, so the chip says what to do first; a clean one says «Не рассчитано» with its explanation)
+  const fresh = textOf(render({ sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } }));
   assert.ok(fresh.includes("Не рассчитано"));
   assert.ok(fresh.includes(H.statusHint(null)));
   assert.match(render({ sheet: null }), /aria-label="Рассчитать: Иванов Пётр"/);
@@ -686,9 +688,10 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const partial = textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] }));
   assert.ok(partial.includes("Группа 50%") && partial.includes("Индив. — нет ставки") && partial.includes("Указать"));
   // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
-  assert.match(html, /xl:text-center"[^>]*>\s*<span[^>]*xl:hidden">К выплате/);
-  assert.match(html, /xl:w-32/);
-  assert.doesNotMatch(html, /Действия: Иванов|aria-haspopup/);
+  // the three numbers are right-aligned in the table (UX pack §5.2), the status is centred, the button fills its cell (at least 40 px high)
+  assert.match(html, /xl:text-right" data-testid="teacher-sum"/);
+  assert.match(html, /min-h-\[40px\] w-full/);
+  assert.doesNotMatch(html, /Действия: Иванов/);
   // an action that is running disables the buttons of the others
   assert.match(render({}, true), /disabled=""/);
   // the formula with the example: the body of the dialog «Как считается зарплата» (UX-1 C: no accordion over the table any more)
@@ -770,8 +773,8 @@ test("no money for a teacher: the teacher screens never touch a price", () => {
 test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<StatusChip status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} \/>/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutTail\(teachers\)\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<RowStatus status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} name=\{teacher\.teacher_name \?\? ""\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary totals=\{totals\} month=\{month\} open=\{monthOpen\} \/>/);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
   assert.match(controls, /<Hint text=\{views\.map\(\(item\) => `\$\{item\.text\}\\n\$\{item\.hint\}`\)/);

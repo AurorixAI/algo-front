@@ -39,8 +39,11 @@ test("M1: «Переоткрыть месяц» inside the pause dialog reopens 
   await page.fill("#pause-last", `${last.slice(8, 10)}${last.slice(5, 7)}${last.slice(0, 4)}`);
   await page.waitForSelector('[data-testid="period-closed-reopen"]');
   await page.click('[data-testid="period-closed-reopen"]');
-  await page.waitForSelector("#reopen-month-reason");
-  await page.fill("#reopen-month-reason", "ошибочно отметили");
+  // UX pack №27: the reason and the confirmation are inside the block of the closed month (no window over the window; no form in the form), and the pause is still not sent
+  await page.waitForSelector("#reopen-inline-reason");
+  assert.equal(await page.locator('[role="dialog"] [role="dialog"]').count(), 0);
+  await page.fill("#reopen-inline-reason", "ошибочно отметили");
+  await page.keyboard.press("Enter");                                      // Enter in a textarea is a new line, never the submit of the pause form around it
   await page.waitForSelector('[data-testid="reopen-submit"]:not([disabled])');
   await page.click('[data-testid="reopen-submit"]');
   await page.waitForTimeout(400);

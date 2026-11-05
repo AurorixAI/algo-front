@@ -13,10 +13,19 @@ export interface ToastMessage {
   details?: string[];
 }
 
+/**
+ * UX pack, rule 4: a success is GREEN (white on emerald-700: 5.5:1), a failure red (white on red-600: 4.8:1); a warning is a light amber surface with dark amber text - an amber FILL with white text is
+ * not allowed (white on amber-600 is 3.2:1).
+ */
 const TONE: Record<ToastMessage["type"], string> = {
-  success: "bg-slate-900 text-white",
-  warning: "bg-amber-600 text-white",
+  success: "bg-emerald-700 text-white",
+  warning: "border border-amber-300 bg-amber-50 text-amber-950",
   error: "bg-red-600 text-white",
+};
+const CLOSE_HOVER: Record<ToastMessage["type"], string> = {
+  success: "hover:bg-white/20",
+  warning: "hover:bg-amber-200",
+  error: "hover:bg-white/20",
 };
 
 const HOST_ID = "toast-host";
@@ -83,7 +92,7 @@ export function useToast(): {
               <div className="min-w-0 flex-1">
                 <p>{toast.text}</p>
                 {toast.details && toast.details.length > 0 && (
-                  <ul className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 text-xs font-normal opacity-90 list-disc pl-4">
+                  <ul className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 text-xs font-normal list-disc pl-4">
                     {toast.details.map((line, index) => <li key={index}>{line}</li>)}
                   </ul>
                 )}
@@ -93,7 +102,7 @@ export function useToast(): {
                   type="button"
                   onClick={() => setToast(null)}
                   aria-label="Закрыть"
-                  className="shrink-0 rounded p-0.5 hover:bg-white/20"
+                  className={`shrink-0 rounded p-0.5 ${CLOSE_HOVER[toast.type]}`}
                 >
                   <X className="h-4 w-4" />
                 </button>

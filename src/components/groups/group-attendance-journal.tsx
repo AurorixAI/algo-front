@@ -113,8 +113,8 @@ import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
 import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
-import { toastWithEffects } from "@/lib/money-effects";
-import { UNDO_DECISION_LABEL, UNDO_DECISION_TOAST, canUndoDecision } from "@/lib/one-off";
+import { movedByOf, toastWithEffects } from "@/lib/money-effects";
+import { UNDO_DECISION_LABEL, canUndoDecision, undoToastText } from "@/lib/one-off";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 
@@ -1258,7 +1258,7 @@ export function GroupAttendanceJournal({
       return;
     }
     if (action === "undo_decision") {
-      setUndoTarget({ lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money });
+      setUndoTarget({ lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money, teacherName: attendanceData?.lessonTeachers?.[key]?.teacherName ?? null });
       return;
     }
     if (action === "return_review") {
@@ -2188,11 +2188,10 @@ export function GroupAttendanceJournal({
       <UndoDecisionDialog
         target={undoTarget}
         onClose={() => setUndoTarget(null)}
-        onDone={async (result) => {
+        onDone={async (result, done) => {
           setUndoTarget(null);
           await loadAttendanceRef.current(true);
-          const money = toastWithEffects(result);
-          showToast(UNDO_DECISION_TOAST, money.tone, money.details);
+          showToast(undoToastText(done.money, done.teacherName, movedByOf(result)), "success");
         }}
       />
       {/* Money-1 A6: «Отметить посещаемость» of a lesson formalised afterwards - WHO taught it */}

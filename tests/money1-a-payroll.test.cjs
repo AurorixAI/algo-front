@@ -37,10 +37,14 @@ test("the card of a calculation not saved yet says it; the card of a saved sheet
   signIn({ org_role: "owner" });
   const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
   const card = (props) => textOf(html(React.createElement(SheetSummaryCard, { total: 0, accrued: 0, status: R.sheetCardStatus({ saved: false, stale: null, dirty: false, updatedAt: null, delta: null }), busy: false, onPrimary() {}, onPrint() {}, ...props })));
-  assert.ok(card({ sheet: sheet({ id: null, saved: false }) }).includes("Не удалось проверить незакрытые уроки"), "a preview: null = the check failed");
-  assert.ok(!card({ sheet: sheet() }).includes("Не удалось проверить"), "a saved sheet: null = not looked up");
-  assert.ok(card({ sheet: sheet(), warnings: { open_lessons: null, open_lessons_unknown: true, pending_excused: 0, no_fee: 0, unpaid: 0 } }).includes("Не удалось проверить незакрытые уроки"));
-  assert.ok(card({ sheet: sheet({ id: null, saved: false, warnings: { open_lessons: 2, pending_excused: 0, no_fee: 0, unpaid: 0 } }) }).includes("2 незакрытых урока"));
+  // UX pack §5.2-бис: what needs an action is the block «Что нужно сделать» over the card, not a line inside it
+  const { SheetTodoBlock } = component("payroll/sheet-todo.tsx");
+  const todo = (counts, options = {}) => textOf(html(React.createElement(SheetTodoBlock, { items: R.sheetTodoItems({ counts, ...options }) })));
+  assert.ok(todo(sheet({ id: null, saved: false }).warnings, { openUnknown: true }).includes("Не удалось проверить незакрытые уроки"), "a preview: null = the check failed");
+  assert.ok(!todo(sheet().warnings).includes("Не удалось проверить"), "a saved sheet: null = not looked up");
+  assert.ok(todo({ open_lessons: null, open_lessons_unknown: true, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("Не удалось проверить незакрытые уроки"));
+  assert.ok(todo({ open_lessons: 2, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("2 незакрытых урока"));
+  assert.ok(!card({ sheet: sheet() }).includes("Не удалось проверить"), "the card itself carries no warnings any more");
 });
 
 // ── the unfinished lessons at the saving ──────────────────────────────────────────────────────────
@@ -140,20 +144,22 @@ test("A21: the data moved by +125 000 after the saving - the payout stays by the
   assert.equal(state.basis, "saved");
   assert.deepEqual([state.saved_total, state.fresh_total, state.target, state.balance, state.changed_by], [475000, 600000, 475000, 0, 125000]);
   const status = R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: state.changed_by });
-  assert.equal(plain(status.text), "После сохранения ведомость изменилась на +125 000 сум");
+  assert.equal(plain(status.text), "Зарплата изменилась на +125 000 сум — сохраните новую сумму");
   assert.equal(status.action, "recalculate");
   signIn({ org_role: "owner" });
   const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
   const markup = html(React.createElement(SheetSummaryCard, { sheet: sheet({ stale: true }), total: 475000, accrued: 0, status, busy: false, onPrimary() {}, onPrint() {} }));
-  assert.ok(textOf(markup).includes("Пересохранить"));
-  assert.ok(!textOf(markup).includes("Пересчитать"), "the old word is gone");
-  assert.equal((markup.match(/bg-primary-600/g) || []).length, 1, "exactly one main button");
+  // the button that saves the new sum is the one of the block «Что нужно сделать» (not the card's): exactly one
+  const block = html(React.createElement(component("payroll/sheet-todo.tsx").SheetTodoBlock, { items: R.sheetTodoItems({ counts: null, changed: R.changedItem({ sheet: { id: "s1", stale: true }, payout: { changed_by: 125000, fresh_total: 600000 } }) }), onSave() {} }));
+  assert.ok(textOf(block).includes("Сохранить новую сумму") && textOf(block).includes("Зарплата изменилась на +125 000 сум — сохраните новую сумму"));
+  assert.ok(!textOf(markup).includes("Пересохранить") && !textOf(block).includes("Пересохранить") && !textOf(markup).includes("Пересчитать"), "the old words are gone");
+  assert.equal((markup.match(/bg-primary-600/g) || []).length + (block.match(/bg-primary-600/g) || []).length, 1, "exactly one main button");
 });
 
 test("A24 / A25: the data FELL by 125 000 - the payout is still by the saved 600 000; voiding a payout puts the balance back by the saved total", () => {
   const lower = Y.normalizePayoutState(named("logicA", "A24_"));
   assert.deepEqual([lower.target, lower.state, lower.changed_by], [600000, "settled", -125000]);
-  assert.equal(plain(Y.payoutChangeLine(lower).text), "изменилось на −125 000 сум");
+  assert.equal(plain(Y.payoutChangeLine(lower).text), "Зарплата изменилась на −125 000 сум");
   const voided = Y.normalizePayoutState(named("logicA", "A25_").state);
   assert.deepEqual([voided.target, voided.paid, voided.balance, voided.state], [600000, 475000, 125000, "due"]);
   assert.equal(plain(Y.payoutChip(voided).text), "Выплачено 475 000 сум из 600 000 сум");
@@ -167,12 +173,11 @@ test("the month row: ONE payout chip (only the state of the payout), the change 
   const row = (period) => html(React.createElement(TeacherRow, { teacher, month: "2026-10", period, busy: false, onCalculate() {}, onOpen() {} }));
   const closed = row(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }));
   const text = textOf(closed);
-  assert.ok(text.includes("Выплачено полностью"));
-  assert.ok(text.includes("Изменилась на +125 000 сум"), "the change is the chip of the status");
-  assert.ok(!text.includes("Есть изменения") && !text.includes("изменилось на"), "once: not «Есть изменения» and not a second line under the payout");
+  assert.ok(text.includes("выплачено ✓"), "paid in full: the column «Остаток» says so");
+  assert.ok(text.includes("Требует действия · 1"), "the change is an item of the ONE status chip (its items open on hover): not a chip of its own");
+  assert.ok(!text.includes("Есть изменения") && !text.includes("изменилось на") && !text.includes("Изменилась"), "once: not a second line under the payout, not a second chip");
   assert.ok(text.includes("Месяц закрыт"));
   assert.match(closed, /data-testid="period-chip"[^>]*data-tone="closed"/);
-  assert.doesNotMatch(closed, /data-testid="payout-change"/);
   assert.equal((closed.match(/aria-label="Открыть: Каримова К\."/g) || []).length, 1, "one action");
   assert.doesNotMatch(closed, /Переоткрыть месяц/, "the way out is on the sheet, not in the row");
   const reopened = textOf(row(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null })));
@@ -180,14 +185,13 @@ test("the month row: ONE payout chip (only the state of the payout), the change 
   assert.ok(!textOf(row(null)).includes("Месяц "), "no state read, nothing said");
   const open = row(CP.periodView({ state: "open", closedOn: null, reopened: null }));
   assert.ok(textOf(open).includes("Месяц открыт"));
-  assert.match(open, /data-testid="period-open"/, "an open month is a small word, not a chip");
-  assert.doesNotMatch(open, /data-testid="period-chip"/);
+  assert.match(open, /data-testid="period-chip"[^>]*data-tone="open"/, "an open month is a small line (the page leaves it out while the month is going: `monthPeriodView`)");
   // the sum did not change: «Есть изменения» is not invented, and nothing is said about a change
   const calm = textOf(html(React.createElement(TeacherRow, { teacher: { ...teacher, sheet: { ...teacher.sheet, stale: false }, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} })));
   assert.ok(!calm.includes("изменилась") && !calm.includes("Изменилась") && !calm.includes("Есть изменения"));
   // the data moved but the sum did not (or could not be counted): the plain chip
   const same = textOf(html(React.createElement(TeacherRow, { teacher: { ...teacher, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} })));
-  assert.ok(same.includes("Есть изменения"));
+  assert.ok(same.includes("Требует действия · 1"), "the data moved, the sum did not: still an item to act on («Данные изменились — проверьте и сохраните новую сумму»)");
 });
 
 test("the sheet: a closed month has the chip and the button; reopened says what to do next and has no button; open has the chip only; the owner decides (no handler, no button)", () => {
@@ -201,7 +205,7 @@ test("the sheet: a closed month has the chip and the button; reopened says what 
   assert.doesNotMatch(card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), undefined), /reopen-month/);
   const reopened = textOf(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}));
   assert.ok(reopened.includes("Месяц переоткрыт"));
-  assert.ok(reopened.includes("Исправьте уроки и сохраните ведомость — месяц закроется снова"));
+  assert.ok(reopened.includes("Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова"));
   assert.doesNotMatch(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}), /reopen-month/);
   const open = card(CP.periodView({ state: "open", closedOn: null, reopened: null }), () => {});
   assert.ok(textOf(open).includes("Месяц открыт"));
@@ -213,13 +217,13 @@ test("«Переоткрыть месяц»: the dialog says what opening does, 
   const { ReopenMonthDialog } = component("payroll/reopen-month-dialog.tsx");
   const open = html(React.createElement(ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." }, onClose() {}, onReopened() {} }));
   const text = textOf(open);
-  for (const part of ["Переоткрыть месяц?", "Каримова К. · октябрь 2026", "Пока месяц открыт, уроки этого месяца можно исправлять", "после исправлений сохраните ведомость, и месяц закроется снова", "Причина", "Причина и ваше имя останутся в журнале", "Назад"]) {
+  for (const part of ["Переоткрыть месяц?", "Каримова К. · октябрь 2026", "Пока месяц открыт, уроки этого месяца можно исправлять", "после исправлений нажмите «Сохранить и закрыть месяц»", "Причина", "Причина и ваше имя останутся в журнале", "Отмена"]) {
     assert.ok(text.includes(part), part);
   }
   assert.match(open, /<button type="submit" form="reopen-month-form"[^>]*>[\s\S]*?Переоткрыть месяц<\/button>/);
   assert.match(open, /<textarea id="reopen-month-reason"[^>]*maxLength="500"|maxlength="500"/i);
   assert.equal(html(React.createElement(ReopenMonthDialog, { target: null, onClose() {}, onReopened() {} })), "");
-  const src = read("src/components/payroll/reopen-month-dialog.tsx");
+  const src = read("src/lib/use-reopen-month.ts");
   // a double press and the revision are the behaviour of tests/dom-windows.test.cjs (the revision is read first, the request carries it) and of `useDialogAction` (a ref holds the second press)
   assert.match(src, /const problem = validateReopenReason\(reason\);\s*if \(problem\) \{ setError\(problem\); return; \}/);
   assert.match(src, /orgApi\.reopenPayrollPeriod\(target\.month, buildReopenBody\(target\.teacherId, reason, revision\)\)/);
@@ -233,7 +237,9 @@ test("the notice of a closed month in a lesson window: the server's sentence for
   for (const [who, user, button] of [["owner", { org_role: "owner" }, true], ["admin with the right", { org_role: "admin", payments_access: true }, true], ["admin without", { org_role: "admin", payments_access: false }, false],
     ["admin, flag absent", { org_role: "admin" }, false], ["teacher", { org_role: "teacher", role: "teacher" }, false]]) {
     const markup = notice(user);
-    assert.ok(textOf(markup).includes("сначала переоткрывает месяц"), `${who}: the server's sentence`);
+    // UX pack rule 2: the block says the month and the teacher from the FACTS of the refusal, then what to do - or who can
+    assert.match(textOf(markup), /Октябрь(?: 2026)? у Каримовой К\. закрыт/, `${who}: the month and the teacher`);
+    assert.ok(textOf(markup).includes(button ? "Чтобы изменить урок, переоткройте месяц." : "Месяц переоткрывает владелец или администратор с доступом к деньгам."), `${who}: what to do`);
     assert.equal(/period-closed-reopen/.test(markup), button, `${who}: the button`);
     assert.match(markup, /role="alert"/);
   }
@@ -248,10 +254,10 @@ test("the sheet page and the month page read the state of the month from GET pay
   assert.match(page, /onReopen=\{period && sheet\.id \? \(\) => setReopening\(true\) : undefined\}/);
   // ONE number for «изменилась на ±N» (R3 unconfirmed 1): the `changed_by` of the payout, the same fresh-minus-saved the month list shows; null when the server could not count the fresh total
   assert.match(page, /delta: sheet\.payout && sheet\.payout\.fresh_total !== null \? sheet\.payout\.changed_by : null,/);
-  assert.match(page, /"Ведомость пересохранена"/);
+  assert.match(page, /"Новая сумма сохранена"/);
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /orgApi\.getPayrollPeriods\(month\)\.catch\(\(\) => null\)/);
-  assert.match(month, /period=\{periodView\(periodOf\(periods, teacher\.teacher_id\)\)\}/);
+  assert.match(month, /period=\{monthPeriodView\(periodView\(periodOf\(periods, teacher\.teacher_id\)\), monthOpen\)\}/);
   const api = read("src/lib/api.ts");
   assert.match(api, /getPayrollPeriods: \(month: string\) =>\s*api<PayrollPeriods>\(`\/auth\/org\/payroll-periods\?month=\$\{encodeURIComponent\(month\)\}`\)/);
   assert.match(api, /reopenPayrollPeriod: \(month: string, body: \{ teacher_id: string; reason: string; sheet_revision: number \}\) =>\s*api<ReopenResult>\(`\/auth\/org\/payroll-periods\/\$\{encodePathId\(month\)\}\/reopen`, \{ method: "POST", body \}\)/);
@@ -289,7 +295,7 @@ test("R3 item 1: the reopening sends `sheet_revision`; the button waits for it; 
   assert.equal(CP.revisionOf({ items: [{ teacherId: "t1", sheetRevision: 5, state: "closed", month: "2026-10" }] }, "t1"), 5);
   assert.equal(CP.revisionOf({ items: [{ teacherId: "t1", sheetRevision: null, state: "none", month: "2026-10" }] }, "t1"), null);
   assert.equal(CP.revisionOf({ items: [] }, "t1"), null);
-  const src = read("src/components/payroll/reopen-month-dialog.tsx");
+  const src = read("src/lib/use-reopen-month.ts");
   assert.match(src, /typeof revision !== "number"\) return;/, "no request without a revision");
   assert.match(src, /if \(isSheetChanged\(cause\)\) void readRevision\(target\.month, target\.teacherId\);/);
   const open = html(React.createElement(component("payroll/reopen-month-dialog.tsx").ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." }, onClose() {}, onReopened() {} }));
@@ -353,7 +359,7 @@ test("R3 item 11 + D-3: an open month's block says its result ONCE (the chip); t
   const render = (payout) => html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout, onChanged() {} }));
   const block = plain(textOf(render(FRESH)));
   assert.ok(block.includes("Осталось выплатить 125 000 сум"));
-  assert.ok(!block.includes("Месяц открыт: начислено сейчас"), "the server's sentence repeats the card's «Начислено сейчас» and the chip");
+  assert.ok(!block.includes("Месяц открыт: начислено сейчас"), "the server's sentence repeats the card's «Начислено на сегодня» and the chip");
   assert.equal((block.match(/600\s000/g) || []).length, 0, "the accrued sum is the card's, not the block's");
   assert.equal((block.match(/475\s000/g) || []).length, 0, "no payouts listed here: nothing says the paid sum twice");
   assert.ok(!/<dl/.test(render(FRESH)), "no list of figures");
@@ -418,7 +424,7 @@ test("D-3: nothing paid, all paid, covered by the advance of the earlier months 
 
 // ── D-2 (walk of 05.11): the card of an OPEN month ─────────────────────────────────────────────────
 
-test("D-2: an open month's card says «Начислено сейчас 120 834» (the fresh number), the saved 45 000 is a small line - no «К выплате» of the saved total; a closed month is as before", () => {
+test("D-2: an open month's card says «Начислено на сегодня 120 834» (the fresh number), the saved 45 000 is a small line - no «К выплате» of the saved total; a closed month is as before", () => {
   signIn({ org_role: "owner" });
   const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
   const open = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834 });
@@ -428,22 +434,22 @@ test("D-2: an open month's card says «Начислено сейчас 120 834»
     return plain(textOf(html(React.createElement(SheetSummaryCard, props))));
   };
   const text = card(open);
-  assert.ok(text.includes("Начислено сейчас"));
+  assert.ok(text.includes("Начислено на сегодня"));
   assert.ok(text.includes("120 834 сум"));
-  assert.ok(text.includes("Сохранено 03.11: 45 000 сум"), text);
+  assert.ok(text.includes("Сохранено 3 ноября: 45 000 сум (+75 834)"), text);
   assert.ok(!text.includes("К выплате"), "the saved total is never «К выплате» in an open month");
   assert.equal(times(text, 45000), 1, "the saved sum once");
-  assert.ok(text.includes("изменилась на +75 834 сум"), "the status line of the card is as it was");
+  assert.ok(!text.includes("Сохранить новую сумму"), "the button that saves the new sum is the one of the block «Что нужно сделать», not the card's");
   // the same month, nothing changed since the saving: the fresh number is the saved one, no small line
   const same = card({ ...open, fresh_total: 45000, target: 45000, changed_by: 0, balance: -105000 }, { status: R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: null }) });
-  assert.ok(same.includes("Начислено сейчас") && !same.includes("Сохранено 03.11: 45 000"), same);
+  assert.ok(same.includes("Начислено на сегодня") && !same.includes("Сохранено 3 ноября"), same);
   // a closed month, a calculation not saved yet, a server that could not count the fresh total: «К выплате» as before
   assert.ok(card({ ...open, basis: "saved", fresh_total: 120834 }).includes("К выплате"));
   assert.ok(card(null).includes("К выплате"));
   assert.ok(card({ ...open, fresh_total: null, basis: "saved" }).includes("К выплате"));
-  // unsaved edits: the total of the table, named as such - not «К выплате» of the saved sum and not «Начислено сейчас»
+  // unsaved edits: the total of the table, named as such - not «К выплате» of the saved sum and not «Начислено на сегодня»
   const dirty = card(open, { total: 50000, status: R.sheetCardStatus({ saved: true, stale: true, dirty: true, updatedAt: null, delta: null }) });
-  assert.ok(dirty.includes("Итог с правками") && dirty.includes("50 000 сум") && !dirty.includes("Начислено сейчас") && !dirty.includes("К выплате"), dirty);
+  assert.ok(dirty.includes("Итог с правками") && dirty.includes("50 000 сум") && !dirty.includes("Начислено на сегодня") && !dirty.includes("К выплате"), dirty);
 });
 
 test("D-2: the headline is told by the server's fields (`basis`), not by the dates of the browser", () => {
@@ -451,7 +457,7 @@ test("D-2: the headline is told by the server's fields (`basis`), not by the dat
     const out = Y.sheetHeadline({ total: 45000, dirty: false, payout, updatedAt: "2026-11-03T05:00:00", ...extra });
     return { ...out, saved: out.saved === null ? null : plain(out.saved) };
   };
-  assert.deepEqual(h(stateOf({ basis: "fresh", saved_total: 45000, fresh_total: 120834, changed_by: 75834 })), { label: "Начислено сейчас", value: 120834, saved: "Сохранено 03.11: 45 000 сум" });
+  assert.deepEqual(h(stateOf({ basis: "fresh", saved_total: 45000, fresh_total: 120834, changed_by: 75834 })), { label: "Начислено на сегодня", value: 120834, saved: "Сохранено 03.11: 45 000 сум" });
   assert.deepEqual(h(stateOf({ basis: "saved", saved_total: 45000, fresh_total: 120834, changed_by: 75834 })), { label: "К выплате", value: 45000, saved: null });
   assert.deepEqual(h(undefined), { label: "К выплате", value: 45000, saved: null });
   // no date known: the sum is still said
@@ -477,27 +483,24 @@ const rowOf = (payout, extra = {}) => ({ teacher_id: "t1", teacher_name: "Эрг
 const OPEN_NOV = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834, items: [itemOf(150000)] });
 const CLOSED_SEP = stateOf({ saved_total: 860000, target: 860000, paid: 860000, balance: 0, state: "settled", basis: "saved", changed_by: 0 });
 
-test("D-2 list: the sum of an open month's row is what is accrued now; the head says the same and its tail is the balance of the rows (29 166, not 105 000)", () => {
+test("D-2 list: the sum of an open month's row is what is accrued now; the tiles say the same and the rest is the balance of the rows (29 166 ahead, not 105 000)", () => {
   const teachers = [rowOf(OPEN_NOV)];
   assert.deepEqual(R.teacherMonthSum(teachers[0]), { amount: 120834, fresh: true });
-  const head = R.monthSummary("2026-11", teachers);
-  assert.equal(head.label, "Начислено сейчас за ноябрь:");
-  assert.equal(head.amount, 120834);
-  assert.equal(plain(Y.monthPayoutTail(teachers)), "выплачено 150 000 сум · переплачено 29 166 сум");
-  // the head and the tail are one arithmetic: accrued - paid = what is overpaid
-  assert.equal(head.amount - 150000, -29166);
-  assert.equal(plain(Y.payoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Переплачено 29 166 сум", "the chip of the row = the chip of the block of the sheet");
-  assert.equal(plain(Y.sheetPayoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Переплачено 29 166 сум");
+  const tiles = (month, list, open) => Object.fromEntries(R.monthTotals(month, list, open).tiles.map((tile) => [tile.key, tile.value]));
+  assert.deepEqual(tiles("2026-11", teachers, true), { accrued: 120834, paid: 150000, left: 0, ahead: 29166 });
+  // the tiles are one arithmetic: accrued - paid = what is paid ahead
+  assert.equal(tiles("2026-11", teachers, true).accrued - 150000, -29166);
+  assert.equal(plain(Y.payoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Выплачено вперёд 29 166 сум", "the chip of the row = the chip of the block of the sheet");
+  assert.equal(plain(Y.sheetPayoutChip(Y.normalizePayoutState(OPEN_NOV)).text), "Выплачено вперёд 29 166 сум");
   // a closed month: the saved sum, «К выплате», as before; a month with no payout field (an older server) too
   assert.deepEqual(R.teacherMonthSum(rowOf(CLOSED_SEP)), { amount: 860000, fresh: false });
-  assert.equal(R.monthSummary("2026-09", [rowOf(CLOSED_SEP)]).label, "К выплате за сентябрь:");
+  assert.equal(R.monthTotals("2026-09", [rowOf(CLOSED_SEP)], false).tiles[0].label, "К выплате за сентябрь");
   assert.deepEqual(R.teacherMonthSum({ sheet: { total_amount: 1000 } }), { amount: 1000, fresh: false });
-  // one reopened + one closed in a month: «К выплате», the sum is each teacher's own (accrued now / saved)
-  const mixed = R.monthSummary("2026-10", [rowOf(OPEN_NOV), rowOf(CLOSED_SEP)]);
-  assert.deepEqual([mixed.label, mixed.amount], ["К выплате за октябрь:", 120834 + 860000]);
+  // one open + one closed in a month: the sum is each teacher's own (accrued now / saved)
+  assert.equal(tiles("2026-10", [rowOf(OPEN_NOV), rowOf(CLOSED_SEP)], false).accrued, 120834 + 860000);
   // the server could not count the fresh total (a rate is missing): the saved sum stands
   assert.deepEqual(R.teacherMonthSum(rowOf({ ...OPEN_NOV, basis: "saved", fresh_total: null })), { amount: 45000, fresh: false });
-  assert.equal(R.monthSummary("2026-11", [{ sheet: null }]).amount, null);
+  assert.equal(tiles("2026-11", [{ sheet: null }], true).accrued, 0);
 });
 
 test("D-2 list: the row of an open month says «начислено сейчас» under the sum, the chip says the balance of the sheet; the row of a closed month is as before", () => {
@@ -505,10 +508,10 @@ test("D-2 list: the row of an open month says «начислено сейчас�
   const { TeacherRow } = component("payroll/payroll-month-page.tsx");
   const draw = (payout) => plain(textOf(html(React.createElement(TeacherRow, { teacher: rowOf(payout), month: "2026-11", busy: false, onCalculate() {}, onOpen() {} }))));
   const open = draw(OPEN_NOV);
-  assert.ok(open.includes("120 834 сум") && open.includes("начислено сейчас") && open.includes("Переплачено 29 166 сум"), open);
-  assert.ok(open.includes("Изменилась на −45 000 сум") || open.includes("Изменилась на +75 834 сум"), "the change after the saving is said ONCE - in the status chip");
-  assert.ok(!open.includes("изменилось на"), "not under the payout");
-  assert.equal(times(open, 45000), 0, "the saved sum is not a second «К выплате» of the row");
+  assert.ok(open.includes("120 834 сум") && open.includes("начислено сейчас") && open.includes("вперёд 29 166"), open);
+  assert.ok(open.includes("было 45 000") && open.includes("Требует действия · 1"), "the change after the saving is said ONCE: under the number («было …»); the item to save it is in the chip");
+  assert.ok(!open.includes("изменилось на") && !open.includes("Изменилась"), "not a chip of its own");
+  assert.equal(times(open, 45000), 1, "the saved sum is said once, as «было»");
   assert.equal(times(open, 105000), 0, "the old number of the list");
   const closed = draw(CLOSED_SEP);
   assert.ok(closed.includes("860 000 сум") && !closed.includes("начислено сейчас"), closed);
@@ -527,7 +530,7 @@ test("4а: a payout above the sum of the month is marked «аванс» / «с �
   // a month covered by the advance of earlier months (target 0): every payout is an advance
   assert.equal(Y.payoutKindMark({ items: [itemOf(1000)], target: 0 }, { id: "p1" }), "аванс");
   const block = wordsOf(stateOf({ saved_total: 860000, target: 860000, paid: 876666, balance: -16666, state: "overpaid", advance_out: 16666, items: [{ ...itemOf(876666), note: "выплачено полностью" }] }));
-  assert.ok(block.includes("Переплачено 16 666 сум") && block.includes("с авансом"), block);
+  assert.ok(block.includes("Выплачено больше на 16 666 сум") && block.includes("с авансом"), block);
   assert.ok(block.includes("«выплачено полностью»"), "the note is shown as the person's own words in quotation marks");
   assert.ok(!/ · выплачено полностью/.test(block), "not as a bare status after the line of the payout");
   const plainPayout = wordsOf(stateOf({ paid: 100000, balance: 760000, state: "due", items: [itemOf(100000)] }));
@@ -551,11 +554,11 @@ test("4б + R2-2в: in an open month the counts follow «Сохранено 03.1
   const card = (payout) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ month: "2026-11", total_amount: 45000, stale: true, counted_total: 3, payout }), total: 45000, accrued: 0, busy: false, onPrimary() {}, onPrint() {},
     status: R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: 75834 }) }))));
   const text = card(open);
-  assert.ok(text.includes("Сохранено 03.11: 45 000 сум — засчитано 3 посещения"), text);
-  assert.ok(!/сум · .*засчитано 3 посещения/.test(text), "the counts are not left next to «Начислено сейчас» on their own");
+  assert.ok(text.includes("Сохранено 3 ноября: 45 000 сум (+75 834)") && text.includes("Что изменилось") && text.includes("Сохранённая версия: засчитано 3 посещения"), text);
+  assert.ok(!/сум · .*засчитано 3 посещения/.test(text), "the counts are not left next to «Начислено на сегодня» on their own: they are under «Что изменилось»");
   // a closed month: the counts are the sheet's own, the line is as it was
   const closed = card(CLOSED_SEP);
-  assert.ok(closed.includes("засчитано 3 посещения") && !closed.includes("Сохранено 03.11"), closed);
+  assert.ok(closed.includes("засчитано 3 посещения") && !closed.includes("Сохранено 3 ноября"), closed);
 });
 
 // ── round 3 (re-walk of 05.11): a REOPENED month is closed again by a save, also when nothing changed ──────────────────────
@@ -573,7 +576,7 @@ test("round 3: the status of a sheet in a reopened month has the button always (
   assert.equal(CP.CLOSE_MONTH_LABEL, "Сохранить и закрыть месяц");
 });
 
-test("round 3: the card of a sheet names the button by the state of the month - «Сохранить и закрыть месяц» in a reopened one, «Пересохранить» in a moved sheet of a month that is not reopened", () => {
+test("round 3: the card of a sheet names the button by the state of the month - «Сохранить и закрыть месяц» in a reopened one; a moved sheet of a month that is not reopened is saved by the block «Что нужно сделать»", () => {
   signIn({ org_role: "owner" });
   const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
   const card = (period, stale, reopened) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ stale }), total: 475000, accrued: 0, busy: false, onPrimary() {}, onPrint() {}, period,
@@ -581,17 +584,20 @@ test("round 3: the card of a sheet names the button by the state of the month - 
   const reopenedView = CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null });
   assert.ok(card(reopenedView, false, true).includes("Сохранить и закрыть месяц"));
   assert.ok(!card(reopenedView, false, true).includes("Пересохранить"));
-  assert.ok(card(reopenedView, true, true).includes("Сохранить и закрыть месяц"), "also when it moved: one button, it closes the month");
-  assert.ok(card(CP.periodView({ state: "open", closedOn: null, reopened: null }), true, false).includes("Пересохранить"));
+  // a reopened month that also moved: the ONE button is the block's («Сохранить и закрыть месяц»), the card has none
+  assert.ok(!card(reopenedView, true, true).includes("Сохранить и закрыть месяц Сохранить"), "no second button");
+  // a moved sheet of a month that is not reopened: the card has NO button of its own - «Сохранить новую сумму» is the button of the block «Что нужно сделать»
+  assert.ok(!card(CP.periodView({ state: "open", closedOn: null, reopened: null }), true, false).includes("Сохранить новую сумму"));
+  assert.equal(Y.RESAVE_LABEL, "Сохранить новую сумму");
   assert.ok(!card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), false, false).includes("Сохранить и закрыть месяц"));
 });
 
 test("R2-2а: the note above the table - only when the fresh total is not the saved one; the date of the saving; the button that renews the table", () => {
   const moved = stateOf({ saved_total: 120834, fresh_total: 75834, target: 75834, basis: "fresh", changed_by: -45000 });
   const note = (payout, extra = {}) => Y.savedTableNote({ payout, updatedAt: "2026-11-05T05:00:00", ...extra });
-  assert.equal(plain(note(moved)), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт");
+  assert.equal(plain(note(moved)), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт");
   assert.equal(plain(note(moved, { reopened: true })), "Строки сохранённой ведомости 05.11 — итог 120 834 сум; после «Сохранить и закрыть месяц» таблица покажет текущий расчёт");
-  assert.equal(plain(Y.savedTableNote({ payout: moved, updatedAt: null })), "Строки сохранённой ведомости — итог 120 834 сум; после «Пересохранить» таблица покажет текущий расчёт", "no date known: none is invented");
+  assert.equal(plain(Y.savedTableNote({ payout: moved, updatedAt: null })), "Строки сохранённой ведомости — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт", "no date known: none is invented");
   assert.equal(note(stateOf({ changed_by: 0 })), null, "nothing moved");
   assert.equal(note(stateOf({ fresh_total: null, changed_by: 5000 })), null, "the fresh total cannot be counted: nothing to compare");
   assert.equal(note(null), null);

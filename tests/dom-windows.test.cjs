@@ -17,115 +17,71 @@ const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|
 const PERIOD_CLOSED = { code: "PERIOD_CLOSED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 03.11.2026. Чтобы исправить, владелец переоткрывает месяц.", month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-03" };
 
 // ── cancel of a payment, of a write-off, of a refund: the ONE window ───────────────────────────────
+// UX pack §5.1-тер (decision of the owner 05.11): these windows are about the STUDENT.  The pay of the teachers is not drawn in them, so there is no dry run to wait for: one request, with the typed reason.
 
-test("cancel of a payment: the dry run first (reason «Проверка последствий»), the red button waits; then the real request has the typed reason and no `dry_run`", async () => {
-  const hold = deferred();
-  const { page, calls, errors } = await openPage(browser, "money.entry.tsx", (request) => {
-    if (request.path !== "/auth/org/payments/p1/void") return null;
-    if (isDry(request)) return hold.promise.then(() => ({ json: { ...fixture("e1_void_300000"), money_effects: OWNER_EFFECTS } }));
-    return { json: { ...fixture("e1_void_300000"), dry_run: false } };
-  });
+test("cancel of a payment: the red button names the action, the secondary one is «Не отменять», the reason is «Причина (обязательно)» (3 characters at least, the error at the field); ONE request - no dry run - with the typed reason", async () => {
+  const { page, calls, errors } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/payments/p1/void" ? { json: { ...fixture("e1_void_300000"), dry_run: false } } : null));
   await page.evaluate(() => window.mount("voidPayment"));
-  await page.waitForSelector('[data-testid="money-effects"][data-state="loading"]');
-  assert.equal(await page.isDisabled('button[form="record-void-form"]'), true);
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /Считаем/);
-  hold.open();
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /Зарплата за октябрь(?: 2026)? уменьшится:\s*Каримова К\. — −50\s000\sсум \(было 475\s000, станет 425\s000\)/);
+  await page.waitForSelector("#record-void-reason");
+  assert.equal(await page.textContent('label[for="record-void-reason"]'), "Причина (обязательно)");
+  assert.equal(await page.textContent('button[form="record-void-form"]'), "Отменить оплату");
+  assert.equal(await page.textContent('[data-testid="confirm-cancel"]'), "Не отменять");
+  assert.match(await page.getAttribute('button[form="record-void-form"]', "class"), /bg-red-600/, "red: cancelling a payment cannot be undone for the money");
+  assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0, "nothing about the pay of the teachers");
+  await page.fill("#record-void-reason", "ав");
+  await page.click('button[form="record-void-form"]');
+  await page.waitForSelector('[role="alert"]');
+  assert.match(await page.textContent('[role="alert"]'), /не короче 3/);
+  assert.deepEqual(calls, [], "a too short reason sends nothing");
   await page.fill("#record-void-reason", "оплата внесена по ошибке");
   await page.click('button[form="record-void-form"]');
   await page.waitForFunction(() => window.__log.includes("voided"));
-  const dry = calls.find(isDry);
-  const real = calls.find((call) => !isDry(call));
-  assert.deepEqual(dry.body, { reason: "Проверка последствий" });
-  assert.deepEqual(real.body, { reason: "оплата внесена по ошибке" });
+  assert.equal(calls.length, 1);
+  assert.ok(!isDry(calls[0]));
+  assert.deepEqual(calls[0].body, { reason: "оплата внесена по ошибке" });
   assert.deepEqual(noise(errors), []);
   await page.close();
 });
 
-test("cancel of a payment: the dry run FAILED - the button stays closed, the block says why with «Повторить»; the retry asks again and opens it", async () => {
-  let n = 0;
-  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
-    if (request.path !== "/auth/org/payments/p1/void" || !isDry(request)) return null;
-    n += 1;
-    return n === 1 ? { status: 500, json: { detail: { code: "SERVER_ERROR", message: "Расчёт не удался" } } } : { json: { ...fixture("e1_void_300000"), money_effects: EMPTY_EFFECTS } };
-  });
-  await page.evaluate(() => window.mount("voidPayment"));
-  await page.waitForSelector('[data-testid="money-effects-retry"]');
-  assert.equal(await page.isDisabled('button[form="record-void-form"]'), true);
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /Без этого подтвердить нельзя/);
-  await page.click('[data-testid="money-effects-retry"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.equal(await page.isDisabled('button[form="record-void-form"]'), false);
-  assert.equal(calls.filter(isDry).length, 2);
-  await page.close();
-});
-
-test("m1: a payment that moves no sheet says «Ведомости преподавателей не изменятся», not «Деньги не изменятся» (the debt of the student does change)", async () => {
-  const { page } = await openPage(browser, "money.entry.tsx", (request) => (isDry(request) ? { json: { ...fixture("e1_void_300000"), money_effects: EMPTY_EFFECTS } } : null));
-  await page.evaluate(() => window.mount("voidPayment"));
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  const text = await page.textContent('[data-testid="money-effects"]');
-  assert.match(text, /Ведомости преподавателей не изменятся/);
-  assert.doesNotMatch(text, /Деньги не изменятся/);
-  await page.close();
-});
-
-test("cancel of a write-off (the one cancel window): the dry run of writeoffs/w1/void, the button waits, the real request has the typed reason", async () => {
-  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/writeoffs/w1/void" ? { json: { ...fixture("e6_writeoff_40000"), dry_run: isDry(request), money_effects: EMPTY_EFFECTS } } : null));
+test("cancel of a write-off (the one cancel window): one request with the typed reason, no dry run", async () => {
+  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/writeoffs/w1/void" ? { json: { ...fixture("e6_writeoff_40000"), dry_run: isDry(request) } } : null));
   await page.evaluate(() => window.mount("recordVoid"));
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   await page.fill("#record-void-reason", "простили по ошибке");
   await page.click('button[form="record-void-form"]');
   await page.waitForFunction(() => window.__log.includes("voided"));
-  assert.deepEqual(calls.map((call) => `${isDry(call) ? "dry" : "real"}:${JSON.stringify(call.body)}`), ['dry:{"reason":"Проверка последствий"}', 'real:{"reason":"простили по ошибке"}']);
+  assert.deepEqual(calls.map((call) => `${isDry(call) ? "dry" : "real"}:${JSON.stringify(call.body)}`), ['real:{"reason":"простили по ошибке"}']);
   await page.close();
 });
 
 // ── write-off and refund: a form that moves money ───────────────────────────────────────────────
 
-test("write-off: nothing is asked while the form cannot be sent; once it can, the dry run of the SAME body is asked and the button waits for it", async () => {
-  const hold = deferred();
-  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
-    if (request.path !== "/auth/org/memberships/m1/writeoffs") return null;
-    if (isDry(request)) return hold.promise.then(() => ({ json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } }));
-    return { status: 201, json: fixture("e6_writeoff_40000") };
-  });
+test("write-off: the button is free, a press with a missing reason says what is wrong; with the reason ONE request (no dry run), no pay of the teachers anywhere in the window", async () => {
+  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/memberships/m1/writeoffs" ? { status: 201, json: fixture("e6_writeoff_40000") } : null));
   await page.evaluate(() => window.mount("writeoff"));
-  await page.waitForTimeout(600);
-  assert.equal(calls.length, 0, "no reason yet - nothing to ask");
-  assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
+  await page.waitForTimeout(400);
+  assert.equal(calls.length, 0);
+  assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0);
+  assert.equal(await page.textContent('label[for="writeoff-reason"]'), "Причина (обязательно)");
   assert.equal(await page.isDisabled('button[form="writeoff-form"]'), false, "the press shows what is wrong, as it always did");
   await page.fill("#writeoff-reason", "болезнь, договорились с родителем");
-  await page.waitForSelector('[data-testid="money-effects"][data-state="loading"]');
-  assert.equal(await page.isDisabled('button[form="writeoff-form"]'), true);
-  hold.open();
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await page.textContent('[data-testid="money-effects"]'), /Ведомости преподавателей не изменятся/);
   await page.click('button[form="writeoff-form"]');
   await page.waitForFunction(() => window.__log.includes("done"));
-  const [dry, real] = calls;
-  assert.ok(isDry(dry) && !isDry(real));
-  assert.deepEqual(real.body, dry.body, "the real request is the dry run's body");
-  assert.equal(real.body.reason, "болезнь, договорились с родителем");
+  assert.equal(calls.length, 1);
+  assert.ok(!isDry(calls[0]));
+  assert.equal(calls[0].body.reason, "болезнь, договорились с родителем");
   await page.close();
 });
 
-test("refund: the same - asked once the method and the amount make a request, the button waits, the real body equals the dry one", async () => {
-  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
-    if (request.path !== "/auth/org/memberships/m1/refunds") return null;
-    return isDry(request) ? { json: { ...fixture("e7_refund_344000"), money_effects: EMPTY_EFFECTS } } : { status: 201, json: fixture("e7_refund_344000") };
-  });
+test("refund: one request once the method and the amount make it, no dry run", async () => {
+  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/memberships/m1/refunds" ? { status: 201, json: fixture("e7_refund_344000") } : null));
   await page.evaluate(() => window.mount("refund"));
-  await page.waitForTimeout(500);
-  assert.equal(calls.length, 0, "no method yet - nothing to ask");
+  await page.waitForTimeout(400);
+  assert.equal(calls.length, 0, "nothing is asked before the press");
   await page.click('[role="radiogroup"] >> text=Наличные');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   await page.click('button[form="refund-form"]');
   await page.waitForFunction(() => window.__log.includes("done"));
-  const [dry, real] = calls;
-  assert.ok(isDry(dry) && !isDry(real));
-  assert.deepEqual(real.body, dry.body);
+  assert.equal(calls.length, 1);
+  assert.ok(!isDry(calls[0]));
   await page.close();
 });
 
@@ -163,7 +119,7 @@ test("«Вернуть урок»: the real request carries the version the dry 
     return { json: { ok: true, changed: true, version: 8, status: "in_progress" } };
   });
   await page.evaluate(() => window.mount("return"));
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   await page.fill("#lesson-return-reason", "ошибочно завершили");
   await page.click('[data-testid="lesson-return-submit"]');
   await page.waitForFunction(() => window.__log.includes("stale"));
@@ -241,7 +197,7 @@ test("LESSONS 27: a double press of the red button sends ONE request (the window
     return hold.promise.then(() => ({ json: { ok: true, changed: true, version: 5, status: "in_progress" } }));
   });
   await page.evaluate(() => window.mount("return"));
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   await page.fill("#lesson-return-reason", "ошибочно завершили");
   await page.evaluate(() => { const button = document.querySelector('[data-testid="lesson-return-submit"]'); button.click(); button.click(); });
   await page.waitForTimeout(300);
@@ -255,7 +211,7 @@ test("«Вернуть в разбор»: a closed month in the dry run is the s
   const { page } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/groups/g1/lessons/restore" ? { status: 409, json: { detail: PERIOD_CLOSED } } : null));
   await page.evaluate(() => window.mount("review"));
   await page.waitForSelector('[data-testid="period-closed"]');
-  assert.match(await page.textContent('[data-testid="period-closed"]'), /владелец переоткрывает месяц/);
+  assert.match(await page.textContent('[data-testid="period-closed"]'), /Чтобы изменить урок, переоткройте месяц/);
   assert.ok(await page.locator('[data-testid="period-closed-reopen"]').count(), "the owner can reopen it from here");
   assert.equal(await page.isDisabled('[data-testid="return-review-submit"]'), true);
   await page.close();
@@ -265,13 +221,13 @@ test("«Вернуть в разбор»: deductions that go away are money - th
   const deductionsOnly = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/groups/g1/lessons/restore" ? { json: { ok: true, restored: false, dryRun: true, moneyEffects: EMPTY_EFFECTS, deductions: [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }] } } : null));
   await deductionsOnly.page.evaluate(() => window.mount("review"));
   await deductionsOnly.page.waitForSelector('[data-testid="return-review-deductions"]');
-  assert.equal(await deductionsOnly.page.locator('[data-testid="money-effects"]').count(), 0, "no «nothing changes» beside a deduction that goes away");
+  assert.equal(await deductionsOnly.page.locator('[data-testid="money-effects"], [data-testid="money-effects-none"]').count(), 0, "no «nothing changes» beside a deduction that goes away");
   await deductionsOnly.page.close();
   const none = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/groups/g1/lessons/restore" ? { json: { ok: true, restored: false, dryRun: true, moneyEffects: EMPTY_EFFECTS, deductions: [] } } : null));
   await none.page.evaluate(() => window.mount("review"));
-  await none.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await none.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   assert.equal(await none.page.locator('[data-testid="return-review-deductions"]').count(), 0);
-  assert.match(await none.page.textContent('[data-testid="money-effects"]'), /Деньги не изменятся/);
+  assert.match(await none.page.textContent('[data-testid="money-effects-none"]'), /^Деньги не изменятся$/, "one grey line, no block");
   await none.page.close();
 });
 
@@ -285,7 +241,7 @@ test("K2: a 409 ATTENDANCE_CONFLICT of «Вернуть урок» in the sheet 
   await page.evaluate(() => window.mount("sheet", undefined, { actions: ["returnHeld"] }));
   await page.click('[data-testid="sheet-return-held"]');
   await page.waitForSelector("#lesson-return-reason");
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   await page.fill("#lesson-return-reason", "ошибочно завершили");
   await page.click('[data-testid="lesson-return-submit"]');
   await page.waitForFunction(() => window.__log.includes("reload"));
@@ -305,9 +261,11 @@ test("m4: «Сбросить решение» in a closed month - the sentence o
   await owner.page.evaluate(() => window.mount("closedMonth"));
   await owner.page.click("#ask");
   await owner.page.waitForSelector('[data-testid="period-closed"]');
-  assert.match(await owner.page.textContent('[data-testid="period-closed"]'), /Месяц октябрь 2026 у преподавателя Каримова К\. закрыт/);
+  assert.match(await owner.page.textContent('[data-testid="period-closed"]'), /Октябрь(?: 2026)? у Каримовой К\. закрыт/);
   await owner.page.click('[data-testid="period-closed-reopen"]');
-  await owner.page.fill("#reopen-month-reason", "ошибочно отметили");
+  // UX pack №27: the reason and the confirmation are INSIDE the block, not a window over the window
+  assert.equal(await owner.page.locator('[role="dialog"] [role="dialog"]').count(), 0);
+  await owner.page.fill("#reopen-inline-reason", "ошибочно отметили");
   await owner.page.waitForSelector('[data-testid="reopen-submit"]:not([disabled])');
   await owner.page.click('[data-testid="reopen-submit"]');
   await owner.page.waitForFunction(() => window.__log.includes("retry"));
@@ -319,25 +277,6 @@ test("m4: «Сбросить решение» in a closed month - the sentence o
   assert.equal(await admin.page.locator('[data-testid="period-closed-reopen"]').count(), 0);
   await admin.page.close();
 });
-
-test("write-off: a submit that is not a press of the button (the form sent from elsewhere) while the effects are counted sends nothing", async () => {
-  const hold = deferred();
-  const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => {
-    if (request.path !== "/auth/org/memberships/m1/writeoffs") return null;
-    return isDry(request) ? hold.promise.then(() => ({ json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } })) : { status: 201, json: fixture("e6_writeoff_40000") };
-  });
-  await page.evaluate(() => window.mount("writeoff"));
-  await page.waitForTimeout(400);
-  await page.fill("#writeoff-reason", "болезнь, договорились с родителем");
-  await page.waitForSelector('[data-testid="money-effects"][data-state="loading"]');
-  await page.evaluate(() => document.getElementById("writeoff-form").requestSubmit());
-  await page.waitForTimeout(300);
-  assert.equal(calls.filter((call) => !isDry(call)).length, 0, "the money was not written before the person saw what it does");
-  hold.open();
-  await page.close();
-});
-
-// ── the payout of a teacher above what is left: the hint by the basis of the month (R3 #20) ───────────────
 
 const PAYOUT_STATE = { saved_total: 25000, fresh_total: 25000, target: 25000, paid: 0, balance: 25000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 0 };
 

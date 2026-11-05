@@ -43,7 +43,7 @@ test("the lesson sheet: a held lesson offers «Вернуть урок» and a l
   assert.deepEqual(SCA.scheduleCardActions({ ...completed, moneyRight: false, undoDecision: true }), ["journal"]);
   assert.equal(SCA.SCHEDULE_ACTION_LABEL.returnHeld, "Вернуть урок");
   assert.equal(SCA.SCHEDULE_ACTION_LABEL.returnReview, "Вернуть в разбор");
-  assert.equal(SCA.SCHEDULE_ACTION_LABEL.undoDecision, "Отменить решение об оплате");
+  assert.equal(SCA.SCHEDULE_ACTION_LABEL.undoDecision, "Отменить решение");
 });
 
 test("the journal column: «Исправить отметки» and «Вернуть урок» of a held lesson, «Вернуть в разбор», «Отметить посещаемость» (who taught it) - the money right; «Урока не было» and «Завершить» - not", () => {
@@ -94,7 +94,7 @@ test("UX round of the owner: the block of money by month - the heading, a line p
   const closedText = plain(textOf(closed));
   assert.match(closedText, /Зарплата за сентябрь(?: 2026)? вырастет:\s*Эргашев К\. — \+133 333 сум \(было 860 000, станет 993 333\)/);
   assert.match(closed, /data-testid="effect-note"/);
-  assert.match(closedText, /Сентябрь(?: 2026)? уже закрыт: после сохранения в ведомости появится «изменилась на …» — пересохраните её, чтобы выплатить разницу\./);
+  assert.match(closedText, /Сентябрь(?: 2026)? закрыт: сохраните новую сумму, чтобы она вошла в выплату\./);
   assert.match(closed, /border-amber-200/, "something has to be done: amber");
   const open = show("open");
   assert.doesNotMatch(open, /effect-note|border-amber-200/, "an ordinary change is information, not amber");
@@ -106,21 +106,24 @@ test("the block by state: loading says so; ready lists the packs and the sheets;
   const { MoneyEffectsBlock } = component("money/money-effects-block.tsx");
   const show = (preview) => html(React.createElement(MoneyEffectsBlock, { preview, onRetry() {} }));
   assert.equal(show({ status: "idle" }), "");
-  assert.ok(textOf(show({ status: "loading" })).includes("Считаем, что изменится с деньгами…"));
+  assert.ok(textOf(show({ status: "loading" })).includes("Считаем, что изменится…"));
+  assert.match(show({ status: "loading" }), /data-testid="money-effects-skeleton"/, "a skeleton of the same size and colour, no spinner sentence");
   const ready = textOf(show({ status: "ready", effects: E.normalizeMoneyEffects(DRY) }));
-  for (const part of ["Что будет с деньгами", "Иванов Иван: занятие вернётся в пакет", "Петрова Мария: занятие вернётся в пакет", "Изменится зарплата за"]) assert.ok(ready.includes(part), part);
+  for (const part of ["Что изменится", "Иванов Иван: занятие вернётся в пакет", "Петрова Мария: занятие вернётся в пакет", "Изменится зарплата за"]) assert.ok(ready.includes(part), part);
   assert.match(ready, /Изменится зарплата за (октябрь|[а-я]+ 2026) — Каримова К\./);
   const none = show({ status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [], text: "", dryRun: true }) });
-  assert.ok(textOf(none).includes("Деньги не изменятся: пакеты учеников и сохранённые ведомости не затронуты."));
+  assert.equal(textOf(none), "Деньги не изменятся");
+  assert.doesNotMatch(none, /<section/, "nothing moves: ONE grey line, no block");
   assert.equal(show({ status: "ready", effects: null }), "");
   const failed = show({ status: "failed", error: Object.assign(new Error("Internal"), { status: 500 }) });
-  assert.ok(textOf(failed).includes("Не удалось посчитать, что изменится с деньгами. Без этого подтвердить нельзя."));
+  assert.ok(textOf(failed).includes("Не удалось посчитать, что изменится. Без этого подтвердить нельзя."));
   assert.match(failed, /data-testid="money-effects-retry"[^>]*>Повторить</);
   assert.match(failed, /role="alert"/);
   const explained = textOf(show({ status: "failed", error: Object.assign(new Error("Проведённого урока нет"), { status: 404 }) }));
   assert.ok(explained.includes("Проведённого урока нет"));
   const closed = show({ status: "failed", error: PERIOD_ERROR });
-  assert.ok(textOf(closed).includes("сначала переоткрывает месяц"));
+  assert.ok(textOf(closed).includes("переоткройте месяц"), "an amber block of its own, not a part of «Что изменится»");
+  assert.doesNotMatch(closed, /data-testid="money-effects"/);
   assert.match(closed, /period-closed-reopen/, "the owner may reopen it from here");
   signIn({ org_role: "admin", payments_access: false });
   assert.doesNotMatch(show({ status: "failed", error: PERIOD_ERROR }), /period-closed-reopen/, "an administrator without the right reads the sentence only");
@@ -226,7 +229,7 @@ test("the list of excuses: without the money right no «Подтвердить»
   assert.match(page, /\{pendingTab && moneyRight && \(/);
   assert.match(page, /\{tab === "rejected" && moneyRight && \(/);
   assert.match(page, /\{!moneyRight && <p data-testid="excuses-no-money-right"[^>]*>\{MONEY_RIGHT_TEXT\}\. Вы можете прикладывать справки и смотреть решения\.<\/p>\}/);
-  assert.equal(E.MONEY_RIGHT_TEXT, "Это действие меняет деньги: его выполняет владелец или администратор, которому владелец разрешил оплаты");
+  assert.equal(E.MONEY_RIGHT_TEXT, "Это действие меняет деньги: его выполняет владелец или администратор с доступом к деньгам");
 });
 
 // ── «кто провёл» ───────────────────────────────────────────────────────────────────────────────────────
@@ -382,7 +385,7 @@ test("the archive (C2, the server's fixture): the missed lessons are LISTED and 
 test("the pause: the 30 days are gone from the form (the closed month is the rule); a lesson in progress and a closed month are said in the server's words, with the way out", () => {
   assert.equal(PAY.validatePause({ first: "2026-08-01", last: "2026-08-10", reason: "" }, "2026-11-05"), null);
   assert.equal(PAY.pauseEarliest, undefined);
-  assert.equal(PAY.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц преподавателя не закрыт ведомостью");
+  assert.equal(PAY.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц не закрыт");
   assert.match(PAY.validatePause({ first: "2026-10-10", last: "2028-01-01", reason: "" }, "2026-11-05"), /не длиннее 366 дней/);
   const inProgress = { status: 409, code: "LESSON_IN_PROGRESS", message: "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены", detail: { code: "LESSON_IN_PROGRESS", message: "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены" } };
   assert.equal(PAY.logicaError(inProgress).message, "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены");
@@ -399,16 +402,20 @@ test("the pause: the 30 days are gone from the form (the closed month is the rul
 
 // ── the decision on an additional lesson ───────────────────────────────────────────────────────────────
 
-test("a decision on an additional lesson: for HOW MANY students «Оплатить» pays («Не был» counts), the owner's sum with its reasons, nothing for «Не оплачивать»; reversible while the month is open", () => {
+test("a decision on an additional lesson: the rule in ONE sentence (for HOW MANY students it counts - «Не был» too), the owner's estimate only where the month has no saved sheet, nothing for «Не включать»; reversible while the month is open", () => {
   const item = { studentsPaid: 3, moneyEstimate: { amount: 38000, reason: null } };
-  assert.deepEqual(OO.decisionPayLines(item, "pay").map(plain), ["Оплата — по числу учеников: 3. В это число входят и отметки «Не был»", "Преподавателю ≈ 38 000 сум"]);
-  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 5 }, "pay"), ["Оплата — по числу учеников: 5. В это число входят и отметки «Не был»"], "the administrator has no sum (LESSONS 45)");
-  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 0, moneyEstimate: { amount: null, reason: "NO_STUDENTS" } }, "pay"), ["Оплата — по числу учеников: 0. В это число входят и отметки «Не был»", "У урока нет учеников — суммы нет"]);
-  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 2, moneyEstimate: { amount: null, reason: "RATE_MISSING" } }, "pay").slice(1), ["Ставка преподавателя не задана — сумму посчитать нельзя"]);
+  assert.deepEqual(OO.decisionPayLines(item, "pay").map(plain), ["Преподавателю ≈ 38 000 сум"]);
+  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 5 }, "pay"), [], "the administrator has no sum (LESSONS 45)");
+  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 0, moneyEstimate: { amount: null, reason: "NO_STUDENTS" } }, "pay"), ["У урока нет учеников — суммы нет"]);
+  assert.deepEqual(OO.decisionPayLines({ studentsPaid: 2, moneyEstimate: { amount: null, reason: "RATE_MISSING" } }, "pay"), ["Ставка преподавателя не задана — сумму посчитать нельзя"]);
   assert.deepEqual(OO.decisionPayLines(item, "skip"), []);
+  assert.deepEqual(OO.decisionPayLines(item, "pay", false), [], "the sheet names its own sum: the estimate is not said twice");
   assert.deepEqual(OO.decisionPayLines({}, "pay"), [], "an older server: nothing is claimed");
-  assert.equal(OO.decisionNote("pay"), "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен. Решение можно отменить, пока месяц преподавателя не закрыт.");
-  assert.equal(OO.decisionNote("skip"), "Преподавателю за этот урок не заплатят. Решение можно отменить, пока месяц преподавателя не закрыт.");
+  assert.equal(OO.decisionNote("pay", 3), "Ученикам урок бесплатный. В зарплату входят все 3 ученика, включая «Не был». Решение можно отменить, пока месяц не закрыт.");
+  assert.equal(OO.decisionNote("pay"), "Ученикам урок бесплатный. В зарплату входят все ученики, включая «Не был». Решение можно отменить, пока месяц не закрыт.");
+  assert.equal(OO.decisionNote("skip"), "Ученикам урок бесплатный. В зарплату преподавателя он не войдёт. Решение можно отменить, пока месяц не закрыт.");
+  assert.equal(OO.decisionQuestion({ teacher: { name: "Эргашев К." } }, "pay"), "Включить урок в зарплату Эргашева К.?");
+  assert.equal(OO.decisionQuestion({ teacher: { name: "Ким А." } }, "skip"), "Не включать урок в зарплату преподавателя?", "a surname that does not decline reliably is not guessed");
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "paid" }, true), true);
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "none" }, true), true);
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "wait" }, true), false, "nothing was decided");
@@ -416,7 +423,7 @@ test("a decision on an additional lesson: for HOW MANY students «Оплатит
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "paid" }, false), false);
   const { UndoDecisionDialog } = component("groups/undo-decision-dialog.tsx");
   const paid = textOf(html(React.createElement(UndoDecisionDialog, { target: { lessonId: "l1", lessonDate: "2026-10-28", money: "paid" }, onClose() {}, onDone() {} })));
-  for (const part of ["Отменить решение об оплате?", "Дополнительный урок 28.10", "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах».", "Отменить решение"]) assert.ok(paid.includes(part), part);
+  for (const part of ["Исключить урок из зарплаты преподавателя?", "Дополнительный урок · ", "Урок снова будет ждать решения «Включить в зарплату / Не включать» в «Заменах».", "Отменить решение"]) assert.ok(paid.includes(part), part);
   // D-5: what it does to the sheet is the block of the dry run (not a sentence of the window that says it without the numbers)
   assert.ok(!paid.includes("Сейчас урок оплачивается преподавателю"), "the fixed sentence is the block of the preview now");
   assert.equal(OO.UNDO_DECISION_PAID_NOTE, undefined);
@@ -424,25 +431,27 @@ test("a decision on an additional lesson: for HOW MANY students «Оплатит
   assert.ok(!none.includes("Сейчас урок оплачивается"));
   const block = read("src/components/substitutions/one-off-decisions.tsx");
   assert.match(block, /decisionPayLines\(dialog\.item, dialog\.decision, /);
+  assert.match(block, /ConfirmFooter/, "rule 3: one footer");
   assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo", \{ dryRun: true, signal \}\)/);
   assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo"\)/);
   // R2-2б: the toast of the undo carries the money of it - in all three places that take a decision back (the decided list, the journal, the sheet of the lesson)
-  assert.match(read("src/components/substitutions/decided-one-offs.tsx"), /showToast\(UNDO_DECISION_TOAST, note\.tone, note\.details\)/);
-  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /showToast\(UNDO_DECISION_TOAST, money\.tone, money\.details\)/);
-  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /onChanged\(UNDO_DECISION_TOAST, toastWithEffects\(result\)\.details\)/);
+  assert.match(read("src/components/substitutions/decided-one-offs.tsx"), /showToast\(undoToastText\(done\.money, done\.teacherName, movedByOf\(result\)\), "success"\)/);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /showToast\(undoToastText\(done\.money, done\.teacherName, movedByOf\(result\)\), "success"\)/);
+  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /onChanged\(undoToastText\(done\.money, done\.teacherName, movedByOf\(result\)\), \[\]\)/);
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /undoDecision: canUndoDecision\(lesson, moneyRight\)/);
 });
 
 // ── the payments: what they did to the sheets ──────────────────────────────────────────────────────────
 
-test("payments, forgiveness, refunds, rates, the divisor: every caller shows `money_effects` of the answer through ONE helper", () => {
-  for (const file of ["src/components/payments/payments-page.tsx", "src/components/payments/statement-view.tsx", "src/components/payments/membership-row-actions.tsx", "src/components/payments/membership-payments.tsx",
-    "src/components/groups/group-payments-tab.tsx", "src/app/owner/teachers/page.tsx"]) {
-    assert.match(read(file), /toastWithEffects\(/, file);
+test("payments, forgiveness, refunds: the toast is the STUDENT's (UX pack §5.1-тер); rates and the divisor show `money_effects` of the answer through ONE helper", () => {
+  for (const file of ["src/components/payments/payments-page.tsx", "src/components/payments/statement-view.tsx", "src/components/payments/membership-row-actions.tsx", "src/components/payments/membership-payments.tsx", "src/components/groups/group-payments-tab.tsx"]) {
+    assert.match(read(file), /studentToast\(/, file);
+    assert.doesNotMatch(read(file), /toastWithEffects/, `${file}: the pay of the teachers is not in a toast of a payment`);
   }
+  assert.match(read("src/app/owner/teachers/page.tsx"), /toastWithEffects\(/);
   assert.match(read("src/app/owner/settings/page.tsx"), /effectLines\(moneyEffectsOf\(updated\), \{ done: true \}\)/);
   const statement = read("src/components/payments/statement-view.tsx");
-  assert.equal((statement.match(/toastWithEffects\(/g) || []).length, 5, "create, correct, cancel a payment; cancel a write-off; cancel a refund");
+  assert.equal((statement.match(/studentToast\(/g) || []).length, 5, "create, correct, cancel a payment; cancel a write-off; cancel a refund");
   const { DivisorEffects } = component("payroll/divisor-effects.tsx");
   assert.equal(html(React.createElement(DivisorEffects, { lines: [] })), "");
   assert.ok(textOf(html(React.createElement(DivisorEffects, { lines: ["Ведомость Каримова К., октябрь 2026: +50 000 сум к сохранённой — пересохраните её"] }))).includes("+50 000 сум к сохранённой"));
@@ -452,7 +461,7 @@ test("payments, forgiveness, refunds, rates, the divisor: every caller shows `mo
   assert.equal(note.tone, "warning", "a closed month: the sheet is to be saved again");
   assert.match(plain(note.details[0]), /^Зарплата за [а-я0-9 ]+ уменьшилась:$/);
   assert.equal(plain(note.details[1]), "Каримова К. — −125 000 сум");
-  assert.match(plain(note.details[2]), /закрыт: в ведомости появилось «изменилась на …» — пересохраните её, чтобы выплатить разницу\.$/);
+  assert.match(plain(note.details[2]), /закрыт: сохраните новую сумму, чтобы она вошла в выплату\.$/);
 });
 
 // ── the rights in the rest of the screens ──────────────────────────────────────────────────────────────

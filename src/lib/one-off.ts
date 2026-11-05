@@ -10,9 +10,11 @@
  * LESSONS 16 / 17 (no role by default), 45 (a teacher sees neither amounts nor decisions), 46 (every code of the server has words here, a test
  * for each), 48 (one line of a lesson for every list).
  */
-import { formatIsoDateLabel, monthYearLabelRu } from "./business-time";
+import { formatBusinessDate, formatIsoDateLabel, formatWeekdayDate, monthYearLabelRu } from "./business-time";
+import { genitiveShortName } from "./name-case";
+import { monthLabel } from "./ru-calendar";
 import { pluralRu } from "./plural";
-import { formatMoney } from "./money-format";
+import { formatMoney, formatSignedMoney } from "./money-format";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { TeacherConflict } from "./ops-b-types";
 
@@ -70,18 +72,18 @@ export interface OneOffDecisionItem {
   endTime: string;
   /** #159: only an additional lesson waits for a decision (a make-up is an ordinary lesson and never does). */
   purpose: "extra";
-  /** «Дополнительный урок — оплатить преподавателю?» */
+  /** The question of the server («Дополнительный урок — оплатить преподавателю?») - the screen words its own question (`decisionQuestion`, §1: «Включить урок в зарплату …?»). */
   title: string;
   teacher: { id: string; name: string } | null;
   createdBy: { id: string; name: string; role: string } | null;
   studentsPresent: number;
   studentsTotal: number;
-  /** Money-1 A3 (ЗП-07): for how many students «Оплатить» pays - every student whose mark counts (rule 4.3: «Не был» counts), not only the ones who came. */
+  /** Money-1 A3 (ЗП-07): for how many students «Включить в зарплату» counts - every student whose mark counts (rule 4.3: «Не был» counts), not only the ones who came. */
   studentsPaid?: number;
-  /** Money-1 A3: the OWNER only (LESSONS 45) - what «Оплатить» pays the teacher, `amount` a sum or null with `reason` (`RATE_MISSING` | `NO_STUDENTS`) why it cannot be counted. */
+  /** Money-1 A3: the OWNER only (LESSONS 45) - what «Включить в зарплату» adds to the pay of the teacher, `amount` a sum or null with `reason` (`RATE_MISSING` | `NO_STUDENTS`) why it cannot be counted. */
   moneyEstimate?: { amount: number | null; reason: string | null } | null;
   payrollSheet: DecisionPayrollSheet | null;
-  /** Walk of 05.11, D-4: the month of the teacher is closed by a saved sheet - «Оплатить» / «Не оплачивать» are blocked until it is reopened (an older server does not say: not closed). */
+  /** Walk of 05.11, D-4: the month of the teacher is closed - «Включить в зарплату» / «Не включать» are blocked until it is reopened (an older server does not say: not closed). */
   periodClosed?: boolean;
 }
 export interface OneOffDecisionsOut {
@@ -105,14 +107,14 @@ export interface DecidedOneOffsOut {
 }
 
 export const DECIDED_TITLE = "Решённые дополнительные уроки";
-export const DECIDED_HINT = "Что решили по дополнительным урокам за месяц. Решение можно отменить, пока месяц преподавателя не закрыт.";
+export const DECIDED_HINT = "Что решили по дополнительным урокам за месяц. Решение можно отменить, пока месяц не закрыт.";
 export const DECIDED_EMPTY_TEXT = "В этом месяце по дополнительным урокам решений нет.";
 export const DECIDED_LOAD_ERROR_TEXT = "Не удалось загрузить решённые дополнительные уроки. Повторите попытку.";
-export const DECIDED_MONTH_CLOSED_TEXT = "Месяц закрыт ведомостью — сначала переоткройте его, потом отмените решение";
+export const DECIDED_MONTH_CLOSED_TEXT = "Месяц закрыт — сначала переоткройте его, потом отмените решение";
 
-/** What was decided, in words: the lesson was paid to the teacher or not. */
+/** What was decided, in words (§1: «Включить в зарплату» / «Не включать»): the lesson went into the pay of the teacher or not. */
 export function decidedMoneyText(money: "paid" | "none"): string {
-  return money === "paid" ? "Оплачен преподавателю" : "Без оплаты";
+  return money === "paid" ? "Включён в зарплату" : "Не включён в зарплату";
 }
 
 /** «Рахимов Т. · 05.11.2026 14:20» - who decided and when (a piece that is not known is left out). */
@@ -154,9 +156,9 @@ export interface MoneyDecisionOut {
 // ── roles ───────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * How the form «Добавить занятие» offers the money of the teacher (#159): `manager` decides it (the owner, an administrator WITH the right of payments) and chooses
- * «Без оплаты / Оплачивается»; `teacher` asks («Прошу оплатить») or says nothing is due; `admin_ask` (#159 M1) is an administrator WITHOUT the right: the same two
- * choices, worded for HIM («Попросить оплатить» - the owner or an administrator with the right decides after the lesson; «Без оплаты» - the teacher gets nothing), not in the voice of
+ * How the form «Добавить занятие» offers the pay of the teacher (#159): `manager` decides it (the owner, an administrator WITH the money access) and chooses
+ * «Не включать в зарплату / Включить в зарплату»; `teacher` asks («Прошу включить в зарплату») or says nothing is due; `admin_ask` (#159 M1) is an administrator WITHOUT the access: the same two
+ * choices, worded for HIM («Попросить включить в зарплату» - the owner or an administrator with the access decides after the lesson; «Не включать в зарплату» - the teacher gets nothing), not in the voice of
  * a teacher.  Anyone else (or nobody) gets `null`: the form is not offered.
  */
 export type OneOffRole = "manager" | "teacher" | "admin_ask";
@@ -184,7 +186,7 @@ export interface OneOffChoice {
 }
 
 export function emptyChoice(role: OneOffRole | null): OneOffChoice {
-  // who asks (a teacher, an administrator without the right) has «Прошу оплатить» until he says otherwise; who decides chooses, nothing is chosen for him (his choice is money)
+  // who asks (a teacher, an administrator without the access) has «Прошу включить в зарплату» until he says otherwise; who decides chooses, nothing is chosen for him (his choice is money)
   return { purpose: null, money: role === "teacher" || role === "admin_ask" ? "wait" : null, target: "" };
 }
 
@@ -198,20 +200,20 @@ export interface MoneyChoice {
 export function moneyChoicesFor(role: OneOffRole | null): MoneyChoice[] {
   if (role === "teacher") {
     return [
-      { value: "wait", label: "Прошу оплатить", hint: "После урока решит владелец или администратор с правом на оплаты" },
-      { value: "none", label: "Без оплаты", hint: "За этот урок вы ничего не получите" },
+      { value: "wait", label: "Прошу включить в зарплату", hint: "После урока решит владелец или администратор с доступом к деньгам" },
+      { value: "none", label: "Не включать в зарплату", hint: "За этот урок вы ничего не получите" },
     ];
   }
   if (role === "admin_ask") {
     return [
-      { value: "wait", label: "Попросить оплатить", hint: "Решит владелец или администратор с правом на оплаты после урока" },
-      { value: "none", label: "Без оплаты", hint: "Преподаватель ничего не получит за этот урок" },
+      { value: "wait", label: "Попросить включить в зарплату", hint: "Решит владелец или администратор с доступом к деньгам после урока" },
+      { value: "none", label: "Не включать в зарплату", hint: "Преподаватель ничего не получит за этот урок" },
     ];
   }
   if (role === "manager") {
     return [
-      { value: "none", label: "Без оплаты", hint: "Преподавателю за этот урок не платят" },
-      { value: "paid", label: "Оплачивается", hint: "Преподавателю платят, как за обычный урок" },
+      { value: "none", label: "Не включать в зарплату", hint: "В зарплату преподавателя урок не войдёт" },
+      { value: "paid", label: "Включить в зарплату", hint: "Урок войдёт в зарплату, как обычный" },
     ];
   }
   return [];
@@ -223,7 +225,7 @@ export const PURPOSE_CHOICES: ReadonlyArray<{ value: "makeup" | "extra"; title: 
   { value: "extra", title: "Дополнительный урок", hint: "Сверх расписания" },
 ];
 export const EXTRA_FREE_FOR_STUDENTS = "Ученикам дополнительный урок бесплатен: с них за него ничего не списывается.";
-export const MONEY_QUESTION = "Оплата преподавателю";
+export const MONEY_QUESTION = "Зарплата за урок";
 export const MAKEUP_TARGET_LABEL = "Какой урок отрабатываем";
 export const MAKEUP_TARGET_PLACEHOLDER = "Выберите отменённый урок";
 export const MAKEUP_MONEY_NOTE = "Отработка — обычный урок. Вычет за отменённый урок снимается; кто не пришёл — урок засчитан, как пропуск обычного урока. С подтверждённой уважительной причиной вычет остаётся.";
@@ -231,7 +233,7 @@ export const MAKEUP_LOADING_TEXT = "Ищем отменённые уроки…"
 export const MAKEUP_LOAD_ERROR_TEXT = "Не удалось загрузить отменённые уроки. Повторите попытку.";
 export const MAKEUP_EMPTY_FALLBACK = "Нет отменённых уроков, которые можно отработать";
 export const PURPOSE_REQUIRED_TEXT = "Выберите, что это за урок: отработка или дополнительный";
-export const MONEY_REQUIRED_TEXT = "Выберите оплату преподавателю: без оплаты или оплачивается";
+export const MONEY_REQUIRED_TEXT = "Выберите, включать ли урок в зарплату преподавателя";
 export const MAKEUP_TARGET_REQUIRED_TEXT = "Выберите отменённый урок, который отрабатывается";
 export const NO_ONE_OFF_RIGHT_TEXT = "Добавить разовое занятие может преподаватель группы, администратор или владелец";
 
@@ -346,7 +348,7 @@ export function oneOffErrorText(error: unknown): string | null {
     case "PURPOSE_REQUIRED": return PURPOSE_REQUIRED_TEXT;
     case "PURPOSE_INVALID": return PURPOSE_REQUIRED_TEXT;
     case "MONEY_REQUIRED": return MONEY_REQUIRED_TEXT;
-    case "MONEY_INVALID": return "Такой вариант оплаты вам недоступен. Выберите другой";
+    case "MONEY_INVALID": return "Такой вариант вам недоступен. Выберите другой";
     case "MAKEUP_TARGET_REQUIRED": return MAKEUP_TARGET_REQUIRED_TEXT;
     case "MAKEUP_TARGET_NOT_ALLOWED": return "Отменённый урок указывается только у отработки";
     case "RESTORE_MAKEUP_TARGET": return RESTORE_MAKEUP_TARGET_TEXT;
@@ -355,7 +357,7 @@ export function oneOffErrorText(error: unknown): string | null {
     case "LESSON_NOT_COMPLETED": return "Урок ещё не проведён: решить можно после урока";
     case "ALREADY_DECIDED": return "Решение по этому уроку уже принято. Обновите страницу";
     case "NOT_A_MEMBER": return "Вы не состоите в этом центре. Войдите заново или обратитесь к владельцу";
-    case "DECISION_FORBIDDEN": return "Решать об оплате могут только владелец и администратор";
+    case "DECISION_FORBIDDEN": return "Решение по зарплате принимают только владелец и администратор с доступом к деньгам";
     case "MONEY_RIGHT_REQUIRED": return MONEY_RIGHT_TEXT;
     default: return null;
   }
@@ -385,22 +387,33 @@ export function shortDay(isoDate: string): string {
   return formatIsoDateLabel(isoDate, { weekday: "short", day: "2-digit", month: "2-digit" }).replace(",", "");
 }
 
-/** «7-А · пн 05.11 · 16:00–17:00» - the lesson of a row «Ждут решения». */
+/** «Геометрия 8 · ср, 4 ноября · 10:00–11:00» - the lesson of a row and of the title line of a window (§1: dates of headings and rows are «ср, 4 ноября»). */
 export function decisionLessonLine(item: Pick<OneOffDecisionItem, "groupName" | "lessonDate" | "startTime" | "endTime">): string {
-  return `${item.groupName} · ${shortDay(item.lessonDate)} · ${item.startTime}–${item.endTime}`;
+  return `${item.groupName} · ${formatWeekdayDate(item.lessonDate)} · ${item.startTime}–${item.endTime}`;
 }
 
-/** «был 1 из 10» / «были 2 из 3»: the verb agrees with the number that follows it (21 - «был», 12 - «были»). */
+/** «пришёл 1 из 10» / «пришли 2 из 3»: the verb agrees with the number that follows it (21 - «пришёл», 12 - «пришли»). */
 export function presentLine(present: number, total: number): string {
   const n = Math.max(0, Math.trunc(Number(present) || 0));
-  const verb = n % 10 === 1 && n % 100 !== 11 ? "был" : "были";
+  const verb = n % 10 === 1 && n % 100 !== 11 ? "пришёл" : "пришли";
   return `${verb} ${n} из ${Math.max(0, Math.trunc(Number(total) || 0))}`;
 }
 
-/** «провёл Рахимов Т. · были 2 из 3» - who held the lesson and how many students came (a sentence of its own starts with a capital: the window does it). */
+/** «провёл Рахимов Т. · пришли 2 из 3» - who held the lesson and how many students came (a sentence of its own starts with a capital: the window does it). */
 export function decisionWhoLine(item: Pick<OneOffDecisionItem, "teacher" | "studentsPresent" | "studentsTotal">): string {
   const who = item.teacher?.name ? `провёл ${item.teacher.name}` : "преподаватель не указан";
   return `${who} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
+}
+
+/** The title line of the window of a decision: the lesson and how many came («Геометрия 8 · ср, 4 ноября · 10:00–11:00 · пришли 2 из 3»). */
+export function decisionWindowLine(item: Pick<OneOffDecisionItem, "groupName" | "lessonDate" | "startTime" | "endTime" | "studentsPresent" | "studentsTotal">): string {
+  return `${decisionLessonLine(item)} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
+}
+
+/** «в зарплату Эргашева К.» when the surname declines reliably, else «в зарплату преподавателя» (UX pack: no guessing of a case). */
+export function teacherPayPhrase(teacherName: string | null | undefined): string {
+  const genitive = genitiveShortName(teacherName);
+  return genitive ? `в зарплату ${genitive}` : "в зарплату преподавателя";
 }
 
 /** The filter of the page «Замены» (a group, a teacher) and its search (a group or a teacher) applied to a row of money. */
@@ -412,7 +425,7 @@ export function decisionMatches(item: Pick<OneOffDecisionItem, "groupId" | "grou
 }
 
 /**
- * «Просит оплатить: Рахимов Т.» - only when the one who asked is NOT the one who held the lesson (a teacher asks for his own lesson: it says nothing new), and only a teacher - or an
+ * «Просит включить в зарплату: Рахимов Т.» - only when the one who asked is NOT the one who held the lesson (a teacher asks for his own lesson: it says nothing new), and only a teacher - or an
  * administrator without the right of money (#159: he asks as a teacher) - asks; null for the owner's own lesson.  Who is who: by id; with no id on a side, by the name (nothing is guessed from a missing id: LESSONS 17).
  */
 export function decisionAskedLine(item: Pick<OneOffDecisionItem, "purpose" | "createdBy"> & { teacher?: OneOffDecisionItem["teacher"] }): string | null {
@@ -423,44 +436,49 @@ export function decisionAskedLine(item: Pick<OneOffDecisionItem, "purpose" | "cr
     const same = asker.id && holder.id ? asker.id === holder.id : Boolean(holder.name) && holder.name === asker.name;
     if (same) return null;
   }
-  return `Просит оплатить: ${asker.name}`;
+  return `Просит включить в зарплату: ${asker.name}`;
 }
 
-// ── the sheet that is already paid ───────────────────────────────────────────────────────────────────────
+// ── the pay of the month that is already saved / paid ────────────────────────────────────────────────────
 
 const SUM_CHANGES = "изменится сумма: доплатить или переплата";
 
 /**
- * SPEC §4.5: a decision after the payment of the sheet is not blocked, but it is said.  The owner's `status` tells: anything but `unpaid` means the
- * sheet is (partly) paid.  An administrator gets `status: null` with the sheet's month (the amounts are the owner's): there is a saved sheet, so
- * the sum of the teacher will change, and the sentence does not claim «выплачена».  No saved sheet - nothing to say.
+ * SPEC §4.5: a decision after the payout of a CLOSED month is not blocked, but it is said.  The owner's `status` tells: anything but `unpaid` means the sheet is (partly) paid.  An administrator gets
+ * `status: null` with the sheet's month (the amounts are the owner's): there is a saved sheet, so the pay of the teacher will change, and the sentence does not claim «выплачена».  No saved sheet - nothing to say.
+ * (UX pack №1: the WINDOW of a decision does not use it - an open month is not «выплачен»; it says «Уже выплачено … — до новой суммы останется …» in the block `Что изменится`.)
  */
 export function payrollWarning(sheet: DecisionPayrollSheet | null | undefined): string | null {
   if (!sheet || !/^\d{4}-\d{2}$/.test(sheet.month ?? "")) return null;
   const month = monthYearLabelRu(sheet.month);
   if (sheet.status === "unpaid") return null;
-  if (sheet.status === null) return `Ведомость за ${month} уже сохранена — ${SUM_CHANGES}`;
-  return `Ведомость за ${month} выплачена — ${SUM_CHANGES}`;
+  if (sheet.status === null) return `Зарплата за ${month} уже сохранена — ${SUM_CHANGES}`;
+  return `Зарплата за ${month} выплачена — ${SUM_CHANGES}`;
 }
 
-export const MONEY_RIGHT_TEXT = "Решение об оплате принимает владелец или администратор с правом на оплаты";
-export const DECISION_PAY_LABEL = "Оплатить";
-export const DECISION_SKIP_LABEL = "Не оплачивать";
-export const DECISIONS_GROUP_TITLE = "Оплата дополнительных уроков";
-export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение можно отменить, пока месяц преподавателя не закрыт.";
-/** An administrator without the right of money sees the queue and the status, not the buttons (#159). */
+export const MONEY_RIGHT_TEXT = "Решение по зарплате принимает владелец или администратор с доступом к деньгам";
+export const DECISION_PAY_LABEL = "Включить в зарплату";
+export const DECISION_SKIP_LABEL = "Не включать";
+export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: включить в зарплату?";
+export const DECISIONS_GROUP_HINT = "Решаете вы: включить урок в зарплату преподавателя или нет. Решение можно отменить, пока месяц не закрыт.";
+/** An administrator without the money access sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
-/** «2 урока ждут решения владельца» - the one row of an administrator without the right (it is information, not his task: #159 M2, U4). */
+/** «2 урока ждут решения владельца» - the one row of an administrator without the money access (it is information, not his task: #159 M2, U4). */
 export function decisionsViewLine(count: number): string {
   const n = Math.max(0, Math.trunc(Number(count) || 0));
   return `${n} ${pluralRu(n, "урок ждёт", "урока ждут", "уроков ждут")} решения владельца`;
 }
-export const DECISION_PAY_NOTE = "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен.";
-export const DECISION_SKIP_NOTE = "Преподавателю за этот урок не заплатят.";
-export const DECISION_FINAL_NOTE = "Решение можно отменить, пока месяц преподавателя не закрыт.";
-/** The sentence of the window of a decision: what follows from it, and - for BOTH choices - that it can be taken back while the month is open. */
-export function decisionNote(decision: OneOffDecision): string {
-  return `${decision === "pay" ? DECISION_PAY_NOTE : DECISION_SKIP_NOTE} ${DECISION_FINAL_NOTE}`;
+const DECISION_FREE_FOR_STUDENTS = "Ученикам урок бесплатный.";
+export const DECISION_FINAL_NOTE = "Решение можно отменить, пока месяц не закрыт.";
+/**
+ * The ONE sentence of rule in the window of a decision (UX pack №1): «Ученикам урок бесплатный. В зарплату входят все 3 ученика, включая «Не был». Решение можно отменить, пока месяц не закрыт.»
+ * `counted`: for how many students the lesson counts (`studentsPaid`, rule 4.3: «Не был» counts too); unknown - «все ученики».  For «Не включать» the same facts the other way round.
+ */
+export function decisionNote(decision: OneOffDecision, counted?: number | null): string {
+  if (decision !== "pay") return `${DECISION_FREE_FOR_STUDENTS} В зарплату преподавателя он не войдёт. ${DECISION_FINAL_NOTE}`;
+  const n = typeof counted === "number" && counted >= 0 ? Math.trunc(counted) : null;
+  const who = n === null ? "все ученики" : `все ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`;
+  return `${DECISION_FREE_FOR_STUDENTS} В зарплату входят ${who}, включая «Не был». ${DECISION_FINAL_NOTE}`;
 }
 
 /** The reasons the server cannot count the pay of the lesson (`moneyEstimate.reason`), in words. */
@@ -470,63 +488,71 @@ const ESTIMATE_REASON_TEXT: Record<string, string> = {
 };
 
 /**
- * What «Оплатить» pays, said before the press (Money-1 A3, ЗПД-4 / ЗП-07): for how many students (the ones whose mark counts - «Не был» too) and - for the OWNER - about how much.
- * Nothing for «Не оплачивать».  The server decides who sees the sum (`moneyEstimate` is absent for everybody but the owner); the screen only words it.
- * Walk of 05.11 (D-4, rule 87): when the preview of the decision names the sheet with its sum («Ведомость …: A → B») the estimate is NOT said again - it is the line of the sheet; it stays
- * for the month that has no saved sheet yet (`withEstimate`).
+ * What «Включить в зарплату» adds, for the OWNER, when the month has NO saved sheet (the preview of the decision names no sum): «Преподавателю ≈ 125 000 сум» or why it cannot be counted.  Nothing for
+ * «Не включать»; nothing when the preview names the sum of the sheet itself (rule 87: the same number is not said twice).  The server decides who sees the sum (`moneyEstimate` is absent for everybody but the owner).
  */
-export function decisionPayLines(item: Pick<OneOffDecisionItem, "studentsPaid" | "moneyEstimate">, decision: OneOffDecision, withEstimate = true): string[] {
-  if (decision !== "pay") return [];
-  const lines: string[] = [];
-  const paid = item.studentsPaid;
-  if (typeof paid === "number" && paid >= 0) lines.push(`Оплата — по числу учеников: ${paid}. В это число входят и отметки «Не был»`);
+export function decisionPayLines(item: Pick<OneOffDecisionItem, "moneyEstimate">, decision: OneOffDecision, withEstimate = true): string[] {
+  if (decision !== "pay" || !withEstimate) return [];
   const estimate = item.moneyEstimate;
-  if (withEstimate && estimate) {
-    if (typeof estimate.amount === "number") lines.push(`Преподавателю ≈ ${formatMoney(estimate.amount)}`);
-    else if (estimate.reason && ESTIMATE_REASON_TEXT[estimate.reason]) lines.push(ESTIMATE_REASON_TEXT[estimate.reason]);
-  }
-  return lines;
+  if (!estimate) return [];
+  if (typeof estimate.amount === "number") return [`Преподавателю ≈ ${formatMoney(estimate.amount)}`];
+  return estimate.reason && ESTIMATE_REASON_TEXT[estimate.reason] ? [ESTIMATE_REASON_TEXT[estimate.reason]] : [];
 }
 
-/** D-4 (walk of 05.11): the month of the teacher is closed by a saved sheet - the row says so and offers «Переоткрыть месяц» to who may; «Оплатить» / «Не оплачивать» wait. */
-export const DECISION_MONTH_CLOSED_TEXT = "Месяц закрыт ведомостью — сначала переоткройте его, потом решите";
-/** «Оплатить» in a month that has no saved sheet yet: the block of the preview is empty, and says what happens instead of «деньги не изменятся». */
-export const DECISION_NO_SHEET_TEXT = "Ведомость за этот месяц ещё не сохранена: урок войдёт в неё при сохранении.";
+/** D-4 (walk of 05.11): the month of the teacher is closed - the row says so and offers «Переоткрыть месяц» to who may; «Включить в зарплату» / «Не включать» wait. */
+export const DECISION_MONTH_CLOSED_TEXT = "Месяц закрыт — сначала переоткройте его, потом решите";
+/** «Включить в зарплату» in a month that has no saved sheet yet: the block of the preview is empty, and says what happens instead of «деньги не изменятся». */
+export function decisionNoSheetText(month: string | null | undefined, decision: OneOffDecision, today?: string): string {
+  const name = month && /^\d{4}-\d{2}$/.test(month) ? `за ${monthLabel(month, today ?? formatBusinessDate())} ` : "";
+  return decision === "pay"
+    ? `Зарплата ${name}ещё не сохранена: урок войдёт в неё при сохранении.`
+    : `Зарплата ${name}ещё не сохранена: урок в неё не войдёт.`;
+}
 
-/** The same for taking back a decision «Оплатить» when the month has no saved sheet yet. */
-export const DECISION_UNDO_NO_SHEET_TEXT = "Ведомость за этот месяц ещё не сохранена: урок выйдет из расчёта.";
+/** The same for taking back a decision «Включить в зарплату» when the month has no saved sheet yet. */
+export const DECISION_UNDO_NO_SHEET_TEXT = "Зарплата за этот месяц ещё не сохранена: урок выйдет из расчёта.";
 
 /** The sheet the decision moves has its sum in the preview (the owner): then the estimate of the row is the same number and is not said again. */
 export function previewNamesSheetSum(effects: { payroll: Array<{ freshAfter: number | null }> } | null | undefined): boolean {
   return Boolean(effects && effects.payroll.some((line) => line.freshAfter !== null));
 }
 
-/** The warning of a sheet that is already (partly) paid: the owner's `status` tells it; an administrator's `null` is the block of the preview («Изменится ведомость: …»), not said twice. */
-export function decisionSheetWarning(sheet: DecisionPayrollSheet | null | undefined): string | null {
-  return sheet && sheet.status !== null ? payrollWarning(sheet) : null;
-}
-
 // ── «Отменить решение» (Money-1 A3) ─────────────────────────────────────────────────────────────────────────
-export const UNDO_DECISION_LABEL = "Отменить решение об оплате";
-export const UNDO_DECISION_TITLE = "Отменить решение об оплате?";
+export const UNDO_DECISION_LABEL = "Отменить решение";
 export const UNDO_DECISION_BUTTON = "Отменить решение";
-export const UNDO_DECISION_NOTE = "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах». Решить можно будет заново.";
+/** UX pack №1: the window of taking back a decision - «Исключить урок из зарплаты?» for an included lesson, «Отменить решение «Не включать»?» for a lesson that was left out. */
+export function undoDecisionTitle(money: OneOffMoney | null | undefined, teacherName?: string | null): string {
+  return money === "paid" ? `Исключить урок из ${teacherPayPhrase(teacherName).replace(/^в зарплату/, "зарплаты")}?` : "Отменить решение «Не включать»?";
+}
+export const UNDO_DECISION_NOTE = "Урок снова будет ждать решения «Включить в зарплату / Не включать» в «Заменах». Решить можно будет заново.";
 export const UNDO_DECISION_TOAST = "Решение отменено: урок снова ждёт решения";
 /** The decision of the lesson can be taken back: an additional lesson that was decided, by who has the money right; the server judges the month (409 `PERIOD_CLOSED`). */
 export function canUndoDecision(lesson: Pick<LessonPurposeFields, "purpose" | "money"> | null | undefined, moneyRight: boolean): boolean {
   return moneyRight && lesson?.purpose === "extra" && (lesson.money === "paid" || lesson.money === "none");
 }
-// R2-2б (re-walk of 05.11): the toast says that the decision is WRITTEN and what it is; under it the lines of money as after every money action (`toastWithEffects`)
-export const DECISION_PAY_TOAST = "Решение записано: преподавателю будет оплачено";
-export const DECISION_SKIP_TOAST = "Решение записано: без оплаты";
-export function decisionToast(decision: OneOffDecision): string {
-  return decision === "pay" ? DECISION_PAY_TOAST : DECISION_SKIP_TOAST;
-}
 export const DECISIONS_LOAD_ERROR_TEXT = "Не удалось загрузить уроки, которые ждут решения. Повторите попытку.";
 
-/** The question of the window of a decision: the title the server sent, else the one of an additional lesson. */
-export function decisionQuestion(item: Pick<OneOffDecisionItem, "title">): string {
-  return (item.title ?? "").trim() || "Дополнительный урок — оплатить преподавателю?";
+/**
+ * The toast after a decision (UX pack №1 / rule 4): ONE phrase - «Урок включён в зарплату Эргашева К.: +45 000 сум».  The sum is there for the owner when the month has a saved sheet that moved (the server's
+ * `changedBy`); an administrator, or a month with no saved sheet, gets the phrase without a sum.  The next step (a closed month: «сохраните новую сумму») lives on the sheet and in the list, not in the toast.
+ */
+export function decisionToastText(decision: OneOffDecision, teacherName: string | null | undefined, changedBy?: number | null): string {
+  const where = teacherPayPhrase(teacherName);
+  const head = decision === "pay" ? `Урок включён ${where}` : `Урок не включён ${where}`;
+  return typeof changedBy === "number" && changedBy !== 0 ? `${head}: ${formatSignedMoney(changedBy)}` : head;
+}
+
+/** The toast after taking a decision back: an included lesson leaves the pay («Урок исключён из зарплаты Эргашева К.: −45 000 сум»), a skipped one just waits again. */
+export function undoToastText(money: OneOffMoney | null | undefined, teacherName: string | null | undefined, changedBy?: number | null): string {
+  if (money !== "paid") return UNDO_DECISION_TOAST;
+  const head = `Урок исключён из ${teacherPayPhrase(teacherName).replace(/^в зарплату/, "зарплаты")}`;
+  return typeof changedBy === "number" && changedBy !== 0 ? `${head}: ${formatSignedMoney(changedBy)}` : head;
+}
+
+/** The question of the window of a decision (UX pack №1): «Включить урок в зарплату Эргашева К.?» / «Не включать урок в зарплату Эргашева К.?». */
+export function decisionQuestion(item: Pick<OneOffDecisionItem, "teacher">, decision: OneOffDecision = "pay"): string {
+  const where = teacherPayPhrase(item.teacher?.name);
+  return decision === "pay" ? `Включить урок ${where}?` : `Не включать урок ${where}?`;
 }
 
 /**

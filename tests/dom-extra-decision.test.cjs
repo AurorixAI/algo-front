@@ -35,18 +35,18 @@ test("D-4: «Оплатить» - the window first asks the server what the deci
     if (!request.path.endsWith("/money-decision")) return null;
     return isDry(request) ? hold.promise.then(() => ({ json: answerOf([SHEET()], true) })) : { json: { ...answerOf([SHEET()], false), dryRun: false } };
   }, { items: [ITEM()] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="loading"]');
+  await page.click('button[aria-label^="Включить в зарплату"]');
+  await page.waitForSelector('[data-testid="money-effects-skeleton"]');
   assert.equal(await page.isDisabled('[data-testid="one-off-decision-confirm"]'), true, "the button waits for the answer about the money");
   assert.equal(decisionCalls(calls).filter((call) => !isDry(call)).length, 0);
   hold.open();
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   const effects = await flat(page, '[data-testid="money-effects"]');
   assert.match(effects, /Зарплата за ноябрь(?: 2026)? вырастет:\s*Каримова К\. — \+125 000 сум \(было 0, станет 125 000\)/);
   const dialog = await flat(page, '[role="dialog"]');
   assert.equal((dialog.match(/125\s000/g) || []).length, 2, "the change and the sum after - the estimate of the row is not said a third time");
   assert.ok(!dialog.includes("Преподавателю ≈"), "the estimate is the line of the sheet now");
-  assert.match(dialog, /Оплата — по числу учеников: 3/);
+  assert.match(dialog, /Ученикам урок бесплатный\. В зарплату входят все 3 ученика, включая «Не был»/);
   assert.ok(!dialog.includes("Ведомость за ноябрь 2026 г. уже"), "an unpaid sheet: no extra warning");
   await page.click('[data-testid="one-off-decision-confirm"]');
   await page.waitForFunction(() => window.__log.includes("decided:l1"));
@@ -58,16 +58,15 @@ test("D-4: «Оплатить» - the window first asks the server what the deci
 
 test("D-4: a month with no saved sheet - the block says so (not «деньги не изменятся») and the estimate of the row stays; «Не оплачивать» moves nothing", async () => {
   const { page, calls } = await open((request) => (request.path.endsWith("/money-decision") ? { json: answerOf([], true) } : null), { items: [ITEM()] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await flat(page, '[data-testid="money-effects-none"]'), /Ведомость за этот месяц ещё не сохранена: урок войдёт в неё при сохранении/);
-  assert.match(await flat(page, '[role="dialog"]'), /Преподавателю ≈ 125 000 сум/);
+  await page.click('button[aria-label^="Включить в зарплату"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
+  assert.match(await flat(page, '[data-testid="money-effects-none"]'), /Зарплата за ноябрь(?: 2026)? ещё не сохранена: урок войдёт в неё при сохранении \(≈ 125 000 сум\)/);
   assert.ok(!(await flat(page, '[role="dialog"]')).includes("Деньги не изменятся"));
   await page.click('[role="dialog"] >> text=Отмена');
   await page.waitForSelector('[role="dialog"]', { state: "detached" });
-  await page.click('button[aria-label^="Не оплачивать"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
-  assert.match(await flat(page, '[data-testid="money-effects-none"]'), /Деньги не изменятся/);
+  await page.click('button[aria-label^="Не включать"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
+  assert.match(await flat(page, '[data-testid="money-effects-none"]'), /Зарплата за ноябрь(?: 2026)? ещё не сохранена: урок в неё не войдёт/);
   assert.deepEqual(decisionCalls(calls).map((call) => call.body.decision), ["pay", "skip"], "only dry runs: nothing was decided");
   await page.close();
 });
@@ -75,8 +74,8 @@ test("D-4: a month with no saved sheet - the block says so (not «деньги �
 test("D-4: an administrator with the right sees the month and the state of the sheet, no sum and no estimate (LESSONS 45)", async () => {
   const sheet = { month: "2026-11", state: "open" };
   const { page } = await open((request) => (request.path.endsWith("/money-decision") ? { json: answerOf([sheet], true) } : null), { items: [ITEM({ moneyEstimate: undefined, payrollSheet: { month: "2026-11", status: null } })] }, ADMIN_RIGHT);
-  await page.click('button[aria-label^="Оплатить"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.click('button[aria-label^="Включить в зарплату"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   const dialog = await flat(page, '[role="dialog"]');
   assert.match(dialog, /Изменится зарплата за ноябрь(?: 2026)? — 1 преподаватель\./);
   assert.ok(!/[\d]\s?\d{3}\s*сум/.test(dialog), `no sum for an administrator: ${dialog}`);
@@ -84,21 +83,24 @@ test("D-4: an administrator with the right sees the month and the state of the s
   await page.close();
 });
 
-test("D-4: the owner is told that the sheet is already paid (the one fact the block does not carry)", async () => {
-  const { page } = await open((request) => (request.path.endsWith("/money-decision") ? { json: answerOf([SHEET({ savedTotal: 125000, freshBefore: 125000, freshAfter: 250000, changedBy: 125000 })], true) } : null),
-    { items: [ITEM({ payrollSheet: { month: "2026-11", status: "settled" } })] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
-  await page.waitForSelector('[data-testid="one-off-decision-warning"]');
-  assert.match(await flat(page, '[data-testid="one-off-decision-warning"]'), /Ведомость за ноябрь 2026 г\. выплачена — изменится сумма/);
+test("UX pack №1: the owner is told what is paid already, in the ONE block: «Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум» (an open month); no «выплачена» of the sheet", async () => {
+  const { page } = await open((request) => (request.path.endsWith("/money-decision") ? { json: answerOf([SHEET({ savedTotal: 120834, freshBefore: 120834, freshAfter: 165834, changedBy: 45000, paid: 150000 })], true) } : null),
+    { items: [ITEM({ payrollSheet: { month: "2026-11", status: "due" } })] }, OWNER);
+  await page.click('button[aria-label^="Включить в зарплату"]');
+  await page.waitForSelector('[data-testid="effect-paid"]');
+  assert.match(await flat(page, '[data-testid="effect-paid"]'), /^Уже выплачено 150\s000\sсум — до новой суммы останется 15\s834\sсум$/);
+  assert.equal(await page.locator('[data-testid="one-off-decision-warning"]').count(), 0);
+  assert.ok(!(await flat(page, '[role="dialog"]')).includes("выплачена"), "the false «sheet is paid» of an open month is gone");
+  assert.equal(await page.textContent('[role="dialog"] h2'), "Включить урок в зарплату Каримовой К.?");
   await page.close();
 });
 
 test("D-4: a closed month - the row has its buttons off and «Переоткрыть месяц» at once (periodClosed), nothing can be sent", async () => {
   const { page, calls } = await open(() => null, { items: [ITEM({ periodClosed: true })] }, OWNER);
   assert.equal(await page.getAttribute('[data-testid="one-off-decision-row"]', "data-period-closed"), "true");
-  assert.equal(await page.isDisabled('button[aria-label^="Оплатить"]'), true);
-  assert.equal(await page.isDisabled('button[aria-label^="Не оплачивать"]'), true);
-  assert.match(await flat(page, '[data-testid="period-closed"]'), /Месяц закрыт ведомостью — сначала переоткройте его, потом решите/);
+  assert.equal(await page.isDisabled('button[aria-label^="Включить в зарплату"]'), true);
+  assert.equal(await page.isDisabled('button[aria-label^="Не включать"]'), true);
+  assert.match(await flat(page, '[data-testid="period-closed"]'), /Ноябрь у Каримовой К\. закрыт\. Чтобы изменить решение, переоткройте месяц/);
   assert.equal(await page.locator('[data-testid="period-closed-reopen"]').count(), 1, "the way out for who has the right");
   assert.equal(decisionCalls(calls).length, 0, "no request at all");
   await page.close();
@@ -108,7 +110,7 @@ test("D-4: a closed month - the row has its buttons off and «Переоткры
   await view.page.click('[data-testid="one-off-decisions-toggle"]');
   await view.page.waitForSelector('[data-testid="one-off-decision-row"]');
   assert.equal(await view.page.locator('[data-testid="period-closed"]').count(), 0);
-  assert.equal(await view.page.locator("button[aria-label^='Оплатить']").count(), 0);
+  assert.equal(await view.page.locator("button[aria-label^='Включить в зарплату']").count(), 0);
   await view.page.close();
 });
 
@@ -119,7 +121,7 @@ test("D-4: «Переоткрыть месяц» from the row of the queue - aft
     return null;
   }, { items: [ITEM({ periodClosed: true })] }, OWNER);
   await page.click('[data-testid="period-closed-reopen"]');
-  await page.fill("#reopen-month-reason", "ошибочно отметили урок");
+  await page.fill("#reopen-inline-reason", "ошибочно отметили урок");
   await page.waitForSelector('[data-testid="reopen-submit"]:not([disabled])');
   await page.click('[data-testid="reopen-submit"]');
   await page.waitForFunction(() => window.__log.includes("retry"));
@@ -130,16 +132,17 @@ test("D-4: «Переоткрыть месяц» from the row of the queue - aft
 
 test("D-4: 409 PERIOD_CLOSED of the dry run - the same refusal as an excuse («Переоткрыть месяц» inside the block), the button off, the real request never goes", async () => {
   const { page, calls } = await open((request) => (request.path.endsWith("/money-decision") ? { status: 409, json: { detail: PERIOD_CLOSED } } : null), { items: [ITEM()] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
+  await page.click('button[aria-label^="Включить в зарплату"]');
   await page.waitForSelector('[data-testid="period-closed"]');
-  assert.match(await flat(page, '[data-testid="money-effects"]'), /Месяц ноябрь 2026 у преподавателя Каримова К\. закрыт/);
+  assert.match(await flat(page, '[data-testid="period-closed"]'), /Ноябрь(?: 2026)? у Каримовой К\. закрыт/);
+  assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0, "the closed month is NOT a part of «Что изменится»: a block of its own");
   assert.equal(await page.locator('[data-testid="period-closed-reopen"]').count(), 1);
   assert.equal(await page.isDisabled('[data-testid="one-off-decision-confirm"]'), true);
   assert.equal(decisionCalls(calls).filter((call) => !isDry(call)).length, 0);
   await page.close();
   // a person without the right of money reads the sentence and has no button to reopen (it is the owner's)
   const admin = await open((request) => (request.path.endsWith("/money-decision") ? { status: 409, json: { detail: PERIOD_CLOSED } } : null), { items: [ITEM()] }, { role: "admin", org_role: "admin", payments_access: true });
-  await admin.page.click('button[aria-label^="Оплатить"]');
+  await admin.page.click('button[aria-label^="Включить в зарплату"]');
   await admin.page.waitForSelector('[data-testid="period-closed"]');
   assert.equal(await admin.page.isDisabled('[data-testid="one-off-decision-confirm"]'), true);
   await admin.page.close();
@@ -154,8 +157,8 @@ test("D-4: the month was closed between the preview and the press (409 on the re
     closed = true;
     return { status: 409, json: { detail: PERIOD_CLOSED } };
   }, { items: [ITEM()] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.click('button[aria-label^="Включить в зарплату"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   await page.click('[data-testid="one-off-decision-confirm"]');
   await page.waitForSelector('[data-testid="period-closed"]');
   assert.equal(await page.locator('[data-testid="one-off-decision-error"]').count(), 0, "the refusal is told by the block, not as a failure of saving");
@@ -171,12 +174,12 @@ test("D-4: a failed dry run (not a closed month) holds the button and offers «�
     if (isDry(request)) return fail ? { status: 500, json: { detail: { code: "BOOM", message: "boom" } } } : { json: answerOf([SHEET()], true) };
     return { json: answerOf([SHEET()], false) };
   }, { items: [ITEM()] }, OWNER);
-  await page.click('button[aria-label^="Оплатить"]');
+  await page.click('button[aria-label^="Включить в зарплату"]');
   await page.waitForSelector('[data-testid="money-effects-retry"]');
   assert.equal(await page.isDisabled('[data-testid="one-off-decision-confirm"]'), true);
   fail = false;
   await page.click('[data-testid="money-effects-retry"]');
-  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   assert.equal(await page.isDisabled('[data-testid="one-off-decision-confirm"]'), false);
   await page.close();
 });
@@ -195,7 +198,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
   await run.page.evaluate(() => window.mount("decided"));
   await run.page.waitForSelector('[data-testid="decided-undo"]');
   await run.page.click('[data-testid="decided-undo"]');
-  await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+  await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата за ноябрь(?: 2026)? уменьшится:\s*Каримова К\. — −125 000 сум \(было 125 000, станет 0\)/);
   assert.ok(!(await flat(run.page, '[role="dialog"]')).includes("Сейчас урок оплачивается преподавателю"), "no second telling of the same");
   await run.page.close();
@@ -217,10 +220,10 @@ test("D-5: «Отменить решение» - the window says what the sheet 
 
 // ── R2-2б (re-walk of 05.11): the decision is confirmed by a toast with the money of it ───────────────────────────────
 
-test("R2-2б: after «Оплатить» and «Не оплачивать» the page shows the toast «Решение записано …» with the line of the sheet (as every money action does)", async () => {
+test("UX pack №1 / rule 4: after «Включить в зарплату» and «Не включать» the toast is ONE phrase («Урок включён в зарплату Каримовой К.: +125 000 сум»), green", async () => {
   for (const [label, decision, effects, expected] of [
-    ["Оплатить", "pay", [SHEET()], /Решение записано: преподавателю будет оплачено[\s\S]*Зарплата за ноябрь(?: 2026)? выросла:[\s\S]*Каримова К\. — \+125 000 сум \(было 0, стало 125 000\)/],
-    ["Не оплачивать", "skip", [], /Решение записано: без оплаты/],
+    ["Включить в зарплату", "pay", [SHEET()], /^Урок включён в зарплату Каримовой К\.: \+125 000 сум$/],
+    ["Не включать", "skip", [], /^Урок не включён в зарплату Каримовой К\.$/],
   ]) {
     const run = await openPage(browser, "money.entry.tsx", (request) => {
       if (!request.path.endsWith("/money-decision")) return null;
@@ -229,7 +232,7 @@ test("R2-2б: after «Оплатить» and «Не оплачивать» the p
     await run.page.evaluate(([who, props]) => window.mount("decisionsToast", who, props), [OWNER, { items: [ITEM()] }]);
     await run.page.waitForSelector('[data-testid="one-off-decision-row"]');
     await run.page.click(`button[aria-label^="${label}"]`);
-    await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
+    await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
     await run.page.click('[data-testid="one-off-decision-confirm"]');
     await run.page.waitForSelector('[role="status"]');
     const toast = (await run.page.textContent('[role="status"]')).replace(/\s+/g, " ").replace(/ /g, " ");

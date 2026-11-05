@@ -36,46 +36,18 @@ async function recorded(run) {
 }
 
 test("R3 item 6: every dry run is the request of the action with `?dry_run=true` and the same body - and has no Idempotency-Key", async () => {
-  const pay = { amount: 300000, paid_on: "2026-11-05", method: "cash" };
+  // UX pack §5.1-тер: the windows of a payment / write-off / refund (and their cancels) do not ask the dry run any more - only the transfers of a student do
   const calls = await recorded(async (api) => {
-    await api.dryRunCreatePayment("m1", pay);
-    await api.dryRunReplacePayment("p1", { ...pay, reason: "ошибка" });
-    await api.dryRunVoidPayment("p1", "Проверка последствий");
-    await api.dryRunCreateWriteoff("m1", { amount: 40000, reason: "болезнь", date: "2026-11-05" });
-    await api.dryRunVoidWriteoff("w1", "Проверка последствий");
-    await api.dryRunCreateRefund("m1", { amount: 100000, method: "cash", reason: "ушёл", date: "2026-11-05" });
-    await api.dryRunVoidRefund("r1", "Проверка последствий");
+    for (const name of ["dryRunCreatePayment", "dryRunReplacePayment", "dryRunVoidPayment", "dryRunCreateWriteoff", "dryRunVoidWriteoff", "dryRunCreateRefund", "dryRunVoidRefund"]) assert.equal(typeof api[name], "undefined", name);
     await api.dryRunTransferStudent("g2", "st1", { price_override: null });
     await api.dryRunBulkTransfer("g2", ["st1", "st2"], { price_override: null });
   });
   assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
-    "POST /auth/org/memberships/m1/payments?dry_run=true",
-    "POST /auth/org/payments/p1/replace?dry_run=true",
-    "POST /auth/org/payments/p1/void?dry_run=true",
-    "POST /auth/org/memberships/m1/writeoffs?dry_run=true",
-    "POST /auth/org/writeoffs/w1/void?dry_run=true",
-    "POST /auth/org/memberships/m1/refunds?dry_run=true",
-    "POST /auth/org/refunds/r1/void?dry_run=true",
     "POST /auth/org/groups/g2/students/st1?mode=transfer&dry_run=true",
     "POST /auth/org/groups/g2/students/bulk?mode=transfer&dry_run=true",
   ]);
   for (const call of calls) assert.ok(!Object.keys(call.headers).some((name) => name.toLowerCase() === "idempotency-key"), `${call.url}: a dry run has no key`);
-  assert.deepEqual(calls[0].body, pay, "the same body");
-  assert.deepEqual(calls[1].body, { ...pay, reason: "ошибка" });
-  assert.deepEqual(calls[8].body, { student_ids: ["st1", "st2"] });
-});
-
-test("R3 item 6: the draft of a payment - nothing to ask while the form cannot be sent; the key is everything the real request will carry; a correction carries its reason", () => {
-  const values = { amount: "300 000", paidOn: "2026-11-05", method: "cash", note: "", reason: "" };
-  assert.equal(PD.paymentDraft({ ...values, amount: "" }, "2026-11-05", "create"), null);
-  assert.equal(PD.paymentDraft({ ...values, method: null }, "2026-11-05", "create"), null);
-  assert.equal(PD.paymentDraft({ ...values, paidOn: "2026-11-09" }, "2026-11-05", "create"), null, "a date in the future is not sent");
-  const draft = PD.paymentDraft(values, "2026-11-05", "create");
-  assert.deepEqual(draft.body, { amount: 300000, paid_on: "2026-11-05", method: "cash" });
-  assert.notEqual(PD.paymentDraft({ ...values, amount: "250 000" }, "2026-11-05", "create").key, draft.key, "another amount - another ask");
-  assert.notEqual(PD.paymentDraft({ ...values, note: "наличные" }, "2026-11-05", "create").key, draft.key, "another body - another ask");
-  assert.deepEqual(PD.paymentDraft({ ...values, reason: " ошибка " }, "2026-11-05", "replace").body, { amount: 300000, paid_on: "2026-11-05", method: "cash", reason: "ошибка" });
-  assert.deepEqual(PD.paymentDraft({ ...values, reason: "ошибка" }, "2026-11-05", "create").body, { amount: 300000, paid_on: "2026-11-05", method: "cash" }, "a new payment has no reason");
+  assert.deepEqual(calls[1].body, { student_ids: ["st1", "st2"] });
 });
 
 test("R3 item 7: the deductions of the answer are read without surprises", () => {
@@ -137,13 +109,13 @@ test("R3 item 14: a decided lesson says what was decided, by whom and when; «О
   const { DecidedRow } = component("substitutions/decided-one-offs.tsx");
   const open = html(React.createElement("ul", null, React.createElement(DecidedRow, { item: DECIDED, onUndo() {}, onReopened() {} })));
   const text = plain(textOf(open));
-  assert.ok(text.includes("Оплачен преподавателю"));
+  assert.ok(text.includes("Включён в зарплату"));
   assert.ok(text.includes("решил Арслан") && text.includes("28.10.2026 09:30"));
   assert.ok(text.includes("провёл Каримова К."));
   assert.match(open, /data-testid="decided-undo"/);
   assert.doesNotMatch(open, /period-closed/);
   const none = plain(textOf(html(React.createElement("ul", null, React.createElement(DecidedRow, { item: { ...DECIDED, money: "none" }, onUndo() {}, onReopened() {} })))));
-  assert.ok(none.includes("Без оплаты"));
+  assert.ok(none.includes("Не включён в зарплату"));
 });
 
 test("R3 item 14: a closed month - no «Отменить решение», the sentence «месяц закрыт — сначала переоткройте» and «Переоткрыть месяц» for the money right only", () => {
@@ -151,7 +123,8 @@ test("R3 item 14: a closed month - no «Отменить решение», the s
   const draw = (user) => { signIn(user); return html(React.createElement("ul", null, React.createElement(DecidedRow, { item: { ...DECIDED, canUndo: false, periodClosed: true }, onUndo() {}, onReopened() {} }))); };
   const owner = draw({ org_role: "owner" });
   assert.doesNotMatch(owner, /data-testid="decided-undo"/);
-  assert.ok(plain(textOf(owner)).includes("Месяц закрыт ведомостью — сначала переоткройте его, потом отмените решение"));
+  assert.match(plain(textOf(owner)), /У Каримовой К\.|Каримовой К\. закрыт/, "the block of the closed month names the teacher");
+  assert.ok(plain(textOf(owner)).includes("Чтобы изменить решение, переоткройте месяц."));
   assert.match(owner, /data-testid="period-closed-reopen"/);
   assert.doesNotMatch(draw({ org_role: "admin", payments_access: false }), /period-closed-reopen/);
 });
@@ -165,7 +138,7 @@ test("R3 item 14: the list is read from `one-off-decisions/decided?month=` and r
   assert.equal(out.items[1].canUndo, false);
   assert.equal(out.items[1].money, "none");
   assert.deepEqual(OO.normalizeDecided(null), { total: 0, items: [] });
-  assert.equal(OO.decidedMoneyText("paid"), "Оплачен преподавателю");
+  assert.equal(OO.decidedMoneyText("paid"), "Включён в зарплату");
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /\{!pendingTab && canDecideMoney\(user\) && !moneyRightLost && \(\s*<DecidedOneOffsBlock/, "the money right only, on the tab «Решённые»");
   const block = html(React.createElement(component("substitutions/decided-one-offs.tsx").DecidedOneOffsBlock, { showToast() {} }));
@@ -200,29 +173,25 @@ test("R3 item 5: the type of the lessons moves the pay of the teacher - the fiel
 
 // ── the states of a confirmation (pure) ──────────────────────────────────────────────────────────────
 
-test("R3 K1 / m2: a FORM asks only once it can be sent and then waits for the answer; the TILL waits only while the answer is coming - a failed or an `unavailable` one lets it go, with a line", () => {
+test("R3 K1 / m2: a transfer FORM asks only once it can be sent and then waits for the answer (the windows of a payment ask nothing: UX pack §5.1-тер)", () => {
   assert.equal(MP.formAllowsConfirm(null, { status: "idle" }), true, "the form cannot be sent: nothing to ask, the press shows what is wrong");
   assert.equal(MP.formAllowsConfirm("k", { status: "loading" }), false);
   assert.equal(MP.formAllowsConfirm("k", failed()), false);
   assert.equal(MP.formAllowsConfirm("k", { status: "ready", effects: null }), true);
-  assert.equal(MP.tillAllowsConfirm(null, { status: "idle" }), true);
-  assert.equal(MP.tillAllowsConfirm("k", { status: "loading" }), false);
-  assert.equal(MP.tillAllowsConfirm("k", { status: "idle" }), false, "a key with no answer yet is not a free button");
-  assert.equal(MP.tillAllowsConfirm("k", failed()), true);
-  assert.equal(MP.tillAllowsConfirm("k", ready(OWNER_DRY)), true);
-  assert.equal(MP.tillNotice("k", failed()), MP.TILL_NOT_COUNTED_TEXT);
-  assert.equal(MP.tillNotice("k", ready({ students: [], payroll: [], unavailable: true, text: "", dryRun: true })), MP.TILL_NOT_COUNTED_TEXT);
-  assert.equal(MP.tillNotice("k", ready(OWNER_DRY)), null);
-  assert.equal(MP.tillNotice("k", { status: "loading" }), null);
-  assert.equal(MP.tillNotice(null, failed()), null);
-  assert.match(MP.TILL_NOT_COUNTED_TEXT, /^Последствия для денег не удалось посчитать/);
-  assert.equal(typeof MP.effectsWaitReason, "undefined", "the reason is said by the block, not repeated under the field (rule 87)");
+  for (const name of ["tillAllowsConfirm", "tillNotice", "TILL_NOT_COUNTED_TEXT", "effectsWaitReason"]) assert.equal(typeof MP[name], "undefined", name);
 });
 
-test("R3 m1: the empty block of a payment says what stays - the pay of the teachers - not «деньги не изменятся» (the debt of the student changes)", () => {
-  assert.equal(E.EFFECTS_NONE_PAYMENTS_TEXT, "Ведомости преподавателей не изменятся.");
-  assert.notEqual(E.EFFECTS_NONE_PAYMENTS_TEXT, E.EFFECTS_NONE_TEXT);
-  assert.match(E.EFFECTS_NONE_TEXT, /^Деньги не изменятся/, "the words for a lesson stay");
+test("UX pack: an off main button of a window of confirmation says why - while the answer is counted, a closed month, a failed count", () => {
+  assert.equal(MP.effectsWhyOff({ status: "ready", effects: null }), null);
+  assert.equal(MP.effectsWhyOff({ status: "loading" }), "Считаем, что изменится…");
+  assert.equal(MP.effectsWhyOff(failed()), "Не удалось посчитать, что изменится: нажмите «Повторить»");
+  assert.equal(MP.effectsWhyOff({ status: "failed", error: Object.assign(new Error("x"), { code: "PERIOD_CLOSED", detail: { month: "2026-10", teacherId: "t1" } }) }), "Месяц закрыт: сначала переоткройте его");
+});
+
+test("the empty block of a LESSON action is ONE grey line «Деньги не изменятся» and no block; a payment window has no such block at all", () => {
+  assert.equal(E.EFFECTS_NONE_TEXT, "Деньги не изменятся");
+  assert.equal(E.EFFECTS_NONE_PAYMENTS_TEXT, undefined);
+  assert.equal(E.EFFECTS_TITLE, "Что изменится");
 });
 
 test("R3 m7: the cancel of a payment is the one window of the cancels of money; a carry-over is named by words, never «0 сум»", () => {
@@ -234,7 +203,7 @@ test("R3 m7: the cancel of a payment is the one window of the cancels of money; 
   const plainPayment = paymentVoidTarget({ id: "p2", paid_on: "2026-10-22", amount: 300000 }, "Иванов Иван", () => {});
   assert.ok(plainPayment.explain.some((line) => /Деньги группы распределятся заново/.test(line)));
   assert.equal(plainPayment.key, "p2");
-  assert.equal(typeof plainPayment.preview, "function", "the dry run rides on the target");
+  assert.equal(plainPayment.preview, undefined, "no dry run: the window is about the student only");
   assert.equal(plainPayment.action, "Отменить оплату");
 });
 
@@ -243,7 +212,7 @@ test("R3 n5: one literal for each sentence of the block of effects (no copy, no 
   const path = require("node:path");
   const all = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? all(path.join(dir, entry.name)) : [path.join(dir, entry.name)])).filter((file) => /\.(ts|tsx)$/.test(file));
   const sources = all(path.join(env.root, "src")).map((file) => fs.readFileSync(file, "utf8")).join("\n");
-  assert.equal(sources.split("Считаем, что изменится с деньгами").length - 1, 1, "the loading sentence is written once");
+  assert.equal(sources.split("Считаем, что изменится…").length - 1, 1, "the loading sentence is written once");
   assert.equal(sources.split("Считаем, что изменится при переводе").length - 1, 1);
   assert.equal(sources.split("Проверка последствий").length - 1, 1, "the reason of a dry run is written once");
   assert.doesNotMatch(sources, /EFFECTS_LOADING_TEXT\.replace/);

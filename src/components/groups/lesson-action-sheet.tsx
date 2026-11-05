@@ -23,13 +23,13 @@ import {
 import { CANCEL_CONSEQUENCES, substitutionErrorText, type LessonMark } from "@/lib/substitutions";
 import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
 import { returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
-import { canManageMoney, toastWithEffects } from "@/lib/money-effects";
+import { canManageMoney, movedByOf, toastWithEffects } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 import { LessonReturnDialog, ReturnToReviewDialog } from "./lesson-return-dialogs";
 import { RestoreConsequences, useRestorePreview } from "./restore-consequences";
 import { effectsAllowConfirm } from "@/lib/money-preview";
 import { UndoDecisionDialog } from "./undo-decision-dialog";
-import { UNDO_DECISION_TOAST } from "@/lib/one-off";
+import { undoToastText } from "@/lib/one-off";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
 import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
@@ -428,7 +428,7 @@ export function LessonActionSheet({
             target={returning === "undo" ? { lessonId: lesson.id, lessonDate: lesson.date, money: lesson.money } : null}
             aboveLessonPanel={aboveLessonPanel}
             onClose={() => setReturning(null)}
-            onDone={(result) => { setReturning(null); onChanged(UNDO_DECISION_TOAST, toastWithEffects(result).details); }}
+            onDone={(result, done) => { setReturning(null); onChanged(undoToastText(done.money, done.teacherName, movedByOf(result)), []); }}
           />
           <ReturnToReviewDialog
             target={returning === "review" ? { groupId, lessonId: lesson.id, lessonDate: lesson.date } : null}
