@@ -12,7 +12,7 @@ import {
   targetGroupPriceText,
   type GroupPriceBrief,
 } from "@/lib/group-price";
-import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
 import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, ENROL_STUDENTS_TITLE } from "@/lib/enrol-labels";
@@ -198,7 +198,6 @@ export function AddStudentDrawer({
     }));
 
   // Shown only to users who see money, and only for «Перевести в эту группу».
-  const paymentHint = transferPaymentHint({ transfer: mode === "transfer", moneyAvailable });
   const priceHint = enrolPriceHint({ transfer: mode === "transfer", moneyAvailable });
   // The price of this group, shown to money roles only (the key is absent for the others).
   const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel) : null;
@@ -210,6 +209,8 @@ export function AddStudentDrawer({
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
+  // UX pack №15: every chosen student is moved from another group (the mode «Перевести в эту группу») - the button says so, not «Зачислить»
+  const movesOnly = transfers.length > 0 && transfers.length === selected.size && mode === "transfer" && moneyRight;
   const transferIds = Array.from(selected.keys()).sort();
   const transferKey = open && transfers.length > 0 && mode === "transfer" && !dryException.error
     ? `${groupId}|${transferIds.join(",")}|${JSON.stringify(dryException.request)}`
@@ -327,7 +328,6 @@ export function AddStudentDrawer({
             <p className="mt-1 text-xs text-slate-500">
               {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
             </p>
-            {paymentHint && <p className="mt-0.5 text-[11px] text-slate-400">{paymentHint}</p>}
             {priceHint && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
             <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
               {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
@@ -378,7 +378,7 @@ export function AddStudentDrawer({
             />
           </div>
         )}
-        {transferKey !== null && <div className="-mx-5"><TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} /></div>}
+        {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
         )}
@@ -392,7 +392,7 @@ export function AddStudentDrawer({
           ) : (
             <UserPlus className="w-4 h-4" />
           )}
-          {adding ? "Зачисление…" : `Зачислить${selected.size > 0 ? ` (${selected.size})` : ""}`}
+          {adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
         </button>
         </>
       }
@@ -459,7 +459,7 @@ export function AddStudentDrawer({
                     <p className="text-sm font-medium text-slate-900 truncate">
                       {s.full_name || `${s.last_name} ${s.first_name}`}
                     </p>
-                    <p className="text-xs text-slate-400 truncate">
+                    <p className="text-xs text-slate-500 break-words">
                       {s.class_level} класс
                       {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
                         <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>

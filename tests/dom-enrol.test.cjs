@@ -26,6 +26,7 @@ async function pickStudent(user) {
   await run.page.click('button:has-text("Иванов Иван")');
   return run;
 }
+const plainText = (text) => text.replace(/\s+/g, " ").trim();
 const bulkCalls = (calls) => calls.filter((call) => call.method === "POST" && call.path === "/auth/org/groups/g2/students/bulk" && !/dry_run=true/.test(call.query));
 
 test("M2: an administrator WITHOUT the money right - no switch «Перевести / Добавить», the line about the second group is shown, the request is mode=add", async () => {
@@ -52,7 +53,11 @@ test("M2: an administrator with `payments_access` and the owner keep the switch 
     assert.equal(await page.locator('[data-testid="enrol-second-group"]').count(), 0);
     await page.waitForSelector('[data-testid="transfer-carried"]');
     assert.match(await page.textContent('[data-testid="transfer-carried"]'), /Оплата 300 000 сум перенесётся/);
-    await page.click('button:has-text("Зачислить (1)")');
+    assert.equal(plainText(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится", "ONE title of the block");
+    assert.equal(plainText(await page.textContent('button:has-text("Перевести (1)")')), "Перевести (1)", "the button names the action of the mode, not «Зачислить»");
+    assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0, "the window is about the money of the student: no salary block");
+    assert.ok(!/зарплат/i.test(await page.textContent('[data-testid="transfer-preview"]')), "no line about the salary");
+    await page.click('button:has-text("Перевести (1)")');
     await page.waitForTimeout(300);
     const sent = bulkCalls(calls);
     assert.equal(sent.length, 1, JSON.stringify(user));
@@ -61,7 +66,7 @@ test("M2: an administrator with `payments_access` and the owner keep the switch 
   }
 });
 
-test("R3 item 6: «Что переедет» is asked when somebody from another group is chosen; «Зачислить» waits for it; a failure holds it with «Повторить», the retry opens it", async () => {
+test("R3 item 6: «Что изменится» is asked when somebody from another group is chosen; «Перевести (N)» waits for it; a failure holds it with «Повторить», the retry opens it", async () => {
   let attempts = 0;
   const hold = require("./helpers/dom-answers.cjs").deferred();
   const run = await openPage(browser, "enrol.entry.tsx", (request) => {
@@ -76,14 +81,14 @@ test("R3 item 6: «Что переедет» is asked when somebody from another
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
   await run.page.click('button:has-text("Иванов Иван")');
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="loading"]');
-  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), true, "the answer is not here: the button waits");
+  assert.equal(await run.page.isDisabled('button:has-text("Перевести (1)")'), true, "the answer is not here: the button waits");
   hold.open();
   await run.page.waitForSelector('[data-testid="transfer-preview-retry"]');
-  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), true, "a failure holds it too");
+  assert.equal(await run.page.isDisabled('button:has-text("Перевести (1)")'), true, "a failure holds it too");
   await run.page.click('[data-testid="transfer-preview-retry"]');
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
-  assert.match(await run.page.textContent('[data-testid="transfer-none"], [data-testid="transfer-carried-none"]'), /Оплаты и долги не переносятся/);
-  assert.equal(await run.page.isDisabled('button:has-text("Зачислить (1)")'), false);
+  assert.match(await run.page.textContent('[data-testid="transfer-none"], [data-testid="transfer-carried-none"]'), /Деньги не изменятся: в прошлой группе у ученика нет оплат и долга/);
+  assert.equal(await run.page.isDisabled('button:has-text("Перевести (1)")'), false);
   await run.page.close();
 });
 

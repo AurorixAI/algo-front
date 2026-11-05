@@ -25,6 +25,7 @@ import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const w = window as any;
 w.__log = [] as string[];
@@ -96,6 +97,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<PayoutDialog open sheetId="s1" teacherName="Каримова К." month="2026-11" state={props.state} onClose={() => log("close")} onDone={() => log("done")} />);
       break;
     case "assign":
+      if (props.moneyAvailable) usePaymentsSummary.setState({ available: true, loaded: true });
       root.render(<AssignGroupModal open studentId="st1" studentName="Иванов Иван" mode="transfer" currentGroupId="g1" currentGroupName="7-А Алгебра" onClose={() => log("close")} onAssigned={() => log("assigned")} />);
       break;
     case "openLessons":

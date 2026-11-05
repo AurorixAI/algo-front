@@ -53,5 +53,4 @@ export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> |
   });
 }
 
-export const CARRIED_TITLE = "Что переедет в новую группу";
-export const CARRIED_NONE_TEXT = "Оплаты и долги не переносятся: у ученика в прошлой группе их нет.";
+export const CARRIED_NONE_TEXT = "Деньги не изменятся: в прошлой группе у ученика нет оплат и долга.";

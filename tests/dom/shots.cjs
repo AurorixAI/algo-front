@@ -9,6 +9,7 @@ const { fixture, OWNER_EFFECTS, EMPTY_EFFECTS } = require("../helpers/dom-answer
 const { toshmatovPreview, STAGE_EFFECTS, TOSHMATOV } = require("../helpers/stage-numbers.cjs");
 const { layoutProbe } = require("../helpers/layout-probe.cjs");
 const { monthServer } = require("../helpers/month-list-fixture.cjs");
+const { transferServer } = require("../helpers/transfer-fixture.cjs");
 
 const isDry = (call) => /dry_run=true/.test(call.query);
 let currentExtra = null;         // a shot may add answers of its own (they go first)
@@ -141,6 +142,11 @@ const SHOTS = [
     act: async (page) => { await page.waitForSelector('[data-testid="changed-months-bar"]'); await page.locator('[data-testid="status-todo"]').first().click(); await page.waitForSelector('[data-testid="status-todo-panel"]'); } },
   { name: "40-payment-window", entry: "money.entry.tsx", mount: "till", user: undefined, props: { membership: TOSHMATOV }, preview: toshmatovPreview, effects: STAGE_EFFECTS, sizes: [[1280, 900], [1024, 900], [375, 812]],
     act: async (page) => { await page.waitForTimeout(600); await page.fill("#payment-amount", "400000"); await page.click('[data-testid="payment-methods"] >> text=Наличные'); await page.waitForSelector('[data-testid="payment-plan-rows"]'); } },
+  // UX pack №15 / §5.1-тер: the window of a transfer is about the money of the student only (the sentence of the server), no salary
+  { name: "15-transfer-single", entry: "money.entry.tsx", mount: "assign", props: { moneyAvailable: true }, extra: transferServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.click("text=Геометрия 8"); await page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); } },
+  { name: "15-transfer-bulk", entry: "shots.entry.tsx", mount: "addStudent", extra: transferServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.fill('input[placeholder^="Поиск по имени"]', "Кари"); await page.click('button:has-text("Каримов Фарход")'); await page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 

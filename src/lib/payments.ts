@@ -1107,17 +1107,6 @@ export const CARRY_OVER_CODE = "payment_carried_over";
 /** Walk of 05.11, D-6: the sentence of a transfer about the NEW account after it («Перенесено 640 000 сум; аванс останется …»). */
 export const TRANSFER_BALANCE_CODE = "transfer_balance_after";
 
-/** Muted hint in the transfer choice; shown only to users who see money. */
-export const TRANSFER_PAYMENT_HINT = "Действующая оплата перейдёт в новую группу";
-
-/**
- * The hint belongs to a real transfer ("Перевести"), never to «Добавить ещё», and only
- * while the user may see payments (the server words the note with dates only for them).
- */
-export function transferPaymentHint(input: { transfer: boolean; moneyAvailable: boolean }): string | null {
-  return input.transfer && input.moneyAvailable ? TRANSFER_PAYMENT_HINT : null;
-}
-
 export interface ServerNote {
   code?: string;
   message: string;

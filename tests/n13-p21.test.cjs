@@ -48,11 +48,9 @@ test("the original that moved reads «перенесено в «Группа» �
   for (const none of [{ carried_out: null }, {}, null, undefined]) assert.equal(payments.carriedOutLabel(none), "");
 });
 
-test("the hint appears only for a transfer and only for users who see money", () => {
-  assert.equal(payments.transferPaymentHint({ transfer: true, moneyAvailable: true }), "Действующая оплата перейдёт в новую группу");
-  assert.equal(payments.transferPaymentHint({ transfer: true, moneyAvailable: false }), null);
-  assert.equal(payments.transferPaymentHint({ transfer: false, moneyAvailable: true }), null); // «Добавить ещё»
-  assert.equal(payments.transferPaymentHint({ transfer: false, moneyAvailable: false }), null);
+test("UX pack №15: the old hint «Действующая оплата перейдёт в новую группу» is gone - the block «Что изменится» says it once, with the sums", () => {
+  assert.equal(payments.transferPaymentHint, undefined);
+  assert.equal(payments.TRANSFER_PAYMENT_HINT, undefined);
 });
 
 test("server notes: the carry-over message is information, the rest stays a warning", () => {
@@ -113,15 +111,13 @@ test("payment history and payments page never print «0 сум» for a carry-ove
   // the window of the cancel (names a carry-over by words, says the original payment works again) is read as a window in tests/money1-a-contract.test.cjs
 });
 
-test("transfer hint: drawer and «Перевести» modal, only via transferPaymentHint", () => {
+test("transfer windows: the notes of the server are split; no hint of ours about the payment", () => {
   const drawer = read("src/components/groups/add-student-drawer.tsx");
-  assert.match(drawer, /transferPaymentHint\(\{ transfer: mode === "transfer", moneyAvailable \}\)/);
   assert.match(drawer, /splitTransferNotes\(result\.warnings, nameOf\)/);
   const modal = read("src/components/groups/assign-group-modal.tsx");
-  assert.match(modal, /transferPaymentHint\(\{ transfer: isTransfer, moneyAvailable \}\)/);
   assert.match(modal, /usePaymentsSummary\(\(state\) => state\.available\)/);
   assert.match(modal, /splitTransferNotes\(result\.warnings\)/);
-  for (const text of [drawer, modal]) assert.doesNotMatch(text, /Действующая оплата перейдёт/); // the wording lives in the lib only
+  for (const text of [drawer, modal]) assert.doesNotMatch(text, /Действующая оплата перейдёт|transferPaymentHint/);
 });
 
 test("both group pages build the add-students toast with enrolToast", () => {

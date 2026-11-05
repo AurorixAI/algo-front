@@ -30,7 +30,7 @@ import {
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
-import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import { splitTransferNotes } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -113,7 +113,6 @@ export function AssignGroupModal({
   const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
-  const paymentHint = transferPaymentHint({ transfer: isTransfer, moneyAvailable });
   const priceHint = enrolPriceHint({ transfer: isTransfer, moneyAvailable });
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   // An individual price is an exception: off by default, a sum and a reason when on.
@@ -400,24 +399,22 @@ export function AssignGroupModal({
     {/* Current membership is context, not a selectable destination. */}
     <div className="px-6 pt-5 pb-4 bg-slate-50/80 border-b border-slate-100 space-y-3 flex-shrink-0">
       {(isTransfer || (isAdd && currentGroupLabel)) && (
-        <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 px-3.5 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+        <div data-testid="assign-current-group" className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3.5 py-2.5 sm:py-3">
+          <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-800 sm:flex">
             <Users className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-indigo-500">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
+            <p className="text-xs font-semibold text-indigo-800">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
             <p className="truncate text-sm font-bold text-indigo-950">
               {currentGroupLabel || "Определяем группу ученика…"}
               {!isAdd && currentGroup?.class_level ? ` · ${currentGroup.class_level} класс` : ""}
             </p>
             {!isAdd && currentGroup?.teacher_name && (
-              <p className="truncate text-xs text-indigo-700">Преподаватель: {currentGroup.teacher_name}</p>
+              <p className="hidden truncate text-xs text-indigo-900 sm:block">Преподаватель: {currentGroup.teacher_name}</p>
             )}
             {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
-              <p className="text-xs text-amber-700">Членство во всех текущих группах будет закрыто</p>
+              <p className="text-xs text-amber-800">Членство во всех текущих группах будет закрыто</p>
             )}
-            {paymentHint && <p className="text-xs text-indigo-600/80">{paymentHint}</p>}
-            {priceHint && <p className="text-xs text-indigo-600/80">{priceHint}</p>}
           </div>
         </div>
       )}
@@ -458,7 +455,7 @@ export function AssignGroupModal({
     </div>
 
     {/* Groups List with Constant Fixed Height to prevent jumping */}
-    <div className="p-5 h-[340px] max-h-[340px] overflow-y-auto bg-slate-50/40 flex-shrink-0">
+    <div className="p-5 h-[220px] max-h-[220px] overflow-y-auto bg-slate-50/40 flex-shrink-0 sm:h-[340px] sm:max-h-[340px]">
       {loading ? (
         <div className="flex flex-col items-center justify-center h-full text-slate-400">
           <Loader2 className="w-8 h-8 text-primary-500 animate-spin mb-3" />
@@ -601,6 +598,7 @@ export function AssignGroupModal({
               )}
             </p>
             {selectedPriceNote && <p className="mt-0.5 text-slate-500">{selectedPriceNote}</p>}
+            {priceHint && <p className="mt-0.5 text-slate-500" data-testid="assign-price-hint">{priceHint}</p>}
           </>
         )}
         <div className={selectedPriceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
