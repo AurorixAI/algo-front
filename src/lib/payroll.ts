@@ -9,6 +9,7 @@
  * UX-2: a sheet has no price and no rate to edit - the price is set in «Цены групп», the rate in «Сотрудники».
  */
 import { formatMoney, pluralRu } from "./payments";
+import { monthLabel } from "./ru-calendar";
 import { formatSignedMoney } from "./money-format";
 import { EXCUSE_REVIEW_LABEL } from "./attendance-marks";
 import {
@@ -204,9 +205,9 @@ export function monthNameRu(month: string): string {
   return isMonthParam(month) ? capitalizeFirst(formatIsoDateLabel(`${month}-01`, { month: "long" })) : month;
 }
 
-/** The one calm line over the table of an open month: «Октябрь ещё идёт — расчёт предварительный»; null for a closed one. */
+/** The one calm line over the table of an open month: «Октябрь ещё идёт — суммы предварительные»; null for a closed one. */
 export function monthStatusText(month: string, open: boolean): string | null {
-  return open ? `${monthNameRu(month)} ещё идёт — расчёт предварительный` : null;
+  return open ? `${monthNameRu(month)} ещё идёт — суммы предварительные` : null;
 }
 
 /** The tail of the subtitle of a sheet of an unfinished month: «месяц ещё идёт, расчёт предварительный»; null for a closed one. */
@@ -1094,30 +1095,98 @@ export function monthRateLines(teacher: Pick<PayrollMonthTeacher, "rates" | "mis
 export const UNDECIDED_HINT = "Дополнительные уроки, оплату которых ещё никто не решил: пока не решено, в сумму они не входят. Решите «Оплатить / Не оплачивать» в «Заменах».";
 
 /**
- * What of a teacher's month NEEDS AN ACTION, in ONE line under the name («1 незакрытый урок · 1 доп. урок ждёт решения»), each part a link to where it is done.  Only actions: an unfinished lesson,
- * an excuse that waits, a missing price, an additional lesson nobody decided.  «N учеников не оплатили часть уроков» is a note, not an action: it stays on the sheet (UX round of the owner 05.11).
+ * What of a teacher's month NEEDS AN ACTION (UX pack §5.2-бис): an unfinished lesson, an excuse that waits, a missing price, an additional lesson nobody decided - and the saved salary that CHANGED
+ * («Зарплата изменилась на −45 000 сум — сохраните новую сумму»).  Each item is a link to where it is done.  «N учеников не оплатили часть уроков» is a note, not an action: it stays on the sheet.
+ * The row does not print them under the name any more: they are the items of its ONE status chip («Требует действия · N», `rowStatus`) and the block «Что нужно сделать» of the sheet.
  */
-export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" | "undecided_lessons">): WarningView[] {
+export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" | "undecided_lessons"> & { sheet?: Pick<PayrollMonthSheetRef, "id" | "stale"> | null; payout?: Pick<NonNullable<PayrollMonthTeacher["payout"]>, "changed_by" | "fresh_total"> | null }): WarningView[] {
   const views = warningViews(teacher.warnings).filter((view) => view.key !== "unpaid");
   const undecided = Math.max(0, Math.floor(Number(teacher.undecided_lessons) || 0));
   if (undecided > 0) {
     views.push({
       key: "undecided",
       text: `${undecided} ${pluralRu(undecided, ["доп. урок ждёт решения", "доп. урока ждут решения", "доп. уроков ждут решения"])}`,
-      href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены",
+      href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить",
     });
   }
+  const changed = changedItem(teacher);
+  if (changed) views.push(changed);
   return views;
 }
 
 /**
- * The status chip of a row: the change after the saving is said ONCE, here - «Изменилась на +75 834» (instead of «Есть изменения» and a second line under the payout).  When the data moved but the
- * sum is the same (or cannot be counted) it stays «Есть изменения».
+ * The items of the block «Что нужно сделать» on top of the sheet of a teacher (UX pack §5.2-бис): what its warnings name (an unfinished lesson - «Отметить», an excuse - «Решить», no price), the
+ * additional lessons nobody decided («Решить»), and the saved salary that CHANGED («Сохранить новую сумму»).  Only what needs an action; «N учеников не оплатили часть уроков» is a note.
+ * `counts` are the FRESH warnings of the month (a saved sheet) or the sheet's own (a calculation not saved yet).
  */
-export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout">): SheetStatusView {
+export function sheetTodoItems(input: {
+  counts: PayrollSheetWarnings | PayrollMonthWarnings | null | undefined;
+  noFeeHref?: string;
+  openUnknown?: boolean;
+  undecidedVisits?: number | null;
+  changed?: WarningView | null;
+}): WarningView[] {
+  const items = input.counts ? warningViews(input.counts, { noFeeHref: input.noFeeHref, openUnknown: input.openUnknown }).filter((view) => view.key !== "unpaid") : [];
+  if ((input.undecidedVisits ?? 0) > 0) {
+    items.push({ key: "undecided", text: "Дополнительные уроки ждут решения", href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить" });
+  }
+  if (input.changed) items.push(input.changed);
+  return items;
+}
+
+/** The saved salary moved after the saving: the item «Зарплата изменилась на −45 000 сум — сохраните новую сумму» (the button of the sheet saves it). null when nothing moved. */
+export function changedItem(teacher: { sheet?: Pick<PayrollMonthSheetRef, "id" | "stale"> | null; payout?: { changed_by?: number | null; fresh_total?: number | null } | null }): WarningView | null {
+  const sheet = teacher.sheet;
+  if (!sheet || !sheet.stale) return null;
+  const delta = teacher.payout && teacher.payout.fresh_total !== null && teacher.payout.fresh_total !== undefined ? Number(teacher.payout.changed_by) || 0 : null;
+  const text = delta === null || delta === 0 ? "Данные изменились — проверьте и сохраните новую сумму" : `Зарплата изменилась на ${formatSignedMoney(delta)} — сохраните новую сумму`;
+  return { key: "changed", text, href: `/owner/payroll/${encodeURIComponent(sheet.id)}`, tone: "warning", hint: statusChangedHint(), target: "Ведомость преподавателя", button: "Сохранить новую сумму" };
+}
+const statusChangedHint = (): string => "Сохранённая зарплата не меняется сама: откройте её и сохраните новую сумму — появится новая версия.";
+
+/**
+ * The ONE status chip of a row (UX pack §5.2-бис), by priority: 1. «Требует действия · N» (amber; its items open on hover, tap or focus); 2. «Не рассчитано»; 3. «Сохранено 05.11».
+ * `items` are the action items of the first kind (a changed salary is one of them).
+ */
+export interface RowStatusView {
+  tone: "todo" | "none" | "saved";
+  label: string;
+  items: WarningView[];
+}
+
+export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout" | "warnings" | "undecided_lessons">): RowStatusView {
+  const items = teacherAttention(teacher);
+  if (items.length > 0) return { tone: "todo", label: `Требует действия · ${items.length}`, items };
   const base = sheetStatus(teacher.sheet);
-  const delta = teacher.payout && teacher.payout.fresh_total !== null && teacher.payout.fresh_total !== undefined ? Number(teacher.payout.changed_by) || 0 : 0;
-  return base.tone === "changed" && delta !== 0 ? { tone: "changed", label: `Изменилась на ${formatSignedMoney(delta)}` } : base;
+  return { tone: base.tone === "none" ? "none" : "saved", label: base.label, items: [] };
+}
+
+// ── the bar over the page «Зарплата»: the months where the saved salary changed (UX pack §5.1-тер) ───────
+
+export interface ChangedPayrollMonth {
+  /** `YYYY-MM` */
+  month: string;
+  /** How many saved sheets of the month changed after the saving. */
+  teachers: number;
+}
+
+export interface ChangedMonthsBar {
+  /** «Зарплата изменилась в закрытых месяцах: сентябрь — 2 преподавателя, октябрь — 1.» */
+  text: string;
+  /** «Открыть сентябрь»: the oldest of them. */
+  button: string;
+  month: string;
+}
+
+/**
+ * The amber bar over the summary of the page (any month): the OTHER months whose saved salary changed after the saving - the change that no window of a payment shows any more.  null when there is none
+ * (the month on the page has its own chips in the list).  The first month has the noun, the next ones only the number (the owner's wording).
+ */
+export function changedMonthsBar(items: ReadonlyArray<ChangedPayrollMonth> | null | undefined, currentMonth: string, today: string): ChangedMonthsBar | null {
+  const others = [...(items ?? [])].filter((item) => item.month !== currentMonth && Number(item.teachers) > 0).sort((a, b) => a.month.localeCompare(b.month));
+  if (others.length === 0) return null;
+  const parts = others.map((item, index) => `${monthLabel(item.month, today)} — ${item.teachers}${index === 0 ? ` ${pluralRu(item.teachers, ["преподаватель", "преподавателя", "преподавателей"])}` : ""}`);
+  return { text: `Зарплата изменилась в закрытых месяцах: ${parts.join(", ")}.`, button: `Открыть ${monthLabel(others[0].month, today)}`, month: others[0].month };
 }
 
 // ── The page of a month ─────────────────────────────────────────────────────
@@ -1132,7 +1201,15 @@ export interface CalculationGate {
   text: string | null;
 }
 
-export const ALL_SAVED_TEXT = "Все ведомости месяца сохранены";
+export const ALL_SAVED_TEXT = "Зарплата сохранена у всех преподавателей";
+
+/** The small line under the sum of a row (L1): what the number is - «начислено сейчас» (an open month) or «сохранено» (a saved sum). */
+export function teacherSumCaption(sum: { fresh: boolean }): string {
+  return sum.fresh ? "начислено сейчас" : "сохранено";
+}
+
+/** The header of the column of the list (L1): the number is the salary, whatever state the month is in. */
+export const SALARY_COLUMN = "Зарплата";
 
 /**
  * The teachers «Рассчитать всех» computes: those WITHOUT a saved sheet for the month.  A bulk action never gives a saved sheet
@@ -1159,25 +1236,72 @@ export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher
   };
 }
 
-export interface MonthSummary {
-  /** «К выплате за сентябрь:» */
-  label: string;
-  /** The sum of the saved sheets; null while none is saved. */
-  amount: number | null;
-  /** «сохранено 2 из 3» */
-  saved: string;
+// ── the summary and the rows of the list of a month (UX pack §5.2) ─────────────────────────────────────
+
+/** The rest of a teacher's month, as the column «Остаток» says it. */
+export type RestKind = "none" | "left" | "ahead" | "more" | "done";
+
+export interface TeacherMonthNumbers {
+  /** The salary the list names (`teacherMonthSum`); null: nothing is saved for the teacher. */
+  salary: number | null;
+  /** «начислено сейчас» (an open month is by what is accrued now) or «сохранено». */
+  caption: string | null;
+  /** The saved sum an open month moved away from («было 120 834»): the change of the sum is said under the number, not by a chip.  null: it did not move. */
+  was: number | null;
+  /** Paid out so far; null: no sheet, so no payout state. */
+  paid: number | null;
+  /**
+   * `left`: still to pay out (a plain number); `ahead`: paid MORE than accrued in an open month («вперёд 74 166», the rest of the month covers it); `more`: the same in a closed month («больше на 16 666»,
+   * it is taken off the next payout); `done`: paid in full («выплачено ✓»); `none`: nothing to say.
+   */
+  rest: { kind: RestKind; amount: number };
 }
 
-export function monthSummary(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet" | "payout">>): MonthSummary {
-  const saved = teachers.filter((teacher) => teacher.sheet);
-  const sums = saved.map(teacherMonthSum);
-  // D-2 (walk of 05.11): the month that is still open is paid by what is accrued now; when every saved sheet of the list is such, the line says so (as the card of a sheet does)
-  const open = sums.length > 0 && sums.every((sum) => sum.fresh);
-  return {
-    label: `${open ? "Начислено сейчас за" : "К выплате за"} ${monthNameRu(month).toLowerCase()}:`,
-    amount: saved.length > 0 ? sums.reduce((total, sum) => total + sum.amount, 0) : null,
-    saved: `сохранено ${saved.length} из ${teachers.length}`,
-  };
+/** The numbers of a row of the list - the ONE place both the row and the tiles of the summary read them (LESSONS 104). */
+export function teacherMonthNumbers(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout">): TeacherMonthNumbers {
+  if (!teacher.sheet) return { salary: null, caption: null, was: null, paid: null, rest: { kind: "none", amount: 0 } };
+  const sum = teacherMonthSum(teacher);
+  const payout = teacher.payout;
+  if (!payout) return { salary: sum.amount, caption: teacherSumCaption(sum), was: null, paid: null, rest: { kind: "none", amount: 0 } };
+  const was = sum.fresh && payout.fresh_total !== null && payout.saved_total !== payout.fresh_total ? payout.saved_total : null;
+  const paid = payout.paid ?? 0;
+  const balance = payout.balance ?? 0;
+  let rest: TeacherMonthNumbers["rest"];
+  if (balance > 0) rest = { kind: "left", amount: balance };
+  else if (balance < 0) rest = { kind: payout.basis === "fresh" ? "ahead" : "more", amount: -balance };
+  else rest = paid > 0 ? { kind: "done", amount: 0 } : { kind: "none", amount: 0 };
+  return { salary: sum.amount, caption: teacherSumCaption(sum), was, paid, rest };
+}
+
+export interface MonthTile {
+  key: "accrued" | "paid" | "left" | "ahead";
+  label: string;
+  value: number;
+}
+
+export interface MonthTotals {
+  tiles: MonthTile[];
+  /** «сохранено 2 из 3» */
+  saved: string;
+  /** A month that is going on: the sums are accrued by now (and preliminary). */
+  running: boolean;
+}
+
+/**
+ * The four tiles over the list (UX pack §5.2): «Начислено на сегодня» (a finished month: «К выплате за октябрь») · «Выплачено» · «Осталось выплатить» · «Выплачено вперёд» (a finished month: «Выплачено больше»; only
+ * when there is such a sum).  Every number is the sum of the SAME numbers the rows show (`teacherMonthNumbers`), so the tiles and the table can never disagree.
+ */
+export function monthTotals(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet" | "payout">>, monthOpen: boolean): MonthTotals {
+  const rows = teachers.map(teacherMonthNumbers);
+  const total = (pick: (row: TeacherMonthNumbers) => number) => rows.reduce((all, row) => all + pick(row), 0);
+  const over = total((row) => (row.rest.kind === "ahead" || row.rest.kind === "more" ? row.rest.amount : 0));
+  const tiles: MonthTile[] = [
+    { key: "accrued", label: monthOpen ? "Начислено на сегодня" : `К выплате за ${monthNameRu(month).toLowerCase()}`, value: total((row) => row.salary ?? 0) },
+    { key: "paid", label: "Выплачено", value: total((row) => row.paid ?? 0) },
+    { key: "left", label: "Осталось выплатить", value: total((row) => (row.rest.kind === "left" ? row.rest.amount : 0)) },
+  ];
+  if (over > 0) tiles.push({ key: "ahead", label: monthOpen ? "Выплачено вперёд" : "Выплачено больше", value: over });
+  return { tiles, saved: `сохранено ${teachers.filter((teacher) => teacher.sheet).length} из ${teachers.length}`, running: monthOpen };
 }
 
 /**
@@ -1191,12 +1315,6 @@ export function teacherMonthSum(teacher: Pick<PayrollMonthTeacher, "sheet" | "pa
   return { amount: teacher.sheet?.total_amount ?? 0, fresh: false };
 }
 
-/** «К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3» (one line; «—» while nothing is saved). */
-export function monthSummaryText(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet">>): string {
-  const summary = monthSummary(month, teachers);
-  return `${summary.label} ${summary.amount === null ? "—" : formatMoney(summary.amount)} · ${summary.saved}`;
-}
-
 export type RowActionKind = "calculate" | "open";
 
 /**
@@ -1208,9 +1326,9 @@ export function rowAction(sheet: Pick<PayrollMonthSheetRef, "stale"> | null | un
   return { kind: "open", label: "Открыть" };
 }
 
-/** A teacher's lessons of the month: «21 урок за месяц». */
-export function lessonsOfMonthText(count: number): string {
-  return `${count} ${pluralRu(count, ["урок", "урока", "уроков"])} за месяц`;
+/** «4 урока» - a teacher's lessons of the month, in the quiet line under the name (the page says it is the month). */
+export function lessonsCountText(count: number): string {
+  return `${count} ${pluralRu(count, ["урок", "урока", "уроков"])}`;
 }
 
 export type StatusChipTone = "none" | "saved" | "changed";
@@ -1228,7 +1346,7 @@ export function savedDayMonth(updatedAt: string | null | undefined): string {
 /** One chip: «Не рассчитано» / «Сохранено 16.10» / «Есть изменения»; a chip starts with a capital letter. */
 export function sheetStatus(sheet: Pick<PayrollMonthSheetRef, "stale" | "updated_at"> | null): SheetStatusView {
   if (!sheet) return { tone: "none", label: "Не рассчитано" };
-  if (sheet.stale) return { tone: "changed", label: "Есть изменения" };
+  if (sheet.stale) return { tone: "changed", label: "Данные изменились" };
   const day = savedDayMonth(sheet.updated_at);
   return { tone: "saved", label: day ? `Сохранено ${day}` : "Сохранено" };
 }
@@ -1327,10 +1445,10 @@ export function sheetCardStatus(input: {
   if (!input.saved) return { tone: "preview", text: "Не сохранено", action: "save" };
   if (input.stale) {
     const text = input.delta === null
-      ? "После сохранения изменились данные"
+      ? "После сохранения данные изменились"
       : input.delta === 0
-        ? "После сохранения изменились данные, сумма та же"
-        : `После сохранения ведомость изменилась на ${formatSignedMoney(input.delta)}`;
+        ? "После сохранения данные изменились, сумма та же"
+        : `Зарплата изменилась на ${formatSignedMoney(input.delta)} — сохраните новую сумму`;
     return { tone: "changed", text, action: "recalculate" };
   }
   const when = formatUtcNaiveAsBusinessDateTime(input.updatedAt);
@@ -1343,7 +1461,7 @@ export function sheetCardStatus(input: {
 export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students" | "open_lesson_items">;
 
 export interface WarningView {
-  key: WarningKey | "undecided";
+  key: WarningKey | "undecided" | "changed";
   text: string;
   href: string;
   tone: "warning" | "info";
@@ -1351,6 +1469,8 @@ export interface WarningView {
   hint: string;
   /** Where the link leads, in words: «Посещаемость → Незакрытые уроки». */
   target: string;
+  /** The button of this item in the block «Что нужно сделать» of the sheet: «Отметить» / «Решить» / «Сохранить новую сумму» (UX pack §5.2-бис). */
+  button?: string;
 }
 
 /** Where a warning leads: the screen in which the owner can fix what it names. */
@@ -1360,6 +1480,9 @@ export const WARNING_LINKS = {
   no_fee: pricesBaseOf("/owner/groups"),
   unpaid: "/owner/payments?bucket=debt",
 } as const;
+
+/** The button of an item in the block «Что нужно сделать» of the sheet (UX pack §5.2-бис). */
+export const WARNING_BUTTONS = { open_lessons: "Отметить", pending_excused: "Решить", no_fee: "Задать цену", unpaid: "Открыть" } as const;
 
 /** The link of a warning in words (a tooltip, a screen reader). */
 export const WARNING_TARGETS = {
@@ -1389,11 +1512,11 @@ export const WARNING_HINTS = {
 export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings, options: { noFeeHref?: string; openUnknown?: boolean } = {}): WarningView[] {
   const out: WarningView[] = [];
   const add = (key: WarningKey, text: string, tone: WarningView["tone"], href: string = WARNING_LINKS[key]) =>
-    out.push({ key, text, href, tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key] });
+    out.push({ key, text, href, tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key], button: WARNING_BUTTONS[key] });
   const open = counts.open_lessons;
   // the month overview says so itself; a calculation not saved yet has `null` for a failed check (a saved sheet's null is «not looked up»: the caller passes `openUnknown` only for the first)
   if (("open_lessons_unknown" in counts && counts.open_lessons_unknown === true) || options.openUnknown === true) {
-    out.push({ key: "open_lessons", text: OPEN_LESSONS_UNKNOWN_TEXT, href: WARNING_LINKS.open_lessons, tone: "warning", hint: OPEN_LESSONS_UNKNOWN_HINT, target: WARNING_TARGETS.open_lessons });
+    out.push({ key: "open_lessons", text: OPEN_LESSONS_UNKNOWN_TEXT, href: WARNING_LINKS.open_lessons, tone: "warning", hint: OPEN_LESSONS_UNKNOWN_HINT, target: WARNING_TARGETS.open_lessons, button: WARNING_BUTTONS.open_lessons });
   } else if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
   const pending = counts.pending_excused;
   if (pending) {
@@ -1581,7 +1704,7 @@ export function defaultRateFrom(input: { hasAnyRate: boolean; today: string; mon
 
 export const RATE_FIRST_NOTE = "Первая ставка действует и для прошлых месяцев";
 
-export const RATE_PAST_NOTE = "Сохранённые ведомости не изменятся — у затронутых месяцев появится «Есть изменения».";
+export const RATE_PAST_NOTE = "Сохранённая зарплата не изменится — у затронутых месяцев появится «Данные изменились».";
 
 /** The rate form: what to send and what is wrong.  Empty with no rate yet = «not set now»; empty with a rate = an error. */
 export function checkRateForm(

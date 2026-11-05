@@ -47,24 +47,24 @@ test("the month status: the name of the month in the nominative, only for an ope
   assert.equal(R.monthNameRu("2026-10"), "Октябрь");
   assert.equal(R.monthNameRu("2026-03"), "Март");
   assert.equal(R.monthNameRu("2026-05"), "Май");
-  assert.equal(R.monthStatusText("2026-10", true), "Октябрь ещё идёт — расчёт предварительный");
-  assert.equal(R.monthStatusText("2026-02", true), "Февраль ещё идёт — расчёт предварительный");
+  assert.equal(R.monthStatusText("2026-10", true), "Октябрь ещё идёт — суммы предварительные");
+  assert.equal(R.monthStatusText("2026-02", true), "Февраль ещё идёт — суммы предварительные");
   assert.equal(R.monthStatusText("2026-09", false), null);
 });
 
-test("PayrollMonthSummary: one line - «К выплате за …: N сум · сохранено X из Y»; «Как считается» and «Делитель» sit in the «⋯» menu, not next to the text", () => {
+test("PayrollMonthSummary (UX pack §5.2): the tiles and ONE calm line «Октябрь ещё идёт — суммы предварительные · сохранено X из Y»; «Как считается» and «Делитель» sit in the «⋯» menu, not next to the text", () => {
   const { PayrollMonthSummary } = require(path.join(root, "src/components/payroll/month-status.tsx"));
-  const teachers = [{ sheet: { total_amount: 900000 } }, { sheet: { total_amount: 510415 } }, { sheet: null }];
-  const summary = R.monthSummary("2026-10", teachers);
-  const open = renderToStaticMarkup(React.createElement(PayrollMonthSummary, { summary, month: "2026-10", open: true }));
+  const teachers = [{ sheet: { total_amount: 900000 }, payout: null }, { sheet: { total_amount: 510415 }, payout: null }, { sheet: null, payout: null }];
+  const open = renderToStaticMarkup(React.createElement(PayrollMonthSummary, { totals: R.monthTotals("2026-10", teachers, true), month: "2026-10", open: true }));
   const text = textOf(open);
-  assert.ok(text.includes("К выплате за октябрь: 1 410 415 сум · сохранено 2 из 3"));
-  assert.ok(text.includes("Октябрь ещё идёт — расчёт предварительный"));
+  assert.match(text, /Начислено на сегодня\s*1\s410\s415\sсум/);
+  assert.ok(text.includes("Октябрь ещё идёт — суммы предварительные · сохранено 2 из 3"));
   assert.doesNotMatch(text, /Как считается|Делитель/); // no floating links
-  assert.doesNotMatch(open, /<details|bg-amber-50\b|border-amber/); // no card, no accordion
-  const closed = textOf(renderToStaticMarkup(React.createElement(PayrollMonthSummary, { summary: R.monthSummary("2026-09", [{ sheet: null }]), month: "2026-09", open: false })));
+  assert.doesNotMatch(open, /<details|bg-amber-50\b|border-amber/); // no accordion, nothing amber
+  const closed = textOf(renderToStaticMarkup(React.createElement(PayrollMonthSummary, { totals: R.monthTotals("2026-09", [{ sheet: null, payout: null }], false), month: "2026-09", open: false })));
   assert.doesNotMatch(closed, /ещё идёт/);
-  assert.ok(closed.includes("К выплате за сентябрь: — · сохранено 0 из 1"));
+  assert.match(closed, /К выплате за сентябрь\s*0\sсум/);
+  assert.ok(closed.includes("сохранено 0 из 1"));
   // the menu: the explanation in a dialog (closed until asked for) and the divisor in the settings
   const menu = read("src/components/payroll/month-status.tsx");
   assert.match(menu, /label: "Как считается"/);
@@ -134,8 +134,8 @@ test("no checkboxes without an action: a row has one button by its status; «Р�
   // the API has no Excel of several chosen sheets (one sheet or the whole month): no such button
   assert.doesNotMatch(page, /Скачать Excel выбранных/);
   // the table has the shared header: identity left, rate and status centred, a list: everything but the name is centred, the action column has no title
-  assert.match(page, /labels=\{\["Преподаватель", "Ставка", "К выплате", "Выплата", "Статус", ""\]\}/);
-  assert.match(page, /aligns=\{\["left", "center", "center", "center", "center", "center"\]\}/);
+  assert.match(page, /labels=\{MONTH_COLUMNS\.labels\}/);
+  assert.match(page, /aligns=\{MONTH_COLUMNS\.aligns\}/);
   // what the old label did is kept: the teachers to calculate travel as teacher_ids
   assert.deepEqual(R.rowAction(null), { kind: "calculate", label: "Рассчитать" });
   assert.deepEqual(R.rowAction({ stale: false }), { kind: "open", label: "Открыть" });

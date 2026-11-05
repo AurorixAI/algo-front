@@ -6,8 +6,13 @@ const out = process.argv[2];
 if (process.argv[3]) process.env.DOM_CSS = process.argv[3];
 const { launch, openPage } = require("../helpers/dom-page.cjs");
 const { fixture, OWNER_EFFECTS, EMPTY_EFFECTS } = require("../helpers/dom-answers.cjs");
+const { toshmatovPreview, STAGE_EFFECTS, TOSHMATOV } = require("../helpers/stage-numbers.cjs");
+const { layoutProbe } = require("../helpers/layout-probe.cjs");
+const { monthServer } = require("../helpers/month-list-fixture.cjs");
 
 const isDry = (call) => /dry_run=true/.test(call.query);
+let currentExtra = null;         // a shot may add answers of its own (they go first)
+let currentPreview = null;       // a shot may set the answer of `payments/preview` (a function of the asked amount)
 let currentEffects = null;      // a shot may set the block of money the server answers (the payment of the walk: a CLOSED month, two teachers)
 const PAUSE_LOCKED = { code: "PAUSE_LOCKED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 03.11.2026. Чтобы исправить, владелец переоткрывает месяц.", month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-03" };
 const STUDENT = { id: "st1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "active", group_id: "g1", current_group_id: "g1", groups_count: 1 };
@@ -17,6 +22,8 @@ const MEMBERSHIP = { membership_id: "m1", group_id: "g1", student_name: "Ива�
 
 const server = (request) => {
   const { method, path: p } = request;
+  const own = currentExtra ? currentExtra(request) : null;
+  if (own) return own;
   if (method === "GET" && p === "/auth/org/memberships/m1/pauses") return { json: [] };
   if (method === "POST" && p === "/auth/org/memberships/m1/pauses" && isDry(request)) return { status: 422, json: { detail: PAUSE_LOCKED } };
   if (method === "GET" && p === "/auth/org/payroll-periods" && !/2026-11/.test(request.query)) return { json: { month: "2026-10", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-10", state: "closed", closedOn: "2026-11-03", sheetId: "s1", sheetRevision: 3, reopened: null }] } };
@@ -26,6 +33,7 @@ const server = (request) => {
   if (method === "GET" && p === "/auth/org/days-off") return { json: DAYS_OFF };
   if (method === "POST" && p === "/auth/org/days-off/preview") return { json: { dateFrom: "2026-11-23", dateTo: "2026-11-23", cancellable: [{ lessonId: "l1", groupId: "g1", groupName: "7-А Алгебра", date: "2026-11-23", startTime: "16:00", endTime: "17:00" }], blocked: [], alreadyCancelled: 0, groups: 1, text: "Будет отменён 1 урок в 1 группе" } };
   if (method === "POST" && p === "/auth/org/memberships/m1/payments" && isDry(request)) return { json: { ...fixture("e1_create_300000"), dry_run: true, money_effects: currentEffects ?? OWNER_EFFECTS } };
+  if (method === "GET" && p === "/auth/org/memberships/m1/payments/preview" && currentPreview) return { json: currentPreview(Number(/amount=(\d+)/.exec(request.query)?.[1]) || null) };
   if (method === "GET" && p === "/auth/org/memberships/m1/payments/preview") return { json: fixture(/amount=250000/.test(request.query) ? "e1_preview_250000" : "e1_preview_300000") };
   if (method === "POST" && p === "/auth/org/payments/p1/void" && isDry(request)) return { json: { ...fixture("e1_void_300000"), money_effects: OWNER_EFFECTS } };
   if (method === "POST" && p === "/auth/org/memberships/m1/writeoffs" && isDry(request)) return { json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } };
@@ -126,14 +134,11 @@ const SHOTS = [
     await page.waitForSelector("table"); const today = await page.evaluate(() => { const d = new Date(Date.now() + 5 * 3600000); return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; });
     await page.locator(`button[aria-label="Действия с уроком ${today}"]`).first().click(); await page.waitForSelector('[data-testid="menu-return-review"]');
   } },
-  { name: "29-month-list", entry: "money.entry.tsx", mount: "monthRows", sizes: [[1280, 900], [1024, 900], [375, 812]], props: { teachers: [
-    { teacher_id: "t1", teacher_name: "Камол Эргашев", lessons_count: 4, lesson_types: [], rates: { group: "50", individual: "60" }, missing_rates: [], undecided_lessons: 1,
-      sheet: { id: "s1", revision: 2, total_amount: 120834, stale: true, updated_at: "2026-11-05T05:00:00" }, warnings: { open_lessons: 1, pending_excused: 0, no_fee: 0, unpaid: 8, unpaid_students: 1 },
-      payout: { saved_total: 120834, fresh_total: 75834, target: 75834, paid: 150000, balance: -74166, state: "overpaid", basis: "fresh", changed_by: -45000, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0 }, __period: { state: "open", closedOn: null, reopened: null } },
-    { teacher_id: "t2", teacher_name: "Лола Мирзаева", lessons_count: 0, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: null, warnings: { open_lessons: 1, pending_excused: 0, no_fee: 0, unpaid: 0 }, payout: null, __period: null },
-    { teacher_id: "t3", teacher_name: "Назарова Сабина", lessons_count: 9, lesson_types: [], rates: { group: "50", pair: "45" }, missing_rates: [], sheet: { id: "s3", revision: 1, total_amount: 860000, stale: false, updated_at: "2026-11-05T05:00:00" }, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 },
-      payout: { saved_total: 860000, fresh_total: 860000, target: 860000, paid: 0, balance: 860000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0 }, __period: { state: "closed", closedOn: "2026-11-05", reopened: null } },
-  ] }, act: async (page) => { await page.waitForSelector('[data-testid="teacher-attention"]'); } },
+  // UX pack §5.2 / §5.2-бис / §5.1-тер: the page «Зарплата» of November with the numbers of the walk (935 834 / 150 000 / 860 000 / 74 166), the chip «Требует действия · 3» open, the bar of the other months
+  { name: "41-month-list", entry: "money.entry.tsx", mount: "monthPage", time: "2026-11-05T10:00:00+05:00", search: "month=2026-11", extra: monthServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForSelector('[data-testid="changed-months-bar"]'); } },
+  { name: "41-month-list-chip", entry: "money.entry.tsx", mount: "monthPage", time: "2026-11-05T10:00:00+05:00", search: "month=2026-11", extra: monthServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForSelector('[data-testid="changed-months-bar"]'); await page.locator('[data-testid="status-todo"]').first().click(); await page.waitForSelector('[data-testid="status-todo-panel"]'); } },
   { name: "30-till-closed-month-two-teachers", entry: "money.entry.tsx", mount: "till", user: undefined, sizes: [[1280, 900], [1024, 900], [375, 812]],
     effects: { students: [], dryRun: true, text: "", payroll: [
       { month: "2026-09", state: "closed", sheetId: "s1", teacherId: "t1", teacherName: "Эргашев К.", savedTotal: 860000, paid: 0, freshBefore: 860000, freshAfter: 993333, freshTotal: 993333, changedBy: 133333, driftAfter: 133333 },
@@ -142,6 +147,9 @@ const SHOTS = [
   { name: "31-till-open-month-and-admin", entry: "money.entry.tsx", mount: "till", user: { role: "admin", org_role: "admin", payments_access: true },
     effects: { students: [], dryRun: true, text: "", payroll: [{ month: "2026-09", state: "closed" }, { month: "2026-09", state: "closed" }] },
     act: async (page) => { await page.waitForTimeout(600); await page.fill("#payment-amount", "300000"); await page.click('[data-testid="payment-methods"] >> text=Наличные'); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); } },
+  // UX pack §5.1 / §5.1-бис: «Оплата от ученика» with the numbers of the walk of stage (Тошматов Бобур, 400 000 of 1 200 000, September closed, two teachers)
+  { name: "40-payment-window", entry: "money.entry.tsx", mount: "till", user: undefined, props: { membership: TOSHMATOV }, preview: toshmatovPreview, effects: STAGE_EFFECTS, sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForTimeout(600); await page.fill("#payment-amount", "400000"); await page.click('[data-testid="payment-methods"] >> text=Наличные'); await page.waitForSelector('[data-testid="payment-plan-rows"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 
@@ -153,7 +161,11 @@ const SHOTS = [
   for (const shot of SHOTS.filter((item) => !only || only.some((prefix) => item.name.startsWith(prefix)))) {
     for (const [width, height] of shot.sizes ?? [[1280, 900], [375, 812]]) {
       currentEffects = shot.effects ?? null;
+      currentPreview = shot.preview ?? null;
+      currentExtra = shot.extra ?? null;
       const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
+      if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
+      if (shot.search) await page.evaluate((search) => { window.__search = search; }, shot.search);
       await page.evaluate(([fn, name, user, props]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user, props)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }, shot.props ?? {}]);
       try { await shot.act(page); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }
       await page.waitForTimeout(500);
@@ -166,9 +178,10 @@ const SHOTS = [
         const cut = dialog ? [...dialog.querySelectorAll("button")].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent.trim().slice(0, 30)) : [];
         return { scrollX: document.documentElement.scrollWidth - vw, dialogWider: box ? Math.round(box.right - vw) : null, outside: controls, truncated: cut };
       });
+      const layout = await page.evaluate(layoutProbe, '[role="dialog"]');
       const file = path.join(out, `${shot.name}-${width}.png`);
       await page.screenshot({ path: file });
-      report.push(`${shot.name} ${width}: pageScroll=${metrics.scrollX} dialogOverflow=${metrics.dialogWider} controlsOutside=${JSON.stringify(metrics.outside)} buttonsCut=${JSON.stringify(metrics.truncated)}${errors.filter((e) => !/404|Failed to load/.test(e)).length ? ` errors=${errors.length}` : ""}`);
+      report.push(`${shot.name} ${width}: pageScroll=${metrics.scrollX} dialogOverflow=${metrics.dialogWider} controlsOutside=${JSON.stringify(metrics.outside)} buttonsCut=${JSON.stringify(metrics.truncated)} layout=${layout.bad.length === 0 ? "ok" : JSON.stringify(layout.bad.slice(0, 6))}${errors.filter((e) => !/404|Failed to load/.test(e)).length ? ` errors=${errors.length}` : ""}`);
       await page.close();
     }
   }

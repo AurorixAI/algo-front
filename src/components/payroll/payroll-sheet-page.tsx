@@ -23,8 +23,11 @@ import {
   sheetMonthNote,
   monthTitle,
   payrollErrorText,
+  changedItem,
   sheetCardStatus,
   sheetFileName,
+  sheetNoFeeHref,
+  sheetTodoItems,
   sheetTotal,
   teacherLabel,
   versionLabel,
@@ -36,14 +39,14 @@ import {
   type RatesNow,
   type SheetEdits,
 } from "@/lib/payroll";
-import { CLOSE_MONTH_DONE, periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
+import { CLOSE_MONTH_DONE, CLOSE_MONTH_LABEL, periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, savedTableNote } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, RESAVE_LABEL, savedTableNote } from "@/lib/payroll-logica";
 import { ReopenMonthDialog } from "./reopen-month-dialog";
 import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
@@ -51,6 +54,7 @@ import { PayrollPageMenu } from "./month-status";
 import { SheetPayoutBlock } from "./payout-block";
 import { PayrollSheetTable } from "./sheet-table";
 import { SheetSummaryCard } from "./sheet-summary";
+import { SheetTodoBlock } from "./sheet-todo";
 import { BackLink, ConflictBanner, PayrollForbidden, RateRequiredNotice, RevisionList, SaveBar, usePrintWithDates } from "./sheet-controls";
 
 type Tab = "sheet" | "history";
@@ -270,7 +274,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       if (sheetIdRef.current !== requestedFor) return;
       const closedAgain = period?.state === "reopened";
       showToast(
-        `${closedAgain ? CLOSE_MONTH_DONE : recalculate ? "Ведомость пересохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
+        `${closedAgain ? CLOSE_MONTH_DONE : recalculate ? "Новая сумма сохранена" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
       );
       loads.current.next();
       setDataChanged(null);
@@ -328,6 +332,15 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     : null;
   // R2-2а: the card says the number of now, the table (and the Excel file) the lines of the saved sheet - the table says so
   const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout, updatedAt: sheet.updated_at, reopened: period?.state === "reopened" }) : null;
+  // UX pack §5.2-бис: the block «Что нужно сделать» over the card - only what needs an action, each item with its button; the saving of a changed salary is the button of the item
+  const counts = warningsFailed ? sheet?.warnings : freshWarnings;
+  const todo = sheet ? sheetTodoItems({
+    counts: counts ?? null,
+    noFeeHref: counts === sheet.warnings ? sheetNoFeeHref(sheet) : undefined,
+    openUnknown: counts === sheet.warnings && sheet.id === null && counts?.open_lessons === null,
+    undecidedVisits: sheet.undecided_total,
+    changed: status?.tone === "changed" && sheet.id ? changedItem({ sheet: { id: sheet.id, stale: true }, payout: sheet.payout }) : null,
+  }) : [];
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
 
   return (
@@ -421,6 +434,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               )}
               {saveError && !dirty && <p role="alert" className="text-sm font-medium text-rose-700 print:hidden">{saveError}</p>}
               {rateMissing && <RateRequiredNotice teacherId={sheet.teacher_id} message={rateMissing} month={sheet.month} />}
+              <SheetTodoBlock items={todo} onSave={() => void apply(true)} saving={saving} saveLabel={period?.state === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL} />
               <SheetSummaryCard
                 sheet={sheet}
                 total={total}

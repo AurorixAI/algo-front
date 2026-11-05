@@ -10,7 +10,6 @@ import { formatMoney } from "@/lib/payments";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
-  RATE_COLUMN_HINT,
   REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
   accruedUnpaid,
@@ -19,28 +18,33 @@ import {
   calculationGate,
   calculationScope,
   canGoToNextMonth,
+  changedMonthsBar,
   editsDirty,
   isDataChanged,
   isOpenMonth,
   isRateRequired,
   isRevisionConflict,
-  lessonsOfMonthText,
+  lessonsCountText,
   lessonsWithoutTeacherText,
   monthFileName,
   monthRateLines,
   rowStatus,
-  teacherAttention,
-  monthSummary,
-  teacherMonthSum,
+  monthTotals,
+  teacherMonthNumbers,
+  type TeacherMonthNumbers,
   monthTitle,
   parseMonthParam,
   payrollErrorText,
   rowAction,
   sheetCardStatus,
+  sheetNoFeeHref,
+  sheetTodoItems,
   sheetTotal,
   teacherLabel,
   teacherRateHref,
+  SALARY_COLUMN,
   versionLabel,
+  type ChangedPayrollMonth,
   type PayrollErrorLike,
   type PayrollMonthOverview,
   type PayrollMonthTeacher,
@@ -48,9 +52,9 @@ import {
   type SheetEdits,
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
-import { periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
+import { monthPeriodView, periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, PAYOUT_ACTION_LABEL } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { askConfirm } from "@/lib/confirm-dialog";
@@ -61,13 +65,22 @@ import { TableHeader } from "@/components/attendance/table-chrome";
 import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
-import { PeriodChip } from "./period-chip";
+import { RowStatus } from "./row-status";
 import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-open-lessons";
 import { SheetSummaryCard } from "./sheet-summary";
-import { AttentionLine, ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, usePrintWithDates } from "./sheet-controls";
+import { SheetTodoBlock } from "./sheet-todo";
+import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, usePrintWithDates } from "./sheet-controls";
 
-/** Преподаватель | Ставка | К выплате | Выплата | Статус | action.  Identity left, rate, payout and status centred, the money of the ledger right. */
-const GRID = "xl:grid xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,1fr)] xl:items-start xl:gap-x-3";
+/**
+ * The columns of the list (UX pack §5.2): Преподаватель | Зарплата, сум | Выплачено | Остаток | Статус | действие.  The identity on the left (under the name, quiet: the rates and the lessons), the three
+ * numbers on the right, the status and the button centred.  A table from 1280; 1024 and a phone get cards in the same order.
+ */
+export const MONTH_COLUMNS = {
+  grid: "xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]",
+  labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено", "Остаток", "Статус", ""],
+  aligns: ["left", "right", "right", "right", "center", "center"] as Array<"left" | "right" | "center">,
+};
+const GRID = `xl:grid ${MONTH_COLUMNS.grid} xl:items-start xl:gap-x-3`;
 
 interface Preview {
   sheet: PayrollSheet;
@@ -118,6 +131,13 @@ function PayrollMonthContent() {
   const { showToast, toastNode } = useToast();
 
   const [overview, setOverview] = useState<PayrollMonthOverview | null>(null);
+  // UX pack §5.1-тер: the months whose saved salary changed (the bar over the summary); a server without the answer draws no bar
+  const [changedMonths, setChangedMonths] = useState<ChangedPayrollMonth[]>([]);
+  useEffect(() => {
+    let live = true;
+    orgApi.getChangedPayrollMonths().then((items) => { if (live) setChangedMonths(items); }).catch(() => { if (live) setChangedMonths([]); });
+    return () => { live = false; };
+  }, []);
   /** Money-1 A1: the state of the month of each teacher with a saved sheet; null when it could not be read (the rows then say nothing about it). */
   const [periods, setPeriods] = useState<PayrollPeriods | null>(null);
   const [loading, setLoading] = useState(true);
@@ -348,7 +368,8 @@ function PayrollMonthContent() {
   const active = activeId ? previews[activeId] : undefined;
   const activeExisting = activeId ? teachers.find((teacher) => teacher.teacher_id === activeId)?.sheet ?? null : null;
   const nextDisabled = !canGoToNextMonth(month, today);
-  const summary = monthSummary(month, teachers);
+  const totals = monthTotals(month, teachers, monthOpen);
+  const bar = changedMonthsBar(changedMonths, month, today);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 print:max-w-none print:space-y-3">
@@ -356,7 +377,7 @@ function PayrollMonthContent() {
 
       <div className="min-w-0 print:hidden">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Зарплата</h1>
-        <p className="text-sm text-slate-500">Ведомости преподавателей за месяц</p>
+        <p className="text-sm text-slate-600">Зарплата преподавателей за месяц</p>
       </div>
 
       <div className="space-y-2 print:hidden">
@@ -387,11 +408,11 @@ function PayrollMonthContent() {
               type="button"
               onClick={() => void downloadMonth()}
               disabled={savedCount === 0 || exporting}
-              title={savedCount === 0 ? "Сначала сохраните хотя бы одну ведомость" : undefined}
+              title={savedCount === 0 ? "Сначала сохраните зарплату хотя бы одного преподавателя" : undefined}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Скачать Excel за месяц
+              Скачать Excel
             </button>
             <button
               type="button"
@@ -407,8 +428,14 @@ function PayrollMonthContent() {
           </div>
         </div>
 
+        {bar && (
+          <div role="status" data-testid="changed-months-bar" className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex min-w-0 items-start gap-2 text-sm font-medium text-amber-900"><AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span className="min-w-0 break-words">{bar.text}</span></p>
+            <button type="button" data-testid="changed-months-open" onClick={() => void goToMonth(bar.month)} className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100">{bar.button}</button>
+          </div>
+        )}
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} payoutText={monthPayoutTail(teachers)} />}
+          {overview && <PayrollMonthSummary totals={totals} month={month} open={monthOpen} />}
           {overview && gate.text && (
             <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
               {gate.text}
@@ -452,10 +479,9 @@ function PayrollMonthContent() {
           <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
             <TableHeader
               show="xl"
-              gridClass="xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,1fr)]"
-              labels={["Преподаватель", "Ставка", "К выплате", "Выплата", "Статус", ""]}
-              aligns={["left", "center", "center", "center", "center", "center"]}
-              hints={[undefined, RATE_COLUMN_HINT]}
+              gridClass={MONTH_COLUMNS.grid}
+              labels={MONTH_COLUMNS.labels}
+              aligns={MONTH_COLUMNS.aligns}
             />
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {teachers.map((teacher) => (
@@ -463,7 +489,7 @@ function PayrollMonthContent() {
                   key={teacher.teacher_id}
                   teacher={teacher}
                   month={month}
-                  period={periodView(periodOf(periods, teacher.teacher_id))}
+                  period={monthPeriodView(periodView(periodOf(periods, teacher.teacher_id)), monthOpen)}
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
@@ -575,6 +601,7 @@ function PreviewBody({
   const status = sheetCardStatus({ saved: false, stale: null, dirty, updatedAt: null, delta: null });
   return (
     <>
+      <SheetTodoBlock items={sheetTodoItems({ counts: sheet.warnings, noFeeHref: sheetNoFeeHref(sheet), openUnknown: sheet.id === null && sheet.warnings.open_lessons === null, undecidedVisits: sheet.undecided_total })} />
       <SheetSummaryCard
         sheet={sheet}
         total={sheetTotal(sheet, views, edits)}
@@ -607,9 +634,46 @@ function PreviewBody({
   );
 }
 
+/** «75 834» - a sum without the unit: the header of the column says «сум» at 1280; a card says it itself. */
+const plainSum = (value: number): string => formatMoney(value).replace(/[\s\u00a0]*сум$/, "");
+
+/** «Сум» after a number in a card (the table says it in the header of the column). */
+function Unit() {
+  return <span className="xl:hidden"> сум</span>;
+}
+
+/** The three numbers of a row, one cell each: at 1280 the cells of the grid, below it a row of three with their captions (UX pack §5.2). */
+function RowNumbers({ numbers }: { numbers: TeacherMonthNumbers }) {
+  const label = "mb-0.5 block text-xs font-normal text-slate-600 xl:hidden";
+  const rest = numbers.rest;
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-2 text-sm tabular-nums xl:contents">
+      <div className="min-w-0 xl:text-right" data-testid="teacher-sum">
+        <span className={label}>{SALARY_COLUMN}</span>
+        {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
+        {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
+        {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
+        {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
+      </div>
+      <div className="min-w-0 xl:text-right" data-testid="teacher-paid">
+        <span className={label}>Выплачено</span>
+        {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
+      </div>
+      <div className="min-w-0 xl:text-right" data-testid="teacher-rest" data-kind={rest.kind}>
+        <span className={label}>Остаток</span>
+        {rest.kind === "left" && <span className="font-medium text-slate-900">{plainSum(rest.amount)}<Unit /></span>}
+        {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}</span>}
+        {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}</span>}
+        {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
+        {rest.kind === "none" && <span className="text-slate-500">—</span>}
+      </div>
+    </div>
+  );
+}
+
 /**
- * One teacher of the month.  The wide table: name (with the warnings under it, one line), rate, the sum of the saved sheet,
- * ONE status chip and ONE button by the status.  A phone gets the same as a card.
+ * One teacher of the month (UX pack §5.2).  A table from 1280: the name with the rates and the lessons under it in a quiet line, ONE line of what needs an action, the three numbers (Зарплата · Выплачено ·
+ * Остаток), ONE status chip (with a second small line only when the state of the month differs: «Месяц закрыт» / «Месяц переоткрыт») and ONE button.  1024 and a phone: the same as a card.
  */
 export function TeacherRow({
   teacher, month, period = null, busy, onCalculate, onOpen,
@@ -617,71 +681,48 @@ export function TeacherRow({
   teacher: PayrollMonthTeacher;
   /** The month of the page: «Указать» opens the rate dialog with it. */
   month: string;
-  /** Money-1 A1: the state of this teacher's month («Месяц закрыт» / «переоткрыт» / «открыт»); null: the teacher has no saved sheet or the state could not be read. */
+  /** Money-1 A1: the state of this teacher's month where it differs from the month's («Месяц закрыт» / «Месяц переоткрыт»); null: nothing to add. */
   period?: PeriodView | null;
   busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
-  /** «Отметить выплату» (the menu of the row); absent: no menu. */
 }) {
   const status = rowStatus(teacher);
-  const sum = teacher.sheet ? teacherMonthSum(teacher) : null;
-  const chip = payoutChip(normalizePayoutState(teacher.payout));
+  const numbers = teacherMonthNumbers(teacher);
   const action = rowAction(teacher.sheet);
   const rate = monthRateLines(teacher);
-  const attention = teacherAttention(teacher);
   const rateMissing = (teacher.missing_rates ?? []).length > 0;
   const blocked = action.kind !== "open" && rateMissing;
   const run = action.kind === "open" ? onOpen : onCalculate;
+  const meta = [...rate.lines, lessonsCountText(teacher.lessons_count)];
 
   return (
     <li className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-4 xl:py-4 ${GRID}`}>
       <div className="min-w-0">
         <p className="min-w-0 break-words text-sm font-semibold text-slate-900">{teacher.teacher_name}</p>
-        <p className="text-xs text-slate-500">{lessonsOfMonthText(teacher.lessons_count)}</p>
-        {/* ONE line of what needs an action (UX round of the owner 05.11); the notes («N учеников не оплатили…») are on the sheet */}
-        {attention.length > 0 && <AttentionLine views={attention} label={`Требует внимания: ${teacher.teacher_name}`} />}
+        {/* the rates and the lessons: one quiet line («Группа 50% · Индив. 60% · 4 урока»); a piece never breaks in the middle */}
+        <p data-testid="teacher-rate" className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-xs text-slate-600">
+          {meta.map((piece, index) => (
+            <span key={piece} className="inline-flex items-baseline gap-x-1.5">
+              {index > 0 && <span aria-hidden="true">·</span>}
+              <span className={piece.includes("нет ставки") ? "break-words" : "whitespace-nowrap"}>{piece}</span>
+            </span>
+          ))}
+          {rate.none && <span className="text-slate-600">· ставка не задана</span>}
+          {rate.missing && (
+            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
+          )}
+        </p>
       </div>
 
-      <div className="mt-3 min-w-0 text-sm text-slate-700 xl:mt-0 xl:text-center" data-testid="teacher-rate">
-        <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Ставка</span>
-        {/* short lines one under the other; no rate at all: just the link that sets it; some kinds only: what is set, then the link */}
-        {rate.lines.length > 0 && (
-          <span className="inline-flex flex-col align-top xl:flex">
-            {/* «Группа 50%» never breaks inside; a line «… — нет ставки» may wrap between words */}
-            {rate.lines.map((line) => <span key={line} className={line.includes("нет ставки") ? "break-words" : "whitespace-nowrap"}>{line}</span>)}
-          </span>
+      <RowNumbers numbers={numbers} />
+
+      <div className="mt-3 min-w-0 space-y-1 xl:mt-0 xl:text-center">
+        <RowStatus status={status} hint={statusHint(teacher.sheet)} name={teacher.teacher_name ?? ""} />
+        {/* the state of the month, only when it differs from the month's: a small second line */}
+        {period && (
+          <p data-testid="period-chip" data-tone={period.tone} title={period.hint} className={`text-xs leading-4 ${period.tone === "reopened" ? "font-semibold text-amber-900" : period.tone === "closed" ? "font-medium text-slate-700" : "text-slate-600"}`}>{period.label}</p>
         )}
-        {/* no rate at all: only the link that sets it */}
-        {rate.lines.length === 0 && !rate.none && <span>—</span>}
-        {rate.missing && (
-          <Link href={teacherRateHref(teacher.teacher_id, month)} className="block font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
-        )}
-      </div>
-
-      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-center" data-testid="teacher-sum">
-        <span className="mr-1.5 text-xs font-normal text-slate-400 xl:hidden">{sum?.fresh ? "Начислено сейчас" : "К выплате"}</span>
-        {sum ? formatMoney(sum.amount) : <span className="font-normal text-slate-400">—</span>}
-        {/* D-2: an open month is paid by what is accrued now (the card of the sheet says the same) */}
-        {sum?.fresh && <p className="hidden text-xs font-normal text-slate-500 xl:block">начислено сейчас</p>}
-      </div>
-
-      {/* LOGIC-A decision 6: how much of the pay has been paid out - the chip of the state of the payout and nothing else (the change after the saving is said once, in the status) */}
-      <div className="mt-1 min-w-0 text-sm xl:mt-0 xl:text-center">
-        <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Выплата</span>
-        {chip ? (
-          <span title={normalizePayoutState(teacher.payout)?.text || undefined} data-testid="payout-chip" className={`inline-block max-w-full rounded-2xl border px-2.5 py-1 text-xs font-semibold ${PAYOUT_CHIP_CLASS[chip.tone]}`}>{chip.text}</span>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
-
-      <div className="mt-2 min-w-0 space-y-1 xl:mt-0 xl:text-center">
-        <StatusChip status={status} hint={statusHint(teacher.sheet)} />
-        {/* the state of the month: a closed / reopened one is a chip (it asks something of the owner); an open one is a small word */}
-        {period && (period.tone === "open"
-          ? <p data-testid="period-open" className="text-[11px] leading-4 text-slate-500">{period.label}</p>
-          : <div><PeriodChip view={period} /></div>)}
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 xl:mt-0 xl:justify-center">
@@ -691,7 +732,7 @@ export function TeacherRow({
           disabled={busy || blocked}
           title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
           aria-label={`${action.label}: ${teacher.teacher_name}`}
-          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 xl:w-32"
+          className="inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {action.label}
         </button>

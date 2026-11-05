@@ -24,3 +24,14 @@ export const MONTHS_SHORT_DATE = ["янв", "фев", "мар", "апр", "ма�
 
 /** The same short names for a TITLE of a period («май 2026»): May is «май». */
 export const MONTHS_SHORT_TITLE = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"] as const;
+
+/**
+ * «сентябрь» / «Сентябрь 2025»: a month `YYYY-MM` in a sentence (the year only when it is not the year of `today`, the business date; `capitalized` for the start of a sentence).
+ * A leaf function: the money texts of the effects, of the closed month and of the decisions all name a month this one way.
+ */
+export function monthLabel(month: string, today: string, capitalized = false): string {
+  const [year, number] = month.split("-");
+  const name = MONTHS_NOMINATIVE[Number(number) - 1] ?? month;
+  const text = year && year !== today.slice(0, 4) ? `${name} ${year}` : name;
+  return capitalized ? text.charAt(0).toLocaleUpperCase("ru-RU") + text.slice(1) : text;
+}

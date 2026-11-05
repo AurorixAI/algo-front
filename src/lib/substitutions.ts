@@ -518,30 +518,8 @@ export const ASSIGNED_TITLE = "Вам назначена замена";
 export const MY_REQUESTS_TITLE = "Запросы на замену";
 export const NEW_REQUEST_LINK = "Новый запрос";
 
-/** The case of a short name «Фамилия И.» for a sentence («вместо Иванова А.», «за Ивановым А.»). */
-export type NameCase = "genitive" | "instrumental";
-
-const MASCULINE = /(ов|ев|ёв|ин|ын)$/i;
-const FEMININE = /(ова|ева|ёва|ина|ына)$/i;
-
-/**
- * «Иванов А.» -> «Иванова А.» / «Ивановым А.»; «Каримова Н.» -> «Каримовой Н.» (both cases end in «ой»).  Only the plain -ов/-ев/-ин and
- * -ова/-ева/-ина surnames are declined; any other surname is returned as null, so the caller words the sentence without a case.
- */
-export function declineShortName(name: string | null | undefined, grammarCase: NameCase): string | null {
-  const text = (name ?? "").trim();
-  const match = /^(\S+)(\s.+)?$/.exec(text);
-  if (!match) return null;
-  const [, surname, rest = ""] = match;
-  if (FEMININE.test(surname)) return `${surname.slice(0, -1)}ой${rest}`;
-  if (MASCULINE.test(surname)) return `${surname}${grammarCase === "genitive" ? "а" : "ым"}${rest}`;
-  return null;
-}
-
-/** For «вместо …». */
-export function genitiveShortName(name: string | null | undefined): string | null {
-  return declineShortName(name, "genitive");
-}
+export { declineShortName, genitiveShortName, type NameCase } from "./name-case";
+import { FEMININE, declineShortName, genitiveShortName } from "./name-case";
 
 /** «Замена: 9-А — пн, 26.10, 10:00–11:30 (вместо Иванова А.)»; an indeclinable surname: «(вместо: Ким А.)». */
 export function assignedLine(entry: { groupName: string; lessonDate: string; startTime: string; endTime: string; replacing?: { name: string } | null }): string {

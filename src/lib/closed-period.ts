@@ -8,9 +8,10 @@
  *
  * Pure: no React, no network.
  */
-import { formatDateRu } from "./business-time";
+import { formatBusinessDate, formatDateRu } from "./business-time";
 import { REASON_MAX, REASON_MIN } from "./payments";
-import { monthInSentence, type PeriodState } from "./money-effects";
+import { monthInSentence, monthLabel, type PeriodState } from "./money-effects";
+import { genitiveShortName } from "./name-case";
 
 export interface PeriodReopened {
   /** Naive UTC timestamp of the reopening. */
@@ -93,7 +94,8 @@ export function periodView(item: Pick<PayrollPeriodItem, "state" | "closedOn" | 
     return {
       tone: "closed",
       label: "Месяц закрыт",
-      hint: `${day ? `Ведомость сохранена ${day} — после конца месяца. ` : ""}Уроки, справки и паузы этого месяца не исправить, пока вы не переоткроете его.`,
+      // §1: ONE help text for the closed month everywhere («зарплата сохранена», not «закрыт ведомостью»)
+      hint: `Зарплата за месяц сохранена${day ? ` ${day}` : ""} — уроки этого месяца менять нельзя, пока месяц не переоткрыт.`,
       canReopen: true,
     };
   }
@@ -102,7 +104,7 @@ export function periodView(item: Pick<PayrollPeriodItem, "state" | "closedOn" | 
     return {
       tone: "reopened",
       label: "Месяц переоткрыт",
-      hint: `Уроки этого месяца можно исправлять.${who} Когда закончите, сохраните ведомость — месяц закроется снова.`,
+      hint: `Уроки этого месяца можно исправлять.${who} Когда закончите, нажмите «Сохранить и закрыть месяц» — месяц закроется снова.`,
       canReopen: false,
     };
   }
@@ -110,11 +112,19 @@ export function periodView(item: Pick<PayrollPeriodItem, "state" | "closedOn" | 
     return {
       tone: "open",
       label: "Месяц открыт",
-      hint: "Ведомость сохранена до конца месяца или ещё не сохранена: уроки этого месяца можно исправлять.",
+      hint: "Зарплата сохранена до конца месяца или ещё не сохранена: уроки этого месяца можно исправлять.",
       canReopen: false,
     };
   }
   return null;
+}
+
+/**
+ * L2 (UX pack): the row of a month that is RUNNING does not say «Месяц открыт» - the header of the page already says the month is going; the row shows only what differs («Месяц закрыт», «Месяц переоткрыт»).
+ * In a finished month an open one IS a difference (the sheet was saved before the month ended, nothing closes it yet) and stays.
+ */
+export function monthPeriodView(view: PeriodView | null, monthRunning: boolean): PeriodView | null {
+  return monthRunning && view?.tone === "open" ? null : view;
 }
 
 export const PERIOD_CHIP_CLASS: Record<PeriodTone, string> = {
@@ -127,19 +137,19 @@ export const PERIOD_CHIP_CLASS: Record<PeriodTone, string> = {
 
 export const REOPEN_TITLE = "Переоткрыть месяц?";
 export const REOPEN_BUTTON = "Переоткрыть месяц";
-export const REOPEN_REASON_LABEL = "Причина";
+export const REOPEN_REASON_LABEL = "Причина (обязательно)";
 export const REOPEN_REASON_PLACEHOLDER = "Например: ошибочно отметили «Урока не было», нужно исправить";
-export const REOPEN_EXPLAIN = "Пока месяц открыт, уроки этого месяца можно исправлять: отметки, справки, паузы, смену преподавателя. Ведомость и выплата сами не меняются — после исправлений сохраните ведомость, и месяц закроется снова.";
+export const REOPEN_EXPLAIN = "Пока месяц открыт, уроки этого месяца можно исправлять: отметки, справки, паузы, смену преподавателя. Зарплата и выплата сами не меняются — после исправлений нажмите «Сохранить и закрыть месяц».";
 /**
  * The one button of a REOPENED month (walk of 05.11, round 3): the month is closed again only by a save of the sheet - also when nothing has changed since (the lessons were put back as they were), so the button
  * is there always, not only when the data moved.  The server takes the save without changes (`PATCH … recalculate`), and the save after the reopening is what closes the month.
  */
 export const CLOSE_MONTH_LABEL = "Сохранить и закрыть месяц";
 /** The toast after it. */
-export const CLOSE_MONTH_DONE = "Ведомость сохранена, месяц закрыт";
+export const CLOSE_MONTH_DONE = "Зарплата сохранена, месяц закрыт";
 export const REOPEN_DONE_TEXT = "Месяц переоткрыт";
 export const REOPEN_ALREADY_TEXT = "Месяц уже открыт";
-export const REOPEN_NO_SHEET_TEXT = "Ведомости за этот месяц нет: переоткрывать нечего";
+export const REOPEN_NO_SHEET_TEXT = "Зарплата за этот месяц не сохранена: переоткрывать нечего";
 
 export function reopenDescription(teacherName: string | null | undefined, month: string): string {
   return [teacherName?.trim(), monthInSentence(month)].filter(Boolean).join(" · ");
@@ -222,3 +232,32 @@ export function canReopenFrom(info: PeriodClosedInfo | null, hasMoneyRight: bool
 
 /** After a reopening the person repeats the action: the line that says so. */
 export const REOPENED_THEN_REPEAT = "Месяц открыт. Повторите действие.";
+
+// ── the block «Месяц закрыт» of a window (UX pack, rule 2) ───────────────────────────────────────────
+
+/** What the person wanted to do when the closed month refused it: the second sentence of the block («Чтобы изменить урок, переоткройте месяц»). */
+export type ClosedPurpose = "lesson" | "pause" | "decision";
+const CLOSED_TO: Record<ClosedPurpose, string> = { lesson: "изменить урок", pause: "изменить паузу", decision: "изменить решение" };
+
+/**
+ * The amber block of a closed month in a window, from the FACTS the refusal carries (month, teacher, the day the sheet was saved), not from the sentence of the server (it speaks in other words):
+ *   «Октябрь у Эргашева К. закрыт (зарплата сохранена 03.10.2026).» - the surname is declined only when it is reliable (`genitiveShortName`); otherwise
+ *   «Преподаватель: Эргашев К. · октябрь закрыт (…)».  The second sentence says what to do - or who can: a person without the money access is sent to the owner.
+ * Without a month in the refusal (an older server) the sentence of the server is shown as it came.
+ */
+export function periodClosedText(info: PeriodClosedInfo, options: { canReopen: boolean; purpose?: ClosedPurpose; today?: string }): { head: string; advice: string } {
+  const today = options.today ?? formatBusinessDate();
+  const saved = info.closedOn ? ` (зарплата сохранена ${formatDateRu(info.closedOn)})` : "";
+  const advice = options.canReopen
+    ? `Чтобы ${CLOSED_TO[options.purpose ?? "lesson"]}, переоткройте месяц.`
+    : "Месяц переоткрывает владелец или администратор с доступом к деньгам.";
+  if (!info.month) return { head: info.message || "Месяц закрыт", advice: "" };
+  const genitive = genitiveShortName(info.teacherName);
+  const month = monthLabel(info.month, today, true);
+  const head = !info.teacherName
+    ? `${month} закрыт${saved}.`
+    : genitive
+      ? `${month} у ${genitive} закрыт${saved}.`
+      : `Преподаватель: ${info.teacherName} · ${monthLabel(info.month, today)} закрыт${saved}.`;
+  return { head, advice };
+}

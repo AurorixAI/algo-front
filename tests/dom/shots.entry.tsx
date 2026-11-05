@@ -8,10 +8,9 @@ import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { DayOffDialog } from "@/components/schedule/day-off-dialog";
 import { SheetPayoutBlock } from "@/components/payroll/payout-block";
 import { SheetSummaryCard } from "@/components/payroll/sheet-summary";
-import { sheetCardStatus, monthSummary } from "@/lib/payroll";
+import { sheetCardStatus, monthTotals } from "@/lib/payroll";
 import { TeacherRow } from "@/components/payroll/payroll-month-page";
 import { PayrollMonthSummary } from "@/components/payroll/month-status";
-import { monthPayoutTail } from "@/lib/payroll-logica";
 import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisions";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { ConfirmHost } from "@/components/ui/confirm-host";
@@ -113,7 +112,7 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
       const teachers = [ROW_OPEN, ROW_SECOND] as never[];
       root.render((
         <div className="mx-auto max-w-[1100px] space-y-3 p-4">
-          <PayrollMonthSummary summary={monthSummary("2026-11", teachers)} month="2026-11" open payoutText={monthPayoutTail(teachers)} />
+          <PayrollMonthSummary totals={monthTotals("2026-11", teachers, true)} month="2026-11" open />
           <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
             {teachers.map((teacher: any) => <TeacherRow key={teacher.teacher_id} teacher={teacher} month="2026-11" busy={false} onCalculate={noop} onOpen={noop} />)}
           </ul>

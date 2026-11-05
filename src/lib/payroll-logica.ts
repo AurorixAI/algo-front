@@ -6,7 +6,7 @@
  * The pay of a teacher is a different account from the student's: «начислено / к выплате» keep their words here (owner 21.10).
  * Pure: no React, no network.
  */
-import { formatUtcNaiveAsBusinessDateTime } from "./business-time";
+import { formatIsoDateLabel, formatUtcNaiveAsBusinessDateTime, utcNaiveToBusinessIsoDate } from "./business-time";
 import { CLOSE_MONTH_LABEL } from "./closed-period";
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoneyInput, formatSignedMoney } from "./money-format";
@@ -183,12 +183,27 @@ export function payoutChip(state: PayoutState | null | undefined): PayoutChip | 
     case "settled":
       return { text: "Выплачено полностью", tone: "ok" };
     case "overpaid":
-      return { text: `Переплачено ${formatMoney(Math.abs(state.balance))}`, tone: "over" };
+      return { text: overpaidText(state), tone: "over" };
     case "due":
       return { text: `Выплачено ${formatMoney(state.paid)} из ${formatMoney(state.target)}`, tone: "due" };
     default:
       return { text: "Не выплачено", tone: "none" };
   }
+}
+
+/**
+ * Paid more than accrued (UX pack §1): in an OPEN month (`basis` fresh) it is «Выплачено вперёд 74 166 сум» - the accrual of the rest of the month covers it; in a CLOSED month it is «Выплачено больше на
+ * 16 666 сум» - it will be taken off the next payout.  Never «Переплачено».
+ */
+export function overpaidText(state: Pick<PayoutState, "basis" | "balance">): string {
+  return state.basis === "fresh" ? `Выплачено вперёд ${formatMoney(-state.balance)}` : `Выплачено больше на ${formatMoney(-state.balance)}`;
+}
+
+/** What an overpay means, said once under the figures of the sheet: open month - it is covered by the accruals to the end of the month; closed month - it is taken off the next payout. */
+export function overpaidExplain(state: Pick<PayoutState, "basis">): string {
+  return state.basis === "fresh"
+    ? "Покроется начислениями до конца месяца; если останется — уменьшит следующую выплату."
+    : "Вычтем из следующей выплаты.";
 }
 
 export const PAYOUT_CHIP_CLASS: Record<PayoutTone, string> = {
@@ -210,41 +225,13 @@ export function sheetPayoutChip(state: PayoutState | null | undefined): PayoutCh
       if (state.paid === 0 && state.carry_used > 0) return { text: "Закрыто авансом", tone: "ok" };
       return { text: state.basis === "fresh" ? "На сегодня выплачено всё" : "Выплачено полностью", tone: "ok" };
     case "overpaid":
-      return { text: `Переплачено ${formatMoney(-state.balance)}`, tone: "over" };
+      return { text: overpaidText(state), tone: "over" };
     case "due":
       return { text: `Осталось выплатить ${formatMoney(state.balance)}`, tone: "due" };
     default:
       // the card's sum is the whole sheet; with the advance of the earlier months taken off the payable sum is another number, and only the chip says it
       return state.carry_used > 0 && state.balance > 0 ? { text: `Осталось выплатить ${formatMoney(state.balance)}`, tone: "due" } : { text: "Не выплачено", tone: "none" };
   }
-}
-
-function monthPayoutParts(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): { head: string; tail: string[] } | null {
-  const states = teachers.map((teacher) => normalizePayoutState(teacher.payout)).filter((state): state is PayoutState => state !== null);
-  if (states.length === 0) return null;
-  const target = states.reduce((total, state) => total + state.target, 0);
-  const paid = states.reduce((total, state) => total + state.paid, 0);
-  const due = states.reduce((total, state) => total + Math.max(0, state.balance), 0);
-  const over = states.reduce((total, state) => total + Math.max(0, -state.balance), 0);
-  const tail = [`выплачено ${formatMoney(paid)}`];
-  if (due > 0 && paid > 0) tail.push(`осталось выплатить ${formatMoney(due)}`);
-  if (over > 0) tail.push(`переплачено ${formatMoney(over)}`);
-  return { head: `К выплате за ${monthNameRu(month).toLowerCase()}: ${formatMoney(target)}`, tail };
-}
-
-/** The totals of the month as one sentence: «К выплате за октябрь: 600 000 сум · выплачено 475 000 · доплатить 125 000». */
-export function monthPayoutText(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): string | null {
-  const parts = monthPayoutParts(month, teachers);
-  return parts ? [parts.head, ...parts.tail].join(" · ") : null;
-}
-
-/**
- * What the payouts add to the ONE summary line of the month («К выплате за сентябрь: 5 006 248 сум · сохранено 2 из 3 · выплачено 0 сум»):
- * «выплачено 475 000 сум · доплатить 125 000»; null while no sheet has a payout state.
- */
-export function monthPayoutTail(teachers: ReadonlyArray<{ payout?: PayoutState | null }>): string | null {
-  const parts = monthPayoutParts("2000-01", teachers);
-  return parts ? parts.tail.join(" · ") : null;
 }
 
 /** The block of a sheet: «К выплате 600 000 · Выплачено 475 000 · Доплатить 125 000» as parts, each with its tone. */
@@ -268,8 +255,9 @@ export function sheetPayoutParts(state: PayoutState | null | undefined): Array<{
  */
 export function payoutNote(state: PayoutState | null | undefined): string | null {
   if (!state || !state.text) return null;
-  // R3 #20: a month that is still open is paid by what is accrued NOW - the sentence of the server says it: «Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M»
-  if (state.basis === "fresh") return state.text;
+  // R3 #20: a month that is still open is paid by what is accrued NOW - the sentence of the server says it: «Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M»;
+  // paid MORE than accrued is worded here (§1): «Выплачено вперёд …» is the chip, the sentence says what it means
+  if (state.basis === "fresh") return state.state === "overpaid" ? `Месяц открыт: начислено сейчас ${formatMoney(state.target)}, выплачено ${formatMoney(state.paid)}. ${overpaidExplain(state)}` : state.text;
   return state.state === "settled" && state.paid === 0 && state.carry_used > 0 ? state.text : null;
 }
 
@@ -290,10 +278,10 @@ export function sheetHeadline(input: { total: number; dirty: boolean; payout: Pa
   const state = normalizePayoutState(input.payout);
   if (!state || state.basis !== "fresh" || state.fresh_total === null) return { label: "К выплате", value: input.total, saved: null };
   if (input.dirty) return { label: "Итог с правками", value: input.total, saved: null };
-  if (state.changed_by === 0) return { label: "Начислено сейчас", value: state.fresh_total, saved: null };
+  if (state.changed_by === 0) return { label: "Начислено на сегодня", value: state.fresh_total, saved: null };
   const day = formatUtcNaiveAsBusinessDateTime(input.updatedAt).split(" ")[0] ?? "";
   const on = /^\d{2}\.\d{2}\./.test(day) ? ` ${day.slice(0, 5)}` : "";
-  return { label: "Начислено сейчас", value: state.fresh_total, saved: `Сохранено${on}: ${formatMoney(state.saved_total)}` };
+  return { label: "Начислено на сегодня", value: state.fresh_total, saved: `Сохранено${on}: ${formatMoney(state.saved_total)}` };
 }
 
 /**
@@ -316,9 +304,24 @@ const SAVED_FACT = /^(засчитано|без оплаты|не решено)/
  * The line of facts of an OPEN month's card (walk of 05.11, 4б): the big number is what is accrued now, and the counts under it belong to the SAVED sheet - so they stand in its brackets:
  * «Сохранено 03.11: 45 000 сум — засчитано 3 посещения · Ставка: Группа 50%».  The rate is the one in force, it stays outside.
  */
+export function splitSavedFacts(facts: ReadonlyArray<string>): { counted: string[]; rest: string[] } {
+  return { counted: facts.filter((fact) => SAVED_FACT.test(fact)), rest: facts.filter((fact) => !SAVED_FACT.test(fact)) };
+}
+
+/**
+ * The ONE line of a changed sheet (UX pack №3): «Сохранено 5 ноября: 120 834 сум (−45 000)» - what is saved and by how much the salary moved; the button that saves the new sum is in the block «Что нужно сделать».
+ * null when the payout state does not say it.
+ */
+export function savedChangeLine(input: { payout: Partial<PayoutState> | null | undefined; updatedAt: string | null | undefined }): string | null {
+  const state = normalizePayoutState(input.payout);
+  if (!state || state.fresh_total === null || state.changed_by === 0) return null;
+  const iso = utcNaiveToBusinessIsoDate(input.updatedAt);
+  const day = iso ? formatIsoDateLabel(iso, { day: "numeric", month: "long" }) : "";
+  return `Сохранено${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)} (${formatSignedMoney(state.changed_by).replace(/[\s\u00a0]*сум$/, "")})`;
+}
+
 export function savedFactsLine(saved: string, facts: ReadonlyArray<string>): string {
-  const counted = facts.filter((fact) => SAVED_FACT.test(fact));
-  const rest = facts.filter((fact) => !SAVED_FACT.test(fact));
+  const { counted, rest } = splitSavedFacts(facts);
   // R2-2в: a dash, not a bracket - a count may carry a bracket of its own («не решено 3 посещения (в сумму не входят)»), and a bracket inside a bracket reads badly
   return [counted.length > 0 ? `${saved} — ${counted.join(", ")}` : saved, ...rest].join(" · ");
 }
@@ -341,7 +344,7 @@ export function payoutKindMark(state: Pick<PayoutState, "items" | "target">, ite
 }
 
 /** Money-1 A1b: the one button of a sheet whose data moved after the saving (it was «Пересчитать»): the new version holds the fresh numbers. */
-export const RESAVE_LABEL = "Пересохранить";
+export const RESAVE_LABEL = "Сохранить новую сумму";
 
 /**
  * Money-1 A1b: the data of a saved sheet moved after the saving (a late payment, a mark corrected): «изменилось на +125 000».  The payout does not move with it - the sheet
@@ -355,7 +358,7 @@ export function payoutChangedBy(state: Pick<PayoutState, "changed_by"> | null | 
 export function payoutChangeLine(state: Pick<PayoutState, "changed_by" | "change_text"> | null | undefined): { text: string; title: string | null } | null {
   const delta = payoutChangedBy(state);
   if (delta === 0) return null;
-  return { text: `изменилось на ${formatSignedMoney(delta)}`, title: state?.change_text ?? null };
+  return { text: `Зарплата изменилась на ${formatSignedMoney(delta)}`, title: state?.change_text ?? null };
 }
 
 // ── The form «Отметить выплату» ─────────────────────────────────────────────
@@ -559,7 +562,7 @@ export interface PayrollSettingsFull {
   money_effects?: unknown;
 }
 
-export const DIVISOR_HELP = "Старые месяцы не меняются. Ведомости, рассчитанные с другим делителем, покажут «Есть изменения».";
+export const DIVISOR_HELP = "Старые месяцы не меняются. Месяцы, рассчитанные с другим делителем, покажут «Данные изменились».";
 export const DIVISOR_FROM_LABEL = "Делитель действует с месяца";
 
 /** «С октября 2026 — 13 · раньше 12» (newest first); the first row is «С самого начала — 12». */

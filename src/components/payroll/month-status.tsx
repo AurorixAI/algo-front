@@ -4,27 +4,29 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { HelpCircle, Settings2 } from "lucide-react";
 import { formatMoney } from "@/lib/payments";
-import { monthStatusText, type MonthSummary } from "@/lib/payroll";
+import { monthStatusText, type MonthTotals } from "@/lib/payroll";
 import { RowMenu } from "@/components/ui/row-menu";
 import { PayrollHowItWorksDialog } from "./how-it-works";
 
 /**
- * The one line under the buttons of the month page: «К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3» and, for a month
- * that is not over, the calm «Октябрь ещё идёт — расчёт предварительный».  Nothing here is an error, so nothing is red.
+ * The summary over the list of a month (UX pack §5.2): four tiles - «Начислено на сегодня» (a finished month: «К выплате за октябрь») · «Выплачено» · «Осталось выплатить» · «Выплачено вперёд» (only when there is
+ * such a sum) - and ONE calm line under them: «Ноябрь ещё идёт — суммы предварительные · сохранено 2 из 3».  A phone gets the tiles two by two.  Nothing here is an error, so nothing is red.
  */
-export function PayrollMonthSummary({ summary, month, open, payoutText = null }: { summary: MonthSummary; month: string; open: boolean; payoutText?: string | null }) {
+export function PayrollMonthSummary({ totals, month, open }: { totals: MonthTotals; month: string; open: boolean }) {
   const status = monthStatusText(month, open);
   return (
-    <div className="space-y-0.5 print:hidden">
-      <p data-testid="payroll-month-summary" className="text-sm text-slate-600">
-        {summary.label}{" "}
-        <span className="font-semibold tabular-nums text-slate-900">{summary.amount === null ? "—" : formatMoney(summary.amount)}</span>
-        {" · "}
-        <span className="whitespace-nowrap">{summary.saved}</span>
-        {/* LOGIC-A decision 6, ONE line: «К выплате за сентябрь: 5 006 248 сум · сохранено 2 из 3 · выплачено 0 сум» */}
-        {payoutText && <span data-testid="payroll-month-payout">{" · "}{payoutText}</span>}
+    <div className="space-y-1.5 print:hidden" data-testid="payroll-month-summary">
+      <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {totals.tiles.map((tile) => (
+          <div key={tile.key} data-testid={`month-tile-${tile.key}`} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5">
+            <dt className="text-xs leading-4 text-slate-600">{tile.label}</dt>
+            <dd className="mt-0.5 break-words text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{formatMoney(tile.value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-xs text-slate-600" data-testid="payroll-month-status">
+        {status ? `${status} · ` : ""}{totals.saved}
       </p>
-      {status && <p role="status" className="text-xs text-slate-500">{status}</p>}
     </div>
   );
 }

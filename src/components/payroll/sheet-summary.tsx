@@ -15,10 +15,10 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { RESAVE_LABEL, savedFactsLine, sheetHeadline, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
-import { DiffDetails, WarningLinks } from "./sheet-controls";
+import { DiffDetails } from "./sheet-controls";
 import { PeriodChip } from "./period-chip";
 
 const DOT: Record<SheetCardStatus["tone"], string> = {
@@ -72,11 +72,6 @@ export function SheetSummaryCard({
   const facts = sheetFactsParts(sheet, accrued, ratesNow);
   // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one opens the line of facts with the counts in its brackets (they describe the saved sheet)
   const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
-  // «без оплаты» is already in the line of facts under the total: the card does not say it twice
-  const counts = warnings === undefined ? sheet.warnings : warnings;
-  const warningList = counts
-    ? warningViews(counts, counts === sheet.warnings ? { noFeeHref: sheetNoFeeHref(sheet), openUnknown: sheet.id === null && counts.open_lessons === null } : {}).filter((view) => view.key !== "unpaid")
-    : [];
   const changed = status.tone === "changed";
   // a REOPENED month is closed again by a save, with or without changes: its button says so
   const primaryLabel = status.action === "recalculate" ? (period?.tone === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL) : "Сохранить";
@@ -89,18 +84,8 @@ export function SheetSummaryCard({
         <div className="min-w-0">
           <p className="text-sm text-slate-500" data-testid="payroll-total-label">{headline.label}</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
-          <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? savedFactsLine(headline.saved, facts) : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
-          {(sheet.undecided_total ?? 0) > 0 && (
-            <p data-testid="sheet-undecided" className="mt-1.5 text-sm text-amber-800 print:hidden">
-              Дополнительные уроки ждут решения об оплате.{" "}
-              <Link href={SUBSTITUTIONS_PATH.owner} className="font-semibold underline underline-offset-2 hover:text-amber-900">Решить в «Заменах»</Link>
-            </p>
-          )}
-          {warningList.length > 0 && (
-            <div className="mt-1.5">
-              <WarningLinks views={warningList} label="Предупреждения ведомости" />
-            </div>
-          )}
+          {/* a changed sheet: the line holds the rate only - the counts of the SAVED sheet are under «Что изменилось ▸» (UX pack №3) */}
+          <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? splitSavedFacts(facts).rest.join(" · ") : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {sheet.note && <p className="mt-1.5 break-words text-sm text-slate-600">Примечание: {sheet.note}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -129,12 +114,13 @@ export function SheetSummaryCard({
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-3 print:hidden">
         <p role="status" className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
           <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />
-          <span className="min-w-0">
-            {status.text}
+          <span className="min-w-0" data-testid="sheet-status-text">
+            {changed ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
             {status.tone === "saved" && savedBy ? <span className="text-slate-500"> · {savedBy}</span> : null}
           </span>
         </p>
-        {status.action && (
+        {/* a changed salary is saved by the button of the block «Что нужно сделать» over the card - ONE button, not two */}
+        {status.action && !changed && (
           <button
             type="button"
             onClick={onPrimary}
@@ -154,7 +140,7 @@ export function SheetSummaryCard({
           {period.canReopen && onReopen && (
             <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
           )}
-          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и сохраните ведомость — месяц закроется снова</span>}
+          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова</span>}
         </div>
       )}
 
@@ -172,7 +158,14 @@ export function SheetSummaryCard({
         </div>
       )}
 
-      {changed && diff && <DiffDetails diff={diff} />}
+      {changed && headline.saved && splitSavedFacts(facts).counted.length > 0 && (
+        <details data-testid="sheet-changes" className="mt-3 text-sm text-slate-700 print:hidden">
+          <summary className="cursor-pointer select-none font-semibold text-slate-800">Что изменилось</summary>
+          <p className="mt-1 text-slate-600" data-testid="sheet-saved-facts">Сохранённая версия: {splitSavedFacts(facts).counted.join(", ")}</p>
+          {diff && <DiffDetails diff={diff} />}
+        </details>
+      )}
+      {changed && diff && !(headline.saved && splitSavedFacts(facts).counted.length > 0) && <DiffDetails diff={diff} />}
     </section>
   );
 }
