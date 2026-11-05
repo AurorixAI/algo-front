@@ -110,7 +110,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   // --- back on the month: the rates are read, «Рассчитать всех» is on
   await page.goto(`/owner/payroll?month=${month}`);
   await expect(teachers).toContainText("Группа 62,5%");
-  await expect(teachers).toContainText("Индивидуально 40%");
+  await expect(teachers).toContainText("Индив. 40%");
   await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeEnabled();
   await page.getByRole("button", { name: "Рассчитать всех" }).click();
   const preview = page.getByRole("region", { name: "Предпросмотр расчёта" });
