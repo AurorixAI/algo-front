@@ -409,6 +409,10 @@ test("a decision on an additional lesson: for HOW MANY students «Оплатит
   assert.match(block, /decisionPayLines\(dialog\.item, dialog\.decision, /);
   assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo", \{ dryRun: true, signal \}\)/);
   assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo"\)/);
+  // R2-2б: the toast of the undo carries the money of it - in all three places that take a decision back (the decided list, the journal, the sheet of the lesson)
+  assert.match(read("src/components/substitutions/decided-one-offs.tsx"), /showToast\(UNDO_DECISION_TOAST, note\.tone, note\.details\)/);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /showToast\(UNDO_DECISION_TOAST, money\.tone, money\.details\)/);
+  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /onChanged\(UNDO_DECISION_TOAST, toastWithEffects\(result\)\.details\)/);
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /undoDecision: canUndoDecision\(lesson, moneyRight\)/);
 });
 
