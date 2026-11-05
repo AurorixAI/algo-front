@@ -3,8 +3,11 @@ import { Org, runLesson } from "../support/api";
 import { businessNow, payrollLine } from "../support/time";
 import { groupedDigits, moneyPattern, toast } from "../support/ui";
 
-/** The total of the card on top of a sheet: «К выплате» and the sum are two elements, no space between them in the text content. */
-const total = (amount: number) => new RegExp(`К выплате\\s*${moneyPattern(amount)}\\s*сум`);
+/**
+ * The total of the card on top of a sheet: the caption and the sum are two elements, no space between them in the text content.  The caption follows the state of the month (walk of 05.11, D-2):
+ * a month that is still open says «Начислено сейчас», with unsaved «начислить» it is «Итог с правками», a closed one «К выплате» (this month is open: it is not over yet).
+ */
+const total = (amount: number) => new RegExp(`(?:К выплате|Начислено сейчас|Итог с правками)\\s*${moneyPattern(amount)}\\s*сум`);
 
 /**
  * Owner: «Зарплата» (UX-2). The rate is set ONCE, in «Сотрудники» («Изменить ставку»); «Зарплата» only reads it:
