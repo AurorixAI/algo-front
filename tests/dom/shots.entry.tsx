@@ -8,7 +8,11 @@ import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { DayOffDialog } from "@/components/schedule/day-off-dialog";
 import { SheetPayoutBlock } from "@/components/payroll/payout-block";
 import { SheetSummaryCard } from "@/components/payroll/sheet-summary";
-import { sheetCardStatus } from "@/lib/payroll";
+import { sheetCardStatus, monthSummary } from "@/lib/payroll";
+import { TeacherRow } from "@/components/payroll/payroll-month-page";
+import { PayrollMonthSummary } from "@/components/payroll/month-status";
+import { monthPayoutTail } from "@/lib/payroll-logica";
+import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisions";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { ConfirmHost } from "@/components/ui/confirm-host";
 import { askConfirm } from "@/lib/confirm-dialog";
@@ -32,6 +36,15 @@ const SHEET_STATES: Record<string, { sheet: Record<string, unknown>; payout: Rec
   sheetClosedPart: { stale: false, delta: null, sheet: { ...SHEET, month: "2026-09", month_open: false, total_amount: 993333, stale: false, updated_at: "2026-11-05T05:10:00" }, payout: { saved_total: 993333, fresh_total: 993333, target: 993333, paid: 876666, balance: 116667, state: "due", basis: "saved", changed_by: 0, change_text: null,
     text: "Выплачено 876 666 из 993 333 · осталось 116 667", items: [{ ...ITEM, amount: 876666, paid_on: "2026-10-03", note: "выплачено полностью" }], carry_in: 0, carry_used: 0, advance_out: 0 } },
 };
+
+// D-4 (walk of 05.11): the queue of the additional lessons, one row open for decision, one in a closed month
+const QUEUE = (over: Record<string, unknown> = {}) => ({ lessonId: "l1", groupId: "g1", groupName: "7-А Алгебра", lessonDate: "2026-11-03", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок — оплатить преподавателю?",
+  teacher: { id: "t1", name: "Каримова К." }, createdBy: { id: "o1", name: "Арслан", role: "owner" }, studentsPresent: 2, studentsTotal: 3, studentsPaid: 3, moneyEstimate: { amount: 125000, reason: null }, payrollSheet: { month: "2026-11", status: "unpaid" }, periodClosed: false, ...over });
+// D-2 list: the month of the walk - November is open (saved 45 000, accrued 120 834, paid 150 000), September is closed
+const ROW_OPEN = { teacher_id: "t1", teacher_name: "Эргашев К.", lessons_count: 9, lesson_types: [], rates: { group: "50" }, missing_rates: [], warnings: {}, sheet: { id: "s1", revision: 1, total_amount: 45000, stale: true, updated_at: "2026-11-03T05:00:00" },
+  payout: { saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834, change_text: null, text: "Месяц открыт: начислено сейчас 120 834, выплачено 150 000: переплачено 29 166", items: [], carry_in: 0, carry_used: 0, advance_out: 0 } };
+const ROW_SECOND = { ...ROW_OPEN, teacher_id: "t2", teacher_name: "Назарова С.", lessons_count: 4, sheet: { id: "s2", revision: 1, total_amount: 60000, stale: false, updated_at: "2026-11-03T05:00:00" },
+  payout: { ...ROW_OPEN.payout, saved_total: 60000, fresh_total: 60000, target: 60000, paid: 0, balance: 60000, state: "unpaid", changed_by: 0, text: "Месяц открыт: начислено сейчас 60 000, выплат нет, к выплате 60 000" } };
 
 w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }) => {
   useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true });
@@ -73,6 +86,24 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
           <SheetSummaryCard sheet={{ ...state.sheet, payout: state.payout } as never} total={Number(state.sheet.total_amount)} accrued={0} status={status} savedBy="Рустам Валиев" busy={false} onPrimary={noop} onPrint={noop} onExcel={noop}
             period={state.sheet.month_open ? { tone: "open", label: "Месяц открыт", hint: "", canReopen: false } : { tone: "closed", label: "Месяц закрыт", hint: "", canReopen: true }} onReopen={noop} />
           <SheetPayoutBlock sheetId="s1" month={String(state.sheet.month)} teacherName="Эргашев К." payout={state.payout as never} onChanged={noop} />
+        </div>
+      ));
+      break;
+    }
+    case "queue":
+      root.render(<div className="mx-auto max-w-3xl p-4"><OneOffDecisionsBlock items={[QUEUE(), QUEUE({ lessonId: "l2", groupName: "9-Б Геометрия", periodClosed: true, teacher: { id: "t2", name: "Назарова С." } })] as never} loading={false} error={null} canDecide rightLost={false} onRightLost={noop} onRetry={noop} onDecided={noop} showToast={noop} /></div>);
+      break;
+    case "queueClosedInWindow":
+      root.render(<div className="mx-auto max-w-3xl p-4"><OneOffDecisionsBlock items={[QUEUE({ lessonId: "l9" })] as never} loading={false} error={null} canDecide rightLost={false} onRightLost={noop} onRetry={noop} onDecided={noop} showToast={noop} /></div>);
+      break;
+    case "monthList": {
+      const teachers = [ROW_OPEN, ROW_SECOND] as never[];
+      root.render((
+        <div className="mx-auto max-w-[1100px] space-y-3 p-4">
+          <PayrollMonthSummary summary={monthSummary("2026-11", teachers)} month="2026-11" open payoutText={monthPayoutTail(teachers)} />
+          <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
+            {teachers.map((teacher: any) => <TeacherRow key={teacher.teacher_id} teacher={teacher} month="2026-11" busy={false} onCalculate={noop} onOpen={noop} />)}
+          </ul>
         </div>
       ));
       break;

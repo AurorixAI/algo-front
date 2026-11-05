@@ -29,6 +29,11 @@ const server = (request) => {
   if (method === "POST" && p === "/auth/org/payments/p1/void" && isDry(request)) return { json: { ...fixture("e1_void_300000"), money_effects: OWNER_EFFECTS } };
   if (method === "POST" && p === "/auth/org/memberships/m1/writeoffs" && isDry(request)) return { json: { ...fixture("e6_writeoff_40000"), money_effects: EMPTY_EFFECTS } };
   if (method === "POST" && p === "/auth/org/groups/g1/lessons/restore") return { json: { ok: true, restored: false, dryRun: true, returnedToReview: true, moneyEffects: OWNER_EFFECTS, deductions: [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }, { studentId: "s2", name: "Петрова Мария", amount: 46000 }, { studentId: "s3", name: "Сидоров Пётр", amount: 46000 }] } };
+  if (method === "POST" && p === "/auth/org/one-off-lessons/l1/money-decision" && isDry(request)) return { json: { lessonId: "l1", money: "paid", month: "2026-11", dryRun: true, payrollSheet: { month: "2026-11", status: "unpaid" }, moneyEffects: { students: [], dryRun: true, text: "", payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 0, paid: 0, freshBefore: 0, freshAfter: 125000, freshTotal: 125000, changedBy: 125000, driftAfter: 125000 }] } } };
+  if (method === "POST" && p === "/auth/org/one-off-lessons/l9/money-decision") return { status: 409, json: { detail: { code: "PERIOD_CLOSED", message: "Месяц ноябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 02.11.2026. Чтобы изменить урок, владелец или администратор с правом оплат сначала переоткрывает месяц", month: "2026-11", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-02" } } };
+  if (method === "GET" && p === "/auth/org/one-off-decisions/decided") return { json: { total: 2, items: [
+    { lessonId: "l7", groupId: "g1", groupName: "7-А Алгебра", lessonDate: "2026-11-03", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "…", teacher: { id: "t1", name: "Каримова К." }, createdBy: null, studentsPresent: 2, studentsTotal: 3, payrollSheet: null, money: "paid", decidedAt: "2026-11-04T09:30:00", decidedBy: { id: "o1", name: "Арслан", role: "owner" }, canUndo: true, periodClosed: false }] } };
+  if (method === "POST" && p === "/auth/org/one-off-lessons/l7/money-decision" && isDry(request)) return { json: { lessonId: "l7", money: "wait", dryRun: true, payrollSheet: null, moneyEffects: { students: [], dryRun: true, text: "", payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 125000, paid: 0, freshBefore: 125000, freshAfter: 0, freshTotal: 0, changedBy: -125000, driftAfter: -125000 }] } } };
   return null;
 };
 
@@ -83,6 +88,11 @@ const SHOTS = [
   { name: "16-sheet-open-overpaid", entry: "shots.entry.tsx", mount: "sheetOpenOverpaid", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "17-sheet-closed-overpaid", entry: "shots.entry.tsx", mount: "sheetClosedOverpaid", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "18-sheet-closed-part", entry: "shots.entry.tsx", mount: "sheetClosedPart", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
+  { name: "19-decision-pay", entry: "shots.entry.tsx", mount: "queue", act: async (page) => { await page.click('button[aria-label^="Оплатить: 7-А"]'); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); } },
+  { name: "20-decision-queue-closed-month", entry: "shots.entry.tsx", mount: "queue", act: async (page) => { await page.waitForSelector('[data-testid="period-closed"]'); } },
+  { name: "21-decision-closed-in-window", entry: "shots.entry.tsx", mount: "queueClosedInWindow", act: async (page) => { await page.click('button[aria-label^="Оплатить: 7-А"]'); await page.waitForSelector('[data-testid="period-closed"]'); } },
+  { name: "22-undo-decision", entry: "money.entry.tsx", mount: "decided", act: async (page) => { await page.click('[data-testid="decided-undo"]'); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]'); } },
+  { name: "23-month-list-open", entry: "shots.entry.tsx", mount: "monthList", act: async (page) => { await page.waitForSelector('[data-testid="payroll-month-summary"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 
