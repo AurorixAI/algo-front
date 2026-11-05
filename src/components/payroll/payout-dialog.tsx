@@ -11,7 +11,7 @@ import {
   buildPayoutBody,
   emptyPayoutValues,
   PAYOUT_ACTION_LABEL,
-  PAYOUT_ADVANCE_HINT,
+  payoutAdvanceHint,
   PAYOUT_ADVANCE_LABEL,
   PAYOUT_METHODS,
   payoutAfterText,
@@ -186,7 +186,7 @@ export function PayoutDialog({
         {overpay !== null && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>{payoutOverpayQuestion(overpay, state?.basis)}<span className="mt-1 block text-xs font-normal text-amber-800">{PAYOUT_ADVANCE_HINT}</span></span>
+            <span>{payoutOverpayQuestion(overpay, state?.basis)}<span className="mt-1 block text-xs font-normal text-amber-800">{payoutAdvanceHint(state?.basis)}</span></span>
           </p>
         )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

@@ -336,3 +336,26 @@ test("write-off: a submit that is not a press of the button (the form sent from 
   hold.open();
   await page.close();
 });
+
+// ── the payout of a teacher above what is left: the hint by the basis of the month (R3 #20) ───────────────
+
+const PAYOUT_STATE = { saved_total: 25000, fresh_total: 25000, target: 25000, paid: 0, balance: 25000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 0 };
+
+test("payout above the balance: the question and the hint of a CLOSED month («Аванс уменьшит выплату следующего месяца») and of an OPEN one (it hands nothing on yet)", async () => {
+  for (const [basis, question, hint] of [
+    ["saved", /Выплата больше остатка на 15\s000\sсум — записать как аванс\?/, "Аванс уменьшит выплату следующего месяца"],
+    ["fresh", /Выплата больше начисленного сейчас на 15\s000\sсум — записать как аванс\?/, "Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца"],
+  ]) {
+    const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/payroll/sheets/s1/payouts" ? { status: 409, json: { detail: { code: "OVERPAY_CONFIRM_REQUIRED", message: "Выплата больше остатка на 15 000 сум", overpay: 15000, balance: 25000 } } } : null));
+    await page.evaluate(([state]) => window.mount("payout", undefined, { state }), [{ ...PAYOUT_STATE, basis }]);
+    await page.fill("#payout-amount", "40 000");
+    await page.click('[role="radio"]:has-text("Наличные")');
+    await page.click('button[form="payout-form"]');
+    await page.waitForSelector('[data-testid="payout-overpay"]');
+    const text = (await page.textContent('[data-testid="payout-overpay"]')).replace(/\s+/g, " ");
+    assert.match(text, question, basis);
+    assert.ok(text.includes(hint), `${basis}: the hint says what the advance does - ${text}`);
+    assert.equal(calls.length, 1, "the first request carries no confirmation");
+    await page.close();
+  }
+});

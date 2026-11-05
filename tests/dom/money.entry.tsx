@@ -13,6 +13,7 @@ import { OpenLessonsView } from "@/components/attendance/open-lessons-view";
 import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -71,6 +72,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
         lesson={{ id: "l1", date: "2026-11-20", startTime: "16:00", endTime: "17:00", status: "cancelled" } as never}
         groupId="g1" title="7-А Алгебра" subtitle="пт, 20 ноября · 16:00–17:00" teacherLine={null} actions={(props.actions ?? ["restore"]) as never}
         cancellationKind="centre" onClose={() => log("close")} onChanged={(text: string, notes?: string[]) => log(`changed:${text}:${(notes ?? []).join("|")}`)} onRefresh={() => log("refresh")} onReload={() => log("reload")} />);
+      break;
+    case "payout":
+      root.render(<PayoutDialog open sheetId="s1" teacherName="Каримова К." month="2026-11" state={props.state} onClose={() => log("close")} onDone={() => log("done")} />);
       break;
     case "assign":
       root.render(<AssignGroupModal open studentId="st1" studentName="Иванов Иван" mode="transfer" currentGroupId="g1" currentGroupName="7-А Алгебра" onClose={() => log("close")} onAssigned={() => log("assigned")} />);

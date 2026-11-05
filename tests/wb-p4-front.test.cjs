@@ -56,7 +56,7 @@ test("the dialog asks only what the server asked, and sends the flag only on «�
   assert.match(dialog, /failure\.kind === "overpay_confirm" && failure\.overpay !== null\) \{[^}]*firstSend\.current = null;[^}]*setOverpay\(failure\.overpay\)/);
   assert.match(dialog, /void send\(null\)/, "the first send never carries the flag");
   assert.match(dialog, /onClick=\{overpay !== null \? \(\) => void send\(overpay\) : undefined\}/, "only the button of the question confirms, with the sum it showed");
-  assert.match(dialog, /PAYOUT_ADVANCE_HINT/, "the window says what the advance does");
+  assert.match(dialog, /payoutAdvanceHint\(state\?\.basis\)/, "the window says what the advance does - by the basis of the month (the DOM test of the window reads both texts)");
   assert.match(dialog, /overpay !== null \? PAYOUT_ADVANCE_LABEL : "Сохранить"/);
   assert.match(dialog, /overpay !== null \? \(\) => setOverpay\(null\) : onClose/, "«Отмена» of the question returns to the form, of the form closes");
   assert.match(dialog, /if \(sending\.current\) return;\s+sending\.current = true;/, "a second Enter / click before the next render (LESSONS 27)");
@@ -85,6 +85,11 @@ test("R3 3: the advance of the earlier months is a part of the block, a line und
   assert.deepEqual(Y.advanceLines(over).map(plain), ["Аванс 25 000 сум зачтётся в выплате следующего месяца"]);
   assert.deepEqual(Y.advanceLines(null), []);
   assert.equal(Y.PAYOUT_ADVANCE_HINT, "Аванс уменьшит выплату следующего месяца");
+  // R3 #20: a CLOSED month hands the advance on as it is; an OPEN one hands nothing on yet - only what is left at the END of the month
+  assert.equal(Y.payoutAdvanceHint("saved"), "Аванс уменьшит выплату следующего месяца");
+  assert.equal(Y.payoutAdvanceHint("fresh"), "Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца");
+  assert.equal(Y.payoutAdvanceHint(null), Y.PAYOUT_ADVANCE_HINT, "an older answer without the basis: the closed month's words");
+  assert.equal(Y.payoutAdvanceHint(undefined), Y.PAYOUT_ADVANCE_HINT);
   assert.equal(Y.normalizePayoutState({ saved_total: 1, target: 1, paid: 0, balance: 1, state: "unpaid", items: [] }).carry_used, 0, "an older answer without the fields");
   const block = read("src/components/payroll/payout-block.tsx");
   assert.match(block, /advanceLines\(state\)\.map/);

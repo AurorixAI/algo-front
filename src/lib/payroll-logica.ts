@@ -323,8 +323,15 @@ export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis
 }
 
 export const PAYOUT_ADVANCE_LABEL = "Записать как аванс";
-/** R3 3: under the question of the window - what the advance does. */
+/** R3 3: under the question of the window - what the advance does.  A CLOSED month hands the advance on as it is. */
 export const PAYOUT_ADVANCE_HINT = "Аванс уменьшит выплату следующего месяца";
+/** An OPEN month is paid by what is accrued now and hands nothing on yet (`advance_out = 0`): only what is left of the overpay at the END of the month goes on. */
+export const PAYOUT_ADVANCE_HINT_OPEN = "Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца";
+
+/** The hint under the question about an overpay, by the basis of the payout state (R3 #20): `fresh` - the month is open, otherwise it is closed. */
+export function payoutAdvanceHint(basis: PayoutState["basis"] | null | undefined): string {
+  return basis === "fresh" ? PAYOUT_ADVANCE_HINT_OPEN : PAYOUT_ADVANCE_HINT;
+}
 
 /** Under the block of a sheet: «Аванс прошлого месяца: 25 000 сум — зачтён» / «Аванс 25 000 сум зачтётся в выплате следующего месяца»; null when there is none. */
 export function advanceLines(state: PayoutState | null | undefined): string[] {
