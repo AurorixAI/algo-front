@@ -34,13 +34,15 @@ export function EffectLines({ effects }: { effects: MoneyEffects }) {
  * A refusal «месяц закрыт» is the same sentence and the button «Переоткрыть месяц» of `PeriodClosedNotice`, after which the dry run is asked again.
  */
 export function MoneyEffectsBlock({
-  preview, onRetry, aboveLessonPanel = false, variant = "lesson", className = "",
+  preview, onRetry, aboveLessonPanel = false, variant = "lesson", noneText, className = "",
 }: {
   preview: EffectsPreview;
   onRetry: () => void;
   aboveLessonPanel?: boolean;
   /** R3 m1: what «nothing moves» says - for a payment, a refund, a write-off and a transfer it is the pay of the teachers only (the debt of the student is the window's own line). */
   variant?: EffectsVariant;
+  /** What «nothing moves» says when the action has a sense of its own (a decision «Оплатить» in a month without a saved sheet), instead of the common sentence. */
+  noneText?: string;
   className?: string;
 }) {
   if (preview.status === "idle") return null;
@@ -65,7 +67,7 @@ export function MoneyEffectsBlock({
             <button type="button" data-testid="money-effects-retry" onClick={onRetry} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">{EFFECTS_RETRY_LABEL}</button>
           </div>
         ))}
-        {preview.status === "ready" && preview.effects !== null && (none ? <p className="text-sm text-slate-700">{variant === "payment" ? EFFECTS_NONE_PAYMENTS_TEXT : EFFECTS_NONE_TEXT}</p> : <EffectLines effects={preview.effects} />)}
+        {preview.status === "ready" && preview.effects !== null && (none ? <p className="text-sm text-slate-700" data-testid="money-effects-none">{noneText ?? (variant === "payment" ? EFFECTS_NONE_PAYMENTS_TEXT : EFFECTS_NONE_TEXT)}</p> : <EffectLines effects={preview.effects} />)}
       </div>
     </section>
   );

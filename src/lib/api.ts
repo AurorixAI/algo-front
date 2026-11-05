@@ -1590,8 +1590,9 @@ export const orgApi = {
   getDecidedOneOffs: (month: string, signal?: AbortSignal) =>
     api<unknown>(`/auth/org/one-off-decisions/decided?month=${encodeURIComponent(month)}&limit=200`, { signal }).then(normalizeDecided),
   /** `undo` (Money-1 A3): takes the decision back while the month of the teacher is open. */
-  decideOneOffMoney: (lessonId: string, decision: OneOffDecisionAction) =>
-    api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),
+  /** `dryRun` (walk of 05.11, D-4/D-5): the same request with `?dry_run=true` answers what the decision does to the sheet (`moneyEffects`) and writes nothing; a closed month is 409 `PERIOD_CLOSED` for both. */
+  decideOneOffMoney: (lessonId: string, decision: OneOffDecisionAction, options?: { dryRun?: boolean; signal?: AbortSignal }) =>
+    api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision${options?.dryRun ? "?dry_run=true" : ""}`, { method: "POST", body: { decision }, signal: options?.signal }),
   reviseRecurringLesson: (
     lessonId: string,
     data: Omit<Partial<LessonEvent>, "topic"> & { topic?: string | null; effectiveFrom: string; reason: string; releaseAffectedExams?: boolean },

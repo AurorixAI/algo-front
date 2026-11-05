@@ -67,7 +67,9 @@ test("item 14 / n7: the decided lessons of the month; «Отменить реш�
   await page.click('[data-testid="decided-undo"]');
   await page.click('[data-testid="undo-decision-submit"]');
   await page.waitForFunction(() => window.__log.includes("changed"));
-  assert.deepEqual(calls.filter((call) => call.path.endsWith("/money-decision")).map((call) => call.body), [{ decision: "undo" }]);
+  // D-5: the window asks first what taking the decision back does (the dry run), the button waits for it, then the real request goes - the same body both times
+  const decisionCalls = calls.filter((call) => call.path.endsWith("/money-decision"));
+  assert.deepEqual(decisionCalls.map((call) => [/dry_run=true/.test(call.query), call.body]), [[true, { decision: "undo" }], [false, { decision: "undo" }]]);
   await page.waitForSelector('[data-testid="decided-empty"]');
   await page.close();
 });

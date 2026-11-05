@@ -4,7 +4,10 @@ import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatDateRu } from "@/lib/business-time";
 import { useDialogAction } from "@/lib/use-dialog-action";
-import { oneOffRefusalText, UNDO_DECISION_BUTTON, UNDO_DECISION_NOTE, UNDO_DECISION_PAID_NOTE, UNDO_DECISION_TITLE, type MoneyDecisionOut, type OneOffMoney } from "@/lib/one-off";
+import { DECISION_UNDO_NO_SHEET_TEXT, oneOffRefusalText, UNDO_DECISION_BUTTON, UNDO_DECISION_NOTE, UNDO_DECISION_TITLE, type MoneyDecisionOut, type OneOffMoney } from "@/lib/one-off";
+import { effectsAllowConfirm } from "@/lib/money-preview";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
 import { DialogError } from "@/components/money/dialog-error";
 
@@ -18,7 +21,8 @@ export interface UndoDecisionTarget {
 
 /**
  * Money-1 A3 (ЗП-07): «Отменить решение об оплате» of an additional lesson - the lesson waits for «Оплатить / Не оплачивать» again.  Possible while the month of the teacher is open
- * (otherwise the sentence of the server and «Переоткрыть месяц» for who may).  No reason is asked: both decisions stay in the audit.
+ * (otherwise the sentence of the server and «Переоткрыть месяц» for who may).  No reason is asked: both decisions stay in the audit.  D-5 of the walk of 05.11: the window says before the
+ * press what it does to the saved sheet (the dry run), and a closed month blocks the button at once.
  */
 export function UndoDecisionDialog({
   target, onClose, onDone, aboveLessonPanel = false,
@@ -28,10 +32,14 @@ export function UndoDecisionDialog({
   onDone: (result: MoneyDecisionOut, target: UndoDecisionTarget) => void;
   aboveLessonPanel?: boolean;
 }) {
-  const { busy, error, setError, closed, run } = useDialogAction(target ? `${target.lessonId}|${target.lessonDate}` : null);
+  const key = target ? `${target.lessonId}|${target.lessonDate}` : null;
+  const { busy, error, setError, closed, run } = useDialogAction(key);
+  // D-5 (walk of 05.11, I-5): what taking the decision back does to the saved sheet - the dry run of the same request; a closed month is its refusal with «Переоткрыть месяц» and the button stays off
+  const { preview, retry } = useMoneyPreview(key, (signal) => (target ? orgApi.decideOneOffMoney(target.lessonId, "undo", { dryRun: true, signal }) : Promise.reject(new Error("no target"))));
+  const ready = effectsAllowConfirm(preview);
 
   const submit = async () => {
-    if (!target || busy) return;
+    if (!target || busy || !ready) return;
     await run(async () => { onDone(await orgApi.decideOneOffMoney(target.lessonId, "undo"), target); });
   };
 
@@ -51,7 +59,7 @@ export function UndoDecisionDialog({
             type="button"
             data-testid="undo-decision-submit"
             onClick={() => void submit()}
-            disabled={busy}
+            disabled={busy || !ready}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -62,8 +70,8 @@ export function UndoDecisionDialog({
     >
       <div className="space-y-2 pb-2 text-sm leading-6 text-slate-700">
         <p>{UNDO_DECISION_NOTE}</p>
-        {target?.money === "paid" && <p className="font-medium text-amber-900">{UNDO_DECISION_PAID_NOTE}</p>}
-        <DialogError error={error} closed={closed} text={(failure) => oneOffRefusalText(failure, "Не удалось отменить решение. Данные не изменены.")} onReopened={() => setError(null)} aboveLessonPanel={aboveLessonPanel} />
+        <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={target?.money === "paid" ? DECISION_UNDO_NO_SHEET_TEXT : undefined} aboveLessonPanel={aboveLessonPanel} />
+        <DialogError error={error} closed={closed} text={(failure) => oneOffRefusalText(failure, "Не удалось отменить решение. Данные не изменены.")} onReopened={() => { setError(null); retry(); }} aboveLessonPanel={aboveLessonPanel} />
       </div>
     </Modal>
   );

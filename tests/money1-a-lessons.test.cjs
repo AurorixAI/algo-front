@@ -390,11 +390,15 @@ test("a decision on an additional lesson: for HOW MANY students «Оплатит
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "paid" }, false), false);
   const { UndoDecisionDialog } = component("groups/undo-decision-dialog.tsx");
   const paid = textOf(html(React.createElement(UndoDecisionDialog, { target: { lessonId: "l1", lessonDate: "2026-10-28", money: "paid" }, onClose() {}, onDone() {} })));
-  for (const part of ["Отменить решение об оплате?", "Дополнительный урок 28.10", "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах».", "Сейчас урок оплачивается преподавателю: его сумма в ведомости изменится.", "Отменить решение"]) assert.ok(paid.includes(part), part);
+  for (const part of ["Отменить решение об оплате?", "Дополнительный урок 28.10", "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах».", "Отменить решение"]) assert.ok(paid.includes(part), part);
+  // D-5: what it does to the sheet is the block of the dry run (not a sentence of the window that says it without the numbers)
+  assert.ok(!paid.includes("Сейчас урок оплачивается преподавателю"), "the fixed sentence is the block of the preview now");
+  assert.equal(OO.UNDO_DECISION_PAID_NOTE, undefined);
   const none = textOf(html(React.createElement(UndoDecisionDialog, { target: { lessonId: "l1", lessonDate: "2026-10-28", money: "none" }, onClose() {}, onDone() {} })));
   assert.ok(!none.includes("Сейчас урок оплачивается"));
   const block = read("src/components/substitutions/one-off-decisions.tsx");
-  assert.match(block, /decisionPayLines\(dialog\.item, dialog\.decision\)/);
+  assert.match(block, /decisionPayLines\(dialog\.item, dialog\.decision, /);
+  assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo", \{ dryRun: true, signal \}\)/);
   assert.match(read("src/components/groups/undo-decision-dialog.tsx"), /orgApi\.decideOneOffMoney\(target\.lessonId, "undo"\)/);
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /undoDecision: canUndoDecision\(lesson, moneyRight\)/);
 });

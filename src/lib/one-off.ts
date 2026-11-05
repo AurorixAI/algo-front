@@ -81,6 +81,8 @@ export interface OneOffDecisionItem {
   /** Money-1 A3: the OWNER only (LESSONS 45) - what «Оплатить» pays the teacher, `amount` a sum or null with `reason` (`RATE_MISSING` | `NO_STUDENTS`) why it cannot be counted. */
   moneyEstimate?: { amount: number | null; reason: string | null } | null;
   payrollSheet: DecisionPayrollSheet | null;
+  /** Walk of 05.11, D-4: the month of the teacher is closed by a saved sheet - «Оплатить» / «Не оплачивать» are blocked until it is reopened (an older server does not say: not closed). */
+  periodClosed?: boolean;
 }
 export interface OneOffDecisionsOut {
   total: number;
@@ -144,6 +146,9 @@ export interface MoneyDecisionOut {
   lessonId: string;
   money: "paid" | "none" | "wait";
   payrollSheet: DecisionPayrollSheet | null;
+  /** Walk of 05.11, D-4/D-5: what the decision does to the saved sheet of the month (a preview before, the past tense after); read by `moneyEffectsOf`. */
+  moneyEffects?: unknown;
+  dryRun?: boolean;
 }
 
 // ── roles ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -465,20 +470,40 @@ const ESTIMATE_REASON_TEXT: Record<string, string> = {
 };
 
 /**
- * What «Оплатить» pays, said before the press (Money-1 A3, ЗП-07 / ЗПД-4): for how many students (the ones whose mark counts - «Не был» too) and - for the OWNER - about how much.
+ * What «Оплатить» pays, said before the press (Money-1 A3, ЗПД-4 / ЗП-07): for how many students (the ones whose mark counts - «Не был» too) and - for the OWNER - about how much.
  * Nothing for «Не оплачивать».  The server decides who sees the sum (`moneyEstimate` is absent for everybody but the owner); the screen only words it.
+ * Walk of 05.11 (D-4, rule 87): when the preview of the decision names the sheet with its sum («Ведомость …: A → B») the estimate is NOT said again - it is the line of the sheet; it stays
+ * for the month that has no saved sheet yet (`withEstimate`).
  */
-export function decisionPayLines(item: Pick<OneOffDecisionItem, "studentsPaid" | "moneyEstimate">, decision: OneOffDecision): string[] {
+export function decisionPayLines(item: Pick<OneOffDecisionItem, "studentsPaid" | "moneyEstimate">, decision: OneOffDecision, withEstimate = true): string[] {
   if (decision !== "pay") return [];
   const lines: string[] = [];
   const paid = item.studentsPaid;
   if (typeof paid === "number" && paid >= 0) lines.push(`Оплата — по числу учеников: ${paid}. В это число входят и отметки «Не был»`);
   const estimate = item.moneyEstimate;
-  if (estimate) {
+  if (withEstimate && estimate) {
     if (typeof estimate.amount === "number") lines.push(`Преподавателю ≈ ${formatMoney(estimate.amount)}`);
     else if (estimate.reason && ESTIMATE_REASON_TEXT[estimate.reason]) lines.push(ESTIMATE_REASON_TEXT[estimate.reason]);
   }
   return lines;
+}
+
+/** D-4 (walk of 05.11): the month of the teacher is closed by a saved sheet - the row says so and offers «Переоткрыть месяц» to who may; «Оплатить» / «Не оплачивать» wait. */
+export const DECISION_MONTH_CLOSED_TEXT = "Месяц закрыт ведомостью — сначала переоткройте его, потом решите";
+/** «Оплатить» in a month that has no saved sheet yet: the block of the preview is empty, and says what happens instead of «деньги не изменятся». */
+export const DECISION_NO_SHEET_TEXT = "Ведомость за этот месяц ещё не сохранена: урок войдёт в неё при сохранении.";
+
+/** The same for taking back a decision «Оплатить» when the month has no saved sheet yet. */
+export const DECISION_UNDO_NO_SHEET_TEXT = "Ведомость за этот месяц ещё не сохранена: урок выйдет из расчёта.";
+
+/** The sheet the decision moves has its sum in the preview (the owner): then the estimate of the row is the same number and is not said again. */
+export function previewNamesSheetSum(effects: { payroll: Array<{ freshAfter: number | null }> } | null | undefined): boolean {
+  return Boolean(effects && effects.payroll.some((line) => line.freshAfter !== null));
+}
+
+/** The warning of a sheet that is already (partly) paid: the owner's `status` tells it; an administrator's `null` is the block of the preview («Изменится ведомость: …»), not said twice. */
+export function decisionSheetWarning(sheet: DecisionPayrollSheet | null | undefined): string | null {
+  return sheet && sheet.status !== null ? payrollWarning(sheet) : null;
 }
 
 // ── «Отменить решение» (Money-1 A3) ─────────────────────────────────────────────────────────────────────────
@@ -486,7 +511,6 @@ export const UNDO_DECISION_LABEL = "Отменить решение об опл�
 export const UNDO_DECISION_TITLE = "Отменить решение об оплате?";
 export const UNDO_DECISION_BUTTON = "Отменить решение";
 export const UNDO_DECISION_NOTE = "Урок снова будет ждать решения «Оплатить / Не оплачивать» в «Заменах». Решить можно будет заново.";
-export const UNDO_DECISION_PAID_NOTE = "Сейчас урок оплачивается преподавателю: его сумма в ведомости изменится.";
 export const UNDO_DECISION_TOAST = "Решение отменено: урок снова ждёт решения";
 /** The decision of the lesson can be taken back: an additional lesson that was decided, by who has the money right; the server judges the month (409 `PERIOD_CLOSED`). */
 export function canUndoDecision(lesson: Pick<LessonPurposeFields, "purpose" | "money"> | null | undefined, moneyRight: boolean): boolean {

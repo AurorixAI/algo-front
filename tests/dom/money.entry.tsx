@@ -12,6 +12,7 @@ import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
 import { OpenLessonsView } from "@/components/attendance/open-lessons-view";
 import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
+import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisions";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
@@ -84,6 +85,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "decided":
       root.render(<DecidedOneOffsBlock showToast={(text: string) => log(`toast:${text}`)} onChanged={() => log("changed")} />);
+      break;
+    case "decisions":
+      root.render(<OneOffDecisionsBlock items={props.items} loading={false} error={null} canDecide={props.canDecide !== false} rightLost={false} onRightLost={() => log("right-lost")} onRetry={() => log("retry")} onDecided={(id: string) => log(`decided:${id}`)} showToast={(text: string) => log(`toast:${text}`)} />);
       break;
     case "closedMonth":
       root.render(<ClosedMonthProbe />);
