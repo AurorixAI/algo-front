@@ -1104,6 +1104,8 @@ export function lastPaymentLabel(payment: Pick<PaymentOut, "paid_on" | "amount" 
 
 /** `code` of the server note that says a payment moved to the new group. */
 export const CARRY_OVER_CODE = "payment_carried_over";
+/** Walk of 05.11, D-6: the sentence of a transfer about the NEW account after it («Перенесено 640 000 сум; аванс останется …»). */
+export const TRANSFER_BALANCE_CODE = "transfer_balance_after";
 
 /** Muted hint in the transfer choice; shown only to users who see money. */
 export const TRANSFER_PAYMENT_HINT = "Действующая оплата перейдёт в новую группу";
@@ -1132,10 +1134,13 @@ export function splitTransferNotes(
 ): { infos: string[]; warnings: string[] } {
   const infos: string[] = [];
   const warnings: string[] = [];
+  // the sentence of the balance after the transfer starts with what arrived: the plain «перенесён» of the same student is not said next to it (rule 87)
+  const withBalance = new Set((notes ?? []).filter((note) => note?.code === TRANSFER_BALANCE_CODE && note.message).map((note) => note.student_id ?? ""));
   for (const note of notes ?? []) {
     if (!note?.message) continue;
+    if (note.code === CARRY_OVER_CODE && withBalance.has(note.student_id ?? "")) continue;
     const line = note.student_id && nameOf ? `${nameOf(note.student_id)} — ${note.message}` : note.message;
-    (note.code === CARRY_OVER_CODE ? infos : warnings).push(line);
+    (note.code === CARRY_OVER_CODE || note.code === TRANSFER_BALANCE_CODE ? infos : warnings).push(line);
   }
   return { infos, warnings };
 }

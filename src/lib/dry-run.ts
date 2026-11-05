@@ -3,7 +3,7 @@
  * with `?dry_run=true` (no `Idempotency-Key`, nothing is written).  Pure: the keys and the bodies of those asks, and the words of a transfer's «что переедет».
  */
 import { buildPaymentPayload, validatePaymentForm, type PaymentFormValues } from "./payments-ledger";
-import type { PaymentCreate } from "./payments";
+import { CARRY_OVER_CODE, TRANSFER_BALANCE_CODE, type PaymentCreate } from "./payments";
 
 /** A dry run of a cancel needs a reason too (the server checks it like the real one); the person has not typed it yet. */
 export const DRY_RUN_REASON = "Проверка последствий";
@@ -27,18 +27,47 @@ export function paymentDraft(values: PaymentFormValues, today: string, kind: "cr
 export interface CarriedLine {
   code: string;
   message: string;
+  /** The student the line is about (a bulk transfer names them; a single transfer has no such field). */
+  studentId?: string;
 }
 
-/** `carried` of the answer of a transfer (dry or real): what moves to the new group, in the words of the server. */
-export function carriedOf(answer: unknown): CarriedLine[] {
-  const raw = (answer as { carried?: unknown } | null | undefined)?.carried;
-  if (!Array.isArray(raw)) return [];
+/**
+ * What a transfer (dry or real) says about the money, in the words of the server.  A single transfer carries it in `carried[]` (and in `warnings[]`); a BULK one only in `warnings[]` with the
+ * `student_id`; `carry_after.text` is the same sentence of the balance (the last resort).  The sentence of the balance («Перенесено 640 000 сум; аванс останется 640 000 сум. Со следующего дня
+ * начислят ещё 350 000 сум…») starts with what arrived, so the older «Остаток денег 640 000 сум перенесён в «…»» of the same student is not said next to it (rule 87).  When several students are
+ * transferred, `names` (id → name) puts the name before each of their lines.
+ */
+export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> | null): CarriedLine[] {
+  const source = (answer ?? {}) as { carried?: unknown; warnings?: unknown; carry_after?: { text?: unknown } | null };
   const lines: CarriedLine[] = [];
-  for (const item of raw) {
-    const message = typeof (item as { message?: unknown })?.message === "string" ? (item as { message: string }).message.trim() : "";
-    if (message) lines.push({ code: String((item as { code?: unknown }).code ?? ""), message });
-  }
-  return lines;
+  const seen = new Set<string>();
+  const take = (raw: unknown, onlyMoney: boolean) => {
+    if (!Array.isArray(raw)) return;
+    for (const item of raw) {
+      const entry = item as { code?: unknown; message?: unknown; student_id?: unknown } | null;
+      const message = typeof entry?.message === "string" ? entry.message.trim() : "";
+      const code = String(entry?.code ?? "");
+      if (!message || (onlyMoney && code !== CARRY_OVER_CODE && code !== TRANSFER_BALANCE_CODE)) continue;
+      const studentId = typeof entry?.student_id === "string" && entry.student_id ? entry.student_id : undefined;
+      const key = `${code}|${studentId ?? ""}|${message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push(studentId ? { code, message, studentId } : { code, message });
+    }
+  };
+  take(source.carried, false);
+  take(source.warnings, true);
+  const text = typeof source.carry_after?.text === "string" ? source.carry_after.text.trim() : "";
+  if (text && !lines.some((line) => line.code === TRANSFER_BALANCE_CODE)) lines.push({ code: TRANSFER_BALANCE_CODE, message: text });
+  // the sentence of the balance already says what arrived
+  const balanceOf = new Set(lines.filter((line) => line.code === TRANSFER_BALANCE_CODE).map((line) => line.studentId ?? ""));
+  const shown = lines.filter((line) => !(line.code === CARRY_OVER_CODE && balanceOf.has(line.studentId ?? "")));
+  const students = new Set(shown.map((line) => line.studentId).filter(Boolean));
+  if (students.size < 2 || !names) return shown;
+  return shown.map((line) => {
+    const name = line.studentId ? names.get(line.studentId) : undefined;
+    return name ? { ...line, message: `${name}: ${line.message}` } : line;
+  });
 }
 
 export const CARRIED_TITLE = "Что переедет в новую группу";

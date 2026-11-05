@@ -378,7 +378,7 @@ export function AddStudentDrawer({
             />
           </div>
         )}
-        {transferKey !== null && <div className="-mx-5"><TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} /></div>}
+        {transferKey !== null && <div className="-mx-5"><TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} /></div>}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
         )}

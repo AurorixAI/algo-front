@@ -11,7 +11,7 @@ import { CARRIED_NONE_TEXT, CARRIED_TITLE, carriedOf } from "@/lib/dry-run";
  * carries over (`carried`, its own words) and what that does to the packs and the saved sheets.  While it is asked the block says so; a failure offers «Повторить»
  * (the button of the window waits for the answer).
  */
-export function TransferPreviewBlock({ preview, onRetry }: { preview: EffectsPreview; onRetry: () => void }) {
+export function TransferPreviewBlock({ preview, onRetry, names }: { preview: EffectsPreview; onRetry: () => void; /** id → name of the students being moved: with several of them each line starts with the name. */ names?: ReadonlyMap<string, string> | null }) {
   if (preview.status === "idle") return null;
   if (preview.status !== "ready") {
     return (
@@ -31,7 +31,7 @@ export function TransferPreviewBlock({ preview, onRetry }: { preview: EffectsPre
       </section>
     );
   }
-  const carried = carriedOf(preview.answer);
+  const carried = carriedOf(preview.answer, names);
   return (
     <div className="mx-5 mb-4 space-y-2" data-testid="transfer-preview" data-state="ready">
       <section aria-label={CARRIED_TITLE} className="flex items-start gap-2.5 rounded-xl border border-primary-100 bg-primary-50/60 px-3 py-2.5">
