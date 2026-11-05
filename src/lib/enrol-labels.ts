@@ -6,6 +6,8 @@
  */
 export const ENROL_ACTION_LABEL = "Зачислить в группу";
 export const TRANSFER_ACTION_LABEL = "Перевести в другую группу";
+/** UX pack №7: the button is not hidden from an administrator without the money access - it is off, with the reason (a transfer carries the money of the student). */
+export const TRANSFER_NO_RIGHT_TEXT = "Перевод переносит деньги ученика — его делает владелец или администратор с доступом к деньгам.";
 
 /** Group page: the button over the roster and the title of the side sheet (one or several students of a class are enrolled). */
 export const ENROL_STUDENTS_BUTTON_LABEL = "Зачислить учеников";

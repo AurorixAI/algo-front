@@ -463,10 +463,10 @@ export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: �
 export const DECISIONS_GROUP_HINT = "Решаете вы: включить урок в зарплату преподавателя или нет. Решение можно отменить, пока месяц не закрыт.";
 /** An administrator without the money access sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
-/** «2 урока ждут решения владельца» - the one row of an administrator without the money access (it is information, not his task: #159 M2, U4). */
+/** «Решает владелец: 2 дополнительных урока» - the one card of an administrator without the money access (UX pack №7; it is information, not his task: #159 M2, U4). */
 export function decisionsViewLine(count: number): string {
   const n = Math.max(0, Math.trunc(Number(count) || 0));
-  return `${n} ${pluralRu(n, "урок ждёт", "урока ждут", "уроков ждут")} решения владельца`;
+  return `Решает владелец: ${n} ${pluralRu(n, "дополнительный урок", "дополнительных урока", "дополнительных уроков")}`;
 }
 const DECISION_FREE_FOR_STUDENTS = "Ученикам урок бесплатный.";
 export const DECISION_FINAL_NOTE = "Решение можно отменить, пока месяц не закрыт.";
@@ -561,6 +561,14 @@ export function decisionQuestion(item: Pick<OneOffDecisionItem, "teacher">, deci
  */
 export function waitingCountFor(user: Parameters<typeof canDecideMoney>[0], pendingTotal: number, moneyRows: number, rightLost = false): number {
   return Math.max(0, pendingTotal) + (canDecideMoney(user) && !rightLost ? Math.max(0, moneyRows) : 0);
+}
+
+/**
+ * The number of the tab «Ждут решения (N)» (UX pack №7): the REAL number of what the tab lists - the requests for a substitute plus the lessons of money - for every role.  An administrator without the
+ * money access sees the lessons of money (as information), so the tab does not say «(0)» over a row; the badge of the menu counts only his own tasks (`waitingCountFor`).
+ */
+export function listedCountFor(pendingTotal: number, moneyRows: number): number {
+  return Math.max(0, Math.floor(Number(pendingTotal) || 0)) + Math.max(0, Math.floor(Number(moneyRows) || 0));
 }
 
 /**

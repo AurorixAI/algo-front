@@ -48,7 +48,7 @@ test("A: canDecideMoney - the owner; an admin only while the profile says paymen
 test("Ч1: an admin without the right sees ONE row «N урока ждут решения владельца» that opens the rows - no pay buttons, no window (#159 U4)", () => {
   const html = block({ canDecide: false });
   const plain = text(html);
-  assert.match(plain, /1 урок ждёт решения владельца/);
+  assert.match(plain, /Решает владелец: 1 дополнительный урок/);
   assert.match(html, /aria-expanded="false"/, "collapsed");
   assert.doesNotMatch(plain, /7-А · чт 05\.11/, "the rows are behind the row");
   assert.doesNotMatch(plain, /Включить в зарплату|Не включать/);

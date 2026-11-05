@@ -563,7 +563,7 @@ test("R3 10 / 13 / 12: the panel keeps the variant in state; the menu item is on
   assert.deepEqual([row.label, row.hint], ["Урока не было", undefined], "no 3-line hint in the menu");
   const { CancellationKindField } = require(path.join(root, "src/components/attendance/cancellation-kind-field.tsx"));
   const html = renderToStaticMarkup(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true, help: S.CANCEL_CONSEQUENCES }));
-  assert.match(textOf(html), /Как учесть в оплате/);
+  assert.match(textOf(html), /Кто за это платит/);
   assert.doesNotMatch(html, /Причина отмены с точки зрения оплаты/);
   assert.doesNotMatch(textOf(html), /из пакета урок не списывается/, "the long explanation is closed until the «?» is pressed");
   assert.match(html, /aria-label="Подробнее"/);
@@ -676,7 +676,7 @@ test("lead notes: the state of the lesson is a badge, «каб. 12» does not br
   assert.match(overview, /badge=\{presentation \? \{ label: presentation\.label, className: presentation\.badgeClassName \} : null\}/);
   const dialog = read("src/components/substitutions/decision-dialog.tsx");
   assert.match(dialog, /scrollIntoView\(\{ block: "nearest" \}\)/);
-  assert.match(read("src/components/attendance/cancellation-kind-field.tsx"), /Как учесть в оплате/);
+  assert.match(read("src/lib/payf.ts"), /Кто за это платит/);
 });
 
 test("R3 ops: the group coming back from the archive shows the notes of the server (a day off that did not apply); the reason of a coded refusal reaches the person", () => {

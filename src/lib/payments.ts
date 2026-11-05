@@ -1102,6 +1102,11 @@ export function lastPaymentLabel(payment: Pick<PaymentOut, "paid_on" | "amount" 
 
 // ── Transfer: the payment follows the student (N13 P2.1) ───────────────────
 
+/** UX pack №7: the page of «Оплаты» for an administrator without the money access (one card, one voice on every page of the section). */
+export const MONEY_DENIED_TITLE = "Раздел «Оплаты» вам недоступен.";
+export const MONEY_DENIED_HINT = "Доступ включает владелец центра.";
+export const MONEY_DENIED_HOME = "На главную";
+
 /** `code` of the server note that says a payment moved to the new group. */
 export const CARRY_OVER_CODE = "payment_carried_over";
 /** Walk of 05.11, D-6: the sentence of a transfer about the NEW account after it («Перенесено 640 000 сум; аванс останется …»). */

@@ -376,7 +376,7 @@ test("an administrator without the money right is refused (page and API); with t
   await org.setPaymentSettings({ admin_can_manage: false });
   const page = await signIn(admin);
   await page.goto("/admin/payments/openings");
-  await expect(page.getByText("Раздел «Оплаты» недоступен")).toBeVisible();
+  await expect(page.getByText("Раздел «Оплаты» вам недоступен.")).toBeVisible();
   await expect(page.getByTestId("openings-group")).toHaveCount(0);
   await expect(admin.api.get("/auth/org/opening-balances")).rejects.toMatchObject({ status: 403 });
   await expect(admin.api.get("/auth/org/opening-balances/summary")).rejects.toMatchObject({ status: 403 });

@@ -42,7 +42,7 @@ import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
-import { canDecideMoney, decisionMatches, moneyRightLostFor, waitingCountFor } from "@/lib/one-off";
+import { canDecideMoney, decisionMatches, listedCountFor, moneyRightLostFor, waitingCountFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -110,6 +110,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const moneyRightLostRef = useRef(moneyRightLost);
   moneyRightLostRef.current = moneyRightLost;
   const waitingCount = waitingCountFor(user, pendingTotal, decisions.total, moneyRightLost);
+  // UX pack №7: the tab says what it lists (an administrator without the money access sees the rows of money, so the tab is not «(0)» over a row); the badge of the menu is his own tasks
+  const listedCount = listedCountFor(pendingTotal, decisions.total);
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -291,8 +293,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "pending", label: tabLabel("pending", waitingCount) },
-    { key: "decided", label: tabLabel("decided", waitingCount) },
+    { key: "pending", label: tabLabel("pending", listedCount) },
+    { key: "decided", label: tabLabel("decided", listedCount) },
   ];
   const toggle = (id: string, on: boolean) => setSelected((previous) => { const copy = new Set(previous); if (on) copy.add(id); else copy.delete(id); return copy; });
   const toggleExpanded = (id: string) => setExpanded((previous) => { const copy = new Set(previous); if (copy.has(id)) copy.delete(id); else copy.add(id); return copy; });

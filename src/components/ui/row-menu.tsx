@@ -9,6 +9,8 @@ export interface RowMenuItem {
   label: string;
   icon?: ComponentType<{ className?: string }>;
   onSelect: () => void;
+  /** A quiet line under the label (UX pack №7: why an action is off). */
+  hint?: string;
   /** Red text for destructive actions (cancelling a payment). */
   danger?: boolean;
   disabled?: boolean;
@@ -163,10 +165,10 @@ export function RowMenu({
                 role="menuitem"
                 disabled={item.disabled}
                 onClick={() => { closeAndFocus(); item.onSelect(); }}
-                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 ${item.danger ? "text-rose-700" : "text-slate-700"}`}
+                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 disabled:opacity-60 ${item.danger ? "text-rose-700" : "text-slate-700"}`}
               >
-                {Icon && <Icon className={`h-4 w-4 ${item.danger ? "text-rose-500" : "text-slate-500"}`} />}
-                {item.label}
+                {Icon && <Icon className={`h-4 w-4 shrink-0 ${item.danger ? "text-rose-500" : "text-slate-500"}`} />}
+                {item.hint ? <span className="min-w-0"><span className="block">{item.label}</span><span className="mt-0.5 block text-[11px] font-normal leading-snug text-slate-600">{item.hint}</span></span> : item.label}
               </button>
             );
           })}

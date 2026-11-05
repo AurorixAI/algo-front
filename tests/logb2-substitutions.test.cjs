@@ -249,7 +249,7 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   assert.equal(S.decisionToast(decided), "Урок отменён");
   assert.deepEqual(chip(decided.item, "cancelled", "teacher"), { text: "Урок отменён", tone: "ok" });
   // W1 F4 (D18): no «стоимость месяца не меняется» (a cancellation «по вине центра» may be deducted - the kind field says so); a cancelled lesson CAN be returned (F3)
-  assert.equal(S.CANCEL_CONSEQUENCES, "Ученики не отмечаются, из пакета урок не списывается, преподавателю не оплачивается. Вернуть урок можно, пока он не начался.");
+  assert.equal(S.CANCEL_CONSEQUENCES, "Ученики не отмечаются, из пакета урок не списывается. Вернуть урок можно, пока он не начался.");
   assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется|не вернётся/);
   assert.ok(S.CANCEL_CONSEQUENCES.length < 140, "short: it sits under a «?»");
   assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", cancellationKind: "centre", expectedStatus: "pending" }, "the default kind is «по вине центра»");
@@ -480,7 +480,7 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
   }
   const cancel = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "cancel", binding: { state: "ok", title: "Контрольная №3", canCancel: false } }))));
   assert.match(cancel, /Причина отмены/);
-  assert.match(cancel, /Как учесть в оплате/);                                         // W1 F4 + lead note: the kind of the cancellation is asked here too, under a short title
+  assert.match(cancel, /Кто за это платит/);                                    // W1 F4 + lead note: the kind of the cancellation is asked here too, under a short title
   assert.doesNotMatch(cancel, /Ученики не отмечаются/, "the long explanation is under a «?»");
   assert.match(cancel, /По вине центра/);
   assert.match(cancel, /Экзамен «Контрольная №3» уже идёт — отменить урок нельзя/);

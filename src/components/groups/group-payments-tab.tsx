@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, Search, Users, Wallet } from "lucide-react";
+import { AlertCircle, Loader2, Search, Users } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
@@ -49,6 +49,7 @@ import { Chip } from "@/components/ui/chip";
 import { moneyChipTone } from "@/lib/status-registry";
 import { MembershipRowActions } from "@/components/payments/membership-row-actions";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
+import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
 const GRID_COLS = "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]"; // the student column is capped so the price sits near the names (owner 23.10); «Цена» is left-aligned and «Оплата» has room for the chip and the bar (owner 26.10); the actions take the rest and stay right
@@ -202,13 +203,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
   );
 
   if (denied) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white py-16 text-center">
-        <Wallet className="h-6 w-6 text-slate-300" />
-        <p className="text-sm font-medium text-slate-700">Раздел «Оплаты» недоступен</p>
-        <p className="text-xs text-slate-400">Доступ даёт владелец центра в настройках.</p>
-      </div>
-    );
+    return <MoneyAccessDenied framed />;
   }
 
   const filters: PaymentsFilter[] = ["all", "individual", "debt"];

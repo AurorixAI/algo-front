@@ -693,7 +693,7 @@ test("pages: both routes use the one page; the page guards unsaved edits, handle
   assert.equal((page.match(/orgApi\.applyOpeningBatch/g) ?? []).length, 2);
   // the money area is for money roles only: a refusal shows the «недоступен» card (the server answers 403)
   assert.match(page, /failure\.kind === "denied"/);
-  assert.match(page, /Раздел «Оплаты» недоступен/);
+  assert.match(page, /MoneyAccessDenied/);
 });
 
 test("vocabulary: no screen of the pack says «Начисление» (the one sentence of the lead has «Начисления» and is a constant)", () => {

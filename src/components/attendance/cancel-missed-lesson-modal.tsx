@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatDateRu } from "@/lib/attendance-excuses";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
 import { warningTexts } from "@/lib/ops-errors";
@@ -82,24 +82,24 @@ export function CancelMissedLessonModal({
       description={target ? `Урок ${formatDateRu(target.lessonDate)} будет отмечен как не состоявшийся` : undefined}
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy || Boolean(reasonProblemFor("cancel", reason))}
-            className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Урока не было
-          </button>
-        </>
-      }
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={(
+        // UX pack №5 / rule 3: the main button names the action; the window is reversible («Вернуть на отметку») - blue; the line «почему» stands over the off button
+        <ConfirmFooter
+          primary="Отметить: урока не было"
+          onPrimary={() => void submit()}
+          busy={busy}
+          disabled={Boolean(reasonProblemFor("cancel", reason))}
+          why={reasonProblemFor("cancel", reason)}
+          whyId="cancel-missed-why"
+          onCancel={onClose}
+          testId="cancel-missed-submit"
+        />
+      )}
     >
       {target && (
         <div className="space-y-2 pb-2">
-          <label htmlFor="cancel-missed-reason" className="block text-[13px] font-semibold text-slate-500">Причина</label>
+          <label htmlFor="cancel-missed-reason" className="block text-xs font-semibold text-slate-600">Причина (обязательно)</label>
           <textarea
             id="cancel-missed-reason"
             value={reason}

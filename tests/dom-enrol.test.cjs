@@ -33,7 +33,7 @@ test("M2: an administrator WITHOUT the money right - no switch «Перевес�
   const { page, calls, errors } = await pickStudent({ role: "admin", org_role: "admin", payments_access: false });
   await page.waitForSelector('[data-testid="enrol-second-group"]');
   const note = await page.textContent('[data-testid="enrol-second-group"]');
-  assert.equal(note.replace(/\s+/g, " ").trim(), "Иванов Иван уже в группе 7-А Алгебра. «Добавить» запишет его во вторую группу — оплата будет в обеих. Перевести с переносом оплат может владелец или администратор с правом на деньги");
+  assert.equal(note.replace(/\s+/g, " ").trim(), "Иванов Иван уже в группе 7-А Алгебра. «Добавить» запишет его во вторую группу — оплата будет в обеих. Перевести с переносом оплат может владелец или администратор с доступом к деньгам");
   assert.equal(await page.locator('[role="radiogroup"]').count(), 0, "no switch");
   assert.equal(await page.locator('[data-testid="transfer-preview"]').count(), 0, "no «что переедет»: nothing is transferred");
   await page.click('button:has-text("Зачислить (1)")');

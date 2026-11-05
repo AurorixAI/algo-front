@@ -20,16 +20,17 @@ test("inc12-1: every row of «Уроки без отметки» has the same ac
   const src = read("src/components/attendance/open-lessons-view.tsx");
   const button = const_(src, "ACTION_BUTTON_CLASS");
   const slot = const_(src, "MENU_SLOT_CLASS");
-  assert.match(button, /(^| )w-\[88px\]( |$)/, "one fixed width for «Открыть» and «Отметить»");
+  assert.match(button, /(^| )w-\[96px\]( |$)/, "one fixed width for «Открыть» and «Отметить» (a phone: 40 px high, 96 wide)");
+  assert.match(button, /\blg:w-\[88px\]/);
   assert.match(button, /\bshrink-0\b/);
   assert.match(button, /\bjustify-center\b/);
-  assert.match(slot, /\bh-8 w-8\b/, "the slot is the size of the «⋯» button");
+  assert.match(slot, /\bh-10 w-10\b[\s\S]*\blg:h-8 lg:w-8\b/, "the slot is the size of the «⋯» button: 40 px on a phone, 32 from lg");
   // the label does not change the class: both words go through the same constant, in a single place
   assert.equal((src.match(/data-testid="open-lesson-action"/g) || []).length, 1);
   assert.match(src, /data-testid="open-lesson-action"[\s\S]{0,300}className=\{ACTION_BUTTON_CLASS\}/);
   // the menu is rendered when the row has actions, otherwise an invisible placeholder of the same size - inside the same slot
   assert.match(src, /<div className=\{MENU_SLOT_CLASS\} data-testid="open-lesson-menu-slot">\s*\{menuItemsOf\(item\)\.length > 0 \? \(\s*<RowMenu/);
-  assert.match(src, /data-testid="open-lesson-menu-placeholder" className="invisible block h-8 w-8"/);
+  assert.match(src, /data-testid="open-lesson-menu-placeholder" className="invisible block h-10 w-10 lg:h-8 lg:w-8"/);
   assert.match(src, /aria-hidden="true" data-testid="open-lesson-menu-placeholder"/);
   // «in progress» is the row without actions: that is exactly the one that used to lose the «⋯»
   assert.match(src, /if \(item\.actionType === "in_progress"\) return \[\];/);

@@ -350,11 +350,11 @@ test("the journal words the teacher's panel: the teacher corrects his OWN held l
 
 // ── the archive ───────────────────────────────────────────────────────────────────────────────────────
 
-test("the archive (C2, the server's fixture): the missed lessons are LISTED and «за них не начислят и не заплатят» is said BEFORE the choice, ticked or not", () => {
+test("the archive (C2, the server's fixture): the missed lessons are LISTED and what the cancellation does to the money is said BEFORE the choice, ticked or not (UX pack №6)", () => {
   const impact = fixture("logB", "c2_archive_blocked").body.detail;
   const view = ARC.archiveDialogView({ ...impact, groupId: "g", groupName: "7-А", status: "active", canArchive: false }, false);
-  assert.deepEqual(view.missedLessons, ["19.10, 10:00–11:30 · Петров П."]);
-  assert.equal(view.cancelConsequence, "Если отменить эти уроки при архивации, за них не начислят ученикам и не заплатят преподавателям. Сначала разберите их, если они были");
+  assert.deepEqual(view.missedLessons, ["пн, 19 октября · 10:00–11:30 · Петров П."]);
+  assert.equal(view.cancelConsequence, "Если отменить эти уроки при архивации, ученикам перерасчёта не будет, а в зарплату преподавателей они не войдут. Если уроки были — сначала отметьте посещаемость");
   assert.equal(view.canSubmit, false);
   const ticked = ARC.archiveDialogView({ ...impact, groupId: "g", groupName: "7-А", status: "active", canArchive: false }, true);
   assert.equal(ticked.cancelConsequence, view.cancelConsequence, "also after the tick: the confirmation carries it");
@@ -365,9 +365,10 @@ test("the archive (C2, the server's fixture): the missed lessons are LISTED and 
   }));
   for (const markup of [draw(false), draw(true)]) {
     const text = textOf(markup);
-    assert.ok(text.includes("19.10, 10:00–11:30 · Петров П."));
-    assert.ok(text.includes("за них не начислят ученикам и не заплатят преподавателям"));
-    assert.ok(text.indexOf("не начислят") < text.indexOf("Отменить их при архивации"), "the consequence stands above the choice");
+    assert.ok(text.includes("пн, 19 октября · 10:00–11:30 · Петров П."));
+    assert.ok(text.includes("Ученикам перерасчёта не будет, а в зарплату преподавателей они не войдут."));
+    assert.ok(text.includes("Если урок был — сначала отметьте посещаемость."), "the advice is a whole sentence, in the amber block");
+    assert.ok(text.indexOf("Если урок был") < text.indexOf("Урока не было — отменить его при архивации"), "the advice stands above the choice, the consequence under it");
     assert.match(markup, /data-testid="archive-missed-consequence"/);
   }
   // a long list is capped, the rest is counted; a group with nothing missed says nothing
@@ -375,7 +376,7 @@ test("the archive (C2, the server's fixture): the missed lessons are LISTED and 
   const lines = ARC.missedLessonLines(many, 11);
   assert.equal(lines.length, 9);
   assert.equal(lines[8], "и ещё 3");
-  assert.equal(ARC.missedLessonLine({ lessonDate: "2026-10-05" }), "05.10");
+  assert.equal(ARC.missedLessonLine({ lessonDate: "2026-10-05" }), "пн, 5 октября");
   const clean = ARC.archiveDialogView({ groupId: "g", groupName: "x", status: "active", canArchive: true, blockers: [] }, false);
   assert.deepEqual([clean.missedLessons, clean.cancelConsequence], [[], null]);
 });
@@ -466,22 +467,26 @@ test("payments, forgiveness, refunds: the toast is the STUDENT's (UX pack §5.1-
 
 // ── the rights in the rest of the screens ──────────────────────────────────────────────────────────────
 
-test("an administrator without the money right: no «Перевести в другую группу», no «Пауза…», a read-only «Тип занятий»; the owner and an administrator with the right keep them", () => {
+test("an administrator without the money right: «Перевести в другую группу» is OFF with its reason (UX pack №7), no «Пауза…», a read-only «Тип занятий»; the owner and an administrator with the right keep them on", () => {
   const { StudentGroupsBlock } = component("students/student-groups-block.tsx");
   const profile = { student: { status: "active", full_name: "Иванов Иван" }, groups: [{ membership_id: "m1", group_id: "g1", group_name: "7-А", teacher_id: "t", teacher_name: "К", class_level: 7, is_primary: true, joined_at: "2026-09-01" }] };
   const draw = (moneyRight) => html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, moneyRight, onAssign() {} }));
   assert.match(draw(true), /data-testid="enrol-transfer"/);
-  assert.doesNotMatch(draw(false), /data-testid="enrol-transfer"/);
+  assert.doesNotMatch(draw(true), /enrol-transfer-why/, "the owner is not told why");
+  assert.match(draw(false), /data-testid="enrol-transfer"[^>]*>|<button[^>]*disabled=""[^>]*data-testid="enrol-transfer"/, "off, not hidden");
+  assert.match(draw(false), /disabled=""[^>]*aria-describedby="enrol-transfer-why"|aria-describedby="enrol-transfer-why"[^>]*disabled=""/);
+  assert.match(textOf(draw(false)), /Перевод переносит деньги ученика — его делает владелец или администратор с доступом к деньгам\./);
   assert.match(draw(false), /data-testid="enrol-add"/, "adding to a group moves no money");
   assert.match(html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, onAssign() {} })), /data-testid="enrol-add"/);
-  assert.doesNotMatch(html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, onAssign() {} })), /enrol-transfer/, "an absent flag is no right");
+  assert.match(html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, onAssign() {} })), /enrol-transfer-why/, "an absent flag is no right: off, with the reason");
   const block = read("src/components/students/student-groups-block.tsx");
   assert.match(block, /\.filter\(\(entry\) => moneyRight \|\| entry\.key !== "pause"\)/);
   const group = read("src/components/groups/group-detail-view.tsx");
   assert.match(group, /disabled=\{!moneyRight\}/);
   assert.match(group, /\{moneyRight \? LESSON_TYPE_EDIT_NOTE : LESSON_TYPE_NO_RIGHT_NOTE\}/);
-  assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с правом на оплаты");
-  assert.match(read("src/components/groups/group-student-table.tsx"), /canTransfer: Boolean\(canRemove && onTransfer && !isTeacher && moneyRight\)/);
+  assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с доступом к деньгам");
+  assert.match(read("src/components/groups/group-student-table.tsx"), /canTransfer: Boolean\(canRemove && onTransfer && !isTeacher\)/);
+  assert.match(read("src/components/groups/group-student-table.tsx"), /disabled: !moneyRight, hint: moneyRight \? undefined : TRANSFER_NO_RIGHT_TEXT/, "the roster: the item is off with its reason");
   assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /canChangeKind\(canChooseKind && moneyRight, cancellationKind\)/);
   assert.match(read("src/components/students/student-profile-view.tsx"), /moneyRight=\{canManageMoney\(user\)\}/);
 });

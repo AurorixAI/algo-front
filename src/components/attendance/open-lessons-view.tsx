@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, ClipboardCheck, Loader2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Ban, ClipboardCheck, Loader2 } from "lucide-react";
 import { orgApi, type OpenActionsByMonth, type OpenAttendanceAction } from "@/lib/api";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 import { formatDateRu } from "@/lib/attendance-excuses";
@@ -14,7 +14,8 @@ import {
   monthCountsText,
   monthHeading,
   canMarkOpenLesson,
-  OPEN_LESSON_NO_RIGHT_TEXT,
+  OPEN_LESSONS_NO_RIGHT_NOTICE,
+  showsStatusColumn,
   openLessonsOf,
   sinceLine,
   withoutOpenLessons,
@@ -49,10 +50,13 @@ const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
  * The header and every row share the template, the padding and the gap, so a header and its cells have
  * one left edge, and cells are top-aligned like in «Пропуски».  Below `lg` a row is a card.
  */
-const COLS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_152px]";
-// Action cell: the primary button has one fixed width (the same for «Открыть» and «Отметить») and the «⋯» slot is always reserved (32px).
-const ACTION_BUTTON_CLASS = "inline-flex h-8 w-[88px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-2 text-xs font-semibold text-white hover:bg-primary-700";
-const MENU_SLOT_CLASS = "flex h-8 w-8 shrink-0 items-center justify-center";
+const COLS_WITH_STATUS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_152px]";
+/** UX pack №17: no column of a status that is the same in every row. */
+const COLS_NO_STATUS = "lg:grid-cols-[148px_minmax(0,1fr)_152px]";
+// Action cell: the primary button has one fixed width (the same for «Открыть» and «Отметить») and the «⋯» slot is always reserved; 40 px on a phone (UX pack rule 6), 32 from `lg`.
+const ACTION_BUTTON_CLASS = "inline-flex h-10 w-[96px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-2 text-xs font-semibold text-white hover:bg-primary-700 lg:h-8 lg:w-[88px]";
+const MENU_SLOT_CLASS = "flex h-10 w-10 shrink-0 items-center justify-center lg:h-8 lg:w-8";
+const MENU_TRIGGER_CLASS = "inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 lg:h-8 lg:w-8";
 
 /** Focus and visibility events fire together; one re-read is enough. */
 const FOCUS_REFETCH_GAP_MS = 1500;
@@ -162,6 +166,10 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   }, [badgeCount, items.length, loaded, refreshing, load]);
 
   const months = useMemo(() => (byMonth?.months ?? []).map((month) => ({ month, groups: groupOpenLessonsByTeacher(month.items) })), [byMonth]);
+  // UX pack №17: the column of the status only when the lessons differ; №7: an administrator without the money right gets ONE plaque over the list instead of a line in every row
+  const withStatus = showsStatusColumn(items);
+  const COLS = withStatus ? COLS_WITH_STATUS : COLS_NO_STATUS;
+  const noRightNotice = role === "admin" && !moneyRight && items.some((item) => !canMarkOpenLesson(item, role, moneyRight));
 
   // IA audit F5: the main action of this screen is a BUTTON of the row («Отметить» / «Открыть»); the menu keeps the rare one - «Урока не было»
   // (a lesson in progress has none: it is finished in the journal).
@@ -214,8 +222,13 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
         <EmptyState icon={ClipboardCheck} title="Все уроки закрыты" hint="Уроки, по которым не отмечена посещаемость или журнал не завершён, появятся здесь." />
       ) : (
         <section className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white">
-          {sinceLine(byMonth?.since) && <p data-testid="open-since" className="px-1 pb-2 text-xs text-slate-500 lg:px-4 lg:pt-3">{sinceLine(byMonth?.since)}</p>}
-          <TableHeader show="lg" gridClass={COLS} labels={["Урок", "Группа", "Статус", ""]} aligns={["center", "center", "center", "right"]} />
+          {noRightNotice && (
+            <p role="note" data-testid="open-lessons-no-right" className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 lg:mx-4 lg:mt-3">
+              <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>{OPEN_LESSONS_NO_RIGHT_NOTICE}</span>
+            </p>
+          )}
+          {sinceLine(byMonth?.since) && <p data-testid="open-since" className="px-1 pb-2 text-xs text-slate-600 lg:px-4 lg:pt-3">{sinceLine(byMonth?.since)}</p>}
+          <TableHeader show="lg" gridClass={COLS} labels={withStatus ? ["Урок", "Группа", "Статус", ""] : ["Урок", "Группа", ""]} aligns={withStatus ? ["center", "center", "center", "right"] : ["center", "center", "right"]} />
           {months.map(({ month, groups }) => (
             <div key={month.month} data-testid="open-month" className="mt-6 first:mt-0 lg:mt-0">
               <h3 className="flex flex-wrap items-baseline gap-x-2 px-1 pb-1.5 text-sm font-bold text-slate-900 lg:border-t lg:border-slate-200 lg:bg-slate-100/80 lg:px-4 lg:py-2">
@@ -248,14 +261,16 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                       {item.isSubstitution && <span className="ml-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUBSTITUTE_BADGE}</span>}
                     </p>
 
-                    <div className="flex min-w-0 lg:-my-px lg:justify-center">
-                      <span
-                        title={openLessonStatusHint(item)}
-                        className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[CHIP_TONE[item.actionType]]}`}
-                      >
-                        {openLessonStatus(item)}
-                      </span>
-                    </div>
+                    {withStatus && (
+                      <div className="flex min-w-0 lg:-my-px lg:justify-center">
+                        <span
+                          title={openLessonStatusHint(item)}
+                          className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[CHIP_TONE[item.actionType]]}`}
+                        >
+                          {openLessonStatus(item)}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-end gap-2 lg:-my-1.5 lg:justify-self-end">
                       {access.locked ? (
@@ -269,9 +284,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                             className={ACTION_BUTTON_CLASS}
                           >
                             {openLessonActionLabel(item)}
-                          </Link> : (
-                            <p data-testid="open-lesson-no-right" className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500">{OPEN_LESSON_NO_RIGHT_TEXT}</p>
-                          )}
+                          </Link> : null}
                           {/* The «⋯» slot is always reserved: the menu when the row has actions, otherwise an invisible spacer of the same size,
                               so the primary buttons of all rows stand in one column. */}
                           <div className={MENU_SLOT_CLASS} data-testid="open-lesson-menu-slot">
@@ -279,9 +292,10 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                               <RowMenu
                                 items={menuItemsOf(item)}
                                 label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
+                                triggerClassName={MENU_TRIGGER_CLASS}
                               />
                             ) : (
-                              <span aria-hidden="true" data-testid="open-lesson-menu-placeholder" className="invisible block h-8 w-8" />
+                              <span aria-hidden="true" data-testid="open-lesson-menu-placeholder" className="invisible block h-10 w-10 lg:h-8 lg:w-8" />
                             )}
                           </div>
                         </>

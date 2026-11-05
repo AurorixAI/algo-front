@@ -44,10 +44,18 @@ export function forecastText(row: Pick<MembershipPaymentRow, "period_mode" | "le
 
 export type CancellationKind = "centre" | "holiday";
 
-/** The choice in the dialog of a cancellation: the centre's fault is the default (it may be deducted from the next payment), a holiday never is. */
-export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: string; hint: string }> = [
-  { key: "centre", label: "По вине центра", hint: "Например, заболел преподаватель. Если в настройках включён перерасчёт, ученикам вычтут урок из следующей оплаты." },
-  { key: "holiday", label: "Праздник, выходной", hint: "Перерасчёта не будет." },
+/** The question over the two ways to cancel (UX pack №5): who bears the cost of the lesson that did not take place. */
+export const CANCELLATION_KIND_LEGEND = "Кто за это платит";
+
+/**
+ * The choice in the dialog of a cancellation (UX pack №5): the centre's fault is the default, a holiday is nobody's.  Under EACH option stands what it does to the money (the words of
+ * the dictionary: «перерасчёт» for the student, «не оплачивается» for the teacher), so nothing has to be guessed before the button.  Checked against the server (`lesson_cancel._kind_for`,
+ * `payments_service`): «по вине центра» is deducted from the NEXT payment only when the centre switched «Вычитать из следующей оплаты» on (the setting of «Оплаты»), a holiday never; a
+ * lesson that did not take place is not paid to the teacher in either case.  The server has no preview of the cancellation with numbers (`reconcile/cancel` has no dry run) - the sums are not told.
+ */
+export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: string; students: string; teacher: string }> = [
+  { key: "centre", label: "По вине центра", students: "Ученикам — перерасчёт в следующей оплате, если он включён в настройках", teacher: "Преподавателю — урок не оплачивается" },
+  { key: "holiday", label: "Праздник, выходной", students: "Ученикам — без перерасчёта", teacher: "Преподавателю — урок не оплачивается" },
 ];
 export const DEFAULT_CANCELLATION_KIND: CancellationKind = "centre";
 
@@ -347,4 +355,5 @@ export function dayOffSummary(plan: Pick<DayOffPlan, "text">): string {
 }
 
 /** R3 #1 (I-6): a day off cancels the lessons of every group at once - deductions of the students and the pay of the teachers move with it: the owner and an administrator with the money right give and cancel it. */
-export const DAY_OFF_NO_RIGHT_TEXT = "Назначить и отменить выходной день может владелец или администратор, которому владелец разрешил оплаты: уроки отменяются сразу, а это деньги. Журнал выходных вы видите.";
+/** UX pack №7: short - who may, and what the person sees. */
+export const DAY_OFF_NO_RIGHT_TEXT = "Назначает и отменяет владелец или администратор с доступом к деньгам. Журнал выходных вы видите.";

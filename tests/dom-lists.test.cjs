@@ -19,7 +19,7 @@ test("item 8: the months in the order of the server, the counters, the day the l
   await page.evaluate(() => window.mount("openLessons"));
   await page.waitForSelector('[data-testid="open-month"]');
   const text = (await page.textContent("body")).replace(/\s+/g, " ");
-  assert.match(text, /Показаны уроки без отметки с 01\.09\.2026/);
+  assert.match(text, /Показаны уроки без отметки с 1 сентября 2026(?! г)/);
   assert.ok(text.indexOf("Сентябрь 2026 · 2 урока") < text.indexOf("Октябрь 2026 · 1 урок"), "the oldest month first");
   assert.match(text, /не отмечено 1 · не завершено 1/);
   assert.match(text, /7-А Алгебра/);
@@ -31,19 +31,22 @@ test("item 8: the months in the order of the server, the counters, the day the l
   await page.close();
 });
 
-test("m6: an administrator WITHOUT the money right sees why a lesson nobody started has no «Отметить»; the lesson that is going on keeps «Открыть»", async () => {
+test("m6 / UX pack №7: an administrator WITHOUT the money right gets ONE plaque over the list (no line in every row); the lesson that is going on keeps «Открыть»; the «⋯» stays for «Урока не было»", async () => {
   const { page } = await openPage(browser, "money.entry.tsx", server);
   await page.evaluate(() => window.mount("openLessons", { role: "admin", org_role: "admin", payments_access: false }));
   await page.waitForSelector('[data-testid="open-month"]');
-  const reasons = await page.$$eval('[data-testid="open-lesson-no-right"]', (nodes) => nodes.map((node) => node.textContent));
-  assert.deepEqual(reasons, ["Оформить прошедший урок может владелец или администратор с правом на деньги", "Оформить прошедший урок может владелец или администратор с правом на деньги"], "one for each lesson nobody started");
+  assert.equal(await page.locator('[data-testid="open-lesson-no-right"]').count(), 0, "no line in a row");
+  const notice = (await page.textContent('[data-testid="open-lessons-no-right"]')).replace(/\s+/g, " ").trim();
+  assert.equal(notice, "Оформить прошедший урок — «Отметить» — может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» в меню строки.");
+  assert.equal(await page.locator('[data-testid="open-lessons-no-right"]').count(), 1, "ONE plaque");
   const buttons = await page.$$eval('[data-testid="open-lesson-action"]', (links) => links.map((link) => link.textContent));
   assert.equal(buttons.length, 1, "only the lesson that is going on");
+  assert.equal(await page.locator('button[aria-label^="Действия:"]').count(), 2, "a menu where there is an action (the lessons nobody started), none for the one that is going on");
   await page.close();
   const withRight = await openPage(browser, "money.entry.tsx", server);
   await withRight.page.evaluate(() => window.mount("openLessons", { role: "admin", org_role: "admin", payments_access: true }));
   await withRight.page.waitForSelector('[data-testid="open-month"]');
-  assert.equal(await withRight.page.locator('[data-testid="open-lesson-no-right"]').count(), 0);
+  assert.equal(await withRight.page.locator('[data-testid="open-lessons-no-right"]').count(), 0);
   assert.equal(await withRight.page.locator('[data-testid="open-lesson-action"]').count(), 3);
   await withRight.page.close();
 });

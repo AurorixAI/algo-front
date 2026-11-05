@@ -294,8 +294,8 @@ test("F4 / F8: the roster menu has at most two items, no «Карточка уч
   assert.match(read("src/components/groups/group-detail-view.tsx"), /onTransfer=\{setTransferStudent\}/);
   // the teacher's roster has no menu at all: the page (the same view for him) passes `canRemove` only to the manager, and the table opens no menu without it
   assert.match(read("src/components/groups/group-detail-view.tsx"), /canRemove=\{canManage && group\.status === "active"\}/);
-  // Money-1 A4: a transfer carries the paid days and the advance - the money right only
-  assert.match(table, /canLeave: Boolean\(canRemove && groupId && onLeft && !isTeacher\), canTransfer: Boolean\(canRemove && onTransfer && !isTeacher && moneyRight\)/);
+  // Money-1 A4 + UX pack №7: a transfer carries the paid days and the advance - the money right only; without it the item is OFF with its reason, not hidden
+  assert.match(table, /canLeave: Boolean\(canRemove && groupId && onLeft && !isTeacher\), canTransfer: Boolean\(canRemove && onTransfer && !isTeacher\)/);
 });
 
 test("F3: «Цены групп» has no «⋯» with one item: «История цены» is an icon button of the row", () => {

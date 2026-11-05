@@ -3,7 +3,8 @@
 import { GROUP_WITHOUT_TEACHER_WARNING } from "@/lib/staff-lifecycle";
 import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, AlertTriangle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
 import { orgApi, opsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { errorMessageOf, opsErrorCode, warningTexts } from "@/lib/ops-errors";
@@ -12,12 +13,14 @@ import type { ArchiveImpact } from "@/lib/ops-b-types";
 import {
   ARCHIVE_BUTTON,
   EXAM_SERVICE_DOWN_TEXT,
-  MISSED_CANCEL_OPTION,
   RESTORE_BUTTON,
   RESTORE_NO_TEACHER,
   RESTORE_TEACHER_INACTIVE_TEXT,
   TRANSFER_STUDENTS_BUTTON,
   archiveBody,
+  archiveWhy,
+  missedCancelOption,
+  splitMissedConsequence,
   archiveDialogView,
   archiveReasonError,
   archiveRefusalImpact,
@@ -29,6 +32,8 @@ import {
   type ArchiveDialogView,
 } from "@/lib/group-archive";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { groupHref } from "@/lib/ia-links";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -127,22 +132,20 @@ export function GroupArchiveDialog({
         onClose={onClose}
         busy={busy}
         maxWidthClassName="max-w-xl"
-        footer={
-          <>
-            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-              Отмена
-            </button>
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy || !view?.canSubmit || Boolean(reasonProblem)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {ARCHIVE_BUTTON}
-            </button>
-          </>
-        }
+        footerClassName={CONFIRM_FOOTER_CLASS}
+        footer={(
+          // UX pack №6 / rule 3: the archive can be undone («Вернуть из архива») - the main button is blue; an off button says why over the footer
+          <ConfirmFooter
+            primary={ARCHIVE_BUTTON}
+            onPrimary={() => void submit()}
+            busy={busy}
+            disabled={!view?.canSubmit || Boolean(reasonProblem)}
+            why={reasonProblem ?? (view ? archiveWhy(view.stops) : null)}
+            whyId="group-archive-why"
+            onCancel={onClose}
+            testId="group-archive-submit"
+          />
+        )}
       >
         <ArchiveDialogBody
           impact={impact}
@@ -158,6 +161,8 @@ export function GroupArchiveDialog({
           onReason={(value) => { setReason(value); setError(null); }}
           onTransfer={(student) => setTransfer(student)}
           onArchiveStudent={(student) => setArchiveStudent(student)}
+          journalHref={groupHref(groupsBasePath, group.id, "attendance")}
+          onJournal={onClose}
         />
       </Modal>
 
@@ -190,7 +195,7 @@ export function GroupArchiveDialog({
 /** The inside of the archive dialog (no shell): hard stops, the choice for the missed lessons, what the archive does by itself. */
 export function ArchiveDialogBody({
   impact, view, loadError, cancelMissed, reason, reasonProblem, busy, error,
-  onRetry, onCancelMissed, onReason, onTransfer, onArchiveStudent,
+  onRetry, onCancelMissed, onReason, onTransfer, onArchiveStudent, journalHref = null, onJournal,
 }: {
   impact: ArchiveImpact | null;
   view: ArchiveDialogView | null;
@@ -205,6 +210,9 @@ export function ArchiveDialogBody({
   onReason: (value: string) => void;
   onTransfer: (student: { id: string; name: string }) => void;
   onArchiveStudent: (student: { id: string; name: string }) => void;
+  /** The journal of the group (UX pack №6: the amber block leads there); without it the link is not drawn. */
+  journalHref?: string | null;
+  onJournal?: () => void;
 }) {
   if (loadError) {
     return (
@@ -222,7 +230,9 @@ export function ArchiveDialogBody({
     );
   }
   const studentStop = view.stops.find((stop) => stop.code === "ACTIVE_STUDENTS");
-  const otherStops = view.stops.filter((stop) => stop.code !== "ACTIVE_STUDENTS");
+  // the lessons without a mark are told by the amber block below (not by a red stop) - the stop only keeps the button off
+  const otherStops = view.stops.filter((stop) => stop.code !== "ACTIVE_STUDENTS" && stop.code !== "MISSED_LESSONS");
+  const consequence = splitMissedConsequence(view.cancelConsequence);
   return (
     <div className="space-y-4 pb-1">
       {studentStop && (
@@ -258,27 +268,35 @@ export function ArchiveDialogBody({
       ))}
 
       {view.offersCancelMissed && (
-        <div data-testid="archive-missed" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-3">
+        <div data-testid="archive-missed" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+          <p className="flex items-start gap-2 text-sm font-semibold text-amber-900">
+            <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /> <span data-testid="archive-missed-title">{missedLessonsText(view.missedCount)}:</span>
+          </p>
           {view.missedLessons.length > 0 && (
-            <ul aria-label="Пропущенные уроки" className="space-y-0.5 text-sm text-slate-800">
+            <ul aria-label="Уроки без отметки" className="space-y-0.5 pl-6 text-sm text-slate-800">
               {view.missedLessons.map((line) => <li key={line}>{line}</li>)}
             </ul>
           )}
-          {view.cancelConsequence && <p data-testid="archive-missed-consequence" className="text-sm font-medium text-amber-900">{view.cancelConsequence}</p>}
+          {consequence.advice && <p data-testid="archive-missed-advice" className="pl-6 text-sm text-amber-900">{consequence.advice}</p>}
+          {journalHref && (
+            <div className="pl-6">
+              <Link href={journalHref} onClick={onJournal} data-testid="archive-open-journal" className="inline-flex min-h-[40px] items-center rounded-xl border border-amber-300 bg-white px-3.5 text-sm font-semibold text-amber-900 hover:bg-amber-100">Открыть журнал</Link>
+            </div>
+          )}
         </div>
       )}
 
       {view.offersCancelMissed && (
-        <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm transition-colors ${cancelMissed ? "border-primary-300 bg-primary-50/50" : "border-slate-200 bg-white"}`}>
+        <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm transition-colors ${cancelMissed ? "border-primary-300 bg-primary-50" : "border-slate-200 bg-white"}`}>
           <Checkbox
             className="mt-0.5"
             checked={cancelMissed}
             onChange={(event) => onCancelMissed(event.target.checked)}
             disabled={busy}
           />
-          <span className="font-medium text-slate-800">
-            {cancelMissed && <span className="block text-xs font-normal text-slate-500">{missedLessonsText(view.missedCount)}</span>}
-            {MISSED_CANCEL_OPTION}
+          <span className="min-w-0 font-medium text-slate-800">
+            {missedCancelOption(view.missedCount)}
+            {consequence.effect && <span data-testid="archive-missed-consequence" className="mt-0.5 block text-xs font-normal text-slate-700">{consequence.effect}</span>}
           </span>
         </label>
       )}
@@ -403,14 +421,19 @@ export function GroupRestoreDialog({
       onClose={onClose}
       busy={busy}
       maxWidthClassName="max-w-md"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button type="button" onClick={() => void submit()} disabled={busy || (needTeacher && !teacherId)} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {RESTORE_BUTTON}
-          </button>
-        </>
-      }
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={(
+        <ConfirmFooter
+          primary={RESTORE_BUTTON}
+          onPrimary={() => void submit()}
+          busy={busy}
+          disabled={needTeacher && !teacherId}
+          why="Выберите преподавателя или оставьте группу без преподавателя."
+          whyId="group-restore-why"
+          onCancel={onClose}
+          testId="group-restore-submit"
+        />
+      )}
     >
       <div className="space-y-3 pb-1">
         {needTeacher ? (

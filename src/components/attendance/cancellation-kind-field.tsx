@@ -1,14 +1,14 @@
 "use client";
 
 import { useId } from "react";
-import { CANCELLATION_KINDS, type CancellationKind } from "@/lib/payf";
+import { CANCELLATION_KIND_LEGEND, CANCELLATION_KINDS, type CancellationKind } from "@/lib/payf";
 import { Radio } from "@/components/ui/radio";
 import { HelpToggle } from "@/components/ui/help-toggle";
 
 /**
- * PAY-F, part 3: why the centre cancels the lesson - «По вине центра» (the default; may be deducted from the next payment if the centre switched that on)
- * or «Праздник, выходной» (never).  One field for every cancel dialog.  Only the owner and the administrator choose (`canChooseKind`): a teacher sees nothing and
- * always cancels «по вине центра».
+ * PAY-F, part 3 + UX pack №5: «Кто за это платит» - «По вине центра» (the default) or «Праздник, выходной».  Each option is a card with ITS consequence for the money under it (the student:
+ * «перерасчёт» or nothing; the teacher: not paid), so the person sees what each choice does before pressing the button.  One field for every cancel dialog.  Only the owner and the
+ * administrator choose (`canChooseKind`): a teacher sees nothing and always cancels «по вине центра».
  */
 export function CancellationKindField({ value, onChange, canChooseKind, name = "cancellation-kind", disabled = false, help }: {
   value: CancellationKind;
@@ -19,21 +19,33 @@ export function CancellationKindField({ value, onChange, canChooseKind, name = "
   /** The longer explanation under a «?» (the line itself stays one sentence). */
   help?: React.ReactNode;
 }) {
-  const hintId = useId();
+  const base = useId();
   if (!canChooseKind) return null;
-  const hint = CANCELLATION_KINDS.find((option) => option.key === value)?.hint ?? "";
   return (
-    <fieldset className="space-y-1" data-testid="cancellation-kind" disabled={disabled} aria-describedby={hintId}>
-      <legend className="text-xs font-semibold text-slate-700">Как учесть в оплате</legend>
-      <div className="flex flex-wrap gap-x-5 gap-y-1">
-        {CANCELLATION_KINDS.map((option) => (
-          <label key={option.key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
-            <Radio name={name} checked={value === option.key} onChange={() => onChange(option.key)} aria-describedby={hintId} />
-            {option.label}
-          </label>
-        ))}
+    <fieldset className="space-y-2" data-testid="cancellation-kind" disabled={disabled}>
+      <legend className="mb-1 block w-full text-xs font-semibold text-slate-700">{CANCELLATION_KIND_LEGEND}{help && <HelpToggle>{help}</HelpToggle>}</legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {CANCELLATION_KINDS.map((option) => {
+          const lineId = `${base}-${option.key}`;
+          const selected = value === option.key;
+          return (
+            <label
+              key={option.key}
+              data-testid={`cancellation-kind-${option.key}`}
+              className={`flex min-h-[44px] cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 ${selected ? "border-primary-400 bg-primary-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+            >
+              <Radio name={name} checked={selected} onChange={() => onChange(option.key)} aria-describedby={lineId} className="mt-0.5" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+                <span id={lineId} className="mt-0.5 block text-xs leading-snug text-slate-700">
+                  <span data-testid="cancellation-kind-students" className="block">{option.students}</span>
+                  <span data-testid="cancellation-kind-teacher" className="block">{option.teacher}</span>
+                </span>
+              </span>
+            </label>
+          );
+        })}
       </div>
-      <p id={hintId} className="text-xs text-slate-500">{hint}{help && <HelpToggle>{help}</HelpToggle>}</p>
     </fieldset>
   );
 }

@@ -293,7 +293,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(excuses, /xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 \$\{cols\}/);
   assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.1fr\)_104px_minmax\(0,1\.5fr\)_208px_240px\]"/);
   const open = read("src/components/attendance/open-lessons-view.tsx");
-  assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{\["Урок", "Группа", "Статус", ""\]\} aligns=\{\["center", "center", "center", "right"\]\}/);
+  assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{withStatus \? \["Урок", "Группа", "Статус", ""\] : \["Урок", "Группа", ""\]\} aligns=\{withStatus \? \["center", "center", "center", "right"\] : \["center", "center", "right"\]\}/);
   assert.match(open, /lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 \$\{COLS\}/);
   // the same horizontal padding in both (px-4) and the same header look
   assert.match(chromeSrc, /TABLE_PAD_X = "px-4"/);

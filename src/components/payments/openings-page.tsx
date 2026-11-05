@@ -3,7 +3,7 @@
 import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, Download, Loader2, Search, Upload, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Download, Loader2, Search, Upload, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { saveBlobAs } from "@/lib/download";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
@@ -74,6 +74,7 @@ import {
 import { OpeningsGroups } from "@/components/payments/openings-rows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileInput } from "@/components/ui/file-input";
+import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 
 type Notice = { tone: "info" | "warn"; text: string } | null;
 
@@ -467,13 +468,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
 
   // ── rendering
   if (denied) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-1.5 py-20 text-center">
-        <Wallet className="h-6 w-6 text-slate-300" />
-        <p className="text-sm font-medium text-slate-700">Раздел «Оплаты» недоступен</p>
-        <p className="text-xs text-slate-400">Доступ даёт владелец центра в настройках.</p>
-      </div>
-    );
+    return <MoneyAccessDenied />;
   }
 
   const progress = data ? progressOf(data.totals) : null;

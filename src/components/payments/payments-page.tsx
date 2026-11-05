@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, Undo2, Wallet, XCircle } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, Undo2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
   bucketCount,
@@ -61,6 +61,7 @@ import { PaymentVoidModal } from "./payment-void-modal";
 import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
+import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 
 const PAGE_SIZE = 50;
 
@@ -266,13 +267,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const filtered = Boolean(debouncedSearch || filter.teacherId || filter.groupId);
 
   if (denied || noRight) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-1.5 py-20 text-center">
-        <Wallet className="h-6 w-6 text-slate-300" />
-        <p className="text-sm font-medium text-slate-700">Раздел «Оплаты» недоступен</p>
-        <p className="text-xs text-slate-400">Доступ даёт владелец центра в настройках.</p>
-      </div>
-    );
+    return <MoneyAccessDenied />;
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.

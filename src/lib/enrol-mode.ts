@@ -10,7 +10,7 @@ export function effectiveEnrolMode(chosen: GroupJoinMode, moneyRight: boolean): 
   return moneyRight ? chosen : "add";
 }
 
-export const ENROL_TRANSFER_NEEDS_RIGHT = "Перевести с переносом оплат может владелец или администратор с правом на деньги";
+export const ENROL_TRANSFER_NEEDS_RIGHT = "Перевести с переносом оплат может владелец или администратор с доступом к деньгам";
 
 /** «Иванов Иван уже в группе 7-А. «Добавить» запишет его во вторую группу — оплата будет в обеих. Перевести …» */
 export function secondGroupLine(student: { name: string; from: string }): string {

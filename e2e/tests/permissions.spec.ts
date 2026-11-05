@@ -30,7 +30,7 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   await expect(adminPage.getByRole("tab", { name: "Оплаты" })).toHaveCount(0);
 
   await adminPage.goto("/admin/payments");
-  await expect(adminPage.getByText("Раздел «Оплаты» недоступен")).toBeVisible();
+  await expect(adminPage.getByText("Раздел «Оплаты» вам недоступен.")).toBeVisible();
   await expect(adminPage.getByText("Доступ даёт владелец центра в настройках.")).toBeVisible();
 
   // the server says the same (not only the menu hides it)

@@ -719,7 +719,7 @@ export function availableDecisions(item: Pick<SubstitutionItem, "status" | "over
 
 export const SUBSTITUTE_NOTE_HINT = "Заменяющий ничего не подтверждает: договоритесь с ним сами. Урок появится у него в расписании.";
 export const NO_FREE_TEACHERS_TEXT = "Свободных преподавателей на это время нет. Перенесите или отмените урок.";
-export const CANCEL_CONSEQUENCES = "Ученики не отмечаются, из пакета урок не списывается, преподавателю не оплачивается. Вернуть урок можно, пока он не начался.";
+export const CANCEL_CONSEQUENCES = "Ученики не отмечаются, из пакета урок не списывается. Вернуть урок можно, пока он не начался.";
 export const REJECT_REASON_LABEL = "Причина отказа (её увидит преподаватель)";
 export const CANCEL_REASON_LABEL = "Причина отмены";
 export const MOVE_REASON_LABEL = "Причина переноса";

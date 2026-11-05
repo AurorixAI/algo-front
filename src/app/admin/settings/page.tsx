@@ -6,12 +6,14 @@ import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { User, Lock, Save } from "lucide-react";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
+import { canManageMoney } from "@/lib/money-effects";
 import { ReadonlyEmailField } from "@/components/settings/readonly-email-field";
 import { profileUpdateBody } from "@/lib/profile-form";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 
 export default function AdminSettingsPage() {
   const { user, updateUser } = useAuthStore();
+  const moneyRight = canManageMoney(user);
   const uid = useId();
 
   const [profile, setProfile] = useState({ first_name: user?.first_name || "", last_name: user?.last_name || "" });
@@ -53,8 +55,8 @@ export default function AdminSettingsPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-primary-50 text-primary-700 text-sm">{msg}</motion.div>
       )}
 
-      {/* PAY-F: «Выходной день центра» (owner and administrator) */}
-      <DaysOffPanel />
+      {/* PAY-F: «Выходной день центра» (owner and administrator).  UX pack №7: an administrator WITHOUT the money access can only read it - the card is short and stands below his own settings */}
+      {moneyRight && <DaysOffPanel />}
 
       {/* Profile */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
@@ -108,6 +110,8 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       </motion.div>
+
+      {!moneyRight && <DaysOffPanel />}
     </div>
   );
 }

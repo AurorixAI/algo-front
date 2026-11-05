@@ -45,8 +45,8 @@ test("[O4.R1] the title and the blockers of chain 2: the student with the two ac
   assert.match(text, /Каримов А\./);
   assert.match(text, /AL09-004/);
   assert.match(text, /Перевести в другую группу/);
-  assert.match(text, /Не закрыто пропущенных уроков: 1\./);
-  assert.match(text, /Отменить их при архивации \(урока не было\)/);
+  assert.match(text, /Остался 1 урок без отметки:/);
+  assert.match(text, /Урока не было — отменить его при архивации/);
   assert.match(text, /Экзамены без попыток будут возвращены в черновик \(1\)\./);
   assert.match(text, /Будущие уроки \(8\) создаваться не будут\./);
   assert.doesNotMatch(text, /Справок на решении/); // the fixture has no warnings
@@ -74,7 +74,7 @@ test("[O4.R1] a clean group: no stops, the button is on, the notes still say wha
   const text = textOf(body(clean));
   assert.match(text, /Будущие уроки \(3\) создаваться не будут\./);
   assert.match(text, /Справок на решении: 2 — они останутся у администратора\./);
-  assert.doesNotMatch(text, /Не закрыто пропущенных/);
+  assert.doesNotMatch(text, /без отметки/);
 });
 
 test("[O4.R4] a lesson in progress and a running exam are hard stops in the words of the spec", () => {

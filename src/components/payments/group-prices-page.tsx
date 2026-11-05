@@ -4,7 +4,7 @@ import { useMoneyDenied } from "@/lib/payments-summary";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, History, Loader2, Search, Users, Wallet } from "lucide-react";
+import { AlertCircle, ArrowLeft, History, Loader2, Search, Users } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { lessonTypeLabel } from "@/lib/payroll";
 import {
@@ -31,6 +31,7 @@ import { useToast } from "@/components/ui/toast";
 import { GroupPriceCancelDialog } from "@/components/groups/group-price-cancel-dialog";
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
 import { GroupPriceHistoryModal } from "@/components/groups/group-price-history-modal";
+import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 
 /** Wide layout (xl): group · price · scheduled · individual prices · actions.  Below it the rows are cards. */
 const GRID_COLS = "xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_212px]";
@@ -149,13 +150,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
   const searchable = items.length >= GROUP_PRICES_SEARCH_FROM;
 
   if (denied) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-1.5 py-20 text-center">
-        <Wallet className="h-6 w-6 text-slate-300" />
-        <p className="text-sm font-medium text-slate-700">Раздел «Оплаты» недоступен</p>
-        <p className="text-xs text-slate-400">Доступ даёт владелец центра в настройках.</p>
-      </div>
-    );
+    return <MoneyAccessDenied />;
   }
 
   const row = (item: GroupPriceListItem) => (

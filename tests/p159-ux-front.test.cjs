@@ -170,10 +170,10 @@ test("U4: «провёл Фамилия И. · пришли 2 из 3» - the ver
 
 test("U4: the section «Оплата дополнительных уроков · N» - one table section, the question is not repeated in a row; the admin without the right gets ONE collapsed row", () => {
   assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: включить в зарплату?");
-  assert.equal(O.decisionsViewLine(1), "1 урок ждёт решения владельца");
-  assert.equal(O.decisionsViewLine(2), "2 урока ждут решения владельца");
-  assert.equal(O.decisionsViewLine(5), "5 уроков ждут решения владельца");
-  assert.equal(O.decisionsViewLine(21), "21 урок ждёт решения владельца");
+  assert.equal(O.decisionsViewLine(1), "Решает владелец: 1 дополнительный урок");
+  assert.equal(O.decisionsViewLine(2), "Решает владелец: 2 дополнительных урока");
+  assert.equal(O.decisionsViewLine(5), "Решает владелец: 5 дополнительных уроков");
+  assert.equal(O.decisionsViewLine(21), "Решает владелец: 21 дополнительный урок");
   const props = { loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} };
   const owner = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "b" })], canDecide: true, ...props }));
   assert.match(text(owner), /Дополнительные уроки: включить в зарплату\? · 2/);
@@ -181,7 +181,7 @@ test("U4: the section «Оплата дополнительных уроков �
   assert.doesNotMatch(text(owner), /Дополнительный урок — оплатить преподавателю\?/);
   assert.doesNotMatch(owner, /bg-amber|border-amber/, "no yellow warning block");
   const admin = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "b" })], canDecide: false, ...props }));
-  assert.match(text(admin), /2 урока ждут решения владельца/);
+  assert.match(text(admin), /Решает владелец: 2 дополнительных урока/);
   assert.equal((admin.match(/data-testid="one-off-decision-row"/g) || []).length, 0, "collapsed");
   assert.match(admin, /aria-expanded="false"/);
   // the order on the tab: the requests (they have a deadline), the section under them

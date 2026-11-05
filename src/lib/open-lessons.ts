@@ -4,7 +4,7 @@
  */
 import { MONTHS_SHORT_DATE } from "./ru-calendar";
 import type { OpenActionsByMonth, OpenActionsMonth, OpenAttendanceAction } from "@/lib/api";
-import { formatDateRu } from "./business-time";
+import { formatDateRu, formatIsoDateLabel } from "./business-time";
 import { pluralRu } from "./plural";
 
 const WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -55,8 +55,6 @@ export function openLessonStatusHint(action: Pick<OpenAttendanceAction, "actionT
     : "Журнал открыт, урок не завершён";
 }
 
-/** R3 #14 / m6: «Отметить» a lesson nobody started formalises the pay of a teacher afterwards - the money right; an administrator without it is told so where the button would be. */
-export const OPEN_LESSON_NO_RIGHT_TEXT = "Оформить прошедший урок может владелец или администратор с правом на деньги";
 
 /** Has the person the main button of the row: a lesson that is going on is everybody's; a lesson nobody started is for the owner, the teacher of it and an administrator with the money right. */
 export function canMarkOpenLesson(item: Pick<OpenAttendanceAction, "actionType">, role: string | null | undefined, moneyRight: boolean): boolean {
@@ -70,14 +68,26 @@ export function monthHeading(month: Pick<OpenActionsMonth, "title" | "count">): 
   return `${month.title} · ${month.count} ${pluralRu(month.count, "урок", "урока", "уроков")}`;
 }
 
-/** «не отмечено 8 · не завершено 4»: what the unresolved lessons of the month are (a part that is 0 is left out). */
+/**
+ * «не отмечено 8 · не завершено 4»: what the unresolved lessons of the month are (a part that is 0 is left out).  UX pack №17: when ALL of them are the same kind the line only repeats the
+ * head («2 урока» / «не отмечено 2»), so it is said only when the month has both kinds.
+ */
 export function monthCountsText(month: Pick<OpenActionsMonth, "missed" | "inProgress">): string {
-  return [month.missed > 0 ? `не отмечено ${month.missed}` : "", month.inProgress > 0 ? `не завершено ${month.inProgress}` : ""].filter(Boolean).join(" · ");
+  if (month.missed === 0 || month.inProgress === 0) return "";
+  return [`не отмечено ${month.missed}`, `не завершено ${month.inProgress}`].join(" · ");
 }
 
-/** «Показаны уроки с 01.08.2026»: from which day the list is counted (the accounting start of the centre). */
+/** The status column says something only when the lessons differ (a lesson that is going on among the ones nobody marked); five equal «Посещаемость не отмечена» are noise (UX pack №17). */
+export function showsStatusColumn(items: ReadonlyArray<Pick<OpenAttendanceAction, "actionType">>): boolean {
+  return new Set(items.map((item) => item.actionType)).size > 1;
+}
+
+/** The plaque over the list for an administrator without the money right (UX pack №7): ONE for the page, not a line in every row. */
+export const OPEN_LESSONS_NO_RIGHT_NOTICE = "Оформить прошедший урок — «Отметить» — может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» в меню строки.";
+
+/** «Показаны уроки без отметки с 1 сентября 2026»: from which day the list is counted (the accounting start of the centre). */
 export function sinceLine(since: string | null | undefined): string | null {
-  const day = formatDateRu(since);
+  const day = since ? formatIsoDateLabel(since, { day: "numeric", month: "long", year: "numeric" }).replace(/\s*г\.$/, "") : "";
   return day ? `Показаны уроки без отметки с ${day}` : null;
 }
 

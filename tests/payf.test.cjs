@@ -254,7 +254,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   const lines = (file) => read(file).split("\n").length;
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
-    "src/app/admin/settings/page.tsx": 107 + 6 + 1 /* WAVE E: the read-only e-mail component, the password check */, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 + 8 /* UX pack §5.1: the rows of the student, the folded line of the teachers, the footer */ /* WB-P5 R3: the text of a 409 after a lost answer */ + 8 /* Money-1 R3 #15: the dry run of the payment - one hook (`use-payment-effects`) and one block */, "src/components/payments/receipt-view.tsx": 297 + 3,
+    "src/app/admin/settings/page.tsx": 107 + 6 + 1 + 5 /* WAVE E: the read-only e-mail component, the password check; UX pack №7: the card of the days off goes below for an administrator without the money access */, "src/components/payments/payment-dialog.tsx": 459 + 3 + 5 + 8 /* UX pack §5.1: the rows of the student, the folded line of the teachers, the footer */ /* WB-P5 R3: the text of a 409 after a lost answer */ + 8 /* Money-1 R3 #15: the dry run of the payment - one hook (`use-payment-effects`) and one block */, "src/components/payments/receipt-view.tsx": 297 + 3,
     "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 + 8 + 40 + 4 /* Money-1 R3 K2: the preview of «Вернуть урок» (one hook, one block) and `onReload` */ };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3); + 40: Money-1 A2/A3 - three buttons and the three windows (own components) of «Вернуть урок» (held), «Вернуть на отметку», «Отменить решение»
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
@@ -277,9 +277,11 @@ test("the small components render their words", () => {
   const field = html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true }));
   assert.match(field, /По вине центра/);
   assert.match(field, /Праздник, выходной/);
-  assert.match(field, /заболел преподаватель/);
+  assert.match(field, /Ученикам — перерасчёт в следующей оплате, если он включён в настройках/);
+  assert.match(field, /Ученикам — без перерасчёта/);
+  assert.equal((field.match(/Преподавателю — урок не оплачивается/g) ?? []).length, 2, "each option says what it does to the teacher");
   assert.match(field, /aria-describedby="[^"]+"/);                                                   // the hint is tied to the field and to its radios
-  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {}, canChooseKind: true })), /Перерасчёта не будет/);
+  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {}, canChooseKind: true })), /Кто за это платит/);
   assert.equal(html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: false })), "");     // a teacher sees no choice
 
   const { CentreCancelSetting } = require(path.join(root, "src/components/payments/centre-cancel-setting.tsx"));
@@ -303,7 +305,8 @@ test("the panel of the days off renders (before the list arrives) and the dialog
   assert.doesNotMatch(html, /Назначить выходной/);
   assert.match(html, /data-testid="day-off-no-right"/);
   assert.match(html, /Загрузка…/);
-  assert.match(html, /деньги по ним не пересчитываются/);
+  assert.match(html, /Назначает и отменяет владелец или администратор с доступом к деньгам\. Журнал выходных вы видите\./, "UX pack №7: ONE short line for who cannot give a day off");
+  assert.doesNotMatch(html, /уроки всех групп отменяются сразу/);
   const { DayOffDialog } = require(path.join(root, "src/components/schedule/day-off-dialog.tsx"));
   assert.equal(renderToStaticMarkup(React.createElement(DayOffDialog, { open: false, onClose() {}, onDone() {} })), "");              // closed: nothing
 });

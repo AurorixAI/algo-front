@@ -12,6 +12,7 @@ import { orgApi, StudentInGroup } from "@/lib/api";
 import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
 import { LeaveStudentDialog } from "./leave-student-dialog";
 import { useCopy } from "@/lib/use-copy";
@@ -43,7 +44,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
   const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
   // Money-1 A4 (I-6): a transfer carries the paid days and the advance of the student - the money right only
   const moneyRight = canManageMoney(useAuthStore((state) => state.user));
-  const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher && moneyRight) });
+  const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher) });
   const removable = menuKeys.length > 0;
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
 
@@ -229,7 +230,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                     <RowMenu
                       label={`Действия: ${s.full_name || `${s.last_name} ${s.first_name}`}`}
                       items={menuKeys.map((key): RowMenuItem => key === "transfer"
-                        ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, onSelect: () => onTransfer?.(s) }
+                        ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, disabled: !moneyRight, hint: moneyRight ? undefined : TRANSFER_NO_RIGHT_TEXT, onSelect: () => onTransfer?.(s) }
                         : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
                     />
                   </td>

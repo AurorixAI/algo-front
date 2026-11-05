@@ -163,11 +163,10 @@ export function DaysOffPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="days-off-title" className="flex items-center gap-2 text-base font-bold text-slate-900"><CalendarOff className="h-4 w-4 text-slate-500" aria-hidden />{DAY_OFF_TITLE}</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Праздник или день, когда центр не работает: уроки всех групп отменяются сразу, деньги по ним не пересчитываются.</p>
+          <p className="mt-0.5 text-xs text-slate-600" data-testid={moneyRight ? undefined : "day-off-no-right"}>{moneyRight ? "Праздник или день, когда центр не работает: уроки всех групп отменяются сразу, перерасчёта ученикам не будет." : DAY_OFF_NO_RIGHT_TEXT}</p>
         </div>
         {moneyRight && <button type="button" onClick={() => setCreating(true)} data-testid="day-off-new" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Назначить выходной</button>}
       </div>
-      {!moneyRight && <p data-testid="day-off-no-right" className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{DAY_OFF_NO_RIGHT_TEXT}</p>}
       {notice && (
         <div role="status" className={`space-y-1 rounded-xl px-3 py-2 text-xs font-medium ${noticeLines.length > 0 ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>
           <p>{notice}</p>

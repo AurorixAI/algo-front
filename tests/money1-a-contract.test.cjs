@@ -70,8 +70,8 @@ test("R3 item 8: the heads of the months, the counters and the day the list star
   assert.equal(OPEN.monthHeading(BY_MONTH.months[0]), "Сентябрь 2026 · 2 урока");
   assert.equal(OPEN.monthHeading(BY_MONTH.months[1]), "Октябрь 2026 · 1 урок");
   assert.equal(OPEN.monthCountsText(BY_MONTH.months[0]), "не отмечено 1 · не завершено 1");
-  assert.equal(OPEN.monthCountsText(BY_MONTH.months[1]), "не отмечено 1");
-  assert.equal(OPEN.sinceLine("2026-09-01"), "Показаны уроки без отметки с 01.09.2026");
+  assert.equal(OPEN.monthCountsText(BY_MONTH.months[1]), "", "UX pack №17: one kind only - the line would repeat the head");
+  assert.equal(OPEN.sinceLine("2026-09-01"), "Показаны уроки без отметки с 1 сентября 2026");
   assert.equal(OPEN.sinceLine(""), null);
   assert.equal(OPEN.sinceLine(null), null);
   assert.deepEqual(OPEN.openLessonsOf(BY_MONTH).map((item) => item.lessonId), ["l1", "l2", "l3"], "the oldest month first, as the server sent it");
@@ -166,7 +166,7 @@ test("R3 item 5: the type of the lessons moves the pay of the teacher - the fiel
   assert.match(view, /label="Тип занятий"[\s\S]{0,200}disabled=\{!moneyRight\}/);
   assert.match(view, /\{moneyRight \? LESSON_TYPE_EDIT_NOTE : LESSON_TYPE_NO_RIGHT_NOTE\}/);
   assert.match(view, /showToast\(e\.message \|\| "Ошибка сохранения", "error"\);/, "no text of ours for MONEY_RIGHT_REQUIRED");
-  assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с правом на оплаты");
+  assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с доступом к деньгам");
   // R3 #4: no window «с начала прошлого месяца» in the form; a closed month is the server's 409 PERIOD_CLOSED with the way out
   assert.match(read("src/components/groups/group-lesson-type-dialog.tsx"), /PeriodClosedNotice/);
 });

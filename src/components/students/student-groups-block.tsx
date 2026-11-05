@@ -7,7 +7,7 @@ import { orgApi, type StudentGroupMembership, type StudentProfile } from "@/lib/
 import { formatBusinessDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { studentArchiveAccess } from "@/lib/student-archive";
-import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL } from "@/lib/enrol-labels";
+import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { END_PAUSE_MENU_LABEL, groupMenuItems, pauseChipOf } from "@/lib/membership-learning";
 import { livePauses, type PauseOut } from "@/lib/payments-logica";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
@@ -93,19 +93,23 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
               <Plus className="h-3.5 w-3.5" />
               {ENROL_ACTION_LABEL}
             </button>
-            {moneyRight && (
-              <button
-                type="button"
-                onClick={() => onAssign("transfer")}
-                data-testid="enrol-transfer"
-                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                {TRANSFER_ACTION_LABEL}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onAssign("transfer")}
+              disabled={!moneyRight}
+              aria-describedby={moneyRight ? undefined : "enrol-transfer-why"}
+              data-testid="enrol-transfer"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-white"
+            >
+              {TRANSFER_ACTION_LABEL}
+            </button>
           </div>
         )}
       </div>
+
+      {groupActions && memberships.length > 0 && !moneyRight && (
+        <p id="enrol-transfer-why" data-testid="enrol-transfer-why" className="text-xs text-slate-600">{TRANSFER_NO_RIGHT_TEXT}</p>
+      )}
 
       {memberships.length === 0 ? (
         <div className="space-y-3 rounded-2xl border border-amber-200/60 bg-amber-50/60 p-6 text-center">
