@@ -47,7 +47,7 @@ export function TransferPreviewBlock({ preview, onRetry, names }: { preview: Eff
           )}
         </div>
       </section>
-      <MoneyEffectsBlock preview={preview} onRetry={onRetry} variant="payment" />
+      <MoneyEffectsBlock preview={preview} onRetry={onRetry} variant="quiet" />
     </div>
   );
 }

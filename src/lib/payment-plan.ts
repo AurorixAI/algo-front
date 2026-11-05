@@ -17,7 +17,8 @@ import {
   type PaymentFormValues,
 } from "./payments-ledger";
 
-export const PLAN_TITLE = "Что будет после сохранения";
+/** The part of the block «Что изменится» that is about the student (UX pack, L3 / rule 1: ONE block, two parts - «Долг ученика» and the pay of the teachers). */
+export const PLAN_TITLE = "Долг ученика";
 export const PLAN_EMPTY_HINT = "Введите сумму — здесь появится, куда пойдут деньги";
 export const PLAN_LOADING_TEXT = "Считаем, куда пойдут деньги…";
 export const QUICK_AMOUNTS_LABEL = "Быстрая сумма";
@@ -85,7 +86,7 @@ export function joinNames(names: string[]): string {
 
 export interface QuickAmount {
   key: "debt" | "all" | "current";
-  /** «Закрыть долг · 592 000 сум». */
+  /** «Погасить долг · 592 000 сум». */
   label: string;
   amount: number;
 }
@@ -106,7 +107,7 @@ function runningChipName(running: DueSegment | null, preview: Pick<PaymentPrevie
 }
 
 /**
- * The chips under the amount.  With a debt: «Закрыть долг» and, when the running period is due too, «Долг + октябрь»;
+ * The chips under the amount.  With a debt: «Погасить долг» and, when the running period is due too, «Долг + октябрь»;
  * without a debt: «За октябрь».  A student who has left pays the debt only.  No chip when nothing is due.
  */
 export function quickAmounts(preview: PaymentPreview | null | undefined, options: { leftOnly?: boolean } = {}): QuickAmount[] {
@@ -115,7 +116,7 @@ export function quickAmounts(preview: PaymentPreview | null | undefined, options
   const { running } = splitDueSegments(preview);
   const runName = runningChipName(running, preview);
   const chips: QuickAmount[] = [];
-  if (due.pastDebt > 0) chips.push({ key: "debt", label: `Закрыть долг · ${formatMoney(due.pastDebt)}`, amount: due.pastDebt });
+  if (due.pastDebt > 0) chips.push({ key: "debt", label: `Погасить долг · ${formatMoney(due.pastDebt)}`, amount: due.pastDebt });
   if (due.currentDue > 0 && !options.leftOnly) {
     if (due.pastDebt > 0) chips.push({ key: "all", label: `Долг + ${runName} · ${formatMoney(due.total)}`, amount: due.total });
     else chips.push({ key: "current", label: `${running && sum(running.paid) > 0 ? "Остаток за" : "За"} ${runName} · ${formatMoney(due.currentDue)}`, amount: due.currentDue });
@@ -135,7 +136,7 @@ export function noChipsHint(preview: PaymentPreview | null | undefined): string 
   return due.advance > 0 ? `Долга нет, аванс ${formatMoney(due.advance)}. Всё, что внесёте, пойдёт вперёд.` : NO_DEBT_HINT;
 }
 
-// ── «Что будет после сохранения» ───────────────────────────────────────────
+// ── «Долг ученика» (a part of «Что изменится») ─────────────────────────────
 
 export interface PlanLine {
   key: string;
@@ -145,9 +146,20 @@ export interface PlanLine {
   bucket: Allocation["bucket"];
 }
 
+/** One row of the block «Что изменится» about the student (UX pack §5.1): «Погасит долг за сентябрь · 400 000 сум», «Останется долг · 800 000 сум» (strong), «из них за прошлые месяцы» (muted). */
+export interface PlanRow {
+  key: string;
+  label: string;
+  /** The number on the right; null: the row has none («Долга не останется», «Оплачено до 30 ноября»). */
+  amount: number | null;
+  tone: "plain" | "strong" | "muted";
+}
+
 export interface PlanView {
-  /** What saving will do: the future tense, plain words. */
+  /** What saving will do: the future tense, plain words (kept for a screen reader and the tests; the window draws `rows`). */
   sentence: string;
+  /** The student's part of the block as a table: the name on the left, the number on the right. */
+  rows: PlanRow[];
   /** One quiet line per period; the sum of the lines is the amount. */
   lines: PlanLine[];
   /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
@@ -201,6 +213,32 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
   const wholeAdvance = advance > 0 && lines.length === 0;
   if (advance > 0) lines.push({ key: "advance", label: preview.mode === "lessons" && wholeAdvance ? "На будущие уроки" : "Аванс", amount: advance, bucket: "advance" });
 
+  // the rows of the table (UX pack §5.1): what each part of the amount does, then what is left
+  const rows: PlanRow[] = [];
+  allocations.forEach((item, index) => {
+    if (item.bucket === "advance") return;
+    const name = nameOf(item);
+    const part = !item.closes;
+    const label = item.bucket === "past_debt"
+      ? `${part ? "Погасит часть долга" : wasPaidBefore(item) ? "Погасит остаток долга" : "Погасит долг"} за ${name.bare}`
+      : `Пойдёт в ${name.sentence}${part ? " (часть)" : ""}`;
+    rows.push({ key: `${item.segment_id}-${index}`, label, amount: sum(item.amount), tone: "plain" });
+  });
+  const debtAfterRow = sum(result.debt_after);
+  const pastAfterRow = sum(result.past_debt_after);
+  const advanceAfter = result.advance_after === undefined || result.advance_after === null ? advance : sum(result.advance_after);
+  if (advance > 0) rows.push({ key: "advance", label: preview.mode === "lessons" && advance > 0 && lines.every((line) => line.bucket === "advance") ? "Пойдёт на будущие уроки" : "Останется аванс", amount: advanceAfter > 0 ? advanceAfter : advance, tone: "plain" });
+  rows.push(debtAfterRow > 0
+    ? { key: "debt-after", label: "Останется долг", amount: debtAfterRow, tone: "strong" }
+    : { key: "debt-after", label: "Долга не останется", amount: null, tone: "strong" });
+  if (pastAfterRow > 0 && pastAfterRow < debtAfterRow) {
+    const pastSegments = preview.due.segments.filter((segment) => segment.bucket === "past_debt");
+    const noun = preview.mode === "lessons" ? "пакеты" : pastSegments.length > 0 && pastSegments.every((segment) => segmentName(segment, preview).isMonth) ? "месяцы" : "периоды";
+    rows.push({ key: "past-after", label: `из них за прошлые ${noun}`, amount: pastAfterRow, tone: "muted" });
+  }
+  const untilRow = preview.mode === "lessons" ? null : longDate(result.paid_until_after, preview.as_of);
+  if (untilRow && (advance > 0 || debtAfterRow === 0)) rows.push({ key: "until", label: `Оплачено до ${untilRow}`, amount: null, tone: "muted" });
+
   // the sentence
   const closedPast = allocations.filter((item) => item.bucket === "past_debt" && item.closes);
   const closedCurrent = allocations.filter((item) => item.bucket === "current" && item.closes);
@@ -212,7 +250,7 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
   const money = formatMoney;
 
   const clauses: string[] = [];
-  if (closedPast.length > 0) clauses.push(`закроет долг за ${joinNames(closedPast.map((item) => nameOf(item).sentence))}`);
+  if (closedPast.length > 0) clauses.push(`погасит долг за ${joinNames(closedPast.map((item) => nameOf(item).sentence))}`);
   if (closedCurrent.length > 0) clauses.push(`оплатит ${joinNames(closedCurrent.map((item) => nameOf(item).sentence))}`);
   let first = capital(clauses.join(" и "));
   let partialLeft = 0;
@@ -257,7 +295,8 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
     else if (hadDebt) sentences.push("Долга не останется.");
   }
 
-  return { sentence: sentences.join(" "), lines, lessons: base.lessons, priceAhead: base.priceAhead, warnings: base.warnings };
+  if (rows.length === 1 && !allocations.length) rows.unshift({ key: "headline", label: base.headline, amount: null, tone: "plain" });
+  return { sentence: sentences.join(" "), rows, lines, lessons: base.lessons, priceAhead: base.priceAhead, warnings: base.warnings };
 }
 
 // ── Method: required, remembered, without «Другое» ─────────────────────────

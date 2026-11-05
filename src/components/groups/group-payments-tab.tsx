@@ -36,7 +36,7 @@ import {
   type PaymentBucket,
   type PaymentSaveResult,
 } from "@/lib/payments";
-import { toastWithEffects } from "@/lib/money-effects";
+import { studentToast } from "@/lib/money-effects";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { studentHref } from "@/lib/ia-links";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -319,7 +319,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
           payment={null}
           groupsBasePath={groupsBasePath}
           onClose={() => setPayOpen(false)}
-          onSaved={(result: PaymentSaveResult) => { changed(result.row); const note = toastWithEffects(result, savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); }}
+          onSaved={(result: PaymentSaveResult) => { changed(result.row); const note = studentToast(savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); }}
           onDuplicate={(notice) => { showToast(notice.text, notice.tone); void load(true); }}
         />
       )}

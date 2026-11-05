@@ -15,7 +15,7 @@ import {
   receiptHref,
   type StatementOut,
 } from "@/lib/payments";
-import { toastWithEffects } from "@/lib/money-effects";
+import { studentToast } from "@/lib/money-effects";
 import { basesOfPayments, groupHref, queryWith, studentHref } from "@/lib/ia-links";
 import {
   BALANCE_TEXT_CLASS,
@@ -58,7 +58,6 @@ import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
-import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { Checkbox } from "@/components/ui/checkbox";
 
 /**
@@ -242,8 +241,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.credit)}`,
           explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
           action: "Отменить прощение",
-          preview: (signal) => orgApi.dryRunVoidWriteoff(id, DRY_RUN_REASON, signal),
-          run: async (reason) => { const result = await orgApi.voidWriteoff(id, reason); const note = toastWithEffects(result); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
+          run: async (reason) => { const result = await orgApi.voidWriteoff(id, reason); const note = studentToast(); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
         }),
       });
     }
@@ -257,8 +255,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.outflow)}`,
           explain: "Деньги снова считаются у центра: сумма вернётся в аванс ученика. Запись останется в выписке серым с этой причиной.",
           action: "Отменить возврат",
-          preview: (signal) => orgApi.dryRunVoidRefund(id, DRY_RUN_REASON, signal),
-          run: async (reason) => { const result = await orgApi.voidRefund(id, reason); const note = toastWithEffects(result); showToast("Возврат отменён", note.tone, note.details); changed(); },
+          run: async (reason) => { const result = await orgApi.voidRefund(id, reason); const note = studentToast(); showToast("Возврат отменён", note.tone, note.details); changed(); },
         }),
       });
     }
@@ -355,14 +352,14 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         membership={correct && m ? { membership_id: m.membership_id, student_name: m.student_name, group_name: m.group_name } : null}
         payment={correct}
         onClose={() => setCorrect(null)}
-        onSaved={(result) => { const note = toastWithEffects(result); showToast("Оплата исправлена", note.tone, note.details); changed(); void cheques.reload(); }}
+        onSaved={(result) => { const note = studentToast(); showToast("Оплата исправлена", note.tone, note.details); changed(); void cheques.reload(); }}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
       />
       <PaymentVoidModal
         payment={voidPayment}
         studentName={m?.student_name}
         onClose={() => setVoidPayment(null)}
-        onVoided={(result) => { const note = toastWithEffects(result); showToast("Оплата отменена", note.tone, note.details); changed(); void cheques.reload(); }}
+        onVoided={(result) => { const note = studentToast(); showToast("Оплата отменена", note.tone, note.details); changed(); void cheques.reload(); }}
       />
       <RecordVoidModal target={voidRecord} onClose={() => setVoidRecord(null)} />
       <PaymentDialog
@@ -372,7 +369,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         payment={null}
         groupsBasePath={bases.groups}
         onClose={() => setPayOpen(false)}
-        onSaved={(result) => { const note = toastWithEffects(result, savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); changed(); void cheques.reload(); }}
+        onSaved={(result) => { const note = studentToast(savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); changed(); void cheques.reload(); }}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
       />
       {cheques.dialogs}

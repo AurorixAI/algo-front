@@ -5,7 +5,8 @@
  *
  * Pure (no React): the hook lives in `use-money-preview.ts`, so node:test drives this file with fake timers.
  */
-import { moneyEffectsOf, type MoneyEffects } from "./money-effects";
+import { periodClosedOf } from "./closed-period";
+import { EFFECTS_LOADING_TEXT, moneyEffectsOf, type MoneyEffects } from "./money-effects";
 import type { RequestSequence } from "./request-sequence";
 
 /** The dry run that has not answered by now counts as failed. */
@@ -61,6 +62,16 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
   };
 }
 
+/**
+ * Why the button of a confirmation is off while the answer about money is not here (UX pack, rule 3: an off main button ALWAYS says why): it is being counted / the month is closed / it could not be counted.
+ * null once the answer is here.
+ */
+export function effectsWhyOff(preview: EffectsPreview): string | null {
+  if (preview.status === "ready") return null;
+  if (preview.status === "failed") return periodClosedOf(preview.error) ? "Месяц закрыт: сначала переоткройте его" : "Не удалось посчитать, что изменится: нажмите «Повторить»";
+  return EFFECTS_LOADING_TEXT;
+}
+
 /** The button of the confirmation may be pressed: the answer is here (or the server has none to give). Loading and failed hold it back. */
 export function effectsAllowConfirm(preview: EffectsPreview): boolean {
   return preview.status === "ready";
@@ -75,19 +86,3 @@ export function formAllowsConfirm(draftKey: string | null, preview: EffectsPrevi
   return draftKey === null || effectsAllowConfirm(preview);
 }
 
-/**
- * The confirmation at the TILL («Внести»): money is taken in whether the calculation of its effects answers or not.  It waits only while the answer is coming (so the person sees what
- * the payment does); a failed calculation and an `unavailable` one let it go - the line next to the button says the effects were not counted (`tillNotice`).
- */
-export function tillAllowsConfirm(draftKey: string | null, preview: EffectsPreview): boolean {
-  return draftKey === null || (preview.status !== "loading" && preview.status !== "idle");
-}
-
-/** «Последствия для денег не удалось посчитать»: next to the button of the till when its calculation failed or could not count; null otherwise. */
-export function tillNotice(draftKey: string | null, preview: EffectsPreview): string | null {
-  if (draftKey === null) return null;
-  const notCounted = preview.status === "failed" || (preview.status === "ready" && preview.effects?.unavailable === true);
-  return notCounted ? TILL_NOT_COUNTED_TEXT : null;
-}
-
-export const TILL_NOT_COUNTED_TEXT = "Последствия для денег не удалось посчитать — оплату можно внести, ведомости проверьте после";

@@ -13,7 +13,7 @@ import {
   type PaymentSaveResult,
   type PeriodMode,
 } from "@/lib/payments";
-import { toastWithEffects } from "@/lib/money-effects";
+import { studentToast } from "@/lib/money-effects";
 import { lastPaymentLine } from "@/lib/membership-actions";
 import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
@@ -72,7 +72,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
 
   const onSaved = (result: PaymentSaveResult) => {
     changed(result.row);
-    const note = toastWithEffects(result, savedPaymentDetails(result.allocation));
+    const note = studentToast(savedPaymentDetails(result.allocation));
     onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], note.tone, note.details);
   };
 

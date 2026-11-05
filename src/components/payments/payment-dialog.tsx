@@ -10,7 +10,6 @@ import {
   formatMoneyInput,
   isIsoDate,
   NOTE_MAX,
-  PAY_ACTION_LABEL,
   reformatMoneyTyping,
   REASON_MAX,
   type PaymentOut,
@@ -49,8 +48,8 @@ import {
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
-import { usePaymentEffects } from "@/lib/use-payment-effects";
-import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
+import { EFFECTS_TITLE } from "@/lib/money-effects";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { groupPriceHref } from "@/lib/group-price";
 import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
 import { Modal } from "@/components/ui/modal";
@@ -90,9 +89,9 @@ interface PaymentDialogProps {
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
-// The title repeats the verb of the button that opened the dialog.
+// UX pack §5.1-бис: the window says whose money it is - the student's, coming INTO the centre (not the salary of a teacher)
 const TITLE: Record<PaymentFormKind, string> = {
-  create: PAY_ACTION_LABEL,
+  create: "Оплата от ученика",
   replace: "Исправить оплату",
 };
 
@@ -102,8 +101,8 @@ function emptyValues(): PaymentFormValues {
 
 /**
  * «Внести оплату»: the amount is the only thing to decide, so it comes first.  Under it the quick amounts carry what is
- * due («Закрыть долг · 592 000 сум», «Долг + октябрь · 1 142 000 сум»); below, «Что будет после сохранения» says in the
- * future tense where the money will go (nothing is saved yet): one plain sentence, then a quiet line per period.  The
+ * due («Погасить долг · 592 000 сум», «Долг + октябрь · 1 142 000 сум»); below, ONE block «Что изменится» (UX pack L3) says in the
+ * future tense where the money will go (nothing is saved yet): «Долг ученика» - one plain sentence, then a quiet line per period - and, when the pay of the teachers moves, «Зарплата за …».  The
  * numbers are the server's live calculation (`payments/preview`); `lib/payment-plan.ts` only words them.  The method is
  * required (the till by method must reconcile) and the last one used in this browser is preselected.
  */
@@ -168,8 +167,6 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     },
   });
 
-  // R3 #15 / K1: what the payment will do to the packs and the saved sheets (a dry run while the form is filled)
-  const effects = usePaymentEffects({ active: open && ready, kind, membershipId: membership?.membership_id ?? null, paymentId: payment?.id ?? null, values, today });
   if (!membership) return null;
 
   const latest = state.preview;
@@ -197,7 +194,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   };
 
   const submit = async () => {
-    if (busy || saved || !effects.allows) return;
+    if (busy || saved) return;
     const problem = validatePaymentForm(values, today) ?? leftProblem;
     if (problem) { setError(problem); return; }
     setBusy(true);
@@ -233,37 +230,25 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     <Modal
       open={open}
       title={TITLE[kind]}
-      description={`${membership.student_name} · ${membership.group_name}`}
+      description={kind === "create" ? `${membership.student_name} · ${membership.group_name} · деньги поступают в центр` : `${membership.student_name} · ${membership.group_name}`}
       onClose={onClose}
       busy={busy}
       maxWidthClassName="max-w-[520px]"
-      footerClassName="flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3"
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={saved ? (
         <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">
           Готово
         </button>
       ) : (
-        <>
-          {blocker && !busy && (
-            <p id="payment-blocker" data-testid="payment-blocker" className="text-xs text-slate-500 sm:text-right">{blocker}</p>
-          )}
-          {effects.notice && !busy && <p data-testid="till-effects-notice" className="text-xs font-medium text-amber-800 sm:text-right">{effects.notice}</p>}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-              Отмена
-            </button>
-            <button
-              type="submit"
-              form="payment-form"
-              disabled={busy || blocker !== null || !effects.allows}
-              aria-describedby={blocker ? "payment-blocker" : undefined}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {payButtonLabel(kind, amountNow)}
-            </button>
-          </div>
-        </>
+        <ConfirmFooter
+          primary={payButtonLabel(kind, amountNow)}
+          submitFor="payment-form"
+          disabled={blocker !== null}
+          busy={busy}
+          why={blocker}
+          whyId="payment-blocker"
+          onCancel={onClose}
+        />
       )}
     >
       {saved ? (
@@ -293,6 +278,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         >
           {/* 1. The amount, and the quick amounts that say what is due */}
           <div>
+            {kind === "create" && due !== null && due.total > 0 && <p data-testid="payment-debt-now" className="-mt-2 mb-3 text-xs text-slate-600">Долг сейчас: <span className="font-medium tabular-nums">{formatMoney(due.total)}</span></p>}
             <label htmlFor="payment-amount" className={LABEL}>Сумма</label>
             <div className="relative">
               <input
@@ -347,23 +333,23 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             )}
           </div>
 
-          {/* 2. What saving will do: the server's live calculation, in the future tense */}
-          <section aria-labelledby="payment-plan-title" id="payment-calc" aria-live="polite" data-testid="payment-calc">
-            <h3 id="payment-plan-title" className={LABEL}>{PLAN_TITLE}</h3>
-            {state.error ? (
-              <p role="alert" className="text-xs font-medium text-rose-700">{state.error}</p>
-            ) : amountNow === null ? (
-              <p className="text-sm text-slate-500" data-testid="payment-plan-hint">{PLAN_EMPTY_HINT}</p>
-            ) : plan ? (
-              <PlanBlock plan={plan} loading={state.loading} />
-            ) : calculating || state.loading ? (
-              <p className="flex items-center gap-1.5 text-sm text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />{PLAN_LOADING_TEXT}</p>
-            ) : null}
+          {/* 2. What saving will do to the STUDENT (UX pack §5.1): a table - the name on the left, the number on the right; the server's live calculation, future tense */}
+          <section aria-label={EFFECTS_TITLE} id="payment-calc" aria-live="polite" data-testid="payment-calc" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+            <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
+            <p id="payment-plan-title" className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{PLAN_TITLE}</p>
+            <div className="mt-1">
+              {state.error ? (
+                <p role="alert" className="text-xs font-medium text-amber-900">{state.error}</p>
+              ) : amountNow === null ? (
+                <p className="text-sm text-slate-600" data-testid="payment-plan-hint">{PLAN_EMPTY_HINT}</p>
+              ) : plan ? (
+                <PlanBlock plan={plan} loading={state.loading} />
+              ) : calculating || state.loading ? (
+                <PlanSkeleton />
+              ) : null}
+            </div>
             <RecalcNote lines={latest?.recalc} />
           </section>
-
-          {/* 2b. What it does to the packs of the students and the saved sheets (dry run); when it could not be counted, the line next to the button says so */}
-          {effects.key !== null && !effects.notice && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} variant="payment" />}
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}
           <div>
@@ -442,22 +428,20 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   );
 }
 
-/** «Что будет после сохранения»: one plain sentence in the future tense, then a quiet line per period (never a «…» range). */
+/** The student's part of «Что изменится» as a table (UX pack §5.1): «Погасит долг за сентябрь · 400 000 сум», «Останется долг · 800 000 сум» (strong), «из них за прошлые месяцы» (muted). */
 export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?: boolean }) {
   return (
-    <div className={`space-y-2.5 rounded-xl bg-slate-50 px-3.5 py-3 transition-opacity ${loading ? "opacity-60" : ""}`} data-testid="payment-plan">
-      <p className="text-sm font-medium leading-snug text-slate-900" data-testid="payment-plan-sentence">{plan.sentence}</p>
-      {plan.lines.length > 0 && (
-        <ul className="space-y-1 border-t border-slate-200 pt-2 text-xs" aria-label="Разбивка" data-testid="payment-plan-lines">
-          {plan.lines.map((line) => (
-            <li key={line.key} className="flex items-baseline justify-between gap-3">
-              <span className={`min-w-0 ${line.bucket === "advance" ? "text-emerald-800" : "text-slate-600"}`}>{line.label}</span>
-              <span className="shrink-0 text-right tabular-nums text-slate-700">{formatMoney(line.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {plan.lessons && <p className="text-xs text-slate-500">{plan.lessons}</p>}
+    <div className={`space-y-2 transition-opacity ${loading ? "opacity-60" : ""}`} data-testid="payment-plan">
+      <ul className="space-y-1" aria-label="Что будет с долгом" data-testid="payment-plan-rows">
+        {plan.rows.map((row) => (
+          <li key={row.key} data-tone={row.tone} className={`flex items-baseline justify-between gap-3 tabular-nums ${row.tone === "strong" ? "text-sm font-semibold text-slate-900" : row.tone === "muted" ? "pl-3 text-xs text-slate-600" : "text-sm text-slate-800"}`}>
+            <span className="min-w-0 break-words">{row.label}</span>
+            {row.amount !== null && <span className="shrink-0 whitespace-nowrap text-right">{formatMoney(row.amount)}</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="sr-only" data-testid="payment-plan-sentence">{plan.sentence}</p>
+      {plan.lessons && <p className="text-xs text-slate-600">{plan.lessons}</p>}
       {plan.priceAhead.length > 0 && (
         <div role="note" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -465,10 +449,19 @@ export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?:
         </div>
       )}
       {plan.warnings.length > 0 && (
-        <ul className="list-disc space-y-0.5 pl-4 text-xs text-amber-800">
+        <ul className="list-disc space-y-0.5 pl-4 text-xs text-amber-900">
           {plan.warnings.map((message) => <li key={message}>{message}</li>)}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** The rows of the table while the calculation is on its way: grey bars of the same size (no jump). */
+function PlanSkeleton() {
+  return (
+    <div role="status" aria-busy="true" data-testid="payment-plan-skeleton" className="space-y-1.5"><span className="sr-only">{PLAN_LOADING_TEXT}</span>
+      <div className="h-3.5 w-3/4 animate-pulse rounded bg-slate-200" /><div className="h-3.5 w-2/3 animate-pulse rounded bg-slate-200" /><div className="h-3.5 w-1/2 animate-pulse rounded bg-slate-200" />
     </div>
   );
 }

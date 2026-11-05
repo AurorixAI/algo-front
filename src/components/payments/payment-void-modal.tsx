@@ -1,7 +1,6 @@
 "use client";
 
 import { orgApi } from "@/lib/api";
-import { DRY_RUN_REASON } from "@/lib/dry-run";
 import {
   formatDateRu,
   isCarryOver,
@@ -15,7 +14,7 @@ import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 export type VoidablePayment = Pick<PaymentOut, "id" | "paid_on" | "amount"> & Partial<Pick<PaymentOut, "carried_from">>;
 
 /** «Отменить оплату?»: the words and the calls of the cancel of a payment, for the one cancel dialog of money. */
-export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }) => void): VoidTarget {
+export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void): VoidTarget {
   return {
     key: payment.id,
     title: "Отменить оплату?",
@@ -28,7 +27,6 @@ export function paymentVoidTarget(payment: VoidablePayment, studentName: string 
     ],
     action: "Отменить оплату",
     failure: "Не удалось отменить оплату",
-    preview: (signal) => orgApi.dryRunVoidPayment(payment.id, DRY_RUN_REASON, signal),
     run: async (reason) => { onVoided(await orgApi.voidPayment(payment.id, reason)); },
   };
 }
@@ -39,7 +37,7 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: {
   payment: VoidablePayment | null;
   studentName?: string;
   onClose: () => void;
-  onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }) => void;
+  onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void;
 }) {
   return <RecordVoidModal target={payment ? paymentVoidTarget(payment, studentName, onVoided) : null} onClose={onClose} />;
 }

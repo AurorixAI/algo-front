@@ -502,19 +502,20 @@ test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (fut
   const X = require(path.join(root, "src/lib/payment-plan.ts"));
   const plan = (name) => X.planView(L.normalizePreview(fixture(name)));
   const calc = text(React.createElement(PlanBlock, { plan: plan("e1_preview_300000") }));
-  for (const part of ["Закроет долг за период 15.09–14.10, за период 15.10–14.11 останется 469 000 сум", "Долг за 15.09–14.10 (остаток)", "269 000 сум", "15.10–14.11 (часть)", "31 000 сум"]) assert.ok(calc.includes(part), part);
+  // UX pack §5.1: the plan is a table of rows (the name on the left, the number on the right); the sentence stays for a screen reader
+  for (const part of ["Погасит остаток долга за 15.09–14.10", "269 000 сум", "Пойдёт в период 15.10–14.11 (часть)", "31 000 сум", "Останется долг", "469 000 сум", "Погасит долг за период 15.09–14.10, за период 15.10–14.11 останется 469 000 сум"].map((part) => part.replace(/ /g, "\u00a0").replace(/\u00a0/g, " "))) assert.ok(plain(calc).includes(part) || calc.includes(part) || plain(calc).replace(/ /g, " ").includes(part), part);
   assert.ok(!/Закрыла|Баланс после оплаты|→/.test(calc));
   // the due numbers of the old top block are the chips
-  assert.deepEqual(X.quickAmounts(L.normalizePreview(fixture("e1_preview_300000"))).map((chip) => plain(chip.label)), ["Закрыть долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
+  assert.deepEqual(X.quickAmounts(L.normalizePreview(fixture("e1_preview_300000"))).map((chip) => plain(chip.label)), ["Погасить долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
   // E9: the price rise has its own amber note
   const rise = html(React.createElement(PlanBlock, { plan: plan("e9_preview_price_ahead_1069000") }));
   assert.match(rise, /role="note"/);
   assert.match(plain(rise), /Цена периода 15\.11–14\.12 — 600 000 сум \(сейчас 500 000 сум\)/);
-  assert.match(plain(rise), /Аванс/);
+  assert.match(plain(rise), /аванс/);
   // E5: lessons
   const lessons = text(React.createElement(PlanBlock, { plan: plan("e5_preview_630000_held12") }));
   assert.ok(lessons.includes("Уроков оплачено: 0 → 12, осталось 0"));
-  assert.ok(lessons.includes("Аванс"));
+  assert.ok(/аванс|будущие уроки/.test(lessons));
   assert.ok(!lessons.includes("Оплачено до"));
   // nothing due: a calm sentence, with a way out when the group has no price
   assert.equal(X.noChipsHint(L.normalizePreview({ as_of: "2026-10-21", due: {} })), "Долга нет. Всё, что внесёте, пойдёт вперёд.");
@@ -582,7 +583,7 @@ test("routes: the statement and the income report exist for the owner and the ad
 
 test("the dialog: amount first, due block, live calculation from the server, an idempotency key, a method to choose", () => {
   const dialog = read("src/components/payments/payment-dialog.tsx");
-  assert.match(dialog, /create: PAY_ACTION_LABEL,/); // the title repeats the verb of the button
+  assert.match(dialog, /create: "Оплата от ученика",/); // UX pack §5.1-бис: the window says whose money it is
   assert.match(dialog, /usePaymentPreview\(\{/);
   assert.match(dialog, /orgApi\.createPayment\(membership\.membership_id, body, idempotencyKey\.current\)/);
   assert.match(dialog, /orgApi\.replacePayment\(payment\.id, \{ \.\.\.body, \.\.\.\(reason \? \{ reason \} : \{\}\) \}, idempotencyKey\.current\)/);

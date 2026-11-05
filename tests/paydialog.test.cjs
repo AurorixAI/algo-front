@@ -46,7 +46,7 @@ function preview({ segments, amount = null, mode = "calendar", asOf = "2026-10-1
     const currentAfter = open.filter((s) => s.bucket === "current").reduce((a, s) => a + (allocations.find((x) => x.segment_id === s.id)?.segment_remaining_after ?? s.unpaid), 0);
     result = {
       allocations, debt_after: pastAfter + currentAfter, past_debt_after: pastAfter, current_due_after: currentAfter, advance_after: left > 0 ? left : 0,
-      paid_until_before: null, paid_until_after: paidUntil, status_after: "active", days_overdue_after: null, partial_credit_after: 0, lessons: null, price_ahead: [], summary_text: "Закроет долг",
+      paid_until_before: null, paid_until_after: paidUntil, status_after: "active", days_overdue_after: null, partial_credit_after: 0, lessons: null, price_ahead: [], summary_text: "Погасит долг",
     };
   }
   return L.normalizePreview({ as_of: asOf, mode, price: { amount: price }, due, suggested_amount: pastDebt + currentDue, amount, result, warnings });
@@ -63,10 +63,10 @@ const said = (p) => plain(p.sentence);
 
 // ── chips: they carry what the old top block said ───────────────────────────────────────────────────────────────────
 
-test("chips: «Закрыть долг · 592 000 сум» and «Долг + октябрь · 1 142 000 сум»; no top block, no «2 периода»", () => {
+test("chips: «Погасить долг · 592 000 сум» and «Долг + октябрь · 1 142 000 сум»; no top block, no «2 периода»", () => {
   const chips = X.quickAmounts(preview({ segments: SEGS() }));
   assert.deepEqual(chips.map((chip) => [chip.key, plain(chip.label), chip.amount]), [
-    ["debt", "Закрыть долг · 592 000 сум", 592000],
+    ["debt", "Погасить долг · 592 000 сум", 592000],
     ["all", "Долг + октябрь · 1 142 000 сум", 1142000],
   ]);
   const dialog = read("src/components/payments/payment-dialog.tsx");
@@ -79,7 +79,7 @@ test("chips: no debt → «За октябрь», «Остаток за октя
   const part = X.quickAmounts(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 200000, "current")] }));
   assert.equal(plain(part[0].label), "Остаток за октябрь · 350 000 сум");
   const shifted = X.quickAmounts(L.normalizePreview(fixture("e1_preview_due")));
-  assert.deepEqual(shifted.map((chip) => plain(chip.label)), ["Закрыть долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
+  assert.deepEqual(shifted.map((chip) => plain(chip.label)), ["Погасить долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
   const noDebt = X.quickAmounts(L.normalizePreview(fixture("e2_preview_due")));
   assert.deepEqual(noDebt.map((chip) => plain(chip.label)), ["За октябрь · 323 000 сум"]);
   // nothing due: no chip, a calm line (and the «+ следующий месяц» chip is not invented: the server gives no next price in the due block)
@@ -103,13 +103,13 @@ test("chips: selected only while the field holds exactly that amount; a student 
 
 test("= exact debt: closes August and September, October stays unpaid", () => {
   const p = plan(592000);
-  assert.equal(said(p), "Закроет долг за август и сентябрь. Октябрь останется неоплаченным: 550 000 сум.");
+  assert.equal(said(p), "Погасит долг за август и сентябрь. Октябрь останется неоплаченным: 550 000 сум.");
   assert.deepEqual(lines(p).map(([l, a]) => [l, a]), [["Долг за август (остаток)", 42000], ["Долг за сентябрь", 550000]]);
 });
 
 test("= debt + current: pays October too, until 31 October, no debt left", () => {
   const p = plan(1142000, { paidUntil: "2026-10-31" });
-  assert.equal(said(p), "Закроет долг за август и сентябрь и оплатит октябрь. Оплачено до 31 октября, долга не останется.");
+  assert.equal(said(p), "Погасит долг за август и сентябрь и оплатит октябрь. Оплачено до 31 октября, долга не останется.");
   assert.ok(p.sentence.includes("Оплачено до 31\u00a0октября"), "no line break between the day and the month");
   assert.deepEqual(lines(p), [["Долг за август (остаток)", 42000], ["Долг за сентябрь", 550000], ["Октябрь", 550000]]);
   assert.equal(lines(p).reduce((a, [, n]) => a + n, 0), 1142000); // the lines add up to the amount
@@ -117,7 +117,7 @@ test("= debt + current: pays October too, until 31 October, no debt left", () =>
 
 test("< debt: partial - August closes, September keeps 92 000", () => {
   const p = plan(500000);
-  assert.equal(said(p), "Закроет долг за август, за сентябрь останется 92 000 сум. Всего долга останется 642 000 сум, из них за прошлые месяцы — 92 000 сум.");
+  assert.equal(said(p), "Погасит долг за август, за сентябрь останется 92 000 сум. Всего долга останется 642 000 сум, из них за прошлые месяцы — 92 000 сум.");
   assert.deepEqual(lines(p), [["Долг за август (остаток)", 42000], ["Долг за сентябрь (часть)", 458000]]);
   // smaller than the first period: a part of the debt only, and the whole overdue rest is said once
   assert.equal(said(plan(30000)), "Оплатит часть долга, за август останется 12 000 сум. Всего долга останется 1 112 000 сум, из них за прошлые месяцы — 562 000 сум.");
@@ -125,7 +125,7 @@ test("< debt: partial - August closes, September keeps 92 000", () => {
 
 test("part of the running period after the debt: «за октябрь останется …»", () => {
   const p = plan(800000);
-  assert.equal(said(p), "Закроет долг за август и сентябрь, за октябрь останется 342 000 сум.");
+  assert.equal(said(p), "Погасит долг за август и сентябрь, за октябрь останется 342 000 сум.");
   assert.deepEqual(lines(p).at(-1), ["Октябрь (часть)", 208000]);
   const only = X.planView(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 0, "current")], amount: 100000 }));
   assert.equal(said(only), "Оплатит октябрь частично, останется 450 000 сум.");
@@ -147,7 +147,7 @@ test("D-1: «Всего долга останется» is the debt the toast sh
   const p = preview({ segments: WALK(), amount: 400000, asOf: "2026-11-05" });
   const after = p.result.debt_after;
   assert.equal(after, 800000);
-  assert.equal(said(X.planView(p)), "Закроет долг за сентябрь. Всего долга останется 800 000 сум, из них за прошлые месяцы — 400 000 сум.");
+  assert.equal(said(X.planView(p)), "Погасит долг за сентябрь. Всего долга останется 800 000 сум, из них за прошлые месяцы — 400 000 сум.");
   assert.equal(debtLeftIn(X.planView(p).sentence), after);
   // the toast / card / statement say the same number through the same field
   assert.equal(plain(L.balanceAfterText(after, p.result.advance_after)), "Баланс после оплаты: долг 800 000 сум");
@@ -233,7 +233,7 @@ test("D-1 partial: for EVERY partial amount the whole debt is said, and it is de
 
 test("> total: an advance, until the date the server gives", () => {
   const p = plan(1342000, { paidUntil: "2026-11-12" });
-  assert.equal(said(p), "Закроет долг за август и сентябрь и оплатит октябрь, 200 000 сум останутся авансом (хватит до 12 ноября).");
+  assert.equal(said(p), "Погасит долг за август и сентябрь и оплатит октябрь, 200 000 сум останутся авансом (хватит до 12 ноября).");
   assert.deepEqual(lines(p).at(-1), ["Аванс", 200000]);
   // no debt: the owner's own example
   const free = X.planView(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 0, "current")], amount: 750000, paidUntil: "2026-11-12" }));
@@ -259,12 +259,12 @@ test("only the running period due: «Оплатит октябрь. Оплаче
 
 test("a year that is not this year is named; a period that is not a month is named by dates", () => {
   const old = X.planView(preview({ asOf: "2027-01-10", segments: [seg("dec", "2026-12-01", "2026-12-31", 550000, 0, "past_debt"), seg("jan", "2027-01-01", "2027-01-31", 550000, 0, "current")], amount: 550000 }));
-  assert.match(said(old), /^Закроет долг за декабрь 2026\./);
+  assert.match(said(old), /^Погасит долг за декабрь 2026\./);
   const real = X.planView(L.normalizePreview(fixture("e1_preview_769000")));
-  assert.equal(said(real), "Закроет долг за период 15.09–14.10 и оплатит период 15.10–14.11. Оплачено до 14 ноября, долга не останется.");
+  assert.equal(said(real), "Погасит долг за период 15.09–14.10 и оплатит период 15.10–14.11. Оплачено до 14 ноября, долга не останется.");
   assert.deepEqual(lines(real), [["Долг за 15.09–14.10 (остаток)", 269000], ["15.10–14.11", 500000]]);
   const over = X.planView(L.normalizePreview(fixture("e1_preview_790000")));
-  assert.equal(said(over), "Закроет долг за период 15.09–14.10 и оплатит период 15.10–14.11, 21 000 сум останутся авансом (хватит до 15 ноября).");
+  assert.equal(said(over), "Погасит долг за период 15.09–14.10 и оплатит период 15.10–14.11, 21 000 сум останутся авансом (хватит до 15 ноября).");
   const part = X.planView(L.normalizePreview(fixture("e1_preview_250000")));
   assert.equal(said(part), "Оплатит часть долга, за период 15.09–14.10 останется 19 000 сум. Всего долга останется 519 000 сум, из них за прошлые периоды — 19 000 сум.");
   assert.deepEqual(lines(part), [["Долг за 15.09–14.10 (часть)", 250000]]);
@@ -272,15 +272,15 @@ test("a year that is not this year is named; a period that is not a month is nam
 
 test("package (lessons) mode keeps working: packages are named, the lessons line stays, no «оплачено до»", () => {
   const held = X.planView(L.normalizePreview(fixture("e5_preview_650000_held14")));
-  assert.equal(said(held), "Закроет долг за пакет 25.09–21.10, за пакет 23.10–26.10 останется 50 000 сум.");
+  assert.equal(said(held), "Погасит долг за пакет 25.09–21.10, за пакет 23.10–26.10 останется 50 000 сум.");
   assert.deepEqual(lines(held), [["Долг за пакет 25.09–21.10", 600000], ["Пакет 23.10–26.10 (часть)", 50000]]);
   assert.equal(plain(held.lessons), "Уроков оплачено: 0 → 13, осталось 0, не оплачено 1");
   const adv = X.planView(L.normalizePreview(fixture("e5_preview_630000_held12")));
-  assert.equal(said(adv), "Закроет долг за пакет 25.09–21.10, 30 000 сум останутся авансом.");
+  assert.equal(said(adv), "Погасит долг за пакет 25.09–21.10, 30 000 сум останутся авансом.");
   assert.deepEqual(lines(adv).at(-1), ["Аванс", 30000]);
   assert.doesNotMatch(said(adv), /Оплачено до/);
   const chips = X.quickAmounts(L.normalizePreview(fixture("e5_preview_650000_held14")));
-  assert.deepEqual(chips.map((chip) => plain(chip.label)), ["Закрыть долг · 600 000 сум", "Долг + текущий пакет · 700 000 сум"]);
+  assert.deepEqual(chips.map((chip) => plain(chip.label)), ["Погасить долг · 600 000 сум", "Долг + текущий пакет · 700 000 сум"]);
 });
 
 test("lessons mode, nothing due: «Пойдёт на будущие уроки — хватит на N уроков», the line «На будущие уроки» (inc5 P08); the month mode keeps «аванс»", () => {
@@ -315,7 +315,7 @@ test("the price rise warning of the server stays (amber note), not as a sentence
 
 test("empty / zero / non-numeric amount: no calculation, a calm hint, the button is off; a huge amount is not asked for", () => {
   assert.equal(X.PLAN_EMPTY_HINT, "Введите сумму — здесь появится, куда пойдут деньги");
-  assert.equal(X.PLAN_TITLE, "Что будет после сохранения");
+  assert.equal(X.PLAN_TITLE, "Долг ученика");
   assert.equal(X.planView(preview({ segments: SEGS() })), null); // asked without an amount: nothing to word
   for (const text of ["", "0", "abc", "  ", "-"]) assert.equal(L.previewAmount(text), null, JSON.stringify(text));
   assert.equal(L.previewAmount(P.reformatMoneyTyping("12abc34")), 1234);
@@ -348,9 +348,10 @@ test("the method is required: Save is off with a hint until one is chosen", () =
   assert.equal(X.payBlocker(form, "2026-10-22", null), "Выберите способ оплаты");
   assert.equal(X.payBlocker({ ...form, method: "click" }, "2026-10-22", null), null);
   const dialog = read("src/components/payments/payment-dialog.tsx");
-  assert.match(dialog, /disabled=\{busy \|\| blocker !== null \|\| !effects\.allows\}/);   // R3 K1: and the answer about money (the DOM test of the till reads it live)
-  assert.match(dialog, /id="payment-blocker"/);
-  assert.match(dialog, /aria-describedby=\{blocker \? "payment-blocker" : undefined\}/);
+  // rule 3 of the UX pack: ONE footer for every window - the main button is off while the method is missing or the answer about money is not here, and ALWAYS says why (`why`) over the buttons
+  assert.match(dialog, /disabled=\{blocker !== null \|\| !effects\.allows\}/);
+  assert.match(dialog, /why=\{blocker \?\? \(effects\.allows \? null : EFFECTS_LOADING_TEXT\)\}/);
+  assert.match(dialog, /whyId="payment-blocker"/);
 });
 
 test("the picker has Наличные, Карта, Перевод, Click, Payme - no «Другое»; old payments still read «Другое» elsewhere", () => {
@@ -412,8 +413,8 @@ test("future tense: nothing saved yet, so no «Закрыла / Закрыл» i
   ];
   for (const p of all) {
     const everything = plain([p.sentence, ...p.lines.map((line) => line.label), ...X.quickAmounts(preview({ segments: SEGS() })).map((chip) => chip.label)].join(" | "));
-    assert.doesNotMatch(everything, /Закрыла|Закрыл\b|Погасила|Частично погасила|…|\.\.\.|\d+ период/, everything);
-    assert.match(p.sentence, /^(Закроет|Оплатит|Вся сумма останется)/, p.sentence); // the future, a plain sentence first
+    assert.doesNotMatch(everything, /Закрыла|Закрыл\b|Закроет|Погасила|Частично погасила|…|\.\.\.|\d+ период/, everything);
+    assert.match(p.sentence, /^(Погасит|Оплатит|Вся сумма останется)/, p.sentence); // the future, a plain sentence first
     assert.equal(p.sentence.endsWith("."), true);
     // the breakdown adds up to what the server allocated
     assert.ok(p.lines.every((line) => line.amount > 0));
@@ -438,7 +439,7 @@ test("the dialog layout: amount first, chips under it, then the plan, then metho
   assert.match(dialog, />сум<\/span>/);
   assert.match(dialog, /commentOpen \|\| values\.note/); // expanded when a comment exists
   assert.match(dialog, /Комментарий\n\s*<\/button>/);
-  assert.match(dialog, /plan\.sentence/);
+  assert.match(read("src/components/payments/payment-dialog.tsx"), /plan\.rows\.map/);   // UX pack §5.1: the plan is a table of rows (the sentence stays for a screen reader)
   // method: its OWN full-width row, all five on one line from sm up; a phone: 3 + 2 of equal width (never a lone orphan); the date is the next row
   const methodRow = dialog.slice(dialog.indexOf('testId="payment-methods"'), dialog.indexOf("Дата оплаты"));
   assert.match(methodRow, /className="grid-cols-3 sm:grid-cols-5"/);
@@ -448,7 +449,7 @@ test("the dialog layout: amount first, chips under it, then the plan, then metho
   assert.match(dialog, /<div className="sm:w-44">\s*<label htmlFor="payment-paid-on"/);
   // the primary button is in the footer (never scrolls away)
   assert.match(dialog, /footerClassName=/);
-  assert.match(dialog, /flex flex-col-reverse gap-2 sm:flex-row/);
+  assert.match(read("src/components/money/dialog-footer.tsx"), /flex flex-col-reverse gap-2 sm:flex-row/);   // the footer of every window of money (ConfirmFooter)
   // the pay2 rules stay: server calculation, idempotency key, duplicate, correction
   assert.match(dialog, /usePaymentPreview\(\{/);
   assert.match(dialog, /orgApi\.createPayment\(membership\.membership_id, body, idempotencyKey\.current\)/);

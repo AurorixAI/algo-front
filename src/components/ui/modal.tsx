@@ -190,7 +190,7 @@ export function Modal({
         onClick={onClose}
         disabled={busy}
         aria-label="Закрыть"
-        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
+        className="p-2.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
       >
         <X className="w-5 h-5" />
       </button>

@@ -99,6 +99,7 @@ import {
   type PayrollCalculateBody,
   type PayrollCalculateResponse,
   type PayrollDiff,
+  type ChangedPayrollMonth,
   type PayrollMonthOverview,
   type PayrollRateHistoryItem,
   type PayrollRateItem,
@@ -1796,24 +1797,6 @@ export const orgApi = {
     api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
       method: "POST", body: { reason },
     }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
-  /**
-   * R3 #15: the same request with `?dry_run=true` and NO `Idempotency-Key` - nothing is written, the answer carries `money_effects` (what the action will do to the packs of the students
-   * and the saved sheets).  The body is the one the real request will send.  The answer is read by `moneyEffectsOf`, so it stays raw.
-   */
-  dryRunCreatePayment: (membershipId: string, data: PaymentCreate, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/payments`), { method: "POST", body: data, signal }),
-  dryRunReplacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/payments/${encodePathId(paymentId)}/replace`), { method: "POST", body: data, signal }),
-  dryRunVoidPayment: (paymentId: string, reason: string, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/payments/${encodePathId(paymentId)}/void`), { method: "POST", body: { reason }, signal }),
-  dryRunCreateWriteoff: (membershipId: string, data: WriteoffCreate, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`), { method: "POST", body: data, signal }),
-  dryRunVoidWriteoff: (writeoffId: string, reason: string, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/writeoffs/${encodePathId(writeoffId)}/void`), { method: "POST", body: { reason }, signal }),
-  dryRunCreateRefund: (membershipId: string, data: RefundCreate, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/memberships/${encodePathId(membershipId)}/refunds`), { method: "POST", body: data, signal }),
-  dryRunVoidRefund: (refundId: string, reason: string, signal?: AbortSignal) =>
-    api<unknown>(dryRunPath(`/auth/org/refunds/${encodePathId(refundId)}/void`), { method: "POST", body: { reason }, signal }),
   /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
   getPaymentPreview: (membershipId: string, q: PreviewQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();
@@ -1913,6 +1896,14 @@ export const orgApi = {
     api<PayrollRateHistoryItem[]>(`/auth/org/payroll/rates/${encodePathId(teacherId)}/history`),
   /** Teachers with completed lessons in the month (`month` = YYYY-MM): types, the rate of the month, saved sheet, warnings. */
   getPayrollMonth: (month: string) => api<PayrollMonthOverview>(`/auth/org/payroll/months/${encodePathId(month)}`),
+  /**
+   * UX pack §5.1-тер (the bar over the page «Зарплата»): the months that are OVER and have a saved sheet whose salary changed after the saving.  PROPOSED contract, not in the server yet (see the report «для
+   * сервера»): `GET /auth/org/payroll/changed-months` -> `{ items: [{ month: "2026-09", teachers: 2 }] }`, the owner's, ascending.  A server without it answers an error: the bar is not drawn, nothing else breaks.
+   */
+  getChangedPayrollMonths: async (): Promise<ChangedPayrollMonth[]> => {
+    const answer = await api<{ items?: ChangedPayrollMonth[] }>("/auth/org/payroll/changed-months");
+    return (answer?.items ?? []).filter((item) => /^\d{4}-\d{2}$/.test(item?.month ?? "") && Number(item.teachers) > 0);
+  },
   /** Preview only: nothing is written.  The rates are the stored ones (set in «Сотрудники»), `body` only narrows the teachers. */
   calculatePayroll: async (month: string, body: PayrollCalculateBody): Promise<PayrollSheet[]> =>
     (await api<PayrollCalculateResponse>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body })).sheets,
