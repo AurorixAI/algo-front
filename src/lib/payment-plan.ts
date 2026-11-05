@@ -156,6 +156,19 @@ export interface PlanView {
   warnings: string[];
 }
 
+/**
+ * «Всего долга останется N»: N is the debt the toast, the card, the «Оплаты» list, the statement, the Excel and the receipt show once the
+ * payment is saved - `debt_after`, the running period included (walk of 05.11, D-1: the window said 400 000, everything after said 800 000).
+ * The overdue part is named only when it is less than the whole: «…, из них за прошлые месяцы — N».
+ */
+function debtLeftSentence(preview: PaymentPreview, debtAfter: number, pastAfter: number): string {
+  const whole = `Всего долга останется ${formatMoney(debtAfter)}`;
+  if (pastAfter <= 0 || pastAfter >= debtAfter) return `${whole}.`;
+  const past = preview.due.segments.filter((segment) => segment.bucket === "past_debt");
+  const noun = preview.mode === "lessons" ? "пакеты" : past.length > 0 && past.every((segment) => segmentName(segment, preview).isMonth) ? "месяцы" : "периоды";
+  return `${whole}, из них за прошлые ${noun} — ${formatMoney(pastAfter)}.`;
+}
+
 export function planView(preview: PaymentPreview | null | undefined): PlanView | null {
   const result = preview?.result;
   if (!preview || !result) return null;
@@ -227,14 +240,14 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
 
   // what is left after saving: the running period is not a debt, so only an overdue rest is named as one
   if (partial) {
-    if (partial.bucket === "past_debt" && pastAfter > partialLeft) sentences.push(`Всего долга останется ${money(pastAfter)}.`);
+    if (partial.bucket === "past_debt" && pastAfter > partialLeft) sentences.push(debtLeftSentence(preview, debtAfter, pastAfter));
   } else if (debtAfter > 0) {
     if (pastAfter === 0 && currentAfter > 0) {
       const running = splitDueSegments(preview).running;
       const name = running ? segmentName(running, preview).sentence : "текущий период";
-      sentences.push(`${capital(name)} останется неоплаченным: ${money(currentAfter)}.`);
+      sentences.push(`${capital(name)} останется неоплаченным: ${money(debtAfter)}.`);
     } else {
-      sentences.push(`Всего долга останется ${money(pastAfter > 0 ? pastAfter : debtAfter)}.`);
+      sentences.push(debtLeftSentence(preview, debtAfter, pastAfter));
     }
   } else if (advance === 0) {
     const hadDebt = sum(preview.due.past_debt) > 0;

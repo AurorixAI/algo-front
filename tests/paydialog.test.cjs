@@ -120,7 +120,7 @@ test("< debt: partial - August closes, September keeps 92 000", () => {
   assert.equal(said(p), "Закроет долг за август, за сентябрь останется 92 000 сум.");
   assert.deepEqual(lines(p), [["Долг за август (остаток)", 42000], ["Долг за сентябрь (часть)", 458000]]);
   // smaller than the first period: a part of the debt only, and the whole overdue rest is said once
-  assert.equal(said(plan(30000)), "Оплатит часть долга за август, останется 12 000 сум. Всего долга останется 562 000 сум.");
+  assert.equal(said(plan(30000)), "Оплатит часть долга за август, останется 12 000 сум. Всего долга останется 1 112 000 сум, из них за прошлые месяцы — 562 000 сум.");
 });
 
 test("part of the running period after the debt: «за октябрь останется …»", () => {
@@ -129,6 +129,67 @@ test("part of the running period after the debt: «за октябрь оста�
   assert.deepEqual(lines(p).at(-1), ["Октябрь (часть)", 208000]);
   const only = X.planView(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 0, "current")], amount: 100000 }));
   assert.equal(said(only), "Оплатит октябрь частично, останется 450 000 сум.");
+});
+
+// Walk of 05.11 (D-1): «Всего долга останется 400 000» in the window, 800 000 in the toast, the card, «Оплаты», the statement, the Excel and
+// the receipt.  The number of the window is the debt AFTER (the running month included); the overdue part is a phrase of its own.
+const WALK = () => [
+  seg("sep", "2026-09-01", "2026-09-30", 400000, 0, "past_debt"),
+  seg("oct", "2026-10-01", "2026-10-31", 400000, 0, "past_debt"),
+  seg("nov", "2026-11-01", "2026-11-30", 400000, 0, "current"),
+];
+const debtLeftIn = (text) => {
+  const match = /Всего долга останется ([\d ]+) сум/.exec(plain(text));
+  return match ? Number(match[1].replace(/ /g, "")) : null;
+};
+
+test("D-1: «Всего долга останется» is the debt the toast shows after saving (400 000 paid of 1 200 000: 800 000, not 400 000)", () => {
+  const p = preview({ segments: WALK(), amount: 400000, asOf: "2026-11-05" });
+  const after = p.result.debt_after;
+  assert.equal(after, 800000);
+  assert.equal(said(X.planView(p)), "Закроет долг за сентябрь. Всего долга останется 800 000 сум, из них за прошлые месяцы — 400 000 сум.");
+  assert.equal(debtLeftIn(X.planView(p).sentence), after);
+  // the toast / card / statement say the same number through the same field
+  assert.equal(plain(L.balanceAfterText(after, p.result.advance_after)), "Баланс после оплаты: долг 800 000 сум");
+});
+
+test("D-1: «Исправить оплату» - the corrected amount (400 000 → 200 000) says 1 000 000 after, the overdue part is separate", () => {
+  const p = preview({ segments: WALK(), amount: 200000, asOf: "2026-11-05" });
+  assert.equal(p.result.debt_after, 1000000);
+  assert.equal(said(X.planView(p)), "Оплатит часть долга за сентябрь, останется 200 000 сум. Всего долга останется 1 000 000 сум, из них за прошлые месяцы — 600 000 сум.");
+  assert.equal(debtLeftIn(X.planView(p).sentence), p.result.debt_after);
+});
+
+test("D-1: no overdue part named when the whole debt is overdue; a package or a shifted period is not called a month", () => {
+  // nothing of the running month is due: the whole rest is the overdue one, one number
+  const overdueOnly = preview({ segments: [seg("aug", "2026-08-01", "2026-08-31", 550000, 0, "past_debt"), seg("sep", "2026-09-01", "2026-09-30", 550000, 0, "past_debt")], amount: 100000 });
+  assert.equal(said(X.planView(overdueOnly)), "Оплатит часть долга за август, останется 450 000 сум. Всего долга останется 1 000 000 сум.");
+  // packages
+  const packages = preview({ mode: "lessons", segments: [seg("p0", "2026-08-25", "2026-09-21", 600000, 0, "past_debt", "package"), seg("p1", "2026-09-25", "2026-10-21", 600000, 0, "past_debt", "package"), seg("p2", "2026-10-23", "2026-10-26", 100000, 0, "current", "package")], amount: 300000 });
+  assert.match(said(X.planView(packages)), /Всего долга останется 1 000 000 сум, из них за прошлые пакеты — 900 000 сум\.$/);
+  // periods shifted from the calendar
+  const shifted = preview({ segments: [seg("a", "2026-09-15", "2026-10-14", 500000, 0, "past_debt"), seg("b", "2026-10-15", "2026-11-14", 500000, 0, "past_debt"), seg("c", "2026-11-15", "2026-12-14", 500000, 0, "current")], amount: 250000 });
+  assert.match(said(X.planView(shifted)), /Всего долга останется 1 250 000 сум, из них за прошлые периоды — 750 000 сум\.$/);
+});
+
+test("D-1: for every amount the debt named in the window is the debt after (debt_after) and the overdue part is past_debt_after", () => {
+  let checked = 0;
+  for (const [segments, step] of [[WALK(), 25000], [SEGS(), 21000]]) {
+    for (let amount = step; amount <= 1500000; amount += step) {
+      const p = preview({ segments, amount, asOf: "2026-11-05" });
+      const text = plain(X.planView(p).sentence);
+      const whole = debtLeftIn(text);
+      if (whole !== null) {
+        assert.equal(whole, p.result.debt_after, `${amount}: ${text}`);
+        const past = /из них за прошлые [а-я]+ — ([\d ]+) сум/.exec(text);
+        if (past) assert.equal(Number(past[1].replace(/ /g, "")), p.result.past_debt_after, `${amount}: ${text}`);
+        checked += 1;
+      }
+      const unpaid = /останется неоплаченным: ([\d ]+) сум/.exec(text);
+      if (unpaid) { assert.equal(Number(unpaid[1].replace(/ /g, "")), p.result.debt_after, `${amount}: ${text}`); checked += 1; }
+    }
+  }
+  assert.ok(checked >= 15, `the sweep reached ${checked} sentences that name the debt`);
 });
 
 test("> total: an advance, until the date the server gives", () => {
