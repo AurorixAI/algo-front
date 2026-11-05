@@ -332,25 +332,129 @@ test("R3 item 9: `open_lesson_items` carry `groupName` - the question needs no s
 const FRESH = { saved_total: 400000, fresh_total: 600000, target: 600000, paid: 475000, balance: 125000, state: "due", basis: "fresh", changed_by: 200000, change_text: null,
   text: "Месяц открыт: начислено сейчас 600 000 сум, выплачено 475 000 сум, к выплате 125 000 сум", items: [], carry_in: 0, carry_used: 0, advance_out: 0 };
 
-test("R3 item 11: an open month says «начислено сейчас N, выплачено M, к выплате N−M» (the server's sentence) and labels the sum «Начислено сейчас»; a closed month is as before", () => {
+test("R3 item 11 + D-3: an open month's block says its result ONCE (the chip); the sentence of the server stays for the window of the payout", () => {
   const state = Y.normalizePayoutState(FRESH);
   assert.equal(state.basis, "fresh");
-  assert.equal(Y.payoutNote(state), FRESH.text);
+  assert.equal(Y.payoutNote(state), FRESH.text, "the window of the payout still shows the server's sentence");
   assert.deepEqual(Y.sheetPayoutParts(state), [], "R3 m2: the three figures would repeat the sentence of the server word for word");
-  assert.equal(plain(Y.payoutChip(state).text), "Выплачено 475 000 сум из 600 000 сум");
+  assert.equal(plain(Y.payoutChip(state).text), "Выплачено 475 000 сум из 600 000 сум", "the chip of a month ROW is self-contained");
+  // the block of a sheet (the card above says the sum, the list below the payouts): the chip names what is left, nothing is said again
+  assert.equal(plain(Y.sheetPayoutChip(state).text), "Осталось выплатить 125 000 сум");
   const closed = Y.normalizePayoutState({ ...FRESH, basis: "saved", text: "Выплачено 475 000 из 600 000" });
-  assert.equal(Y.payoutNote(closed), null, "the closed month keeps its chip and figures, no extra sentence");
-  assert.equal(Y.sheetPayoutParts(closed)[0].label, "К выплате");
-  // the sentence is on the screens: the block of a sheet and the window of the payout
+  assert.equal(Y.payoutNote(closed), null, "the closed month keeps its chip, no extra sentence");
+  assert.equal(Y.sheetPayoutParts(closed)[0].label, "К выплате", "the window of the payout keeps its figures");
+  assert.equal(plain(Y.sheetPayoutChip(closed).text), "Осталось выплатить 125 000 сум");
   signIn({ org_role: "owner" });
   const { SheetPayoutBlock } = component("payroll/payout-block.tsx");
-  const block = textOf(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout: FRESH, onChanged() {} })));
-  assert.ok(block.includes("Месяц открыт: начислено сейчас 600 000 сум, выплачено 475 000 сум, к выплате 125 000 сум"));
-  assert.equal((block.match(/600\s000/g) || []).length, 2, "the sum is said twice at most: the chip and the one sentence - not a third time as a figure");
-  assert.ok(!block.includes("Осталось выплатить"), "no figures that repeat the sentence");
-  assert.ok(!/<dl/.test(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout: FRESH, onChanged() {} }))), "no empty list of figures");
-  const closedBlock = textOf(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout: { ...FRESH, basis: "saved", text: "x" }, onChanged() {} })));
-  assert.ok(closedBlock.includes("К выплате") && closedBlock.includes("Осталось выплатить"), "a closed month keeps its figures");
+  const render = (payout) => html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout, onChanged() {} }));
+  const block = plain(textOf(render(FRESH)));
+  assert.ok(block.includes("Осталось выплатить 125 000 сум"));
+  assert.ok(!block.includes("Месяц открыт: начислено сейчас"), "the server's sentence repeats the card's «Начислено сейчас» and the chip");
+  assert.equal((block.match(/600\s000/g) || []).length, 0, "the accrued sum is the card's, not the block's");
+  assert.equal((block.match(/475\s000/g) || []).length, 0, "no payouts listed here: nothing says the paid sum twice");
+  assert.ok(!/<dl/.test(render(FRESH)), "no list of figures");
+  const closedBlock = plain(textOf(render({ ...FRESH, basis: "saved", text: "x" })));
+  assert.ok(closedBlock.includes("Осталось выплатить 125 000 сум") && !closedBlock.includes("К выплате"), "a closed month: the chip only, the sum is the card's");
+});
+
+// ── D-3 (walk of 05.11): the block of «Выплата» says every number once ──────────────────────────────
+
+const itemOf = (amount) => ({ id: "p1", sheet_id: "s1", teacher_id: "t1", month: "2026-11", amount, paid_on: "2026-11-03", method: "cash", note: null, sheet_revision: 1, sheet_total: 1, created_by_name: "Арслан", created_at: null, voided_at: null, void_reason: null });
+const stateOf = (extra) => ({ saved_total: 860000, fresh_total: 860000, target: 860000, paid: 0, balance: 860000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0, ...extra });
+const wordsOf = (payout) => {
+  signIn({ org_role: "owner" });
+  const { SheetPayoutBlock } = component("payroll/payout-block.tsx");
+  return plain(textOf(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-11", teacherName: "Каримова К.", payout, onChanged() {} }))));
+};
+const times = (text, number) => (text.match(new RegExp(`(?<!\\d\\s?)${number.toLocaleString("ru-RU").replace(/\s/g, "\\s")}(?![\\d])`, "g")) || []).length;
+
+test("D-3 (а): an OPEN month overpaid - the chip «Переплачено 29 166», one hint of what it means, no sentence that says 120 834 / 150 000 / 29 166 again", () => {
+  const open = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834,
+    text: "Месяц открыт: начислено сейчас 120 834, выплачено 150 000: переплачено 29 166", items: [itemOf(150000)] });
+  const block = wordsOf(open);
+  assert.equal(times(block, 29166), 1, block);
+  assert.equal(times(block, 120834), 0, "«начислено сейчас» is the card's");
+  assert.equal(times(block, 150000), 1, "the payout is listed once");
+  assert.ok(block.includes("Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца"));
+  assert.ok(!block.includes("Месяц открыт:"));
+});
+
+test("D-3 (б): a CLOSED month overpaid - the chip says 16 666, the line says what happens to it, without the number", () => {
+  const closed = stateOf({ saved_total: 860000, target: 860000, paid: 876666, balance: -16666, state: "overpaid", advance_out: 16666, items: [itemOf(876666)] });
+  const block = wordsOf(closed);
+  assert.equal(times(block, 16666), 1, block);
+  assert.equal(times(block, 876666), 1, "listed once");
+  assert.equal(times(block, 860000), 0, "«К выплате» is the card's");
+  assert.ok(block.includes("Переплата зачтётся в выплате следующего месяца"));
+  assert.ok(!block.includes("К выплате") && !block.includes("Аванс 16"));
+});
+
+test("D-3 (в): a part paid - one chip «Осталось выплатить 116 667», no «из 993 333», no three signed figures", () => {
+  const part = stateOf({ saved_total: 993333, target: 993333, paid: 876666, balance: 116667, state: "due", items: [itemOf(876666)] });
+  const block = wordsOf(part);
+  assert.equal(times(block, 116667), 1, block);
+  assert.equal(times(block, 993333), 0);
+  assert.equal(times(block, 876666), 1);
+  assert.ok(!block.includes("К выплате") && !block.includes("Выплачено 876"));
+});
+
+test("D-3: nothing paid, all paid, covered by the advance of the earlier months - the chip and one line, each sum once", () => {
+  assert.ok(wordsOf(stateOf()).includes("Не выплачено") && !wordsOf(stateOf()).includes("860"), "unpaid: the sum is the card's");
+  assert.ok(wordsOf(stateOf({ paid: 860000, balance: 0, state: "settled", items: [itemOf(860000)] })).includes("Выплачено полностью"));
+  assert.ok(wordsOf(stateOf({ basis: "fresh", paid: 860000, balance: 0, state: "settled", items: [itemOf(860000)] })).includes("На сегодня выплачено всё"), "an open month never says «полностью»");
+  const covered = wordsOf(stateOf({ saved_total: 150000, target: 0, paid: 0, balance: 0, state: "settled", carry_in: 150000, carry_used: 150000 }));
+  assert.ok(covered.includes("Закрыто авансом"));
+  assert.equal(times(covered, 150000), 1, covered);
+  const carry = wordsOf(stateOf({ saved_total: 100000, target: 70000, balance: 70000, carry_in: 30000, carry_used: 30000 }));
+  assert.equal(times(carry, 30000), 1, "the advance of the earlier months is named once, with its sum");
+  assert.ok(carry.includes("Осталось выплатить 70 000 сум"), "with an advance taken off the payable sum is not the card's: the chip says it");
+  assert.equal(times(carry, 100000), 0);
+  assert.ok(carry.includes("к выплате меньше на эту сумму"));
+});
+
+// ── D-2 (walk of 05.11): the card of an OPEN month ─────────────────────────────────────────────────
+
+test("D-2: an open month's card says «Начислено сейчас 120 834» (the fresh number), the saved 45 000 is a small line - no «К выплате» of the saved total; a closed month is as before", () => {
+  signIn({ org_role: "owner" });
+  const { SheetSummaryCard } = component("payroll/sheet-summary.tsx");
+  const open = stateOf({ saved_total: 45000, fresh_total: 120834, target: 120834, paid: 150000, balance: -29166, state: "overpaid", basis: "fresh", changed_by: 75834 });
+  const card = (payout, extra = {}) => {
+    const props = { sheet: sheet({ month: "2026-11", total_amount: 45000, stale: true, updated_at: "2026-11-03T05:00:00", payout }), total: 45000, accrued: 0, busy: false, onPrimary() {}, onPrint() {}, ...extra };
+    props.status = extra.status ?? R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: payout ? payout.changed_by : null });
+    return plain(textOf(html(React.createElement(SheetSummaryCard, props))));
+  };
+  const text = card(open);
+  assert.ok(text.includes("Начислено сейчас"));
+  assert.ok(text.includes("120 834 сум"));
+  assert.ok(text.includes("Сохранено 03.11: 45 000 сум"), text);
+  assert.ok(!text.includes("К выплате"), "the saved total is never «К выплате» in an open month");
+  assert.equal(times(text, 45000), 1, "the saved sum once");
+  assert.ok(text.includes("изменилась на +75 834 сум"), "the status line of the card is as it was");
+  // the same month, nothing changed since the saving: the fresh number is the saved one, no small line
+  const same = card({ ...open, fresh_total: 45000, target: 45000, changed_by: 0, balance: -105000 }, { status: R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: null }) });
+  assert.ok(same.includes("Начислено сейчас") && !same.includes("Сохранено 03.11: 45 000"), same);
+  // a closed month, a calculation not saved yet, a server that could not count the fresh total: «К выплате» as before
+  assert.ok(card({ ...open, basis: "saved", fresh_total: 120834 }).includes("К выплате"));
+  assert.ok(card(null).includes("К выплате"));
+  assert.ok(card({ ...open, fresh_total: null, basis: "saved" }).includes("К выплате"));
+  // unsaved edits: the total of the table, named as such - not «К выплате» of the saved sum and not «Начислено сейчас»
+  const dirty = card(open, { total: 50000, status: R.sheetCardStatus({ saved: true, stale: true, dirty: true, updatedAt: null, delta: null }) });
+  assert.ok(dirty.includes("Итог с правками") && dirty.includes("50 000 сум") && !dirty.includes("Начислено сейчас") && !dirty.includes("К выплате"), dirty);
+});
+
+test("D-2: the headline is told by the server's fields (`basis`), not by the dates of the browser", () => {
+  const h = (payout, extra = {}) => {
+    const out = Y.sheetHeadline({ total: 45000, dirty: false, payout, updatedAt: "2026-11-03T05:00:00", ...extra });
+    return { ...out, saved: out.saved === null ? null : plain(out.saved) };
+  };
+  assert.deepEqual(h(stateOf({ basis: "fresh", saved_total: 45000, fresh_total: 120834, changed_by: 75834 })), { label: "Начислено сейчас", value: 120834, saved: "Сохранено 03.11: 45 000 сум" });
+  assert.deepEqual(h(stateOf({ basis: "saved", saved_total: 45000, fresh_total: 120834, changed_by: 75834 })), { label: "К выплате", value: 45000, saved: null });
+  assert.deepEqual(h(undefined), { label: "К выплате", value: 45000, saved: null });
+  // no date known: the sum is still said
+  assert.equal(h(stateOf({ basis: "fresh", saved_total: 45000, fresh_total: 120834, changed_by: 75834 }), { updatedAt: null }).saved, "Сохранено: 45 000 сум");
+  const src = read("src/lib/payroll-logica.ts");
+  const body = src.slice(src.indexOf("export function sheetHeadline"), src.indexOf("export const RESAVE_LABEL"));
+  assert.doesNotMatch(body, /new Date|Date\.now|formatBusinessDate\(|isOpenMonth/, "no clock in the rule");
 });
 
 test("R3 item 11: a payout above what is accrued needs the owner's yes («больше начисленного сейчас»); the closed month keeps «больше остатка»", () => {

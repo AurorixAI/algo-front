@@ -15,7 +15,7 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { RESAVE_LABEL, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, sheetHeadline, sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
 import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
@@ -29,7 +29,7 @@ const DOT: Record<SheetCardStatus["tone"], string> = {
 };
 
 /**
- * The card on top of a sheet (UX-2): «К выплате» big, ONE line of facts under it (rate · counted · unpaid), the status of the
+ * The card on top of a sheet (UX-2): «К выплате» big (an open month: «Начислено сейчас», D-2 of the walk of 05.11), ONE line of facts under it (rate · counted · unpaid), the status of the
  * sheet («Сохранено 16.10.2026 в 08:56» / «После сохранения изменились данные: −16 666 сум») and the ONE main button.
  * Excel and print are the quiet buttons of the corner.  The total here follows the unsaved edits, like the table.
  */
@@ -70,6 +70,8 @@ export function SheetSummaryCard({
   onNote?: (text: string) => void;
 }) {
   const facts = sheetFactsParts(sheet, accrued, ratesNow);
+  // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one is the first words of the line of facts (they describe the saved sheet)
+  const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
   // «без оплаты» is already in the line of facts under the total: the card does not say it twice
   const counts = warnings === undefined ? sheet.warnings : warnings;
   const warningList = counts
@@ -84,9 +86,9 @@ export function SheetSummaryCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <p className="text-sm text-slate-500">К выплате</p>
-          <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(total)}</p>
-          <p className="mt-2 text-sm text-slate-600">{[...facts, writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
+          <p className="text-sm text-slate-500" data-testid="payroll-total-label">{headline.label}</p>
+          <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
+          <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved, ...facts, writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {(sheet.undecided_total ?? 0) > 0 && (
             <p data-testid="sheet-undecided" className="mt-1.5 text-sm text-amber-800 print:hidden">
               Дополнительные уроки ждут решения об оплате.{" "}

@@ -8,12 +8,10 @@ import {
   PAYOUT_ACTION_LABEL,
   PAYOUT_CHIP_CLASS,
   advanceLines,
-  payoutNote,
   livePayouts,
-  payoutChip,
   payoutError,
   payoutLine,
-  sheetPayoutParts,
+  sheetPayoutChip,
   validatePayoutVoid,
   type PayoutOut,
   type PayoutState,
@@ -22,9 +20,9 @@ import type { PayrollErrorLike } from "@/lib/payroll";
 import { PayoutDialog } from "./payout-dialog";
 
 /**
- * The block «Выплата» of a sheet: «К выплате 600 000 · Выплачено 475 000 · Доплатить 125 000», the server's sentence, the button
- * «Отметить выплату» and the history of the payouts («05.11.2026 · 475 000 · Наличные · Арслан · Отменить»; a cancelled one stays, grey).
- * A payout is never rewritten: after the data changed the block says how much to add («доплатить») or how much was overpaid.
+ * The block «Выплата» of a sheet: the chip with what is left («Осталось выплатить 125 000») or what was overpaid, a line only when it says something the chip does not (an advance, what
+ * happens to an overpay), the button «Отметить выплату» and the history of the payouts («05.11.2026 · 475 000 · Наличные · Арслан · Отменить»; a cancelled one stays, grey).
+ * Every number is on the screen ONCE (rule 87): the sum is the card above, the payouts are the list below.  A payout is never rewritten: after the data changed the card says «изменилась на ±N».
  */
 export function SheetPayoutBlock({
   sheetId, month, teacherName, payout, onChanged,
@@ -39,9 +37,7 @@ export function SheetPayoutBlock({
   const state = normalizePayoutState(payout);
   const [open, setOpen] = useState(false);
   if (!state) return null;
-  const chip = payoutChip(state);
-  const parts = sheetPayoutParts(state);
-  const note = payoutNote(state);
+  const chip = sheetPayoutChip(state);
   const live = livePayouts(state);
   const cancelled = state.items.filter((item) => item.voided_at);
   return (
@@ -52,17 +48,6 @@ export function SheetPayoutBlock({
             Выплата
             {chip && <span className={`rounded-2xl border px-2.5 py-0.5 text-xs font-semibold ${PAYOUT_CHIP_CLASS[chip.tone]}`}>{chip.text}</span>}
           </h2>
-          {parts.length > 0 && (
-            <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
-              {parts.map((part) => (
-                <div key={part.label}>
-                  <dt className="text-xs text-slate-500">{part.label}</dt>
-                  <dd className={`text-lg font-bold tabular-nums ${part.tone === "due" ? "text-amber-800" : part.tone === "over" ? "text-sky-800" : "text-slate-900"}`}>{part.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          {note && <p className="mt-1.5 text-sm text-slate-600" data-testid="payout-text">{note}</p>}
           {advanceLines(state).map((line) => <p key={line} className="mt-1 text-xs text-slate-500" data-testid="payout-advance">{line}</p>)}
           {state.fresh_total === null && state.state !== "settled" && (
             <p className="mt-1 text-xs text-slate-500">Новую сумму посчитать нельзя (нет ставки или цена задана вручную) — за основу взята сохранённая; пересчитайте после указания ставки.</p>

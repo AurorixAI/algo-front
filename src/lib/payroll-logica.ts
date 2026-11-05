@@ -6,6 +6,7 @@
  * The pay of a teacher is a different account from the student's: «начислено / к выплате» keep their words here (owner 21.10).
  * Pure: no React, no network.
  */
+import { formatUtcNaiveAsBusinessDateTime } from "./business-time";
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoneyInput, formatSignedMoney } from "./money-format";
 import {
@@ -196,6 +197,27 @@ export const PAYOUT_CHIP_CLASS: Record<PayoutTone, string> = {
   over: "border-sky-200 bg-sky-50 text-sky-900",
 };
 
+/**
+ * The chip of the BLOCK «Выплата» on a sheet (walk of 05.11, D-3, rule 87): the card above already says the sum («К выплате» / «Начислено сейчас») and the list below lists
+ * the payouts, so the chip names the ONE thing neither says - what is left («Осталось выплатить 116 667») or what was overpaid.  The chip of a month row (`payoutChip`) is
+ * self-contained, because the row has no such card.  An open month never says «Выплачено полностью»: it is paid by what is accrued NOW («На сегодня выплачено всё»).
+ */
+export function sheetPayoutChip(state: PayoutState | null | undefined): PayoutChip | null {
+  if (!state) return null;
+  switch (state.state) {
+    case "settled":
+      if (state.paid === 0 && state.carry_used > 0) return { text: "Закрыто авансом", tone: "ok" };
+      return { text: state.basis === "fresh" ? "На сегодня выплачено всё" : "Выплачено полностью", tone: "ok" };
+    case "overpaid":
+      return { text: `Переплачено ${formatMoney(-state.balance)}`, tone: "over" };
+    case "due":
+      return { text: `Осталось выплатить ${formatMoney(state.balance)}`, tone: "due" };
+    default:
+      // the card's sum is the whole sheet; with the advance of the earlier months taken off the payable sum is another number, and only the chip says it
+      return state.carry_used > 0 && state.balance > 0 ? { text: `Осталось выплатить ${formatMoney(state.balance)}`, tone: "due" } : { text: "Не выплачено", tone: "none" };
+  }
+}
+
 function monthPayoutParts(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): { head: string; tail: string[] } | null {
   const states = teachers.map((teacher) => normalizePayoutState(teacher.payout)).filter((state): state is PayoutState => state !== null);
   if (states.length === 0) return null;
@@ -248,6 +270,29 @@ export function payoutNote(state: PayoutState | null | undefined): string | null
   // R3 #20: a month that is still open is paid by what is accrued NOW - the sentence of the server says it: «Месяц открыт: начислено сейчас N, выплачено M, к выплате N−M»
   if (state.basis === "fresh") return state.text;
   return state.state === "settled" && state.paid === 0 && state.carry_used > 0 ? state.text : null;
+}
+
+export interface SheetHeadline {
+  /** The caption over the big number. */
+  label: string;
+  value: number;
+  /** «Сохранено 03.11: 45 000 сум»: the saved sum, small, only where the big number is not it; null otherwise. */
+  saved: string | null;
+}
+
+/**
+ * The big number on top of a sheet (walk of 05.11, D-2).  A CLOSED month is paid by the saved total: «К выплате».  An OPEN month is paid by what is accrued NOW (rule 20 of the server:
+ * `payout.basis` is `fresh`), so the saved total is only a stage of it: the big number is «Начислено сейчас» (`payout.fresh_total`) and the saved one is a small line - never a «К выплате».
+ * While the owner has unsaved edits the total is the table's («Итог с правками»), as it always was.  Nothing is told by dates here: the state of the month is the server's field.
+ */
+export function sheetHeadline(input: { total: number; dirty: boolean; payout: Partial<PayoutState> | null | undefined; updatedAt: string | null | undefined }): SheetHeadline {
+  const state = normalizePayoutState(input.payout);
+  if (!state || state.basis !== "fresh" || state.fresh_total === null) return { label: "К выплате", value: input.total, saved: null };
+  if (input.dirty) return { label: "Итог с правками", value: input.total, saved: null };
+  if (state.changed_by === 0) return { label: "Начислено сейчас", value: state.fresh_total, saved: null };
+  const day = formatUtcNaiveAsBusinessDateTime(input.updatedAt).split(" ")[0] ?? "";
+  const on = /^\d{2}\.\d{2}\./.test(day) ? ` ${day.slice(0, 5)}` : "";
+  return { label: "Начислено сейчас", value: state.fresh_total, saved: `Сохранено${on}: ${formatMoney(state.saved_total)}` };
 }
 
 /** Money-1 A1b: the one button of a sheet whose data moved after the saving (it was «Пересчитать»): the new version holds the fresh numbers. */
@@ -333,12 +378,26 @@ export function payoutAdvanceHint(basis: PayoutState["basis"] | null | undefined
   return basis === "fresh" ? PAYOUT_ADVANCE_HINT_OPEN : PAYOUT_ADVANCE_HINT;
 }
 
-/** Under the block of a sheet: «Аванс прошлого месяца: 25 000 сум — зачтён» / «Аванс 25 000 сум зачтётся в выплате следующего месяца»; null when there is none. */
+/**
+ * Under the chip of a sheet: only what the chip and the card do not say, and no number twice (walk of 05.11, D-3, rule 87).
+ * The advance of the earlier months is named with its sum (nothing else on the screen says it); the overpay of a CLOSED month is already in the chip, so the line says only what
+ * happens to it («Переплата зачтётся в выплате следующего месяца»), and the sum is repeated only when it is not the chip's (the advance then includes what is left of earlier ones).
+ * An OPEN month hands nothing on yet: the overpay may still be earned back.  Empty when there is nothing to add.
+ */
 export function advanceLines(state: PayoutState | null | undefined): string[] {
   if (!state) return [];
   const lines: string[] = [];
-  if (state.carry_used > 0) lines.push(`Аванс прошлого месяца: ${formatMoney(state.carry_used)} — зачтён, «К выплате» уменьшена на него`);
-  if (state.advance_out > 0) lines.push(`Аванс ${formatMoney(state.advance_out)} зачтётся в выплате следующего месяца`);
+  if (state.carry_used > 0) {
+    const whole = state.state === "settled" && state.paid === 0;
+    lines.push(`Аванс прошлого месяца: ${formatMoney(state.carry_used)} — зачтён${whole ? " целиком" : ", к выплате меньше на эту сумму"}`);
+  }
+  if (state.basis === "fresh") {
+    if (state.state === "overpaid") lines.push(PAYOUT_ADVANCE_HINT_OPEN);
+  } else if (state.advance_out > 0) {
+    lines.push(state.state === "overpaid" && state.advance_out === -state.balance
+      ? "Переплата зачтётся в выплате следующего месяца"
+      : `Аванс ${formatMoney(state.advance_out)} зачтётся в выплате следующего месяца`);
+  }
   return lines;
 }
 

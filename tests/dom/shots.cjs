@@ -80,6 +80,9 @@ const SHOTS = [
   { name: "12-open-lessons-question", entry: "shots.entry.tsx", mount: "openLessonsQuestion", act: async (page) => { await page.waitForSelector('[role="dialog"]'); } },
   { name: "13-payout-open-month", entry: "shots.entry.tsx", mount: "payoutBlock", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "14-payout-dialog-open-month", entry: "shots.entry.tsx", mount: "payoutDialog", act: async (page) => { await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(300); } },
+  { name: "16-sheet-open-overpaid", entry: "shots.entry.tsx", mount: "sheetOpenOverpaid", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
+  { name: "17-sheet-closed-overpaid", entry: "shots.entry.tsx", mount: "sheetClosedOverpaid", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
+  { name: "18-sheet-closed-part", entry: "shots.entry.tsx", mount: "sheetClosedPart", act: async (page) => { await page.waitForSelector('[data-testid="sheet-payout"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 
@@ -87,7 +90,8 @@ const SHOTS = [
   fs.mkdirSync(out, { recursive: true });
   const browser = await launch();
   const report = [];
-  for (const shot of SHOTS) {
+  const only = process.env.SHOTS ? process.env.SHOTS.split(",") : null; // SHOTS=16,17 - only the pictures whose name starts with one of these
+  for (const shot of SHOTS.filter((item) => !only || only.some((prefix) => item.name.startsWith(prefix)))) {
     for (const [width, height] of [[1280, 900], [375, 812]]) {
       const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
       await page.evaluate(([fn, name, user]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }]);

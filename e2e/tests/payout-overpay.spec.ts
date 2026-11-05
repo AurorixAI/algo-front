@@ -92,9 +92,13 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await dialog.getByRole("button", { name: "Записать как аванс" }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(40000)}`))).toBeVisible();
   await expect(dialog).toHaveCount(0);
-  // the sentence of the SERVER for an open month (`open_month_payout_text`): what is accrued now, what is paid, the overpay - one line, no figures that repeat it
-  await expect(block.getByTestId("payout-text")).toContainText(new RegExp(`Месяц открыт: начислено сейчас\\s*${moneyPattern(25000)}.*выплачено\\s*${moneyPattern(40000)}.*переплачено\\s*${moneyPattern(15000)}`));
-  await expect(block.getByTestId("payout-advance"), "an open month hands no advance on").toHaveCount(0);
+  // D-2 / D-3 (walk of 05.11): every number once.  The card says what is accrued now, the chip what was overpaid, the list the payout; the sentence of the server («Месяц открыт: начислено сейчас…») is not repeated
+  await expect(page.getByTestId("payroll-total-label")).toHaveText("Начислено сейчас");
+  await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(25000)}\\s*сум`));
+  await expect(block).toContainText(new RegExp(`Переплачено\\s*${moneyPattern(15000)}\\s*сум`));
+  await expect(block).not.toContainText("Месяц открыт: начислено сейчас");
+  await expect(block.getByTestId("payout-advance"), "an open month hands no advance on: the line says the overpay may still be earned back").toHaveCount(1);
+  await expect(block.getByTestId("payout-advance")).toContainText("Месяц ещё идёт: если к его концу начислится меньше выплаченного");
   await expect(block.getByRole("list", { name: "Выплаты" })).toContainText(new RegExp(`${moneyPattern(40000)}\\s*сум`));
   await shot(page, project, "03-sheet-overpaid-open-month");
   const written = await org.owner.api.get("/auth/org/payroll/payouts", { month });
@@ -127,7 +131,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   const nextState = (await org.owner.api.get(`/auth/org/payroll/sheets/${nextSheetId}`)).payout;
   expect([nextState.carry_in, nextState.carry_used, nextState.target], "no advance from an open month").toEqual([0, 0, 100000]);
   await page.goto(`/owner/payroll/${nextSheetId}`);
-  await expect(page.getByTestId("sheet-payout")).toContainText(new RegExp(`К выплате\\s*${moneyPattern(100000)}\\s*сум`));
+  await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(100000)}\\s*сум`));   // the sum is the card's (the block says only what is left)
   await expect(page.getByTestId("sheet-payout").getByTestId("payout-advance")).toHaveCount(0);
   await expect(page.getByTestId("sheet-payout")).not.toContainText("Аванс прошлого месяца");
 });
@@ -160,15 +164,17 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   await overpay.getByRole("button", { name: "Записать как аванс" }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(115000)}`))).toBeVisible();
   await expect(pastBlock).toContainText(new RegExp(`Переплачено\\s*${moneyPattern(15000)}\\s*сум`));
-  await expect(pastBlock.getByTestId("payout-advance")).toContainText(new RegExp(`Аванс\\s*${moneyPattern(15000)}\\s*сум зачтётся в выплате следующего месяца`));
+  await expect(pastBlock.getByTestId("payout-advance")).toHaveText("Переплата зачтётся в выплате следующего месяца");   // the chip says 15 000, the line only what happens to it
+  await expect(pastBlock.getByTestId("payout-advance")).not.toContainText(/\d/);
   await shot(page, project, "06-closed-month-overpaid");
 
   // --- the current month: the 15 000 advance of the past month is taken off: «К выплате» 85 000, the line says why
   await page.goto(`/owner/payroll/${sheetId}`);
   const block = page.getByTestId("sheet-payout");
-  await expect(block).toContainText(new RegExp(`К выплате\\s*${moneyPattern(85000)}\\s*сум`));
-  await expect(block).toContainText(new RegExp(`Аванс прошлого месяца\\s*${moneyPattern(15000)}\\s*сум`));
-  await expect(block.getByTestId("payout-advance")).toContainText("«К выплате» уменьшена на него");
+  await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(100000)}\\s*сум`));             // the card: the sheet
+  await expect(block).toContainText(new RegExp(`Осталось выплатить\\s*${moneyPattern(85000)}\\s*сум`));                  // the chip: what is payable after the advance
+  await expect(block).toContainText(new RegExp(`Аванс прошлого месяца:\\s*${moneyPattern(15000)}\\s*сум`));
+  await expect(block.getByTestId("payout-advance")).toContainText("к выплате меньше на эту сумму");
   await shot(page, project, "07-current-month-with-advance");
   const state = (await org.owner.api.get(`/auth/org/payroll/sheets/${sheetId}`)).payout;
   expect([state.carry_in, state.carry_used, state.target, state.balance]).toEqual([15000, 15000, 85000, 85000]);

@@ -413,7 +413,10 @@ test("the sheet block and the month row draw the payout", () => {
   const { SheetPayoutBlock } = require(path.join(root, "src/components/payroll/payout-block.tsx"));
   const due = named("A21_");
   const block = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: due, onChanged: () => undefined }));
-  for (const part of ["Выплата", "Выплачено полностью", "К выплате", "475 000 сум", "Выплачено", "Отметить выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
+  for (const part of ["Выплата", "Выплачено полностью", "Отметить выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
+  // D-3 of the walk of 05.11 (rule 87): the sum is the card above, the payouts are this list - no labelled figures that say them again
+  assert.ok(!block.includes("К выплате") && !block.includes("Осталось выплатить"), block);
+  assert.equal((plain(block).match(/475 000/g) || []).length, 1, "the 475 000 is said once: in the list of payouts");
   // one fact once (LESSONS 87): the change after the saving is said by the card of the sheet («Пересохранить»), not again under the payout
   assert.ok(!block.includes("изменилась на") && !block.includes("125 000"), block);
   const over = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: { ...named("A24_"), state: "overpaid", target: 350000, balance: -125000, changed_by: 0, change_text: null }, onChanged: () => undefined }));
