@@ -38,6 +38,8 @@ import {
   payButtonLabel,
   planView,
   PLAN_EMPTY_HINT,
+  REPLACE_HISTORY_NOTE,
+  replaceChangeLine,
   PLAN_LOADING_TEXT,
   QUICK_AMOUNTS_LABEL,
   quickAmounts,
@@ -275,6 +277,9 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           className="space-y-5 pb-2"
           noValidate
         >
+          {/* UX pack №13: «Исправить оплату» starts with what is now and what it will be, then ONE sentence about the history - over the fields */}
+          {kind === "replace" && payment && <ReplaceHead payment={payment} values={values} />}
+
           {/* 1. The amount, and the quick amounts that say what is due */}
           <div>
             {kind === "create" && due !== null && due.total > 0 && <p data-testid="payment-debt-now" className="-mt-2 mb-3 text-xs text-slate-600">Долг сейчас: <span className="font-medium tabular-nums">{formatMoney(due.total)}</span></p>}
@@ -399,7 +404,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
           {kind === "replace" && (
             <div>
-              <label htmlFor="payment-reason" className={LABEL}>Причина исправления <span className="font-normal text-slate-400">(необязательно)</span></label>
+              <label htmlFor="payment-reason" className={LABEL}>Причина исправления <span className="font-normal text-slate-500">(необязательно)</span></label>
               <input
                 id="payment-reason"
                 value={values.reason}
@@ -408,9 +413,6 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
                 placeholder="Исправлено"
                 className={FIELD}
               />
-              <p className="mt-1 text-xs text-slate-500">
-                Прежняя запись будет отменена и останется в истории серым. Деньги всей группы распределятся заново: расчёт выше уже без неё.
-              </p>
             </div>
           )}
 
@@ -423,6 +425,20 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         </form>
       )}
     </Modal>
+  );
+}
+
+/** The head of the window «Исправить оплату» (UX pack №13): «Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум» and the sentence about the history. */
+export function ReplaceHead({ payment, values }: { payment: EditablePayment; values: PaymentFormValues }) {
+  const line = replaceChangeLine(payment, values);
+  return (
+    <div className="-mt-1 space-y-1.5" data-testid="payment-replace-head">
+      <p className="flex flex-wrap items-baseline gap-x-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900" data-testid="payment-replace-change">
+        <span className="tabular-nums">{line.was}</span>{" "}
+        <span className="font-semibold tabular-nums"><span aria-hidden="true" className="font-normal text-slate-500">→</span> {line.becomes}</span>
+      </p>
+      <p className="text-xs text-slate-600" data-testid="payment-replace-note">{REPLACE_HISTORY_NOTE}</p>
+    </div>
   );
 }
 

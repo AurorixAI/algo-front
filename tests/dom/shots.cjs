@@ -10,6 +10,9 @@ const { toshmatovPreview, STAGE_EFFECTS, TOSHMATOV } = require("../helpers/stage
 const { layoutProbe } = require("../helpers/layout-probe.cjs");
 const { monthServer } = require("../helpers/month-list-fixture.cjs");
 const { transferServer } = require("../helpers/transfer-fixture.cjs");
+const { archiveServer } = require("../helpers/archive-fixture.cjs");
+const { openLessonsServer } = require("../helpers/open-lessons-fixture.cjs");
+const { toshmatovPreview: replacePreview } = require("../helpers/stage-numbers.cjs");
 
 const isDry = (call) => /dry_run=true/.test(call.query);
 let currentExtra = null;         // a shot may add answers of its own (they go first)
@@ -105,7 +108,7 @@ const SHOTS = [
     await field.fill("23112026");
     await page.waitForTimeout(800);
   } },
-  { name: "09-void-payment", entry: "money.entry.tsx", mount: "voidPayment", act: async (page) => { await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]'); await page.fill("#record-void-reason", "оплата внесена по ошибке"); } },
+  { name: "09-void-payment", entry: "money.entry.tsx", mount: "voidPayment", act: async (page) => { await page.waitForSelector("#record-void-reason"); await page.fill("#record-void-reason", "оплата внесена по ошибке"); } },
   { name: "10-writeoff", entry: "money.entry.tsx", mount: "writeoff", act: async (page) => { await page.waitForTimeout(500); await page.fill("#writeoff-reason", "болезнь, договорились с родителем"); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]'); } },
   { name: "11-return-to-review", entry: "money.entry.tsx", mount: "review", act: async (page) => { await page.waitForSelector('[data-testid="return-review-deductions"]'); await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке"); } },
   { name: "12-open-lessons-question", entry: "shots.entry.tsx", mount: "openLessonsQuestion", act: async (page) => { await page.waitForSelector('[role="dialog"]'); } },
@@ -147,6 +150,20 @@ const SHOTS = [
     act: async (page) => { await page.click("text=Геометрия 8"); await page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); } },
   { name: "15-transfer-bulk", entry: "shots.entry.tsx", mount: "addStudent", extra: transferServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
     act: async (page) => { await page.fill('input[placeholder^="Поиск по имени"]', "Кари"); await page.click('button:has-text("Каримов Фарход")'); await page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); } },
+  // UX pack №5, №6, №7, №9, №13 (wave б)
+  { name: "05-cancel-missed", entry: "money.entry.tsx", mount: "cancelMissed", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="cancellation-kind"]'); await page.fill("#cancel-missed-reason", "преподаватель заболел"); } },
+  { name: "06-archive", entry: "money.entry.tsx", mount: "archive", extra: archiveServer(), sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="archive-missed"]'); } },
+  { name: "06-archive-ticked", entry: "money.entry.tsx", mount: "archive", extra: archiveServer(), sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="archive-missed"]'); await page.click('label:has-text("отменить его при архивации")'); } },
+  { name: "07-open-lessons-admin", entry: "money.entry.tsx", mount: "openLessons", user: { role: "admin", org_role: "admin", payments_access: false }, extra: openLessonsServer(), sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="open-month"]'); } },
+  { name: "17-open-lessons-owner", entry: "money.entry.tsx", mount: "openLessons", extra: openLessonsServer(), sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="open-month"]'); } },
+  { name: "07-money-denied", entry: "money.entry.tsx", mount: "moneyDenied", user: { role: "admin", org_role: "admin", payments_access: false }, sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="money-denied"]'); } },
+  { name: "07-student-transfer-off", entry: "money.entry.tsx", mount: "studentGroups", user: { role: "admin", org_role: "admin", payments_access: false }, props: { moneyRight: false }, sizes: [[1280, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="enrol-transfer-why"]'); } },
+  { name: "09-payout", entry: "money.entry.tsx", mount: "payout", props: { state: { saved_total: 757500, fresh_total: 757500, target: 757500, paid: 0, balance: 757500, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 0 } }, sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector("#payout-amount"); await page.click('[role="radio"]:has-text("Наличные")'); } },
+  { name: "09-payout-overpay", entry: "money.entry.tsx", mount: "payout", props: { state: { saved_total: 757500, fresh_total: 757500, target: 757500, paid: 150000, balance: 607500, state: "due", basis: "saved", changed_by: 0, change_text: null, text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 0 } },
+    extra: (request) => (request.method === "POST" && request.path === "/auth/org/payroll/sheets/s1/payouts" ? { status: 409, json: { detail: { code: "OVERPAY_CONFIRM_REQUIRED", message: "x", overpay: 50000, balance: 607500 } } } : null), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.fill("#payout-amount", "657 500"); await page.click('[role="radio"]:has-text("Наличные")'); await page.click('[data-testid="payout-submit"]'); await page.waitForSelector('[data-testid="payout-overpay"]'); } },
+  { name: "13-replace", entry: "money.entry.tsx", mount: "replace", props: { membership: TOSHMATOV }, preview: replacePreview, sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForSelector('[data-testid="payment-replace-change"]'); await page.fill("#payment-amount", "200 000"); await page.waitForSelector('[data-testid="payment-plan-rows"]'); } },
   { name: "15-sheet-restore", entry: "money.entry.tsx", mount: "sheet", act: async (page) => { await page.click('[data-testid="sheet-restore"]'); await page.fill("#sheet-reason", "центр работает, выходной отменили"); await page.waitForSelector('[data-testid="return-review-deductions"]'); } },
 ];
 

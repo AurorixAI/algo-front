@@ -4,11 +4,13 @@
 // yet), and offers the quick amounts that carry the information the old top block used to.  No React: node:test loads it.
 import { formatDayMonthRu } from "./business-time";
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
-import { formatMoney, type Allocation, type PaymentPreview } from "./payments";
+import { formatMoney, type Allocation, type PayMethod, type PaymentPreview } from "./payments";
 import { lessonsWord } from "./plural";
 import {
   dueView,
   METHODS,
+  methodLabel,
+  previewAmount,
   previewView,
   splitDueSegments,
   sum,
@@ -340,10 +342,30 @@ export function rememberMethod(method: EnterableMethod | null | undefined, stora
 
 // ── The button ─────────────────────────────────────────────────────────────
 
-/** «Внести 1 142 000 сум»; the amount is the live one, a correction says what it does. */
+/** «Внести 1 142 000 сум» / «Исправить на 200 000 сум»; the amount is the live one, the button names what it does (UX pack rule 3). */
 export function payButtonLabel(kind: "create" | "replace", amount: number | null): string {
-  if (kind === "replace") return "Сохранить исправление";
+  if (kind === "replace") return amount !== null ? `Исправить на ${formatMoney(amount)}` : "Исправить оплату";
   return amount !== null ? `Внести ${formatMoney(amount)}` : "Внести";
+}
+
+/** The sentence over the fields of a correction (UX pack №13): what the history says now, once, before the fields. */
+export const REPLACE_HISTORY_NOTE = "Прежняя запись будет отменена и останется в истории серым. Деньги всей группы распределятся заново.";
+
+/**
+ * The first line of the window «Исправить оплату» (UX pack №13): «Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум».  The «станет» part follows the form live: the amount, and the date or
+ * the method only when the person changed them.
+ */
+export function replaceChangeLine(
+  payment: { amount: number; paid_on: string; method?: PayMethod | null },
+  values: Pick<PaymentFormValues, "amount" | "paidOn" | "method">,
+): { was: string; becomes: string } {
+  const day = (iso: string) => formatDayMonthRu(iso);
+  const method = (key: PayMethod | null | undefined) => methodLabel(key).toLowerCase();
+  const amount = previewAmount(values.amount);
+  const becomes = [amount !== null ? formatMoney(amount) : "—"];
+  if (values.paidOn && values.paidOn !== payment.paid_on) becomes.push(day(values.paidOn));
+  if (values.method && values.method !== payment.method) becomes.push(method(values.method));
+  return { was: `Было: ${formatMoney(payment.amount)} · ${day(payment.paid_on)} · ${method(payment.method)}`, becomes: `станет: ${becomes.join(" · ")}` };
 }
 
 /** Why the button is off (shown right above it); null = the form can be sent. */

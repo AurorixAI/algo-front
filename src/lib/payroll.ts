@@ -604,15 +604,15 @@ export const MARK_CELL_CLASS: Record<MarkTone, string> = {
 /** #154: the cell of an additional lesson whose payment is not decided («?», not in the sum) and of one that is not paid («без»). */
 export const UNDECIDED_CELL_LABEL = "?";
 export const NO_PAY_CELL_LABEL = "без";
-export const UNDECIDED_MARK_HINT = "Дополнительный урок: оплата не решена — в сумму не входит, пока владелец или администратор с правом на оплаты не решит";
-export const NO_PAY_MARK_HINT = "Дополнительный урок без оплаты преподавателю — 0";
+export const UNDECIDED_MARK_HINT = "Дополнительный урок: ждёт решения — в сумму не входит, пока владелец или администратор с доступом к деньгам не решит";
+export const NO_PAY_MARK_HINT = "Дополнительный урок не входит в зарплату — 0";
 
 /**
- * #154: the line under the student's name - «без оплаты преподавателю: 2» (not «без оплаты»: the column «Без оплаты» is the unpaid lessons of the student).  The mark of the sheet does not say what the lesson is for (the server sends the state only),
+ * #154: the line under the student's name - «не входит в зарплату: 2» (not «без оплаты»: the column «Без оплаты» is the unpaid lessons of the student).  The mark of the sheet does not say what the lesson is for (the server sends the state only),
  * so the words are neutral (since #159 only an additional lesson ends up here: a make-up is an ordinary lesson, P154_API §8 v4); no «доп. урок» in the line.
  */
 export function noPayLineText(count: number | null | undefined): string {
-  return `без оплаты преподавателю: ${Math.max(0, Math.floor(Number(count) || 0))}`;
+  return `не входит в зарплату: ${Math.max(0, Math.floor(Number(count) || 0))}`;
 }
 
 /** The cell of an excuse that waits for a decision: the short form of «Ждёт решения», explained by the legend of the sheet. */
@@ -1099,7 +1099,7 @@ export function monthRateLines(teacher: Pick<PayrollMonthTeacher, "rates" | "mis
   return { lines: entries.map((entry) => (entry.percent === null ? `${RATE_SHORT_LABEL[entry.type]} — нет ставки` : `${RATE_SHORT_LABEL[entry.type]} ${percentShort(entry.percent)}`)), missing, none: false };
 }
 
-export const UNDECIDED_HINT = "Дополнительные уроки, оплату которых ещё никто не решил: пока не решено, в сумму они не входят. Решите «Оплатить / Не оплачивать» в «Заменах».";
+export const UNDECIDED_HINT = "Дополнительные уроки ждут решения: пока их не решили, в сумму они не входят. Решите «Включить в зарплату / Не включать» в «Заменах».";
 
 /**
  * What of a teacher's month NEEDS AN ACTION (UX pack §5.2-бис): an unfinished lesson, an excuse that waits, a missing price, an additional lesson nobody decided - and the saved salary that CHANGED
@@ -1413,10 +1413,10 @@ export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" |
   return parts;
 }
 
-/** #154: «не решено 3 посещения (в сумму не входят)» - the additional lessons whose payment nobody has decided; null when there are none. */
+/** #154: «ждут решения 3 посещения (в сумму не входят)» - the additional lessons nobody has decided; null when there are none. */
 export function undecidedText(visits: number | null | undefined): string | null {
   const n = Math.max(0, Math.floor(Number(visits) || 0));
-  return n > 0 ? `не решено ${visitsText(n)} (в сумму не входят)` : null;
+  return n > 0 ? `ждут решения ${visitsText(n)} (в сумму не входят)` : null;
 }
 
 /** #154 (the month of a teacher): «Не решено: 2 урока» - held additional lessons that wait for «Оплатить / Не оплачивать». */

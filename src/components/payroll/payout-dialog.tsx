@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, NOTE_MAX, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
@@ -11,14 +11,14 @@ import {
   buildPayoutBody,
   emptyPayoutValues,
   PAYOUT_ACTION_LABEL,
-  payoutAdvanceHint,
+  payoutHeadline,
+  PAYOUT_SUBTITLE,
   PAYOUT_ADVANCE_LABEL,
   PAYOUT_METHODS,
   payoutAfterText,
   payoutError,
   payoutNote,
   payoutOverpayQuestion,
-  sheetPayoutParts,
   validatePayout,
   type PayoutFormValues,
   type PayoutState,
@@ -26,12 +26,13 @@ import {
 import { monthTitle, type PayrollErrorLike } from "@/lib/payroll";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 
-const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
+const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
 /**
- * «Отметить выплату»: the amount (what is left to pay by default), the date, how it was paid, a note.  A payout belongs to the month of
+ * «Записать выплату» (UX pack №9): the amount (what is left to pay by default), the date, how it was paid, a note.  A payout belongs to the month of
  * the sheet and never rewrites it.  Paying more than is left (MN-32): the SERVER refuses with 409 `OVERPAY_CONFIRM_REQUIRED` and the by-how-much;
  * the window then asks «Выплата больше остатка на N сум — записать как аванс?» and only «Записать как аванс» sends `confirm_overpay`.
  */
@@ -70,7 +71,8 @@ export function PayoutDialog({
   }, [open, sheetId]);
 
   const amount = parseMoneyInput(values.amount);
-  const after = payoutAfterText(amount, state);
+  // the question about more than is left says the same (rule 87: a fact once) - the hint under the field stays silent while it is open
+  const after = overpay !== null ? "" : payoutAfterText(amount, state, month);
   const patch = (next: Partial<PayoutFormValues>) => { setError(null); setOverpay(null); setValues((previous) => ({ ...previous, ...next })); };
 
   const send = async (confirmedOverpay: number | null) => {
@@ -106,7 +108,10 @@ export function PayoutDialog({
     void send(null);
   };
 
-  const parts = sheetPayoutParts(state);
+  const headline = payoutHeadline(state);
+  // an open month tells its figures in the line over the form; the sentence of the server repeats them - it stays only for what the line does not say (an overpay, the advance of the earlier months)
+  const note = headline && state?.basis === "fresh" && state.state !== "overpaid" ? null : payoutNote(state);
+  const amountText = amount !== null && amount > 0 ? ` ${formatMoney(amount)}` : "";
 
   return (
     <Modal
@@ -115,41 +120,33 @@ export function PayoutDialog({
       description={`${teacherName} · ${monthTitle(month)}`}
       onClose={onClose}
       busy={busy}
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
-        <>
-          {/* «Отмена» of the question goes back to the form (the amount can be corrected); of the form it closes the window */}
-          <button type="button" onClick={overpay !== null ? () => setOverpay(null) : onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type={overpay !== null ? "button" : "submit"}
-            form="payout-form"
-            onClick={overpay !== null ? () => void send(overpay) : undefined}
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {overpay !== null ? PAYOUT_ADVANCE_LABEL : "Сохранить"}
-          </button>
-        </>
+        // UX pack №9 / rule 3: the main button names the action and the sum; off - with the line «почему»; «Отмена» of the question goes back to the form, of the form closes the window
+        <ConfirmFooter
+          primary={`${overpay !== null ? PAYOUT_ADVANCE_LABEL : PAYOUT_ACTION_LABEL}${amountText}`}
+          submitFor={overpay !== null ? undefined : "payout-form"}
+          onPrimary={overpay !== null ? () => void send(overpay) : undefined}
+          busy={busy}
+          disabled={amount === null || amount < 1}
+          why="Введите сумму выплаты."
+          whyId="payout-why"
+          onCancel={overpay !== null ? () => setOverpay(null) : onClose}
+          cancelLabel="Отмена"
+          testId="payout-submit"
+        />
       )}
     >
       <form id="payout-form" onSubmit={(event) => { event.preventDefault(); submit(); }} className="space-y-4 pb-2" noValidate>
-        {parts.length > 0 && (
-          <dl className="flex flex-wrap gap-x-5 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm" data-testid="payout-state">
-            {parts.map((part) => (
-              <div key={part.label}>
-                <dt className="text-xs text-slate-500">{part.label}</dt>
-                <dd className={`font-semibold tabular-nums ${part.tone === "due" ? "text-amber-800" : part.tone === "over" ? "text-sky-800" : "text-slate-900"}`}>{part.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {payoutNote(state) && <p className="text-sm text-slate-600" data-testid="payout-text">{payoutNote(state)}</p>}
+        <p className="text-xs text-slate-600" data-testid="payout-subtitle">{PAYOUT_SUBTITLE}</p>
+        {headline && <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold tabular-nums text-slate-900" data-testid="payout-state">{headline}</p>}
+        {note && <p className="text-sm text-slate-600" data-testid="payout-text">{note}</p>}
 
         <div>
           <label htmlFor="payout-amount" className={LABEL}>Сумма</label>
           <div className="relative">
             <input id="payout-amount" value={values.amount} onChange={(event) => patch({ amount: reformatMoneyTyping(event.target.value) })} inputMode="numeric" autoComplete="off" autoFocus placeholder="475 000" className={`${FIELD} pr-12`} />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
           </div>
           <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{after}</p>
         </div>
@@ -179,14 +176,14 @@ export function PayoutDialog({
         </div>
 
         <div>
-          <label htmlFor="payout-note" className={LABEL}>Примечание <span className="font-normal text-slate-400">(необязательно)</span></label>
+          <label htmlFor="payout-note" className={LABEL}>Примечание <span className="font-normal text-slate-500">(необязательно)</span></label>
           <input id="payout-note" value={values.note} onChange={(event) => patch({ note: event.target.value })} maxLength={NOTE_MAX} autoComplete="off" className={FIELD} />
         </div>
 
         {overpay !== null && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>{payoutOverpayQuestion(overpay, state?.basis)}<span className="mt-1 block text-xs font-normal text-amber-800">{payoutAdvanceHint(state?.basis)}</span></span>
+            <span>{payoutOverpayQuestion(overpay, state?.basis)}</span>
           </p>
         )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

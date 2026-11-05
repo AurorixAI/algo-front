@@ -983,7 +983,7 @@ test("the payroll table speaks the centre's mode, names its headers, has one too
   assert.equal(R.payrollFormulaText(12), "Цена в месяц × % ÷ 12 × засчитанные уроки");
   assert.equal(R.payrollFormulaText(8, "Цена пакета"), "Цена пакета × % ÷ 8 × засчитанные уроки");
   // no stale words of the old name
-  assert.doesNotMatch(read("src/lib/payroll.ts"), /включить|включён/i);
+  assert.doesNotMatch(read("src/lib/payroll.ts"), /(включить|включён) (?!в зарплату)/i); // «Включить в зарплату» is the word of the dictionary (UX pack §1)
 });
 
 test("a scheduled price is taken back with a DELETE: typed in api.ts, confirmed, refusals refresh", () => {

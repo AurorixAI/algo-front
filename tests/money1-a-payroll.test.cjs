@@ -468,9 +468,9 @@ test("D-2: the headline is told by the server's fields (`basis`), not by the dat
 });
 
 test("R3 item 11: a payout above what is accrued needs the owner's yes («больше начисленного сейчас»); the closed month keeps «больше остатка»", () => {
-  assert.equal(plain(Y.payoutOverpayQuestion(25000, "fresh")), "Выплата больше начисленного сейчас на 25 000 сум — записать как аванс?");
-  assert.equal(plain(Y.payoutOverpayQuestion(25000, "saved")), "Выплата больше остатка на 25 000 сум — записать как аванс?");
-  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Выплата больше остатка на 25 000 сум — записать как аванс?");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "fresh")), "Это на 25 000 сум больше начисленного сейчас — запишем как выплату вперёд: она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "saved")), "Это на 25 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Это на 25 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
   assert.deepEqual(Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" }, 25000), { amount: 150000, paid_on: "2026-11-05", method: "cash", confirm_overpay: true, overpay: 25000 });
   assert.ok(!("confirm_overpay" in Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" })), "never sent by default");
 });

@@ -389,9 +389,10 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   const ready = { ...values, method: "cash" };
   assert.equal(Y.validatePayout(ready, "2026-11-12"), null);
   assert.deepEqual(Y.buildPayoutBody(ready), { amount: 125000, paid_on: "2026-11-12", method: "cash" });
-  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Выплата больше остатка на 30 000 сум — записать как аванс?");     // MN-32 (wave B P4): the server decides, the owner confirms
+  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Это на 30 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");     // MN-32 (wave B P4): the server decides, the owner confirms
   assert.equal(plain(Y.payoutAfterText(100000, owing)), "Останется выплатить 25 000 сум");
-  assert.equal(Y.payoutAfterText(125000, owing), "Выплачено полностью");
+  assert.equal(Y.payoutAfterText(125000, owing), "Это вся сумма — выплата будет закрыта");
+  assert.equal(Y.payoutAfterText(125000, owing, "2026-10"), "Это вся сумма — выплата за октябрь будет закрыта");
   assert.match(Y.validatePayout({ ...ready, paidOn: "2026-11-13" }, "2026-11-12"), /не может быть в будущем/);
   assert.match(Y.validatePayout({ ...ready, amount: "" }, "2026-11-12"), /Укажите сумму/);
   assert.equal(plain(Y.payoutLine(named("A20_").payout)), "05.11.2026 · 475 000 сум · Наличные · Арслан");
@@ -410,7 +411,7 @@ test("the sheet block and the month row draw the payout", () => {
   const { SheetPayoutBlock } = require(path.join(root, "src/components/payroll/payout-block.tsx"));
   const due = named("A21_");
   const block = text(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "Каримова", payout: due, onChanged: () => undefined }));
-  for (const part of ["Выплата", "Выплачено полностью", "Отметить выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
+  for (const part of ["Выплата", "Выплачено полностью", "Записать выплату", "05.11.2026 · 475 000 сум · Наличные · Арслан", "Отменить"]) assert.ok(block.includes(part), part);
   // D-3 of the walk of 05.11 (rule 87): the sum is the card above, the payouts are this list - no labelled figures that say them again
   assert.ok(!block.includes("К выплате") && !block.includes("Осталось выплатить"), block);
   assert.equal((plain(block).match(/475 000/g) || []).length, 1, "the 475 000 is said once: in the list of payouts");

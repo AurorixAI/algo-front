@@ -398,7 +398,8 @@ test("the primary button carries the amount and updates live", () => {
   assert.equal(plain(X.payButtonLabel("create", 1142000)), "Внести 1 142 000 сум");
   assert.equal(plain(X.payButtonLabel("create", 592000)), "Внести 592 000 сум");
   assert.equal(X.payButtonLabel("create", null), "Внести");
-  assert.equal(X.payButtonLabel("replace", 250000), "Сохранить исправление");
+  assert.equal(X.payButtonLabel("replace", 250000), `Исправить на ${require("../src/lib/payments.ts").formatMoney(250000)}`);
+  assert.equal(X.payButtonLabel("replace", null), "Исправить оплату");
   assert.match(read("src/components/payments/payment-dialog.tsx"), /payButtonLabel\(kind, amountNow\)/);
 });
 

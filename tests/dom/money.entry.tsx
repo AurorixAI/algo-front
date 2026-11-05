@@ -22,6 +22,10 @@ import { PayrollMonthSummary } from "@/components/payroll/month-status";
 import { monthPeriodView, periodView } from "@/lib/closed-period";
 import { monthTotals } from "@/lib/payroll";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { CancelMissedLessonModal } from "@/components/attendance/cancel-missed-lesson-modal";
+import { GroupArchiveDialog } from "@/components/groups/group-archive-dialog";
+import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { StudentGroupsBlock } from "@/components/students/student-groups-block";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -63,6 +67,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "till":
       root.render(<PaymentDialog open kind="create" membership={props.membership ?? MEMBERSHIP} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
       break;
+    case "replace":
+      root.render(<PaymentDialog open kind="replace" membership={props.membership ?? MEMBERSHIP} payment={props.payment ?? { id: "p1", amount: 400000, paid_on: "2026-11-05", method: "cash", note: null }} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
+      break;
     case "voidPayment":
       root.render(<PaymentVoidModal payment={{ id: "p1", paid_on: "2026-11-05", amount: 300000 }} studentName="Иванов Иван" onClose={() => log("close")} onVoided={() => log("voided")} />);
       break;
@@ -99,6 +106,18 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "assign":
       if (props.moneyAvailable) usePaymentsSummary.setState({ available: true, loaded: true });
       root.render(<AssignGroupModal open studentId="st1" studentName="Иванов Иван" mode="transfer" currentGroupId="g1" currentGroupName="7-А Алгебра" onClose={() => log("close")} onAssigned={() => log("assigned")} />);
+      break;
+    case "cancelMissed":
+      root.render(<CancelMissedLessonModal target={{ groupId: "g1", lessonId: "l1", lessonDate: "2026-11-03" }} onClose={() => log("close")} onCancelled={(target, notes) => log(`cancelled:${target.lessonDate}:${notes.join("|")}`)} />);
+      break;
+    case "archive":
+      root.render(<GroupArchiveDialog open group={{ id: "g1", name: "Архив-тест 3" }} groupsBasePath="/owner/groups" onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);
+      break;
+    case "moneyDenied":
+      root.render(<MoneyAccessDenied />);
+      break;
+    case "studentGroups":
+      root.render(<div className="mx-auto max-w-3xl"><StudentGroupsBlock profile={{ student: { status: "active", full_name: "Каримов Фарход" }, groups: [{ membership_id: "m1", group_id: "g1", group_name: "Алгебра 7 (вт/пт)", teacher_id: "t1", teacher_name: "Камол Эргашев", class_level: 7, is_primary: true, joined_at: "2026-09-01" }] } as never} groupsBasePath="/admin/groups" isTeacher={false} moneyRight={Boolean(props.moneyRight)} onAssign={(mode: string) => log(`assign:${mode}`)} /></div>);
       break;
     case "openLessons":
       root.render(<OpenLessonsView groupsBasePath="/owner/groups" />);

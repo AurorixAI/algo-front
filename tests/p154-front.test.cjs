@@ -316,7 +316,7 @@ test("A: the counter of the tab and of the menu is the requests plus the lessons
   assert.equal(useSubstitutionBadge.getState().pending, 3);
   useSubstitutionBadge.getState().reset();
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /tabLabel\("pending", waitingCount\)/);
+  assert.match(page, /tabLabel\("pending", listedCount\)/);
   assert.match(page, /<OneOffDecisionsBlock/);
   assert.match(page, /oneOffDecisionsTotal: decisionsTotalRef\.current/);
   assert.match(page, /decisionsOnly \? null : <EmptyState/, "the empty text is not said while rows of money wait");
@@ -341,12 +341,12 @@ test("A: the cells «не решено» and «без оплаты» have their 
   const undecided = P.markCell(0, "undecided");
   assert.equal(undecided.tone, "undecided");
   assert.equal(undecided.label, "?");
-  assert.match(undecided.title, /оплата не решена/);
+  assert.match(undecided.title, /ждёт решения/);
   assert.match(undecided.className, /amber/);
   const noPay = P.markCell(0, "no_pay");
   assert.equal(noPay.tone, "no_pay");
   assert.equal(noPay.label, "без");
-  assert.match(noPay.title, /без оплаты/);
+  assert.match(noPay.title, /не входит в зарплату/);
   assert.notEqual(undecided.className, noPay.className);
   // an old sheet still reads as before
   assert.equal(P.markCell(1, "counted").label, "1");
@@ -359,9 +359,9 @@ test("A: the cells «не решено» and «без оплаты» have their 
 
 test("A: the facts of the sheet and of the month say «не решено»", () => {
   const sheet = { lines: [], percents: {}, counted_total: 10, unpaid_total: 0, undecided_total: 2, warnings: {} };
-  assert.ok(P.sheetFactsParts(sheet, 0).includes("не решено 2 посещения (в сумму не входят)"));
-  assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: 0 }, 0).some((part) => /не решено/.test(part)), false);
-  assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: undefined }, 0).some((part) => /не решено/.test(part)), false);
+  assert.ok(P.sheetFactsParts(sheet, 0).includes("ждут решения 2 посещения (в сумму не входят)"));
+  assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: 0 }, 0).some((part) => /ждут решения/.test(part)), false);
+  assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: undefined }, 0).some((part) => /ждут решения/.test(part)), false);
   assert.equal(P.undecidedLessonsText(2), "Не решено: 2 урока");
   assert.equal(P.undecidedLessonsText(1), "Не решено: 1 урок");
   assert.equal(P.undecidedLessonsText(0), null);
@@ -424,16 +424,16 @@ test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
 // ── the defects of the walk on stage (29.10): D1 the sheet line of a make-up, D2 «Отработан → …» on the card of a student ───────────────────────────────
 
 test("D1: the line under the student on the sheet does not call a make-up «доп. урок»; the legend and the hints name both", () => {
-  assert.equal(P.noPayLineText(2), "без оплаты преподавателю: 2");
-  assert.equal(P.noPayLineText(undefined), "без оплаты преподавателю: 0");
+  assert.equal(P.noPayLineText(2), "не входит в зарплату: 2");
+  assert.equal(P.noPayLineText(undefined), "не входит в зарплату: 0");
   const sheet = read("src/components/payroll/sheet-table.tsx");
   assert.match(sheet, /noPayLineText\(line\.no_pay \?\? 0\)/);
   assert.doesNotMatch(sheet, /доп\. урок/, "the mark of the sheet does not say what the lesson is for: the words are neutral");
   const { SHEET_LEGEND } = require(path.join(root, "src/lib/payroll-help.ts"));
-  assert.match(SHEET_LEGEND.find((x) => x.key === "undecided").text, /^дополнительный урок, оплата не решена/);          // #159: an empty make-up is an ordinary lesson, it is never «не решено»
-  assert.match(SHEET_LEGEND.find((x) => x.key === "no_pay").text, /^дополнительный урок без оплаты/);
-  assert.match(P.markCell(0, "undecided").title, /^Дополнительный урок: оплата не решена/);
-  assert.match(P.markCell(0, "no_pay").title, /^Дополнительный урок без оплаты/);
+  assert.match(SHEET_LEGEND.find((x) => x.key === "undecided").text, /^дополнительный урок ждёт решения/);          // #159: an empty make-up is an ordinary lesson, it is never «не решено»
+  assert.match(SHEET_LEGEND.find((x) => x.key === "no_pay").text, /^дополнительный урок не входит в зарплату/);
+  assert.match(P.markCell(0, "undecided").title, /^Дополнительный урок: ждёт решения/);
+  assert.match(P.markCell(0, "no_pay").title, /^Дополнительный урок не входит в зарплату/);
 });
 
 test("D2: the cancelled original on the card of a student says «Отработан → чт 06.11» - the chip and the link of the schedule of a group", () => {

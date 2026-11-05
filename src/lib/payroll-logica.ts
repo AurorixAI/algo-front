@@ -371,7 +371,9 @@ export interface PayoutFormValues {
   note: string;
 }
 
-export const PAYOUT_ACTION_LABEL = "Отметить выплату";
+export const PAYOUT_ACTION_LABEL = "Записать выплату";
+/** UX pack №9: the window only RECORDS a payout - the centre pays the teacher itself. */
+export const PAYOUT_SUBTITLE = "Запись о выплате — деньги ALGO не переводит.";
 export const PAYOUT_MAX_AGE_YEARS = 3;
 
 /** The amount the form starts with: what is left to pay (never negative); empty when nothing is left. */
@@ -409,22 +411,17 @@ export function buildPayoutBody(values: PayoutFormValues, confirmedOverpay: numb
 
 /** MN-32: the question of the window when the SERVER says the payout is above the balance (it counts the balance under the lock of the sheet, the screen may be stale). */
 export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis"] = "saved"): string {
-  // an open month is paid by what is accrued now (R3 #20): the payout above it is an advance on what the month has not earned yet
+  // UX pack №9: ONE plaque, the whole sentence (the words of the server: «Выплачено вперёд …» / «Выплачено больше … — вычтем из следующей выплаты»).
+  // An open month is paid by what is accrued now (R3 #20): the payout above it is made ahead of what the month has not earned yet.
   return basis === "fresh"
-    ? `Выплата больше начисленного сейчас на ${formatMoney(overpay)} — записать как аванс?`
-    : `Выплата больше остатка на ${formatMoney(overpay)} — записать как аванс?`;
+    ? `Это на ${formatMoney(overpay)} больше начисленного сейчас — запишем как выплату вперёд: она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.`
+    : `Это на ${formatMoney(overpay)} больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.`;
 }
 
-export const PAYOUT_ADVANCE_LABEL = "Записать как аванс";
-/** R3 3: under the question of the window - what the advance does.  A CLOSED month hands the advance on as it is. */
-export const PAYOUT_ADVANCE_HINT = "Аванс уменьшит выплату следующего месяца";
+/** The name of the main button when the payout is above the rest and the person confirms it (the amount is added by the window). */
+export const PAYOUT_ADVANCE_LABEL = "Записать выплату вперёд";
 /** An OPEN month is paid by what is accrued now and hands nothing on yet (`advance_out = 0`): only what is left of the overpay at the END of the month goes on. */
 export const PAYOUT_ADVANCE_HINT_OPEN = "Месяц ещё идёт: если к его концу начислится меньше выплаченного, разница уменьшит выплату следующего месяца";
-
-/** The hint under the question about an overpay, by the basis of the payout state (R3 #20): `fresh` - the month is open, otherwise it is closed. */
-export function payoutAdvanceHint(basis: PayoutState["basis"] | null | undefined): string {
-  return basis === "fresh" ? PAYOUT_ADVANCE_HINT_OPEN : PAYOUT_ADVANCE_HINT;
-}
 
 /**
  * Under the chip of a sheet: only what the chip and the card do not say, and no number twice (walk of 05.11, D-3, rule 87).
@@ -449,13 +446,28 @@ export function advanceLines(state: PayoutState | null | undefined): string[] {
   return lines;
 }
 
-/** Under the amount: what is left after this payout («Останется выплатить 125 000 сум» / «Выплачено полностью»). */
-export function payoutAfterText(amount: number | null, state: PayoutState | null | undefined): string {
+/**
+ * Under the amount (UX pack №9): what this payout does to the month - «Останется выплатить 125 000 сум» / «Это вся сумма — выплата за октябрь будет закрыта» / «Это на 50 000 сум больше остатка».
+ * `month` is `YYYY-MM` (the month of the sheet).  An earlier overpay is not «left to pay» (as the server's question, rel-b3 walk).
+ */
+export function payoutAfterText(amount: number | null, state: PayoutState | null | undefined, month?: string | null): string {
   if (amount === null || amount < 1 || !state) return "";
-  const rest = Math.max(state.balance, 0) - amount;      // as the server's question: an earlier overpay is not «left to pay» (rel-b3 walk)
+  const rest = Math.max(state.balance, 0) - amount;
   if (rest > 0) return `Останется выплатить ${formatMoney(rest)}`;
-  if (rest === 0) return "Выплачено полностью";
-  return `Переплата ${formatMoney(-rest)}`;
+  if (rest === 0) return month ? `Это вся сумма — выплата за ${monthNameRu(month).toLowerCase()} будет закрыта` : "Это вся сумма — выплата будет закрыта";
+  return `Это на ${formatMoney(-rest)} больше ${state.basis === "fresh" ? "начисленного сейчас" : "остатка"}`;
+}
+
+/**
+ * The ONE line over the form of the payout (UX pack №9): «К выплате 757 500 сум»; the second figure only when a part is paid already («Осталось выплатить 607 500 сум из 757 500 сум»).  An open month
+ * says «К выплате сейчас» (what is accrued now).  Nothing left to pay: no line - the note under says what it means.
+ */
+export function payoutHeadline(state: PayoutState | null | undefined): string | null {
+  if (!state) return null;
+  const left = Math.max(state.balance, 0);
+  if (left === 0) return null;
+  if (state.paid > 0) return `Осталось выплатить ${formatMoney(left)} из ${formatMoney(state.target)}`;
+  return `${state.basis === "fresh" ? "К выплате сейчас" : "К выплате"} ${formatMoney(left)}`;
 }
 
 /** One payout of the history: «05.11.2026 · 475 000 · Наличные · Арслан». */
