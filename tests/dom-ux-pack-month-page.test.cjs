@@ -8,7 +8,7 @@ const os = require("node:os");
 const { execFileSync } = require("node:child_process");
 const { launch, openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
-const { monthServer } = require("./helpers/month-list-fixture.cjs");
+const { monthServer, SABINA } = require("./helpers/month-list-fixture.cjs");
 
 const root = path.join(__dirname, "..");
 let browser;
@@ -67,7 +67,7 @@ test("hover, focus and tap open the list of what to do - every item a link, the 
   await first.hover();
   await page.waitForSelector('[data-testid="status-todo-panel"]');
   const items = (await page.locator('[data-testid="status-todo-item"]').allTextContents()).map(plain);
-  assert.deepEqual(items, ["1 незакрытый урок", "1 доп. урок ждёт решения", "Зарплата изменилась на −45 000 сум — сохраните новую сумму"]);
+  assert.deepEqual(items, ["1 урок без отметки", "1 доп. урок ждёт решения", "Зарплата изменилась на −45 000 сум — сохраните новую сумму"]);
   const hrefs = await page.locator('[data-testid="status-todo-item"]').evaluateAll((links) => links.map((link) => link.getAttribute("href")));
   assert.deepEqual(hrefs, ["/owner/attendance?tab=open", "/owner/substitutions", "/owner/payroll/s1"]);
   await page.keyboard.press("Escape");
@@ -114,3 +114,69 @@ for (const width of [1280, 1024, 375]) {
     await page.close();
   });
 }
+
+test("F2: the four tiles share the whole width of the content (1280 and 1024: four equal columns; 375: two by two)", async () => {
+  for (const width of [1280, 1024, 375]) {
+    const { page } = await openMonth(width);
+    const geometry = await page.evaluate(() => {
+      const tiles = [...document.querySelectorAll('[data-testid^="month-tile-"]')].map((el) => el.getBoundingClientRect());
+      const list = document.querySelector('[data-testid="payroll-month-summary"]').getBoundingClientRect();
+      return { lefts: tiles.map((r) => Math.round(r.left)), tops: tiles.map((r) => Math.round(r.top)), widths: tiles.map((r) => Math.round(r.width)), rightEdge: Math.round(Math.max(...tiles.map((r) => r.right))), listRight: Math.round(list.right), listLeft: Math.round(list.left) };
+    });
+    assert.ok(Math.abs(geometry.rightEdge - geometry.listRight) <= 1, `${width}: the last tile reaches the right edge of the content: ${JSON.stringify(geometry)}`);
+    assert.ok(Math.max(...geometry.widths) - Math.min(...geometry.widths) <= 2, `${width}: equal columns ${JSON.stringify(geometry)}`);
+    if (width >= 1024) assert.equal(new Set(geometry.tops).size, 1, `${width}: one row ${JSON.stringify(geometry)}`);
+    else assert.deepEqual([...new Set(geometry.tops)].length, 2, `${width}: 2 x 2 ${JSON.stringify(geometry)}`);
+    await page.close();
+  }
+});
+
+test("F2: three tiles (nothing paid ahead) fill the width too - no empty fourth place; on a phone the odd one spans both columns", async () => {
+  for (const width of [1280, 375]) {
+    const { page } = await openMonth(width, monthServer({ teachers: [SABINA] }));
+    assert.equal(await page.locator('[data-testid^="month-tile-"]').count(), 3);
+    const geometry = await page.evaluate(() => { const tiles = [...document.querySelectorAll('[data-testid^="month-tile-"]')].map((el) => el.getBoundingClientRect()); const list = document.querySelector('[data-testid="payroll-month-summary"]').getBoundingClientRect(); return { right: Math.round(Math.max(...tiles.map((r) => r.right))), list: Math.round(list.right), lastWidth: Math.round(tiles[2].width), firstWidth: Math.round(tiles[0].width) }; });
+    assert.ok(Math.abs(geometry.right - geometry.list) <= 1, `${width}: ${JSON.stringify(geometry)}`);
+    if (width === 375) assert.ok(geometry.lastWidth > geometry.firstWidth * 1.8, JSON.stringify(geometry));
+    await page.close();
+  }
+});
+
+test("F3: the subtitle does not repeat the title - the month and the number of teachers", async () => {
+  const { page } = await openMonth(1280);
+  assert.equal(plain(await page.textContent('[data-testid="payroll-page-subtitle"]')), "Ноябрь 2026 · 3 преподавателя");
+  assert.ok(!/Зарплата преподавателей за месяц/.test(plain(await page.textContent("body"))));
+  await page.close();
+});
+
+test("F4: on a phone «Скачать Excel», «Рассчитать всех» and «⋯» stand in ONE row, the «⋯» button is at least 40 px", async () => {
+  const { page } = await openMonth(375);
+  const geometry = await page.evaluate(() => {
+    const box = document.querySelector('[data-testid="payroll-month-actions"]');
+    return [...box.querySelectorAll("button")].map((el) => { const r = el.getBoundingClientRect(); return { name: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 24), top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right) }; });
+  });
+  assert.equal(geometry.length, 3, JSON.stringify(geometry));
+  assert.equal(new Set(geometry.map((item) => item.top)).size, 1, `one row: ${JSON.stringify(geometry)}`);
+  const menu = geometry[2];
+  assert.ok(menu.name.startsWith("Ещё") && menu.w >= 40 && menu.h >= 40, JSON.stringify(menu));
+  assert.ok(geometry.every((item) => item.right <= 375), JSON.stringify(geometry));
+  await page.close();
+});
+
+test("F5: the list «Что нужно сделать» - the words of the dictionary, every item a link with an arrow and a hover", async () => {
+  const { page } = await openMonth(1280);
+  await page.locator('[data-testid="status-todo"]').first().click();
+  await page.waitForSelector('[data-testid="status-todo-panel"]');
+  const items = (await page.locator('[data-testid="status-todo-item"]').allTextContents()).map(plain);
+  assert.equal(items[0], "1 урок без отметки");
+  assert.ok(!/незакрыт/i.test(items.join("|")), items.join("|"));
+  assert.equal(await page.locator('[data-testid="status-todo-item-arrow"]').count(), items.length, "an arrow at every item");
+  const link = page.locator('[data-testid="status-todo-item"]').first();
+  const before = await link.evaluate((el) => getComputedStyle(el).backgroundColor);
+  await link.hover();
+  const after = await link.evaluate((el) => getComputedStyle(el).backgroundColor);
+  assert.notEqual(before, after, "the item answers the mouse");
+  const arrowRight = await page.evaluate(() => { const item = document.querySelector('[data-testid="status-todo-item"]').getBoundingClientRect(); const arrow = document.querySelector('[data-testid="status-todo-item-arrow"]').getBoundingClientRect(); return arrow.right <= item.right && arrow.left > item.left + item.width / 2; });
+  assert.equal(arrowRight, true, "the arrow is on the right of the item");
+  await page.close();
+});

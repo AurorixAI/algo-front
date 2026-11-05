@@ -53,6 +53,16 @@ test("the window is about the STUDENT's money: the title, the subtitle, the debt
   await page.close();
 });
 
+test("F1: ONE section - under «Что изменится» there is no sub-label «Долг ученика»", async () => {
+  const { page } = await open(1280);
+  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  const block = plain(await page.textContent('[data-testid="payment-calc"]'));
+  assert.ok(!/долг ученика/i.test(block), block);
+  assert.equal(await page.locator('[data-testid="payment-calc"] h3').count(), 1);
+  assert.equal(await page.locator("#payment-plan-title").count(), 0);
+  await page.close();
+});
+
 test("the block «Что изменится» is a table about the student: the name on the left, the number on the right; and NO salary anywhere in the window - for any role", async () => {
   for (const user of [undefined, { role: "admin", org_role: "admin", payments_access: true }]) {
     const { page, calls } = await open(1280, STAGE_EFFECTS, user);

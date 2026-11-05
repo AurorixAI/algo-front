@@ -16,9 +16,9 @@ export function PayrollMonthSummary({ totals, month, open }: { totals: MonthTota
   const status = monthStatusText(month, open);
   return (
     <div className="space-y-1.5 print:hidden" data-testid="payroll-month-summary">
-      <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <dl className={`grid w-full grid-cols-2 gap-2 ${totals.tiles.length >= 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         {totals.tiles.map((tile) => (
-          <div key={tile.key} data-testid={`month-tile-${tile.key}`} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5">
+          <div key={tile.key} data-testid={`month-tile-${tile.key}`} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 last:odd:col-span-2 lg:last:odd:col-span-1">
             <dt className="text-xs leading-4 text-slate-600">{tile.label}</dt>
             <dd className="mt-0.5 break-words text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{formatMoney(tile.value)}</dd>
           </div>
@@ -42,6 +42,7 @@ export function PayrollPageMenu({ divisor }: { divisor: number }) {
     <>
       <RowMenu
         label="Ещё: как считается, делитель"
+        triggerClassName="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 sm:h-9 sm:w-9"
         items={[
           { key: "how", label: "Как считается", icon: HelpCircle, onSelect: () => setHelpOpen(true) },
           { key: "divisor", label: "Делитель в настройках", icon: Settings2, onSelect: () => router.push("/owner/settings?section=payroll") },

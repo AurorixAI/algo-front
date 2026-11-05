@@ -12,10 +12,10 @@ const TEACHERS = [KAMOL, LOLA, SABINA];
 const OVERVIEW = { month: "2026-11", period_start: "2026-11-01", period_end: "2026-11-30", month_open: true, divisor: 12, lessons_without_teacher: 0, teachers: TEACHERS };
 
 /** The server of the page «Зарплата» for November 2026; `changed` is the answer of the months whose saved salary moved (the owner's bar). */
-function monthServer({ changed = [{ month: "2026-09", teachers: 2 }, { month: "2026-10", teachers: 1 }] } = {}) {
+function monthServer({ changed = [{ month: "2026-09", teachers: 2 }, { month: "2026-10", teachers: 1 }], teachers = TEACHERS } = {}) {
   return (request) => {
     if (request.method !== "GET") return null;
-    if (request.path === "/auth/org/payroll/months/2026-11") return { json: OVERVIEW };
+    if (request.path === "/auth/org/payroll/months/2026-11") return { json: { ...OVERVIEW, teachers } };
     if (request.path === "/auth/org/payroll-periods") return { json: { month: "2026-11", items: [] } };
     if (request.path === "/auth/org/payroll/changed-months") return changed === null ? { status: 404, json: { detail: { code: "NOT_FOUND", message: "x" } } } : { json: { items: changed } };
     return null;

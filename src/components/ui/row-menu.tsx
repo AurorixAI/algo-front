@@ -27,11 +27,14 @@ export function RowMenu({
   label = "Действия",
   busy = false,
   width = 232,
+  triggerClassName = "rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50",
 }: {
   items: RowMenuItem[];
   label?: string;
   busy?: boolean;
   width?: number;
+  /** The look of the «⋯» button (a page that needs a bigger touch target says so); the default is the quiet row button. */
+  triggerClassName?: string;
 }) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number; width: number } | null>(null);
@@ -132,7 +135,7 @@ export function RowMenu({
           const rect = event.currentTarget.getBoundingClientRect();
           setAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
         }}
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+        className={triggerClassName}
       >
         <MoreHorizontal className="h-5 w-5" />
       </button>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { RowStatusView } from "@/lib/payroll";
 import { STATUS_CHIP_CLASS } from "@/lib/payroll";
 import { INITIAL_REVEAL, isRevealed, reduceReveal } from "@/lib/reveal";
@@ -89,7 +89,10 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
           <ul className="space-y-0.5">
             {status.items.map((item) => (
               <li key={item.key}>
-                <Link href={item.href} data-testid="status-todo-item" className="flex min-h-[40px] items-center rounded-lg px-2 py-1.5 text-sm font-medium leading-5 text-amber-900 hover:bg-amber-50 hover:underline">{item.text}</Link>
+                <Link href={item.href} data-testid="status-todo-item" className="group flex min-h-[40px] items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium leading-5 text-amber-900 hover:bg-amber-100 focus-visible:bg-amber-100">
+                  <span className="min-w-0 break-words group-hover:underline">{item.text}</span>
+                  <ChevronRight aria-hidden="true" data-testid="status-todo-item-arrow" className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-0.5" />
+                </Link>
               </li>
             ))}
           </ul>

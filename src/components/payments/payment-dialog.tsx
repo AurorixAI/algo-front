@@ -39,7 +39,6 @@ import {
   planView,
   PLAN_EMPTY_HINT,
   PLAN_LOADING_TEXT,
-  PLAN_TITLE,
   QUICK_AMOUNTS_LABEL,
   quickAmounts,
   readLastMethod,
@@ -336,8 +335,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           {/* 2. What saving will do to the STUDENT (UX pack §5.1): a table - the name on the left, the number on the right; the server's live calculation, future tense */}
           <section aria-label={EFFECTS_TITLE} id="payment-calc" aria-live="polite" data-testid="payment-calc" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
             <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
-            <p id="payment-plan-title" className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{PLAN_TITLE}</p>
-            <div className="mt-1">
+            <div className="mt-2">
               {state.error ? (
                 <p role="alert" className="text-xs font-medium text-amber-900">{state.error}</p>
               ) : amountNow === null ? (

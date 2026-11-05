@@ -340,13 +340,13 @@ test("warnings are counts: one unit each (lessons, visits, students), the links 
   assert.deepEqual(views({ open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }), []);
   const all = views({ open_lessons: 1, pending_excused: 2, no_fee: 4, unpaid: 5 });
   assert.deepEqual(all.map((v) => [v.key, v.text, v.href, v.tone]), [
-    ["open_lessons", "1 незакрытый урок", "/owner/attendance?tab=open", "warning"],
+    ["open_lessons", "1 урок без отметки", "/owner/attendance?tab=open", "warning"],
     ["pending_excused", "2 уважительные ждут решения", "/owner/attendance?tab=excuses", "warning"],
     ["no_fee", "у 4 учеников нет цены", "/owner/payments/prices", "warning"],
     ["unpaid", "5 посещений без оплаты", "/owner/payments?bucket=debt", "info"],
   ]);
-  assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 1, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|у 1 ученика нет цены|2 посещения без оплаты");
-  assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 21, unpaid: 1 }).map((v) => v.text).join("|"), "7 незакрытых уроков|5 уважительных ждут решения|у 21 ученика нет цены|1 посещение без оплаты");
+  assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 1, unpaid: 2 }).map((v) => v.text).join("|"), "3 урока без отметки|1 уважительная ждёт решения|у 1 ученика нет цены|2 посещения без оплаты");
+  assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 21, unpaid: 1 }).map((v) => v.text).join("|"), "7 уроков без отметки|5 уважительных ждут решения|у 21 ученика нет цены|1 посещение без оплаты");
   // «140 посещений без оплаты», not «140 уроков не оплачено»: a lesson is held once, a visit is a student at it
   assert.equal(views({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 140 })[0].text, "140 посещений без оплаты");
   // a sheet that knows the one group it lacks a price in leads to that group's row

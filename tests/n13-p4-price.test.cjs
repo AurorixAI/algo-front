@@ -657,7 +657,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // UX round of the owner (05.11): under the name ONE line of what needs an ACTION, each one a link to where it is done; «N учеников не оплатили часть уроков» is a note - it is on the sheet
   // UX pack §5.2-бис: those lines are the ITEMS of the one status chip (they open on hover, tap or focus), not an amber line under the name
   const items = R.rowStatus({ ...teacher, undecided_lessons: 0 }).items;
-  assert.deepEqual(items.map((item) => [plain(item.text), item.href]), [["1 незакрытый урок", "/owner/attendance?tab=open"], ["у 2 учеников нет цены", "/owner/payments/prices"], ["Данные изменились — проверьте и сохраните новую сумму", "/owner/payroll/s1"]]);
+  assert.deepEqual(items.map((item) => [plain(item.text), item.href]), [["1 урок без отметки", "/owner/attendance?tab=open"], ["у 2 учеников нет цены", "/owner/payments/prices"], ["Данные изменились — проверьте и сохраните новую сумму", "/owner/payroll/s1"]]);
   assert.doesNotMatch(html, /140 посещений|не оплатил|bucket=debt/, "the note is not in the list");
   assert.equal((html.match(/data-testid="teacher-attention"/g) || []).length, 0, "no amber line under the name");
   assert.equal((html.match(/<ul/g) || []).length, 0);

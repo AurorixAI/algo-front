@@ -32,6 +32,7 @@ import {
   monthTotals,
   teacherMonthNumbers,
   type TeacherMonthNumbers,
+  monthSubtitle,
   monthTitle,
   parseMonthParam,
   payrollErrorText,
@@ -377,7 +378,7 @@ function PayrollMonthContent() {
 
       <div className="min-w-0 print:hidden">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Зарплата</h1>
-        <p className="text-sm text-slate-600">Зарплата преподавателей за месяц</p>
+        <p className="text-sm text-slate-600" data-testid="payroll-page-subtitle">{monthSubtitle(month, overview ? teachers.length : null)}</p>
       </div>
 
       <div className="space-y-2 print:hidden">
@@ -403,13 +404,13 @@ function PayrollMonthContent() {
             </button>
           </nav>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-wrap" data-testid="payroll-month-actions">
             <button
               type="button"
               onClick={() => void downloadMonth()}
               disabled={savedCount === 0 || exporting}
               title={savedCount === 0 ? "Сначала сохраните зарплату хотя бы одного преподавателя" : undefined}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-4"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Скачать Excel
@@ -419,7 +420,7 @@ function PayrollMonthContent() {
               onClick={() => void calculate(calculationScope(teachers).map((teacher) => teacher.teacher_id), true)}
               disabled={!overview || teachers.length === 0 || busy || !gate.ready}
               aria-describedby={gate.text ? "payroll-calculate-hint" : undefined}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-5"
             >
               {calculating === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
               Рассчитать всех
@@ -434,10 +435,10 @@ function PayrollMonthContent() {
             <button type="button" data-testid="changed-months-open" onClick={() => void goToMonth(bar.month)} className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100">{bar.button}</button>
           </div>
         )}
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1.5">
           {overview && <PayrollMonthSummary totals={totals} month={month} open={monthOpen} />}
           {overview && gate.text && (
-            <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
+            <p id="payroll-calculate-hint" className="text-xs text-slate-600">
               {gate.text}
               {gate.missing > 0 && (
                 <>

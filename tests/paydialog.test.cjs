@@ -315,7 +315,7 @@ test("the price rise warning of the server stays (amber note), not as a sentence
 
 test("empty / zero / non-numeric amount: no calculation, a calm hint, the button is off; a huge amount is not asked for", () => {
   assert.equal(X.PLAN_EMPTY_HINT, "Введите сумму — здесь появится, куда пойдут деньги");
-  assert.equal(X.PLAN_TITLE, "Долг ученика");
+  assert.equal(X.PLAN_TITLE, undefined); // one section - no sub-label «Долг ученика» under «Что изменится» (lead F1)
   assert.equal(X.planView(preview({ segments: SEGS() })), null); // asked without an amount: nothing to word
   for (const text of ["", "0", "abc", "  ", "-"]) assert.equal(L.previewAmount(text), null, JSON.stringify(text));
   assert.equal(L.previewAmount(P.reformatMoneyTyping("12abc34")), 1234);
@@ -433,7 +433,7 @@ test("every fixture's lines add up to the amount asked", () => {
 test("the dialog layout: amount first, chips under it, then the plan, then method + date, a comment on demand", () => {
   const dialog = read("src/components/payments/payment-dialog.tsx");
   const at = (text) => { const i = dialog.indexOf(text); assert.ok(i > 0, text); return i; };
-  const order = [at('htmlFor="payment-amount"'), at("payment-chips"), at("{PLAN_TITLE}"), at("Способ оплаты"), at("Дата оплаты"), at("Комментарий")];
+  const order = [at('htmlFor="payment-amount"'), at("payment-chips"), at('data-testid="payment-calc"'), at("Способ оплаты"), at("Дата оплаты"), at("Комментарий")];
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.match(dialog, /autoFocus/);
   assert.match(dialog, />сум<\/span>/);

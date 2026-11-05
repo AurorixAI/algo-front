@@ -200,6 +200,13 @@ export function monthTitle(month: string): string {
   return isMonthParam(month) ? capitalizeFirst(monthYearLabelRu(month)) : month;
 }
 
+/** The line under the page title (UX pack, lead F3): «Ноябрь 2026 · 3 преподавателя» - the month and who is in the list; the month alone while the list is not loaded. */
+export function monthSubtitle(month: string, teachers: number | null): string {
+  const head = isMonthParam(month) ? `${monthNameRu(month)} ${month.slice(0, 4)}` : month;
+  if (teachers === null) return head;
+  return `${head} · ${teachers} ${pluralRu(teachers, ["преподаватель", "преподавателя", "преподавателей"])}`;
+}
+
 /** «Октябрь»: the name of the month alone, in the nominative (the start of a sentence). */
 export function monthNameRu(month: string): string {
   return isMonthParam(month) ? capitalizeFirst(formatIsoDateLabel(`${month}-01`, { month: "long" })) : month;
@@ -1517,7 +1524,7 @@ export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings
   // the month overview says so itself; a calculation not saved yet has `null` for a failed check (a saved sheet's null is «not looked up»: the caller passes `openUnknown` only for the first)
   if (("open_lessons_unknown" in counts && counts.open_lessons_unknown === true) || options.openUnknown === true) {
     out.push({ key: "open_lessons", text: OPEN_LESSONS_UNKNOWN_TEXT, href: WARNING_LINKS.open_lessons, tone: "warning", hint: OPEN_LESSONS_UNKNOWN_HINT, target: WARNING_TARGETS.open_lessons, button: WARNING_BUTTONS.open_lessons });
-  } else if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
+  } else if (open) add("open_lessons", `${open} ${pluralRu(open, ["урок без отметки", "урока без отметки", "уроков без отметки"])}`, "warning");
   const pending = counts.pending_excused;
   if (pending) {
     add("pending_excused", `${pending} ${pluralRu(pending, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`, "warning");

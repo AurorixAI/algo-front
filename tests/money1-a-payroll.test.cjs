@@ -26,7 +26,7 @@ test("the month overview: a failed check says «Не удалось провер
   assert.equal(unknown[0].text, "Не удалось проверить незакрытые уроки");
   assert.equal(unknown[0].key, "open_lessons");
   assert.match(unknown[0].hint, /проверьте сами, прежде чем сохранять ведомость/);
-  assert.deepEqual(R.warningViews({ ...base, open_lessons: 3 }).map((v) => v.text), ["3 незакрытых урока"]);
+  assert.deepEqual(R.warningViews({ ...base, open_lessons: 3 }).map((v) => v.text), ["3 урока без отметки"]);
   assert.deepEqual(R.warningViews({ ...base, open_lessons: 0 }), []);
   assert.deepEqual(R.warningViews({ ...base, open_lessons: null }), []);                            // a saved sheet: not looked up
   assert.deepEqual(R.warningViews({ ...base, open_lessons: null }, { openUnknown: true }).map((v) => v.text), ["Не удалось проверить незакрытые уроки"]);          // a calculation not saved yet
@@ -43,7 +43,7 @@ test("the card of a calculation not saved yet says it; the card of a saved sheet
   assert.ok(todo(sheet({ id: null, saved: false }).warnings, { openUnknown: true }).includes("Не удалось проверить незакрытые уроки"), "a preview: null = the check failed");
   assert.ok(!todo(sheet().warnings).includes("Не удалось проверить"), "a saved sheet: null = not looked up");
   assert.ok(todo({ open_lessons: null, open_lessons_unknown: true, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("Не удалось проверить незакрытые уроки"));
-  assert.ok(todo({ open_lessons: 2, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("2 незакрытых урока"));
+  assert.ok(todo({ open_lessons: 2, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("2 урока без отметки"));
   assert.ok(!card({ sheet: sheet() }).includes("Не удалось проверить"), "the card itself carries no warnings any more");
 });
 

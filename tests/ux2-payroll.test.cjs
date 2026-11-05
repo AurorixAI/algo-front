@@ -46,7 +46,7 @@ test("units: «посещений» for what is counted per student, «урок�
   assert.equal(R.lessonsCountText(25), "25 уроков");
   // the month row never says «уроков» about the visits, nor the other way round
   const line = R.warningViews({ open_lessons: 1, pending_excused: 0, no_fee: 3, unpaid: 140 }).map((v) => v.text).join(" · ");
-  assert.equal(line, "1 незакрытый урок · у 3 учеников нет цены · 140 посещений без оплаты");
+  assert.equal(line, "1 урок без отметки · у 3 учеников нет цены · 140 посещений без оплаты");
 });
 
 // ── status -> chip -> action ─────────────────────────────────────────────────────────────────

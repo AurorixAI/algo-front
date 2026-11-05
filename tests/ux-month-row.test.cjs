@@ -11,7 +11,7 @@ const WARN = (over = {}) => ({ open_lessons: 0, pending_excused: 0, no_fee: 0, u
 test("a row's attention: ONE list of what needs an action - unfinished lessons, excuses that wait, a missing price, additional lessons nobody decided; «ученики не оплатили» is a note and is not here", () => {
   const all = R.teacherAttention({ warnings: WARN({ open_lessons: 1, pending_excused: 2, no_fee: 3, unpaid: 140, unpaid_students: 9 }), undecided_lessons: 1 });
   assert.deepEqual(all.map((view) => view.key), ["open_lessons", "pending_excused", "no_fee", "undecided"]);
-  assert.deepEqual(all.map((view) => plain(view.text)), ["1 незакрытый урок", "2 уважительные ждут решения", "у 3 учеников нет цены", "1 доп. урок ждёт решения"]);
+  assert.deepEqual(all.map((view) => plain(view.text)), ["1 урок без отметки", "2 уважительные ждут решения", "у 3 учеников нет цены", "1 доп. урок ждёт решения"]);
   assert.deepEqual(all.map((view) => view.href), ["/owner/attendance?tab=open", "/owner/attendance?tab=excuses", "/owner/payments/prices", "/owner/substitutions"], "each one leads to where it is done");
   assert.ok(!all.some((view) => view.key === "unpaid"), "the note stays on the sheet");
   assert.deepEqual(R.teacherAttention({ warnings: WARN({ unpaid: 140, unpaid_students: 9 }), undecided_lessons: 0 }), [], "only a note: nothing to do, no line");

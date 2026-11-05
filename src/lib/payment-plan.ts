@@ -17,8 +17,6 @@ import {
   type PaymentFormValues,
 } from "./payments-ledger";
 
-/** The part of the block «Что изменится» that is about the student (UX pack, L3 / rule 1: ONE block, two parts - «Долг ученика» and the pay of the teachers). */
-export const PLAN_TITLE = "Долг ученика";
 export const PLAN_EMPTY_HINT = "Введите сумму — здесь появится, куда пойдут деньги";
 export const PLAN_LOADING_TEXT = "Считаем, куда пойдут деньги…";
 export const QUICK_AMOUNTS_LABEL = "Быстрая сумма";
