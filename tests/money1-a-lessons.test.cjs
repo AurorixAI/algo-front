@@ -85,6 +85,22 @@ test("the predicates: a held lesson of an active group; a started cancelled less
 
 // ── the block «Что будет с деньгами» ─────────────────────────────────────────────────────────────
 
+test("UX round of the owner: the block of money by month - the heading, a line per teacher, and ONLY for a closed month the amber sentence of what to do; an open month is a plain information block", () => {
+  signIn({ org_role: "owner" });
+  const { MoneyEffectsBlock } = component("money/money-effects-block.tsx");
+  const line = (state) => ({ month: "2026-09", state, sheetId: "s1", teacherId: "t1", teacherName: "Эргашев К.", savedTotal: 860000, paid: 0, freshBefore: 860000, freshAfter: 993333, freshTotal: 993333, changedBy: 133333, driftAfter: 133333 });
+  const show = (state) => html(React.createElement(MoneyEffectsBlock, { preview: { status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [line(state)], text: "", dryRun: true }) }, onRetry() {} }));
+  const closed = show("closed");
+  const closedText = plain(textOf(closed));
+  assert.match(closedText, /Зарплата за сентябрь(?: 2026)? вырастет:Эргашев К\. — \+133 333 сум \(было 860 000, станет 993 333\)/);
+  assert.match(closed, /data-testid="effect-note"/);
+  assert.match(closedText, /Сентябрь(?: 2026)? уже закрыт: после сохранения в ведомости появится «изменилась на …» — пересохраните её, чтобы выплатить разницу\./);
+  assert.match(closed, /border-amber-200/, "something has to be done: amber");
+  const open = show("open");
+  assert.doesNotMatch(open, /effect-note|border-amber-200/, "an ordinary change is information, not amber");
+  assert.match(plain(textOf(open)), /Зарплата за сентябрь(?: 2026)? вырастет:/);
+});
+
 test("the block by state: loading says so; ready lists the packs and the sheets; nothing moves says «Деньги не изменятся»; no block from the server says nothing; a failure repeats", () => {
   signIn({ org_role: "owner" });
   const { MoneyEffectsBlock } = component("money/money-effects-block.tsx");
