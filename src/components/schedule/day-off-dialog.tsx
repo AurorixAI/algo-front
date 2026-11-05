@@ -99,7 +99,6 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
     }
   };
 
-  const count = plan?.cancellable.length ?? 0;
   return (
     <Modal
       open={open}

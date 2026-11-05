@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, AlertTriangle, Banknote, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, Loader2, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
@@ -55,7 +55,7 @@ import {
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { monthPeriodView, periodOf, periodView, type PayrollPeriods, type PeriodView } from "@/lib/closed-period";
 import { openLessonsGate } from "@/lib/payroll-open-lessons";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, PAYOUT_ACTION_LABEL } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { askConfirm } from "@/lib/confirm-dialog";

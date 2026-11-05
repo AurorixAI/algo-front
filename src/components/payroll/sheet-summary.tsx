@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Download, Loader2, Printer, RefreshCw, Save } from "lucide-react";
 import { formatMoney } from "@/lib/payments";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -8,8 +7,6 @@ import {
   NOTE_MAX_LENGTH,
   sheetFactsParts,
   type RatesNow,
-  sheetNoFeeHref,
-  warningViews,
   type PayrollDiff,
   type PayrollMonthWarnings,
   type PayrollSheet,
@@ -17,7 +14,6 @@ import {
   type SheetCardStatus,
 } from "@/lib/payroll";
 import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetPrintTotals, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
-import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails } from "./sheet-controls";
 import { PeriodChip } from "./period-chip";
