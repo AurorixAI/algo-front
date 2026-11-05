@@ -7,7 +7,7 @@ import { groupedDigits, moneyPattern, toast } from "../support/ui";
  * The total of the card on top of a sheet: the caption and the sum are two elements, no space between them in the text content.  The caption follows the state of the month (walk of 05.11, D-2):
  * a month that is still open says «Начислено сейчас», with unsaved «начислить» it is «Итог с правками», a closed one «К выплате» (this month is open: it is not over yet).
  */
-const total = (amount: number) => new RegExp(`(?:К выплате|Начислено сейчас|Итог с правками)\\s*${moneyPattern(amount)}\\s*сум`);
+const total = (amount: number) => new RegExp(`(?:К выплате|Начислено на сегодня|Итог с правками)\\s*${moneyPattern(amount)}\\s*сум`);
 
 /**
  * Owner: «Зарплата» (UX-2). The rate is set ONCE, in «Сотрудники» («Изменить ставку»); «Зарплата» only reads it:
@@ -17,7 +17,7 @@ const total = (amount: number) => new RegExp(`(?:К выплате|Начисл�
  *     line = round_half_up( price x percent / 100 x counted lessons / 12 )
  * where the price is the price of the GROUP (#105) or, for three of the students, an individual price with a reason.
  * -> «Сохранить» -> «начислить» for the student who never paid -> «Сохранить» (version 2) -> «История сохранений»;
- * -> the rate changes -> «Есть изменения» -> «Пересохранить».
+ * -> the rate changes -> «Данные изменились» -> «Сохранить новую сумму».
  *
  * Seeded lesson of today (one lesson per teacher, both completed):
  *   teacher 1, «Группа» (price of the group 600 000), 62.5 %:  Анвар 600 000 (the group's) present
@@ -154,7 +154,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(card).toContainText(total(t1Total));
   await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4} в \d\d:\d\d/);
   await expect(card).toContainText("засчитано 3 посещения");
-  await expect(card.getByRole("button", { name: "Пересохранить" })).toHaveCount(0);
+  await expect(page.getByTestId("sheet-todo-save")).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0); // no price field, no percent field
   await page.getByRole("checkbox", { name: /Начислить за неоплаченные уроки .*Неплательщик Эльдар/ }).check();
   await expect(card).toContainText(total(withEldar));
@@ -172,7 +172,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(history).toContainText(groupedDigits(t1Total));
   await expect(history).not.toContainText("редакци");
 
-  // --- the rate changes: the saved sheet is a snapshot, but it says the data moved and offers «Пересохранить» (Money-1 A1b)
+  // --- the rate changes: the saved sheet is a snapshot, but it says the data moved and offers «Сохранить новую сумму» in the block «Что нужно сделать» (Money-1 A1b)
   await org.setPayrollRate(t1.userId, { group: "70" });
   await page.reload();
   await page.getByRole("tab", { name: "Ведомость" }).click();
@@ -180,7 +180,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(card).toContainText(/\+[\s\d]+\s*сум/); // the difference of the total
   await card.getByText("Что изменилось").click();
   await expect(card).toContainText(/ставка/i);
-  await card.getByRole("button", { name: "Пересохранить" }).click();
+  await page.getByTestId("sheet-todo-save").click();
   await expect(toast(page, /Ведомость пересохранена · версия 3/)).toBeVisible();
   await expect(card).toContainText("Ставка: Группа 70%");
 

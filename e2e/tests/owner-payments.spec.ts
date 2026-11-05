@@ -41,11 +41,11 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(450000)}`));
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
-  const payDialog = page.getByRole("dialog", { name: "Внести оплату" });
+  const payDialog = page.getByRole("dialog", { name: "Оплата от ученика" });
   await expect(payDialog.getByTestId("payment-chips")).toContainText(new RegExp(moneyPattern(450000))); // the quick amount says what is due
   await expect(payDialog.getByLabel("Сумма", { exact: true })).not.toHaveValue(""); // the amount starts as everything that is due
   await payDialog.getByLabel("Сумма", { exact: true }).fill("450000");
-  await expect(payDialog.getByTestId("payment-plan-sentence")).toContainText(/Закроет|Оплатит/); // what saving will do, in the future tense
+  await expect(payDialog.getByTestId("payment-plan-rows")).toContainText(/Погасит|Пойдёт|Останется/); // what saving will do to the STUDENT (UX pack §5.1: a table of rows)
   // the method is chosen, not guessed: the button waits for it and says why
   await expect(payDialog.getByRole("button", { name: /^Внести/ })).toBeDisabled();
   await expect(payDialog.getByTestId("payment-blocker")).toContainText("Выберите способ оплаты");

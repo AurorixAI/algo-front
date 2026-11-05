@@ -85,7 +85,7 @@ async function openPayDialog(page: Page, lastName: string) {
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
   await row.getByRole("button", { name: "Внести оплату" }).click();
-  const dialog = page.getByRole("dialog", { name: "Внести оплату" });
+  const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
   await expect(dialog).toBeVisible();
   // the sum is filled in when the plan of the payment has been read: wait for it, a late value is not a different one
   const amountNow = async () => Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""));
@@ -132,7 +132,7 @@ test.describe("package centre", () => {
     const membership = await org.membershipId(student.id, group.id);
     await page.goto(`/owner/payments/statement/${membership}`);   // a package has no debt before a lesson is held: the payment is made from the statement
     await page.getByTestId("statement-pay").click();
-    const dialog = page.getByRole("dialog", { name: "Внести оплату" });
+    const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
     await expect(dialog).toBeVisible();
     await dialog.getByLabel("Сумма", { exact: true }).fill(String(fee));   // nothing is due yet: the owner types the price of the package
     await shot(page, `01b-pay-package-${project}`);

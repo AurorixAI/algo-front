@@ -50,7 +50,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум`));
   await row.getByRole("button", { name: "Внести оплату" }).click();
-  const dialog = page.getByRole("dialog", { name: "Внести оплату" });
+  const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
   await expect(dialog.getByTestId("payment-chips")).toContainText(new RegExp(`${groupedDigits(expectedAmount).replace(/ /g, "\\s")}\\s*сум`));
   await expect(dialog.getByLabel("Сумма", { exact: true })).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
 
