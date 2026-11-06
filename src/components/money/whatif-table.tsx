@@ -9,6 +9,7 @@ import {
   whatIfCommonPriceNote,
   whatIfMoreText,
   whatIfStudents,
+  whatIfTotals,
   type RowTone,
   type WhatIfWindow,
 } from "@/lib/whatif";
@@ -30,6 +31,7 @@ export function WhatIfBody({ window, testId = "whatif", single = false }: { wind
   const more = whatIfMoreText(window);
   const asOf = whatIfAsOfText(window, single);
   const caption = whatIfCaption(window);
+  const totals = whatIfTotals(window);
   const commonNote = whatIfCommonPriceNote(students);
   const overrideMore = overrideMoreText(window);
   if (students.length === 0 && window.overrides.length === 0) {
@@ -86,6 +88,16 @@ export function WhatIfBody({ window, testId = "whatif", single = false }: { wind
           </ul>
           {more && <p className="mt-1 text-slate-500" data-testid={`${testId}-more`}>{more}</p>}
         </div>
+      )}
+      {totals.length > 0 && (
+        <dl className="space-y-0.5 border-t border-slate-200 pt-2" data-testid={`${testId}-totals`}>
+          {totals.map((total) => (
+            <div key={total.key} className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums" data-total={total.key}>
+              <dt className="min-w-0 text-slate-600">{total.label}</dt>
+              <dd className="whitespace-nowrap text-right font-semibold text-slate-900">{total.value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
       {!single && window.overrides.length > 0 && (
         <div className="space-y-1 rounded-lg bg-slate-100 px-3 py-2" data-testid={`${testId}-overrides`}>

@@ -304,6 +304,22 @@ export function overrideMoreText(window: WhatIfWindow | null | undefined): strin
   return rest > 0 ? `и ещё ${rest}` : null;
 }
 
+/** The totals under the table - SUMS over the students (not a repeat of a row): the next period in all, the lessons lost, the charge of the 30 days of a new mode. */
+export interface WhatIfTotal { key: string; label: string; value: string }
+
+export function whatIfTotals(window: WhatIfWindow | null | undefined): WhatIfTotal[] {
+  if (!window) return [];
+  const out: WhatIfTotal[] = [];
+  if (window.lessonsLostTotal > 0) out.push({ key: "lessons", label: "Оплаченных уроков станет меньше", value: `на ${window.lessonsLostTotal}` });
+  if (window.nextPeriodStudents > 0) {
+    out.push({ key: "next-period", label: `Следующий период ${window.nextPeriodDeltaTotal >= 0 ? "дороже" : "дешевле"} в сумме, ${window.nextPeriodStudents} ${pluralRu(window.nextPeriodStudents, "ученик", "ученика", "учеников")}`, value: formatSignedMoney(window.nextPeriodDeltaTotal) });
+  }
+  if (window.kind === "regime" && window.chargedBeforeTotal !== null && window.chargedAfterTotal !== null && window.chargedBeforeTotal !== window.chargedAfterTotal) {
+    out.push({ key: "charged", label: `Начислено за ${window.horizonDays ?? 30} дней после перехода`, value: `${formatMoney(window.chargedBeforeTotal)} → ${formatMoney(window.chargedAfterTotal)}` });
+  }
+  return out.map((total) => ({ ...total, label: tidyMoneyText(total.label), value: tidyMoneyText(total.value) }));
+}
+
 /** The line of a student with an individual price: «Юсупов Бек · 250 000 сум · цена группы 600 000 → 700 000 сум; число не меняется». */
 export function overrideLine(student: OverrideStudent, kind: WhatIfKind): string {
   if (kind === "regime") return tidyMoneyText(student.text ?? `${student.student_name}: индивидуальная цена ${formatMoney(student.price)}`);

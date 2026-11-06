@@ -66,7 +66,7 @@ test("Б3: the price window - EVERY affected student «было → станет
     // no inner scroll: the list is as tall as its rows, only the body of the window scrolls
     assert.equal(await page.evaluate(() => { const ul = document.querySelector('[data-testid="price-impact-money-students"] ul'); return ul.scrollHeight - ul.clientHeight; }), 0);
     assert.match(plain(await page.textContent('[data-testid="price-impact-money-overrides"]')), /Индивидуальная цена — не меняется.*Юсупов Бек · 250 000 сум · цена группы 600 000 сум → 700 000 сум/);
-    assert.match(plain(await page.textContent('[data-testid="price-impact-money-summary"]')), /оплаченных уроков станет меньше на 2, следующий период дороже на 100 000 сум у 1 ученика/);
+    assert.match(plain(await page.textContent('[data-testid="price-impact-money-totals"]')), /Оплаченных уроков станет меньше\s*на 2.*Следующий период дороже в сумме, 1 ученик\s*\+100 000 сум/);
     assert.equal(plain(await page.textContent('[data-testid="price-impact-money-asof"]')), "Числа — на 01.12.2026, когда цена дойдёт до учеников");
     // the numbers go to the right edge on a wide screen (DESIGN decision 1)
     if (width >= 640) {
