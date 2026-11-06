@@ -122,6 +122,7 @@ test.describe("package centre", () => {
     await expect(section.getByTestId("package-cancel-hint")).toContainText("пакет продлится на следующий урок");
     await shot(page, `24-settings-package-hint-${project}`);
     await section.getByRole("button", { name: "Сохранить" }).click();
+    await page.getByTestId("regime-confirm").click();      // Money-1 B3: the window of a change of the mode
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ period_mode: "lessons", lessons_per_payment: 12 });
 
@@ -248,6 +249,7 @@ test.describe("monthly centre", () => {
     await section.getByRole("radio", { name: "Уменьшать долг сразу" }).check();
     await shot(page, `06-settings-recalc-${project}`);
     await section.getByRole("button", { name: "Сохранить" }).click();
+    await page.getByTestId("regime-confirm").click();      // Money-1 B3: the window of a change of the mode
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ billing_anchor: "fixed_day", centre_cancel_recalc: true });
     // (the amount is whatever the server says: the checks below compare it with itself)

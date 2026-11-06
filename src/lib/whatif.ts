@@ -226,7 +226,9 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
     const delta = item.charged_after - item.charged_before;
     push({ key: "charged", label: "Начислено за 30 дней", before: sumWord(item.charged_before), after: sumWord(item.charged_after), delta: formatSignedMoney(delta), tone: sumTone(delta, true) });
   }
-  if (item.debt_before !== item.debt_after) {
+  // a mode window whose debt IS the charge of the 30 days says it once (one fact - once)
+  const chargeIsDebt = kind === "regime" && item.switch_on !== null && item.debt_before === item.charged_before && item.debt_after === item.charged_after;
+  if (item.debt_before !== item.debt_after && !chargeIsDebt) {
     const delta = item.debt_after - item.debt_before;
     push({ key: "debt", label: "Долг", before: sumWord(item.debt_before), after: sumWord(item.debt_after), delta: formatSignedMoney(delta), tone: sumTone(delta, true) });
   }

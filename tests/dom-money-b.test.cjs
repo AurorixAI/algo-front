@@ -94,6 +94,7 @@ test("Б3: the window of the mode - per student with the charge of 30 days, a pa
   const text = plain(await page.textContent('[data-testid="regime-whatif-students"]'));
   assert.match(text, /Каримова Алия.*с 01\.11, на 30\.11.*Начислено за 30 дней.*900 000 сум.*1 176 000 сум.*\+276 000 сум/);
   assert.match(text, /Пакетов Закир.*когда закончится пакет.*Цена.*600 000 сум за пакет из 12 уроков.*600 000 сум за общий месяц/);
+  assert.ok(!/Долг/.test(text), "the debt equal to the charge of 30 days is not said twice");
   assert.match(text, /≈ за урок.*50 000 сум.*23 077 сум/);
   assert.equal((plain(await page.textContent('[role="dialog"]')).match(/Что изменится/g) ?? []).length, 1, "one title");
   assert.match(plain(await page.textContent('[data-testid="regime-whatif-overrides"]')), /Юсупов Бек/);
@@ -101,6 +102,7 @@ test("Б3: the window of the mode - per student with the charge of 30 days, a pa
   await atAllWidths("money-b.entry.tsx", (r) => (r.method === "PUT" && isDry(r) ? { json: { dry_run: true, regime_impact: X.REGIME_IMPACT } } : null), async ({ page: p }, width) => {
     await p.evaluate(() => window.mount("regime", { role: "owner", org_role: "owner" }, { changes: { billing_day: 10 } }));
     await p.waitForSelector('[data-testid="regime-whatif-students"]');
+    await p.waitForTimeout(600);      // the window fades in
     await probe(p, '[role="dialog"]', `regime ${width}`);
   }, "02-regime-window");
 });

@@ -36,6 +36,9 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();   // the screen says when the new mode starts: not for the running periods
   await pickOption(page, section.getByRole("combobox", { name: "День, с которого начинается общий месяц" }), String(billingDay));
   await section.getByRole("button", { name: "Сохранить" }).click();
+  // Money-1 B3: a change of the mode is confirmed in the window that shows every student «было → станет»
+  await expect(page.getByTestId("regime-confirm")).toBeEnabled();
+  await page.getByTestId("regime-confirm").click();
   await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible(); // the button itself confirms
   const saved = await org.owner.api.get("/auth/org/settings/payments");
   expect(saved).toMatchObject({ billing_anchor: "fixed_day", billing_day: billingDay });
