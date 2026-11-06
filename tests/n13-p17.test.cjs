@@ -278,7 +278,7 @@ test("the dashboard uses the split and says why a list is empty", () => {
 
 test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/attendance/excuses-page.tsx"), /<RowMenu items=\{menuFor\(item\)\} label=\{`Действия: \$\{item\.student\.full_name\}`\}/);
-  assert.match(read("components/payments/payments-page.tsx"), /<RowMenu items=\{menu\} label=\{`Действия: \$\{row\.student_name\}`\} \/>/);
+  assert.match(read("components/payments/payments-page.tsx"), /<RowMenu items=\{menu\} label=\{`Действия: \$\{row\.student_name\}`\} triggerClassName=\{ROW_MENU_TRIGGER\} \/>/);
   assert.match(read("components/payments/membership-row-actions.tsx"), /label=\{label \?\? `Действия по оплате: \$\{row\.group_name\}`\}/); // the card and the group tab share it (IA audit F1)
   assert.match(read("components/groups/group-student-table.tsx"), /label=\{`Действия: \$\{s\.full_name/);
   assert.match(read("components/groups/group-detail-view.tsx"), /<RowMenu items=\{headerMenu\} label=\{`Действия: \$\{group\.name\}`\}/);

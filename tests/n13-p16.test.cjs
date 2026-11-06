@@ -180,7 +180,7 @@ test("«Оплаты»: one «Внести оплату» + «⋯», unset fee r
   assert.match(page, /не задана/);
   assert.doesNotMatch(page, /monthly_fee !== null \? formatMoney\(row\.monthly_fee\) : "—"/);
   assert.match(page, /\{PAY_ACTION_LABEL\}/); // one verb for a first, an overdue and a running payment
-  assert.equal(page.split("<RowMenu items={menu} label={`Действия: ${row.student_name}`} />").length - 1, 1); // a single action cell for cards and the table, named by its student
+  assert.equal(page.split("<RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />").length - 1, 1); // a single action cell for cards and the table, named by its student
   assert.equal((page.match(/<PayButton row=\{row\} onPay=\{onPay\} \/>/g) || []).length, 1);
   assert.doesNotMatch(page, /bg-emerald-600|bg-rose-600|bg-red-600/);
 });

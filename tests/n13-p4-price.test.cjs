@@ -796,7 +796,7 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   assert.match(dialog, /busy=\{saving\} disabled=\{!canSave\}/);
   assert.match(dialog, /if \(!check\.request \|\| !canSave \|\| saving\) return;/);
   // the shown words are the helpers' (tested above)
-  for (const helper of ["impactStudentsText(shownImpact)", "staleSheetsText(shownImpact)", "pastDateWarning(", "futureDateNote("]) assert.ok(dialog.includes(helper), helper);
+  for (const helper of ["impactStudentsText(shownImpact,", "staleSheetsText(shownImpact)", "pastDateWarning(", "futureDateNote("]) assert.ok(dialog.includes(helper), helper);
   // PRICE_CONFLICT: the block reads the price again, the old answer is dropped, the message stays
   assert.match(dialog, /if \(isPriceConflict\(cause\)\) \{\s*onConflict\(\);\s*setImpact\(null\);\s*setNonce/);
   assert.match(read("src/components/payments/group-prices-page.tsx"), /onConflict=\{\(\) => \{\s*void load\(true\);\s*void orgApi\.getGroupPrices\(target\.item\.group_id\)\.then\(setPrices\)/);

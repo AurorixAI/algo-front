@@ -65,6 +65,8 @@ import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 
 const PAGE_SIZE = 50;
+/** The «⋯» of a row: 40 px on a phone (R3 №13), compact from `xl`. */
+const ROW_MENU_TRIGGER = "flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 xl:h-8 xl:w-8";
 
 /** Column templates of the wide layout (cards below `xl`). */
 const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_128px_minmax(11.5rem,1.4fr)_132px_196px] xl:items-center xl:gap-x-6";
@@ -583,7 +585,7 @@ function PaymentRow({
             >
               <FileText className="h-4 w-4" aria-hidden="true" />
             </Link>
-            <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 xl:h-8 xl:w-8" />
+            <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />
           </div>
     </li>
   );
