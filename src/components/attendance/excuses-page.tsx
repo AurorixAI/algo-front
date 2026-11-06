@@ -71,6 +71,7 @@ import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/lib/button-style";
+import { MODAL_FOOTER_ROW } from "@/lib/modal-layout";
 
 const PAGE_SIZE = 50;
 
@@ -860,6 +861,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         description={viewer ? formatFileSize(viewer.file.size_bytes) : undefined}
         onClose={closeViewer}
         size="lg"
+        footerClassName={MODAL_FOOTER_ROW}
         footer={
           viewer ? (
             <>

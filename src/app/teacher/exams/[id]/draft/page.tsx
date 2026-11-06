@@ -617,7 +617,7 @@ export default function ExamDraftPage() {
                 type="button"
                 onClick={handleCopy}
                 title="Нажмите, чтобы скопировать ссылку"
-                className="mt-2.5 w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all font-mono text-[11px] font-semibold text-slate-700 group cursor-pointer shadow-2xs"
+                className="mt-2.5 w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all font-mono text-[11px] font-semibold text-slate-700 group cursor-pointer shadow-card"
               >
                 <span className="truncate">{getExamDisplayUrl(publishResult.access_code)}</span>
                 <span className="shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">

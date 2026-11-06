@@ -41,7 +41,6 @@ import { Button } from "@/components/ui/button";
 
 /** The row of actions under the text of a state card: shifted by the width of the icon (w-11 + gap-3.5) from `sm` up, so it stands under the text; on a phone it takes the full width of the card. */
 const BANNER_ACTIONS = "mt-4 flex flex-wrap items-center gap-2 sm:pl-[3.625rem]";
-const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2";
 
 /**
  * «Урока не было» under the text of a state card.  It IS the row of the «⋯» menu (label, handler and the conditions of showing come from the menu item),
@@ -49,15 +48,15 @@ const BANNER_ACTION_BASE = "px-4 py-2.5 rounded-xl text-xs font-bold transition-
  */
 function CancelLessonButton({ item, busy }: { item: LessonMenuItem; busy: boolean }) {
   return (
-    <button
+    <Button
       type="button"
       data-cancel-entry
       onClick={item.onSelect}
       disabled={busy}
-      className={`${BANNER_ACTION_BASE} bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 disabled:cursor-not-allowed disabled:opacity-50`}
+      variant="secondary" size="md"
     >
       {item.label}
-    </button>
+    </Button>
   );
 }
 
@@ -463,13 +462,13 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             </div>
                           </div>
                           <div className={BANNER_ACTIONS}>
-                            <button
+                            <Button
                               type="button"
                               onClick={() => setIsMarkingAttendance(true)}
-                              className={`${BANNER_ACTION_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                              variant="primary" size="md"
                             >
                               Заполнить посещаемость
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       ) : banner === "past" ? (
@@ -492,22 +491,22 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           {(activeMissedUnknown || activeMissedAction || cancelCardItem) && (
                             <div className={BANNER_ACTIONS}>
                               {activeMissedUnknown && (
-                                <button
+                                <Button
                                   type="button"
                                   onClick={retryOpenActions}
-                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 text-white`}
+                                  variant="primary" size="md"
                                 >
                                   Повторить
-                                </button>
+                                </Button>
                               )}
                               {activeMissedAction && (
-                                <button
+                                <Button
                                   type="button"
                                   onClick={() => openMissedLesson(activeMissedAction)}
-                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 text-white`}
+                                  variant="primary" size="md"
                                 >
                                   Разобрать пропущенный урок
-                                </button>
+                                </Button>
                               )}
                               {cancelCardItem && <CancelLessonButton item={cancelCardItem} busy={savingAttendance} />}
                             </div>
@@ -571,15 +570,15 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           {!isAttendanceSaved && (
                             <>
                               <div className={BANNER_ACTIONS}>
-                                <button
+                                <Button
                                   type="button"
                                   onClick={handleStartLesson}
                                   disabled={savingAttendance}
-                                  className={`${BANNER_ACTION_BASE} bg-slate-900 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 text-white`}
+                                  variant="primary" size="md"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-white" />
                                   Начать урок
-                                </button>
+                                </Button>
                                 {/* the row of the «⋯» menu moved here: the card shows it, the menu then does not (`cancelShownInCard`) */}
                                 {cancelCardItem && <CancelLessonButton item={cancelCardItem} busy={savingAttendance} />}
                               </div>
@@ -602,15 +601,15 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                             </div>
                           </div>
                           <div className={BANNER_ACTIONS}>
-                            <button
+                            <Button
                               type="button"
                               onClick={handleStartLesson}
                               disabled={savingAttendance}
-                              className={`${BANNER_ACTION_BASE} disabled:cursor-not-allowed disabled:opacity-50 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm shadow-emerald-600/25`}
+                              variant="primary" size="md"
                             >
                               <Play className="w-3.5 h-3.5 fill-white" />
                               Начать урок
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}

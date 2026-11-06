@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/store";
 import { GroupsListView } from "@/components/groups/groups-list-view";
 import { PaymentsPage } from "@/components/payments/payments-page";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
+import { ModalActions } from "@/components/ui/modal-actions";
 import TeacherDashboard from "@/app/teacher/dashboard/page";
 import TeacherSchedule from "@/app/teacher/schedule/page";
 import TeacherExams from "@/app/teacher/exams/page";
@@ -19,7 +20,7 @@ const w = window as any;
 
 function Gallery() {
   const { showToast, toastNode } = useToast();
-  const [open, setOpen] = React.useState<null | "question" | "form">(null);
+  const [open, setOpen] = React.useState<null | "question" | "form" | "why">(null);
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-slate-900">Кнопки, окна, тосты</h1>
@@ -51,6 +52,9 @@ function Gallery() {
           <button id="open-form" onClick={() => setOpen("form")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Окно с формой</button>
           <button id="toast-ok" onClick={() => showToast("Оплата записана: 400 000 сум", "success")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Тост: успех</button>
           <button id="toast-warn" onClick={() => showToast("Месяц закрыт: ведомость не изменится", "warning")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Тост: внимание</button>
+          <button id="open-why" onClick={() => setOpen("why")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Окно: кнопка выключена</button>
+          <button id="toast-info" onClick={() => showToast("Выписка обновится в течение минуты", "info")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Тост: инфо</button>
+          <button id="toast-link" onClick={() => showToast("Оплата записана: 400 000 сум", "success", undefined, { label: "Открыть выписку", href: "/owner/payments" })} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Тост: со ссылкой</button>
           <button id="toast-err" onClick={() => showToast("Не удалось сохранить. Повторите", "error")} className="rounded-xl border border-slate-200 px-4 py-2 text-sm">Тост: ошибка</button>
         </div>
       </section>
@@ -63,6 +67,10 @@ function Gallery() {
         <label className="block text-sm font-semibold text-slate-700">Сумма
           <input className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" defaultValue="400 000" />
         </label>
+      </Modal>
+      <Modal open={open === "why"} onClose={() => setOpen(null)} title="Записать выплату" size="sm"
+        footer={<ModalActions primary="Записать выплату 757 500 сум" disabled why="Укажите, как выплачено: наличные, карта или перевод." onPrimary={() => setOpen(null)} onCancel={() => setOpen(null)} />}>
+        <p className="text-sm text-slate-600">Преподаватель: Каримова К.</p>
       </Modal>
       {toastNode}
     </div>

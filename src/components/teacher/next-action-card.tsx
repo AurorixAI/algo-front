@@ -4,6 +4,8 @@ import Link from "next/link";
 import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Radio } from "lucide-react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { formatCountdown, moreTodayText, startsInText, type AgendaLessonLike, type NextStep } from "@/lib/teacher-agenda";
+import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/lib/button-style";
 
 /** What the card needs of a lesson action of the dashboard (`LessonAction`). */
 export interface CardAction {
@@ -35,9 +37,6 @@ const ICON_TONE: Record<Tone, string> = {
   slate: "bg-slate-100 text-slate-600",
   primary: "bg-primary-100 text-primary-700",
 };
-
-const BUTTON_DARK = "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800";
-const BUTTON_LIGHT = "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700";
 
 const examLine = (exam: CardExam) => `${exam.title}${exam.group_name ? ` · ${exam.group_name}` : ""}`;
 
@@ -110,15 +109,15 @@ export function NextActionCard<A extends CardAction, L extends AgendaLessonLike>
           </div>
         </div>
         {step.kind === "action" ? (
-          <button type="button" onClick={() => onOpenAction(step.action)} className={BUTTON_DARK}>Открыть урок <ArrowRight className="h-4 w-4" /></button>
+          <Button type="button" onClick={() => onOpenAction(step.action)}>Открыть урок <ArrowRight className="h-4 w-4" /></Button>
         ) : step.kind === "upcoming" ? (
-          <button type="button" onClick={() => onOpenLesson(step.entry.lesson)} className={BUTTON_DARK}>Открыть урок <ArrowRight className="h-4 w-4" /></button>
+          <Button type="button" onClick={() => onOpenLesson(step.entry.lesson)}>Открыть урок <ArrowRight className="h-4 w-4" /></Button>
         ) : step.kind === "exam_active" || step.kind === "exam_attention" ? (
           <Link href={`/teacher/exams/${step.exam.exam_id}`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700">Открыть экзамен <ArrowRight className="h-4 w-4" /></Link>
         ) : step.kind === "failed" ? (
-          <button type="button" onClick={onRetry} className={BUTTON_LIGHT}>Повторить</button>
+          <Button type="button" variant="secondary" onClick={onRetry}>Повторить</Button>
         ) : (
-          <Link href="/teacher/schedule" className={BUTTON_LIGHT}>Открыть расписание <ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/teacher/schedule" className={buttonClass({ variant: "secondary" })}>Открыть расписание <ArrowRight className="h-4 w-4" /></Link>
         )}
       </div>
     </div>

@@ -11,9 +11,12 @@ export const MODAL_DEFAULT_MAX_WIDTH = MODAL_WIDTH.md;
 /** The width of a side sheet (`placement="right" | "sheet"`). */
 export const MODAL_SHEET_WIDTH = "max-w-[480px]";
 export const MODAL_BODY_DEFAULT = "px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0";
-export const MODAL_FOOTER_DEFAULT = "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3";
+/** The default footer is the column of `ModalActions` (the line «почему», then the row of buttons): `footer={<ModalActions … />}` needs nothing else. */
+export const MODAL_FOOTER_DEFAULT = "flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3";
+/** A footer that is a plain row of controls (not `ModalActions`): the main one last, on a phone the main one on top. */
+export const MODAL_FOOTER_ROW = "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3";
 /** The footer of a window that ends with `ModalActions` (a column: the line «почему» and the row of buttons). */
-export const MODAL_ACTIONS_FOOTER_CLASS = "flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3";
+export const MODAL_ACTIONS_FOOTER_CLASS = MODAL_FOOTER_DEFAULT;
 /** The divider above the footer: it belongs to the Modal, an override of the footer layout does not remove it. */
 export const MODAL_FOOTER_DIVIDER = "shrink-0 border-t border-slate-100";
 

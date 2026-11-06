@@ -2,6 +2,7 @@
 
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface DataLoadErrorProps {
   title?: string;
@@ -38,18 +39,16 @@ export function DataLoadError({
       <div className={cn(compact ? "min-w-0 flex-1" : "") }>
         <p className="font-semibold">{title}</p>
         {message && <p className="mt-1 text-sm leading-5 text-rose-700">{message}</p>}
-        {onRetry && <button
+        {onRetry && <Button
           type="button"
+          variant="secondary"
           onClick={onRetry}
           disabled={isRetrying}
-          className={cn(
-            "inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm ring-1 ring-rose-200 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60",
-            compact ? "mt-3" : "mt-4",
-          )}
+          icon={<RefreshCw className={cn("h-4 w-4", isRetrying && "animate-spin")} />}
+          className={cn("border-danger-200 text-danger-700 hover:bg-danger-50", compact ? "mt-3" : "mt-4")}
         >
-          <RefreshCw className={cn("h-4 w-4", isRetrying && "animate-spin")} />
           {isRetrying ? "Обновляем…" : "Повторить"}
-        </button>}
+        </Button>}
       </div>
     </div>
   );

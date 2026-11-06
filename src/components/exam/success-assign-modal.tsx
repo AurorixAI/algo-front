@@ -9,6 +9,7 @@ import { buttonClass } from "@/lib/button-style";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
+import { MODAL_FOOTER_ROW } from "@/lib/modal-layout";
 
 /**
  * «Экзамен назначен!» - the answer after an exam is bound to a lesson.  ONE dialog for the library «Назначить» and for the group page
@@ -44,6 +45,7 @@ export function SuccessAssignModal({ result, returnHref, onClose }: SuccessAssig
         description={result.group_name ? <>Для группы <span className="font-semibold text-slate-800">{result.group_name}</span></> : undefined}
         onClose={onClose}
         size="sm"
+        footerClassName={MODAL_FOOTER_ROW}
         footer={(
           <>
             <Button variant="secondary" onClick={onClose} className="max-md:min-h-11">Закрыть</Button>

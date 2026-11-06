@@ -485,9 +485,10 @@ test("Modal defaults: width 520 (a form; a question is 448, a table 640), the bo
   assert.equal(L.modalLayout({ size: "sm" }).card.includes("max-w-md"), true);
   assert.equal(L.MODAL_ACTIONS_FOOTER_CLASS, "flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3");
   assert.equal(L.MODAL_BODY_DEFAULT, "px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0");
-  assert.equal(L.MODAL_FOOTER_DEFAULT, "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
+  assert.equal(L.MODAL_FOOTER_DEFAULT, "flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3", "the default footer is the column of ModalActions");
+  assert.equal(L.MODAL_FOOTER_ROW, "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3", "a plain row of controls asks for it");
   assert.equal(layout.body, L.MODAL_BODY_DEFAULT);
-  assert.equal(layout.footer, "shrink-0 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
+  assert.equal(layout.footer, "shrink-0 border-t border-slate-100 flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3");
   assert.equal(
     layout.card,
     "bg-white rounded-modal shadow-pop border border-slate-100 w-full max-w-[520px] max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none",
