@@ -70,7 +70,7 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   await expect(table).toContainText(/Следующий период с \d\d\.\d\d/);
   await expect(table).toContainText(/\+100\s000\sсум/);
   await expect(dialog.getByTestId("price-impact-money-summary")).toHaveText("Изменится у 3 учеников");
-  await expect(dialog.getByTestId("price-impact-money-totals")).toContainText(/Следующий период дороже в сумме, 1 ученик\s*\+100\s000\sсум/);
+  await expect(dialog.getByTestId("price-impact-money-totals")).toContainText(/Следующий период дороже в сумме, 3 ученика\s*\+300\s000\sсум/);
   await expectNoHorizontalScroll(page);
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.getByRole("dialog", { name: "Изменить цену группы" })).toHaveCount(0);

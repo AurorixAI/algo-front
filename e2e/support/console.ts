@@ -73,9 +73,9 @@ export async function startConsoleServer(): Promise<{ close: () => Promise<void>
 }
 
 function authContainer(): string {
-  const ps = spawnSync("docker", ["compose", "-p", "algo-e2e", "ps", "-q", "auth"], { encoding: "utf8" });
+  const ps = spawnSync("docker", ["compose", "-p", process.env.E2E_PROJECT || "algo-e2e", "ps", "-q", "auth"], { encoding: "utf8" });
   const id = ps.stdout.trim().split("\n")[0];
-  if (!id) throw new Error("the auth container of the algo-e2e stack was not found");
+  if (!id) throw new Error("the auth container of the e2e stack was not found");
   return id;
 }
 

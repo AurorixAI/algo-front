@@ -255,7 +255,7 @@ export class Org {
    * Put a student into a group.  He follows the PRICE OF THE GROUP (`setGroupPrice`); an individual price is an explicit
    * exception with a reason (`individualPrice` here, or `setStudentPrice` later).  `monthly_fee` is not accepted any more (#105).
    */
-  async enrol(groupId: string, studentId: string, individualPrice?: { amount: number; reason: string }): Promise<void> {
+  async enrol(groupId: string, studentId: string, individualPrice?: { amount: number; reason: string }, payFrom?: string): Promise<void> {
     // KNOWN PRODUCT RACE (reported with the E2E suite): the first enrolment of a centre picks its student-ID prefix
     // (initials of the name, +1/+2 when taken) without a cross-centre lock, so two centres enrolling their first
     // student in the same instant with equal initials get a 500 (unique violation on student_id_prefix). The
@@ -264,10 +264,12 @@ export class Org {
       try {
         await this.owner.api.post(
           `/auth/org/groups/${groupId}/students/${studentId}`,
-          individualPrice === undefined ? {} : { price_override: individualPrice },
+          { ...(individualPrice === undefined ? {} : { price_override: individualPrice }), ...(payFrom ? { pay_from: payFrom } : {}) },
         );
         return;
       } catch (e) {
+        // «Оплата с» outside the range of the centre (an accounting start later than today): the day is dropped, the server's default stays
+        if (e instanceof ApiError && e.status === 422 && /PAY_FROM_RANGE/.test(JSON.stringify(e.detail)) && payFrom) { payFrom = undefined; continue; }
         const race = e instanceof ApiError && e.status === 500 && /student_id_prefix/.test(JSON.stringify(e.detail));
         if (!race || attempt >= 3) throw e;
       }
@@ -277,7 +279,8 @@ export class Org {
   /** Create a student and put him into a group in one go (at the price of the group, or with an individual price). */
   async addStudent(group: GroupInfo, firstName: string, lastName: string, individualPrice?: { amount: number; reason: string }): Promise<StudentInfo> {
     const s = await this.createStudent(firstName, lastName);
-    await this.enrol(group.id, s.id, individualPrice);
+    // Money-1 B1: WITHOUT «Оплата с» a new student is charged from the first lesson of the group; the specs that count money from the day of joining say so: «Оплата с» = today
+    await this.enrol(group.id, s.id, individualPrice, businessNow().date);
     // the public ID ("AB-001") is issued at enrolment, not when the student is created
     const fresh = await this.owner.api.get(`/auth/org/students/${s.id}`);
     return { ...s, displayId: fresh.display_id ?? null };
