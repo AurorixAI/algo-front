@@ -340,7 +340,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     counts: counts ?? null,
     noFeeHref: counts === sheet.warnings ? sheetNoFeeHref(sheet) : undefined,
     openUnknown: counts === sheet.warnings && sheet.id === null && counts?.open_lessons === null,
-    undecidedVisits: sheet.undecided_total,
+    // the count of NOW (the same `undecided_lessons` the «Замены» list counts); the saved `undecided_total` only when the fresh one could not be read (R4 Д1: it stayed after the decision)
+    undecidedVisits: warningsFailed ? sheet.undecided_total : null,
     undecidedLessons: freshUndecided,
     changed: status?.tone === "changed" && sheet.id ? changedItem({ sheet: { id: sheet.id, stale: true }, payout: sheet.payout }) : null,
   }) : [];
