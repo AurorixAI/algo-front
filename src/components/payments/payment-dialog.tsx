@@ -43,6 +43,7 @@ import {
   PLAN_LOADING_TEXT,
   QUICK_AMOUNTS_LABEL,
   quickAmounts,
+  debtNowLine,
   readLastMethod,
   rememberMethod,
   type PlanView,
@@ -179,6 +180,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const leftProblem = leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
   const plan = amountNow !== null ? planView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
+  const debtNow = debtNowLine(latest);
   const chips = kind === "create" ? quickAmounts(latest, { leftOnly }) : [];
   const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
@@ -282,7 +284,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
           {/* 1. The amount, and the quick amounts that say what is due */}
           <div>
-            {kind === "create" && due !== null && due.total > 0 && <p data-testid="payment-debt-now" className="-mt-2 mb-3 text-xs text-slate-600">Долг сейчас: <span className="font-medium tabular-nums">{formatMoney(due.total)}</span></p>}
+            {kind === "create" && debtNow && <p data-testid="payment-debt-now" className="-mt-2 mb-3 text-xs text-slate-600">Долг сейчас: <span className="font-medium tabular-nums">{debtNow.total}</span>{debtNow.past && <> · <span className="tabular-nums">{debtNow.past}</span></>}</p>}
             <label htmlFor="payment-amount" className={LABEL}>Сумма</label>
             <div className="relative">
               <input
@@ -309,7 +311,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
                       type="button"
                       onClick={() => setAmount(chip.amount)}
                       aria-pressed={on}
-                      className={`rounded-full border px-3.5 py-1.5 text-left text-xs font-semibold transition-colors ${on ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      className={`min-h-10 rounded-full border px-3.5 py-1.5 text-left text-xs font-semibold transition-colors sm:min-h-8 ${on ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                     >
                       {chip.label}
                     </button>

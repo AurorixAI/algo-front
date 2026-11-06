@@ -35,7 +35,11 @@ test("№20: «Вернуть на отметку» - ONE sentence «Учени�
   const { page } = await openPage(browser, "money.entry.tsx", restoreServer, { width: 1280, height: 900 });
   await page.evaluate(() => window.mount("review"));
   await page.waitForSelector('[data-testid="return-review-deductions"]');
-  assert.equal(plain(await page.textContent('[data-testid="return-review-deductions"]')), "Ученикам снимем перерасчёт за этот урок: Нематов Жасур — 40 000 сум, Иванов Иван — 80 000 сум, всего 120 000 сум.");
+  // re-audit В4: ONE block «Что изменится» - the students' recalculation as a table, each name once
+  const block = plain(await page.textContent('[data-testid="return-review-deductions"]'));
+  assert.match(block, /^Что изменится\s*Ученикам снимем перерасчёт за этот урок\s*Нематов Жасур\s*40 000 сум\s*Иванов Иван.*80 000 сум\s*Всего\s*120 000 сум/);
+  assert.equal((block.match(/Иванов Иван/g) ?? []).length, 1, block);
+  assert.equal((plain(await page.textContent('[role="dialog"]')).match(/Что изменится/g) ?? []).length, 1, "one title");
   assert.match(plain(await page.textContent('[role="dialog"]')), /В зарплату преподавателя урок войдёт, когда его проведут\./);
   const submit = page.locator('[data-testid="return-review-submit"]');
   assert.equal(plain(await submit.textContent()), "Вернуть на отметку");

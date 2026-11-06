@@ -15,6 +15,7 @@ import {
 import { periodClosedOf, type ClosedPurpose } from "@/lib/closed-period";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
+import { tidyMoneyText } from "@/lib/money-format";
 
 /**
  * The lines of money of an action (the same ones the toast carries).  The pay of the teachers is a heading, a line per teacher and - only when something has to be done - a sentence of what
@@ -25,8 +26,21 @@ export function EffectLines({ effects, withPaid = false }: { effects: MoneyEffec
     <ul className="space-y-1.5">
       {effectLines(effects, { withPaid }).map((line) => (
         <li key={line.key} data-testid="effect-line" className="text-sm text-slate-800">
-          <p className={line.tone === "warn" && !line.note ? "font-medium text-amber-900" : undefined}>{line.text}</p>
-          {line.items && line.items.length > 0 && (
+          <p className={line.tone === "warn" && !line.note ? "font-medium text-amber-900" : undefined}>{tidyMoneyText(line.text)}</p>
+          {line.rows && line.rows.length > 0 && (
+            <ul className="mt-1 space-y-0.5" data-testid="effect-rows">
+              {line.rows.map((row) => (
+                <li key={row.name} className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums">
+                  <span className="min-w-0">{tidyMoneyText(row.name)}</span>
+                  <span className="flex items-baseline gap-x-3 whitespace-nowrap">
+                    {row.change && <span className="text-slate-600">{tidyMoneyText(row.change)}</span>}
+                    {row.delta && <span className="font-semibold">{tidyMoneyText(row.delta)}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!line.rows && line.items && line.items.length > 0 && (
             <ul className="mt-0.5 space-y-0.5 pl-3">
               {line.items.map((item) => <li key={item} className="tabular-nums">{item}</li>)}
             </ul>

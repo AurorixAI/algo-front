@@ -86,7 +86,7 @@ export function joinNames(names: string[]): string {
 
 export interface QuickAmount {
   key: "debt" | "all" | "current";
-  /** «Погасить долг · 592 000 сум». */
+  /** «Прошлые месяцы · 800 000 сум» / «Весь долг · 1 200 000 сум» (re-audit В3: «долг» is the whole debt, the part is named as a part). */
   label: string;
   amount: number;
 }
@@ -116,12 +116,29 @@ export function quickAmounts(preview: PaymentPreview | null | undefined, options
   const { running } = splitDueSegments(preview);
   const runName = runningChipName(running, preview);
   const chips: QuickAmount[] = [];
-  if (due.pastDebt > 0) chips.push({ key: "debt", label: `Погасить долг · ${formatMoney(due.pastDebt)}`, amount: due.pastDebt });
-  if (due.currentDue > 0 && !options.leftOnly) {
-    if (due.pastDebt > 0) chips.push({ key: "all", label: `Долг + ${runName} · ${formatMoney(due.total)}`, amount: due.total });
+  const withCurrent = due.currentDue > 0 && !options.leftOnly;
+  // re-audit В3: with the running period due too, «прошлые месяцы» is a PART and «весь долг» the whole; with nothing else due the past debt IS the whole debt
+  if (due.pastDebt > 0) chips.push(withCurrent
+    ? { key: "debt", label: `Прошлые ${pastNoun(preview)} · ${formatMoney(due.pastDebt)}`, amount: due.pastDebt }
+    : { key: "debt", label: `Весь долг · ${formatMoney(due.pastDebt)}`, amount: due.pastDebt });
+  if (withCurrent) {
+    if (due.pastDebt > 0) chips.push({ key: "all", label: `Весь долг · ${formatMoney(due.total)}`, amount: due.total });
     else chips.push({ key: "current", label: `${running && sum(running.paid) > 0 ? "Остаток за" : "За"} ${runName} · ${formatMoney(due.currentDue)}`, amount: due.currentDue });
   }
   return chips;
+}
+
+/** «месяцы» / «периоды» / «пакеты»: what the past debt consists of. */
+export function pastNoun(preview: PaymentPreview): string {
+  const past = preview.due.segments.filter((segment) => segment.bucket === "past_debt");
+  return preview.mode === "lessons" ? "пакеты" : past.length > 0 && past.every((segment) => segmentName(segment, preview).isMonth) ? "месяцы" : "периоды";
+}
+
+/** The line under the title of «Внести оплату»: «Долг сейчас: 1 200 000 сум · из них за прошлые месяцы 800 000 сум» (the second part only when it is less than the whole). */
+export function debtNowLine(preview: PaymentPreview | null | undefined): { total: string; past: string | null } | null {
+  const due = preview ? dueView(preview) : null;
+  if (!preview || !due || due.total <= 0) return null;
+  return { total: formatMoney(due.total), past: due.pastDebt > 0 && due.pastDebt < due.total ? `из них за прошлые ${pastNoun(preview)} ${formatMoney(due.pastDebt)}` : null };
 }
 
 /** The chip is selected only while the field holds exactly its amount. */

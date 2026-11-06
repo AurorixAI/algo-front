@@ -47,8 +47,8 @@ test("the window is about the STUDENT's money: the title, the subtitle, the debt
   assert.equal(await page.textContent('[role="dialog"] h2'), "Оплата от ученика");
   const text = plain(await page.textContent('[role="dialog"]'));
   assert.match(text, /Тошматов Бобур · Алгебра 7 \(вт\/пт\) · деньги поступают в центр/);
-  assert.match(plain(await page.textContent('[data-testid="payment-debt-now"]')), /^Долг сейчас: 1 200 000 сум$/);
-  assert.deepEqual((await page.locator('[data-testid="payment-chips"] button').allTextContents()).map(plain), ["Погасить долг · 800 000 сум", "Долг + ноябрь · 1 200 000 сум"]);
+  assert.match(plain(await page.textContent('[data-testid="payment-debt-now"]')), /^Долг сейчас: 1 200 000 сум · из них за прошлые месяцы 800 000 сум$/);
+  assert.deepEqual((await page.locator('[data-testid="payment-chips"] button').allTextContents()).map(plain), ["Прошлые месяцы · 800 000 сум", "Весь долг · 1 200 000 сум"]);
   assert.equal(plain(await page.textContent('button[form="payment-form"]')), "Внести 400 000 сум");
   await page.close();
 });

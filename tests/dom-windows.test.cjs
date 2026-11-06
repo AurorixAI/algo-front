@@ -97,8 +97,8 @@ test("«Вернуть на отметку»: whose deduction goes away is liste
   await page.evaluate(() => window.mount("review"));
   await page.waitForSelector('[data-testid="return-review-deductions"]');
   const text = (await page.textContent('[data-testid="return-review-deductions"]')).replace(/\s+/g, " ");
-  assert.match(text, /Иванов Иван — 46 000 сум/);
-  assert.match(text, /Петрова Мария — 46 000 сум/);
+  assert.match(text, /Иванов Иван.*46 000 сум/);
+  assert.match(text, /Петрова Мария\s*46 000 сум/);
   await page.fill("#return-review-reason", "нажали «Урока не было» по ошибке");
   await page.click('[data-testid="return-review-submit"]');
   await page.waitForFunction(() => window.__log.includes("done"));
@@ -178,7 +178,7 @@ test("K2: «Вернуть урок» of a cancelled lesson in the sheet of the 
   assert.equal(await page.locator(confirm).last().isDisabled(), true, "the answer about money is not here: the button waits");
   hold.open();
   await page.waitForSelector('[data-testid="return-review-deductions"]');
-  assert.match((await page.textContent('[data-testid="return-review-deductions"]')).replace(/\s+/g, " "), /Иванов Иван — 46 000 сум/);
+  assert.match((await page.textContent('[data-testid="return-review-deductions"]')).replace(/\s+/g, " "), /Иванов Иван.*46 000 сум/);
   assert.equal(await page.locator(confirm).last().isDisabled(), false);
   await page.locator(confirm).last().click();
   await page.waitForFunction(() => window.__log.some((line) => line.startsWith("changed:")));

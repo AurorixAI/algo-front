@@ -506,7 +506,7 @@ test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (fut
   for (const part of ["Погасит остаток долга за 15.09–14.10", "269 000 сум", "Пойдёт в период 15.10–14.11 (часть)", "31 000 сум", "Останется долг", "469 000 сум", "Погасит долг за период 15.09–14.10, за период 15.10–14.11 останется 469 000 сум"].map((part) => part.replace(/ /g, "\u00a0").replace(/\u00a0/g, " "))) assert.ok(plain(calc).includes(part) || calc.includes(part) || plain(calc).replace(/ /g, " ").includes(part), part);
   assert.ok(!/Закрыла|Остаток долга после оплаты|→/.test(calc));
   // the due numbers of the old top block are the chips
-  assert.deepEqual(X.quickAmounts(L.normalizePreview(fixture("e1_preview_300000"))).map((chip) => plain(chip.label)), ["Погасить долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
+  assert.deepEqual(X.quickAmounts(L.normalizePreview(fixture("e1_preview_300000"))).map((chip) => plain(chip.label)), ["Прошлые периоды · 269 000 сум", "Весь долг · 769 000 сум"]);
   // E9: the price rise has its own amber note
   const rise = html(React.createElement(PlanBlock, { plan: plan("e9_preview_price_ahead_1069000") }));
   assert.match(rise, /role="note"/);

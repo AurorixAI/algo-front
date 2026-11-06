@@ -63,11 +63,11 @@ const said = (p) => plain(p.sentence);
 
 // ── chips: they carry what the old top block said ───────────────────────────────────────────────────────────────────
 
-test("chips: «Погасить долг · 592 000 сум» and «Долг + октябрь · 1 142 000 сум»; no top block, no «2 периода»", () => {
+test("chips: «Прошлые месяцы · 592 000 сум» and «Весь долг · 1 142 000 сум»; no top block, no «2 периода»", () => {
   const chips = X.quickAmounts(preview({ segments: SEGS() }));
   assert.deepEqual(chips.map((chip) => [chip.key, plain(chip.label), chip.amount]), [
-    ["debt", "Погасить долг · 592 000 сум", 592000],
-    ["all", "Долг + октябрь · 1 142 000 сум", 1142000],
+    ["debt", "Прошлые месяцы · 592 000 сум", 592000],
+    ["all", "Весь долг · 1 142 000 сум", 1142000],
   ]);
   const dialog = read("src/components/payments/payment-dialog.tsx");
   assert.doesNotMatch(dialog, /DueBlock|Всего к оплате|Текущий период|Только долг|Долг и текущий период|periода|2 периода/);
@@ -79,7 +79,7 @@ test("chips: no debt → «За октябрь», «Остаток за октя
   const part = X.quickAmounts(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 200000, "current")] }));
   assert.equal(plain(part[0].label), "Остаток за октябрь · 350 000 сум");
   const shifted = X.quickAmounts(L.normalizePreview(fixture("e1_preview_due")));
-  assert.deepEqual(shifted.map((chip) => plain(chip.label)), ["Погасить долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
+  assert.deepEqual(shifted.map((chip) => plain(chip.label)), ["Прошлые периоды · 269 000 сум", "Весь долг · 769 000 сум"]);
   const noDebt = X.quickAmounts(L.normalizePreview(fixture("e2_preview_due")));
   assert.deepEqual(noDebt.map((chip) => plain(chip.label)), ["За октябрь · 323 000 сум"]);
   // nothing due: no chip, a calm line (and the «+ следующий месяц» chip is not invented: the server gives no next price in the due block)
@@ -280,7 +280,7 @@ test("package (lessons) mode keeps working: packages are named, the lessons line
   assert.deepEqual(lines(adv).at(-1), ["Аванс", 30000]);
   assert.doesNotMatch(said(adv), /Оплачено до/);
   const chips = X.quickAmounts(L.normalizePreview(fixture("e5_preview_650000_held14")));
-  assert.deepEqual(chips.map((chip) => plain(chip.label)), ["Погасить долг · 600 000 сум", "Долг + текущий пакет · 700 000 сум"]);
+  assert.deepEqual(chips.map((chip) => plain(chip.label)), ["Прошлые пакеты · 600 000 сум", "Весь долг · 700 000 сум"]);
 });
 
 test("lessons mode, nothing due: «Пойдёт на будущие уроки — хватит на N уроков», the line «На будущие уроки» (inc5 P08); the month mode keeps «аванс»", () => {

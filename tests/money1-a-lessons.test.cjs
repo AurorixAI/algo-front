@@ -92,7 +92,7 @@ test("UX round of the owner: the block of money by month - the heading, a line p
   const show = (state) => html(React.createElement(MoneyEffectsBlock, { preview: { status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [line(state)], text: "", dryRun: true }) }, onRetry() {} }));
   const closed = show("closed");
   const closedText = plain(textOf(closed));
-  assert.match(closedText, /Зарплата за сентябрь(?: 2026)? вырастет:\s*Эргашев К\. — \+133 333 сум \(было 860 000, станет 993 333\)/);
+  assert.match(closedText, /Зарплата за сентябрь(?: 2026)? вырастет:\s*Эргашев К\.\s*860 000 → 993 333\s*\+133 333 сум/);
   assert.match(closed, /data-testid="effect-note"/);
   assert.match(closedText, /Сентябрь(?: 2026)? закрыт: сохраните новую сумму, чтобы она вошла в выплату\./);
   assert.match(closed, /border-amber-200/, "something has to be done: amber");

@@ -171,12 +171,22 @@ export const MONEY_RIGHT_TEXT = "Это действие меняет деньг
 
 // ── the lines of a window of confirmation / a toast ──────────────────────────────────────────────
 
+export interface EffectRow {
+  name: string;
+  /** «475 000 → 425 000»; null when the server did not send both sums. */
+  change: string | null;
+  /** «−50 000 сум» (null: the sum of the change is not known). */
+  delta: string | null;
+}
+
 export interface EffectLine {
   key: string;
   /** The line itself; for the pay of the teachers - its heading («Зарплата за сентябрь вырастет:»). */
   text: string;
   /** Under the heading: one line per teacher («Эргашев К. — +133 333 сум (было 860 000, станет 993 333)»). */
   items?: string[];
+  /** The same lines as a TABLE (re-audit С11): the name on the left, «было → станет» in the middle, the change on the right - one look of «Что изменится» in every window. */
+  rows?: EffectRow[];
   /** Under the items, plain: what is paid already («Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум»); only where the window asks for it (`withPaid`). */
   after?: string[];
   /** After them: what the person has to do («Сентябрь закрыт: сохраните новую сумму, чтобы она вошла в выплату»).  Only when something has to be done. */
@@ -268,7 +278,12 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
       return `${name} — ${signedSum(line.changedBy)}${sums}${done && line.driftAfter === 0 ? " — снова как сохранённая" : ""}`;
     });
     const after = withPaid ? moved.map((line) => paidLine(line)).filter((text): text is string => text !== null) : [];
-    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, ...(after.length > 0 ? { after } : {}), note, tone });
+    const rows: EffectRow[] = moved.map((line) => ({
+      name: line.teacherName || "Преподаватель",
+      change: line.freshBefore !== null && line.freshAfter !== null ? `${bare(line.freshBefore)} → ${bare(line.freshAfter)}` : null,
+      delta: line.changedBy === null ? null : signedSum(line.changedBy),
+    }));
+    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, rows, ...(after.length > 0 ? { after } : {}), note, tone });
   }
   return out;
 }

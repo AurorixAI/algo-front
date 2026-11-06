@@ -42,7 +42,7 @@ test("D-4: «Оплатить» - the window first asks the server what the deci
   hold.open();
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   const effects = await flat(page, '[data-testid="money-effects"]');
-  assert.match(effects, /Зарплата за ноябрь(?: 2026)? вырастет:\s*Каримова К\. — \+125 000 сум \(было 0, станет 125 000\)/);
+  assert.match(effects, /Зарплата за ноябрь(?: 2026)? вырастет:\s*Каримова К\.\s*0 → 125 000\s*\+125 000 сум/);
   const dialog = await flat(page, '[role="dialog"]');
   assert.equal((dialog.match(/125\s000/g) || []).length, 2, "the change and the sum after - the estimate of the row is not said a third time");
   assert.ok(!dialog.includes("Преподавателю ≈"), "the estimate is the line of the sheet now");
@@ -199,7 +199,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
   await run.page.waitForSelector('[data-testid="decided-undo"]');
   await run.page.click('[data-testid="decided-undo"]');
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
-  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата за ноябрь(?: 2026)? уменьшится:\s*Каримова К\. — −125 000 сум \(было 125 000, станет 0\)/);
+  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата за ноябрь(?: 2026)? уменьшится:\s*Каримова К\.\s*125 000 → 0\s*−125 000 сум/);
   assert.ok(!(await flat(run.page, '[role="dialog"]')).includes("Сейчас урок оплачивается преподавателю"), "no second telling of the same");
   await run.page.close();
 
