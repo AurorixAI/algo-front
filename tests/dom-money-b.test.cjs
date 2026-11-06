@@ -175,6 +175,8 @@ test("Б1: a day in the past - the dry run says «Сразу начислитс�
   const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
   assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(SHOTS, "09-pay-from-past-immediate-1280.png") });
   await page.close();
 });
 
@@ -201,6 +203,8 @@ test("Б1: PAY_FROM_RANGE is told in words under the form", async () => {
   await page.click('button:has-text("Зачислить (1)")');
   await page.waitForSelector('[role="alert"]');
   assert.match(plain(await page.textContent('[role="alert"]')), /«Оплата с» — не раньше начала учёта центра \(01\.09\.2026\) и не позже чем через 62 дня от сегодня/);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(SHOTS, "13-pay-from-range-error-1280.png") });
   await page.close();
 });
 
@@ -229,6 +233,7 @@ test("Б2: the price field of a new group - owner and administrator with money o
     if (has) {
       assert.match(plain(await page.textContent('label[for="group-create-price"]')), /^Цена в месяц \(необязательно\)$/);
       await page.fill("#group-create-price", "450000");
+      if (user === OWNER) { await page.waitForTimeout(600); await page.screenshot({ path: path.join(SHOTS, "11-group-create-price-1280.png") }); }
     }
     await page.click('button:has-text("Создать группу")');
     await page.waitForTimeout(250);
@@ -329,6 +334,8 @@ test("Б9: the repeated payment - the server's sentence as it is, the button is 
   assert.equal(plain(await page.textContent('[data-testid="payment-repeated"]')), "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?");
   assert.equal((await page.textContent('[data-testid="payment-plan"]')).includes("сегодня в 10:15") , true);
   assert.equal((plain(await page.textContent('[role="dialog"]')).match(/сегодня в 10:15/g) ?? []).length, 1, "said once");
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(SHOTS, "12-payment-repeated-1280.png") });
   await page.close();
 });
 
@@ -395,6 +402,8 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
   await page.waitForSelector('[data-testid="pay-from-immediate-total"]');
   const text = plain(await page.textContent('[data-testid="pay-from-immediate"]'));
   assert.match(text, /Ученик Новый: Сразу начислится 300 000 сум.*Ученик Второй: Сразу начислится 300 000 сум.*Всего сразу начислится 600 000 сум \(за 28 уроков\)/);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(SHOTS, "10-pay-from-bulk-total-1280.png") });
   await page.close();
 });
 
