@@ -69,7 +69,8 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   await expect(table).toContainText("Платящая Алия");
   await expect(table).toContainText(/Следующий период с \d\d\.\d\d/);
   await expect(table).toContainText(/\+100\s000\sсум/);
-  await expect(dialog.getByTestId("price-impact-money-summary")).toContainText(/следующий период дороже на 100\s000\sсум/);
+  await expect(dialog.getByTestId("price-impact-money-summary")).toHaveText("Изменится у 3 учеников");
+  await expect(dialog.getByTestId("price-impact-money-totals")).toContainText(/Следующий период дороже в сумме, 1 ученик\s*\+100\s000\sсум/);
   await expectNoHorizontalScroll(page);
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.getByRole("dialog", { name: "Изменить цену группы" })).toHaveCount(0);
@@ -89,7 +90,7 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const field = drawer.getByTestId("pay-from");
   await expect(field).toBeVisible();
   await expect(field.getByLabel("Оплата с")).toHaveValue(/\d\d\.\d\d\.\d{4}/);
-  await expect(drawer.getByTestId("pay-from-hint")).toContainText("Оплата считается с");
+  await expect(drawer.getByTestId("pay-from-hint")).toContainText(/Оплата с \d\d\.\d\d\.\d{4} — /);   // the sentence of the server
   // a day in the past: the server says how much is charged at once, before the button
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));

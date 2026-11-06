@@ -81,9 +81,9 @@ async function openCard(page: Page, group: GroupInfo, lesson: { date: string; to
 
 /** The "Внести оплату" dialog of the student from the list of debtors; returns the amount it proposes. */
 async function openPayDialog(page: Page, lastName: string) {
-  // Money-1 B7: a student whose period began today waits for the payment («Ждём оплату»); an overdue one is among «Должники»
-  await page.goto("/owner/payments?bucket=waiting");
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  // Money-1 B1: a student added today is charged from the first lesson of the group (not from today), so before that day he owes nothing and stands under «Без долга»; every row there has «Внести оплату»
+  await page.goto("/owner/payments?bucket=active");
+  await page.getByRole("tab", { name: /Без долга/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
