@@ -46,7 +46,7 @@ export function OpeningBalanceFields({
   return (
     <fieldset className="space-y-3">
       {legend ? (
-        <legend className="text-xs font-semibold text-slate-700">{OPENING_TITLE} <span className="font-normal text-slate-400">(необязательно)</span></legend>
+        <legend className="text-xs font-semibold text-slate-700">{OPENING_TITLE} <span className="font-normal text-slate-500">(необязательно)</span></legend>
       ) : (
         <legend className="sr-only">{OPENING_TITLE}</legend>
       )}
@@ -130,7 +130,7 @@ export function OpeningToggle({
       )}
       {enabled && needsReason && (
         <div>
-          <label htmlFor={`${idPrefix}-reason`} className={PRICE_LABEL}>Причина <span className="font-normal text-slate-400">(обязательно: у ученика уже есть оплаты)</span></label>
+          <label htmlFor={`${idPrefix}-reason`} className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно: у ученика уже есть оплаты)</span></label>
           <input id={`${idPrefix}-reason`} value={values.reason} onChange={(event) => onChange({ ...values, reason: event.target.value })} maxLength={500} autoComplete="off" className={PRICE_FIELD} />
         </div>
       )}

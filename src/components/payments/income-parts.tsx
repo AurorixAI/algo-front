@@ -237,7 +237,7 @@ export function FlowLine({ overview, kind = "", onPickKind, notice = null, onJum
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${part.dot}`} aria-hidden />
                   <span>{part.label}</span>
                   <span className="font-medium tabular-nums tracking-tight text-slate-800">{formatMoney(part.amount)}</span>
-                  <span className="text-xs text-slate-400">{part.percent}%</span>
+                  <span className="text-xs text-slate-500">{part.percent}%</span>
                 </>
               );
               if (!partKind) return <li key={part.key} className="flex items-center gap-2 px-2 py-1.5 text-slate-700" data-testid={`flow-${part.key}`}>{body}</li>;
@@ -296,7 +296,7 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today, notice =
     <section aria-label={title} className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white px-4 pb-3 pt-3.5 md:px-5" data-testid="income-chart">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-        <p className="text-xs text-slate-400" data-testid="income-chart-hint">
+        <p className="text-xs text-slate-500" data-testid="income-chart-hint">
           <span className="md:hidden">Нажмите на день, чтобы увидеть оплаты</span>
           <span className="hidden md:inline">Нажмите на столбик, и ниже появятся оплаты этого дня</span>
         </p>
@@ -395,7 +395,7 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
             {methodTooltip(tip)}
           </p>
         ) : (
-          <p className="text-xs text-slate-400">Нажмите на способ, чтобы увидеть его оплаты</p>
+          <p className="text-xs text-slate-500">Нажмите на способ, чтобы увидеть его оплаты</p>
         )}
       </div>
 
@@ -464,7 +464,7 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
       {cash && (
         <p className="mt-2.5 border-t border-slate-100 pt-2.5 text-sm text-slate-600" data-testid="cash-today">
           {cash.text}
-          {cash.note && <span className="block text-xs text-slate-400">{cash.note}</span>}
+          {cash.note && <span className="block text-xs text-slate-500">{cash.note}</span>}
         </p>
       )}
     </section>

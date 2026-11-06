@@ -20,7 +20,7 @@ export function PayrollMonthSummary({ totals, month, open }: { totals: MonthTota
         {totals.tiles.map((tile) => (
           <div key={tile.key} data-testid={`month-tile-${tile.key}`} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 last:odd:col-span-2 lg:last:odd:col-span-1">
             <dt className="text-xs leading-4 text-slate-600">{tile.label}</dt>
-            <dd className="mt-0.5 break-words text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{formatMoney(tile.value)}</dd>
+            <dd className="mt-0.5 break-words text-lg font-bold tabular-nums text-slate-900 sm:text-xl">{formatMoney(tile.value)}{tile.note && <span className="block text-xs font-normal leading-4 text-slate-600" data-testid={`month-note-${tile.key}`}>{tile.note}</span>}</dd>
           </div>
         ))}
       </dl>

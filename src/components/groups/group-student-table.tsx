@@ -118,7 +118,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+      <div className="flex flex-col items-center justify-center py-16 text-slate-500">
         <GraduationCap className="w-12 h-12 mb-3 opacity-30" />
         <p className="text-sm font-medium">В группе пока нет учеников</p>
         <p className="text-xs mt-1">Добавьте учеников с помощью кнопки выше</p>
@@ -196,7 +196,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                         {copiedId === s.display_id ? (
                           <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
                         ) : (
-                          <Copy className="w-3 h-3 text-slate-400 group-hover/id:text-slate-600 transition-colors" />
+                          <Copy className="w-3 h-3 text-slate-500 group-hover/id:text-slate-600 transition-colors" />
                         )}
                       </span>
                       <span>{s.display_id}</span>

@@ -186,18 +186,18 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
             {historyError ? (
               <p role="alert" className="text-rose-700">{historyError}</p>
             ) : history === null ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
             ) : history.history.length === 0 ? (
-              <p className="text-slate-400">Индивидуальных цен не было: ученик платит по цене группы.</p>
+              <p className="text-slate-500">Индивидуальных цен не было: ученик платит по цене группы.</p>
             ) : (
               <ul className="space-y-0.5">
                 {history.history.map((item) => (
                   <li key={item.id} className={item.is_current ? "font-medium text-slate-800" : ""}>
                     {overrideRowText(item, history.price_label)}
                     {item.is_future && <span className="ml-1.5 text-amber-700">· ожидает даты</span>}
-                    {item.created_by_name && <span className="text-slate-400"> · {item.created_by_name}</span>}
+                    {item.created_by_name && <span className="text-slate-500"> · {item.created_by_name}</span>}
                     {(item.changes ?? []).map((change, index) => (
-                      <span key={index} className="block text-[11px] font-normal text-slate-400">{overrideChangeLine(change)}</span>
+                      <span key={index} className="block text-[11px] font-normal text-slate-500">{overrideChangeLine(change)}</span>
                     ))}
                   </li>
                 ))}
@@ -205,9 +205,9 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
             )}
             {history && (history.cancelled ?? []).length > 0 && (
               <div className="mt-1.5">
-                <p className="text-[11px] font-semibold text-slate-400">Отменённые</p>
+                <p className="text-[11px] font-semibold text-slate-500">Отменённые</p>
                 <ul className="space-y-0.5">
-                  {history.cancelled.map((item, index) => <li key={index} className="text-[11px] text-slate-400">{overrideCancelledLine(item)}</li>)}
+                  {history.cancelled.map((item, index) => <li key={index} className="text-[11px] text-slate-500">{overrideCancelledLine(item)}</li>)}
                 </ul>
               </div>
             )}

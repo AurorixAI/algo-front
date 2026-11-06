@@ -285,7 +285,7 @@ export function WarningLinks({ views, label }: { views: WarningView[]; label: st
           <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
           {/* the «?» stays at the end of the last warning; the TEXT wraps inside its own cell (a nowrap here made a long warning run over the next column, walk of 05.11) */}
           {index === views.length - 1 && (
-            <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-400">
+            <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-500">
               <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
             </Hint>
           )}
@@ -309,7 +309,7 @@ export function AttentionLine({ views, label }: { views: WarningView[]; label: s
           <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
         </span>
       ))}
-      <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-400">
+      <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="ml-1 inline-flex align-text-bottom text-slate-500">
         <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
       </Hint>
     </p>
@@ -332,7 +332,7 @@ export function RevisionList({ revisions, currentRevision }: { revisions: Payrol
           <li key={revision.revision} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                <History className="h-4 w-4 text-slate-400" />
+                <History className="h-4 w-4 text-slate-500" />
                 {versionLabel(revision.revision).replace(/^./, (c) => c.toUpperCase())}
                 {revision.revision === currentRevision && (
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">текущая</span>

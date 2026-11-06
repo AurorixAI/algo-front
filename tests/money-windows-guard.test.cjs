@@ -85,3 +85,13 @@ test("the shared footer itself: a FLAT blue (or red) main button in one line, «
   assert.doesNotMatch(text, /border border-slate|shadow/, "no frame and no shadow on the buttons of the footer");
   assert.doesNotMatch(text.match(/CONFIRM_CANCEL_CLASS = [^;]*;/)[0].replace("hover:bg-slate-100", ""), /\bborder\b|\bbg-/, "«Отмена» is text");
 });
+
+// re-audit В6 / №24: text of the screens of money is not slate-400 (2.5:1 on white); slate-500 (4.76:1) is the lightest
+const MONEY_SCREENS = files.filter((file) => /components\/(payments|payroll|money)\//.test(file) || MONEY.includes(file) || /group-archive-dialog|lesson-return-dialogs|student-groups-block|day-off|one-off-decisions|open-lessons-view/.test(file));
+test("no text-slate-400 on the screens of money (contrast 4.5:1); placeholders and dark-mode pairs are not text on white", () => {
+  const bad = [];
+  for (const file of MONEY_SCREENS) {
+    read(file).split("\n").forEach((line, index) => { if (/(^|[\s"'`{])text-slate-400/.test(line.replace(/placeholder:text-slate-400|dark:text-slate-400/g, ""))) bad.push(`${rel(file)}:${index + 1}`); });
+  }
+  assert.deepEqual(bad, [], bad.join("\n"));
+});

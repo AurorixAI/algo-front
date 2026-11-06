@@ -1283,6 +1283,8 @@ export function teacherMonthNumbers(teacher: Pick<PayrollMonthTeacher, "sheet" |
 }
 
 export interface MonthTile {
+  /** A quiet line under the number (re-audit С16). */
+  note?: string;
   key: "accrued" | "paid" | "left" | "ahead";
   label: string;
   value: number;
@@ -1307,7 +1309,8 @@ export function monthTotals(month: string, teachers: ReadonlyArray<Pick<PayrollM
   const tiles: MonthTile[] = [
     { key: "accrued", label: monthOpen ? "Начислено на сегодня" : `К выплате за ${monthNameRu(month).toLowerCase()}`, value: total((row) => row.salary ?? 0) },
     { key: "paid", label: "Выплачено", value: total((row) => row.paid ?? 0) },
-    { key: "left", label: "Осталось выплатить", value: total((row) => (row.rest.kind === "left" ? row.rest.amount : 0)) },
+    // re-audit С16: «Начислено − Выплачено» does not give «Осталось выплатить» when something was paid AHEAD (that sum stands in the next tile): the tile says so, so the three add up in the head
+    { key: "left", label: "Осталось выплатить", value: total((row) => (row.rest.kind === "left" ? row.rest.amount : 0)), ...(over > 0 ? { note: "без учёта выплаченного вперёд" } : {}) },
   ];
   if (over > 0) tiles.push({ key: "ahead", label: monthOpen ? "Выплачено вперёд" : "Выплачено больше", value: over });
   return { tiles, saved: `сохранено ${teachers.filter((teacher) => teacher.sheet).length} из ${teachers.length}`, running: monthOpen };

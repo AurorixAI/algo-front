@@ -32,7 +32,7 @@ async function openMonth(width, server = monthServer()) {
 test("the tiles are the numbers of the walk: 935 834 accrued · 150 000 paid · 860 000 left · 74 166 paid ahead; the calm line under them", async () => {
   const { page } = await openMonth(1280);
   const tiles = (await page.locator('[data-testid^="month-tile-"]').allTextContents()).map(plain);
-  assert.deepEqual(tiles, ["Начислено на сегодня935 834 сум", "Выплачено150 000 сум", "Осталось выплатить860 000 сум", "Выплачено вперёд74 166 сум"]);
+  assert.deepEqual(tiles, ["Начислено на сегодня935 834 сум", "Выплачено150 000 сум", "Осталось выплатить860 000 сумбез учёта выплаченного вперёд", "Выплачено вперёд74 166 сум"]);   // re-audit С16: the three tiles add up in the head
   assert.equal(plain(await page.textContent('[data-testid="payroll-month-status"]')), "Ноябрь ещё идёт — суммы предварительные · сохранено 2 из 3");
   await page.close();
 });

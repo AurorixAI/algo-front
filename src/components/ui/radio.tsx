@@ -117,7 +117,7 @@ export function SegmentedControl<V extends string = string>({
             onClick={() => { if (!checked) onChange(option.value); }}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "w-full rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-colors",
+              "w-full min-h-10 rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-colors sm:min-h-9",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40",
               checked ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
               "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white",

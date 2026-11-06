@@ -539,7 +539,7 @@ export function AssignGroupModal({
                 {/* Capacity tag */}
                 <div className="flex-shrink-0 text-right">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 text-xs font-semibold text-slate-700">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <Users className="w-3.5 h-3.5 text-slate-500" />
                     <span>
                       {count} <span className="text-slate-500 font-normal">/ {max}</span>
                     </span>

@@ -180,7 +180,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
 
       {searchable && (
         <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -204,12 +204,12 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-14 text-center">
-          <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Users className="h-5 w-5" /></span>
+          <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Users className="h-5 w-5" /></span>
           <p className="text-sm font-medium text-slate-700">Групп пока нет</p>
           <Link href={groupsBasePath} className="text-sm font-semibold text-primary-700 hover:underline">Перейти к группам</Link>
         </div>
       ) : shown.length === 0 ? (
-        <p className="py-14 text-center text-sm text-slate-400">Ничего не найдено</p>
+        <p className="py-14 text-center text-sm text-slate-500">Ничего не найдено</p>
       ) : (
         <section aria-label="Цены групп" className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
           <TableHeader
@@ -295,7 +295,7 @@ function PriceRow({
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
-        <span className="text-xs text-slate-400 xl:hidden">{priceLabel}</span>
+        <span className="text-xs text-slate-500 xl:hidden">{priceLabel}</span>
         {price ? (
           <span className="text-right xl:block">
             <span className="block font-medium tabular-nums text-slate-800" data-testid="group-price-current">{price}</span>
@@ -307,7 +307,7 @@ function PriceRow({
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
-        <span className="shrink-0 text-xs text-slate-400 xl:hidden">Запланировано</span>
+        <span className="shrink-0 text-xs text-slate-500 xl:hidden">Запланировано</span>
         {scheduled ? (
           <span className="text-right xl:block">
             <span className="block tabular-nums text-slate-800" data-testid="group-price-scheduled">{scheduled}</span>
@@ -315,16 +315,16 @@ function PriceRow({
             <button type="button" onClick={onCancel} className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">Отменить</button>
           </span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-slate-500">—</span>
         )}
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
-        <span className="shrink-0 text-xs text-slate-400 xl:hidden">Индивидуальные цены</span>
+        <span className="shrink-0 text-xs text-slate-500 xl:hidden">Индивидуальные цены</span>
         {individual ? (
           // #126: «кто эти ученики» - the tab «Оплаты» of the group, filtered to the individual prices
           <Link href={individualPricesHref(groupsBasePath, item.group_id)} data-testid="group-individual-link" className="whitespace-nowrap font-medium text-primary-700 hover:underline" title="Показать, у кого индивидуальная цена">{individual}</Link>
-        ) : <span className="text-slate-400">—</span>}
+        ) : <span className="text-slate-500">—</span>}
       </div>
 
       <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">

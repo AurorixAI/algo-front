@@ -139,7 +139,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
 
         <div aria-live="polite" className="space-y-2" data-testid="day-off-plan">
           {problem && <p className="text-xs text-slate-500">{problem}</p>}
-          {checking && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
+          {checking && <p className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
           {!checking && plan && (
             <>
               <p className="text-sm font-medium text-slate-900" data-testid="day-off-plan-text">{dayOffSummary(plan)}</p>

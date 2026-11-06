@@ -166,13 +166,13 @@ export function OpeningBalanceDialog({
         />
 
         <div>
-          <label htmlFor="opening-note" className={PRICE_LABEL}>Примечание <span className="font-normal text-slate-400">(необязательно)</span></label>
+          <label htmlFor="opening-note" className={PRICE_LABEL}>Примечание <span className="font-normal text-slate-500">(необязательно)</span></label>
           <input id="opening-note" value={values.note} onChange={(event) => { setError(null); setValues({ ...values, note: event.target.value }); }} maxLength={300} autoComplete="off" placeholder="Например: из таблицы Excel" className={PRICE_FIELD} />
         </div>
 
         {opening && (
           <div>
-            <label htmlFor="opening-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-400">(нужна, если у ученика уже есть оплаты)</span></label>
+            <label htmlFor="opening-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(нужна, если у ученика уже есть оплаты)</span></label>
             <input id="opening-reason" value={values.reason} onChange={(event) => { setError(null); setValues({ ...values, reason: event.target.value }); }} maxLength={REASON_MAX} autoComplete="off" className={PRICE_FIELD} />
           </div>
         )}

@@ -150,8 +150,8 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
                   <p className="text-sm text-slate-500">
                     Преподаватель: <span className="font-medium text-slate-800">{item.teacher_name || "Не назначен"}</span>
                     {item.periods && item.periods.length > 1 ? (
-                      <span className="text-slate-400"> · в группе {formatMembershipPeriods(item.periods)}</span>
-                    ) : item.joined_at && <span className="text-slate-400"> · в группе с {formatUtcNaiveAsBusinessDate(item.joined_at)}</span>}
+                      <span className="text-slate-500"> · в группе {formatMembershipPeriods(item.periods)}</span>
+                    ) : item.joined_at && <span className="text-slate-500"> · в группе с {formatUtcNaiveAsBusinessDate(item.joined_at)}</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

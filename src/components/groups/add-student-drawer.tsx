@@ -400,7 +400,7 @@ export function AddStudentDrawer({
       {/* Search */}
       <div className="p-4 border-b border-slate-50">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -416,7 +416,7 @@ export function AddStudentDrawer({
               role="switch"
               aria-checked={allClasses}
               onClick={() => setAllClasses((value) => !value)}
-              className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-400 hover:text-slate-600"}`}
+              className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-500 hover:text-slate-600"}`}
             >
               {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
               Все классы
@@ -430,7 +430,7 @@ export function AddStudentDrawer({
         {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+            <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
           </div>
         ) : available.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-slate-500">

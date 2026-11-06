@@ -62,25 +62,25 @@ export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: 
                 onClick={() => onOpen(row)}
                 className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 md:items-center md:py-2.5 ${ROW_GRID} ${activeId === row.id ? "bg-primary-50/60" : ""}`}
               >
-                <span className={`col-start-1 row-start-3 self-center text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-500"}`}>
+                <span className={`col-start-1 row-start-3 self-center text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-500"}`}>
                   {view.time ? `${view.date} · ${view.time}` : view.date}
                 </span>
-                {view.enteredAt && <span data-testid="journal-entered" className="col-span-2 row-start-4 text-[11px] leading-tight text-slate-400 md:hidden">{view.enteredAt}</span>}
+                {view.enteredAt && <span data-testid="journal-entered" className="col-span-2 row-start-4 text-[11px] leading-tight text-slate-500 md:hidden">{view.enteredAt}</span>}
                 {/* A phone: the name has the whole first line and the chip sits under the amount (row 3); md and up: one line, the chip next to the name. */}
-                <span className={`contents text-sm font-medium md:col-start-2 md:flex md:min-w-0 md:items-center md:gap-2 ${view.muted ? "text-slate-400" : "text-slate-900"}`}>
+                <span className={`contents text-sm font-medium md:col-start-2 md:flex md:min-w-0 md:items-center md:gap-2 ${view.muted ? "text-slate-500" : "text-slate-900"}`}>
                   <span className="col-start-1 row-start-1 min-w-0 truncate">{view.student}</span>
                   {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
                   {/* «исправлена» sits where «отменена» does (next to the name; under the amount on a phone), so the amount column stays one line */}
                   {view.correctedChip && <span data-testid="journal-corrected" title={view.correctedTitle ?? undefined} className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 md:justify-self-auto">{view.correctedChip}</span>}
                 </span>
-                <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
-                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.group}</span>
+                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-500 line-through" : "text-slate-800"}`}>
                   <span className="whitespace-nowrap">{view.amount}</span>
                 </span>
-                <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
+                <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.method}</span>
                 {/* the changes of the payment, quiet: under the main line (a phone: under the card, wrapping; md and up: under the name) */}
                 {view.subLines.length > 0 && (
-                  <span data-testid="journal-sublines" className="col-span-2 row-start-5 mt-0.5 block space-y-0.5 text-xs leading-snug text-slate-400 md:col-span-4 md:col-start-2 md:row-start-2 md:mt-0">
+                  <span data-testid="journal-sublines" className="col-span-2 row-start-5 mt-0.5 block space-y-0.5 text-xs leading-snug text-slate-500 md:col-span-4 md:col-start-2 md:row-start-2 md:mt-0">
                     {view.subLines.map((line) => <span key={line} data-testid="journal-subline" className="block break-words">{line}</span>)}
                   </span>
                 )}
@@ -121,13 +121,13 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath, h
   return (
     <div className="space-y-5 pb-4 pt-3" data-testid="journal-drawer">
       <div>
-        <p className={`text-3xl font-semibold tabular-nums tracking-tight ${view.tag ? "text-slate-400 line-through" : "text-slate-800"}`}>{view.amount}</p>
+        <p className={`text-3xl font-semibold tabular-nums tracking-tight ${view.tag ? "text-slate-500 line-through" : "text-slate-800"}`}>{view.amount}</p>
         <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {view.method}
           {view.tag && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
           {view.correctedChip && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">{view.correctedChip}</span>}
         </p>
-        {view.entered && <p className="mt-1 text-xs text-slate-400" data-testid="drawer-entered">{view.entered}</p>}
+        {view.entered && <p className="mt-1 text-xs text-slate-500" data-testid="drawer-entered">{view.entered}</p>}
       </div>
 
       {view.notes.length > 0 && (
@@ -264,7 +264,7 @@ export function JournalSection(props: JournalSectionProps) {
     <section aria-label="Журнал оплат" className="space-y-3" data-testid="income-journal">
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
         <div className="relative min-w-0 flex-1 md:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
           <input
             type="search"
             value={props.search}
@@ -295,7 +295,7 @@ export function JournalSection(props: JournalSectionProps) {
             disabled={props.exporting || !journal || journal.total === 0}
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl sm:w-auto border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20 disabled:opacity-50"
           >
-            {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-400" aria-hidden />}
+            {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-500" aria-hidden />}
             Скачать Excel
           </button>
         </div>

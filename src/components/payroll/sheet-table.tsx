@@ -103,7 +103,7 @@ function IncludeCell({
           />
           <span className="text-xs text-slate-500 print:hidden">{INCLUDE_LABEL}</span>
           <Hint text={INCLUDE_HINT} className="inline-flex max-sm:hidden print:hidden">
-            <HelpCircle className="h-3.5 w-3.5 text-slate-400" aria-label={`Что значит «${INCLUDE_LABEL}»`} />
+            <HelpCircle className="h-3.5 w-3.5 text-slate-500" aria-label={`Что значит «${INCLUDE_LABEL}»`} />
           </Hint>
         </>
       ) : null}
@@ -259,7 +259,7 @@ export function PayrollSheetTable({
                       <tr key={line.line_key ?? id} className={`border-b border-slate-100 last:border-b-0 print:break-inside-avoid ${split.first ? "" : "border-t-0"}`}>
                         <th scope="row" className={`${CELL} ${showDates ? `${STICKY} bg-white shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none` : ""} text-left font-medium text-slate-900`}>
                           <span className={split.first ? "block break-words leading-tight" : "sr-only"}>{line.student_name}</span>
-                          {split.first && line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-400">{line.display_id}</span>}
+                          {split.first && line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-500">{line.display_id}</span>}
                           {split.typeLabel && <span className="block text-xs font-medium text-slate-600" data-testid="split-type">{split.typeLabel}</span>}
                           {line.pending_excused > 0 && (
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>

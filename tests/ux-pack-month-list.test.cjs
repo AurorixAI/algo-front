@@ -72,3 +72,13 @@ test("the status of the row is ONE chip (see ux-month-row.test.cjs for the prior
   assert.equal(CL.monthPeriodView(open, false).label, "Месяц открыт", "in a finished month an open one is a difference");
   assert.equal(CL.monthPeriodView(closed, true).label, "Месяц закрыт");
 });
+
+test("re-audit С16: «Начислено − Выплачено + Выплачено вперёд = Осталось выплатить» (935 834 − 150 000 + 74 166 = 860 000) and the tile «Осталось выплатить» says «без учёта выплаченного вперёд» only when something was paid ahead", () => {
+  const totals = R.monthTotals("2026-11", TEACHERS, true);
+  const value = Object.fromEntries(totals.tiles.map((tile) => [tile.key, tile.value]));
+  const salaries = TEACHERS.reduce((all, teacher) => all + (R.teacherMonthNumbers(teacher).salary ?? 0), 0);
+  assert.equal(salaries - value.paid + value.ahead, value.left, "the head arithmetic of the owner");
+  assert.equal(totals.tiles.find((tile) => tile.key === "left").note, "без учёта выплаченного вперёд");
+  const quiet = R.monthTotals("2026-11", [SABINA], true);
+  assert.equal(quiet.tiles.find((tile) => tile.key === "left").note, undefined, "nothing ahead - no note");
+});

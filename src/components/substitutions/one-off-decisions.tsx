@@ -179,7 +179,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
         /* an administrator without the right (U4): information, not his task - ONE row that opens the list */
         <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
           <button type="button" data-testid="one-off-decisions-toggle" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)} className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-700">
-            <ChevronRight className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${viewOpen ? "rotate-90" : ""}`} aria-hidden />
+            <ChevronRight className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${viewOpen ? "rotate-90" : ""}`} aria-hidden />
             <span data-testid="one-off-decisions-title">{decisionsViewLine(items.length)}</span>
           </button>
           {rightLost && onRefreshProfile && (

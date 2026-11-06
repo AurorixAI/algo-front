@@ -44,7 +44,7 @@ export function PackageProgress({ row, variant = "card", className = "" }: { row
       <div data-testid="package-progress-compact" className={`w-full max-w-[10.5rem] min-w-[7rem] space-y-1 ${className}`}>
         <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs leading-tight tabular-nums">
           <span className={`whitespace-nowrap font-semibold ${PACKAGE_TEXT_CLASS[p.tone]}`}>{p.shortText}</span>
-          {p.forecastDay ? <span className="whitespace-nowrap text-[11px] text-slate-400 dark:text-slate-400">до {p.forecastDay}</span> : p.left === 0 ? <span className="text-[11px] text-slate-400">закончился</span> : null}
+          {p.forecastDay ? <span className="whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">до {p.forecastDay}</span> : p.left === 0 ? <span className="text-[11px] text-slate-500">закончился</span> : null}
         </p>
         <Bar p={p} compact />
       </div>

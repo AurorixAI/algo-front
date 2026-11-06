@@ -80,7 +80,7 @@ export function OpeningsHeaderLink({ paymentsBase, summary: given }: { paymentsB
       data-testid="openings-header-link"
       className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
     >
-      <ClipboardList className="h-4 w-4 text-slate-400" aria-hidden="true" />
+      <ClipboardList className="h-4 w-4 text-slate-500" aria-hidden="true" />
       {OPENINGS_TITLE}
       {badge !== null && (
         <span data-testid="openings-header-badge" aria-label={`Не заполнено: ${badge}`} className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-800">{badge}</span>
@@ -119,7 +119,7 @@ export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given, 
       <div className="mb-3 flex items-start justify-between gap-2">
         <h3 className="text-base font-semibold text-slate-900">Запуск учёта оплат</h3>
         {expanded && (
-          <button type="button" onClick={() => setExpanded(false)} aria-label="Свернуть" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" aria-hidden="true" /></button>
+          <button type="button" onClick={() => setExpanded(false)} aria-label="Свернуть" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" aria-hidden="true" /></button>
         )}
       </div>
       <ol className="space-y-2.5">
@@ -127,8 +127,8 @@ export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given, 
           <li key={step.key} data-testid={`openings-step-${step.key}`} data-status={step.status} className="flex items-start gap-3">
             <StepMark status={step.status} />
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <p className={`text-sm ${step.status === "todo" ? "text-slate-400" : "text-slate-800"}`}>
-                <span className="text-slate-400">{index + 1}. </span>
+              <p className={`text-sm ${step.status === "todo" ? "text-slate-500" : "text-slate-800"}`}>
+                <span className="text-slate-500">{index + 1}. </span>
                 <span className="font-medium">{step.title}</span>
                 {step.detail && <span className={step.status === "todo" ? "" : "text-slate-600"}> — {step.detail}</span>}
               </p>

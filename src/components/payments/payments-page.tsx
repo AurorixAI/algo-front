@@ -287,14 +287,14 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             href={incomeHref(paymentsBase)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            <TrendingUp className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <TrendingUp className="h-4 w-4 text-slate-500" aria-hidden="true" />
             Поступления
           </Link>
           <Link
             href={pricesBaseOf(groupsBasePath)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            <Tags className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <Tags className="h-4 w-4 text-slate-500" aria-hidden="true" />
             Цены групп
           </Link>
           <OpeningsHeaderLink paymentsBase={paymentsBase} />
@@ -313,7 +313,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
               className="group rounded-2xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50/60"
             >
               <p className="text-sm text-slate-500">{card.label}</p>
-              <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "debt" ? "text-rose-700" : card.tone === "advance" ? "text-emerald-700" : "text-slate-400"}`}>{card.amount}</p>
+              <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "debt" ? "text-rose-700" : card.tone === "advance" ? "text-emerald-700" : "text-slate-500"}`}>{card.amount}</p>
               {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
             </Link>
           ))}
@@ -347,7 +347,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1 sm:max-w-sm 2xl:w-64 2xl:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -390,7 +390,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
         </div>
       ) : items.length === 0 ? (
-        <p className="py-14 text-center text-sm text-slate-400">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
+        <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
         <section className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
           <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
@@ -532,7 +532,7 @@ function PaymentRow({
       {group}
 
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-left">
-            <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
+            <span className="text-xs text-slate-500 xl:hidden">{priceLabelOf(periodMode)}</span>
             {price.amount === null || price.amount === undefined ? (
               <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
                 цена группы не задана
@@ -554,14 +554,14 @@ function PaymentRow({
 
           {/* Последняя оплата: the amount reads like «Цена в месяц», the date is the quiet line under it (like «оплачено до») */}
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
-            <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
+            <span className="shrink-0 text-xs text-slate-500 xl:hidden">Последняя оплата</span>
             {last ? (
               <span className="text-right tabular-nums xl:block xl:text-center" title={lastPaymentLabel(last)}>
                 <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
                 <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
               </span>
             ) : (
-              <span className="text-slate-400 xl:block xl:text-center" data-testid="last-payment-empty">—</span>
+              <span className="text-slate-500 xl:block xl:text-center" data-testid="last-payment-empty">—</span>
             )}
           </div>
 

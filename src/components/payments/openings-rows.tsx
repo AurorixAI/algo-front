@@ -134,7 +134,7 @@ function GroupBlock({ group, open, onToggle, ...props }: OpeningsListProps & { g
           </span>
           <span className="shrink-0 text-xs text-slate-600 sm:hidden" data-testid="openings-group-progress">{progress.text}</span>
           {edited > 0 && <span className="shrink-0 rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700" title="Изменено в этой группе, ещё не сохранено">{edited}</span>}
-          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
       </div>
       {open && (
@@ -206,12 +206,12 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
-        <span className="text-xs text-slate-400 xl:hidden">{lessonsMode ? "Цена пакета" : "Цена в месяц"}</span>
+        <span className="text-xs text-slate-500 xl:hidden">{lessonsMode ? "Цена пакета" : "Цена в месяц"}</span>
         <span className="tabular-nums text-slate-700" data-testid="openings-price">{priceText(row)}</span>
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
-        <span className="text-xs text-slate-400 xl:hidden">Сейчас</span>
+        <span className="text-xs text-slate-500 xl:hidden">Сейчас</span>
         <span className={`text-right xl:text-left ${nowTone}`} data-testid="openings-now">{nowText}</span>
       </div>
 
@@ -282,7 +282,7 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
                 data-testid="openings-debt"
                 className={`${FIELD} pr-11`}
               />
-              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
             </div>
             <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
               <label htmlFor={`op-debt-on-${id}`} className="shrink-0">на</label>

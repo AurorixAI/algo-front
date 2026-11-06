@@ -490,11 +490,11 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button type="button" onClick={() => void download()} disabled={!data || busyFile !== null} data-testid="openings-download" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-            {busyFile === "export" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4 text-slate-400" aria-hidden="true" />}
+            {busyFile === "export" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Скачать файл
           </button>
           <button type="button" onClick={() => fileInput.current?.click()} disabled={!data || busyFile !== null} data-testid="openings-upload" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-            {busyFile === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4 text-slate-400" aria-hidden="true" />}
+            {busyFile === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Загрузить файл
           </button>
           <FileInput ref={fileInput} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Файл с остатками (.xlsx)" data-testid="openings-file" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} />
@@ -553,7 +553,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="openings-filters">
             <div className="relative min-w-0 flex-1 basis-56 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               <input
                 value={filters.search}
                 onChange={(event) => setFilters({ ...filters, search: event.target.value })}
@@ -591,7 +591,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
           </div>
 
           {visible.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 py-14 text-center text-sm text-slate-400" data-testid="openings-empty">
+            <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 py-14 text-center text-sm text-slate-500" data-testid="openings-empty">
               {data.groups.length === 0 ? "Учеников в группах пока нет" : filters.onlyMissing && !searching && !filters.groupId ? "Все остатки заполнены" : "Ничего не найдено"}
             </p>
           ) : (

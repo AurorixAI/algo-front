@@ -143,7 +143,7 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
       <ul className="mt-1.5 space-y-1" aria-label="Прикреплённые чеки">
         {files.map((file) => (
           <li key={file.id} className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-600">
-            <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+            <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
             <button
               type="button"
               onClick={() => void openFile(payment, file)}
@@ -154,20 +154,20 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
               <span className="min-w-0 truncate">{file.filename}</span>
               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
             </button>
-            <span className="shrink-0 text-slate-400">{formatFileSize(file.size_bytes)}</span>
+            <span className="shrink-0 text-slate-500">{formatFileSize(file.size_bytes)}</span>
             <button
               type="button"
               onClick={() => setToDelete({ payment, file })}
               aria-label={`Удалить файл ${file.filename}`}
               title="Удалить"
-              className="ml-auto shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600 print:hidden"
+              className="ml-auto shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-rose-600 print:hidden"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
         ))}
         {uploading && (
-          <li className="flex items-center gap-1.5 text-[11px] text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загружаем файл…</li>
+          <li className="flex items-center gap-1.5 text-[11px] text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загружаем файл…</li>
         )}
       </ul>
     );

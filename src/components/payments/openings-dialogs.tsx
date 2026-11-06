@@ -63,7 +63,7 @@ export function OpeningsBulkBar({
         <div data-testid="openings-bulk-paid-panel">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-900">Оплачено до…</p>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="rounded p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" aria-hidden="true" /></button>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" aria-hidden="true" /></button>
           </div>
           <div className="flex flex-wrap gap-2">
             {quick.map((item) => (
@@ -86,13 +86,13 @@ export function OpeningsBulkBar({
           <button type="button" onClick={onDeselect} className="ml-2 text-slate-500 hover:text-slate-800 hover:underline">Снять выбор</button>
         </p>
         <button ref={trigger} type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} data-testid="openings-bulk-paid" className={button}>
-          <CalendarCheck className="h-4 w-4 text-slate-400" aria-hidden="true" /> Оплачено до…
+          <CalendarCheck className="h-4 w-4 text-slate-500" aria-hidden="true" /> Оплачено до…
         </button>
         <button type="button" onClick={onNoDebt} title={`Оплачено до ${formatDateRu(noDebtDay(accountingStart)).slice(0, 5)}: на начало учёта долга нет`} data-testid="openings-bulk-nodebt" className={button}>
-          <CheckCircle2 className="h-4 w-4 text-slate-400" aria-hidden="true" /> Долга нет
+          <CheckCircle2 className="h-4 w-4 text-slate-500" aria-hidden="true" /> Долга нет
         </button>
         <button type="button" onClick={onClear} data-testid="openings-bulk-clear" className={button}>
-          <Eraser className="h-4 w-4 text-slate-400" aria-hidden="true" /> Очистить
+          <Eraser className="h-4 w-4 text-slate-500" aria-hidden="true" /> Очистить
         </button>
       </div>
     </div>
@@ -206,7 +206,7 @@ export function OpeningsReviewDialog({
             {needReason && (
               <div>
                 <label htmlFor="openings-reason" className="mb-1 block text-xs font-semibold text-slate-600">
-                  Причина <span className="font-normal text-slate-400">({reasonHint(preview.needs_reason.length)})</span>
+                  Причина <span className="font-normal text-slate-500">({reasonHint(preview.needs_reason.length)})</span>
                 </label>
                 <input id="openings-reason" value={reason} onChange={(event) => onReason(event.target.value)} maxLength={500} autoComplete="off" placeholder="Например: сверили с тетрадью учёта" data-testid="openings-reason" className={FIELD} />
                 {reason !== "" && problem && <p className="mt-1 text-xs text-rose-700">{problem}</p>}
@@ -307,7 +307,7 @@ export function OpeningsExcelDialog({
                         <p className="text-slate-900"><span className="font-medium">{row.student_name ?? item?.student_name ?? "Ученик"}</span>{(row.group_name ?? item?.group_name) && <span className="text-slate-500"> · {row.group_name ?? item?.group_name}</span>}</p>
                         {item && (
                           <p className="text-xs text-slate-600">
-                            {valueText(item.before?.opening, start)} <span className="text-slate-400">→</span>{" "}
+                            {valueText(item.before?.opening, start)} <span className="text-slate-500">→</span>{" "}
                             <span className={item.kind === "cleared" ? "font-medium text-rose-700" : "font-medium text-slate-800"}>{item.kind === "cleared" ? "остаток убрать" : valueText(item.target, start)}</span>
                           </p>
                         )}
@@ -320,7 +320,7 @@ export function OpeningsExcelDialog({
             )}
             {needReason && (
               <div>
-                <label htmlFor="openings-excel-reason" className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-400">({reasonHint(0)})</span></label>
+                <label htmlFor="openings-excel-reason" className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-500">({reasonHint(0)})</span></label>
                 <input id="openings-excel-reason" value={reason} onChange={(event) => onReason(event.target.value)} maxLength={500} autoComplete="off" data-testid="openings-excel-reason" className={FIELD} />
                 {reason !== "" && reasonProblem(reason) && <p className="mt-1 text-xs text-rose-700">{reasonProblem(reason)}</p>}
               </div>

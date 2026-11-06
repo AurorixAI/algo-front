@@ -207,7 +207,7 @@ export function PauseDialog({
         <p className="-mt-2 text-xs text-slate-500">{PAUSE_BACKDATE_HINT}. Дни паузы не входят в стоимость, место в группе сохраняется.</p>
 
         <div>
-          <label htmlFor="pause-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-400">(необязательно)</span></label>
+          <label htmlFor="pause-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(необязательно)</span></label>
           <input id="pause-reason" value={values.reason} maxLength={PAUSE_REASON_MAX} onChange={(event) => { setError(null); setValues({ ...values, reason: event.target.value }); }} autoComplete="off" placeholder="Например: уехал к родственникам" className={PRICE_FIELD} />
         </div>
 

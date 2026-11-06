@@ -178,13 +178,13 @@ export function DaysOffPanel() {
         </p>
       )}
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
-      {days === null && !error && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загрузка…</p>}
+      {days === null && !error && <p className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загрузка…</p>}
       {days !== null && days.length === 0 && <p className="text-sm text-slate-500">Выходных пока нет.</p>}
       {days !== null && days.length > 0 && (() => {
         const { current, past } = splitDaysOff(days, formatBusinessDate());
         const row = (day: DayOffOut) => (
           <li key={day.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-            <span className={day.active && day.dateTo >= formatBusinessDate() ? "text-slate-900" : "text-slate-400 line-through"}>{dayOffLine(day)}</span>
+            <span className={day.active && day.dateTo >= formatBusinessDate() ? "text-slate-900" : "text-slate-500 line-through"}>{dayOffLine(day)}</span>
             {moneyRight && day.active && day.dateTo >= formatBusinessDate() && <button type="button" onClick={() => setVoiding(day)} className="text-xs font-semibold text-primary-700 hover:underline">Отменить выходной</button>}
           </li>
         );

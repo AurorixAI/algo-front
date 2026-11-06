@@ -99,7 +99,7 @@ function PayoutItem({ item, kind, onChanged }: { item: PayoutOut; /** `payoutKin
   };
 
   return (
-    <li className={`py-2 text-sm ${cancelled ? "text-slate-400" : "text-slate-800"}`}>
+    <li className={`py-2 text-sm ${cancelled ? "text-slate-500" : "text-slate-800"}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className={`min-w-0 break-words ${cancelled ? "line-through" : ""}`}>
           {payoutLine(item)}

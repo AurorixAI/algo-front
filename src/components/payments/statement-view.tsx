@@ -281,7 +281,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
               </button>
             )}
             <button type="button" onClick={() => void exportExcel()} disabled={exporting} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-slate-400" />}
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-slate-500" />}
               Excel
             </button>
           </div>
@@ -317,7 +317,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className={`min-w-[9rem] text-center text-sm ${month ? "font-semibold text-slate-900" : "text-slate-400"}`} aria-live="polite">{month ? statementMonthLabel(month) : "Выберите месяц"}</span>
+              <span className={`min-w-[9rem] text-center text-sm ${month ? "font-semibold text-slate-900" : "text-slate-500"}`} aria-live="polite">{month ? statementMonthLabel(month) : "Выберите месяц"}</span>
               <button
                 type="button"
                 onClick={() => setMonth(month === null ? openingMonth : shiftMonthKey(month, 1))}
@@ -381,7 +381,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
 /** A «?» with what a figure is (a bubble, reachable without hover). */
 function Help({ text, label }: { text: string; label: string }) {
   return (
-    <Hint text={text} className="inline-flex text-slate-400">
+    <Hint text={text} className="inline-flex text-slate-500">
       <HelpCircle className="h-3.5 w-3.5" aria-label={label} />
     </Hint>
   );
@@ -490,11 +490,11 @@ export function StatementTimeline({
         <section aria-label="Отменённые записи" className="text-sm">
           <h2 className="text-xs font-semibold text-slate-500">Отменённые записи</h2>
           {cancelled.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-400">Отменённых записей нет</p>
+            <p className="mt-1 text-xs text-slate-500">Отменённых записей нет</p>
           ) : (
             <ul className="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3.5">
               {cancelled.map((view) => (
-                <li key={`${view.seq}-${view.type}-x`} className="py-2 text-xs text-slate-400">
+                <li key={`${view.seq}-${view.type}-x`} className="py-2 text-xs text-slate-500">
                   <p>
                     <span className="tabular-nums">{formatDateRu(view.date)}</span>
                     <span className="mx-1.5 text-slate-300">·</span>
@@ -563,7 +563,7 @@ function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; me
           <span className="hidden md:block" aria-hidden />
         </li>
         {item.empty && (
-          <li className={`px-1 py-1 text-sm text-slate-400 md:p-0 ${GRID}`} data-testid="statement-month-empty">
+          <li className={`px-1 py-1 text-sm text-slate-500 md:p-0 ${GRID}`} data-testid="statement-month-empty">
             <span className="md:col-span-2 md:px-4 md:py-3">В этом месяце записей нет</span>
             <BandCells />
             <span className="hidden md:block" aria-hidden />
@@ -613,12 +613,12 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </div>
 
       <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block ${CELL_MONEY} ${STATEMENT_ALIGN.money} ${chargedText ? "flex" : "hidden md:block"}`} data-testid="statement-cell-charged">
-        <span className="text-xs text-slate-400 md:hidden">Стоимость</span>
+        <span className="text-xs text-slate-500 md:hidden">Стоимость</span>
         <span className={`${STATEMENT_AMOUNT_CLASS} md:leading-6`}>{chargedText}</span>
       </div>
 
       <div className={`items-baseline justify-between gap-3 md:block ${CELL_MONEY} ${STATEMENT_ALIGN.money} ${paidText ? "flex" : "hidden md:block"}`} data-testid="statement-cell-paid">
-        <span className="text-xs text-slate-400 md:hidden">Оплачено</span>
+        <span className="text-xs text-slate-500 md:hidden">Оплачено</span>
         <span className="text-sm tabular-nums md:block">
           <span className={`${STATEMENT_PAID_CLASS} md:leading-6`}>{paidText}</span>
           {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600 md:mx-auto md:ml-auto md:mt-0.5 md:block md:w-fit">{entry.tag}</span>}
@@ -626,7 +626,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </div>
 
       <div className={`flex items-center justify-between gap-3 md:items-start md:justify-center ${CELL_MONEY} ${STATEMENT_ALIGN.money}`} data-testid="statement-cell-balance">
-        <span className="text-xs text-slate-400 md:hidden">Остаток</span>
+        <span className="text-xs text-slate-500 md:hidden">Остаток</span>
         <BalanceChip balance={entry.balance} />
       </div>
 

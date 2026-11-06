@@ -149,7 +149,7 @@ function MembershipSettle({
           )}
           {choice.action === "writeoff" && (
             <div className="pl-6">
-              <label htmlFor={`${name}-reason`} className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-400">(обязательно)</span></label>
+              <label htmlFor={`${name}-reason`} className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
               <input id={`${name}-reason`} value={choice.reason} onChange={(event) => onChoice({ reason: event.target.value })} maxLength={REASON_MAX} disabled={disabled} autoComplete="off" placeholder="Например: договорённость с родителем" className={FIELD} />
             </div>
           )}

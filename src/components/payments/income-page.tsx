@@ -405,13 +405,13 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
         <button type="button" onClick={() => onChange(stepPeriod(period, 1))} disabled={!canStepForward(period, today)} aria-label={next} title={next} className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
       </div>
       <button type="button" onClick={openPicker} aria-expanded={open} data-testid="period-custom" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-        <CalendarRange className="h-4 w-4 text-slate-400" aria-hidden />
+        <CalendarRange className="h-4 w-4 text-slate-500" aria-hidden />
         Свой период
       </button>
       {open && (
         <div className="flex w-full flex-wrap items-center gap-1.5" data-testid="period-picker">
           <DateInput wrapperClassName="w-40 shrink-0" aria-label="С какого дня" value={from} max={today} onChange={(next) => setFrom(next)} className={`${FIELD} py-2`} />
-          <span className="text-slate-400" aria-hidden>—</span>
+          <span className="text-slate-500" aria-hidden>—</span>
           <DateInput wrapperClassName="w-40 shrink-0" aria-label="По какой день" value={to} max={today} onChange={(next) => setTo(next)} className={`${FIELD} py-2`} />
           <button type="button" onClick={apply} disabled={problem !== null} className="rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">Показать</button>
           {problem && <p role="alert" className="w-full text-sm font-medium text-rose-600">{problem}</p>}

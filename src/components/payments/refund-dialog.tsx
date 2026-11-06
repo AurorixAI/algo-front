@@ -103,7 +103,7 @@ export function RefundDialog({
                 role="radio"
                 aria-checked={values.method === method.key}
                 onClick={() => patch({ method: method.key })}
-                className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${values.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                className={`min-h-10 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors sm:min-h-9 ${values.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
               >
                 {method.label}
               </button>

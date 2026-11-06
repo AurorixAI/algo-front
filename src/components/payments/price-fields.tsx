@@ -23,7 +23,7 @@ export function MoneyField({
     <div>
       <label htmlFor={id} className={PRICE_LABEL}>
         {label}
-        {optionalHint && <span className="font-normal text-slate-400"> {optionalHint}</span>}
+        {optionalHint && <span className="font-normal text-slate-500"> {optionalHint}</span>}
       </label>
       <div className="relative">
         <input
@@ -37,7 +37,7 @@ export function MoneyField({
           aria-describedby={describedBy}
           className={`${PRICE_FIELD} pr-12`}
         />
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
       </div>
     </div>
   );
@@ -54,7 +54,7 @@ export function ReasonField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className={PRICE_LABEL}>{label} <span className="font-normal text-slate-400">(обязательно)</span></label>
+      <label htmlFor={id} className={PRICE_LABEL}>{label} <span className="font-normal text-slate-500">(обязательно)</span></label>
       <input
         id={id}
         value={value}

@@ -16,7 +16,7 @@ export const PAID_TEXT = "оплачено";
 function Cell({ label, col, align, className = "", title, children }: { label: string; col: string; align: "right" | "center"; className?: string; title?: string; children: React.ReactNode }) {
   return (
     <div title={title} data-col={col} className={`flex items-baseline justify-between gap-3 text-sm md:block ${align === "center" ? "md:text-center" : "md:text-right"} ${className}`}>
-      <span className="text-xs text-slate-400 md:hidden">{label}</span>
+      <span className="text-xs text-slate-500 md:hidden">{label}</span>
       <span className="tabular-nums">{children}</span>
     </div>
   );
@@ -26,7 +26,7 @@ function Cell({ label, col, align, className = "", title, children }: { label: s
 function InfoTip({ text, label, className = "" }: { text: string; label: string; className?: string }) {
   return (
     <span className={`inline-flex align-middle ${className}`} data-testid="collection-cost-info">
-      <Hint text={text} side="below" width={320} className="inline-flex p-0.5 text-slate-400 hover:text-slate-600">
+      <Hint text={text} side="below" width={320} className="inline-flex p-0.5 text-slate-500 hover:text-slate-600">
         <Info className="h-3.5 w-3.5" aria-hidden />
         <span className="sr-only">{label}</span>
       </Hint>
@@ -34,7 +34,7 @@ function InfoTip({ text, label, className = "" }: { text: string; label: string;
   );
 }
 
-const MUTED_ZERO = <span className="text-slate-400">0</span>;
+const MUTED_ZERO = <span className="text-slate-500">0</span>;
 
 function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row only: the tooltip of the distinct-students cell and the «*» when it differs from the sum of the rows. */ debtorsHint?: { title: string; marker: boolean } | null }) {
   // Nothing charged: there is no debt to call paid.
@@ -54,15 +54,15 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
             <span className="w-11 shrink-0 text-right text-sm font-medium tabular-nums text-slate-700">{row.pctText}</span>
           </>
         ) : (
-          <span className="text-xs text-slate-400">нет стоимости</span>
+          <span className="text-xs text-slate-500">нет стоимости</span>
         )}
       </div>
       <Cell label="Долг" col="debt" align="right" className="order-5 md:order-none">
-        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : nothingCharged ? <span className="text-slate-400">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
+        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : nothingCharged ? <span className="text-slate-500">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
       </Cell>
       <Cell label="Должников" col="debtors" align="center" className={`order-6 md:order-none ${row.debtors > 0 ? "font-medium text-slate-700" : ""}`} title={debtorsHint?.title}>
         {row.debtors > 0 ? row.debtors : MUTED_ZERO}
-        {debtorsHint?.marker && <span data-testid="collection-total-marker" aria-hidden className="ml-0.5 text-slate-400">*</span>}
+        {debtorsHint?.marker && <span data-testid="collection-total-marker" aria-hidden className="ml-0.5 text-slate-500">*</span>}
       </Cell>
     </>
   );

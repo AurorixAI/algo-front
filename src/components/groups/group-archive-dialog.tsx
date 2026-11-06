@@ -305,7 +305,7 @@ export function ArchiveDialogBody({
         <ul className="space-y-1.5 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
           {view.notes.map((note) => (
             <li key={note} className="flex items-start gap-2">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /> <span>{note}</span>
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" /> <span>{note}</span>
             </li>
           ))}
         </ul>
@@ -348,7 +348,7 @@ export function GroupArchivedBanner({
     <div className="space-y-2">
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
         <p className="flex items-start gap-2 text-sm font-medium text-slate-700">
-          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" /> <span>{archivedBannerText(archivedAt)}</span>
+          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /> <span>{archivedBannerText(archivedAt)}</span>
         </p>
         {onRestore && (
           <button type="button" onClick={onRestore} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100">

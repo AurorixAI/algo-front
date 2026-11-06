@@ -22,7 +22,7 @@ export function PriceImpactMoneyBlock({ money }: { money: PriceImpactMoney | nul
       {items.length > 0 && (
         <ul className="max-h-40 space-y-0.5 overflow-y-auto pl-1 text-slate-600" aria-label="У кого изменятся деньги">
           {items.slice(0, 12).map((item) => <li key={item.membership_id}>{priceItemLine(item)}</li>)}
-          {items.length > 12 && <li className="text-slate-400">и ещё {items.length - 12}</li>}
+          {items.length > 12 && <li className="text-slate-500">и ещё {items.length - 12}</li>}
         </ul>
       )}
     </div>
