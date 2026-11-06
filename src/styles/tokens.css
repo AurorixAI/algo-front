@@ -1,0 +1,24 @@
+/*
+ * Design tokens for the readers that are not Tailwind classes (an inline style, a CSS rule, the console).  The SAME values as in tailwind.config.ts
+ * (tests/design-gate.test.cjs compares the two).  Colours live only in the config: a class needs the palette, a rule can use `theme()`.
+ */
+:root {
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 2px 8px -2px rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18);
+  --radius-tag: 6px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+  --control-h: 2.5rem;
+  --control-h-sm: 2rem;
+  --control-h-lg: 3rem;
+  /* a control on a phone; the cabinets of a teacher and a student raise it to 44 px (see below) */
+  --control-h-touch: 2.5rem;
+}
+
+/* Cabinets of a teacher and a student are used with a thumb: on a phone every main control is 44 px.  `<TouchDensity />` sets the attribute while such a screen is shown. */
+@media (max-width: 767px) {
+  html[data-density="touch"] {
+    --control-h-touch: 2.75rem;
+  }
+}

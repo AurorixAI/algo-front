@@ -1,4 +1,5 @@
 @import 'katex/dist/katex.min.css';
+@import '../styles/tokens.css';
 
 @tailwind base;
 @tailwind components;
