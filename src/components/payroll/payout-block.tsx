@@ -57,7 +57,7 @@ export function SheetPayoutBlock({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
         >
           {PAYOUT_ACTION_LABEL}
         </button>
@@ -108,7 +108,7 @@ function PayoutItem({ item, kind, onChanged }: { item: PayoutOut; /** `payoutKin
           {item.note ? <span className="italic text-slate-500"> · «{item.note}»</span> : null}
         </p>
         {!cancelled && !voiding && (
-          <button type="button" onClick={() => { setVoiding(true); setError(null); }} className="text-xs font-semibold text-rose-700 hover:underline">Отменить</button>
+          <button type="button" onClick={() => { setVoiding(true); setError(null); }} className="inline-flex min-h-10 items-center text-xs font-semibold text-rose-700 hover:underline">Отменить</button>
         )}
       </div>
       {cancelled && <p className="text-xs text-slate-500">Отменена: {item.void_reason || "причина не указана"} · не учитывается</p>}

@@ -212,7 +212,7 @@ export function PayrollSheetTable({
                     onClick={() => toggleDates(key)}
                     aria-expanded={showDates}
                     aria-controls={gridId}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 print:hidden"
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 print:hidden sm:min-h-8"
                   >
                     <CalendarDays className="h-3.5 w-3.5" />
                     {showDates ? "Скрыть даты" : "По датам"}

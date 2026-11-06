@@ -153,7 +153,7 @@ export function SheetSummaryCard({
         <div data-testid="sheet-period" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 print:hidden">
           <PeriodChip view={period} />
           {period.canReopen && onReopen && (
-            <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
+            <button type="button" data-testid="reopen-month" onClick={onReopen} className="inline-flex min-h-10 items-center text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
           )}
           {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки — месяц закроется снова при сохранении</span>}
         </div>

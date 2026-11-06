@@ -391,7 +391,7 @@ function PayrollMonthContent() {
               type="button"
               aria-label="Предыдущий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, -1))}
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 max-sm:h-10 max-sm:w-10"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -401,7 +401,7 @@ function PayrollMonthContent() {
               aria-label="Следующий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, 1))}
               disabled={nextDisabled}
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 max-sm:h-10 max-sm:w-10"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
