@@ -6,6 +6,7 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type WriteoffCreated } from "@/lib/payments";
 import { buildWriteoffPayload, payError, validateWriteoff, writeoffPreviewText, type WriteoffFormValues } from "@/lib/payments-ledger";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
 import { Modal } from "@/components/ui/modal";
 import { SegmentedControl } from "@/components/ui/radio";
 
@@ -30,11 +31,13 @@ export function WriteoffDialog({
   const debt = Math.max(0, Math.round(row?.debt ?? 0));
   const today = useMemo(() => formatBusinessDate(), [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [values, setValues] = useState<WriteoffFormValues>({ amount: "", all: true, reason: "" });
+  const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setValues({ amount: "", all: true, reason: "" });
+    setTouched(false);
     setBusy(false);
     setError(null);
   }, [row?.membership_id]);
@@ -43,8 +46,10 @@ export function WriteoffDialog({
 
   const submit = async () => {
     if (!row || busy) return;
-    const problem = validateWriteoff(values, debt);
+    // a reason that is too short is told UNDER ITS FIELD; the other problems (the amount) stay in the banner
+    const problem = validateWriteoff({ ...values, reason: "xxx" }, debt);
     if (problem) { setError(problem); return; }
+    if (reasonFieldError(values.reason, true)) { setTouched(true); return; }
     setBusy(true);
     setError(null);
     try {
@@ -103,20 +108,18 @@ export function WriteoffDialog({
           <p aria-live="polite" className="min-h-[1rem] text-xs text-slate-500">{preview}</p>
         </fieldset>
 
-        <div>
-          <label htmlFor="writeoff-reason" className={LABEL}>Причина (обязательно)</label>
-          <textarea
-            id="writeoff-reason"
-            value={values.reason}
-            onChange={(event) => patch({ reason: event.target.value })}
-            maxLength={REASON_MAX}
-            rows={3}
-            autoFocus={values.all}
-            placeholder="Например: болезнь, договорённость с родителем"
-            className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-          />
-          <p className="mt-1 text-xs text-slate-500">Причина и ваше имя останутся в выписке ученика. Прощение можно отменить.</p>
-        </div>
+        <ReasonField
+          id="writeoff-reason"
+          value={values.reason}
+          onChange={(next) => patch({ reason: next })}
+          required
+          error={reasonFieldError(values.reason, touched)}
+          onBlur={() => setTouched(values.reason.length > 0)}
+          autoFocus={values.all}
+          maxLength={REASON_MAX}
+          placeholder="Например: болезнь, договорённость с родителем"
+          hint="Причина и ваше имя останутся в выписке ученика. Прощение можно отменить."
+        />
 
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>

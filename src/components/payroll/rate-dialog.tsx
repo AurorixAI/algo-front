@@ -24,6 +24,7 @@ import {
   type PayrollRateHistoryItem,
   type PayrollRateItem,
 } from "@/lib/payroll";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 
 const FORM_ID = "payroll-rate-form";
@@ -112,23 +113,8 @@ export function TeacherRateDialog({
       onClose={onClose}
       busy={saving}
       maxWidthClassName="max-w-[480px]"
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            form={FORM_ID}
-            disabled={saving || checked.changed === 0}
-            title={checked.changed === 0 ? "Измените ставку, чтобы сохранить" : undefined}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Сохранить
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Сохранить" submitFor={FORM_ID} busy={saving} disabled={checked.changed === 0} why="Измените ставку, чтобы сохранить" whyId="rate-why" onCancel={onClose} testId="rate-save" />}
     >
       <form id={FORM_ID} onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-5" noValidate>
         <p className="text-sm text-slate-600">Какую часть оплаты ученика за урок получает преподаватель.</p>

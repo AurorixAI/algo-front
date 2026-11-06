@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { REASON_MAX } from "@/lib/payments";
+import { REASON_MAX, REASON_MIN } from "@/lib/payments";
 import { payError, validateReason } from "@/lib/payments-ledger";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
 import { useDialogAction } from "@/lib/use-dialog-action";
 import { Modal } from "@/components/ui/modal";
 
@@ -30,13 +31,14 @@ export interface VoidTarget {
  */
 export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null; onClose: () => void }) {
   const [reason, setReason] = useState("");
+  const [touched, setTouched] = useState(false);
   const { busy, error, setError, run } = useDialogAction(target?.key ?? null);
-  useEffect(() => { setReason(""); }, [target?.key]);
+  useEffect(() => { setReason(""); setTouched(false); }, [target?.key]);
 
   const submit = async () => {
     if (!target || busy) return;
     const problem = validateReason(reason);
-    if (problem) { setError(problem); return; }
+    if (problem) { setTouched(true); if (reason.trim().length >= REASON_MIN) setError(problem); return; }
     if (await run(() => target.run(reason.trim()))) onClose();
   };
 
@@ -55,16 +57,7 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
       )}
     >
       <form id="record-void-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>
-        <label htmlFor="record-void-reason" className="block text-xs font-semibold text-slate-600">Причина (обязательно)</label>
-        <textarea
-          id="record-void-reason"
-          value={reason}
-          onChange={(event) => { setReason(event.target.value); setError(null); }}
-          maxLength={REASON_MAX}
-          rows={3}
-          autoFocus
-          className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-        />
+        <ReasonField id="record-void-reason" value={reason} onChange={(next) => { setReason(next); setError(null); }} required error={reasonFieldError(reason, touched)} onBlur={() => setTouched(reason.length > 0)} autoFocus maxLength={REASON_MAX} />
         {explain.map((text, index) => <p key={index} className="text-xs text-slate-600">{text}</p>)}
         {error !== null && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{typeof error === "string" ? error : payError(error, target?.failure ?? "Не удалось отменить").message}</p>}
       </form>

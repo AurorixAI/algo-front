@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { isCancelRefused, type GroupPrices, type HistoryItemView } from "@/lib/group-price";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_QUESTION } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 
 /**
@@ -59,22 +59,9 @@ export function GroupPriceCancelDialog({
       description={groupName}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">{refused ? "Закрыть" : "Не отменять"}</button>
-          {!refused && (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              Отменить цену
-            </button>
-          )}
-        </>
-      )}
+      maxWidthClassName={MONEY_WINDOW_QUESTION}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary={refused ? null : "Отменить цену"} onPrimary={() => void submit()} busy={busy} onCancel={onClose} cancelLabel={refused ? "Закрыть" : "Не отменять"} testId="group-price-cancel-confirm" />}
     >
       <div className="space-y-3 pb-2">
         {target && <p className="text-sm font-medium text-slate-800">{target.amount} · {target.since}</p>}

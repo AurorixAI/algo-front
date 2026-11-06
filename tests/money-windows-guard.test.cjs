@@ -29,7 +29,9 @@ const GLOW = /bg-gradient|\bfrom-[a-z]+-\d|\bto-[a-z]+-\d|shadow-\[[^\]]*\]|shad
 
 test("the list of money windows is not empty and holds the windows of the audit (18, 21, 15, 05, 09, 13, 20, 22, 40)", () => {
   const names = MONEY.map(rel);
-  for (const name of ["components/ui/confirm-host.tsx", "components/groups/assign-group-modal.tsx", "components/payments/payment-dialog.tsx", "components/payments/refund-dialog.tsx", "components/payroll/payout-dialog.tsx", "components/attendance/cancel-missed-lesson-modal.tsx", "components/groups/lesson-return-dialogs.tsx"]) {
+  for (const name of ["components/ui/confirm-host.tsx", "components/groups/assign-group-modal.tsx", "components/payments/payment-dialog.tsx", "components/payments/refund-dialog.tsx", "components/payroll/payout-dialog.tsx", "components/attendance/cancel-missed-lesson-modal.tsx", "components/groups/lesson-return-dialogs.tsx",
+    // re-audit (06.11, closing): the rest of the windows of money
+    "components/groups/group-price-dialog.tsx", "components/groups/group-price-cancel-dialog.tsx", "components/payments/membership-price.tsx", "components/payments/opening-balance-dialog.tsx", "components/payments/openings-dialogs.tsx", "components/payroll/rate-dialog.tsx", "components/money/closed-month-dialog.tsx"]) {
     assert.ok(names.includes(name), `${name} is a window of money: ${names.join(", ")}`);
   }
   assert.ok(MONEY.length >= 20, `${MONEY.length} windows`);
@@ -94,4 +96,16 @@ test("no text-slate-400 on the screens of money (contrast 4.5:1); placeholders a
     read(file).split("\n").forEach((line, index) => { if (/(^|[\s"'`{])text-slate-400/.test(line.replace(/placeholder:text-slate-400|dark:text-slate-400/g, ""))) bad.push(`${rel(file)}:${index + 1}`); });
   }
   assert.deepEqual(bad, [], bad.join("\n"));
+});
+
+// re-audit (closing, item 5): the windows of prices, openings, the rate and «Месяц закрыт» have the shared footer; no hand-made «Отмена» is left in them
+test("the windows of prices, openings, the rate and «Месяц закрыт» have no hand-made footer buttons", () => {
+  const names = ["components/groups/group-price-dialog.tsx", "components/groups/group-price-cancel-dialog.tsx", "components/payments/membership-price.tsx", "components/payments/opening-balance-dialog.tsx", "components/payments/openings-dialogs.tsx", "components/payroll/rate-dialog.tsx", "components/money/closed-month-dialog.tsx"];
+  for (const name of names) {
+    const text = read(path.join(root, name));
+    assert.doesNotMatch(text, /rounded-xl px-5 py-2\.5 text-sm font-medium text-slate-600/, `${name} has a hand-made «Отмена»`);
+    assert.doesNotMatch(text, /bg-primary-600 px-5 py-2\.5/, `${name} has a hand-made main button`);
+    assert.ok(/footer=\{<ConfirmFooter|footer=\{\(\s*\n?\s*<ConfirmFooter/.test(text), `${name}: the footer is ConfirmFooter`);
+    assert.match(text, /footerClassName=\{CONFIRM_FOOTER_CLASS\}/, `${name}: the footer has the layout of the shared one`);
+  }
 });

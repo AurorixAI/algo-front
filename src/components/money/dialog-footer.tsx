@@ -36,7 +36,8 @@ export function cancelLabelFor(primaryLabel: string): string {
 export function ConfirmFooter({
   primary, onPrimary, submitFor, tone = "primary", disabled = false, busy = false, why = null, whyId = "confirm-why", onCancel, cancelLabel, cancelDisabled, testId, icon, extra,
 }: {
-  primary: string;
+  /** The main button; `null` - a window with nothing to confirm (a refusal, an information): only the secondary button, «Закрыть». */
+  primary: string | null;
   onPrimary?: () => void;
   submitFor?: string;
   tone?: "primary" | "danger";
@@ -55,6 +56,7 @@ export function ConfirmFooter({
   extra?: ReactNode;
 }) {
   const off = disabled || busy;
+  const cancelText = cancelLabel ?? (primary === null ? "Закрыть" : cancelLabelFor(primary));
   const color = tone === "danger" ? CONFIRM_PRIMARY_DANGER : CONFIRM_PRIMARY_BLUE;
   return (
     <>
@@ -62,9 +64,9 @@ export function ConfirmFooter({
       {extra}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
         <button type="button" onClick={onCancel} disabled={cancelDisabled ?? busy} data-testid="confirm-cancel" className={CONFIRM_CANCEL_CLASS}>
-          {cancelLabel ?? cancelLabelFor(primary)}
+          {cancelText}
         </button>
-        <button
+        {primary !== null && <button
           type={submitFor ? "submit" : "button"}
           form={submitFor}
           onClick={submitFor ? undefined : onPrimary}
@@ -75,7 +77,7 @@ export function ConfirmFooter({
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : icon}
           {primary}
-        </button>
+        </button>}
       </div>
     </>
   );

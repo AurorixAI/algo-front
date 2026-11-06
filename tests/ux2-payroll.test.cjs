@@ -467,7 +467,7 @@ test("«Сотрудники»: the rate line, «Изменить ставку»
   assert.match(page, /month=\{monthParam\}/);
   assert.match(dialog, /orgApi\.putPayrollRates\(item\.teacher_id, ratePutBody\(validFrom, checked, current\)\)/);
   assert.match(dialog, /orgApi\.getPayrollRateHistory\(item\.teacher_id\)/);
-  assert.match(dialog, /disabled=\{saving \|\| checked\.changed === 0\}/);
+  assert.match(dialog, /busy=\{saving\} disabled=\{checked\.changed === 0\}/);
 });
 
 test("the sheet page and the month page have no price field, no percent field, no «редакция»", () => {

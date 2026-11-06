@@ -38,6 +38,7 @@ import {
 import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -150,7 +151,8 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
         description={`${studentName} · ${row.group_name}`}
         onClose={onClose}
         maxWidthClassName="max-w-lg"
-        footer={<button type="button" onClick={onClose} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Закрыть</button>}
+        footerClassName={CONFIRM_FOOTER_CLASS}
+        footer={<ConfirmFooter primary={null} onCancel={onClose} />}
       >
         <div className="space-y-4 pb-2" data-testid="individual-price-dialog">
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
@@ -366,20 +368,8 @@ export function AssignOverrideDialog({
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="membership-price-form"
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Сохранить
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Сохранить" submitFor="membership-price-form" busy={busy} onCancel={onClose} testId="membership-price-save" />}
     >
       <form id="membership-price-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
@@ -472,20 +462,8 @@ export function ReturnPriceDialog({
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="membership-price-return-form"
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Вернуть
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Вернуть" submitFor="membership-price-return-form" busy={busy} onCancel={onClose} testId="membership-price-return-save" />}
     >
       <form id="membership-price-return-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
         <p className="text-sm text-slate-700">
@@ -568,22 +546,8 @@ export function CancelScheduledDialog({
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">{refused ? "Закрыть" : "Не отменять"}</button>
-          {!refused && (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              Отменить цену
-            </button>
-          )}
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary={refused ? null : "Отменить цену"} onPrimary={() => void submit()} busy={busy} onCancel={onClose} cancelLabel={refused ? "Закрыть" : "Не отменять"} testId="membership-price-cancel-confirm" />}
     >
       <div className="space-y-3 pb-2">
         {target && <p className="text-sm font-medium text-slate-800">{overrideRowText(target, label)}</p>}

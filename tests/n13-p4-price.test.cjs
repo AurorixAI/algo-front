@@ -793,7 +793,7 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   // the answer counts for the key it was asked for, and the button waits for it
   assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking && !blockedNow;/);
   assert.match(dialog, /const canSave = ready && !noop;/);
-  assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
+  assert.match(dialog, /busy=\{saving\} disabled=\{!canSave\}/);
   assert.match(dialog, /if \(!check\.request \|\| !canSave \|\| saving\) return;/);
   // the shown words are the helpers' (tested above)
   for (const helper of ["impactStudentsText(shownImpact)", "staleSheetsText(shownImpact)", "pastDateWarning(", "futureDateNote("]) assert.ok(dialog.includes(helper), helper);
@@ -938,7 +938,7 @@ test("the conflict text does not contradict itself; «Сохранить» is of
   assert.equal(G.isNoopPriceChange(history, null), false);
   assert.match(dialog, /const noop = isNoopPriceChange\(history, check\.request\);/);
   assert.match(dialog, /const canSave = ready && !noop;/);
-  assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
+  assert.match(dialog, /busy=\{saving\} disabled=\{!canSave\}/);
   assert.match(read("src/components/payments/group-prices-page.tsx"), /history=\{prices\?\.history \?\? \[\]\}/);
 });
 

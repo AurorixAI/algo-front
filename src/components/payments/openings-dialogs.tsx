@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, CalendarCheck, CheckCircle2, Eraser, Loader2, X } from "lucide-react";
 import { FloatingPanel } from "@/components/ui/floating-panel";
+import { CONFIRM_FOOTER_CLASS, CONFIRM_CANCEL_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import {
   atStudentsWord,
@@ -136,6 +137,7 @@ export function OpeningsReviewDialog({
   const saveable = Boolean(preview) && canSave(preview, reason) && !saving && (!state?.reasonForced || problem === null);
   const goodCount = preview ? preview.summary.changed : 0;
 
+  const dropErrors = errorIds.length > 0 && goodCount > 0 ? <button type="button" onClick={onDropErrors} disabled={saving} data-testid="openings-review-drop-errors" className={CONFIRM_CANCEL_CLASS}>Без этих строк</button> : null;
   return (
     <Modal
       open={state !== null}
@@ -143,24 +145,8 @@ export function OpeningsReviewDialog({
       onClose={onClose}
       busy={saving}
       maxWidthClassName="max-w-xl"
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">{errorIds.length > 0 ? "Вернуться к таблице" : "Отмена"}</button>
-          {errorIds.length > 0 && goodCount > 0 && (
-            <button type="button" onClick={onDropErrors} disabled={saving} data-testid="openings-review-drop-errors" className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Без этих строк</button>
-          )}
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={!saveable}
-            data-testid="openings-review-save"
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {goodCount > 0 ? `Сохранить ${goodCount}` : "Сохранить"}
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary={goodCount > 0 ? `Сохранить ${goodCount}` : "Сохранить"} onPrimary={onSave} busy={saving} disabled={!saveable} why={saveable ? null : "Исправьте строки с ошибками или уберите их"} whyId="openings-review-why" onCancel={onClose} cancelLabel={errorIds.length > 0 ? "Вернуться к таблице" : "Отмена"} testId="openings-review-save" extra={dropErrors} />}
     >
       <div className="space-y-3.5 pb-1" data-testid="openings-review">
         {state?.phase === "loading" && (
@@ -259,15 +245,8 @@ export function OpeningsExcelDialog({
       onClose={onClose}
       busy={saving}
       maxWidthClassName="max-w-2xl"
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button type="button" onClick={onApply} disabled={!applyable} data-testid="openings-excel-apply" className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {count > 0 ? excelApplyLabel(count) : "Применить"}
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary={count > 0 ? excelApplyLabel(count) : "Применить"} onPrimary={onApply} busy={saving} disabled={!applyable} why={applyable ? null : "Нет строк, которые можно применить"} whyId="openings-excel-why" onCancel={onClose} testId="openings-excel-apply" />}
     >
       <div className="space-y-3.5 pb-1" data-testid="openings-excel">
         {state?.phase === "loading" && <div className="flex items-center gap-2.5 py-6 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-primary-600" aria-hidden="true" /> Читаем файл…</div>}
@@ -344,15 +323,8 @@ export function OpeningsDoneDialog({ open, missing, busy, error, onConfirm, onCl
       onClose={onClose}
       busy={busy}
       maxWidthClassName="max-w-md"
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button type="button" onClick={onConfirm} disabled={busy} data-testid="openings-done-confirm" className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            Да, готово
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Да, готово" onPrimary={onConfirm} busy={busy} onCancel={onClose} testId="openings-done-confirm" />}
     >
       <p className="text-sm text-slate-700">У {missing} {atStudentsWord(missing)} остаток не заполнен. Если у них до начала учёта не было ни долга, ни оплаты вперёд, можно закончить: напоминание в «Должниках» исчезнет, а долги будут считаться с даты начала учёта.</p>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{error}</p>}

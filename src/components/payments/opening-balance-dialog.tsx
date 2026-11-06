@@ -18,6 +18,7 @@ import {
   type OpeningFormValues,
 } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { OpeningBalanceFields } from "./opening-balance-fields";
@@ -138,20 +139,8 @@ export function OpeningBalanceDialog({
       description={`${studentName} · ${groupName}`}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="opening-form"
-            disabled={busy || Boolean(problem) || unchanged || (empty && !opening)}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${removing ? "bg-red-600 hover:bg-red-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {removing ? "Убрать остаток" : "Сохранить"}
-          </button>
-        </>
-      )}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary={removing ? "Убрать остаток" : "Сохранить"} tone={removing ? "danger" : "primary"} submitFor="opening-form" busy={busy} disabled={Boolean(problem) || unchanged || (empty && !opening)} why={problem ? String(problem) : unchanged ? "Измените остаток, чтобы сохранить" : "Заполните остаток"} whyId="opening-why" onCancel={onClose} testId="opening-save" />}
     >
       <form id="opening-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <OpeningBalanceFields

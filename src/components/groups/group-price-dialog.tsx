@@ -28,6 +28,7 @@ import {
 import { formatMoneyInput } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { logicaError, type LogicaError } from "@/lib/payments-logica";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import { PriceBlockedBanner, PriceImpactMoneyBlock } from "@/components/payments/price-impact";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
@@ -174,23 +175,9 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       description={`${groupName} · ${priceColumnLabel(label)}`}
       onClose={onClose}
       busy={saving}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            form="group-price-form"
-            disabled={!canSave || saving}
-            title={noop ? "Такая цена с этой даты уже сохранена" : ready ? undefined : "Кнопка включится, когда будут показаны последствия"}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Сохранить
-          </button>
-        </>
-      )}
+      maxWidthClassName={MONEY_WINDOW_FORM}
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Сохранить" submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >
       <form id="group-price-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-3.5 pb-2" noValidate>
         <div>
@@ -223,7 +210,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         </div>
 
         <div>
-          <label htmlFor="group-price-note" className={PRICE_LABEL}>Примечание <span className="font-normal text-slate-400">(необязательно)</span></label>
+          <label htmlFor="group-price-note" className={PRICE_LABEL}>Примечание <span className="font-normal text-slate-500">(необязательно)</span></label>
           <input
             id="group-price-note"
             value={note}
