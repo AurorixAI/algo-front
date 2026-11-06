@@ -54,7 +54,7 @@ export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: s
       {hint && <HelpCircle className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />}
     </span>
   );
-  return hint ? <Hint text={hint} className="inline-block max-w-full">{chip}</Hint> : chip;
+  return hint ? <Hint text={hint} className="inline-flex max-w-full items-center max-sm:min-h-10">{chip}</Hint> : chip;
 }
 
 /**
@@ -376,7 +376,7 @@ export function PayrollForbidden() {
 
 export function BackLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 print:hidden">
+    <Link href={href} className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 print:hidden">
       {children}
     </Link>
   );

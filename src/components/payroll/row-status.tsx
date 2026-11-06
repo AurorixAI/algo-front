@@ -11,7 +11,7 @@ import { useFloatingPlacement } from "@/lib/use-floating-placement";
 import { StatusChip } from "./sheet-controls";
 
 /**
- * The ONE status chip of a row of the month list (UX pack §5.2-бис).  «Сохранено 05.11» and «Не рассчитано» are plain chips; «Требует действия · N» is amber and OPENS the list of its items - on hover,
+ * The ONE status chip of a row of the month list (UX pack §5.2-бис).  «Сохранено 05.11» and «Не рассчитано» are plain chips; «Требует действия» is amber and OPENS the list of its items - on hover,
  * on a tap / a click and on focus (the tested state machine of the project, `reduceReveal`, as the hint) - every item a link to where it is done (the changed salary among them: «Зарплата изменилась на
  * −45 000 сум — сохраните новую сумму»).  The list is drawn in a layer of the page (a portal, placed by `useFloatingPlacement`), so the rounded table around the rows never cuts it; Escape and a press
  * outside close it.  The mouse may travel from the chip to the list: leaving waits a moment.
@@ -60,7 +60,7 @@ function InlineTodo({ status, name }: { status: RowStatusView; name: string }) {
         onClick={() => setOpen((value) => !value)}
         className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 break-words text-left">{status.label}</span>
+        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
@@ -129,7 +129,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
         onClick={() => dispatch({ type: "click", mousePins: true })}
         className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 break-words text-left">{status.label}</span>
+        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && typeof document !== "undefined" && createPortal(

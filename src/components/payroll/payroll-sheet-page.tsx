@@ -340,7 +340,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     counts: counts ?? null,
     noFeeHref: counts === sheet.warnings ? sheetNoFeeHref(sheet) : undefined,
     openUnknown: counts === sheet.warnings && sheet.id === null && counts?.open_lessons === null,
-    undecidedVisits: sheet.undecided_total,
+    // the count of NOW (the same `undecided_lessons` the «Замены» list counts); the saved `undecided_total` only when the fresh one could not be read (R4 Д1: it stayed after the decision)
+    undecidedVisits: warningsFailed ? sheet.undecided_total : null,
     undecidedLessons: freshUndecided,
     changed: status?.tone === "changed" && sheet.id ? changedItem({ sheet: { id: sheet.id, stale: true }, payout: sheet.payout }) : null,
   }) : [];
@@ -390,7 +391,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 role="tab"
                 aria-selected={tab === key}
                 onClick={() => setTab(key)}
-                className={`flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all sm:flex-none ${
+                className={`min-h-10 flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all sm:flex-none ${
                   tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 }`}
               >

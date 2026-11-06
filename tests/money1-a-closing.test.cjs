@@ -18,13 +18,13 @@ const POL = lib("payroll-open-lessons.ts");
 const src = (file) => fs.readFileSync(path.join(__dirname, "..", "src", file), "utf8");
 
 // ── С14: ONE date of a lesson ───────────────────────────────────────────────────────────────────
-test("С14: a lesson in a heading or a row is «чт, 5 ноября · 18:00», a record is «05.11.2026 · 18:00» - one utility, no «окт» / «ноя»", () => {
-  assert.equal(B.formatLessonWhen({ date: "2026-11-05", startTime: "18:00" }), "чт, 5 ноября · 18:00");
-  assert.equal(B.formatLessonWhen({ date: "2026-11-03", startTime: "11:00", endTime: "12:00", groupName: "7-А Алгебра" }), "7-А Алгебра · вт, 3 ноября · 11:00–12:00");
+test("С14: a lesson in a heading or a row is «чт, 5 ноября · 18:00», a record is «05.11.2026 · 18:00» - one utility, no «окт» / «ноя»", () => {
+  assert.equal(B.formatLessonWhen({ date: "2026-11-05", startTime: "18:00" }), "чт, 5 ноября · 18:00");
+  assert.equal(B.formatLessonWhen({ date: "2026-11-03", startTime: "11:00", endTime: "12:00", groupName: "7-А Алгебра" }), "7-А Алгебра · вт, 3 ноября · 11:00⁠–⁠12:00");
   assert.equal(B.formatRecordWhen("2026-11-05", "18:00"), "05.11.2026 · 18:00");
   // the screens that had their own forms speak through it now
   assert.equal(OL.formatLessonDate("2026-10-22"), "чт, 22 октября");
-  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "7-А Алгебра", lessonId: "l", date: "2026-11-23", startTime: "16:00", endTime: "17:00", reason: null }), "пн, 23 ноября · 16:00–17:00 · 7-А Алгебра");
+  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "7-А Алгебра", lessonId: "l", date: "2026-11-23", startTime: "16:00", endTime: "17:00", reason: null }), "пн, 23 ноября · 16:00⁠–⁠17:00 · 7-А Алгебра");
   assert.equal(LR.returnTitle("2026-11-03"), "Вернуть урок вт, 3 ноября?");
   assert.equal(LR.returnReviewDoneText("2026-11-03"), "Урок вт, 3 ноября возвращён в «Уроки без отметки»");
   assert.match(POL.openLessonItemLine({ lessonDate: "2026-10-12", groupName: "7-А Алгебра", kind: "missed" }), /^пн, 12 октября · 7-А Алгебра/);
@@ -111,7 +111,7 @@ test("С19: the number in the chip «Требует действия · N» is t
   const chip = P.rowStatus(teacher);
   const block = P.sheetTodoItems({ counts: warnings, undecidedLessons: 1, changed: P.changedItem(teacher) });
   assert.equal(chip.items.length, block.length);
-  assert.match(chip.label, new RegExp(`· ${block.length}$`));
+  assert.equal(chip.label, "Требует действия", "no counter in the chip (owner 06.11)");
   assert.deepEqual(chip.items.map((item) => item.key), block.map((item) => item.key), "the same items in the same order");
 });
 

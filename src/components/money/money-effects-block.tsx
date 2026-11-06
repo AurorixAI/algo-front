@@ -10,24 +10,124 @@ import {
   EFFECTS_TITLE,
   effectLines,
   effectsEmpty,
+  type EffectLine,
+  type EffectTable,
   type MoneyEffects,
 } from "@/lib/money-effects";
+import { formatMoney, formatSignedMoney } from "@/lib/money-format";
 import { periodClosedOf, type ClosedPurpose } from "@/lib/closed-period";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
 import { tidyMoneyText } from "@/lib/money-format";
 
+const NUM = "whitespace-nowrap text-right tabular-nums";
+const deltaClass = (delta: number | null) => (delta !== null && delta > 0 ? "text-emerald-700" : "text-slate-600");
+
+/**
+ * The pay of the teachers of a month (owner 06.11, UX pack §5.3).  ONE teacher: «Было / Станет +Δ» - a line - «Уже выплачено / Останется выплатить», numbers on the right.  Several teachers: a mini-table
+ * «Преподаватель · Было · Станет · ±» and the payouts under it, a line per teacher.
+ */
+function PayrollTable({ table }: { table: EffectTable }) {
+  const single = !table.multi && table.rows.length === 1 ? table.rows[0] : null;
+  if (single) {
+    const known = single.before !== null && single.after !== null;
+    return (
+      <div data-testid="effect-table" className="mt-1.5 space-y-1.5 text-sm">
+        <dl className="space-y-0.5">
+          {known ? (
+            <>
+              <div className="flex items-baseline justify-between gap-3"><dt className="text-slate-600">Было</dt><dd className={NUM} data-testid="effect-before">{formatMoney(single.before as number)}</dd></div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="font-semibold text-slate-900">Станет</dt>
+                <dd className={`${NUM} font-semibold text-slate-900`} data-testid="effect-after">
+                  {single.delta !== null && single.delta !== 0 && <span className={`mr-2 text-xs font-medium ${deltaClass(single.delta)}`} data-testid="effect-delta">{formatSignedMoney(single.delta)}</span>}{" "}
+                  {formatMoney(single.after as number)}
+                </dd>
+              </div>
+            </>
+          ) : (
+            single.delta !== null && <div className="flex items-baseline justify-between gap-3"><dt className="text-slate-600">Изменится на</dt><dd className={`${NUM} font-semibold`} data-testid="effect-delta">{formatSignedMoney(single.delta)}</dd></div>
+          )}
+        </dl>
+        {single.paid && (
+          <dl className="space-y-0.5 border-t border-slate-200 pt-1.5" data-testid="effect-paid">
+            <div className="flex items-baseline justify-between gap-3"><dt className="text-slate-500">Уже выплачено</dt><dd className={`${NUM} text-slate-600`}>{formatMoney(single.paid.paid)}</dd></div>
+            <div className="flex items-baseline justify-between gap-3"><dt className="font-semibold text-slate-900">{single.paid.leftLabel}</dt><dd className={`${NUM} font-semibold text-slate-900`}>{formatMoney(single.paid.left)}</dd></div>
+          </dl>
+        )}
+      </div>
+    );
+  }
+  const paidRows = table.rows.filter((row) => row.paid);
+  return (
+    <div data-testid="effect-table" className="mt-1.5 space-y-1.5 text-sm">
+      {/* a phone has no room for four columns: a teacher is a name over «Было / Станет +Δ» */}
+      <ul className="space-y-1.5 sm:hidden" data-testid="effect-table-phone">
+        {table.rows.map((row) => (
+          <li key={row.name}>
+            <p className="font-medium text-slate-900">{row.name}</p>
+            <dl className="space-y-0.5 tabular-nums">
+              <div className="flex items-baseline justify-between gap-3"><dt className="text-slate-600">Было</dt><dd className={NUM}>{row.before === null ? "—" : formatMoney(row.before)}</dd></div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="font-semibold text-slate-900">Станет</dt>
+                <dd className={`${NUM} font-semibold text-slate-900`}>
+                  {row.delta !== null && row.delta !== 0 && <span className={`mr-2 text-xs font-medium ${deltaClass(row.delta)}`}>{formatSignedMoney(row.delta)}</span>}{" "}
+                  {row.after === null ? "—" : formatMoney(row.after)}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-baseline gap-x-3 gap-y-0.5 tabular-nums" role="table" aria-label={table.title}>
+        <div role="row" className="contents text-xs text-slate-500">
+          <span role="columnheader">Преподаватель</span><span role="columnheader" className="text-right">Было</span><span role="columnheader" className="text-right">Станет</span><span role="columnheader" className="text-right">±</span>
+        </div>
+        {table.rows.map((row) => (
+          <div role="row" key={row.name} className="contents">
+            <span role="cell" className="min-w-0 break-words">{row.name}</span>
+            <span role="cell" className={`${NUM} text-slate-600`}>{row.before === null ? "—" : formatMoney(row.before)}</span>
+            <span role="cell" className={`${NUM} font-semibold`}>{row.after === null ? "—" : formatMoney(row.after)}</span>
+            <span role="cell" className={`${NUM} ${deltaClass(row.delta)}`}>{row.delta === null ? "—" : formatSignedMoney(row.delta)}</span>
+          </div>
+        ))}
+      </div>
+      {paidRows.length > 0 && (
+        <ul className="space-y-0.5 border-t border-slate-200 pt-1.5 text-slate-600" data-testid="effect-paid">
+          {paidRows.map((row) => (
+            <li key={row.name} className="tabular-nums">
+              {row.name}: уже выплачено {formatMoney(row.paid!.paid)} · <span className="font-semibold text-slate-900">{row.paid!.leftLabel.toLowerCase()} {formatMoney(row.paid!.left)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** The pay of the teachers of ONE month as the window draws it: the title and the table (the owner) or the sentence (an administrator).  For a window that draws the lines itself («Урока не было»). */
+export function PayrollEffect({ line }: { line: EffectLine }) {
+  return (
+    <div className="text-sm text-slate-800" data-testid="payroll-effect">
+      <p className={line.table ? "font-semibold text-slate-900" : undefined}>{tidyMoneyText(line.table ? line.table.title : line.text)}</p>
+      {line.table && <PayrollTable table={line.table} />}
+      {line.note && <p className="mt-1 font-medium text-amber-900">{line.note}</p>}
+    </div>
+  );
+}
+
 /**
  * The lines of money of an action (the same ones the toast carries).  The pay of the teachers is a heading, a line per teacher and - only when something has to be done - a sentence of what
  * (an amber one, UX round of the owner 05.11); everything else is information.
  */
-export function EffectLines({ effects, withPaid = false }: { effects: MoneyEffects; withPaid?: boolean }) {
+export function EffectLines({ effects, withPaid = false, teacherName = null }: { effects: MoneyEffects; withPaid?: boolean; teacherName?: string | null }) {
   return (
     <ul className="space-y-1.5">
-      {effectLines(effects, { withPaid }).map((line) => (
+      {effectLines(effects, { withPaid, teacherName }).map((line) => (
         <li key={line.key} data-testid="effect-line" className="text-sm text-slate-800">
-          <p className={line.tone === "warn" && !line.note ? "font-medium text-amber-900" : undefined}>{tidyMoneyText(line.text)}</p>
-          {line.rows && line.rows.length > 0 && (
+          <p className={line.tone === "warn" && !line.note ? "font-medium text-amber-900" : line.table ? "font-semibold text-slate-900" : undefined}>{tidyMoneyText(line.table ? line.table.title : line.text)}</p>
+          {line.table && <PayrollTable table={line.table} />}
+          {!line.table && line.rows && line.rows.length > 0 && (
             <ul className="mt-1 space-y-0.5" data-testid="effect-rows">
               {line.rows.map((row) => (
                 <li key={row.name} className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums">
@@ -40,12 +140,12 @@ export function EffectLines({ effects, withPaid = false }: { effects: MoneyEffec
               ))}
             </ul>
           )}
-          {!line.rows && line.items && line.items.length > 0 && (
+          {!line.table && !line.rows && line.items && line.items.length > 0 && (
             <ul className="mt-0.5 space-y-0.5 pl-3">
               {line.items.map((item) => <li key={item} className="tabular-nums">{item}</li>)}
             </ul>
           )}
-          {line.after && line.after.length > 0 && (
+          {!line.table && line.after && line.after.length > 0 && (
             <ul className="mt-1 space-y-0.5" data-testid="effect-paid">
               {line.after.map((text) => <li key={text} className="tabular-nums text-slate-700">{text}</li>)}
             </ul>
@@ -78,7 +178,7 @@ function EffectsSkeleton() {
  *  - The windows of a PAYMENT, its correction / cancel, a write-off and a refund do not draw this block at all (UX pack §5.1-тер, decision of the owner 05.11): they are about the student only.
  */
 export function MoneyEffectsBlock({
-  preview, onRetry, aboveLessonPanel = false, variant = "lesson", noneText, className = "", closedPurpose, withPaid = false,
+  preview, onRetry, aboveLessonPanel = false, variant = "lesson", noneText, className = "", closedPurpose, withPaid = false, teacherName = null,
 }: {
   preview: EffectsPreview;
   onRetry: () => void;
@@ -90,10 +190,12 @@ export function MoneyEffectsBlock({
   closedPurpose?: ClosedPurpose;
   /** A decision about the pay of a lesson also says what is paid already («Уже выплачено … — до новой суммы останется …», owner only). */
   withPaid?: boolean;
+  /** The teacher the window is about (a decision about his lesson): an administrator without the right of money reads «Изменится зарплата Эргашева К. за ноябрь · суммы видит владелец». */
+  teacherName?: string | null;
 }) {
   const closed = preview.status === "failed" ? periodClosedOf(preview.error) : null;
   if (closed) return <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={onRetry} purpose={closedPurpose} className={className} />;
-  const lines = preview.status === "ready" && preview.effects !== null ? effectLines(preview.effects, { withPaid }) : [];
+  const lines = preview.status === "ready" && preview.effects !== null ? effectLines(preview.effects, { withPaid, teacherName }) : [];
   const none = preview.status === "ready" && preview.effects !== null && (effectsEmpty(preview.effects) || lines.length === 0);
   const warn = lines.some((line) => line.tone === "warn");
   const failed = preview.status === "failed";
@@ -118,7 +220,7 @@ export function MoneyEffectsBlock({
             <button type="button" data-testid="money-effects-retry" onClick={onRetry} className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 sm:min-h-[32px]">{EFFECTS_RETRY_LABEL}</button>
           </div>
         )}
-        {preview.status === "ready" && preview.effects !== null && <EffectLines effects={preview.effects} withPaid={withPaid} />}
+        {preview.status === "ready" && preview.effects !== null && <EffectLines effects={preview.effects} withPaid={withPaid} teacherName={teacherName} />}
       </div>
     </section>
   );

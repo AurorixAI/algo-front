@@ -27,7 +27,11 @@ const F = require(path.join(root, "src/lib/payf.ts"));
 const S = require(path.join(root, "src/lib/substitutions.ts"));
 const SL = require(path.join(root, "src/lib/staff-lifecycle.ts"));
 const GF = require(path.join(root, "src/lib/group-form.ts"));
-const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+// the date and the time of a lesson are held together by non-breaking spaces and a word joiner (formatLessonWhen): the words are compared as plain text
+const plainOf = (line) => line.replace(/\u2060/g, "").replace(/\u00a0/g, " ");
+const lineOf = (...args) => plainOf(F.dayOffLessonLine(...args));
+const notRestoredOf = (...args) => plainOf(F.dayOffNotRestoredLine(...args));
+const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\u2060/g, "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 
 const lesson = (n, over = {}) => ({ groupId: `g${n}`, groupName: `Группа ${n}`, lessonId: `l${n}`, date: "2026-10-28", startTime: "10:00", endTime: "10:45", reason: null, ...over });
 
@@ -49,9 +53,9 @@ test("S2-1: the administrator's payrollSheetsAffected is only {month}: the toast
 // ── part 2: «Отменить выходной» ──────────────────────────────────────────────────────────────────────────────────
 
 test("#155 (2): ONE line of a lesson «ср, 28 октября · 10:00–10:45 · Группа» in every list of both windows; the lists go by date and time", () => {
-  assert.equal(F.dayOffLessonLine(lesson(1)), "ср, 28 октября · 10:00–10:45 · Группа 1");
-  assert.equal(F.dayOffLessonLine(lesson(1, { startTime: null, endTime: null })), "ср, 28 октября · Группа 1", "a server that sent no time (an older one): the line is still whole");
-  assert.equal(F.dayOffLessonLine(lesson(1, { reason: "идёт экзамен" })), "ср, 28 октября · 10:00–10:45 · Группа 1 — идёт экзамен");
+  assert.equal(lineOf(lesson(1)), "ср, 28 октября · 10:00–10:45 · Группа 1");
+  assert.equal(lineOf(lesson(1, { startTime: null, endTime: null })), "ср, 28 октября · Группа 1", "a server that sent no time (an older one): the line is still whole");
+  assert.equal(lineOf(lesson(1, { reason: "идёт экзамен" })), "ср, 28 октября · 10:00–10:45 · Группа 1 — идёт экзамен");
   const sorted = F.sortDayOffLessons([lesson(1, { date: "2026-10-29", startTime: "09:00" }), lesson(2, { startTime: "14:00" }), lesson(3, { startTime: "10:00", groupName: "Б" }), lesson(4, { startTime: "10:00", groupName: "А" })]);
   assert.deepEqual(sorted.map((item) => item.groupName), ["А", "Б", "Группа 2", "Группа 1"]);
 });
@@ -103,14 +107,14 @@ test("#155 (4): the substitutes that do not return: the block's title says it on
   assert.equal(F.NOT_RESTORED_TITLE, "Замена не вернётся — назначьте заново");
   const restored = [lesson(1, { date: "2026-10-28", startTime: "10:00" })];
   const warning = { code: "SUBSTITUTE_NOT_RESTORED", message: "28.10 — «Группа 1»: замена (Иванов И.) была снята выходным и не вернулась — назначьте её заново", groupId: "g1", lessonId: "l1", date: "2026-10-28", startTime: "10:00", substituteName: "Иванов И." };
-  assert.equal(F.dayOffNotRestoredLine(warning, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the end of the lesson comes from the lesson that came back");
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, groupName: "Группа 1", endTime: "10:45" }, []), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the server sends the end itself");
+  assert.equal(notRestoredOf(warning, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the end of the lesson comes from the lesson that came back");
+  assert.equal(notRestoredOf({ ...warning, groupName: "Группа 1", endTime: "10:45" }, []), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the server sends the end itself");
   // rule 48: the line of the substitute and the line of the lists agree on the time
-  assert.ok(F.dayOffNotRestoredLine(warning, restored).startsWith(F.dayOffLessonLine(restored[0])));
+  assert.ok(notRestoredOf(warning, restored).startsWith(lineOf(restored[0])));
   // the group and the time come from the lesson that came back when the warning has no start time
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, startTime: undefined }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.");
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, substituteName: null }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена");
-  assert.equal(F.dayOffNotRestoredLine({ code: "x", message: "m", date: "2026-10-28", substituteName: "Ким А." }, []), "ср, 28 октября — была замена: Ким А.");
+  assert.equal(notRestoredOf({ ...warning, startTime: undefined }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.");
+  assert.equal(notRestoredOf({ ...warning, substituteName: null }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена");
+  assert.equal(notRestoredOf({ code: "x", message: "m", date: "2026-10-28", substituteName: "Ким А." }, []), "ср, 28 октября — была замена: Ким А.");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored, kept: [], warnings: [warning] } }));
   assert.match(text(html), /Замена не вернётся — назначьте заново ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И\./);
@@ -364,7 +368,7 @@ test("R4 2: a waiting request for a lesson TODAY that is not over says «Пок�
 test("R4 3: the name of the substitute in «была замена» is taken as the server sends it («Имя Ф.»): nothing is reordered", () => {
   const restored = [lesson(1)];
   for (const name of ["Иван И.", "Иванов И.", "Ким А.", "  Ким А. "]) {
-    const line = F.dayOffNotRestoredLine({ code: "SUBSTITUTE_NOT_RESTORED", message: "m", groupId: "g1", lessonId: "l1", date: "2026-10-28", substituteName: name }, restored);
+    const line = notRestoredOf({ code: "SUBSTITUTE_NOT_RESTORED", message: "m", groupId: "g1", lessonId: "l1", date: "2026-10-28", substituteName: name }, restored);
     assert.ok(line.endsWith(`была замена: ${name.trim()}`), line);
   }
 });

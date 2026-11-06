@@ -243,7 +243,7 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
           }
         }}
         className={cn(
-          "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400",
+          "min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400",
           "focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-60",
           className,
           (invalid || problem !== "") && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
@@ -258,7 +258,7 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
         disabled={disabled}
         data-testid={testId ? `${testId}-calendar` : undefined}
         onClick={() => setOpen((current) => !current)}
-        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 disabled:pointer-events-none disabled:opacity-50"
+        className="absolute right-1 top-1/2 flex h-7 w-7 max-sm:right-0 max-sm:h-10 max-sm:w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 disabled:pointer-events-none disabled:opacity-50"
       >
         <CalendarDays className="h-4 w-4" aria-hidden />
       </button>

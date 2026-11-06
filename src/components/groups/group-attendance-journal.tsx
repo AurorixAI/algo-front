@@ -79,7 +79,7 @@ import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/grou
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { groupsBaseOf, purposeMarks } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
-import { assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { LESSON_CANCELLED_LABEL, assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -110,6 +110,7 @@ import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
 import { BACKDATED_LABEL, backdatedHintLines, correctionChipLabel, correctionHintLines } from "@/lib/attendance-corrections";
 import { nobodyCameQuestion } from "@/lib/attendance-ops";
 import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
+import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
@@ -1398,9 +1399,29 @@ export function GroupAttendanceJournal({
       {correcting && correctingLesson && (
         <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            Исправление урока {formatDateRu(correctingLesson.date)}. Меняйте отметки в подсвеченном столбце, затем нажмите «Сохранить исправление» в его заголовке.
-          </span>
+          <div className="min-w-0 flex-1">
+            <span>
+              Исправление урока {formatDateRu(correctingLesson.date)}. Меняйте отметки в подсвеченном столбце, затем нажмите «Сохранить исправление»<span className="max-sm:hidden"> в его заголовке</span>.
+            </span>
+            {/* R4 Д8: a phone has no room in the narrow head of the column (the pinned column «Ученик» covers it): the buttons are here, in the sight */}
+            <div className="mt-3 flex flex-col gap-2 sm:hidden" data-testid="correction-phone-bar">
+              <button
+                type="button"
+                disabled={correctionChanges.length === 0}
+                onClick={() => setCorrectionDialog({ reason: "", error: null, closed: null })}
+                className="min-h-10 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Сохранить исправление{correctionChanges.length > 0 ? ` (${correctionChanges.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCorrecting(null); setOpenCell(null); }}
+                className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1418,7 +1439,7 @@ export function GroupAttendanceJournal({
               type="button"
               onClick={() => movePeriod(-1)}
               aria-label={viewMode === "week" ? "Предыдущая неделя" : "Предыдущий месяц"}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -1430,7 +1451,7 @@ export function GroupAttendanceJournal({
               type="button"
               onClick={() => movePeriod(1)}
               aria-label={viewMode === "week" ? "Следующая неделя" : "Следующий месяц"}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -1489,7 +1510,7 @@ export function GroupAttendanceJournal({
                     const teacherLabel = substituteLabel(teacherInfo);
                     // UX pack №26: at most two chips in the head of a column, the rest behind «ещё N»
                     const chipPlan = headerChipPlan({
-                      marks: [...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })],
+                      marks: [...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }).filter((mark) => !(lessonStatus === "cancelled" && mark.text === LESSON_CANCELLED_LABEL)), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })],
                       teacherLabel: teacherLabel || null,
                       correctionLabel: correction && lessonStatus === "completed" ? correctionChipLabel(correction) : null,
                       backdatedLabel: attendanceData?.backdated?.[key] ? BACKDATED_LABEL : null,
@@ -1526,7 +1547,7 @@ export function GroupAttendanceJournal({
                           <div className="text-[11px] text-slate-500">
                             {dateValue.weekday} {lesson.isRescheduled && lesson.originalStartTime ? (
                               <>
-                                <span className="text-slate-400 line-through">{lesson.originalStartTime}</span>
+                                <span className="text-slate-500 line-through">{lesson.originalStartTime}</span>
                                 <span> → {lesson.startTime || lesson.start_time || ""}</span>
                               </>
                             ) : (
@@ -1583,7 +1604,7 @@ export function GroupAttendanceJournal({
                             </div>
                           )}
                           {inCorrection && (
-                            <div className="flex flex-col gap-1 pt-1.5">
+                            <div className="flex flex-col gap-1 pt-1.5 max-sm:hidden">
                               <button
                                 type="button"
                                 disabled={correctionChanges.length === 0}
@@ -1633,7 +1654,7 @@ export function GroupAttendanceJournal({
                                   <Hint text="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Новый</Hint>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-400">
+                              <p className="text-[11px] text-slate-500">
                                 {student.class_level ? `${student.class_level} класс` : student.display_id || ""}
                               </p>
                             </div>
@@ -1653,7 +1674,7 @@ export function GroupAttendanceJournal({
                                 <Hint text="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Новый</Hint>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-[11px] text-slate-500">
                               {student.class_level ? `${student.class_level} класс` : student.display_id || ""}
                             </p>
                           </div>
@@ -1706,7 +1727,7 @@ export function GroupAttendanceJournal({
                               title={cellTitle}
                               aria-expanded={isOpen}
                               aria-controls={isOpen ? `attendance-menu-${student.id}-${key}` : undefined}
-                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? (excuse ? "cursor-help opacity-70" : "cursor-not-allowed opacity-70") : "cursor-pointer"}`}
+                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-500"} ${locked && !reviewable ? (excuse ? "cursor-help opacity-70" : "cursor-not-allowed opacity-70") : "cursor-pointer"}`}
                             >
                               {option ? (
                                 <>
@@ -1891,12 +1912,12 @@ export function GroupAttendanceJournal({
                                   onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
                                   title={`${transferDescription} Пока урок открыт, отметку можно поставить или изменить.`}
                                   aria-expanded={isOpen}
-                                  className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"}`}
+                                  className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-500"}`}
                                 >
                                   {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
                                 </button>
                               ) : (
-                                <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-400"}`}>
+                                <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-500"}`}>
                                   {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
                                 </span>
                               )
@@ -1975,7 +1996,7 @@ export function GroupAttendanceJournal({
                     void runColumnAction("finish", lesson);
                   }
                 }}
-                className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${finishHint ? "text-slate-400" : "text-slate-700"}`}
+                className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${finishHint ? "text-slate-500" : "text-slate-700"}`}
               >
                 <span className="flex items-center gap-2"><CheckCheck className={`h-4 w-4 ${finishHint ? "text-slate-300" : "text-emerald-600"}`} />{FINISH_LESSON_LABEL}</span>
                 {finishHint && <span className="pl-6 text-[11px] font-medium text-amber-700">{finishHint}</span>}
@@ -2046,10 +2067,7 @@ export function GroupAttendanceJournal({
         description={reasonEditor ? `${reasonEditor.student.full_name || `${reasonEditor.student.last_name} ${reasonEditor.student.first_name}`.trim()} · урок ${formatDateRu(reasonEditor.lesson.date)}` : undefined}
         onClose={() => setReasonEditor(null)}
         footer={
-          <>
-            <button type="button" onClick={() => setReasonEditor(null)} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Отмена</button>
-            <button type="button" onClick={submitReasonEditor} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Сохранить</button>
-          </>
+          <ConfirmFooter primary="Сохранить" onPrimary={submitReasonEditor} onCancel={() => setReasonEditor(null)} />
         }
       >
         {reasonEditor && (
@@ -2067,10 +2085,10 @@ export function GroupAttendanceJournal({
               className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
             />
             <div className="flex items-start justify-between gap-3 text-xs">
-              <span className={reasonEditor.error ? "font-medium text-rose-600" : "text-slate-400"}>
+              <span className={reasonEditor.error ? "font-medium text-rose-600" : "text-slate-500"}>
                 {reasonEditor.error || "От 3 до 300 символов. Администратор подтвердит или отклонит пропуск."}
               </span>
-              <span className="shrink-0 text-slate-400">{reasonEditor.text.trim().length}/{REASON_LIMITS.excuse.max}</span>
+              <span className="shrink-0 text-slate-500">{reasonEditor.text.trim().length}/{REASON_LIMITS.excuse.max}</span>
             </div>
           </div>
         )}
@@ -2105,17 +2123,14 @@ export function GroupAttendanceJournal({
         maxWidthClassName="max-w-[560px]"
         footer={
           <>
-            <button type="button" onClick={() => setCorrectionDialog(null)} disabled={correctionSaving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-            <button
-              type="button"
-              onClick={() => void submitCorrection()}
-              data-testid="correction-submit"
-              disabled={correctionSaving || correctionChanges.length === 0 || !effectsAllowConfirm(impact)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {correctionSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Сохранить исправление
-            </button>
+            <ConfirmFooter
+              primary="Сохранить исправление"
+              onPrimary={() => void submitCorrection()}
+              testId="correction-submit"
+              disabled={correctionChanges.length === 0 || !effectsAllowConfirm(impact)}
+              busy={correctionSaving}
+              onCancel={() => setCorrectionDialog(null)}
+            />
           </>
         }
       >
@@ -2162,10 +2177,10 @@ export function GroupAttendanceJournal({
                 className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
               />
               <div className="flex items-start justify-between gap-3 text-xs">
-                <span role={correctionDialog.error && !correctionDialog.closed ? "alert" : undefined} className={correctionDialog.error && !correctionDialog.closed ? "font-medium text-rose-600" : "text-slate-400"}>
+                <span role={correctionDialog.error && !correctionDialog.closed ? "alert" : undefined} className={correctionDialog.error && !correctionDialog.closed ? "font-medium text-rose-600" : "text-slate-500"}>
                   {(correctionDialog.closed ? null : correctionDialog.error) || "От 10 до 500 символов."}
                 </span>
-                <span className="shrink-0 text-slate-400">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
+                <span className="shrink-0 text-slate-500">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
               </div>
               {correctionDialog.closed && (
                 <PeriodClosedNotice

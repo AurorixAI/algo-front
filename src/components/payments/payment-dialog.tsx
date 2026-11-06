@@ -400,7 +400,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             <button
               type="button"
               onClick={() => { setCommentOpen(true); setTimeout(() => noteInput.current?.focus(), 0); }}
-              className="-mt-2 flex items-center gap-1 text-xs font-semibold text-primary-700 hover:underline"
+              className="-mt-2 flex min-h-10 items-center gap-1 text-xs font-semibold text-primary-700 hover:underline"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />
               Комментарий

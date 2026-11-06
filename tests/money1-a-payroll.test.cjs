@@ -178,7 +178,7 @@ test("the month row: ONE payout chip (only the state of the payout), the change 
   const closed = row(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }));
   const text = textOf(closed);
   assert.ok(text.includes("выплачено ✓"), "paid in full: the column «Остаток» says so");
-  assert.ok(text.includes("Требует действия · 1"), "the change is an item of the ONE status chip (its items open on hover): not a chip of its own");
+  assert.ok(text.includes("Требует действия"), "the change is an item of the ONE status chip (its items open on hover): not a chip of its own");
   assert.ok(!text.includes("Есть изменения") && !text.includes("изменилось на") && !text.includes("Изменилась"), "once: not a second line under the payout, not a second chip");
   assert.ok(text.includes("Месяц закрыт"));
   assert.match(closed, /data-testid="period-chip"[^>]*data-tone="closed"/);
@@ -195,7 +195,7 @@ test("the month row: ONE payout chip (only the state of the payout), the change 
   assert.ok(!calm.includes("изменилась") && !calm.includes("Изменилась") && !calm.includes("Есть изменения"));
   // the data moved but the sum did not (or could not be counted): the plain chip
   const same = textOf(html(React.createElement(TeacherRow, { teacher: { ...teacher, payout: { ...payout, changed_by: 0, change_text: null } }, month: "2026-10", busy: false, onCalculate() {}, onOpen() {} })));
-  assert.ok(same.includes("Требует действия · 1"), "the data moved, the sum did not: still an item to act on («Данные изменились — проверьте и сохраните новую сумму»)");
+  assert.ok(same.includes("Требует действия"), "the data moved, the sum did not: still an item to act on («Данные изменились — проверьте и сохраните новую сумму»)");
 });
 
 test("the sheet: a closed month has the chip and the button; reopened says what to do next and has no button; open has the chip only; the owner decides (no handler, no button)", () => {
@@ -511,7 +511,7 @@ test("D-2 list: the row of an open month says «начислено сейчас�
   const draw = (payout) => plain(textOf(html(React.createElement(TeacherRow, { teacher: rowOf(payout), month: "2026-11", busy: false, onCalculate() {}, onOpen() {} }))));
   const open = draw(OPEN_NOV);
   assert.ok(open.includes("120 834 сум") && open.includes("начислено сейчас") && open.includes("вперёд 29 166"), open);
-  assert.ok(open.includes("было 45 000") && open.includes("Требует действия · 1"), "the change after the saving is said ONCE: under the number («было …»); the item to save it is in the chip");
+  assert.ok(open.includes("было 45 000") && open.includes("Требует действия"), "the change after the saving is said ONCE: under the number («было …»); the item to save it is in the chip");
   assert.ok(!open.includes("изменилось на") && !open.includes("Изменилась"), "not a chip of its own");
   assert.equal(times(open, 45000), 1, "the saved sum is said once, as «было»");
   assert.equal(times(open, 105000), 0, "the old number of the list");

@@ -72,6 +72,8 @@ export function SheetSummaryCard({
   // D-2 (walk of 05.11): an open month is paid by what is accrued now - the big number is that, the saved one opens the line of facts with the counts in its brackets (they describe the saved sheet)
   const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
   const changed = status.tone === "changed";
+  // R4 Д2: a changed salary is said ONCE - by the block «Что нужно сделать» over the card (with its button); the card does not repeat it unless it prints the line of the saved sum
+  const statusDuplicatesTodo = changed && !headline.saved;
   const printTotals = status.tone === "dirty" ? null : sheetPrintTotals({ payout: sheet.payout, today: formatBusinessDate() });
   // a REOPENED month is closed again by a save, with or without changes: its button says so
   const primaryLabel = status.action === "recalculate" ? (period?.tone === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL) : "Сохранить";
@@ -121,6 +123,7 @@ export function SheetSummaryCard({
         </div>
       </div>
 
+      {!statusDuplicatesTodo && (
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-3 print:hidden">
         <p role="status" className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
           {/* a reopened month is not «saved and done»: no green dot (UX pack №23) */}
@@ -144,12 +147,13 @@ export function SheetSummaryCard({
           </button>
         )}
       </div>
+      )}
 
       {period && !(period.tone === "open" && monthRunning && !period.canReopen) && (
         <div data-testid="sheet-period" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 print:hidden">
           <PeriodChip view={period} />
           {period.canReopen && onReopen && (
-            <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
+            <button type="button" data-testid="reopen-month" onClick={onReopen} className="inline-flex min-h-10 items-center text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
           )}
           {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки — месяц закроется снова при сохранении</span>}
         </div>

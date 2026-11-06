@@ -330,7 +330,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <div role="status" data-testid="expiring-note" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
           <Info className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
           <span className="min-w-0 flex-1 font-medium">{expiringBanner}</span>
-          <button type="button" data-testid="expiring-show" onClick={() => { setExpiringOnly((value) => !value); setPage(0); }} className="shrink-0 text-xs font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">
+          <button type="button" data-testid="expiring-show" onClick={() => { setExpiringOnly((value) => !value); setPage(0); }} className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">
             {expiringOnly ? EXPIRING_SHOW_ALL : EXPIRING_SHOW}
           </button>
         </div>
@@ -345,7 +345,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
               role="tab"
               aria-selected={tab === key}
               onClick={() => switchTab(key)}
-              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {label}
             </button>
@@ -394,10 +394,10 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       {pendingTab && selectedItems.length > 0 && (
         <div role="region" aria-label="Массовые действия" className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/60 px-3.5 py-2.5">
           <span className="mr-auto text-sm font-semibold text-primary-900">Выбрано: {selectedItems.length}</span>
-          <button type="button" onClick={() => setBulkKind("substitute")} className="h-8 rounded-lg bg-primary-600 px-3 text-xs font-semibold text-white hover:bg-primary-700">Назначить замену</button>
-          <button type="button" onClick={() => setBulkKind("cancel")} className="h-8 rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50">Отменить уроки</button>
-          <button type="button" onClick={() => setBulkKind("reject")} className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Отклонить</button>
-          <button type="button" onClick={() => setSelected(new Set())} className="h-8 rounded-lg px-2.5 text-xs font-semibold text-slate-600 hover:bg-white">Снять выбор</button>
+          <button type="button" onClick={() => setBulkKind("substitute")} className="h-10 rounded-lg sm:h-8 bg-primary-600 px-3 text-xs font-semibold text-white hover:bg-primary-700">Назначить замену</button>
+          <button type="button" onClick={() => setBulkKind("cancel")} className="h-10 rounded-lg sm:h-8 border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50">Отменить уроки</button>
+          <button type="button" onClick={() => setBulkKind("reject")} className="h-10 rounded-lg sm:h-8 border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Отклонить</button>
+          <button type="button" onClick={() => setSelected(new Set())} className="h-10 rounded-lg sm:h-8 px-2.5 text-xs font-semibold text-slate-600 hover:bg-white">Снять выбор</button>
         </div>
       )}
 
@@ -427,7 +427,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <AlertCircle className="h-8 w-8 text-rose-500" />
             <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-            <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <button type="button" onClick={() => void load()} className="min-h-10 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
         ) : items.length === 0 ? (
           decisionsOnly ? null : <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
@@ -468,7 +468,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         {siblings.length > 0 && (
                           <p className="mt-0.5 text-xs text-slate-500">
                             {moreLessonsText(siblings.length)}{" "}
-                            <button type="button" onClick={() => toggleExpanded(item.id)} aria-expanded={open} className="font-semibold text-primary-700 hover:underline">{open ? "Скрыть" : "Показать"}</button>
+                            <button type="button" onClick={() => toggleExpanded(item.id)} aria-expanded={open} className="inline-flex min-h-10 items-center font-semibold text-primary-700 hover:underline">{open ? "Скрыть" : "Показать"}</button>
                           </p>
                         )}
                       </div>
@@ -490,7 +490,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                             type="button"
                             onClick={() => setDialogItem(item)}
                             aria-label={`Решить: ${item.group.name}, ${item.teacher.name}`}
-                            className="h-8 w-full rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 xl:w-auto"
+                            className="h-10 w-full rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 xl:w-auto"
                           >
                             Решить
                           </button>
@@ -515,7 +515,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         {siblings.map((sibling) => (
                           <li key={sibling.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
                             <span>{itemLessonLine(sibling)}</span>
-                            {sibling.status === "pending" && <button type="button" onClick={() => setDialogItem(sibling)} className="font-semibold text-primary-700 hover:underline">Решить</button>}
+                            {sibling.status === "pending" && <button type="button" onClick={() => setDialogItem(sibling)} className="inline-flex min-h-10 items-center font-semibold text-primary-700 hover:underline">Решить</button>}
                           </li>
                         ))}
                       </ul>
@@ -532,9 +532,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
             <span>{page + 1} из {pageCount}</span>
-            <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
       )}

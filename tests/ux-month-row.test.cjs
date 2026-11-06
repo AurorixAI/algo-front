@@ -39,7 +39,7 @@ test("the status of a row is ONE chip by priority: «Требует действ
   const payout = (over = {}) => ({ fresh_total: 75834, changed_by: 75834, ...over });
   const row = (over) => ({ warnings: WARN(), undecided_lessons: 0, sheet: sheet(false), payout: payout(), ...over });
   const moved = R.rowStatus(row({ sheet: sheet(true) }));
-  assert.deepEqual([moved.tone, moved.label], ["todo", "Требует действия · 1"]);
+  assert.deepEqual([moved.tone, moved.label], ["todo", "Требует действия"]);
   assert.equal(plain(moved.items[0].text), "Зарплата изменилась на +75 834 сум — сохраните новую сумму");
   assert.equal(moved.items[0].key, "changed");
   assert.equal(plain(R.rowStatus(row({ sheet: sheet(true), payout: payout({ changed_by: -45000 }) })).items[0].text), "Зарплата изменилась на −45 000 сум — сохраните новую сумму");
@@ -49,9 +49,9 @@ test("the status of a row is ONE chip by priority: «Требует действ
   }
   // priority: what needs an action wins over «Не рассчитано» and «Сохранено»; every kind of item counts
   const busy = R.rowStatus(row({ sheet: sheet(true), warnings: WARN({ open_lessons: 1 }), undecided_lessons: 2 }));
-  assert.equal(busy.label, "Требует действия · 3");
+  assert.equal(busy.label, "Требует действия");
   assert.deepEqual(busy.items.map((item) => item.button), ["Отметить", "Решить", "Сохранить новую сумму"]);
-  assert.equal(R.rowStatus(row({ sheet: null, payout: null, warnings: WARN({ open_lessons: 1 }) })).label, "Требует действия · 1", "also a teacher with nothing saved");
+  assert.equal(R.rowStatus(row({ sheet: null, payout: null, warnings: WARN({ open_lessons: 1 }) })).label, "Требует действия", "also a teacher with nothing saved");
   assert.deepEqual([R.rowStatus(row({ sheet: null, payout: null })).tone, R.rowStatus(row({ sheet: null, payout: null })).label], ["none", "Не рассчитано"]);
   assert.deepEqual([R.rowStatus(row()).tone, R.rowStatus(row()).label], ["saved", "Сохранено 05.11"]);
 });

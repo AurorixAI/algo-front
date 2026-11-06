@@ -23,7 +23,12 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio({ c
     return <input {...props} ref={ref} type="radio" className={cn("sr-only", className)} />;
   }
   return (
-    <span className={cn("relative inline-flex h-[18px] w-[18px] shrink-0", className)}>
+    <span
+      // R4 Д7: the tap zone of 40 px on a phone is an invisible ::after of the wrapper; the circle and the flow stay 18 px.  Inside a <label> the label passes the click on; alone, the wrapper does
+      onClick={(event) => { const input = (event.currentTarget as HTMLElement).querySelector("input"); if (event.target !== input && !(event.target as HTMLElement).closest("label") && input && !input.disabled) input.click(); }}
+      className={cn("relative inline-flex h-[18px] w-[18px] shrink-0 max-sm:after:absolute max-sm:after:-inset-[11px] max-sm:after:content-['']", className)}
+      data-touch-zone=""
+    >
       <input
         {...props}
         ref={ref}

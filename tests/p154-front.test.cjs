@@ -252,7 +252,7 @@ test("A: the row of money - the lesson, who held it, how many came; no amount; t
   const plain = text(html);
   assert.match(plain, /Дополнительные уроки ждут решения · 2/);
   assert.doesNotMatch(plain, /Дополнительный урок — оплатить преподавателю\?/, "the question is in the window, not in every row");
-  assert.match(plain, /7-А · чт, 5 ноября · 16:00–17:00/);
+  assert.match(plain, /7-А · чт, 5 ноября · 16:00⁠–⁠17:00/);
   assert.match(plain, /преподаватель: Рахимов Т\. · пришли 3 из 10/);
   assert.equal((plain.match(/Просит включить в зарплату/g) || []).length, 1);
   assert.match(plain, /Просит включить в зарплату: Каримова Д\./);
@@ -267,10 +267,12 @@ test("A: the buttons are named by the short day, never an ISO date (F3); the win
   assert.match(html, /aria-label="Включить в зарплату: 7-А, чт 05\.11"/);
   assert.match(html, /aria-label="Не включать: 7-А, чт 05\.11"/);
   assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
-  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение можно отменить, пока месяц не закрыт\.$/);
-  assert.match(O.decisionNote("pay"), /^Ученикам урок бесплатный\. В зарплату входят все ученики, включая «Не был»\./);
-  assert.match(O.decisionNote("skip"), /^Ученикам урок бесплатный\. В зарплату преподавателя он не войдёт\./);
-  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision, dialog\.item\.studentsPaid\)/);
+  const facts = (decide) => O.decisionFacts({ studentsPresent: 2, studentsTotal: 3, lessonDate: "2026-11-04" }, decide);
+  for (const decide of ["pay", "skip"]) assert.deepEqual(facts(decide).map((fact) => fact.label), ["Пришли", "Для учеников", "В зарплату", "Отменить"]);
+  for (const decide of ["pay", "skip"]) assert.equal(facts(decide)[3].value, "можно, пока ноябрь не закрыт", "the window says «можно отменить» for BOTH choices");
+  assert.match(facts("pay")[2].value, /^за всех учеников, включая отметку «Не был»$/);
+  assert.equal(facts("skip")[2].value, "не войдёт");
+  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionFacts\(dialog\.item, dialog\.decision\)/);
 });
 
 test("A: the new refusals of the server have words, not codes (F5)", () => {
@@ -367,7 +369,7 @@ test("A: the facts of the sheet and of the month say «не решено»", () 
   assert.equal(P.undecidedLessonsText(0), null);
   assert.equal(P.undecidedLessonsText(undefined), null);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /не решено: \{line\.undecided\}/);
-  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /undecidedVisits: sheet\.undecided_total/);   // UX pack §5.2-бис: the item «Решить» of the block «Что нужно сделать»
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /undecidedVisits: warningsFailed \? sheet\.undecided_total : null/);   // UX pack §5.2-бис: the item «Решить» of the block «Что нужно сделать»
   // UX round of the owner (05.11): the month list says it in the ONE line of what needs an action («1 доп. урок ждёт решения», a link to «Замены»), not as a second red line
   assert.match(read("src/lib/payroll.ts"), /export function rowStatus[\s\S]*teacherAttention\(teacher\)/);   // the items of the ONE status chip (UX pack §5.2-бис)
   assert.equal(P.teacherAttention({ warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }, undecided_lessons: 2 })[0].text, "2 доп. урока ждут решения");
@@ -411,7 +413,7 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
 });
 
 test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
-  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт, 5 ноября · 16:00–17:00");
+  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт, 5 ноября · 16:00⁠–⁠17:00");
   assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "преподаватель: Рахимов Т. · пришли 0 из 8");
   assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · пришёл 1 из 2");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);

@@ -251,23 +251,23 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
         <button
           type="button"
           onClick={goBack}
-          className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад
         </button>
         {receipt && (context.membershipId || context.studentId || context.groupId) && (
           <nav aria-label="Перейти" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium" data-testid="receipt-links">
-            {context.membershipId && <Link href={statementHref(bases.payments, context.membershipId)} data-testid="receipt-link-statement" className="text-primary-700 hover:underline">Выписка</Link>}
-            {context.studentId && <Link href={studentHref(bases.students, context.studentId, "payments")} data-testid="receipt-link-student" className="text-primary-700 hover:underline">Ученик</Link>}
-            {context.groupId && <Link href={groupHref(bases.groups, context.groupId, "payments")} data-testid="receipt-link-group" className="text-primary-700 hover:underline">Группа</Link>}
+            {context.membershipId && <Link href={statementHref(bases.payments, context.membershipId)} data-testid="receipt-link-statement" className="inline-flex min-h-10 items-center text-primary-700 hover:underline">Выписка</Link>}
+            {context.studentId && <Link href={studentHref(bases.students, context.studentId, "payments")} data-testid="receipt-link-student" className="inline-flex min-h-10 items-center text-primary-700 hover:underline">Ученик</Link>}
+            {context.groupId && <Link href={groupHref(bases.groups, context.groupId, "payments")} data-testid="receipt-link-group" className="inline-flex min-h-10 items-center text-primary-700 hover:underline">Группа</Link>}
           </nav>
         )}
         {receipt && (
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
           >
             <Printer className="h-4 w-4" />
             Печать / Сохранить PDF

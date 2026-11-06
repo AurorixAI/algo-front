@@ -28,6 +28,8 @@ async function shot(page: Page, name: string) {
 }
 
 const today = () => businessNow().date;
+// the date and the time of a lesson are held together by non-breaking spaces and a word joiner (formatLessonWhen): a text with plain spaces matches them
+const lessonWhenRe = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "[ \\u00a0]").replace(/–/g, "\\u2060?–\\u2060?"));
 const wrap = (weekday: number) => ((weekday - 1 + 7) % 7) + 1;
 const mondayOf = (iso: string) => addDays(iso, 1 - weekdayOf(iso));
 /** «сб, 8 ноября» - the one date of a lesson (formatLessonWhen), written out by hand so the test does not reuse the code it checks. */
@@ -148,7 +150,7 @@ test("a day off: the dry run lists the lessons «группа · дата · в�
   await expect(summary).toHaveText("Будут отменены 2 урока в 2 группах");               // the sentence has no names of groups in it any more
   const list = dialog.getByTestId("day-off-cancellable").getByRole("listitem");
   await expect(list).toHaveCount(2);
-  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${lessonDay(d1)} · 10:00–11:00 · ${name}` })).toHaveCount(1);
+  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: lessonWhenRe(`${lessonDay(d1)} · 10:00–11:00 · ${name}`) })).toHaveCount(1);
   await expectNoHorizontalScroll(page);
   await shot(page, `19-day-off-list-preview-${project}`);
   await dialog.getByTestId("day-off-apply").click();
@@ -254,7 +256,13 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   // the cards carry ONE short line each
   await expect(section.getByText("Месяц — с даты «Оплата с», по умолчанию с первого занятия")).toBeVisible();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
-  const gap = async () => (await section.getByRole("radio", { name: /Свой месяц/ }).boundingBox())!.y - (await line.boundingBox())!.y;   // the page may scroll; what stands between the line and the cards must not change
+  // the page may scroll (and the section slides in for ~250 ms after the load: its elements move 1-2 px per frame); what stands between the line and the cards must not change.  Both boxes are read in ONE
+  // evaluate (one frame) - two `boundingBox()` calls are two round trips, and the slide between them looked like a jump of 2 px (R4 diagnosis: the gap is a constant 109 px at every frame of the slide)
+  const gap = () => page.evaluate(() => {
+    const top = document.querySelector('[data-testid="accounting-start-line"]')!.getBoundingClientRect().y;
+    const radio = (document.querySelector('input[name="payments-model"]') as HTMLInputElement).getBoundingClientRect().y;
+    return radio - top;
+  });
   const before = await gap();
   await expectNoHorizontalScroll(page);
   await shot(page, `28-settings-payments-calm-monthly-${project}`);

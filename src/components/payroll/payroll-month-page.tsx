@@ -40,6 +40,7 @@ import {
   sheetCardStatus,
   sheetNoFeeHref,
   sheetTodoItems,
+  ALL_SAVED_TEXT,
   sheetTotal,
   teacherLabel,
   teacherRateHref,
@@ -77,7 +78,7 @@ import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, usePrint
  * numbers on the right, the status and the button centred.  A table from 1280; 1024 and a phone get cards in the same order.
  */
 export const MONTH_COLUMNS = {
-  grid: "xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]",
+  grid: "xl:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,0.9fr)]",
   labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено, сум", "Остаток, сум", "Статус", ""],
   aligns: ["left", "right", "right", "right", "center", "center"] as Array<"left" | "right" | "center">,
 };
@@ -206,6 +207,8 @@ function PayrollMonthContent() {
   const monthOpen = overview ? overview.month_open || isOpenMonth(month, today) : false;
   // «Рассчитать всех» waits until every teacher has a rate (the rate is set once, in «Сотрудники»)
   const gate = calculationGate(teachers);
+  // R4 Д5: «сохранено 2 из 2» of the summary line already says that every salary is saved - the hint under the button would say it twice (the button keeps it as its title)
+  const allSaved = gate.text === ALL_SAVED_TEXT;
   const busy = calculating !== null;
 
   const goToMonth = async (next: string) => {
@@ -388,7 +391,7 @@ function PayrollMonthContent() {
               type="button"
               aria-label="Предыдущий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, -1))}
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 max-sm:h-10 max-sm:w-10"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -398,7 +401,7 @@ function PayrollMonthContent() {
               aria-label="Следующий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, 1))}
               disabled={nextDisabled}
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 max-sm:h-10 max-sm:w-10"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -419,7 +422,8 @@ function PayrollMonthContent() {
               type="button"
               onClick={() => void calculate(calculationScope(teachers).map((teacher) => teacher.teacher_id), true)}
               disabled={!overview || teachers.length === 0 || busy || !gate.ready}
-              aria-describedby={gate.text ? "payroll-calculate-hint" : undefined}
+              aria-describedby={gate.text && !allSaved ? "payroll-calculate-hint" : undefined}
+              title={allSaved ? ALL_SAVED_TEXT : undefined}
               className="inline-flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-5"
             >
               {calculating === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
@@ -437,7 +441,7 @@ function PayrollMonthContent() {
         )}
         <div className="space-y-1.5">
           {overview && <PayrollMonthSummary totals={totals} month={month} open={monthOpen} />}
-          {overview && gate.text && (
+          {overview && gate.text && !allSaved && (
             <p id="payroll-calculate-hint" className="text-xs text-slate-600">
               {gate.text}
               {gate.missing > 0 && (
@@ -527,7 +531,7 @@ function PayrollMonthContent() {
                   role="tab"
                   aria-selected={activeId === preview.sheet.teacher_id}
                   onClick={() => setActiveId(preview.sheet.teacher_id)}
-                  className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                  className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                     activeId === preview.sheet.teacher_id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >

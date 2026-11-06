@@ -10,7 +10,7 @@
  * LESSONS 16 / 17 (no role by default), 45 (a teacher sees neither amounts nor decisions), 46 (every code of the server has words here, a test
  * for each), 48 (one line of a lesson for every list).
  */
-import { formatBusinessDate, formatIsoDateLabel, formatWeekdayDate, monthYearLabelRu } from "./business-time";
+import { formatBusinessDate, formatIsoDateLabel, formatLessonWhen, formatWeekdayDate, monthYearLabelRu } from "./business-time";
 import { genitiveShortName } from "./name-case";
 import { monthLabel } from "./ru-calendar";
 import { pluralRu } from "./plural";
@@ -389,7 +389,7 @@ export function shortDay(isoDate: string): string {
 
 /** «Геометрия 8 · ср, 4 ноября · 10:00–11:00» - the lesson of a row and of the title line of a window (§1: dates of headings and rows are «ср, 4 ноября»). */
 export function decisionLessonLine(item: Pick<OneOffDecisionItem, "groupName" | "lessonDate" | "startTime" | "endTime">): string {
-  return `${item.groupName} · ${formatWeekdayDate(item.lessonDate)} · ${item.startTime}–${item.endTime}`;
+  return formatLessonWhen({ date: item.lessonDate, startTime: item.startTime, endTime: item.endTime, groupName: item.groupName });
 }
 
 /** «пришёл 1 из 10» / «пришли 2 из 3»: the verb agrees with the number that follows it (21 - «пришёл», 12 - «пришли»). */
@@ -405,10 +405,6 @@ export function decisionWhoLine(item: Pick<OneOffDecisionItem, "teacher" | "stud
   return `${who} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
 }
 
-/** The title line of the window of a decision: the lesson and how many came («Геометрия 8 · ср, 4 ноября · 10:00–11:00 · пришли 2 из 3»). */
-export function decisionWindowLine(item: Pick<OneOffDecisionItem, "groupName" | "lessonDate" | "startTime" | "endTime" | "studentsPresent" | "studentsTotal">): string {
-  return `${decisionLessonLine(item)} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
-}
 
 /** «в зарплату Эргашева К.» when the surname declines reliably, else «в зарплату преподавателя» (UX pack: no guessing of a case). */
 export function teacherPayPhrase(teacherName: string | null | undefined): string {
@@ -468,17 +464,26 @@ export function decisionsViewLine(count: number): string {
   const n = Math.max(0, Math.trunc(Number(count) || 0));
   return `Решает владелец: ${n} ${pluralRu(n, "дополнительный урок", "дополнительных урока", "дополнительных уроков")}`;
 }
-const DECISION_FREE_FOR_STUDENTS = "Ученикам урок бесплатный.";
-export const DECISION_FINAL_NOTE = "Решение можно отменить, пока месяц не закрыт.";
+
+export interface DecisionFact { key: "present" | "students" | "pay" | "undo"; label: string; value: string }
+
 /**
- * The ONE sentence of rule in the window of a decision (UX pack №1): «Ученикам урок бесплатный. В зарплату входят все 3 ученика, включая «Не был». Решение можно отменить, пока месяц не закрыт.»
- * `counted`: for how many students the lesson counts (`studentsPaid`, rule 4.3: «Не был» counts too); unknown - «все ученики».  For «Не включать» the same facts the other way round.
+ * The explanation of the window of a decision as FOUR rows «label - value» (owner 06.11, UX pack §5.3): who came, what it is for the students, what goes into the salary, until when it can be undone.
+ * (Not a paragraph: the eye finds the row it needs.)  `month` of the lesson names the month in «пока ноябрь не закрыт».
  */
-export function decisionNote(decision: OneOffDecision, counted?: number | null): string {
-  if (decision !== "pay") return `${DECISION_FREE_FOR_STUDENTS} В зарплату преподавателя он не войдёт. ${DECISION_FINAL_NOTE}`;
-  const n = typeof counted === "number" && counted >= 0 ? Math.trunc(counted) : null;
-  const who = n === null ? "все ученики" : `все ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`;
-  return `${DECISION_FREE_FOR_STUDENTS} В зарплату входят ${who}, включая «Не был». ${DECISION_FINAL_NOTE}`;
+export function decisionFacts(
+  item: Pick<OneOffDecisionItem, "studentsPresent" | "studentsTotal" | "studentsPaid" | "lessonDate">,
+  decision: OneOffDecision,
+): DecisionFact[] {
+  const n = typeof item.studentsPaid === "number" && item.studentsPaid >= 0 ? Math.trunc(item.studentsPaid) : null;
+  const who = n === null ? "за всех учеников" : n === 1 ? "за 1 ученика" : `за всех ${n} учеников`;
+  const month = monthLabel(item.lessonDate.slice(0, 7), item.lessonDate);
+  return [
+    { key: "present", label: "Пришли", value: `${Math.max(0, Math.trunc(Number(item.studentsPresent) || 0))} из ${Math.max(0, Math.trunc(Number(item.studentsTotal) || 0))}` },
+    { key: "students", label: "Для учеников", value: "бесплатно — урок не списывается и не оплачивается" },
+    { key: "pay", label: "В зарплату", value: decision === "pay" ? `${who}, включая отметку «Не был»` : "не войдёт" },
+    { key: "undo", label: "Отменить", value: `можно, пока ${month} не закрыт` },
+  ];
 }
 
 /** The reasons the server cannot count the pay of the lesson (`moneyEstimate.reason`), in words. */

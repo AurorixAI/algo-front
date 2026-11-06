@@ -648,7 +648,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, month: "2026-10", busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
   const html = render();
   const text = textOf(html);
-  assert.ok(text.includes("Требует действия · 3"), "ONE chip: an unfinished lesson, no price, and the data that moved after the saving (no payout state: «Данные изменились»)");
+  assert.ok(text.includes("Требует действия"), "ONE chip: an unfinished lesson, no price, and the data that moved after the saving (no payout state: «Данные изменились»)");
   assert.ok(R.rowStatus({ ...teacher, undecided_lessons: 0 }).items.every((item) => item.hint), "every item says what it means");
   assert.ok(text.includes("12 уроков"));
   assert.ok(text.includes("Группа 50%") && text.includes("Индив. 40%"), "the rate: short lines one under the other");

@@ -92,13 +92,13 @@ test("UX round of the owner: the block of money by month - the heading, a line p
   const show = (state) => html(React.createElement(MoneyEffectsBlock, { preview: { status: "ready", effects: E.normalizeMoneyEffects({ students: [], payroll: [line(state)], text: "", dryRun: true }) }, onRetry() {} }));
   const closed = show("closed");
   const closedText = plain(textOf(closed));
-  assert.match(closedText, /Зарплата за сентябрь(?: 2026)? вырастет:\s*Эргашев К\.\s*860 000 → 993 333\s*\+133 333 сум/);
+  assert.match(closedText, /Зарплата Эргашева К\. за сентябрь\s*Было\s*860 000 сум\s*Станет\s*\+133 333 сум\s*993 333 сум/);
   assert.match(closed, /data-testid="effect-note"/);
   assert.match(closedText, /Сентябрь(?: 2026)? закрыт: сохраните новую сумму, чтобы она вошла в выплату\./);
   assert.match(closed, /border-amber-200/, "something has to be done: amber");
   const open = show("open");
   assert.doesNotMatch(open, /effect-note|border-amber-200/, "an ordinary change is information, not amber");
-  assert.match(plain(textOf(open)), /Зарплата за сентябрь(?: 2026)? вырастет:/);
+  assert.match(plain(textOf(open)), /Зарплата Эргашева К\. за сентябрь/);
 });
 
 test("the block by state: loading says so; ready lists the packs and the sheets; nothing moves says «Деньги не изменятся»; no block from the server says nothing; a failure repeats", () => {
@@ -186,7 +186,7 @@ test("the correction of a held lesson: the dry run (impact) is asked for the mon
   assert.doesNotMatch(journal, /const impactKey = [^;]*moneyRight/);
   assert.match(journal, /orgApi\.attendanceCorrectionImpact\(groupId, \{ lessonDate: correctingLesson\.date, lessonId: correctingLesson\.id, records: correcting\.draft \}, signal\)/);
   assert.match(journal, /if \(!effectsAllowConfirm\(impact\)\) return;/);
-  assert.match(journal, /disabled=\{correctionSaving \|\| correctionChanges\.length === 0 \|\| !effectsAllowConfirm\(impact\)\}/);
+  assert.match(journal, /disabled=\{correctionChanges\.length === 0 \|\| !effectsAllowConfirm\(impact\)\}[\s\S]{0,40}busy=\{correctionSaving\}/);
   assert.match(journal, /<MoneyEffectsBlock preview=\{impact\} onRetry=\{retryImpact\} \/>/);
   assert.doesNotMatch(journal, /correction-money-note/, "no general note instead of the block");
   assert.match(journal, /closed: periodClosedOf\(err\)/);
@@ -415,9 +415,11 @@ test("a decision on an additional lesson: the rule in ONE sentence (for HOW MANY
   assert.deepEqual(OO.decisionPayLines(item, "skip"), []);
   assert.deepEqual(OO.decisionPayLines(item, "pay", false), [], "the sheet names its own sum: the estimate is not said twice");
   assert.deepEqual(OO.decisionPayLines({}, "pay"), [], "an older server: nothing is claimed");
-  assert.equal(OO.decisionNote("pay", 3), "Ученикам урок бесплатный. В зарплату входят все 3 ученика, включая «Не был». Решение можно отменить, пока месяц не закрыт.");
-  assert.equal(OO.decisionNote("pay"), "Ученикам урок бесплатный. В зарплату входят все ученики, включая «Не был». Решение можно отменить, пока месяц не закрыт.");
-  assert.equal(OO.decisionNote("skip"), "Ученикам урок бесплатный. В зарплату преподавателя он не войдёт. Решение можно отменить, пока месяц не закрыт.");
+  const facts = (decision, over = {}) => OO.decisionFacts({ studentsPresent: 2, studentsTotal: 3, studentsPaid: 3, lessonDate: "2026-11-04", ...over }, decision).map((fact) => [fact.label, fact.value]);
+  assert.deepEqual(facts("pay"), [["Пришли", "2 из 3"], ["Для учеников", "бесплатно — урок не списывается и не оплачивается"], ["В зарплату", "за всех 3 учеников, включая отметку «Не был»"], ["Отменить", "можно, пока ноябрь не закрыт"]]);
+  assert.equal(facts("pay", { studentsPaid: undefined })[2][1], "за всех учеников, включая отметку «Не был»");
+  assert.equal(facts("pay", { studentsPaid: 1 })[2][1], "за 1 ученика, включая отметку «Не был»");
+  assert.equal(facts("skip")[2][1], "не войдёт");
   assert.equal(OO.decisionQuestion({ teacher: { name: "Эргашев К." } }, "pay"), "Включить урок в зарплату Эргашева К.?");
   assert.equal(OO.decisionQuestion({ teacher: { name: "Ким А." } }, "skip"), "Не включать урок в зарплату преподавателя?", "a surname that does not decline reliably is not guessed");
   assert.equal(OO.canUndoDecision({ purpose: "extra", money: "paid" }, true), true);

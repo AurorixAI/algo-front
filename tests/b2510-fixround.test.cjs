@@ -48,7 +48,7 @@ test("[5] the dry run of a day off: the sentence, then the lessons «групп�
   assert.match(dialog, /dayOffSummary\(plan\)/);
   assert.match(dialog, /title="Будут отменены" lessons=\{plan\.cancellable\}/);
   assert.match(dialog, /title="Не будут отменены" lessons=\{plan\.blocked\}/);
-  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 3", lessonId: "l", date: "2026-11-04", startTime: "10:00", endTime: "11:00", reason: null }), "ср, 4 ноября · 10:00–11:00 · Группа 3");
+  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 3", lessonId: "l", date: "2026-11-04", startTime: "10:00", endTime: "11:00", reason: null }), "ср, 4 ноября · 10:00⁠–⁠11:00 · Группа 3");
 });
 
 test("[6] the days off: the live ones first, the cancelled and gone by ones apart", () => {

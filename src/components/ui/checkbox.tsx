@@ -38,7 +38,12 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   }, [indeterminate, props.checked]);
 
   return (
-    <span className={cn("relative inline-flex shrink-0", size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]", className)}>
+    <span
+      // R4 Д7: on a phone the tap zone is 40 px (an invisible ::after of the wrapper; the box and the flow stay 18 px).  Inside a <label> the label passes the click on; alone, the wrapper does
+      onClick={(event) => { if (event.target !== inputRef.current && !(event.target as HTMLElement).closest("label") && !disabled) inputRef.current?.click(); }}
+      className={cn("relative inline-flex shrink-0", size === "sm" ? "h-4 w-4 max-sm:after:-inset-3" : "h-[18px] w-[18px] max-sm:after:-inset-[11px]", "max-sm:after:absolute max-sm:after:content-['']", className)}
+      data-touch-zone=""
+    >
       <input
         {...props}
         ref={setRef}

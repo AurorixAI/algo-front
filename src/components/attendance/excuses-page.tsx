@@ -630,7 +630,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
               role="tab"
               aria-selected={tab === key}
               onClick={() => switchTab(key)}
-              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+              className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                 tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}
             >
@@ -644,7 +644,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
               type="button"
               onClick={() => { setMonth((m) => shiftMonthKey(m, -1)); resetPaging(); }}
               aria-label="Предыдущий месяц"
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -655,7 +655,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
               type="button"
               onClick={() => { setMonth((m) => shiftMonthKey(m, 1)); resetPaging(); }}
               aria-label="Следующий месяц"
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

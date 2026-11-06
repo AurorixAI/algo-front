@@ -181,7 +181,7 @@ export function CascadingFilter({ teachers, groups, value, onChange, allLabel = 
           onClick={() => dispatch({ type: "toggle" })}
           onKeyDown={handleTriggerKeyDown}
           aria-label={iconOnPhone ? getActiveFilterLabel() : undefined}
-          className={`flex min-w-0 flex-1 items-center gap-2 py-2.5 rounded-xl text-left outline-none ${iconOnPhone ? "pl-3 sm:pl-4" : "pl-4"} ${hasSelection ? "pr-3" : iconOnPhone ? "pr-3 sm:pr-4" : "pr-4"}`}
+          className={`flex min-h-10 min-w-0 flex-1 items-center gap-2 py-2.5 rounded-xl text-left outline-none ${iconOnPhone ? "pl-3 sm:pl-4" : "pl-4"} ${hasSelection ? "pr-3" : iconOnPhone ? "pr-3 sm:pr-4" : "pr-4"}`}
         >
           <span className="relative shrink-0">
             <Filter className="w-4 h-4 text-slate-400" />

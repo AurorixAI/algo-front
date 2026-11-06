@@ -12,12 +12,12 @@ import { CANCEL_CONSEQUENCES, substitutionErrorText } from "@/lib/substitutions"
 import { CancellationKindField } from "./cancellation-kind-field";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { cancelMoneyView } from "@/lib/cancel-preview";
+import { PayrollEffect } from "@/components/money/money-effects-block";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { EFFECTS_TITLE } from "@/lib/money-effects";
 import { periodClosedOf } from "@/lib/closed-period";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { formatLessonWhen } from "@/lib/business-time";
-import { tidyMoneyText } from "@/lib/money-format";
 
 export interface CancelMissedTarget {
   groupId: string;
@@ -133,12 +133,7 @@ export function CancelMissedLessonModal({
             <section aria-label={EFFECTS_TITLE} data-testid="cancel-effects" className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
               <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
               {money.students && <p className="text-sm text-slate-800" data-testid="cancel-effects-students">{money.students}</p>}
-              {money.payroll.map((line) => (
-                <div key={line.key} className="text-sm text-slate-800">
-                  <p>{tidyMoneyText(line.text)}</p>
-                  {line.items?.map((item) => <p key={item} className="pl-3 tabular-nums">{tidyMoneyText(item)}</p>)}
-                </div>
-              ))}
+              {money.payroll.map((line) => <PayrollEffect key={line.key} line={line} />)}
             </section>
           )}
           {error && <p role="alert" className="text-xs font-medium text-rose-600">{error}</p>}

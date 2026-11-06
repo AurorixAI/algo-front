@@ -313,7 +313,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
                 onClick={() => setMonth(month === null ? openingMonth : shiftMonthKey(month, -1))}
                 disabled={month !== null && month <= months[0]}
                 aria-label="Предыдущий месяц"
-                className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
+                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -323,7 +323,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
                 onClick={() => setMonth(month === null ? openingMonth : shiftMonthKey(month, 1))}
                 disabled={month !== null && month >= months[months.length - 1]}
                 aria-label="Следующий месяц"
-                className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
+                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

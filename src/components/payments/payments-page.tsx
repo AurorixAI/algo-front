@@ -342,7 +342,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                   role="tab"
                   aria-selected={bucket === key}
                   onClick={() => switchBucket(key)}
-                  className={`min-h-10 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all sm:min-h-0 ${
+                  className={`max-sm:min-h-10 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                     bucket === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
