@@ -40,8 +40,6 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
       transition={{ delay: index * 0.05, duration: 0.3 }}
       className="relative bg-white rounded-2xl p-6 border border-slate-100 hover:border-primary-200 hover:shadow-xl hover:shadow-primary-100/40 transition-all duration-300 group flex flex-col h-full overflow-hidden"
     >
-      {/* Decorative background blob */}
-      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary-100 to-indigo-100 rounded-full blur-3xl opacity-30 group-hover:opacity-60 transition-opacity duration-500 -mr-10 -mt-10 pointer-events-none" />
       
       <div className="relative z-10 flex items-start justify-between mb-6">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-50 to-indigo-50 flex items-center justify-center text-primary-600 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm shadow-primary-100/50">

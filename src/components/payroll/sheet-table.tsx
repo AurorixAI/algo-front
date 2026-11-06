@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1 print:px-1 print:py-1";
-const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-xs whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-[11px] whitespace-nowrap print:px-1 print:py-1 print:text-[10px]";
 /**
  * Alignment (owner 21.10): the student is left; money (the price, «Заработано») is a ledger - right-aligned, and its header is
  * right-aligned over the same digits (same padding); dates, percent and counts are centred under centred headers.
@@ -125,7 +125,7 @@ function SheetLegend() {
     no_pay: "rounded bg-slate-100 px-1 text-xs font-semibold text-slate-500 print:bg-transparent print:text-black",
   };
   return (
-    <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600 print:flex-nowrap print:gap-x-2 print:whitespace-nowrap print:px-1 print:text-[9px]">
+    <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600 print:flex-nowrap print:gap-x-2 print:whitespace-nowrap print:px-1 print:text-[10px]">
       {SHEET_LEGEND.map((item) => (
         <li key={item.key}>
           <span className={looks[item.key]}>{item.mark}</span> — {item.text}
@@ -236,7 +236,7 @@ export function PayrollSheetTable({
                       <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
                     </th>
                     {showDates && block.columns.map((column) => (
-                      <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
+                      <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[10px]">
                         {formatDayMonthRu(column.date)}
                       </th>
                     ))}

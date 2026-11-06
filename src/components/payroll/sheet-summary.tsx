@@ -74,7 +74,8 @@ export function SheetSummaryCard({
   const headline = sheetHeadline({ total, dirty: status.tone === "dirty", payout: sheet.payout, updatedAt: sheet.updated_at });
   const changed = status.tone === "changed";
   // R4 Д2: a changed salary is said ONCE - by the block «Что нужно сделать» over the card (with its button); the card does not repeat it unless it prints the line of the saved sum
-  const statusDuplicatesTodo = changed && !headline.saved;
+  // «Зарплата изменилась … - сохраните новую сумму» is said by the block «Что нужно сделать» (and, for an open month, by the line beside the big number): the card does not say it a third time (rule 87)
+  const statusDuplicatesTodo = changed;
   const printTotals = status.tone === "dirty" ? null : sheetPrintTotals({ payout: sheet.payout, today: formatBusinessDate() });
   // a REOPENED month is closed again by a save, with or without changes: its button says so
   const versionLine = sheetVersionLine({ payout: sheet.payout, updatedAt: sheet.updated_at });

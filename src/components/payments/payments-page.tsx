@@ -520,7 +520,7 @@ function PaymentRow({
 
   const student = (
     <div className="min-w-0">
-      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate" title="Открыть карточку ученика">
+      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center xl:truncate" title="Открыть карточку ученика">
         {row.student_name}
       </Link>
       <p className="truncate text-xs text-slate-500">
@@ -530,7 +530,7 @@ function PaymentRow({
   );
   const group = (
     <div className="min-w-0 xl:text-center">
-      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 xl:truncate" title={row.group_name}>{row.group_name}</Link>
+      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center xl:truncate" title={row.group_name}>{row.group_name}</Link>
       <p className="truncate text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
   );

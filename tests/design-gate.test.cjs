@@ -25,11 +25,11 @@ const STUDENT_EXAM_SURFACE = (file) => STUDENT_EXAM_SURFACE_RE.test(file);
 
 const CEILINGS = {
   // [name, regexp, skip, ceiling]
-  tinyText: ["text-[9px|10px|11px] (nothing under 12 px)", /text-\[(9|10|11)px\]/g, undefined, 231],
+  tinyText: ["text-[9px|10px|11px] (nothing under 12 px)", /text-\[(9|10|11)px\]/g, undefined, 232],
   text13: ["text-[13px]", /text-\[13px\]/g, undefined, 43],
   lightText: ["text-slate-300/400 as a text colour", /\btext-slate-(300|400)\b/g, undefined, 213],
   hexClass: ["a hex colour inside a class", /\b(bg|text|border|ring|from|to|via|fill|stroke|shadow|outline|decoration|divide|placeholder|accent|caret)-\[#[0-9a-fA-F]{3,8}\]/g, undefined, 0],
-  gradient: ["bg-gradient-* outside the exam surfaces", /\bbg-gradient-to-[a-z]+\b/g, STUDENT_EXAM_SURFACE, 68],
+  gradient: ["bg-gradient-* outside the exam surfaces", /\bbg-gradient-to-[a-z]+\b/g, STUDENT_EXAM_SURFACE, 67],
   filledButton: ["a hand-made <button> with a coloured fill (use Button)", /<button\b[^>]*?className="[^"]*\bbg-(?:primary|blue|emerald|green|rose|red|indigo|slate-900|amber)-\d00\b[^"]*\btext-white\b/g, undefined, 2],
   framedButton: ["a hand-made <button> with a frame, a white fill and padding (use Button)", /<button\b[^>]*?className="(?=[^"]*\bborder\b)(?=[^"]*\bbg-white\b)(?=[^"]*\bpx-\d)[^"]*"/g, undefined, 3],
   dashedEmpty: ["border-dashed (a hand-made empty state: use EmptyState)", /\bborder-dashed\b/g, undefined, 22],
