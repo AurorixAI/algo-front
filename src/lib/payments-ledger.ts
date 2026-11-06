@@ -93,6 +93,8 @@ export const BALANCE_TEXT_CLASS: Record<BalanceKind, string> = {
   advance: "text-emerald-700",
   none: "text-slate-500",
 };
+/** Money-1 B7: the debt of a student who only waits - the same number, calm (a token, not a class in the logic). */
+export const BALANCE_TEXT_WAITING = "text-slate-600";
 
 export function debtLabel(amount: number): string {
   return `Долг ${formatMoney(amount)}`;
@@ -110,7 +112,7 @@ export function rowBalance(row: Pick<MembershipPaymentRow, "debt" | "advance"> |
 export function balanceView(row: (Pick<MembershipPaymentRow, "debt" | "advance"> & Partial<Pick<MembershipPaymentRow, "tab">>) | null | undefined): BalanceView {
   const { debt, advance } = rowBalance(row);
   // Money-1 B7: the debt of a student who only waits is the same number, in a calm colour
-  if (debt > 0 && row?.tab === "waiting") return { kind: "debt", amount: debt, text: debtLabel(debt), className: "text-slate-600" };
+  if (debt > 0 && row?.tab === "waiting") return { kind: "debt", amount: debt, text: debtLabel(debt), className: BALANCE_TEXT_WAITING };
   if (debt > 0) return { kind: "debt", amount: debt, text: debtLabel(debt), className: BALANCE_TEXT_CLASS.debt };
   if (advance > 0) return { kind: "advance", amount: advance, text: advanceLabel(advance), className: BALANCE_TEXT_CLASS.advance };
   return { kind: "none", amount: 0, text: "", className: BALANCE_TEXT_CLASS.none };

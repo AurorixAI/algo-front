@@ -206,7 +206,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
     return <MoneyAccessDenied framed />;
   }
 
-  const filters: PaymentsFilter[] = ["all", "individual", "debt"];
+  const filters: PaymentsFilter[] = counts.waiting > 0 || filter === "waiting" ? ["all", "individual", "debt", "waiting"] : ["all", "individual", "debt"];
 
   return (
     <div className="space-y-4" data-testid="group-payments-tab">

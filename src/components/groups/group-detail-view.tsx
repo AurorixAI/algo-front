@@ -490,7 +490,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                           <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:underline">{debtChip}</Link>
                         )}
                         {waitingChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-waiting-chip" className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:underline">{waitingChip}</Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id, "waiting")} data-testid="group-waiting-chip" className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:underline">{waitingChip}</Link>
                         )}
                       </div>
                     )}

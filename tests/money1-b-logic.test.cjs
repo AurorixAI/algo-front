@@ -196,3 +196,34 @@ test("Б7: the header of a group says «Ждём оплату: M сум · N у�
   assert.equal(W2.groupWaitingChipText(W2.groupDebtSummary([])), null);
   assert.equal(W2.groupWaitingChipText(null), null);
 });
+
+test("R3 №1/2/6/23: ONE question «debtor or waiting» for the list, the tab of a group, the header and the card of a student", () => {
+  const GP = require(path.join(root, "src/lib/group-payments.ts"));
+  const SC = require(path.join(root, "src/lib/student-card.ts"));
+  const base = { is_active: true, status: "expired", advance: 0, paid_until: null, period_mode: "calendar", price: { amount: 300000, source: "group" }, is_primary: true };
+  const debtor = { ...base, membership_id: "d", student_id: "sd", student_name: "Должников", debt: 600000, tab: "debtors" };
+  const waiting = { ...base, membership_id: "w", student_id: "sw", student_name: "Ждущий", debt: 300000, tab: "waiting", waiting_reason: "Ждём оплату до 07.11" };
+  assert.equal(P.debtRoleOf(debtor), "debtor");
+  assert.equal(P.debtRoleOf(waiting), "waiting");
+  assert.equal(P.debtRoleOf({ ...waiting, debt: 0 }), null);
+  assert.equal(P.debtRoleOf({ debt: 5 }), "debtor", "an older server (no tab): a debtor, as before");
+  // the tab of the group: «С долгом» holds the debtor only; the waiting one has his own filter and count
+  const views = GP.paymentRowViews([debtor, waiting], { periodMode: "calendar", today: "2026-11-06" });
+  assert.deepEqual(GP.paymentsCounts(views), { all: 2, individual: 0, debt: 1, waiting: 1 });
+  assert.deepEqual(GP.filterPaymentRows(views, "debt").map((v) => v.name), ["Должников"]);
+  assert.deepEqual(GP.filterPaymentRows(views, "waiting").map((v) => v.name), ["Ждущий"]);
+  assert.equal(GP.filterChipLabel("waiting", GP.paymentsCounts(views)), "Ждём оплату (1)");
+  assert.equal(GP.parsePaymentsFilter("waiting"), "waiting");
+  // the same row, the same word in the list chip, the tab chip and the card chip
+  assert.equal(P.moneyChip(waiting).tone, "muted");
+  assert.equal(views[1].chip.tone, "muted");
+  assert.match(views[1].chip.label, /^Ждём оплату/);
+  assert.equal(views[0].chip.tone, "danger");
+  // the card of a student: the waiting group is not «Долг», only the debtor's debt is
+  const both = SC.studentMoneyChip([debtor, waiting]);
+  assert.deepEqual([N(both.label), both.tone, both.debtGroups], ["Долг 600 000 сум", "danger", 1]);
+  const card = SC.studentMoneyChip([waiting]);
+  assert.equal(N(card.label), "Ждём оплату · 300 000 сум");
+  assert.equal(card.tone, "muted");
+  assert.equal(card.debtGroups, 0);
+});

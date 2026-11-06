@@ -449,7 +449,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   <Link
                     href={`${pathname}?tab=payments`}
                     data-testid="student-money-chip"
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold hover:underline ${moneyChip.tone === "danger" ? "bg-rose-100 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold hover:underline ${moneyChip.tone === "danger" ? "bg-rose-100 text-rose-700" : moneyChip.tone === "muted" ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"}`}
                   >
                     {moneyChip.label}
                   </Link>

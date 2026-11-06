@@ -963,9 +963,18 @@ export type MoneyChipRow = Parameters<typeof statusLabel>[0]
   & { status: PaymentStatus };
 
 export const WAITING_CHIP = "Ждём оплату";
+/**
+ * ONE answer to «debtor or only waiting?» for EVERY screen (the list, the tab of a group, its header, the card of a student, the banner - LESSONS 104): a row with a debt is `waiting` when the server's `tab` says so
+ * (the period began within the days of grace and nothing older is owed), otherwise a `debtor`; without a debt - null.
+ */
+export type DebtRole = "debtor" | "waiting";
+export function debtRoleOf(row: { tab?: string | null; debt?: number | null } | null | undefined): DebtRole | null {
+  if (Math.round(Number(row?.debt) || 0) <= 0) return null;
+  return row?.tab === "waiting" ? "waiting" : "debtor";
+}
 /** The row of a student who only waits for the payment of a period that has just begun (the server's `tab`). */
 export function isWaitingRow(row: { tab?: string | null; debt?: number | null } | null | undefined): boolean {
-  return row?.tab === "waiting" && (row.debt ?? 0) > 0;
+  return debtRoleOf(row) === "waiting";
 }
 
 const NEVER_PAID = "Ещё не платил";

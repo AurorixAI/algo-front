@@ -2,12 +2,12 @@
  * IA audit F35 / F38 / F32: the header of the student's card.  Pure: no React, so node:test loads it.
  */
 import { formatDayMonthRu } from "./business-time";
-import { formatMoney, type MembershipPaymentRow } from "./payments";
+import { debtRoleOf, formatMoney, type MembershipPaymentRow } from "./payments";
 import { rowBalance } from "./payments-ledger";
 
 export interface StudentMoneyChip {
   label: string;
-  tone: "danger" | "ok";
+  tone: "danger" | "ok" | "muted";
   /** Groups with a debt (the badge of the tab «Оплаты»). */
   debtGroups: number;
 }
@@ -16,15 +16,19 @@ export interface StudentMoneyChip {
  * The one chip of the header: «Долг 1 200 000 сум» (all groups, also a group the student has left) or «Оплачено до 15.11» (the nearest end of
  * the paid periods of his running groups); null when there is nothing to say (no groups, never paid, a pause only).  It leads to `?tab=payments`.
  */
-export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, "debt" | "advance" | "is_active" | "paid_until" | "status">> | null | undefined): StudentMoneyChip | null {
+export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, "debt" | "advance" | "is_active" | "paid_until" | "status"> & Partial<Pick<MembershipPaymentRow, "tab">>> | null | undefined): StudentMoneyChip | null {
   const list = rows ?? [];
   let debt = 0;
   let debtGroups = 0;
+  let waiting = 0;
   for (const row of list) {
     const value = rowBalance(row).debt;
-    if (value > 0) { debt += value; debtGroups += 1; }
+    // Money-1 B7: the debtors and the ones who only wait are counted apart (one question for every screen: `debtRoleOf`)
+    if (debtRoleOf(row) === "debtor") { debt += value; debtGroups += 1; }
+    else if (debtRoleOf(row) === "waiting") waiting += value;
   }
   if (debt > 0) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", debtGroups };
+  if (waiting > 0) return { label: `Ждём оплату · ${formatMoney(waiting)}`, tone: "muted", debtGroups: 0 };
   const ends = list
     .filter((row) => row.is_active && row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) && row.status !== "paused")
     .map((row) => String(row.paid_until).slice(0, 10))

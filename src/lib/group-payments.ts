@@ -22,7 +22,7 @@ import {
   type PriceSource,
 } from "./group-price";
 import { formatDateRu, formatDayMonthRu } from "./business-time";
-import { formatMoney, membershipChip, pluralRu, type MembershipPaymentRow, type PeriodMode, type StatusTone } from "./payments";
+import { debtRoleOf, formatMoney, membershipChip, pluralRu, type MembershipPaymentRow, type PeriodMode, type StatusTone } from "./payments";
 import type { CollectionRow } from "./payments-income-v2";
 
 // ── Who sees the tab ────────────────────────────────────────────────────────
@@ -57,11 +57,11 @@ export function groupPaymentsAccess(input: { moneyAvailable: boolean; moneyLoade
 
 // ── Filter and deep link ────────────────────────────────────────────────────
 
-export type PaymentsFilter = "all" | "individual" | "debt";
+export type PaymentsFilter = "all" | "individual" | "debt" | "waiting";
 
 /** `?filter=`; an unknown or missing value is «Все». */
 export function parsePaymentsFilter(value: string | null | undefined): PaymentsFilter {
-  return value === "individual" || value === "debt" ? value : "all";
+  return value === "individual" || value === "debt" || value === "waiting" ? value : "all";
 }
 
 /** `/owner/groups/ID?tab=payments&filter=individual` (no `filter` for «Все»). */
@@ -108,6 +108,8 @@ export interface GroupPaymentRowView {
   chip: { label: string; tone: StatusTone; title: string | null };
   debt: number;
   hasDebt: boolean;
+  /** Money-1 B7: only waits for the payment of a period that has just begun (not a debtor). */
+  waiting: boolean;
   /** The membership is closed (the student has left / is archived): shown only through «Показать ушедших с долгом». */
   left: boolean;
   row: MembershipPaymentRow;
@@ -157,7 +159,9 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     scheduled: scheduled ?? null,
     chip: membershipChip(row),
     debt,
-    hasDebt: debt > 0,
+    // Money-1 B7: the same question as the list of «Оплаты» (`debtRoleOf`): a student who only waits is not a debtor
+    hasDebt: debtRoleOf(row) === "debtor",
+    waiting: debtRoleOf(row) === "waiting",
     left: !row.is_active,
     row,
   };
@@ -168,10 +172,10 @@ export function paymentRowViews(rows: ReadonlyArray<MembershipPaymentRow>, optio
   return rows.map((row) => paymentRowView(row, { label, today: options.today, extras: options.extras?.[row.membership_id] ?? null }));
 }
 
-export interface PaymentsCounts { all: number; individual: number; debt: number }
+export interface PaymentsCounts { all: number; individual: number; debt: number; waiting: number }
 
 export function paymentsCounts(views: ReadonlyArray<GroupPaymentRowView>): PaymentsCounts {
-  return { all: views.length, individual: views.filter((view) => view.individual).length, debt: views.filter((view) => view.hasDebt).length };
+  return { all: views.length, individual: views.filter((view) => view.individual).length, debt: views.filter((view) => view.hasDebt).length, waiting: views.filter((view) => view.waiting).length };
 }
 
 /** The search box appears from this many rows (more than 8, like on «Цены групп»). */
@@ -182,20 +186,21 @@ export function filterPaymentRows(views: ReadonlyArray<GroupPaymentRowView>, fil
   const words = search.toLowerCase().split(/\s+/).filter(Boolean);
   const byName = (a: GroupPaymentRowView, b: GroupPaymentRowView) => a.name.localeCompare(b.name, "ru");
   return views
-    .filter((view) => (filter === "individual" ? view.individual : filter === "debt" ? view.hasDebt : true))
+    .filter((view) => (filter === "individual" ? view.individual : filter === "debt" ? view.hasDebt : filter === "waiting" ? view.waiting : true))
     .filter((view) => words.every((word) => `${view.name} ${view.displayId ?? ""}`.toLowerCase().includes(word)))
-    .sort((a, b) => (filter === "debt" ? b.debt - a.debt || byName(a, b) : byName(a, b)));
+    .sort((a, b) => (filter === "debt" || filter === "waiting" ? b.debt - a.debt || byName(a, b) : byName(a, b)));
 }
 
 /** «Все (12)» / «Индивидуальная цена (5)» / «С долгом (3)». */
 export function filterChipLabel(filter: PaymentsFilter, counts: PaymentsCounts): string {
-  return `${filter === "all" ? "Все" : filter === "individual" ? "Индивидуальная цена" : "С долгом"} (${counts[filter]})`;
+  return `${filter === "all" ? "Все" : filter === "individual" ? "Индивидуальная цена" : filter === "waiting" ? "Ждём оплату" : "С долгом"} (${counts[filter]})`;
 }
 
 export function emptyFilterText(filter: PaymentsFilter, search: string): string {
   if (search.trim()) return "Ничего не найдено";
   if (filter === "individual") return "Индивидуальных цен нет: все платят по цене группы";
   if (filter === "debt") return "Долгов нет";
+  if (filter === "waiting") return "Сейчас никого не ждём";
   return "В группе пока нет учеников";
 }
 
