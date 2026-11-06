@@ -379,8 +379,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             />
           </div>
 
-          {/* 4. A comment, only when wanted */}
-          {commentOpen || values.note ? (
+          {/* 4. A comment, only when wanted.  re-audit С9: a correction has ONE free text, the reason of the correction; the comment stays with the payment it was written for */}
+          {kind === "replace" ? null : commentOpen || values.note ? (
             <div>
               <label htmlFor="payment-note" className={LABEL}>Комментарий</label>
               <textarea

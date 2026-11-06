@@ -24,7 +24,7 @@ export function CancellationKindField({ value, onChange, canChooseKind, name = "
   return (
     <fieldset className="space-y-2" data-testid="cancellation-kind" disabled={disabled}>
       <legend className="mb-1 block w-full text-xs font-semibold text-slate-700">{CANCELLATION_KIND_LEGEND}{help && <HelpToggle>{help}</HelpToggle>}</legend>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2">
         {CANCELLATION_KINDS.map((option) => {
           const lineId = `${base}-${option.key}`;
           const selected = value === option.key;

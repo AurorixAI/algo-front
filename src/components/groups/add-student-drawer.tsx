@@ -291,7 +291,7 @@ export function AddStudentDrawer({
     <Modal
       open={open}
       placement="right"
-      title={ENROL_STUDENTS_TITLE}
+      title={movesOnly && groupNames[groupId] ? `Перевести в «${groupNames[groupId]}»` : ENROL_STUDENTS_TITLE}
       description={selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
@@ -330,9 +330,6 @@ export function AddStudentDrawer({
               {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
             </p>
             {priceHint && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
-            <p className="mt-0.5 max-h-8 overflow-y-auto text-xs text-slate-500">
-              {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
-            </p>
           </fieldset>
         )}
         {moneyAvailable && (

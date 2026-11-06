@@ -7,7 +7,7 @@
  *  4. the names of the ways to count a payment live in ONE dictionary: `PAYMENT_MODELS` in `payments.ts`.
  */
 import type { MembershipPaymentRow } from "./payments";
-import { daysBetweenInclusive, formatDayMonthRu, formatLessonWhen } from "./business-time";
+import { daysBetweenInclusive, formatDateRu, formatDayMonthRu, formatLessonWhen } from "./business-time";
 import { formatMoney } from "./money-format";
 import { reasonProblemFor } from "./reason-rules";
 import { pluralRu } from "./plural";
@@ -231,9 +231,9 @@ export function dayOffBody(form: DayOffForm): { dateFrom: string; dateTo: string
   return { dateFrom: form.dateFrom, dateTo: form.dateTo || form.dateFrom, reason: form.reason.trim().replace(/\s+/g, " ") };
 }
 
-/** «21.10» or «21.10–23.10». */
+/** «21.10.2026» or «21.10.2026–23.10.2026» (re-audit Н3 / С14: a record keeps the year). */
 export function dayOffSpan(day: Pick<DayOffOut, "dateFrom" | "dateTo">): string {
-  return day.dateFrom === day.dateTo ? formatDayMonthRu(day.dateFrom) : `${formatDayMonthRu(day.dateFrom)}–${formatDayMonthRu(day.dateTo)}`;
+  return day.dateFrom === day.dateTo ? formatDateRu(day.dateFrom) : `${formatDateRu(day.dateFrom)}–${formatDateRu(day.dateTo)}`;
 }
 
 /** The warning when a lesson is created on a day off of the centre (a warning, never a block). */
@@ -359,4 +359,4 @@ export function dayOffSummary(plan: Pick<DayOffPlan, "text">): string {
 
 /** R3 #1 (I-6): a day off cancels the lessons of every group at once - deductions of the students and the pay of the teachers move with it: the owner and an administrator with the money right give and cancel it. */
 /** UX pack №7: short - who may, and what the person sees. */
-export const DAY_OFF_NO_RIGHT_TEXT = "Назначает и отменяет владелец или администратор с доступом к деньгам. Журнал выходных вы видите.";
+export const DAY_OFF_NO_RIGHT_TEXT = "Назначает и отменяет владелец или администратор с доступом к деньгам. Список выходных виден вам, менять его нельзя.";

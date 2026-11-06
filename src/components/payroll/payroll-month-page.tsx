@@ -78,7 +78,7 @@ import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, usePrint
  */
 export const MONTH_COLUMNS = {
   grid: "xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]",
-  labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено", "Остаток", "Статус", ""],
+  labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено, сум", "Остаток, сум", "Статус", ""],
   aligns: ["left", "right", "right", "right", "center", "center"] as Array<"left" | "right" | "center">,
 };
 const GRID = `xl:grid ${MONTH_COLUMNS.grid} xl:items-start xl:gap-x-3`;
@@ -663,8 +663,8 @@ function RowNumbers({ numbers }: { numbers: TeacherMonthNumbers }) {
       <div className="min-w-0 xl:text-right" data-testid="teacher-rest" data-kind={rest.kind}>
         <span className={label}>Остаток</span>
         {rest.kind === "left" && <span className="font-medium text-slate-900">{plainSum(rest.amount)}<Unit /></span>}
-        {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}</span>}
-        {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}</span>}
+        {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}<Unit /></span>}
+        {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}<Unit /></span>}
         {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
         {rest.kind === "none" && <span className="text-slate-500">—</span>}
       </div>
@@ -733,7 +733,7 @@ export function TeacherRow({
           disabled={busy || blocked}
           title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
           aria-label={`${action.label}: ${teacher.teacher_name}`}
-          className="inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-[280px] xl:max-w-none"
         >
           {action.label}
         </button>

@@ -15,8 +15,8 @@ export function MoneyAccessDenied({ framed = false }: { framed?: boolean }) {
   const home = homeForSidebar(user?.org_role === "owner" ? "owner" : user?.role ?? null, effectiveRole(user));
   return (
     <div data-testid="money-denied" className={`flex flex-col items-center justify-center gap-2 text-center ${framed ? "rounded-2xl border border-slate-100 bg-white py-16" : "py-20"}`}>
-      <Wallet aria-hidden="true" className="h-6 w-6 text-slate-500" />
-      <p className="text-sm font-semibold text-slate-800">{MONEY_DENIED_TITLE}</p>
+      <Wallet aria-hidden="true" className="h-10 w-10 text-slate-500" />
+      <p className="mt-1 text-lg font-semibold text-slate-900">{MONEY_DENIED_TITLE}</p>
       <p className="max-w-xs text-sm text-slate-600">{MONEY_DENIED_HINT}</p>
       <Link href={home} data-testid="money-denied-home" className="mt-2 inline-flex min-h-[40px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">{MONEY_DENIED_HOME}</Link>
     </div>

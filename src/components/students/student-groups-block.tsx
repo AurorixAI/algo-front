@@ -99,7 +99,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
               disabled={!moneyRight}
               aria-describedby={moneyRight ? undefined : "enrol-transfer-why"}
               data-testid="enrol-transfer"
-              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-500 disabled:opacity-70 disabled:hover:bg-white"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-600 disabled:bg-slate-50 disabled:hover:bg-white"
             >
               {TRANSFER_ACTION_LABEL}
             </button>

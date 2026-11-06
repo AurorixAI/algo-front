@@ -202,9 +202,9 @@ export function monthTitle(month: string): string {
 
 /** The line under the page title (UX pack, lead F3): «Ноябрь 2026 · 3 преподавателя» - the month and who is in the list; the month alone while the list is not loaded. */
 export function monthSubtitle(month: string, teachers: number | null): string {
-  const head = isMonthParam(month) ? `${monthNameRu(month)} ${month.slice(0, 4)}` : month;
-  if (teachers === null) return head;
-  return `${head} · ${teachers} ${pluralRu(teachers, ["преподаватель", "преподавателя", "преподавателей"])}`;
+  // re-audit Н8: the month stands in the switcher next to it - the subtitle says only how many teachers
+  if (teachers === null) return isMonthParam(month) ? `${monthNameRu(month)} ${month.slice(0, 4)}` : month;
+  return `${teachers} ${pluralRu(teachers, ["преподаватель", "преподавателя", "преподавателей"])}`;
 }
 
 /** «Октябрь»: the name of the month alone, in the nominative (the start of a sentence). */

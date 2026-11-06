@@ -2,7 +2,7 @@
 // allocations of the amount); nothing here adds, splits or rounds a сум.  This file only names the periods the way a person
 // does (a calendar month by its name, otherwise by dates), says in the FUTURE tense what saving will do (nothing is saved
 // yet), and offers the quick amounts that carry the information the old top block used to.  No React: node:test loads it.
-import { formatDayMonthRu } from "./business-time";
+import { formatDateRu, formatDayMonthRu } from "./business-time";
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoney, type Allocation, type PayMethod, type PaymentPreview } from "./payments";
 import { lessonsWord } from "./plural";
@@ -366,7 +366,7 @@ export function payButtonLabel(kind: "create" | "replace", amount: number | null
 }
 
 /** The sentence over the fields of a correction (UX pack №13): what the history says now, once, before the fields. */
-export const REPLACE_HISTORY_NOTE = "Прежняя запись будет отменена и останется в истории серым. Деньги всей группы распределятся заново.";
+export const REPLACE_HISTORY_NOTE = "Прежняя запись будет отменена и останется в истории серым. Оплаты ученика в группе пересчитаются.";
 
 /**
  * The first line of the window «Исправить оплату» (UX pack №13): «Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум».  The «станет» part follows the form live: the amount, and the date or
@@ -376,7 +376,8 @@ export function replaceChangeLine(
   payment: { amount: number; paid_on: string; method?: PayMethod | null },
   values: Pick<PaymentFormValues, "amount" | "paidOn" | "method">,
 ): { was: string; becomes: string } {
-  const day = (iso: string) => formatDayMonthRu(iso);
+  // re-audit С9 / С14: a record keeps the full number form «05.11.2026» (the field under it says the same day the same way)
+  const day = (iso: string) => formatDateRu(iso);
   const method = (key: PayMethod | null | undefined) => methodLabel(key).toLowerCase();
   const amount = previewAmount(values.amount);
   const becomes = [amount !== null ? formatMoney(amount) : "—"];

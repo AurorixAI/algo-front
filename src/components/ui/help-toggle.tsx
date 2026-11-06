@@ -19,7 +19,7 @@ export function HelpToggle({ children, label = "Подробнее", testId }: {
         aria-label={label}
         title={label}
         data-testid={testId}
-        className="ml-1.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300 align-middle text-[10px] font-bold leading-none text-slate-500 hover:border-slate-400 hover:bg-slate-100"
+        className="relative ml-1.5 inline-flex h-4 w-4 before:absolute before:-inset-3 before:content-[''] shrink-0 items-center justify-center rounded-full border border-slate-300 align-middle text-[10px] font-bold leading-none text-slate-500 hover:border-slate-400 hover:bg-slate-100"
       >
         ?
       </button>

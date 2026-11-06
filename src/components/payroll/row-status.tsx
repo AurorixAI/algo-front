@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useReducer, useRef } from "react";
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -16,7 +16,65 @@ import { StatusChip } from "./sheet-controls";
  * −45 000 сум — сохраните новую сумму»).  The list is drawn in a layer of the page (a portal, placed by `useFloatingPlacement`), so the rounded table around the rows never cuts it; Escape and a press
  * outside close it.  The mouse may travel from the chip to the list: leaving waits a moment.
  */
+/** Re-audit С17: below 1280 px the card is narrow and the page is long - the list opens INSIDE the card (an accordion), a floating layer would cover the name, the sums or the next card. */
+const INLINE_QUERY = "(max-width: 1279px)";
+function useInlineList(): boolean {
+  const [inline, setInline] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia(INLINE_QUERY);
+    const sync = () => setInline(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
+  return inline;
+}
+
+function TodoItems({ status }: { status: RowStatusView }) {
+  return (
+    <ul className="space-y-0.5">
+      {status.items.map((item) => (
+        <li key={item.key}>
+          <Link href={item.href} data-testid="status-todo-item" className="group flex min-h-[40px] items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium leading-5 text-amber-900 hover:bg-amber-100 focus-visible:bg-amber-100 focus-visible:outline-none">
+            <span className="min-w-0 break-words group-hover:underline">{item.text}</span>
+            <ChevronRight aria-hidden="true" data-testid="status-todo-item-arrow" className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function InlineTodo({ status, name }: { status: RowStatusView; name: string }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  return (
+    <div className="min-w-0 text-left">
+      <button
+        type="button"
+        data-testid="status-todo"
+        aria-controls={panelId}
+        aria-expanded={open}
+        aria-label={`${status.label}: ${name}`}
+        onClick={() => setOpen((value) => !value)}
+        className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
+      >
+        <span className="min-w-0 break-words text-left">{status.label}</span>
+        <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div id={panelId} role="group" aria-label={`Что нужно сделать: ${name}`} data-testid="status-todo-panel" data-inline="true" className="mt-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2">
+          <p className="px-2 pb-1 pt-0.5 text-xs font-semibold text-slate-600">Что нужно сделать</p>
+          <TodoItems status={status} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?: string; name: string }) {
+  const inline = useInlineList();
   const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
   const open = isRevealed(reveal);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -51,6 +109,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
   }, [open, hide]);
 
   if (status.tone !== "todo") return <StatusChip status={{ tone: status.tone, label: status.label }} hint={hint} />;
+  if (inline) return <InlineTodo status={status} name={name} />;
   return (
     <>
       <button
@@ -86,16 +145,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
           className="z-[100002] rounded-xl border border-amber-200 bg-white p-2 text-left shadow-xl"
         >
           <p className="px-2 pb-1 pt-0.5 text-xs font-semibold text-slate-600">Что нужно сделать</p>
-          <ul className="space-y-0.5">
-            {status.items.map((item) => (
-              <li key={item.key}>
-                <Link href={item.href} data-testid="status-todo-item" className="group flex min-h-[40px] items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium leading-5 text-amber-900 hover:bg-amber-100 focus-visible:bg-amber-100">
-                  <span className="min-w-0 break-words group-hover:underline">{item.text}</span>
-                  <ChevronRight aria-hidden="true" data-testid="status-todo-item-arrow" className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <TodoItems status={status} />
         </div>,
         document.body,
       )}
