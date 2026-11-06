@@ -39,6 +39,8 @@ const progressOf = (block: import("@playwright/test").Locator) => block.locator(
 const rowOf = (block: import("@playwright/test").Locator, membershipId: string) => block.locator(`[data-membership-id="${membershipId}"]`);
 
 async function groupWithStudents(name: string, surnames: string[], price = 500000): Promise<{ group: GroupInfo; students: StudentInfo[]; memberships: string[] }> {
+  // a centre of its own for every test: the students must join BEFORE the start of the accounting (Money-1 B1), and the start cannot be moved back once a debt is entered
+  org = await Org.create(`Остатки ${name}`);
   const teacher = await org.addStaff("teacher", `Учитель ${name}`);
   const group = await org.createGroup({ name, teacherId: teacher.userId });
   await org.setGroupPrice(group.id, price);
