@@ -3,6 +3,7 @@
  * Pure helpers behind the dialog «Архивировать группу», the banners of an archived group and the return from the archive.
  */
 import { formatUtcNaiveAsBusinessDate, formatWeekdayDate } from "./business-time";
+import { tidyMoneyText } from "./money-format";
 import { opsErrorCode, opsErrorDetail } from "./ops-errors";
 import type { ArchiveBlocker, ArchiveBlockerCode, ArchiveImpact, TeacherInactiveDetail } from "./ops-b-types";
 import { pluralRu } from "./plural";
@@ -169,7 +170,7 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
     offersCancelMissed: missedCount > 0,
     missedCount,
     missedLessons: missedLessonLines(missed?.lessons ?? [], missedCount),
-    cancelConsequence: missed ? (missed.cancelConsequence?.trim() || MISSED_CANCEL_CONSEQUENCE) : null,
+    cancelConsequence: missed ? tidyMoneyText(missed.cancelConsequence?.trim() || MISSED_CANCEL_CONSEQUENCE) : null,
     students: students?.students ?? [],
     notes,
     examServiceDown,

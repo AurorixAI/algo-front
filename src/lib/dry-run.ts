@@ -3,6 +3,7 @@
  * with `?dry_run=true` (no `Idempotency-Key`, nothing is written).  Pure: the keys and the bodies of those asks, and the words of a transfer's «что переедет».
  */
 import { CARRY_OVER_CODE, TRANSFER_BALANCE_CODE } from "./payments";
+import { tidyMoneyText } from "./money-format";
 
 /** A dry run of a cancel needs a reason too (the server checks it like the real one); the person has not typed it yet. */
 export const DRY_RUN_REASON = "Проверка последствий";
@@ -35,13 +36,14 @@ export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> |
       const key = `${code}|${studentId ?? ""}|${message}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      lines.push(studentId ? { code, message, studentId } : { code, message });
+      const tidy = tidyMoneyText(message);
+      lines.push(studentId ? { code, message: tidy, studentId } : { code, message: tidy });
     }
   };
   take(source.carried, false);
   take(source.warnings, true);
   const text = typeof source.carry_after?.text === "string" ? source.carry_after.text.trim() : "";
-  if (text && !lines.some((line) => line.code === TRANSFER_BALANCE_CODE)) lines.push({ code: TRANSFER_BALANCE_CODE, message: text });
+  if (text && !lines.some((line) => line.code === TRANSFER_BALANCE_CODE)) lines.push({ code: TRANSFER_BALANCE_CODE, message: tidyMoneyText(text) });
   // the sentence of the balance already says what arrived
   const balanceOf = new Set(lines.filter((line) => line.code === TRANSFER_BALANCE_CODE).map((line) => line.studentId ?? ""));
   const shown = lines.filter((line) => !(line.code === CARRY_OVER_CODE && balanceOf.has(line.studentId ?? "")));

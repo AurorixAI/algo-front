@@ -53,7 +53,7 @@ test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned; the p
   assert.match(src, /lg:flex-col lg:items-start lg:justify-center/);
   assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-center"><ChipView view=\{view\} \/><\/div>/g) || []).length, 2, "payment chip centred in both row kinds");
   assert.match(src, /flex-col items-start gap-1\.5 lg:items-center/, "the chip and the bar on one axis");
-  assert.match(src, /<span className="text-sm text-slate-400 max-lg:hidden">—<\/span>/);
+  assert.match(src, /<span className="text-sm text-slate-500 max-lg:hidden">—<\/span>/);
   assert.match(src, /lg:gap-x-6/, "the columns breathe: 24px between them");
   // the actions stay right
   assert.match(src, /<div className="flex items-center gap-2 lg:justify-end">/);
@@ -62,9 +62,9 @@ test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned; the p
 test("inc12-3: «Оплаты» list - «Последняя оплата» header and cell content (date / amount / «—») are centred", () => {
   const src = read("src/components/payments/payments-page.tsx");
   assert.match(src, /<span className="text-center">Последняя оплата<\/span>/);
-  assert.match(src, /xl:block xl:text-center">\s*<span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата<\/span>/);
+  assert.match(src, /xl:block xl:text-center">\s*<span className="shrink-0 text-xs text-slate-500 xl:hidden">Последняя оплата<\/span>/);
   assert.match(src, /<span className="text-right tabular-nums xl:block xl:text-center" title=\{lastPaymentLabel\(last\)\}>/);
-  assert.match(src, /<span className="text-slate-400 xl:block xl:text-center" data-testid="last-payment-empty">—<\/span>/);
+  assert.match(src, /<span className="text-slate-500 xl:block xl:text-center" data-testid="last-payment-empty">—<\/span>/);
   // nothing else of the table moved
   assert.match(src, /xl:grid-cols-\[minmax\(0,1\.2fr\)_minmax\(0,1fr\)_128px_minmax\(11\.5rem,1\.4fr\)_132px_196px\]/);      // 26.10: the status column has room for the chip and the bar
 });

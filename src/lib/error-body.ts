@@ -13,6 +13,7 @@
  * - `{code, message, fields, retry_after}` next to or instead of `detail`.
  * A value that is not a string is NEVER turned into text (no «[object Object]», no raw JSON).
  */
+import { tidyMoneyText } from "./money-format";
 
 export interface ParsedErrorBody {
   /** The text the server wrote for the person ("" when the body has none of its own). */
@@ -114,9 +115,10 @@ export function statusPhrase(status: number | undefined): string | null {
  * the phrase of the status, the plain `fallback`.
  */
 export function errorMessageOf(parsed: ParsedErrorBody, fallback: string, status?: number, specific = false): string {
-  if (parsed.message && CYRILLIC.test(parsed.message)) return parsed.message;
+  // re-audit В5: a sentence of the server about money never breaks inside «360 000 сум»
+  if (parsed.message && CYRILLIC.test(parsed.message)) return tidyMoneyText(parsed.message);
   const russian = parsed.issues.filter((item) => CYRILLIC.test(item));
-  if (russian.length) return russian.join("; ");
+  if (russian.length) return tidyMoneyText(russian.join("; "));
   if (parsed.code && CODE_TEXT[parsed.code]) return CODE_TEXT[parsed.code];
   if (specific) return fallback;
   return statusPhrase(status) ?? fallback;

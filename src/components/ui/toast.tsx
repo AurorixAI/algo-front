@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { tidyMoneyText } from "@/lib/money-format";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
@@ -72,7 +73,7 @@ export function useToast(): {
 
   const showToast = useCallback((text: string, type: ToastMessage["type"] = "success", details?: string[]) => {
     if (timer.current) clearTimeout(timer.current);
-    setToast({ text, type, details });
+    setToast({ text: tidyMoneyText(text), type, details: details?.map((line) => tidyMoneyText(line)) });
     timer.current = setTimeout(() => setToast(null), toastLifetimeMs(type, Boolean(details?.length)));
   }, []);
 

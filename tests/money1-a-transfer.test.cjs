@@ -5,7 +5,9 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const env = require("./helpers/money1-env.cjs");
 const { lib, plain } = env;
-const D = lib("dry-run.ts");
+const D0 = lib("dry-run.ts");
+// the sums of the server carry non-breaking spaces now (re-audit В5): the words are compared with ordinary ones
+const D = { ...D0, carriedOf: (...args) => D0.carriedOf(...args).map((line) => ({ ...line, message: line.message.replace(/\u00a0/g, " ") })) };
 const P = lib("payments.ts");
 
 const ARRIVED = (id) => ({ code: "payment_carried_over", message: "Остаток денег 640 000 сум перенесён в «Алгебра 7»", ...(id ? { student_id: id } : {}) });

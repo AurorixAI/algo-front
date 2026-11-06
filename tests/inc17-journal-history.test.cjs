@@ -140,7 +140,7 @@ test("a cancelled payment: one grey row with «отменена» and «↳ от
 test("the sub-lines are quiet and wrap: under the name on a table, under the card on a phone", () => {
   const markup = html(React.createElement(J.JournalList, { rows: [LIVE], withYear: false, activeId: null, onOpen() {}, history: [MID, FIRST] }));
   const sub = /data-testid="journal-sublines" class="([^"]*)"/.exec(markup)[1];
-  for (const piece of ["text-xs", "text-slate-400", "col-span-2", "md:col-start-2", "md:row-start-2", "block"]) assert.ok(sub.includes(piece), piece);
+  for (const piece of ["text-xs", "text-slate-500", "col-span-2", "md:col-start-2", "md:row-start-2", "block"]) assert.ok(sub.includes(piece), piece);
   assert.match(markup, /data-testid="journal-subline" class="block break-words"/);
   assert.ok(!sub.includes("truncate") && !sub.includes("whitespace-nowrap"), "long reasons wrap");
 });

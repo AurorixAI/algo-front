@@ -407,7 +407,7 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
         <StudentCell view={view} studentsBasePath={studentsBasePath} />
         <p className="text-xs text-slate-400">ушёл из группы</p>
       </div>
-      <span className="text-sm text-slate-400 max-lg:hidden">—</span>
+      <span className="text-sm text-slate-500 max-lg:hidden">—</span>
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
       <div className="flex items-center gap-2 lg:justify-end">
         {canPayLeftDebt(view.row) && (

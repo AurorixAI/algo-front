@@ -44,7 +44,7 @@ test("every route of the pack that the front calls is in the contract and in api
     "POST /org/groups/{group_id}/attendance": /\/attendance`, \{ method: "POST", body: data \}/,
     "POST /org/groups/{group_id}/attendance/start": /\/attendance\/start`/,
     "POST /org/groups/{group_id}/attendance/reconcile": /\/attendance\/reconcile`/,
-    "POST /org/groups/{group_id}/attendance/reconcile/cancel": /\/attendance\/reconcile\/cancel`/,
+    "POST /org/groups/{group_id}/attendance/reconcile/cancel": /\/attendance\/reconcile\/cancel\$\{options\.dryRun/,
     "POST /org/schedule/lessons": /\/auth\/org\/schedule\/lessons`, \{ method: "POST"/,
     "POST /org/import/preview": /\/auth\/org\/import\/preview/,
     "POST /org/import/commit": /\/auth\/org\/import\/commit/,

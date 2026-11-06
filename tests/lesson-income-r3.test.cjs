@@ -176,7 +176,7 @@ test("the journal: time only when paid_time is there; «внесена …» qui
   const backText = text(list(back));
   assert.ok(!backText.includes(" · 11:40") && backText.includes("внесена 21.10 в 11:40"));
   const markup = html(list(back));
-  assert.match(markup, /data-testid="journal-entered" class="[^"]*text-slate-400[^"]*md:hidden"/);
+  assert.match(markup, /data-testid="journal-entered" class="[^"]*text-slate-500[^"]*md:hidden"/);
   assert.match(markup, /md:grid-cols-\[6\.5rem_minmax\(0,1\.5fr\)_minmax\(0,1fr\)_8rem_11rem\]/, "still five columns");
   assert.ok(!/data-testid="journal-entered"/.test(html(list(timed))), "an older server: no line");
   // the view and the drawer
@@ -187,7 +187,7 @@ test("the journal: time only when paid_time is there; «внесена …» qui
   assert.equal(V.drawerView({ ...timed, entered_at_text: undefined }).entered, null);
   const drawer = React.createElement(J.JournalDrawerBody, { row: back, paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" });
   assert.ok(text(drawer).includes("внесена 21.10 в 11:40"));
-  assert.match(html(drawer), /class="[^"]*text-slate-400[^"]*" data-testid="drawer-entered"/);
+  assert.match(html(drawer), /class="[^"]*text-slate-500[^"]*" data-testid="drawer-entered"/);
   assert.ok(!html(React.createElement(J.JournalDrawerBody, { row: timed, paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" })).includes("drawer-entered"));
   // the normalizer keeps the server's text and drops an empty one
   assert.equal(V.normalizeJournal({ ...fixture("J01_journal_page1"), rows: [{ ...timed, entered_at_text: "внесена 21.10 в 11:40" }, { ...timed, entered_at_text: "" }] }).rows.map((r) => r.entered_at_text).join("|"), "внесена 21.10 в 11:40|");

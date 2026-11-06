@@ -11,7 +11,7 @@
  *
  * Pure: no React, no network.
  */
-import { formatMoney, formatSignedMoney } from "./money-format";
+import { formatMoney, formatSignedMoney, tidyMoneyText } from "./money-format";
 import { canDecideMoney } from "./one-off";
 import { pluralRu } from "./plural";
 import { formatBusinessDate } from "./business-time";
@@ -94,7 +94,7 @@ export function normalizeMoneyEffects(raw: unknown): MoneyEffects | null {
       driftAfter: num(item.driftAfter),
       balanceAfter: num(item.balanceAfter),
     }));
-  return { students, payroll, text: str(source.text) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true };
+  return { students, payroll, text: tidyMoneyText(str(source.text)) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true };
 }
 
 /** The block of an answer: `moneyEffects` (lessons) or `money_effects` (payments, rates, excuses) - one reader for both spellings. */

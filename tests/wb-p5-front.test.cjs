@@ -265,7 +265,7 @@ test("R3 #3: the fields to highlight are kept (the prefix cut, English texts lef
 });
 
 test("MUTATION: a rule that shows the server's text whatever the language fails the English cases", () => {
-  const E = loadMutated("src/lib/error-body.ts", "if (parsed.message && CYRILLIC.test(parsed.message)) return parsed.message;", "if (parsed.message) return parsed.message;");
+  const E = loadMutated("src/lib/error-body.ts", "if (parsed.message && CYRILLIC.test(parsed.message)) return tidyMoneyText(parsed.message);", "if (parsed.message) return parsed.message;");
   assert.equal(E.errorMessageOf(E.parseErrorBody({ detail: "Not Found" }), "x", 404), "Not Found", "the mutation lets English through");
   const real = lib("error-body.ts");
   assert.equal(real.errorMessageOf(real.parseErrorBody({ detail: "Not Found" }), "x", 404), "Не найдено");

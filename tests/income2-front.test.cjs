@@ -626,7 +626,7 @@ test("the journal on screen: compact rows, cancelled ones grey with «отмен
   assert.match(markup, /data-status="voided"/);
   assert.doesNotMatch(markup, /data-status="replaced"/);
   assert.match(markup, /line-through/);
-  assert.match(markup, /text-slate-400/);
+  assert.match(markup, /text-slate-500/);
   assert.match(markup, /aria-haspopup="dialog"/);
   // money is right-aligned and the date centred in the table; one markup, the grid decides
   assert.match(markup, /md:text-center/);
@@ -741,7 +741,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   const cleanMarkup = html(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" }));
   assert.equal((cleanMarkup.match(/data-testid="collection-paid"/g) || []).length, 2, "the row and the total follow the same rule");
   assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ оплачено<\/span>/);
-  assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="text-xs text-slate-400 md:hidden">Должников<\/span><span class="tabular-nums"><span class="text-slate-400">0<\/span>/);
+  assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="text-xs text-slate-500 md:hidden">Должников<\/span><span class="tabular-nums"><span class="text-slate-500">0<\/span>/);
   assert.ok(!text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" })).includes(" нет"));
   // nothing charged: no «оплачено» for a debt that never existed
   const idle = { ...clean, groups: [{ ...clean.groups[0], charged: 0, paid: 0, pct: null }] };
