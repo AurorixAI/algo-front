@@ -277,10 +277,10 @@ export class Org {
   }
 
   /** Create a student and put him into a group in one go (at the price of the group, or with an individual price). */
-  async addStudent(group: GroupInfo, firstName: string, lastName: string, individualPrice?: { amount: number; reason: string }): Promise<StudentInfo> {
+  async addStudent(group: GroupInfo, firstName: string, lastName: string, individualPrice?: { amount: number; reason: string }, payFrom: string | null = businessNow().date): Promise<StudentInfo> {
     const s = await this.createStudent(firstName, lastName);
     // Money-1 B1: WITHOUT «Оплата с» a new student is charged from the first lesson of the group; the specs that count money from the day of joining say so: «Оплата с» = today
-    await this.enrol(group.id, s.id, individualPrice, businessNow().date);
+    await this.enrol(group.id, s.id, individualPrice, payFrom ?? undefined);
     // the public ID ("AB-001") is issued at enrolment, not when the student is created
     const fresh = await this.owner.api.get(`/auth/org/students/${s.id}`);
     return { ...s, displayId: fresh.display_id ?? null };

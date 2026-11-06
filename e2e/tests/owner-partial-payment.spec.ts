@@ -1,6 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { readFileSync } from "node:fs";
 import { Org } from "../support/api";
+import { addDays, businessNow } from "../support/time";
 import { readSheet, readZip } from "../support/xlsx-lite";
 import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 
@@ -13,13 +14,15 @@ import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Частичная оплата");
+  await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
 test("partial payment: debtors row -> statement shows the allocation and «осталось» -> the rest closes the debt @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Платёжный");
   const group = await org.createGroup({ name: "Группа ЧО", teacherId: teacher.userId });
+  // Money-1 B7: charged from ten days ago - overdue, so the debtors tab (not «Ждём оплату») holds her
+  const student = await org.addStudent(group, "Дилдора", "Частичная", undefined, addDays(businessNow().date, -10));
   await org.setGroupPrice(group.id, 500000);
-  const student = await org.addStudent(group, "Дилдора", "Частичная");
   await org.pay(student.id, 200000, { method: "cash" });
   const membership = await org.membershipId(student.id, group.id);
 

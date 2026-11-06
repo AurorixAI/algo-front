@@ -42,8 +42,11 @@ async function groupWithStudents(name: string, surnames: string[], price = 50000
   const teacher = await org.addStaff("teacher", `Учитель ${name}`);
   const group = await org.createGroup({ name, teacherId: teacher.userId });
   await org.setGroupPrice(group.id, price);
+  // Money-1 B1: a student added AFTER the start of the accounting is charged from it and needs no opening: these students joined BEFORE it - the accounting starts a week later, after they are in
+  await org.setPaymentSettings({ accounting_start_date: today });
   const students: StudentInfo[] = [];
   for (const surname of surnames) students.push(await org.addStudent(group, "Анвар", surname));
+  await org.setPaymentSettings({ accounting_start_date: start });
   const memberships = await Promise.all(students.map((student) => org.membershipId(student.id, group.id)));
   return { group, students, memberships };
 }

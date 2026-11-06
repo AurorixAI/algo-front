@@ -12,6 +12,7 @@ import { dm, expectNoHorizontalScroll, fillDate } from "../support/ui";
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Пауза");
+  await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
 const costOf = async (page: import("@playwright/test").Page, membership: string): Promise<number> => {
@@ -29,9 +30,10 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   const last = addDays(today, 9); // ten days of pause
   const teacher = await org.addStaff("teacher", "Паузин");
   const group = await org.createGroup({ name: "Группа П1", teacherId: teacher.userId });
-  await org.setGroupPrice(group.id, 500000);
   const away = await org.addStudent(group, "Достон", "Уехавший");
-  const stays = await org.addStudent(group, "Малика", "Оставшаяся");
+  // Money-1 B7: the one who stays is a real debtor (charged from ten days ago), so «Должники» has a row to check next to the paused one
+  const stays = await org.addStudent(group, "Малика", "Оставшаяся", undefined, addDays(today, -10));
+  await org.setGroupPrice(group.id, 500000);
   const awayMembership = await org.membershipId(away.id, group.id);
   const staysMembership = await org.membershipId(stays.id, group.id);
 

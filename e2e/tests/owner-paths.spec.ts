@@ -1,6 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { pickOption } from "../support/ui";
+import { addDays, businessNow } from "../support/time";
 
 /**
  * IA audit 22.10 (paths): the cards of «Оплаты» lead to the debtors tab; the owner's dashboard is not a dead end (KPI cards, the debt tile, the
@@ -9,13 +10,15 @@ import { pickOption } from "../support/ui";
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Пути");
+  await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
 test("«Оплаты»: the card «Долг» -> the debtors tab; the student of a row opens on «Оплаты», its group is a link; the statement leads on", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Путевой");
   const group = await org.createGroup({ name: "Группа П2", teacherId: teacher.userId });
+  // Money-1 B7: «Должники» holds the OVERDUE; a student charged from ten days ago is one (the first price below reaches back to his running period)
+  const student = await org.addStudent(group, "Тимур", "Должников", undefined, addDays(businessNow().date, -10));
   await org.setGroupPrice(group.id, 450000);
-  const student = await org.addStudent(group, "Тимур", "Должников");
   const membership = await org.membershipId(student.id);
   const page = await signIn(org.owner);
 
