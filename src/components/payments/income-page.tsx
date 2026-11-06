@@ -316,7 +316,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                     role="tab"
                     aria-selected={tab === key}
                     onClick={() => setTab(key)}
-                    className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    className={`max-sm:min-h-10 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                   >
                     {label}
                   </button>

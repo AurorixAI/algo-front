@@ -53,7 +53,7 @@ function AttendanceSectionContent({ studentProfileBasePath, groupsBasePath }: At
             role="tab"
             aria-selected={active.key === tab.key}
             onClick={() => router.replace(`?tab=${tab.key}`, { scroll: false })}
-            className={`flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:flex-none sm:gap-2 sm:px-4 sm:text-sm ${
+            className={`max-sm:min-h-10 flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:flex-none sm:gap-2 sm:px-4 sm:text-sm ${
               active.key === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >

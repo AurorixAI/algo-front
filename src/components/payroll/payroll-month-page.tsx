@@ -531,7 +531,7 @@ function PayrollMonthContent() {
                   role="tab"
                   aria-selected={activeId === preview.sheet.teacher_id}
                   onClick={() => setActiveId(preview.sheet.teacher_id)}
-                  className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                  className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                     activeId === preview.sheet.teacher_id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >

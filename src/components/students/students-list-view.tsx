@@ -222,7 +222,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
               role="tab"
               aria-selected={activeTab === value}
               onClick={() => setTab(value)}
-              className={`flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3 ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`max-sm:min-h-10 flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3 ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {studentTabLabel(value, counts[value])}
             </button>
