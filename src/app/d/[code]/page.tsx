@@ -469,7 +469,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
                   {/* Progress bar */}
                   <div className="mb-6">
-                    <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+                    <div className="flex justify-between text-xs text-slate-500 mb-1.5">
                       <span>Прогресс</span>
                       <span>{Math.round((activeSession.items_answered / activeItemsMax) * 100)}%</span>
                     </div>
@@ -505,7 +505,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     Продолжить с вопроса {activeSession.items_answered + 1}
                   </Button>
 
-                  <p className="text-xs text-center text-slate-400 mt-4">
+                  <p className="text-xs text-center text-slate-500 mt-4">
                     Код: <span className="font-mono font-medium">{code}</span>
                   </p>
                 </GlassCard>
@@ -572,7 +572,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     Начать диагностику
                   </Button>
 
-                  <p className="text-xs text-center text-slate-400 mt-4">
+                  <p className="text-xs text-center text-slate-500 mt-4">
                     Код: <span className="font-mono font-medium">{code}</span>
                   </p>
                 </GlassCard>
@@ -771,7 +771,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     </Button>
                   </motion.div>
 
-                  <p className="text-xs text-center text-slate-400 mt-4">
+                  <p className="text-xs text-center text-slate-500 mt-4">
                     Код диагностики: <span className="font-mono">{code}</span>
                   </p>
                 </GlassCard>

@@ -47,7 +47,7 @@ export function TableHeader({ gridClass, labels, aligns, hints, show }: {
           {label ? (hints?.[index] ? (
             <span className="inline-flex items-center gap-1">
               {label}
-              <Hint text={hints[index] as string} className="inline-flex text-slate-400">
+              <Hint text={hints[index] as string} className="inline-flex text-slate-500">
                 <HelpCircle className="h-3.5 w-3.5" aria-label={`Что в колонке «${label}»`} />
               </Hint>
             </span>

@@ -98,18 +98,18 @@ const MOVED = { lines: require("./helpers/sheet-lines.cjs").lines, groups: requi
 test("R2-2а: a sheet whose total moved after the saving - above the table «Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт»; the card says the number of now", async () => {
   const { page } = await open({ revision: 2, period: "open", saved: [], refuse: false, sheet: MOVED });
   await page.waitForSelector('[data-testid="saved-table-note"]');
-  assert.equal(await flat(page, '[data-testid="saved-table-note"]'), "Показана сохранённая версия — 120 834 сум");
+  assert.equal(await flat(page, '[data-testid="saved-table-note"]'), "Сохранённая версия 03.11 · 120 834 сум");
   assert.equal(await page.locator('[data-testid="sheet-period"]').count(), 0, "UX pack №23: «Месяц открыт» is not a chip when the page says «месяц ещё идёт»");
   const card = await flat(page, '[aria-label="Итог ведомости"]');
   assert.match(card, /Начислено на сегодня\s*75 834 сум/);
-  assert.match(card, /Сохранено 03\.11\.2026: 120 834 сум/);
+  assert.match(card, /В таблице — сохранённая версия 03\.11: 120 834 сум\. Сейчас начислено 75 834 сум \(−45 000 сум\) — сохраните новую сумму/);
   await page.close();
 });
 
 test("R2-2а: in a reopened month the note names the button that renews the table; with nothing changed there is no note", async () => {
   const reopened = await open({ revision: 2, period: "reopened", saved: [], refuse: false, sheet: MOVED });
   await reopened.page.waitForSelector('[data-testid="saved-table-note"]');
-  assert.equal(await flat(reopened.page, '[data-testid="saved-table-note"]'), "Показана сохранённая версия — 120 834 сум", "the caption says what the table is; the button that renews it is in the block «Что нужно сделать»");
+  assert.equal(await flat(reopened.page, '[data-testid="saved-table-note"]'), "Сохранённая версия 03.11 · 120 834 сум", "the caption says what the table is; the button that renews it is in the block «Что нужно сделать»");
   await reopened.page.close();
   const same = await open({ revision: 2, period: "reopened", saved: [], refuse: false });
   await same.page.waitForSelector('[aria-label="Итог ведомости"]');

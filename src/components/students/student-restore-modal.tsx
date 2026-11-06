@@ -149,7 +149,7 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
                 <label
                   key={option.groupId}
                   className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
-                    option.disabled ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400" : "cursor-pointer border-slate-200 text-slate-800 hover:bg-slate-50"
+                    option.disabled ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-500" : "cursor-pointer border-slate-200 text-slate-800 hover:bg-slate-50"
                   }`}
                 >
                   <Checkbox

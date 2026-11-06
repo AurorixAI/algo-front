@@ -1204,7 +1204,7 @@ export default function ExamHubPage() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
           >
-            <Radio className={cn("w-4 h-4", activeTab === "lobby" ? "text-primary-600" : "text-slate-400")} />
+            <Radio className={cn("w-4 h-4", activeTab === "lobby" ? "text-primary-600" : "text-slate-500")} />
             <span>{isPrintDelivery ? "Печатный комплект" : "Лобби / Live Комната"}</span>
             {!isPrintDelivery && totalConnected > 0 && (
               <span className="px-2 py-0.5 rounded-full text-xs bg-primary-100 text-primary-700 font-extrabold">
@@ -1222,7 +1222,7 @@ export default function ExamHubPage() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
           >
-            <Layers className={cn("w-4 h-4", activeTab === "tasks" ? "text-primary-600" : "text-slate-400")} />
+            <Layers className={cn("w-4 h-4", activeTab === "tasks" ? "text-primary-600" : "text-slate-500")} />
             <span>Задания и Варианты</span>
           </button>
 
@@ -1236,7 +1236,7 @@ export default function ExamHubPage() {
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
               )}
             >
-              <BarChart3 className={cn("w-4 h-4", activeTab === "analytics" ? "text-primary-600" : "text-slate-400")} />
+              <BarChart3 className={cn("w-4 h-4", activeTab === "analytics" ? "text-primary-600" : "text-slate-500")} />
               <span>Результаты и Аналитика</span>
               {submittedCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-bold">
@@ -1535,7 +1535,7 @@ export default function ExamHubPage() {
                 <p className="text-sm font-bold text-slate-700">
                   {!exam.group_id ? "Привяжите группу для запуска лобби" : "Ожидание подключения учеников..."}
                 </p>
-                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
                   {!exam.group_id
                     ? "После выбора учебной группы вы сможете открыть лобби и запустить тестирование для учеников класса."
                     : "Ученики переходят по ссылке, вводят свои ID и ФИО со смартфонов или компьютеров и сразу появятся на этом экране."}
@@ -1589,7 +1589,7 @@ export default function ExamHubPage() {
                         </div>
                         <div className="flex-1 min-w-0 pr-4">
                           <p className="text-sm font-bold text-slate-900 truncate">{s.student_name}</p>
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
                             {hasStoredIdentity ? (
                               <span className="font-mono font-bold text-slate-600">
                                 ID: {s.display_id || s.student_id}
@@ -1736,7 +1736,7 @@ export default function ExamHubPage() {
                         </p>
                         <h3 className="mt-1 text-base font-bold text-slate-900 truncate">{section.name}</h3>
                       </div>
-                      <span className="text-xs font-semibold text-slate-400 shrink-0">
+                      <span className="text-xs font-semibold text-slate-500 shrink-0">
                         {section.tasks.length} {taskCountLabel(section.tasks.length)}
                       </span>
                     </div>
@@ -2044,7 +2044,7 @@ export default function ExamHubPage() {
                               ? "border-violet-600 bg-violet-600 text-white"
                               : isActive
                               ? "border-violet-600 bg-white text-violet-600 ring-4 ring-violet-100"
-                              : "border-slate-200 bg-white text-slate-400"
+                              : "border-slate-200 bg-white text-slate-500"
                           )}
                         >
                           {isDone ? (
@@ -2058,7 +2058,7 @@ export default function ExamHubPage() {
                         <span
                           className={cn(
                             "text-[11px] font-medium max-w-[110px] leading-tight",
-                            isActive ? "text-violet-900 font-bold" : isDone ? "text-violet-700" : "text-slate-400"
+                            isActive ? "text-violet-900 font-bold" : isDone ? "text-violet-700" : "text-slate-500"
                           )}
                         >
                           {label}
@@ -2088,7 +2088,7 @@ export default function ExamHubPage() {
             </div>
 
             {sessions.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 text-sm">Пока нет попыток учеников</div>
+              <div className="p-12 text-center text-slate-500 text-sm">Пока нет попыток учеников</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -2130,7 +2130,7 @@ export default function ExamHubPage() {
                                 {scorePercent.toFixed(0)}%
                               </span>
                             ) : (
-                              <span className="text-slate-400">—</span>
+                              <span className="text-slate-500">—</span>
                             )}
                           </td>
                           <td className="p-4">
@@ -2249,12 +2249,12 @@ export default function ExamHubPage() {
             )}
 
             {altLoading ? (
-              <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-3">
+              <div className="py-12 text-center text-slate-500 flex flex-col items-center gap-3">
                 <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
                 <p className="text-sm font-semibold">Поиск альтернативных задач того же навыка...</p>
               </div>
             ) : alternatives.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-sm">
+              <div className="py-12 text-center text-slate-500 text-sm">
                 Нет доступных альтернативных задач для этого навыка.
               </div>
             ) : (
@@ -2519,7 +2519,7 @@ export default function ExamHubPage() {
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {groups.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">Нет доступных групп</p>
+                <p className="text-sm text-slate-500 text-center py-6">Нет доступных групп</p>
               ) : (
                 groups.map((g) => (
                   <button
@@ -2545,7 +2545,7 @@ export default function ExamHubPage() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{g.name}</p>
-                        <p className="text-xs text-slate-400">{(g as any).student_count || 0} {pluralRu((g as any).student_count || 0, ["ученик", "ученика", "учеников"])}</p>
+                        <p className="text-xs text-slate-500">{(g as any).student_count || 0} {pluralRu((g as any).student_count || 0, ["ученик", "ученика", "учеников"])}</p>
                       </div>
                     </div>
                     {exam.group_id === g.id ? (

@@ -234,7 +234,7 @@ function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title:
         </div>
         <h2 className="font-bold text-slate-800 text-sm min-w-0 break-words" title={title}>{title}</h2>
         {count !== undefined && (
-          <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{count}</span>
+          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{count}</span>
         )}
       </div>
       {action && (
@@ -504,7 +504,7 @@ export default function DiagnosticReportPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" />
-        <p className="text-xs text-slate-400">Загружаем отчёт...</p>
+        <p className="text-xs text-slate-500">Загружаем отчёт...</p>
       </div>
     );
   }
@@ -514,7 +514,7 @@ export default function DiagnosticReportPage() {
       return (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
           <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" />
-          <p className="text-xs text-slate-400">Загружаем отчёт...</p>
+          <p className="text-xs text-slate-500">Загружаем отчёт...</p>
         </div>
       );
     }
@@ -613,7 +613,7 @@ export default function DiagnosticReportPage() {
               router.push(isTeacher ? "/teacher/groups" : "/admin/diagnostics");
             }
           }}
-          className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0"
+          className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors flex-shrink-0"
           title="Назад"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -621,7 +621,7 @@ export default function DiagnosticReportPage() {
         {/* min-w-[12rem]: below it the group button wraps under the title instead of squeezing it */}
         <div className="flex-1 min-w-[12rem]">
           <h1 className="text-xl font-bold text-slate-900 break-words">Отчёт диагностики</h1>
-          <p className="text-xs text-slate-400 break-words mt-0.5">
+          <p className="text-xs text-slate-500 break-words mt-0.5">
             {invite.student_id ? (
               <Link
                 href={isTeacher ? `/teacher/students/${invite.student_id}` : `/admin/students/${invite.student_id}`}
@@ -735,7 +735,7 @@ export default function DiagnosticReportPage() {
           ) : (
             <>
               <p className="text-slate-600 font-semibold text-sm">Диагностика ещё не пройдена</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Ученик <span className="font-semibold">{invite.student_name}</span> не завершил тест
                 по коду <span className="font-mono font-bold">{invite.code}</span>.
               </p>
@@ -1120,7 +1120,7 @@ export default function DiagnosticReportPage() {
                                 </div>
                                 {err.student_answer
                                   ? <MathRenderer text={pickAnswerDisplayText(err.student_answer, err.student_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
-                                  : <span className="text-xs font-normal text-slate-400">—</span>
+                                  : <span className="text-xs font-normal text-slate-500">—</span>
                                 }
                               </div>
                               {/* Correct answer */}
@@ -1131,7 +1131,7 @@ export default function DiagnosticReportPage() {
                                 </div>
                                 {(err.correct_answer_latex || err.correct_answer)
                                   ? <MathRenderer text={pickAnswerDisplayText(err.correct_answer || "", err.correct_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
-                                  : <span className="text-xs font-normal text-slate-400">—</span>
+                                  : <span className="text-xs font-normal text-slate-500">—</span>
                                 }
                               </div>
                             </div>
@@ -1169,7 +1169,7 @@ export default function DiagnosticReportPage() {
                 {/* ── Journal Footer ── */}
                 {totalPages > 1 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/50">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-500">
                       Записи <span className="font-semibold text-slate-700">{page * ERRORS_PER_PAGE + 1}–{Math.min((page + 1) * ERRORS_PER_PAGE, rj.error_patterns.length)}</span> из <span className="font-semibold text-slate-700">{rj.error_patterns.length}</span>
                     </span>
                     <div className="flex gap-2">
@@ -1302,7 +1302,7 @@ export default function DiagnosticReportPage() {
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Базовые навыки не подтверждены</span>
+                          <span className="text-xs text-slate-500 italic">Базовые навыки не подтверждены</span>
                         )}
                       </div>
                     </div>
@@ -1331,7 +1331,7 @@ export default function DiagnosticReportPage() {
                             </span>
                           ))
                         ) : breakpoint.emptyText && (
-                          <span className="text-xs text-slate-400 italic">{breakpoint.emptyText}</span>
+                          <span className="text-xs text-slate-500 italic">{breakpoint.emptyText}</span>
                         )}
                       </div>
                     </div>
@@ -1360,7 +1360,7 @@ export default function DiagnosticReportPage() {
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Ошибок в текущем классе нет</span>
+                          <span className="text-xs text-slate-500 italic">Ошибок в текущем классе нет</span>
                         )}
                       </div>
                     </div>
@@ -1400,7 +1400,7 @@ export default function DiagnosticReportPage() {
                               <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2.5 text-sm font-semibold text-slate-900 min-w-0">
                                 <span className="min-w-0 break-words">
                                   {ch.source_skill_name}{" "}
-                                  <span className="text-xs font-medium text-slate-400 whitespace-nowrap">({ch.source_grade} кл)</span>
+                                  <span className="text-xs font-medium text-slate-500 whitespace-nowrap">({ch.source_grade} кл)</span>
                                 </span>
                                 <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0 rotate-90 lg:rotate-0" />
                                 <span className="min-w-0 break-words font-medium text-rose-600">

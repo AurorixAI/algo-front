@@ -360,12 +360,12 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                         >
                           {group.name}
                         </Link>
-                        {extra && <span className="text-xs text-slate-400">{extra}</span>}
+                        {extra && <span className="text-xs text-slate-500">{extra}</span>}
                       </>
                     ) : studentHasGroup(s) ? (
-                      <span className="text-xs text-slate-400">В группе</span>
+                      <span className="text-xs text-slate-500">В группе</span>
                     ) : (
-                      <span className="text-xs italic text-slate-400">Без группы</span>
+                      <span className="text-xs italic text-slate-500">Без группы</span>
                     )}
                   </p>
                 </li>
@@ -465,13 +465,13 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                                 {group.name}
                               </Link>
                               {extraGroupsLabel(s.groups_count) && (
-                                <span className="text-xs text-slate-400">{extraGroupsLabel(s.groups_count)}</span>
+                                <span className="text-xs text-slate-500">{extraGroupsLabel(s.groups_count)}</span>
                               )}
                             </div>
                           ) : studentHasGroup(s) ? (
-                            <span className="text-xs text-slate-400">В группе</span>
+                            <span className="text-xs text-slate-500">В группе</span>
                           ) : (
-                            <span className="text-xs text-slate-400 italic">Без группы</span>
+                            <span className="text-xs text-slate-500 italic">Без группы</span>
                           )}
                         </td>
                         <td className="px-4 py-4 pr-6 text-center align-middle whitespace-nowrap text-xs font-medium text-slate-700">

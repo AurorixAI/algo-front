@@ -89,7 +89,7 @@ test("С1: the saved sum is said once (no «−45 000» in the card), the undeci
 
 test("С1: the caption of the table is the head of the table (no card of its own) and an empty table has none", () => {
   const text = src("components/payroll/sheet-table.tsx");
-  assert.match(text, /data-testid="saved-table-note" className="px-1 text-xs font-semibold/);
+  assert.match(text, /data-testid="saved-table-note" className="mb-2 text-sm font-semibold/);
   const empty = text.slice(text.indexOf("if (sheet.lines.length === 0)"), text.indexOf("const toggleDates"));
   assert.doesNotMatch(empty, /captionNode/, "nothing to say a version of");
 });
@@ -135,7 +135,7 @@ test("С6: the button of an overpay is «Записать выплату N», th
   assert.equal(plain(Y.payoutOverpayQuestion(50000)), "Это на 50 000 сум больше, чем осталось выплатить: эти 50 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");
   assert.equal(Y.PAYOUT_ADVANCE_LABEL, undefined, "one name of the action");
   const state = { balance: 125000, basis: "saved" };
-  assert.equal(Y.payoutAfterText(125000, state), "Это вся сумма — останется выплатить 0 сум");
+  assert.equal(Y.payoutAfterText(125000, state), "Это вся сумма — останется выплатить 0 сум");
   assert.match(Y.payoutAfterText(130000, state), /больше, чем осталось выплатить/);
   const text = src("components/payroll/payout-dialog.tsx");
   assert.match(text, /primary=\{`\$\{PAYOUT_ACTION_LABEL\}\$\{amountText\}`\}/);

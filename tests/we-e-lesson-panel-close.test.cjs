@@ -11,7 +11,7 @@ const marksButton = (s, student, title) => s.all((n) => n.tag === "button" && ty
 const confirm = () => require(path.join(harness.root, "src/lib/confirm-dialog.ts"));
 const answer = async (s, value) => { confirm().answerConfirm(value); await new Promise((resolve) => setTimeout(resolve, 8)); await s.settle(); };   // a person needs more than a millisecond to press the key again
 const drain = () => { while (confirm().currentConfirm()) confirm().answerConfirm(false); };
-const crossOf = (s) => s.all((n) => n.tag === "button" && typeof n.props.className === "string" && n.props.className.includes("p-2 text-slate-400") && typeof n.props.onClick === "function")[0];
+const crossOf = (s) => s.all((n) => n.tag === "button" && typeof n.props.className === "string" && n.props.className.includes("p-2 text-slate-500") && typeof n.props.onClick === "function")[0];
 const backdropOf = (s) => s.all((n) => typeof n.props.onClick === "function" && typeof n.props.className === "string" && n.props.className.includes("z-[99999]"))[0];
 
 async function started(screen, world, { dirty }) {

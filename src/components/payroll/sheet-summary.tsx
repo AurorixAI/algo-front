@@ -13,7 +13,7 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
-import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetPrintTotals, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
+import { RESAVE_LABEL, sheetHeadline, sheetVersionLine, sheetPrintTotals, sheetWrittenOffLessons, splitSavedFacts, writtenOffText } from "@/lib/payroll-logica";
 import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails } from "./sheet-controls";
 import { PeriodChip } from "./period-chip";
@@ -77,6 +77,7 @@ export function SheetSummaryCard({
   const statusDuplicatesTodo = changed && !headline.saved;
   const printTotals = status.tone === "dirty" ? null : sheetPrintTotals({ payout: sheet.payout, today: formatBusinessDate() });
   // a REOPENED month is closed again by a save, with or without changes: its button says so
+  const versionLine = sheetVersionLine({ payout: sheet.payout, updatedAt: sheet.updated_at });
   const primaryLabel = status.action === "recalculate" ? (period?.tone === "reopened" ? CLOSE_MONTH_LABEL : RESAVE_LABEL) : "Сохранить";
   return (
     <section
@@ -87,6 +88,8 @@ export function SheetSummaryCard({
         <div className={`min-w-0 ${printTotals ? "print:hidden" : ""}`}>
           <p className="text-sm text-slate-500" data-testid="payroll-total-label">{period?.tone === "reopened" && headline.label === "К выплате" ? "К выплате (сохранено)" : headline.label}</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
+          {/* rule 113: the big number is of NOW, the table is the saved version - ONE line says both, here */}
+          {headline.saved && versionLine && <p className="mt-2 max-w-xl text-sm leading-5 text-slate-700 print:hidden" data-testid="sheet-version-line">{versionLine}</p>}
           {/* a changed sheet: the line holds the rate only - the counts of the SAVED sheet are under «Что изменилось ▸» (UX pack №3) */}
           <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? splitSavedFacts(facts).rest.join(" · ") : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {sheet.note && <p className="mt-1.5 break-words text-sm text-slate-600">Примечание: {sheet.note}</p>}
@@ -130,7 +133,7 @@ export function SheetSummaryCard({
           {/* a reopened month is not «saved and done»: no green dot (UX pack №23) */}
           {!(period?.tone === "reopened" && status.tone === "saved") && status.tone !== "changed" && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />}
           <span className="min-w-0" data-testid="sheet-status-text">
-            {headline.saved ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
+            {status.text}
             {status.tone === "saved" && savedBy ? <span className="text-slate-500"> · {savedBy}</span> : null}
           </span>
         </p>

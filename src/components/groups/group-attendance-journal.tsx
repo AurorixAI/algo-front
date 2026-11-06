@@ -1026,7 +1026,10 @@ export function GroupAttendanceJournal({
       return;
     }
     setOpenCell(null);
-    setColumnMenu({ key, anchor: anchorOf(event.currentTarget) });
+    // the menu opens BELOW the whole header cell (its date and time stay readable), not under the «⋯» button inside it
+    const anchor = anchorOf(event.currentTarget);
+    const header = event.currentTarget.closest("th");
+    setColumnMenu({ key, anchor: header ? { ...anchor, bottom: Math.max(anchor.bottom, header.getBoundingClientRect().bottom) } : anchor });
   };
 
   // The server judges completeness by the roster frozen at the start of the
@@ -1970,9 +1973,6 @@ export function GroupAttendanceJournal({
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
           <FloatingMenu anchor={columnMenu.anchor} width={240} align="end" menuRef={columnMenuRef}>
-            <p className="px-3 pb-1 pt-1.5 text-xs font-semibold text-slate-500">
-              Урок {formatDateRu(lesson.date)}
-            </p>
             {actions.includes("reconcile") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
@@ -2030,7 +2030,7 @@ export function GroupAttendanceJournal({
             )}
             {actions.includes("return_review") && (
               <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                 <span className="min-w-0"><span className="block">{RETURN_TO_REVIEW_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.return_review} /></span>
               </button>
             )}

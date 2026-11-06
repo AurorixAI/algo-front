@@ -966,7 +966,7 @@ export function chargeWords(segment: Segment): { title: string; sub: string } {
     ? "цена не задана"
     : price === 0
       ? "бесплатно"
-      : `цена ${digitsOf(price)} сум ${unit} · ${priceSourceText(segment.price?.source)}`;
+      : `цена ${digitsOf(price)} сум ${unit} · ${priceSourceText(segment.price?.source)}`;
   const part = segment.days_text
     ? partWords(segment.days_text)
     : segment.kind === "package" && segment.lessons ? `${segment.lessons.in_part} из ${segment.lessons.in_period} ${segment.lessons.in_period % 10 === 1 && segment.lessons.in_period % 100 !== 11 ? "урок" : "уроков"}` : "";

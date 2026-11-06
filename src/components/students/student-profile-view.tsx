@@ -313,7 +313,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     return (
       <div className="flex flex-col items-center justify-center h-80 gap-3">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-        <p className="text-sm text-slate-400">Загрузка профиля ученика...</p>
+        <p className="text-sm text-slate-500">Загрузка профиля ученика...</p>
         {toastNode}
       </div>
     );
@@ -485,7 +485,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     </span>
                   )
                 ) : (
-                  <span className="flex items-center gap-1 text-slate-400 italic">
+                  <span className="flex items-center gap-1 text-slate-500 italic">
                     <Users className="w-3.5 h-3.5" />
                     Группа не назначена
                   </span>
@@ -562,7 +562,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center">
                   <Brain className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                   <h3 className="text-sm font-medium text-slate-700 mb-1">Диагностика не проводилась</h3>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto mb-3">
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mb-3">
                     Ученик ещё не проходил адаптивное диагностическое тестирование.
                   </p>
                   {/* the administrator creates the invite for THIS student (F32); the owner has no diagnostic buttons (owner decision 22.10) */}
@@ -667,7 +667,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                       {levelView.label}
                                     </span>
                                   ) : (
-                                    <span className="text-xs text-slate-400">—</span>
+                                    <span className="text-xs text-slate-500">—</span>
                                   )}
                                 </div>
                               </div>
@@ -714,7 +714,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     <GraduationCap className="w-5 h-5" />
                   </div>
                   <p className="text-sm font-medium text-slate-700">Экзамены и контрольные срезы пока не проводились</p>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
                     Результаты пройденных экзаменов и срезов знаний группы будут сохраняться в этом разделе.
                   </p>
                 </div>
@@ -739,7 +739,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                 Экзамен
                               </span>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                            <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
                               {ex.submitted_at ? (
                                 <span>Сдан: {formatUtcNaiveAsBusinessDayTime(ex.submitted_at)}</span>
                               ) : ex.started_at ? (
@@ -885,7 +885,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                         <div className="min-w-0 break-words">
                           <span className="font-semibold text-slate-800">{gh.group_name}</span>
                           {gh.class_level && (
-                            <span className="text-xs text-slate-400 ml-2">({gh.class_level} класс)</span>
+                            <span className="text-xs text-slate-500 ml-2">({gh.class_level} класс)</span>
                           )}
                         </div>
                       </div>
@@ -1031,24 +1031,24 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="p-4 rounded-xl bg-slate-50 space-y-1">
-                    <p className="text-xs text-slate-400 font-medium">Телефон ученика / родителей</p>
+                    <p className="text-xs text-slate-500 font-medium">Телефон ученика / родителей</p>
                     <p className="text-sm font-semibold text-slate-800">{student.student_phone || "Не указан"}</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 space-y-1">
-                    <p className="text-xs text-slate-400 font-medium">ID ученика</p>
+                    <p className="text-xs text-slate-500 font-medium">ID ученика</p>
                     <p className="text-sm font-mono font-semibold text-slate-800">{student.display_id || "—"}</p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 space-y-1 sm:col-span-2">
-                    <p className="text-xs text-slate-400 font-medium">Дата регистрации в системе</p>
+                    <p className="text-xs text-slate-500 font-medium">Дата регистрации в системе</p>
                     <p className="text-sm font-medium text-slate-800">
                       {student.created_at ? formatUtcNaiveAsBusinessDate(student.created_at, { day: "numeric", month: "long", year: "numeric" }) : "—"}
                     </p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 space-y-1 sm:col-span-2">
-                    <p className="text-xs text-slate-400 font-medium">Заметки и комментарии</p>
+                    <p className="text-xs text-slate-500 font-medium">Заметки и комментарии</p>
                     <p className="text-sm text-slate-700 whitespace-pre-wrap">{student.comment || "Заметок нет"}</p>
                   </div>
                 </div>

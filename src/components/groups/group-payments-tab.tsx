@@ -340,7 +340,7 @@ function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; st
       <Link href={studentHref(studentsBasePath, view.studentId, "payments")} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700">
         {view.name}
       </Link>
-      {view.displayId && <p className="truncate text-xs text-slate-400">{view.displayId}</p>}
+      {view.displayId && <p className="truncate text-xs text-slate-500">{view.displayId}</p>}
     </div>
   );
 }
@@ -361,7 +361,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
       <StudentCell view={view} studentsBasePath={studentsBasePath} />
 
       <div className="flex items-start justify-between gap-3 lg:block lg:text-left">
-        <span className="shrink-0 text-xs text-slate-400 lg:hidden">{label}</span>
+        <span className="shrink-0 text-xs text-slate-500 lg:hidden">{label}</span>
         <div className="min-w-0 text-right lg:text-left">
           <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 lg:flex-col lg:items-start lg:justify-center lg:gap-y-0.5">
             <span className={`text-sm font-semibold tabular-nums ${view.priceMissing ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
@@ -400,7 +400,7 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
     <li className={ROW} data-testid="group-payment-left-row" data-membership-id={view.membershipId}>
       <div className="min-w-0">
         <StudentCell view={view} studentsBasePath={studentsBasePath} />
-        <p className="text-xs text-slate-400">ушёл из группы</p>
+        <p className="text-xs text-slate-500">ушёл из группы</p>
       </div>
       <span className="text-sm text-slate-500 max-lg:hidden">—</span>
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>

@@ -398,7 +398,7 @@ export default function ExamReportPage() {
                     </span>
                   )}
                   {report?.generated_at && (
-                    <span className="flex items-center gap-1 text-slate-400">
+                    <span className="flex items-center gap-1 text-slate-500">
                       <Calendar className="h-3.5 w-3.5" />
                       Сформирован: {formatUtcNaiveAsBusinessDayTime(report.generated_at, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -603,7 +603,7 @@ export default function ExamReportPage() {
                     <h4 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
                       Успешно освоенные темы
                     </h4>
-                    <p className="text-[11px] text-slate-400 font-medium">Навыки с высоким процентом правильных решений</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Навыки с высоким процентом правильных решений</p>
                   </div>
                 </div>
                 {(structured.strengths || []).length > 0 && (
@@ -654,7 +654,7 @@ export default function ExamReportPage() {
                     <h4 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
                       Критические пробелы и затруднения
                     </h4>
-                    <p className="text-[11px] text-slate-400 font-medium">Темы, вызвавшие наибольшее количество ошибок</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Темы, вызвавшие наибольшее количество ошибок</p>
                   </div>
                 </div>
                 {(structured.critical_gaps || []).length > 0 && (

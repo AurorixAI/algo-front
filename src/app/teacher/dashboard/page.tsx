@@ -15,7 +15,8 @@ import { Users, GraduationCap, Calendar as CalendarIcon, ArrowRight, Plus, Clock
 import Link from "next/link";
 import { todayPendingHintForLesson } from "@/lib/schedule-card-actions";
 import { lessonActionTarget } from "@/lib/lesson-actions";
-import { formatCountdown, ledByText, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { formatCountdown, ledByText, lessonsTodayTile, nextLessonAhead, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { openTodayActions, orderedTodayActions, scheduledTodayActions, todayNextStep } from "@/lib/today-actions";
 import { dashboardExamState, laterLessonStatus, scheduledExamLabel } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { NextActionCard } from "@/components/teacher/next-action-card";
@@ -34,6 +35,8 @@ import { useToast } from "@/components/ui/toast";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tag } from "@/components/ui/chip";
+import { classLabel } from "@/lib/class-label";
 
 interface LessonSummary {
   id: string;
@@ -335,77 +338,25 @@ export default function TeacherDashboardPage() {
     [todayLessons, statusOfToday, clockTick],
   );
 
-  const scheduledLessonActions = useMemo<LessonAction[]>(() => {
-    return agenda.entries.flatMap<LessonAction>((entry) => {
-      // A lesson in progress comes from the persisted open-actions endpoint (partial attendance, historical instances).
-      if (entry.phase === "missed") {
-        // #158: a lesson of today that is over and was never started is the FIRST task (red), whether the server has returned it yet or not; the server's own action wins
-        if (openAttendanceActions.some((action) => action.lessonId === entry.lesson.id && action.lessonDate === businessDate)) return [];
-        return [{
-          lesson: entry.lesson,
-          label: "Разберите урок",
-          cardLabel: `Разберите урок: ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
-          description: `${entry.lesson.groupName} · ${entry.lesson.startTime} — ${entry.lesson.endTime} · состоялся ли он`,
-          cardDescription: "Урок закончился, а журнал не начат. Отметьте урок или укажите, что его не было.",
-          badge: "Посещаемость не отмечена",
-          tone: "rose",
-        }];
-      }
-      if (entry.phase !== "to_start") return [];
-      if (getSubsequentStartedLesson(entry.lesson)) return [];
-      return [{
-        lesson: entry.lesson,
-        label: "Начните урок",
-        description: `${entry.lesson.groupName} · ${entry.lesson.startTime} — ${entry.lesson.endTime}`,
-        tone: "emerald",
-      }];
-    });
-  }, [agenda, getSubsequentStartedLesson, openAttendanceActions, businessDate]);
+  // the actions of the clock: ONE function for «Главная» and «Расписание» (lib/today-actions.ts)
+  const scheduledLessonActions = useMemo<LessonAction[]>(
+    () => scheduledTodayActions({ entries: agenda.entries, openActions: openAttendanceActions, today: businessDate, subsequentStarted: (lesson) => Boolean(getSubsequentStartedLesson(lesson)) }) as LessonAction[],
+    [agenda, getSubsequentStartedLesson, openAttendanceActions, businessDate],
+  );
 
-  const openLessonActions = useMemo<LessonAction[]>(() => (
-    openAttendanceActions.map((action) => {
-      const isMissed = action.actionType === "missed";
-      const isHistorical = action.lessonDate < businessDate;
-      const hasNoRoster = !isMissed && action.rosterCount === 0;
-      const lesson = lessonFromAttendanceAction(action);
-      const locked = openLessonAccess(action, user?.org_role ?? null, businessDate).locked;
-      const progress = hasNoRoster
-        ? "На дату занятия в составе группы не было учеников — отметки не требуются."
-        : action.rosterCount > 0
-        ? `Отмечено ${action.markedCount} из ${action.rosterCount}${action.remainingCount > 0 ? ` · осталось ${action.remainingCount}` : ""}.`
-        : "Проверьте и завершите журнал занятия.";
-      return {
-        lesson,
-        actionType: action.actionType,
-        sourceAction: action,
-        // The dashboard is only an entry point. The reason and the
-        // attendance rules belong in the lesson detail, not in its headline.
-        cardLabel: hasNoRoster ? "Требует действия" : undefined,
-        cardDescription: hasNoRoster
-          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })}`
-          : undefined,
-        label: isMissed
-          ? "Разобрать пропущенный урок"
-          : hasNoRoster ? "Завершите урок без отметок"
-            : action.remainingCount > 0 ? "Завершите посещаемость" : "Завершите урок",
-        description: isMissed
-          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · урок не был начат. Укажите, состоялся ли он.`
-          : `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${progress}`,
-        tone: isMissed || isHistorical ? "rose" : "amber",
-        markedCount: action.markedCount,
-        rosterCount: action.rosterCount,
-        remainingCount: action.remainingCount,
-        locked,
-      };
-    })
-  ), [openAttendanceActions, businessDate, user?.org_role]);
+  const openLessonActions = useMemo<LessonAction[]>(() => openTodayActions({
+    actions: openAttendanceActions,
+    today: businessDate,
+    toLesson: lessonFromAttendanceAction,
+    isLocked: (action) => openLessonAccess(action, user?.org_role ?? null, businessDate).locked,
+  }) as LessonAction[], [openAttendanceActions, businessDate, user?.org_role]);
 
   /** Decision 7: lessons older than 7 days. They stay in the list, grey and without buttons; they never become the card of the next action. */
   const lockedLessonActions = useMemo(() => openLessonActions.filter((action) => action.locked), [openLessonActions]);
 
   // The card, the tile «Требуют действия» and the centre read this one list, in one order: red, in progress, to start.
   const lessonActions = useMemo<LessonAction[]>(
-    () => orderActions([...openLessonActions.filter((action) => !action.locked), ...scheduledLessonActions], businessDate),
+    () => orderedTodayActions({ open: openLessonActions, scheduled: scheduledLessonActions, today: businessDate }),
     [openLessonActions, scheduledLessonActions, businessDate],
   );
 
@@ -519,7 +470,7 @@ export default function TeacherDashboardPage() {
     return ahead ? { date: ahead.lesson.occurrenceDate, startTime: ahead.lesson.startTime, groupName: ahead.lesson.groupName } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekLessons, businessDate, statusOfToday, clockTick]);
-  const nextStep = pickNextStep({
+  const nextStep = todayNextStep({
     actions: lessonActions,
     agenda,
     activeExam: activeExamForCard,
@@ -609,7 +560,6 @@ export default function TeacherDashboardPage() {
                 className="absolute inset-0 z-10 rounded-2xl sm:rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               />
             )}
-            <div className="hidden sm:block absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-slate-50 opacity-60 pointer-events-none group-hover:scale-110 transition-transform" />
             <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
               <div className={`w-7 h-7 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
                 <s.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${s.iconColor}`} />
@@ -666,11 +616,9 @@ export default function TeacherDashboardPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="truncate font-bold text-slate-900 transition-colors group-hover:text-primary-700">{group.name}</h3>
-                        <p className="mt-0.5 text-xs text-slate-500">{group.class_level ? `${group.class_level} класс · ` : ""}{group.student_count} {pluralRu(group.student_count, ["ученик", "ученика", "учеников"])}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{group.student_count} {pluralRu(group.student_count, ["ученик", "ученика", "учеников"])}</p>
                       </div>
-                      <span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-card ring-1 ring-slate-100">
-                        {group.class_level ? `${group.class_level} кл` : "Группа"}
-                      </span>
+                      <Tag>{classLabel(group.class_level, "Группа")}</Tag>
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600">
                       <Clock className="h-3.5 w-3.5 shrink-0 text-primary-500" />
@@ -722,7 +670,7 @@ export default function TeacherDashboardPage() {
                 {liveExamError}
               </div>
             ) : !featuredDashboardExam ? (
-              <EmptyState variant="inline" icon={FileCheck2} title="Экзаменов, требующих внимания, нет" hint="Новый экзамен можно подготовить заранее в разделе «Экзамены»." />
+              <EmptyState icon={FileCheck2} title="Нет экзаменов, требующих внимания" hint="Новый экзамен можно подготовить в разделе «Экзамены»." className="min-h-[148px] justify-center py-8" />
             ) : (
               <div className="space-y-3">
                 {[featuredDashboardExam].map((exam) => {
@@ -901,7 +849,7 @@ export default function TeacherDashboardPage() {
             </div>
 
             {sortedTodayLessons.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-sm">
+              <div className="text-center py-8 text-slate-500 text-sm">
                 <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
                 На сегодня уроков нет
               </div>
@@ -1097,7 +1045,7 @@ export default function TeacherDashboardPage() {
                     type="button"
                     onClick={() => setIsExamQueueOpen(false)}
                     aria-label="Закрыть очередь экзаменов"
-                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -1219,7 +1167,7 @@ export default function TeacherDashboardPage() {
                     type="button"
                     onClick={() => setIsActionCenterOpen(false)}
                     aria-label="Закрыть"
-                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                   >
                     <X className="h-5 w-5" />
                   </button>

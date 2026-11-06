@@ -502,7 +502,7 @@ test("the drawer: who entered it, where the money went, the receipt, the way to 
   assert.equal(view.note, "=SUM(A1)"); // shown as text, never as a formula
   assert.deepEqual(view.links.map((l) => [l.key, l.label]), [["receipt", "Квитанция № 13"], ["student", "Карточка ученика"], ["statement", "Выписка по группе"]]);
   // «за сентябрь — 200 000 · аванс — 50 000» is two lines
-  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [] }), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
+  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [] }).map((x) => x.replace(/\u00a0/g, " ")), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
   assert.deepEqual(V.destinationLines({ allocation_text: null, allocations: [{ label: "На текущий период 01.10–31.10", amount: 5000 }, { label: "ноль", amount: 0 }] }).map(plain), ["На текущий период 01.10–31.10 — 5 000 сум"]);
   // cancelled: the reason and who, and no «куда пошли деньги» (the money did not go anywhere)
   const voided = V.drawerView(rows[2]);

@@ -194,7 +194,7 @@ export default function OwnerDashboard() {
                   </div>
                   <div>
                     <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
-                    <p className="text-sm font-medium text-slate-400 mt-1">{card.label}</p>
+                    <p className="text-sm font-medium text-slate-500 mt-1">{card.label}</p>
                   </div>
                 </>
               );
@@ -223,7 +223,7 @@ export default function OwnerDashboard() {
                 <Link key={tile.key} href={tile.href} data-testid={`dashboard-tile-${tile.key}`} className="group flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md transition-all duration-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                   <div className="min-w-0">
                     <p className={`text-2xl font-semibold tracking-tight ${tile.tone === "alert" ? "text-rose-300" : "text-white"}`}>{tile.value}</p>
-                    <p className="mt-1 text-sm font-medium text-slate-400">{tile.label}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-500">{tile.label}</p>
                   </div>
                   <span className="shrink-0 text-sm font-semibold text-slate-300 group-hover:text-white" aria-hidden>→</span>
                 </Link>
@@ -254,7 +254,7 @@ export default function OwnerDashboard() {
               <Link key={g.group_id} href={`/owner/groups/${g.group_id}`} data-testid="dashboard-group-row" className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/30 hover:border-emerald-100 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-400">#{i + 1}</span>
+                    <span className="text-sm font-bold text-slate-500">#{i + 1}</span>
                     <p className="font-semibold text-slate-900 line-clamp-1">{g.name}</p>
                   </div>
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-3">
@@ -268,7 +268,7 @@ export default function OwnerDashboard() {
                 </div>
               </Link>
             )) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 py-8">
                 <GraduationCap className="w-8 h-8 mb-2 opacity-50" />
                 <p className="text-sm">{withData === 0 ? "Нет данных для анализа" : !comparable ? "Мало данных для сравнения" : "Нет групп выше среднего уровня"}</p>
               </div>
@@ -304,7 +304,7 @@ export default function OwnerDashboard() {
                 </div>
               </Link>
             )) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 py-8">
                 <Shield className="w-8 h-8 mb-2 opacity-50" />
                 <p className="text-sm">{withData === 0 ? "Нет данных для анализа" : "Нет отстающих групп. Отлично!"}</p>
               </div>

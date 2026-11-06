@@ -369,7 +369,7 @@ export function DecisionBody({
               }`}
             >
               <Radio bare name="substitution-decision" value={entry} checked={checked} disabled={busy} onChange={() => onKind(entry)} />
-              <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? (entry === "cancel" ? "text-rose-600" : "text-primary-600") : "text-slate-400"}`} />
+              <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? (entry === "cancel" ? "text-rose-600" : "text-primary-600") : "text-slate-500"}`} />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold leading-snug text-slate-900">{decisionCardTitle(entry, late)}</span>
                 <span className="mt-0.5 block text-xs leading-snug text-slate-500">{CARD_HINT[entry]}</span>
@@ -515,7 +515,7 @@ export function SubstituteForm({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className={`font-medium ${selectable ? "text-slate-900" : "text-slate-400"}`}>{candidate.name}</span>
+                      <span className={`font-medium ${selectable ? "text-slate-900" : "text-slate-500"}`}>{candidate.name}</span>
                       {candidate.suggested && <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUGGESTED_CHIP}</span>}
                     </span>
                     {candidate.busy && <span className="mt-0.5 block text-xs font-medium text-amber-700">{candidateBusyLine(candidate.busyWith)}</span>}

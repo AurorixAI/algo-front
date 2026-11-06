@@ -336,7 +336,7 @@ export function Sidebar() {
                   <Icon
                     className={cn(
                       "w-5 h-5 shrink-0 transition-colors",
-                      isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
+                      isActive ? "text-primary-600" : "text-slate-500 group-hover:text-slate-600"
                     )}
                   />
                   {item.badge !== undefined ? (
@@ -552,7 +552,7 @@ export function Sidebar() {
             )}
           >
             <p className="text-xs font-bold text-slate-800 truncate group-hover:text-primary-700 transition-colors">{displayName}</p>
-            <p className="text-[10px] text-slate-400 font-medium truncate flex items-center gap-1">
+            <p className="text-[10px] text-slate-500 font-medium truncate flex items-center gap-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
               <span className="truncate">{displayRole}</span>
             </p>

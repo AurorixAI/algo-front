@@ -5,10 +5,11 @@ import { GraduationCap, Users, ChevronRight, Archive, BookOpen, Wallet } from "l
 import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
 import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
-import { lessonTypeLabel } from "@/lib/payroll";
+import { lessonTypeLabel, normalizeLessonType } from "@/lib/payroll";
 import { formatPrice, groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
+import { classLabel } from "@/lib/class-label";
 import { StatusChip, Tag } from "@/components/ui/chip";
 
 interface GroupCardProps {
@@ -72,10 +73,11 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
       </h3>
       
       <div className="relative z-10 flex flex-wrap items-center gap-2 mb-6 text-sm text-slate-500">
-        <Tag><GraduationCap className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />{group.class_level ? `${group.class_level} класс` : "Без класса"}</Tag>
-        <Tag testId="group-lesson-type">{lessonTypeLabel(group.lesson_type)}</Tag>
+        <Tag><GraduationCap className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />{classLabel(group.class_level, "Без класса")}</Tag>
+        {/* «Группа» is the rule, not news: only an individual or a pair lesson is told apart */}
+        {normalizeLessonType(group.lesson_type) !== "group" && <Tag testId="group-lesson-type">{lessonTypeLabel(group.lesson_type)}</Tag>}
         {group.teacher_name && (
-          <span className="text-slate-400 px-1 truncate max-w-[120px]">
+          <span className="text-slate-500 px-1 truncate max-w-[120px]">
             {group.teacher_name}
           </span>
         )}
@@ -111,7 +113,7 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
             <Users className="w-4 h-4 text-slate-400" />
             {group.student_count || 0} / {group.max_students || "∞"} учеников
           </span>
-          <span className="text-slate-400">{fillPct}% заполненность</span>
+          <span className="text-slate-500">{fillPct}% заполненность</span>
         </div>
         
         {group.max_students > 0 && (

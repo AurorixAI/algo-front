@@ -276,10 +276,29 @@ export function sheetHeadline(input: { total: number; dirty: boolean; payout: Pa
  * the SAVED sheet - «Показана сохранённая версия — 120 834 сум», so one sheet never reads as two totals.  The button that renews the table is in the block «Что нужно сделать», not here.  null when the
  * fresh total is the saved one (or cannot be counted): nothing to say.
  */
-export function savedTableNote(input: { payout: Partial<PayoutState> | null | undefined }): string | null {
+export function savedTableNote(input: { payout: Partial<PayoutState> | null | undefined; updatedAt?: string | null }): string | null {
   const state = normalizePayoutState(input.payout);
   if (!state || state.fresh_total === null || state.changed_by === 0) return null;
-  return `Показана сохранённая версия — ${formatMoney(state.saved_total)}`;
+  // release review 06.11: the heading of the table names the version and its total - «Сохранённая версия 05.11 · 120 834 сум»
+  const day = savedDayShort(input.updatedAt);
+  return `Сохранённая версия${day ? ` ${day}` : ""} · ${formatMoney(state.saved_total)}`;
+}
+
+/** «05.11» - the day a sheet was saved, from its UTC time of saving; "" when unknown. */
+function savedDayShort(updatedAt: string | null | undefined): string {
+  const day = formatUtcNaiveAsBusinessDateTime(updatedAt).split(" ")[0] ?? "";
+  return /^\d{2}\.\d{2}\./.test(day) ? day.slice(0, 5) : "";
+}
+
+/**
+ * The ONE line beside the big number of a sheet whose data moved after the saving (release review 06.11, rule 113: a sum is explained on the same screen):
+ * «В таблице — сохранённая версия 05.11: 120 834 сум. Сейчас начислено 75 834 сум (−45 000) — сохраните новую сумму».  null when nothing moved or the fresh total cannot be counted.
+ */
+export function sheetVersionLine(input: { payout: Partial<PayoutState> | null | undefined; updatedAt?: string | null }): string | null {
+  const state = normalizePayoutState(input.payout);
+  if (!state || state.fresh_total === null || state.changed_by === 0) return null;
+  const day = savedDayShort(input.updatedAt);
+  return `В таблице — сохранённая версия${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)}. Сейчас начислено ${formatMoney(state.fresh_total)} (${formatSignedMoney(state.changed_by)}) — сохраните новую сумму`;
 }
 
 /**
@@ -451,7 +470,7 @@ export function payoutAfterText(amount: number | null, state: PayoutState | null
   const rest = Math.max(state.balance, 0) - amount;
   if (rest > 0) return `Останется выплатить ${formatMoney(rest)}`;
   // re-audit С6: «закрыта» is a word of the month («Месяц закрыт»): here it is the rest that is 0
-  if (rest === 0) return "Это вся сумма — останется выплатить 0 сум";
+  if (rest === 0) return "Это вся сумма — останется выплатить 0 сум";
   return `Это на ${formatMoney(-rest)} ${state.basis === "fresh" ? "больше начисленного сейчас" : "больше, чем осталось выплатить"}`;
 }
 

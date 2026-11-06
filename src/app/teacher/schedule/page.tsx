@@ -20,6 +20,11 @@ import { Calendar as CalendarIcon, Clock, Plus, MapPin, Video, ChevronLeft, Chev
 import { pluralRu } from "@/lib/payments";
 import { DAYS, classCountLabel, completedLessonsProgressLabel, getLessonTimeStatus } from "@/lib/schedule-time";
 import { Modal, useScrollLock } from "@/components/ui/modal";
+import { nextStepView } from "@/components/teacher/next-action-card";
+import { todayAgenda } from "@/lib/teacher-agenda";
+import { openTodayActions, orderedTodayActions, scheduledTodayActions, todayNextStep } from "@/lib/today-actions";
+import { lessonActionTarget } from "@/lib/lesson-actions";
+import { openLessonAccess } from "@/lib/attendance-ops";
 import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
@@ -795,53 +800,44 @@ export default function TeacherSchedulePage() {
       ));
   }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate]);
 
-  const nextAction = useMemo(() => {
-    const actionableLessons = todayOccurrences.filter((lesson) => {
-      const status = lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled");
-      return status !== "completed" && status !== "cancelled";
-    });
-
-    // A scheduled slot and an actually started lesson are different states.
-    // Do not label a merely scheduled lesson as "in progress" just because
-    // its planned start time has passed.
-    const withTime = actionableLessons
-      .map((lesson) => {
-        const status = lessonStatusMap[lesson.id] || "scheduled";
-        const hasAttendance = Boolean(lessonAttendanceMap[lesson.id]);
-        return {
-          lesson,
-          status,
-          hasAttendance,
-          time: getLessonTimeStatus(lesson, todayDayOfWeek, hasAttendance, false),
-        };
-      })
-      .sort((left, right) => left.time.startMinutes - right.time.startMinutes);
-
-    const overdue = withTime.find(({ time }) => time.type === "live" && time.isPastEndTime);
-    if (overdue) {
-      return {
-        ...overdue,
-        label: overdue.status === "in_progress" ? "Завершить урок" : "Урок не начат",
-        tone: "rose" as const,
-      };
-    }
-
-    const started = withTime.find(({ status }) => status === "in_progress");
-    if (started) {
-      return {
-        ...started,
-        label: started.hasAttendance ? "Идёт урок" : "Отметить посещаемость",
-        tone: "emerald" as const,
-      };
-    }
-
-    const readyToStart = withTime.find(({ time }) => time.type === "live");
-    if (readyToStart) return { ...readyToStart, label: "Начать урок", tone: "blue" as const };
-
-    const upcoming = withTime.find(({ time }) => time.type === "upcoming");
-    if (upcoming) return { ...upcoming, label: `Через ${formatMinutesUntil(upcoming.time.diffMinutes)}`, tone: "amber" as const };
-    return null;
-  }, [todayOccurrences, lessonStatusMap, completedLessonsMap, lessonAttendanceMap, todayDayOfWeek, clockTick]);
+  // «Ближайшее действие»: the SAME function as «Главная» (lib/today-actions.ts) - one answer on both screens
+  const todayAgendaView = useMemo(
+    () => todayAgenda(todayOccurrences, (lesson) => lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled"), businessTimeMinutes()),
+    // the clock moves the phases
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [todayOccurrences, lessonStatusMap, completedLessonsMap, clockTick],
+  );
+  const todayActions = useMemo(() => orderedTodayActions({
+    open: openTodayActions({
+      actions: openAttendanceActions,
+      today: businessDate,
+      toLesson: lessonFromAttendanceAction,
+      isLocked: (action) => openLessonAccess(action, user?.org_role ?? null, businessDate).locked,
+    }),
+    scheduled: scheduledTodayActions({ entries: todayAgendaView.entries, openActions: openAttendanceActions, today: businessDate, subsequentStarted: (lesson) => Boolean(lessonPanel.getSubsequentStartedLesson(lesson)) }),
+    today: businessDate,
+  }), [openAttendanceActions, businessDate, user?.org_role, todayAgendaView, lessonPanel]);
+  const nextStep = useMemo(() => todayNextStep({
+    actions: todayActions,
+    agenda: todayAgendaView,
+    activeExam: null,
+    attentionExam: null,
+    loadFailed: !openActionsKnown,
+    today: businessDate,
+    later: null,
+  }), [todayActions, todayAgendaView, openActionsKnown, businessDate]);
+  const nextStepText = nextStepView(nextStep as never);
+  const nextActionTone = nextStepText.tone === "rose" ? "border-danger-200 bg-danger-50/70 hover:bg-danger-50 text-danger-700"
+    : nextStepText.tone === "emerald" ? "border-slate-200 bg-white hover:bg-slate-50 text-slate-800"
+    : nextStepText.tone === "amber" ? "border-warning-200 bg-warning-50/70 hover:bg-warning-50 text-warning-900"
+    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-800";
+  const openNextStep = () => {
+    if (nextStep.kind === "action") {
+      const target = lessonActionTarget(nextStep.action as never);
+      if (target.kind === "reconcile") lessonPanel.openMissedLesson(target.source as OpenAttendanceAction);
+      else openLesson(target.lesson as LessonOccurrence, "today");
+    } else if (nextStep.kind === "upcoming") openLesson(nextStep.entry.lesson, "today");
+  };
 
   const activeExamAction = useMemo(
     () => liveExams.find((exam) => exam.status === "active") || null,
@@ -863,21 +859,6 @@ export default function TeacherSchedulePage() {
       : todayKpi.notStarted > 0
         ? `Сначала начните: ${todayKpi.notStarted}`
       : `Отмечено ${todayKpi.attendanceMarked} из ${todayKpi.planned}`;
-  const nextActionTone = nextAction?.tone === "rose"
-    ? "border-rose-200 bg-rose-50/70 hover:bg-rose-50 text-rose-900"
-    : nextAction?.tone === "emerald"
-      ? "border-emerald-200 bg-emerald-50/70 hover:bg-emerald-50 text-emerald-900"
-      : nextAction?.tone === "blue"
-        ? "border-blue-200 bg-blue-50/70 hover:bg-blue-50 text-blue-900"
-        : "border-amber-200 bg-amber-50/70 hover:bg-amber-50 text-amber-900";
-  const nextActionIconTone = nextAction?.tone === "rose"
-    ? "bg-rose-100 text-rose-600"
-    : nextAction?.tone === "emerald"
-      ? "bg-emerald-100 text-emerald-600"
-      : nextAction?.tone === "blue"
-        ? "bg-blue-100 text-blue-600"
-        : "bg-amber-100 text-amber-600";
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -991,7 +972,7 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">План недели</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {weekKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">{pluralRu(weekKpi.planned, "урок", "урока", "уроков")}</span>
+              <span className="text-xs font-medium text-slate-500 ml-1.5">{pluralRu(weekKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
             <p className={`text-xs mt-1.5 leading-5 ${weekKpi.completionTarget > 0 && weekKpi.completed === weekKpi.completionTarget ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {weekKpiDescription}
@@ -1008,7 +989,7 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">Сегодня</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {todayKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">{pluralRu(todayKpi.planned, "урок", "урока", "уроков")}</span>
+              <span className="text-xs font-medium text-slate-500 ml-1.5">{pluralRu(todayKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
             <p className={`text-xs mt-1.5 leading-5 ${todayKpi.planned > 0 && todayKpi.completed === todayKpi.planned ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {todayKpiDescription}
@@ -1024,7 +1005,7 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">Посещаемость сегодня</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {todayKpi.attendanceMarked}
-              <span className="text-sm font-medium text-slate-400"> / {todayKpi.planned}</span>
+              <span className="text-sm font-medium text-slate-500"> / {todayKpi.planned}</span>
             </p>
             <p className={`text-xs mt-1.5 leading-5 ${todayKpi.attendanceNeeded > 0 ? "text-amber-700 font-semibold" : "text-slate-500"}`}>
               {attendanceKpiDescription}
@@ -1032,36 +1013,7 @@ export default function TeacherSchedulePage() {
           </div>
         </div>
 
-        {nextAction ? (
-          <button
-            type="button"
-            onClick={() => openLesson(nextAction.lesson, "today")}
-            aria-label={`${nextAction.label}: ${nextAction.lesson.groupName}, ${nextAction.lesson.startTime}`}
-            className={`rounded-2xl p-4 sm:p-5 border shadow-card min-h-[128px] flex items-start gap-4 text-left transition-colors ${nextActionTone}`}
-          >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${nextActionIconTone}`}>
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold opacity-75">Ближайшее действие</p>
-                <ArrowRight className="w-4 h-4 shrink-0 opacity-70" />
-              </div>
-              <p className="text-sm font-bold mt-1 leading-5 break-words">
-                {nextAction.lesson.startTime} · {nextAction.lesson.groupName}
-              </p>
-              <p className="text-xs mt-1.5 leading-5 font-semibold opacity-80">
-                {nextAction.label}
-              </p>
-              {nextAction.lesson.topic && (
-                <div className="mt-1.5 flex min-w-0 items-start gap-1.5 text-xs leading-5 opacity-75">
-                  <span className="shrink-0 font-semibold">Тема:</span>
-                  <span className="min-w-0 line-clamp-2 break-words">{nextAction.lesson.topic}</span>
-                </div>
-              )}
-            </div>
-          </button>
-        ) : activeExamAction ? (
+        {(nextStep.kind === "closed" || nextStep.kind === "failed") && activeExamAction ? (
           <Link
             href={`/teacher/exams/${activeExamAction.exam_id}`}
             className="rounded-2xl p-4 sm:p-5 border border-primary-200 bg-primary-50/60 shadow-card min-h-[128px] flex items-start gap-4 text-left transition-colors hover:bg-primary-50"
@@ -1080,14 +1032,26 @@ export default function TeacherSchedulePage() {
             </div>
           </Link>
         ) : (
-          <div className="bg-slate-50/70 rounded-2xl p-4 sm:p-5 border border-slate-200/80 min-h-[128px] flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-6 h-6" />
+          <div
+            role={nextStep.kind === "action" || nextStep.kind === "upcoming" ? "button" : undefined}
+            tabIndex={nextStep.kind === "action" || nextStep.kind === "upcoming" ? 0 : undefined}
+            onClick={nextStep.kind === "action" || nextStep.kind === "upcoming" ? openNextStep : undefined}
+            onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && (nextStep.kind === "action" || nextStep.kind === "upcoming")) { event.preventDefault(); openNextStep(); } }}
+            data-testid="schedule-next-step"
+            aria-label={nextStep.kind === "action" ? `Ближайшее действие: ${nextStep.action.lesson.groupName}, ${nextStep.action.lesson.startTime}` : nextStep.kind === "upcoming" ? `Ближайший урок: ${nextStep.entry.lesson.groupName}, ${nextStep.entry.lesson.startTime}` : undefined}
+            data-step={nextStep.kind}
+            className={`flex min-h-[128px] items-start gap-4 rounded-card border p-4 text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:p-5 ${nextActionTone}`}
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-slate-100 text-slate-600">
+              {nextStep.kind === "closed" ? <CheckCircle2 className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500 font-semibold">Ближайшее действие</p>
-              <p className="text-sm font-bold text-slate-800 mt-2">На сегодня всё</p>
-              <p className="text-xs text-slate-500 mt-1.5 leading-5">Нет уроков, требующих действия</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold opacity-75">Ближайшее действие</p>
+                {(nextStep.kind === "action" || nextStep.kind === "upcoming") && <ArrowRight className="h-4 w-4 shrink-0 opacity-70" />}
+              </div>
+              <p className="mt-1 break-words text-sm font-bold leading-5">{nextStepText.title}</p>
+              <p className="mt-1.5 text-xs font-semibold leading-5 opacity-80">{nextStepText.description}</p>
             </div>
           </div>
         )}
@@ -1106,7 +1070,7 @@ export default function TeacherSchedulePage() {
                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
             }`}
           >
-            <Clock className={`w-3.5 h-3.5 ${viewMode === "today" ? "text-primary-600" : "text-slate-400"}`} />
+            <Clock className={`w-3.5 h-3.5 ${viewMode === "today" ? "text-primary-600" : "text-slate-500"}`} />
             <span>Сегодня</span>
             <span
               className={`text-[11px] px-2 py-0.5 rounded-full font-bold transition-colors ${
@@ -1128,7 +1092,7 @@ export default function TeacherSchedulePage() {
                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
             }`}
           >
-            <CalendarIcon className={`w-3.5 h-3.5 ${viewMode === "week" ? "text-primary-600" : "text-slate-400"}`} />
+            <CalendarIcon className={`w-3.5 h-3.5 ${viewMode === "week" ? "text-primary-600" : "text-slate-500"}`} />
             <span>На неделю</span>
             <span
               className={`text-[11px] px-2 py-0.5 rounded-full font-bold transition-colors ${
@@ -1177,7 +1141,7 @@ export default function TeacherSchedulePage() {
               </span>
               <ChevronDown
                 className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isGroupFilterOpen ? "rotate-180 text-primary-600" : "text-slate-400"
+                  isGroupFilterOpen ? "rotate-180 text-primary-600" : "text-slate-500"
                 }`}
               />
             </button>
@@ -1333,7 +1297,7 @@ export default function TeacherSchedulePage() {
                             data-out={off}
                             className="cursor-pointer rounded-xl border border-slate-200 border-l-4 border-l-slate-300 bg-slate-50 p-2.5 text-left opacity-75 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary-500"
                           >
-                            <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-400 line-through">
+                            <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500 line-through">
                               <Clock className="h-3 w-3 shrink-0" />
                               {timeRange(l.startTime, l.endTime)}
                             </div>
@@ -1357,7 +1321,7 @@ export default function TeacherSchedulePage() {
                               <Clock className="w-3 h-3 text-slate-400" />
                               {l.isRescheduled && l.originalStartTime ? (
                                 <>
-                                  <span className="text-slate-400 line-through">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
+                                  <span className="text-slate-500 line-through">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
                                   <span>→ {timeRange(l.startTime, l.endTime)}</span>
                                 </>
                               ) : (
@@ -1405,7 +1369,7 @@ export default function TeacherSchedulePage() {
                 <div className="p-2 border-t border-slate-50">
                   <button
                     onClick={() => openAddModal(day.id)}
-                    className="w-full py-1 text-[11px] text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex items-center justify-center gap-1 font-medium"
+                    className="w-full py-1 text-[11px] text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex items-center justify-center gap-1 font-medium"
                   >
                     <Plus className="w-3 h-3" /> Добавить
                   </button>
@@ -1420,26 +1384,23 @@ export default function TeacherSchedulePage() {
       {/* VIEW: TODAY */}
       {viewMode === "today" && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-r from-primary-600 to-indigo-700 text-white rounded-3xl p-6 sm:p-8 shadow-md">
+          <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-semibold text-primary-200">
+                <span className="text-xs font-semibold text-primary-700">
                   План на сегодня
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold mt-1">
+                <h2 className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">
                   {DAYS.find((d) => d.id === todayDayOfWeek)?.name},{" "}
                   {formatBusinessDateLabel({ day: "numeric", month: "long" })}
                 </h2>
-                <p className="text-primary-100 text-sm mt-1">
+                <p className="mt-1 text-sm text-slate-600">
                   Всего запланировано {classCountLabel(todayKpi.planned)}
                 </p>
               </div>
-              <button
-                onClick={() => switchViewMode("week")}
-                className="px-4 py-2.5 bg-white text-primary-700 font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm text-sm self-start sm:self-auto"
-              >
+              <Button variant="secondary" onClick={() => switchViewMode("week")} className="self-start sm:self-auto">
                 Изменить расписание
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -1447,7 +1408,7 @@ export default function TeacherSchedulePage() {
             <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
               <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-slate-300" />
               <p className="text-slate-700 font-semibold">На сегодня занятий нет</p>
-              <p className="text-slate-400 text-sm mt-1">
+              <p className="text-slate-500 text-sm mt-1">
                 Для нового постоянного занятия откройте режим «Неделя»
               </p>
             </div>
@@ -1491,7 +1452,7 @@ export default function TeacherSchedulePage() {
                           <Clock className="w-3.5 h-3.5 text-primary-600" />
                           {l.isRescheduled && l.originalStartTime ? (
                             <>
-                              <span className="line-through text-slate-400">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
+                              <span className="line-through text-slate-500">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
                               <span>→ {timeRange(l.startTime, l.endTime)}</span>
                             </>
                           ) : (
@@ -1581,7 +1542,7 @@ export default function TeacherSchedulePage() {
                           </>
                         ) : null}
                       </span>
-                      <span className="text-primary-600 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                      <span className="flex min-h-10 items-center gap-1 font-semibold text-primary-700 transition-transform group-hover:translate-x-0.5">
                         {lessonStatus === "cancelled"
                           ? (isMovedAway(l.substitutionOutcome) ? "Детали" : "Причина отмены")
                           : subsequentLesson
@@ -1656,7 +1617,7 @@ export default function TeacherSchedulePage() {
                     <p className="text-xs font-bold text-slate-800">
                       {capitalizeFirst(formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" }))}
                     </p>
-                    <p className={`mt-0.5 text-xs ${row.label === "Перенесён" || row.label === "Отменён" ? "text-slate-400 line-through" : "text-slate-500"}`}>{timeRange(row.lesson.startTime, row.lesson.endTime)}</p>
+                    <p className={`mt-0.5 text-xs ${row.label === "Перенесён" || row.label === "Отменён" ? "text-slate-500 line-through" : "text-slate-500"}`}>{timeRange(row.lesson.startTime, row.lesson.endTime)}</p>
                   </div>
                   <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
                     <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>

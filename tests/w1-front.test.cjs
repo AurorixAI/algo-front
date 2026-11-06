@@ -664,7 +664,7 @@ test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and
     assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, (?:host\.)?user\?\.id\)/, file);
   }
   assert.match(read("src/lib/teacher-agenda.ts"), /if \(lesson\.replacedBy\) return false;/, "no «Начните урок» for a lesson a substitute leads: it is not in the day of the teacher (#158, one function)");
-  assert.match(read("src/app/teacher/dashboard/page.tsx"), /entry\.phase !== "to_start"/);
+  assert.match(read("src/lib/today-actions.ts"), /entry\.phase !== "to_start"/);
 });
 
 test("lead notes: the state of the lesson is a badge, «каб. 12» does not break; the kind of the decision is brought into view on a phone", () => {

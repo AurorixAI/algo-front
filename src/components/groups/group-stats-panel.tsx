@@ -64,7 +64,7 @@ export function GroupStatsPanel({ stats }: GroupStatsPanelProps) {
             />
           </div>
           {stats.undiagnosed_count > 0 && (
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Ещё {stats.undiagnosed_count} {stats.undiagnosed_count === 1 ? "ученик" : "учеников"} не прошли диагностику
             </p>
           )}
@@ -90,7 +90,7 @@ export function GroupStatsPanel({ stats }: GroupStatsPanelProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${lvl.textColor}`}>{lvl.count} чел.</span>
-                      <span className="text-xs text-slate-400">({pct}%)</span>
+                      <span className="text-xs text-slate-500">({pct}%)</span>
                     </div>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -135,7 +135,7 @@ export function GroupStatsPanel({ stats }: GroupStatsPanelProps) {
       )}
 
       {diagnosed_count === 0 && (
-        <div className="flex flex-col items-center justify-center py-8 text-slate-400 text-center">
+        <div className="flex flex-col items-center justify-center py-8 text-slate-500 text-center">
           <Target className="w-10 h-10 mb-2 opacity-30" />
           <p className="text-sm font-medium">Нет данных диагностики</p>
           <p className="text-xs mt-1">Запустите диагностику для учеников группы</p>

@@ -238,6 +238,19 @@ body {
   }
 }
 
+@media print {
+  /* a printed sheet is a document: a white page, no tinted backdrop, nothing under 10 px (release review 06.11) */
+  html,
+  body,
+  main {
+    background: #fff !important;
+  }
+  table,
+  table * {
+    font-size: max(10px, 1em);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .math-renderer.math-block,
   .math-renderer .katex-display,

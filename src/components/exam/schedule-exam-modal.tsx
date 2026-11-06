@@ -206,7 +206,7 @@ export function ScheduleExamModal({
         <div className="flex items-center gap-2.5 px-0.5">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-[11px] font-extrabold text-primary-700">1</span>
           <p className="text-xs font-semibold text-slate-600">Группа</p>
-          <span className="text-xs text-slate-400">Выберите класс</span>
+          <span className="text-xs text-slate-500">Выберите класс</span>
         </div>
         <div className="grid max-h-40 grid-cols-1 gap-2 overflow-y-auto rounded-2xl bg-slate-100/80 p-2 sm:grid-cols-2">
           {groups.map((group) => (
@@ -227,12 +227,12 @@ export function ScheduleExamModal({
         <div className="flex items-center gap-2.5 px-0.5">
           <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold ${selectedGroup ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-500"}`}>2</span>
           <p className="text-xs font-semibold text-slate-600">Занятие</p>
-          {selectedGroup && <span className="text-xs text-slate-400">Ближайшее по расписанию</span>}
+          {selectedGroup && <span className="text-xs text-slate-500">Ближайшее по расписанию</span>}
         </div>
         {loadingLessons || (selectedGroup && !statusesReady && !statusError) ? (
           <div className="rounded-2xl bg-slate-100/80 px-4 py-4 text-sm font-medium text-slate-500">Загружаем ближайшие занятия…</div>
         ) : !selectedGroup ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-4 text-sm text-slate-400">Сначала выберите группу.</div>
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-4 text-sm text-slate-500">Сначала выберите группу.</div>
         ) : statusError ? (
           <div className="flex flex-col gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
             <span>Не удалось проверить статус занятий: {statusError}</span>

@@ -55,7 +55,7 @@ export function GroupPriceHistoryModal({
                       </p>
                       {item.note && <p className="break-words text-xs text-slate-600">{item.note}</p>}
                       {item.changes.map((line) => <p key={line} className="text-xs text-slate-500">{line}</p>)}
-                      {item.author && <p className="text-[11px] text-slate-400">{item.author}</p>}
+                      {item.author && <p className="text-[11px] text-slate-500">{item.author}</p>}
                       {item.status === "future" && (
                         <button type="button" onClick={() => setCancelTarget(item)} className="mt-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">
                           Отменить
@@ -68,7 +68,7 @@ export function GroupPriceHistoryModal({
             )}
             {cancelled.length > 0 && (
               <div className="border-t border-slate-100 pt-2.5">
-                <p className="text-xs font-semibold text-slate-400">Отменённые</p>
+                <p className="text-xs font-semibold text-slate-500">Отменённые</p>
                 <ul aria-label="Отменённые цены" className="mt-1 space-y-0.5">
                   {cancelled.map((item, index) => <li key={index} className="text-xs text-slate-500">{groupCancelledLine(item)}</li>)}
                 </ul>

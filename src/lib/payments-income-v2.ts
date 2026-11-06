@@ -989,7 +989,7 @@ export function donutCenterAmount(amount: number): { text: string; title: string
   };
   const write = ({ rounded, factor }: { rounded: number; factor: number }, unit: string) => {
     const frac = String(rounded % factor).padStart(String(factor).length - 1, "0").replace(/0+$/, "");
-    return `${Math.floor(rounded / factor)}${frac ? `,${frac}` : ""} ${unit} сум`;
+    return `${Math.floor(rounded / factor)}${frac ? `,${frac}` : ""} ${unit} сум`;
   };
   const million = scaled(1_000_000);
   if (amount < 1_000_000_000 && million.rounded < 1000 * million.factor) return { text: write(million, "млн"), title };
@@ -1385,7 +1385,7 @@ export interface DrawerView {
 export function humanDestinationLine(line: string): string {
   let out = line.trim();
   out = out.replace(/^за (\d{1,2}\.\d{2}\s*[–-]\s*\d{1,2}\.\d{2})/, "за период $1");
-  out = out.replace(/(—|-)\s*(\d[\d\s\u00a0\u202f]*)$/, (_all, dash: string, amount: string) => `${dash} ${amount.trim()} сум`);
+  out = out.replace(/(—|-)\s*(\d[\d\s\u00a0\u202f]*)$/, (_all, dash: string, amount: string) => `${dash} ${amount.trim()} сум`);
   return out;
 }
 

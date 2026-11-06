@@ -645,7 +645,7 @@ const plainSum = (value: number): string => formatMoney(value).replace(/[\s\u00a
 
 /** «Сум» after a number in a card (the table says it in the header of the column). */
 function Unit() {
-  return <span className="xl:hidden"> сум</span>;
+  return <span className="xl:hidden"> сум</span>;
 }
 
 /** The three numbers of a row, one cell each: at 1280 the cells of the grid, below it a row of three with their captions (UX pack §5.2). */

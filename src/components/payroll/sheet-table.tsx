@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1 print:px-1 print:py-1";
-const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-[11px] whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-xs whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
 /**
  * Alignment (owner 21.10): the student is left; money (the price, «Заработано») is a ledger - right-aligned, and its header is
  * right-aligned over the same digits (same padding); dates, percent and counts are centred under centred headers.
@@ -71,12 +71,12 @@ function PriceCell({ view, compact = false, freshPrice }: { view: LineView; comp
       ) : (
         <span className="whitespace-nowrap tabular-nums">{price.text}</span>
       )}
-      {after && <span className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-600 print:text-black">после пересчёта: {formatMoney(freshPrice)}</span>}
-      {price.tag && <span className="text-[10px] font-medium text-primary-700 print:text-black">{price.tag}</span>}
+      {after && <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-600 print:text-black">после пересчёта: {formatMoney(freshPrice)}</span>}
+      {price.tag && <span className="text-xs font-medium text-primary-700 print:text-black">{price.tag}</span>}
       {price.note && (
         price.steps
-          ? <Hint text={price.steps} className="text-[10px] font-medium text-amber-700 print:text-black">{price.note}</Hint>
-          : <span className="text-[10px] font-medium text-amber-700 print:text-black">{price.note}</span>
+          ? <Hint text={price.steps} className="text-xs font-medium text-amber-700 print:text-black">{price.note}</Hint>
+          : <span className="text-xs font-medium text-amber-700 print:text-black">{price.note}</span>
       )}
     </div>
   );
@@ -119,10 +119,10 @@ function SheetLegend() {
   const looks: Record<string, string> = {
     counted: "font-semibold text-slate-800",
     zero: "font-bold text-rose-600 print:text-black",
-    pending: "rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
+    pending: "rounded bg-amber-100 px-1 text-xs font-semibold text-amber-800 print:bg-transparent print:text-black",
     unpaid: "rounded border border-dashed border-slate-300 px-1 text-slate-500",
-    undecided: "rounded border border-dashed border-amber-400 bg-amber-50 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
-    no_pay: "rounded bg-slate-100 px-1 text-[11px] font-semibold text-slate-500 print:bg-transparent print:text-black",
+    undecided: "rounded border border-dashed border-amber-400 bg-amber-50 px-1 text-xs font-semibold text-amber-800 print:bg-transparent print:text-black",
+    no_pay: "rounded bg-slate-100 px-1 text-xs font-semibold text-slate-500 print:bg-transparent print:text-black",
   };
   return (
     <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600 print:flex-nowrap print:gap-x-2 print:whitespace-nowrap print:px-1 print:text-[9px]">
@@ -168,7 +168,7 @@ export function PayrollSheetTable({
   const priceColumn = priceColumnLabel(priceLabelProp ?? centreLabel);
 
   // re-audit С1: the caption is the HEAD of the table (a line of text over its blocks, not a card of its own) and an empty table has none (nothing to say a version of)
-  const captionNode = caption ? <p data-testid="saved-table-note" className="px-1 text-xs font-semibold text-slate-700 print:text-black">{caption}</p> : null;
+  const captionNode = caption ? <h3 data-testid="saved-table-note" className="mb-2 text-sm font-semibold text-slate-800 print:text-black">{caption}</h3> : null;
   if (sheet.lines.length === 0) {
     return (
       <div className="space-y-3">
@@ -228,7 +228,7 @@ export function PayrollSheetTable({
               aria-label={`Таблица группы ${block.groupName}${showDates ? ": прокручивается вбок" : ""}`}
               className="relative max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible"
             >
-              <table className="w-full border-collapse text-sm print:text-[11px]">
+              <table className="w-full border-collapse text-sm print:text-xs">
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem] max-sm:min-w-[5.5rem]"} bg-slate-50`}>Ученик</th>
@@ -259,16 +259,16 @@ export function PayrollSheetTable({
                       <tr key={line.line_key ?? id} className={`border-b border-slate-100 last:border-b-0 print:break-inside-avoid ${split.first ? "" : "border-t-0"}`}>
                         <th scope="row" className={`${CELL} ${showDates ? `${STICKY} bg-white shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none` : ""} text-left font-medium text-slate-900`}>
                           <span className={split.first ? "block break-words leading-tight" : "sr-only"}>{line.student_name}</span>
-                          {split.first && line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-500">{line.display_id}</span>}
+                          {split.first && line.display_id && <span className="block font-mono text-xs font-normal text-slate-500">{line.display_id}</span>}
                           {split.typeLabel && <span className="block text-xs font-medium text-slate-600" data-testid="split-type">{split.typeLabel}</span>}
                           {line.pending_excused > 0 && (
-                            <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
+                            <span className="block text-xs font-normal text-amber-700">ожидает: {line.pending_excused}</span>
                           )}
                           {(line.undecided ?? 0) > 0 && (
-                            <span data-testid="line-undecided" className="block text-[11px] font-normal text-amber-700">не решено: {line.undecided}</span>
+                            <span data-testid="line-undecided" className="block text-xs font-normal text-amber-700">не решено: {line.undecided}</span>
                           )}
                           {(line.no_pay ?? 0) > 0 && (
-                            <span data-testid="line-no-pay" className="block text-[11px] font-normal text-slate-500">{noPayLineText(line.no_pay ?? 0)}</span>
+                            <span data-testid="line-no-pay" className="block text-xs font-normal text-slate-500">{noPayLineText(line.no_pay ?? 0)}</span>
                           )}
                           {/* a phone has no room for the price column: the price is the second line of the name */}
                           <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>

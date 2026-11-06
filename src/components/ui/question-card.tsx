@@ -44,7 +44,7 @@ export function QuestionCard({ topic, children, meta, questionKey, className }: 
 
         {/* Topic tag */}
         {topic && (
-          <span className="block mb-4 md:mb-5 uppercase tracking-[0.25em] text-[10px] font-bold text-slate-400">
+          <span className="block mb-4 md:mb-5 uppercase tracking-[0.25em] text-[10px] font-bold text-slate-500">
             {topic}
           </span>
         )}

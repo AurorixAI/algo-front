@@ -334,7 +334,7 @@ export function RequestBody({
                     const why = entry.blockReason ? MY_LESSON_BLOCK_TEXT[entry.blockReason] : null;
                     return (
                       <li key={key}>
-                        <label className={`flex items-start gap-3 px-3 py-2.5 text-sm ${blocked ? "cursor-not-allowed bg-slate-50 text-slate-400" : "cursor-pointer hover:bg-slate-50"}`}>
+                        <label className={`flex items-start gap-3 px-3 py-2.5 text-sm ${blocked ? "cursor-not-allowed bg-slate-50 text-slate-500" : "cursor-pointer hover:bg-slate-50"}`}>
                           <Checkbox
                             className="mt-0.5"
                             checked={!blocked && picked.has(key)}

@@ -344,7 +344,7 @@ function Calendar({
       <div ref={gridRef} role="grid" aria-label={`${MONTHS_NOMINATIVE_CAP[shown.month - 1]} ${shown.year}`}>
         <div role="row" className="grid grid-cols-7">
           {WEEKDAYS_RU.map((name, index) => (
-            <div key={name} role="columnheader" className={cn("flex h-7 items-center justify-center text-[11px] font-semibold uppercase tracking-wide", index >= 5 ? "text-rose-400" : "text-slate-400")}>{name}</div>
+            <div key={name} role="columnheader" className={cn("flex h-7 items-center justify-center text-[11px] font-semibold uppercase tracking-wide", index >= 5 ? "text-rose-400" : "text-slate-500")}>{name}</div>
           ))}
         </div>
         {weeks.map((week) => (

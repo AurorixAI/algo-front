@@ -114,7 +114,7 @@ function SkillTreeAccordion({
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                 l1Selected > 0 ? "bg-primary-100" : "bg-slate-100"
               }`}>
-                <Layers className={`w-4 h-4 ${l1Selected > 0 ? "text-primary-600" : "text-slate-400"}`} />
+                <Layers className={`w-4 h-4 ${l1Selected > 0 ? "text-primary-600" : "text-slate-500"}`} />
               </div>
               <span className="font-semibold text-slate-900 text-[15px] flex-1 text-left">
                 {l1.name_ru || l1.name}
@@ -188,7 +188,7 @@ function SkillTreeAccordion({
                                       {l3.name_ru || l3.name}
                                     </span>
                                     {l3HasL4 && (
-                                      <span className="text-xs text-slate-400 flex-shrink-0">
+                                      <span className="text-xs text-slate-500 flex-shrink-0">
                                         {l3Selected > 0 ? `${l3Selected}/${l3Leaves.length}` : l3Leaves.length}
                                       </span>
                                     )}
@@ -303,7 +303,7 @@ function TOCTreeView({
                 {displayName}
               </span>
               {node.page_start && (
-                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-mono shrink-0">
+                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-mono shrink-0">
                   с. {node.page_start}{node.page_end ? `–${node.page_end}` : ""}
                 </span>
               )}
@@ -611,7 +611,7 @@ export default function NewExamPage() {
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors duration-200 ${
                     step === s.num ? "bg-primary-500 text-white shadow-lg shadow-primary-500/30 scale-105"
-                    : step > s.num ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
+                    : step > s.num ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                   } ${s.num <= step ? "cursor-pointer" : "cursor-not-allowed"}`}
                 >
                   {step > s.num ? <Check className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
@@ -731,7 +731,7 @@ export default function NewExamPage() {
                         )}
                       </div>
                       {loadingAPI ? (
-                        <div className="flex items-center justify-center py-12 text-slate-400">
+                        <div className="flex items-center justify-center py-12 text-slate-500">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                           Загрузка программы...
                         </div>
@@ -740,7 +740,7 @@ export default function NewExamPage() {
                           Программа временно недоступна. Повторите загрузку выше.
                         </div>
                       ) : apiSkillTree.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400">
+                        <div className="text-center py-12 text-slate-500">
                           {config.classId ? "Нет тем для этого класса" : "Выберите класс на шаге 1"}
                         </div>
                       ) : (
@@ -767,7 +767,7 @@ export default function NewExamPage() {
                       {/* Textbook selection */}
                       {!selectedTextbookId ? (
                         loadingAPI ? (
-                          <div className="flex items-center justify-center py-12 text-slate-400">
+                          <div className="flex items-center justify-center py-12 text-slate-500">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                             Загрузка учебников...
                           </div>
@@ -776,7 +776,7 @@ export default function NewExamPage() {
                             Учебники временно недоступны. Повторите загрузку выше.
                           </div>
                         ) : filteredTextbooks.length === 0 ? (
-                          <div className="text-center py-12 text-slate-400">
+                          <div className="text-center py-12 text-slate-500">
                             {config.classId ? "Учебники для этого класса ещё не загружены" : "Выберите класс на шаге 1"}
                           </div>
                         ) : (
@@ -812,7 +812,7 @@ export default function NewExamPage() {
                             </div>
                           </div>
                           {loadingAPI ? (
-                            <div className="flex items-center justify-center py-8 text-slate-400">
+                            <div className="flex items-center justify-center py-8 text-slate-500">
                               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mr-3" />
                               Загрузка оглавления...
                             </div>
@@ -875,7 +875,7 @@ export default function NewExamPage() {
                         </div>
                         <Slider id="exam-new-questions-count" min={5} max={20} value={config.questionsCount}
                           onChange={(next) => setConfig({ ...config, questionsCount: next })} />
-                        <div className="flex justify-between text-[10px] text-slate-400 mt-1"><span>5</span><span>10</span><span>15</span><span>20</span></div>
+                        <div className="flex justify-between text-[10px] text-slate-500 mt-1"><span>5</span><span>10</span><span>15</span><span>20</span></div>
                       </div>
 
                       {/* Duration */}
@@ -972,7 +972,7 @@ export default function NewExamPage() {
                         <div className="bg-amber-400 transition-all duration-300" style={{ width: `${config.difficulty.medium}%` }} />
                         <div className="bg-red-400 transition-all duration-300" style={{ width: `${config.difficulty.hard}%` }} />
                       </div>
-                      <div className="flex justify-between text-[10px] text-slate-400">
+                      <div className="flex justify-between text-[10px] text-slate-500">
                         <span>Лёгкие {config.difficulty.easy}%</span>
                         <span>Средние {config.difficulty.medium}%</span>
                         <span>Сложные {config.difficulty.hard}%</span>
@@ -1156,7 +1156,7 @@ export default function NewExamPage() {
                               <Users className="w-3.5 h-3.5 text-primary-600" />
                               <span className="font-semibold">{selectedGroup.name}</span>
                               {selectedGroup.students_count ? (
-                                <span className="text-slate-400 text-[11px]">({selectedGroup.students_count} уч.)</span>
+                                <span className="text-slate-500 text-[11px]">({selectedGroup.students_count} уч.)</span>
                               ) : null}
                             </div>
                           )}
@@ -1184,7 +1184,7 @@ export default function NewExamPage() {
                             <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
                               {config.duration} <span className="text-xs font-medium text-slate-500">мин</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5">Лимит времени</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">Лимит времени</div>
                           </div>
                         </div>
 
@@ -1200,7 +1200,7 @@ export default function NewExamPage() {
                             <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
                               1 <span className="text-xs font-medium text-slate-500">вар.</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5">
+                            <div className="text-[11px] text-slate-500 mt-0.5">
                               Один вариант
                             </div>
                           </div>
@@ -1218,7 +1218,7 @@ export default function NewExamPage() {
                             <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
                               {config.questionsCount} <span className="text-xs font-medium text-slate-500">задач</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5">В каждом варианте</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">В каждом варианте</div>
                           </div>
                         </div>
 
@@ -1238,7 +1238,7 @@ export default function NewExamPage() {
                                   ? "Учебник"
                                   : "Свои"}
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                            <div className="text-[11px] text-slate-500 mt-0.5 truncate">
                               {config.sourceType === "topics"
                                 ? `${config.selectedTopics.size} навыков`
                                 : config.sourceType === "textbook"
@@ -1252,7 +1252,7 @@ export default function NewExamPage() {
                       {/* Bottom Options Row */}
                       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-slate-400 font-medium">Опции:</span>
+                          <span className="text-slate-500 font-medium">Опции:</span>
                           {config.mode === "online" ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                               <Shuffle className="w-3 h-3" />
@@ -1266,7 +1266,7 @@ export default function NewExamPage() {
                           )}
                         </div>
 
-                        <div className="text-slate-400 text-[11px]">
+                        <div className="text-slate-500 text-[11px]">
                           ⚡ Экзамен формируется алгоритмом ALGO
                         </div>
                       </div>

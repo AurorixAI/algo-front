@@ -272,7 +272,7 @@ export function CascadingFilter({ teachers, groups, value, onChange, allLabel = 
                         aria-label={`Группы преподавателя ${staffDisplayName(teacher)}`}
                         title="Группы"
                         onClick={() => dispatch({ type: "expand", teacherId: teacher.id })}
-                        className="shrink-0 px-3 flex items-center text-slate-400 hover:text-slate-700"
+                        className="shrink-0 px-3 flex items-center text-slate-500 hover:text-slate-700"
                       >
                         <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180 text-slate-600" : ""}`} />
                       </button>

@@ -210,7 +210,7 @@ function StepBar({ step }: { step: Step }) {
       {labels.map((label, i) => (
         <div key={label} className="flex items-center gap-2 flex-1">
           <div className={`flex items-center gap-2 ${i <= idx ? "text-primary-600" : "text-slate-300"}`}>
-            <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${i < idx ? "bg-primary-600 text-white" : i === idx ? "bg-primary-100 text-primary-700 ring-2 ring-primary-500" : "bg-slate-100 text-slate-400"}`}>
+            <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${i < idx ? "bg-primary-600 text-white" : i === idx ? "bg-primary-100 text-primary-700 ring-2 ring-primary-500" : "bg-slate-100 text-slate-500"}`}>
               {i < idx ? <Check className="w-3.5 h-3.5" /> : i + 1}
             </div>
             <span className="text-xs font-medium hidden sm:inline">{label}</span>
@@ -274,7 +274,7 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, clearFile
                 aria-label="Убрать файл"
                 title="Убрать файл"
                 onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -283,7 +283,7 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, clearFile
             <div className="flex flex-col items-center gap-2 text-slate-500">
               <Upload className="w-8 h-8 text-slate-400" />
               <p className="text-sm font-medium">Перетащите файл сюда или нажмите для выбора</p>
-              <p className="text-xs text-slate-400">Только .xlsx, до 5 МБ</p>
+              <p className="text-xs text-slate-500">Только .xlsx, до 5 МБ</p>
             </div>
           )}
         </div>
@@ -299,7 +299,7 @@ function CountPill({ icon, label, created, existing }: { icon: React.ReactNode; 
       <div className="flex items-center gap-2 text-slate-500 text-xs font-medium mb-1">{icon}{label}</div>
       <div className="flex items-baseline gap-2">
         <span className="text-2xl font-bold text-emerald-600">+{created}</span>
-        {existing > 0 && <span className="text-xs text-slate-400">{existing} уже есть</span>}
+        {existing > 0 && <span className="text-xs text-slate-500">{existing} уже есть</span>}
       </div>
     </div>
   );

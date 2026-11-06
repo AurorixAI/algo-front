@@ -334,7 +334,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     })
     : null;
   // R2-2а: the card says the number of now, the table (and the Excel file) the lines of the saved sheet - the table says so
-  const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout }) : null;
+  const tableNote = sheet && !dirty ? savedTableNote({ payout: sheet.payout, updatedAt: sheet.updated_at }) : null;
   // UX pack §5.2-бис: the block «Что нужно сделать» over the card - only what needs an action, each item with its button; the saving of a changed salary is the button of the item
   const counts = warningsFailed ? sheet?.warnings : freshWarnings;
   const todo = sheet ? sheetTodoItems({

@@ -94,7 +94,7 @@ export function OneOffPurposeFields({ idPrefix, role, choice, onChoice, makeup, 
           data-testid={`${idPrefix}-purpose-${value}`}
           onClick={() => { if (!off) pick(value); }}
           className={`${CARD} w-full ${
-            off ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+            off ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500"
               : on ? "border-primary-500 bg-primary-50 text-primary-800 ring-1 ring-primary-200"
                 : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
           }`}

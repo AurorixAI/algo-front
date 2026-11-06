@@ -155,7 +155,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     disabled={isResolvingMissedLesson}
                     onClick={() => setMissedLessonAction(null)}
                     aria-label="Закрыть"
-                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -299,7 +299,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                   <button
                     onClick={() => void requestClose()}
                     aria-label="Закрыть"
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                    className="p-2 text-slate-500 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -334,7 +334,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     {notYourLessonText(activeTeacherInfo ?? { teacherName: activeLesson.replacedBy?.name ?? null })} Отметки, перенос и отмена — у него.
                   </p>
                 ) : loadingStudents ? (
-                    <div className="py-8 text-center text-xs text-slate-400 animate-pulse">
+                    <div className="py-8 text-center text-xs text-slate-500 animate-pulse">
                       Загрузка данных урока...
                     </div>
                   ) : groupStudents.length === 0 ? (

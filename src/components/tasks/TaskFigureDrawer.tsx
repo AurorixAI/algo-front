@@ -261,7 +261,7 @@ export function TaskFigureDrawer({
               className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="text-xs text-slate-400 font-medium">Чертежи:</span>
+              <span className="text-xs text-slate-500 font-medium">Чертежи:</span>
               {urls.map((_, idx) => (
                 <button
                   key={idx}

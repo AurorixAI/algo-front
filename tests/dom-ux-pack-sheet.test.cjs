@@ -1,5 +1,5 @@
 // UX pack №3 / №19 in a real browser: the page of the sheet of a month that moved after the saving (saved 120 834, accrued now 75 834, paid ahead 150 000).  On the SCREEN: the card says «Начислено на сегодня»
-// with the number of today and the saved one in a line; the table has its caption in the head («Показана сохранённая версия — 120 834 сум»).  In PRINT the document has ONE total - the saved one - and one line
+// with the number of today and the saved one in a line; the table has its caption in the head («Сохранённая версия 05.11 · 120 834 сум»).  In PRINT the document has ONE total - the saved one - and one line
 // about the accrual of today; the legend is one line.  The CSS is the project's tailwind.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -47,7 +47,7 @@ const visible = (page, selector) => page.evaluate((s) => { const el = document.q
 
 test("on the screen: the caption in the head of the table, the number of today in the card, the saved one in a line; no print block", async () => {
   const { page } = await open(1280);
-  assert.equal(plain(await page.textContent('[data-testid="saved-table-note"]')), "Показана сохранённая версия — 120 834 сум");
+  assert.equal(plain(await page.textContent('[data-testid="saved-table-note"]')), "Сохранённая версия 05.11 · 120 834 сум");
   assert.equal(plain(await page.textContent('[data-testid="payroll-total"]')), "75 834 сум");
   assert.equal(await visible(page, '[data-testid="sheet-print-totals"]'), false, "the print block is not on the screen");
   await page.close();

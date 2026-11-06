@@ -516,7 +516,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
 
         <div>
           <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
-            Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
+            Причина изменения <span className="font-normal text-slate-500">(необязательно)</span>
           </label>
           <textarea
             id="sched-edit-prichina-izmeneniya"

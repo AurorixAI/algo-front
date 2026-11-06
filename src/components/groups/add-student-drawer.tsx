@@ -1,6 +1,7 @@
 "use client";
 
 import { TAP_ZONE } from "@/lib/tap-zone";
+import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
 import { useState, useEffect, useCallback } from "react";
 import { Search, Check, Loader2 } from "lucide-react";
@@ -494,7 +495,7 @@ export function AddStudentDrawer({
                       {s.full_name || `${s.last_name} ${s.first_name}`}
                     </p>
                     <p className="text-xs text-slate-500 break-words">
-                      {s.class_level} класс
+                      {classLabel(s.class_level)}
                       {namesakeDetail(s, available) && <span data-testid="namesake-detail"> · {namesakeDetail(s, available)}</span>}
                       {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
                         <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>

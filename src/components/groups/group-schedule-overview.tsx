@@ -416,7 +416,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                 // a phone: an empty day is one quiet line, not a tall dashed box (the desktop grid keeps its seven columns)
                 <div key={date} className={`p-4 xl:px-3 md:min-h-[220px] ${empty ? "max-md:px-4 max-md:py-2.5" : ""} ${isToday ? "bg-primary-50/45" : "bg-white"}`}>
                   {empty && (
-                    <p className="text-xs text-slate-400 md:hidden">
+                    <p className="text-xs text-slate-500 md:hidden">
                       <span className="capitalize">{weekday}</span>, {dayAndMonth(date)} — нет занятий
                       {isToday && <span className="ml-2 rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-semibold text-white">Сегодня</span>}
                     </p>
@@ -424,7 +424,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                   <div className={`mb-3 flex ${empty ? "max-md:hidden" : ""}`}><DayHeading date={date} isToday={isToday} /></div>
 
                   {empty ? (
-                    <div className="hidden min-h-[130px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center text-xs text-slate-400 md:flex">Нет занятий</div>
+                    <div className="hidden min-h-[130px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center text-xs text-slate-500 md:flex">Нет занятий</div>
                   ) : (
                     <div className="space-y-2.5">
                       {dateLessons.map((lesson) => {
@@ -465,7 +465,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                               {state.label}
                             </span>
                             <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lessonTitle(lesson, groupName)}</p>
-                            <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className={off ? "text-slate-400 line-through" : undefined}>{startTime}–{lesson.endTime || "—"}</span></p>
+                            <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className={off ? "text-slate-500 line-through" : undefined}>{startTime}–{lesson.endTime || "—"}</span></p>
                             {room && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{room}</p>}
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
                             {movedFromText(lesson.movedFrom) && <p className="mt-1.5 text-xs font-semibold text-sky-800" data-testid="moved-from">{movedFromText(lesson.movedFrom)}</p>}

@@ -34,3 +34,27 @@ test("the old words of money are not on any screen of src (outside the comments)
   }
   assert.deepEqual(found, []);
 });
+
+test("between a number and «сум» there is a NON-BREAKING space in every sentence and every card of src (a sum never breaks before its unit)", () => {
+  const found = [];
+  for (const file of files(root)) {
+    const code = withoutComments(fs.readFileSync(file, "utf8"));
+    code.split("\n").forEach((line, index) => {
+      if (/[0-9}] сум|<[a-z]+[^>]*> сум</.test(line) || /> сум</.test(line)) found.push(`${path.relative(root, file)}:${index + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  }
+  assert.deepEqual(found, [], "write the unit as a no-break space (U+00A0) or build the sum with formatMoney");
+});
+
+test("no word of a screen mixes Cyrillic and Latin letters (a Latin «K» in «Эргашев K.» would be a typo that looks right)", () => {
+  const found = [];
+  for (const file of files(root)) {
+    if (/math-renderer|answer-match/.test(file)) continue;        // the Latin/Cyrillic pairs of a formula and of a typed answer are on purpose
+    const code = withoutComments(fs.readFileSync(file, "utf8"));
+    code.split("\n").forEach((line, index) => {
+      const hit = /[А-Яа-яЁё][A-Za-z]|[A-Za-z][А-Яа-яЁё]/.exec(line);
+      if (hit) found.push(`${path.relative(root, file)}:${index + 1}: «${hit[0]}»`);
+    });
+  }
+  assert.deepEqual(found, []);
+});

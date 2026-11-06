@@ -192,7 +192,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           />
           <p id="group-price-amount-note" className="mt-1 text-xs text-slate-500">
             {current
-              ? current.amount === 0 ? "Сейчас: бесплатно. " : `Сейчас: ${formatMoneyInput(current.amount)} сум. `
+              ? current.amount === 0 ? "Сейчас: бесплатно. " : `Сейчас: ${formatMoneyInput(current.amount)} сум. `
               : "Сейчас цена не задана. "}
             Цена 0 — занятия бесплатные.
           </p>

@@ -165,7 +165,8 @@ const page = read("src/app/teacher/dashboard/page.tsx");
 
 test("#158: the page reads the day through teacher-agenda (card, tiles, focus), and says the failed load in words", () => {
   assert.match(page, /from "@\/lib\/teacher-agenda"/);
-  assert.match(page, /pickNextStep\(/);
+  assert.match(page, /todayNextStep\(/);
+  assert.match(page, /from "@\/lib\/today-actions"/, "one function for «Главная» and «Расписание»");
   assert.match(page, /todayAgenda\(/);
   assert.match(page, /nextLessonAhead\(/);
   assert.match(page, /<NextActionCard/);
@@ -178,12 +179,13 @@ test("#158: tiles 2x2 on a phone (grid-cols-2, gap-3, icon above), one row from 
   assert.match(page, /grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4/);
   assert.match(page, /p-3 sm:p-6/);
   assert.match(page, /flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4/);
-  assert.match(page, /hidden sm:block absolute -right-6 -bottom-6/);
+  assert.doesNotMatch(page, /absolute -right-6 -bottom-6/, "release review: no decorative circle over the tile («осталось 3»)");
   assert.doesNotMatch(page, /grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5/);
 });
 
 test("#158: «Требуют действия» is the list of the card and of the centre (one list); the badge «Идёт сейчас» is for a started lesson only", () => {
-  assert.match(page, /orderActions\(\[\.\.\.openLessonActions\.filter\(\(action\) => !action\.locked\), \.\.\.scheduledLessonActions\]/);
+  assert.match(page, /orderedTodayActions\(\{ open: openLessonActions, scheduled: scheduledLessonActions/);
+  assert.match(read("src/lib/today-actions.ts"), /orderActions\(\[\.\.\.input\.open\.filter\(\(action\) => !action\.locked\), \.\.\.input\.scheduled\]/);
   assert.match(page, /value: actionCount \?\? "—"/);
   assert.match(page, /action\.actionType \? openLessonBadge\(action\.actionType\) : action\.badge \?\? "Пора начать"/);
   assert.doesNotMatch(page, /: "Идёт сейчас"\}/, "a lesson whose time has come but which is not started is «Пора начать»");
@@ -199,7 +201,7 @@ test("#158: the card says each step in plain words (render of the component)", (
   const day = agendaOf([lesson("near", "15:00", "15:45"), lesson("mid", "16:30", "17:15")], {}, "14:20");
   const upcoming = card(step({ agenda: day }), "Пока нет решения — урок проводите вы");
   assert.match(upcoming, /data-step="upcoming"/);
-  assert.match(textOf(upcoming), /Дальше: Группа near · 15:00/);
+  assert.match(textOf(upcoming), /Ближайший урок 15:00 · Группа near/);
   assert.match(textOf(upcoming), /Пока нет решения — урок проводите вы/);
   assert.match(textOf(upcoming).replace(/\u00a0/g, " "), /через 40 мин/);
   assert.match(textOf(upcoming), /и ещё 1 сегодня/);
@@ -230,10 +232,10 @@ test("#158 r2 (1): today's lesson that is over and never started is the FIRST ta
   const day = agendaOf([over, lesson("next", "17:00", "17:45")], {}, "14:30");
   assert.equal(day.entries[0].phase, "missed");
   assert.equal(day.remaining, 1, "a missed lesson is a task, not «осталось»");
-  const page = read("src/app/teacher/dashboard/page.tsx");
+  const page = read("src/lib/today-actions.ts");     // the rule lives in ONE place now: «Главная» and «Расписание» both call it
   assert.match(page, /entry\.phase === "missed"/);
   assert.match(page, /cardLabel: `Разберите урок: \$\{entry\.lesson\.groupName\} · \$\{entry\.lesson\.startTime\}`/);
-  assert.match(page, /state\.|openAttendanceActions\.some\(\(action\) => action\.lessonId === entry\.lesson\.id && action\.lessonDate === businessDate\)/, "no second card for the lesson the server returned");
+  assert.match(page, /state\.|input\.openActions\.some\(\(action\) => action\.lessonId === entry\.lesson\.id && action\.lessonDate === input\.today\)/, "no second card for the lesson the server returned");
   // the red task goes before a lesson in progress and a lesson to start, whatever the time
   const missed = { lesson: over, tone: "rose", label: "Разберите урок" };
   const inProgress = action("p", "amber", "in_progress", { lesson: { startTime: "08:00" } });

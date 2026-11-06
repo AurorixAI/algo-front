@@ -444,7 +444,7 @@ function OwnerTeachersContent() {
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <p className={`font-semibold text-sm break-all ${expired ? "text-slate-400" : "text-slate-800"}`}>{inv.email || "Без почты"}</p>
+                            <p className={`font-semibold text-sm break-all ${expired ? "text-slate-500" : "text-slate-800"}`}>{inv.email || "Без почты"}</p>
                             <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${rConfig.badge}`}>
                               {rConfig.label}
                             </span>
@@ -489,7 +489,7 @@ function OwnerTeachersContent() {
                         {!expired && (
                           <button
                             onClick={() => handleRevokeInvite(inv.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                             title="Отменить приглашение"
                             aria-label="Отменить приглашение"
                           >
@@ -536,7 +536,7 @@ function OwnerTeachersContent() {
                             <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${rConfig.badge}`}>{rConfig.label}</span>
                           </p>
                           <p className="mt-1 text-sm font-medium text-slate-500">{m.email}</p>
-                          <p className="mt-0.5 text-xs text-slate-400">{removedOnText(m.removed_at)}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">{removedOnText(m.removed_at)}</p>
                         </div>
                       </div>
                       <Button
@@ -621,7 +621,7 @@ function OwnerTeachersContent() {
                     checked={inviteForm.org_role === "teacher"}
                     onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })}
                   />
-                  <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-400"}`} />
+                  <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-500"}`} />
                   <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Преподаватель</div>
                   <div className="text-xs text-slate-500 mt-1">Доступ к группам и диагностикам</div>
                 </label>
@@ -632,7 +632,7 @@ function OwnerTeachersContent() {
                     checked={inviteForm.org_role === "admin"}
                     onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })}
                   />
-                  <Shield className={`w-6 h-6 mb-2 ${inviteForm.org_role === "admin" ? "text-blue-600" : "text-slate-400"}`} />
+                  <Shield className={`w-6 h-6 mb-2 ${inviteForm.org_role === "admin" ? "text-blue-600" : "text-slate-500"}`} />
                   <div className={`font-semibold ${inviteForm.org_role === "admin" ? "text-blue-900" : "text-slate-700"}`}>Администратор</div>
                   <div className="text-xs text-slate-500 mt-1">Доступ ко всем данным школы</div>
                 </label>

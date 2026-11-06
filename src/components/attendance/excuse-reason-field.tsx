@@ -22,7 +22,7 @@ export function ExcuseReasonField({ value, onChange, invalid = false, saved = fa
     <div className="basis-full pt-2">
       <label htmlFor={inputId} className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-slate-500">
         <span>Причина{saved ? " (сохранена)" : ""}</span>
-        <span className="font-medium text-slate-400">{value.trim().length}/{EXCUSE_REASON.max}</span>
+        <span className="font-medium text-slate-500">{value.trim().length}/{EXCUSE_REASON.max}</span>
       </label>
       <input
         id={inputId}

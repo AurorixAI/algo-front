@@ -152,7 +152,7 @@ export function OptionGrid({
                 "w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center font-sans font-bold text-sm border transition-colors flex-shrink-0",
                 isActive
                   ? "bg-primary-500 text-white border-primary-500 shadow-md"
-                  : "bg-white shadow-sm text-slate-400 border-slate-100 group-hover:text-primary-500 group-hover:border-primary-200",
+                  : "bg-white shadow-sm text-slate-500 border-slate-100 group-hover:text-primary-500 group-hover:border-primary-200",
               )}
             >
               {isActive ? <Check className="w-4 h-4" /> : opt.label}

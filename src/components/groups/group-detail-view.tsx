@@ -336,7 +336,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                     Название группы <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500">
                       <GraduationCap className="w-4 h-4" />
                     </div>
                     <input
@@ -381,7 +381,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                     Максимум учеников
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500">
                       <Users className="w-4 h-4" />
                     </div>
                     <NumberInput
@@ -496,7 +496,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                       </div>
                     )}
                     {group.description && (
-                      <p className="text-xs text-slate-400 mt-1 max-w-lg">{group.description}</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-lg">{group.description}</p>
                     )}
                   </div>
                 </div>
@@ -553,7 +553,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
               <p className="font-semibold text-slate-900">
                 Состав группы
-                <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
+                <span className="ml-2 text-sm font-normal text-slate-500">({group.student_count})</span>
               </p>
               {canManage && group.status === "active" && (
                 <Button

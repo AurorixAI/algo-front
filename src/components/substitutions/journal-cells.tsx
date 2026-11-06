@@ -70,7 +70,7 @@ export const COMMENT_HINT = "Есть комментарий";
 /** A small mark with a tooltip (works on a tap): the ONE look of every note of a row - a comment, the explanation of the system, the colleague that was suggested. */
 function NoteMark({ text, icon: Icon, tone = "grey", testId }: { text: string; icon: typeof MessageSquare; tone?: "grey" | "amber"; testId: string }) {
   return (
-    <Hint text={text} className={`inline-flex ${tone === "amber" ? "text-amber-600 hover:text-amber-700" : "text-slate-400 hover:text-slate-600"}`} width={260}>
+    <Hint text={text} className={`inline-flex ${tone === "amber" ? "text-amber-600 hover:text-amber-700" : "text-slate-500 hover:text-slate-600"}`} width={260}>
       <Icon data-testid={testId} className="h-4 w-4" aria-label={text} />
     </Hint>
   );

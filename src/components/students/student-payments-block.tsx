@@ -141,7 +141,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
           {active.length > 0 && <ul className="space-y-3">{active.map((row) => card(row, false))}</ul>}
           {former.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-400">Прежние группы</p>
+              <p className="text-xs font-semibold text-slate-500">Прежние группы</p>
               <ul className="space-y-3">{former.map((row) => card(row, true))}</ul>
             </div>
           )}

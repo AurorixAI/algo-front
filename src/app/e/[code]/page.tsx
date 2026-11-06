@@ -1015,7 +1015,7 @@ export default function ExamPage() {
                 <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl mb-6">
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <p className="text-xs text-slate-400 font-medium">Участник</p>
+                      <p className="text-xs text-slate-500 font-medium">Участник</p>
                       <p className="text-sm font-bold text-slate-900 truncate">
                         {confirmedStudent?.name || studentName}
                       </p>
@@ -1035,11 +1035,11 @@ export default function ExamPage() {
                 {/* Exam details */}
                 <div className="grid grid-cols-2 gap-3 mb-6 text-left">
                   <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
-                    <p className="text-[11px] font-semibold text-slate-400">Экзамен</p>
+                    <p className="text-[11px] font-semibold text-slate-500">Экзамен</p>
                     <p className="text-sm font-bold text-slate-800 truncate">{examInfo.title}</p>
                   </div>
                   <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
-                    <p className="text-[11px] font-semibold text-slate-400">Длительность</p>
+                    <p className="text-[11px] font-semibold text-slate-500">Длительность</p>
                     <p className="text-sm font-bold text-slate-800">{examInfo.total_time_minutes} минут</p>
                   </div>
                 </div>
@@ -1168,7 +1168,7 @@ export default function ExamPage() {
                             ? "bg-primary-600 text-white shadow-md"
                             : isAnswered(t.task_id)
                             ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                            : "bg-white/70 text-slate-400 border border-slate-200 hover:border-primary-300 hover:text-primary-600"
+                            : "bg-white/70 text-slate-500 border border-slate-200 hover:border-primary-300 hover:text-primary-600"
                         }`}
                       >
                         {idx + 1}
@@ -1297,7 +1297,7 @@ export default function ExamPage() {
                   <p className="text-slate-500 mb-2">
                     {result.student_name}, ваши ответы успешно отправлены преподавателю.
                   </p>
-                  <p className="text-sm text-slate-400 mb-8">
+                  <p className="text-sm text-slate-500 mb-8">
                     Результаты будут доступны у вашего преподавателя.
                   </p>
 

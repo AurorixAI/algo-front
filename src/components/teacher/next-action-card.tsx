@@ -46,7 +46,7 @@ export function nextStepView<A extends CardAction, L extends AgendaLessonLike>(s
     case "action":
       return { tone: step.action.tone, title: step.action.cardLabel || step.action.label, description: step.action.cardDescription || step.action.description };
     case "upcoming":
-      return { tone: "slate", title: `Дальше: ${step.entry.lesson.groupName} · ${step.entry.lesson.startTime}`, description: startsInText(step.entry.minutesToStart) };
+      return { tone: "slate", title: `Ближайший урок ${step.entry.lesson.startTime} · ${step.entry.lesson.groupName}`, description: startsInText(step.entry.minutesToStart) };
     case "exam_active": {
       const print = step.exam.delivery_mode === "print";
       return {

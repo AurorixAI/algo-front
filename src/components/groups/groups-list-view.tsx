@@ -107,12 +107,12 @@ function GroupsListContent({ workspace }: { workspace: Workspace }) {
   return (
     <div className="space-y-6 w-full max-w-[1400px] mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Группы</h1>
           <p className="text-slate-500 text-sm mt-0.5">Управление учебными группами и составом учеников</p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           <ImportButton onImported={loadData} />
           <Button
             onClick={() => setShowCreate(true)}

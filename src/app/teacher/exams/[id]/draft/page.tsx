@@ -541,7 +541,7 @@ export default function ExamDraftPage() {
   if (loading) {
     return (
       <div className="w-full max-w-[1400px] mx-auto py-12">
-        <div className="flex items-center justify-center gap-3 text-slate-400">
+        <div className="flex items-center justify-center gap-3 text-slate-500">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
           Загрузка черновика...
         </div>
@@ -620,7 +620,7 @@ export default function ExamDraftPage() {
                 className="mt-2.5 w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all font-mono text-[11px] font-semibold text-slate-700 group cursor-pointer shadow-card"
               >
                 <span className="truncate">{getExamDisplayUrl(publishResult.access_code)}</span>
-                <span className="shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
+                <span className="shrink-0 text-slate-500 group-hover:text-primary-600 transition-colors">
                   {copied ? <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" /> : <Copy className="w-3.5 h-3.5" />}
                 </span>
               </button>
@@ -932,7 +932,7 @@ export default function ExamDraftPage() {
                     Секция {sIdx + 1}: {section.name}
                   </h3>
                 </div>
-                <span className="text-xs text-slate-400">{section.tasks.length} заданий</span>
+                <span className="text-xs text-slate-500">{section.tasks.length} заданий</span>
               </button>
 
               {/* Tasks */}
@@ -994,7 +994,7 @@ export default function ExamDraftPage() {
                                 className={`p-1.5 rounded-lg transition-colors ${
                                   isReplacing
                                     ? "bg-blue-100 text-blue-600"
-                                    : "hover:bg-slate-100 text-slate-400"
+                                    : "hover:bg-slate-100 text-slate-500"
                                 }`}
                                 title="Заменить задачу"
                               >
@@ -1109,12 +1109,12 @@ export default function ExamDraftPage() {
                                   </div>
 
                                   {loadingAlts ? (
-                                    <div className="flex items-center justify-center py-4 text-slate-400 text-xs">
+                                    <div className="flex items-center justify-center py-4 text-slate-500 text-xs">
                                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500 mr-2" />
                                       Поиск альтернатив...
                                     </div>
                                   ) : alternatives.length === 0 ? (
-                                    <p className="text-xs text-slate-400 py-3 text-center">
+                                    <p className="text-xs text-slate-500 py-3 text-center">
                                       Нет альтернативных задач для этого навыка
                                     </p>
                                   ) : (
@@ -1172,7 +1172,7 @@ export default function ExamDraftPage() {
           {isPrintDraft ? (
             <>
               <span
-                className="inline-flex items-center gap-1.5 text-xs text-slate-400"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500"
                 aria-live="polite"
               >
                 {printSaveState === "saving" && (
@@ -1212,7 +1212,7 @@ export default function ExamDraftPage() {
               </Button>
             </>
           ) : (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Сохранение в библиотеку и привязка к группе доступны в шапке черновика.
             </p>
           )}
@@ -1327,7 +1327,7 @@ export default function ExamDraftPage() {
                     </div>
                     <div>
                       <div className="text-sm font-semibold">{g.name}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-500">
                         {g.student_count || 0} {pluralRu(g.student_count || 0, ["ученик", "ученика", "учеников"])} {g.class_level ? `· ${g.class_level} класс` : ""}
                       </div>
                     </div>

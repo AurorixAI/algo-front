@@ -47,7 +47,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {error ? (
           <p id={noteId} className="mt-1.5 text-xs text-red-500">{error}</p>
         ) : hint ? (
-          <p id={noteId} className="mt-1.5 text-xs text-slate-400">{hint}</p>
+          <p id={noteId} className="mt-1.5 text-xs text-slate-500">{hint}</p>
         ) : null}
       </div>
     );

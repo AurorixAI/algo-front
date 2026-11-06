@@ -353,7 +353,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
           <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-card">
             <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2 opacity-60" />
             <h4 className="font-bold text-slate-800 text-sm">Экзамены не найдены</h4>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Нет экзаменов, соответствующих выбранному статусу или поисковому запросу.
             </p>
             {examSearch && (
@@ -410,7 +410,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                           : "В архиве"}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {ex.tasks_per_variant} заданий · {formatUtcNaiveAsBusinessDate(ex.created_at)}
                     </p>
                   </div>

@@ -301,7 +301,7 @@ export default function AdminDiagnosticsPage() {
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-600 rounded-md"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -345,7 +345,7 @@ export default function AdminDiagnosticsPage() {
                 setAssignedOnly(false);
                 setSearch("");
               }}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0"
+              className="p-2 text-slate-500 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0"
               title="Сбросить все фильтры"
             >
               <RotateCcw className="w-4 h-4" />
@@ -393,7 +393,7 @@ export default function AdminDiagnosticsPage() {
               ? "Нет диагностик по выбранным фильтрам"
               : "Нет диагностик"}
           </p>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-500 text-sm mt-1">
             {assignedOnly
               ? "После завершения диагностики распределите учеников в группы"
               : timePeriod !== "all" || search
@@ -476,7 +476,7 @@ export default function AdminDiagnosticsPage() {
                       <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                         {inv.class_level} класс
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500">
                         {typeLabels[inv.diagnostic_type] || inv.diagnostic_type}
                       </span>
                       {isAssigned && inv.group_name && (
@@ -490,7 +490,7 @@ export default function AdminDiagnosticsPage() {
                       <code className="text-xs font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">
                         {inv.code}
                       </code>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500">
                         {formatUtcNaiveAsBusinessDayTime(inv.created_at)}
                       </span>
                       {cancelHint && (

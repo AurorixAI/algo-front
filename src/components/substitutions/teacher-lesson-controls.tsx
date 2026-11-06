@@ -61,7 +61,7 @@ export function LessonMenuGroups({ groups }: { groups: LessonMenuGroup[] }) {
     <>
       {shown.map((group, index) => (
         <div key={group.label} role="group" aria-label={group.label} data-testid={`lesson-menu-group-${index}`} className={index > 0 ? "mt-1 border-t border-slate-100 pt-1" : undefined}>
-          <p className="px-3 pb-0.5 pt-1 text-[11px] font-semibold text-slate-400">{group.label}</p>
+          <p className="px-3 pb-0.5 pt-1 text-[11px] font-semibold text-slate-500">{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
             const off = Boolean(item.disabledReason);
@@ -73,12 +73,12 @@ export function LessonMenuGroups({ groups }: { groups: LessonMenuGroup[] }) {
                 aria-disabled={off || undefined}
                 data-testid={`lesson-menu-${item.key}`}
                 onClick={off ? undefined : item.onSelect}
-                className={`${ROW} ${off ? "cursor-not-allowed text-slate-400" : item.tone === "danger" ? "text-rose-700 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-50"}`}
+                className={`${ROW} ${off ? "cursor-not-allowed text-slate-500" : item.tone === "danger" ? "text-rose-700 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-50"}`}
               >
                 <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${off ? "text-slate-300" : item.tone === "danger" ? "" : "text-slate-500"}`} />
                 <span>
                   <span className="block font-semibold">{item.label}</span>
-                  {(off || item.hint) && <span className={`mt-0.5 block leading-relaxed ${off ? "text-slate-400" : item.tone === "danger" ? "text-rose-600/80" : "text-slate-500"}`}>{off ? item.disabledReason : item.hint}</span>}
+                  {(off || item.hint) && <span className={`mt-0.5 block leading-relaxed ${off ? "text-slate-500" : item.tone === "danger" ? "text-rose-600/80" : "text-slate-500"}`}>{off ? item.disabledReason : item.hint}</span>}
                 </span>
               </button>
             );

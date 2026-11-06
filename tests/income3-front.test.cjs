@@ -293,7 +293,7 @@ test("the group's card of a lesson moved away is muted and does not count in «t
   const src = read("src/components/groups/group-schedule-overview.tsx");
   assert.match(src, /const off = outOfPlan\(\{ status: lessonState, outcome \}\)/);
   assert.match(src, /off \? "bg-slate-50 opacity-75"/);
-  assert.match(src, /off \? "text-slate-400 line-through"/);
+  assert.match(src, /off \? "text-slate-500 line-through"/);
   assert.match(src, /statuses\.length === 1 \? "Занятие ожидает начала" : `Сегодня запланировано занятий: \$\{statuses\.length\}`/);
   assert.deepEqual([Plan.todayPlanLines(["moved"]).title, Plan.todayPlanLines(["moved", "cancelled"]).title, Plan.todayPlanLines(["cancelled"]).title], ["Занятие на сегодня перенесено", "Занятие на сегодня отменено", "Занятие на сегодня отменено"]);
   assert.equal(Plan.todayPlanLines(["moved"]).moved, true);
@@ -331,7 +331,7 @@ test("I03: «Куда пошли деньги» names the kind from the row's sp
   // an unknown kind uses the server's label; a zero part is not shown
   assert.deepEqual(V.destinationLines(splitRow([{ kind: "refunded", label: "возвращено", amount: 7000 }, { kind: "advance", label: "", amount: 0 }], [])).map(plain), ["Возвращено · 7 000 сум"]);
   // no split (an older server) -> the sentence of the server, as before
-  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [], split: [] }), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
+  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [], split: [] }).map((x) => x.replace(/\u00a0/g, " ")), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
   assert.deepEqual(V.normalizeJournal({ ...fixture("J01_journal_page1"), rows: [{ ...fixture("J01_journal_page1").rows[0], split: undefined }] }).rows[0].split, []);
 });
 

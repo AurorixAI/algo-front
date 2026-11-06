@@ -210,7 +210,7 @@ function ExamCard({
             <div
               className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                 isArchived
-                  ? "bg-slate-100 border border-slate-200 text-slate-400"
+                  ? "bg-slate-100 border border-slate-200 text-slate-500"
                   : isActive
                   ? "bg-emerald-50 border border-emerald-100 text-emerald-600"
                   : isPrintReady
@@ -219,7 +219,7 @@ function ExamCard({
                   ? "bg-amber-50 border border-amber-100 text-amber-600 animate-pulse"
                   : isDraft
                   ? "bg-primary-50 border border-primary-100 text-primary-600"
-                  : "bg-slate-50 border border-slate-200 text-slate-400"
+                  : "bg-slate-50 border border-slate-200 text-slate-500"
               }`}
             >
               <FileText className="w-5 h-5" />
@@ -282,7 +282,7 @@ function ExamCard({
                     {exam.total_sessions} сдали
                   </span>
                 )}
-                <span className="text-slate-400">
+                <span className="text-slate-500">
                   {formatUtcNaiveAsBusinessDate(exam.created_at, { day: "numeric", month: "short" })}
                 </span>
               </div>
@@ -809,7 +809,7 @@ export default function TeacherExamsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-slate-400 gap-3">
+        <div className="flex items-center justify-center py-24 text-slate-500 gap-3">
           <div className="w-6 h-6 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
           Загрузка библиотеки...
         </div>
@@ -827,7 +827,7 @@ export default function TeacherExamsPage() {
           <p className="text-slate-700 font-semibold text-base">
             {searchQuery ? "Ничего не найдено" : statusTab === "archived" ? "В архиве пока нет экзаменов" : "В этом разделе нет экзаменов"}
           </p>
-          <p className="text-sm text-slate-400 mt-1 mb-6">
+          <p className="text-sm text-slate-500 mt-1 mb-6">
             {searchQuery
               ? "Попробуйте другой запрос"
               : statusTab === "archived"

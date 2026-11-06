@@ -263,7 +263,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                 type="button"
                 onClick={onClose}
                 aria-label="Закрыть"
-                className="-mr-1 rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+                className="-mr-1 rounded-xl p-2.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -285,7 +285,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                           onClick={onClose}
                           className={cn(ROW, active ? "bg-primary-50 font-bold text-primary-700" : "text-slate-700 active:bg-slate-100")}
                         >
-                          <Icon className={cn("h-5 w-5 shrink-0", active ? "text-primary-600" : "text-slate-400")} />
+                          <Icon className={cn("h-5 w-5 shrink-0", active ? "text-primary-600" : "text-slate-500")} />
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
                           {item.badge ? (
                             <span
@@ -319,7 +319,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                     onClick={onClose}
                     className={cn(ROW, isNavActive(pathname, settingsPath) ? "bg-primary-50 font-bold text-primary-700" : "text-slate-700 active:bg-slate-100")}
                   >
-                    <Settings className={cn("h-5 w-5 shrink-0", isNavActive(pathname, settingsPath) ? "text-primary-600" : "text-slate-400")} />
+                    <Settings className={cn("h-5 w-5 shrink-0", isNavActive(pathname, settingsPath) ? "text-primary-600" : "text-slate-500")} />
                     <span className="min-w-0 flex-1 truncate">Настройки</span>
                   </Link>
                 </li>
@@ -327,7 +327,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                   <li>
                     <Link href={supportPath} data-sheet-row data-testid="more-my-support" aria-current={isNavActive(pathname, supportPath) ? "page" : undefined} onClick={onClose}
                       className={cn(ROW, isNavActive(pathname, supportPath) ? "bg-primary-50 font-bold text-primary-700" : "text-slate-700 active:bg-slate-100")}>
-                      <MessagesSquare className={cn("h-5 w-5 shrink-0", isNavActive(pathname, supportPath) ? "text-primary-600" : "text-slate-400")} />
+                      <MessagesSquare className={cn("h-5 w-5 shrink-0", isNavActive(pathname, supportPath) ? "text-primary-600" : "text-slate-500")} />
                       <span className="min-w-0 flex-1 truncate">{SUPPORT_MY_LABEL}</span>
                       {supportUnread > 0 && (
                         <span data-testid="support-unread-badge" aria-label={`Есть ответ: ${supportUnread}`} className="h-5 min-w-[20px] shrink-0 rounded-full bg-rose-500 px-1.5 text-center text-xs font-bold leading-5 text-white">

@@ -88,7 +88,7 @@ export function SupportPage() {
                   <StatusPill status={item.status} />
                 </span>
                 <span className="mt-1.5 block break-words text-sm text-slate-700 line-clamp-2">{item.preview}</span>
-                <span className="mt-2 block text-xs text-slate-400">
+                <span className="mt-2 block text-xs text-slate-500">
                   {item.last_reply_at ? `Ответ: ${formatUtcNaiveAsBusinessDateTime(item.last_reply_at)}` : `Отправлено: ${formatUtcNaiveAsBusinessDateTime(item.created_at)}`}
                 </span>
               </button>
@@ -183,7 +183,7 @@ function TicketCard({ id, onClose, onChanged }: { id: string | null; onClose: ()
             <div className="max-w-[92%] rounded-2xl rounded-br-md bg-primary-50 px-4 py-3 text-sm text-slate-900">
               <p className="whitespace-pre-wrap break-words" data-testid="support-text-shown">{card.text}</p>
             </div>
-            <span className="mt-1 text-xs text-slate-400">Вы · {formatUtcNaiveAsBusinessDateTime(card.created_at)}</span>
+            <span className="mt-1 text-xs text-slate-500">Вы · {formatUtcNaiveAsBusinessDateTime(card.created_at)}</span>
           </div>
           {card.attachments.length > 0 && (
             <ul className="space-y-1" data-testid="support-attachments">
@@ -201,7 +201,7 @@ function TicketCard({ id, onClose, onChanged }: { id: string | null; onClose: ()
               <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm ${message.from === "me" ? "rounded-br-md bg-primary-50 text-slate-900" : "rounded-bl-md bg-slate-100 text-slate-900"}`}>
                 <p className="whitespace-pre-wrap break-words">{message.text}</p>
               </div>
-              <span className="mt-1 text-xs text-slate-400">{message.from === "me" ? "Вы" : "Команда ALGO"} · {formatUtcNaiveAsBusinessDateTime(message.created_at)}</span>
+              <span className="mt-1 text-xs text-slate-500">{message.from === "me" ? "Вы" : "Команда ALGO"} · {formatUtcNaiveAsBusinessDateTime(message.created_at)}</span>
             </div>
           ))}
 

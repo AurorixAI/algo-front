@@ -164,13 +164,13 @@ export function SupportDialog() {
                   <li key={`${file.name}-${index}`} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
                     <Paperclip className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                     <span className="min-w-0 flex-1 truncate">{file.name || `Снимок ${index + 1}`}</span>
-                    <span className="shrink-0 text-xs text-slate-400">{supportFileSizeText(file.size)}</span>
+                    <span className="shrink-0 text-xs text-slate-500">{supportFileSizeText(file.size)}</span>
                     <button
                       type="button"
                       aria-label={`Убрать снимок ${index + 1}`}
                       onClick={() => setFiles(files.filter((_, i) => i !== index))}
                       disabled={busy}
-                      className="-mr-1 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+                      className="-mr-1 rounded-md p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
                     >
                       <X className="h-4 w-4" aria-hidden />
                     </button>
@@ -185,7 +185,7 @@ export function SupportDialog() {
             )}
             {fileError && <p role="alert" className="mt-1.5 text-xs text-red-500">{fileError}</p>}
           </div>
-          <p className="text-xs text-slate-400">{SUPPORT_AUTO_NOTE}</p>
+          <p className="text-xs text-slate-500">{SUPPORT_AUTO_NOTE}</p>
         </div>
       )}
     </Modal>
