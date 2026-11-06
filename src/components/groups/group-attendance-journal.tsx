@@ -1418,7 +1418,7 @@ export function GroupAttendanceJournal({
               type="button"
               onClick={() => movePeriod(-1)}
               aria-label={viewMode === "week" ? "Предыдущая неделя" : "Предыдущий месяц"}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -1430,7 +1430,7 @@ export function GroupAttendanceJournal({
               type="button"
               onClick={() => movePeriod(1)}
               aria-label={viewMode === "week" ? "Следующая неделя" : "Следующий месяц"}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

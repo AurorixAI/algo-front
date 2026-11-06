@@ -29,7 +29,7 @@ export function RowMenu({
   label = "Действия",
   busy = false,
   width = 232,
-  triggerClassName = "rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50",
+  triggerClassName = "inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50",
 }: {
   items: RowMenuItem[];
   label?: string;

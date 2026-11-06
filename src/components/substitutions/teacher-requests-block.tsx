@@ -98,7 +98,7 @@ export function TeacherRequestsBlock({
               <Repeat2 className="h-5 w-5 text-amber-600" />
               {MY_REQUESTS_TITLE}
             </h2>
-            <button type="button" onClick={onNewRequest} className="text-xs font-bold text-primary-600 hover:text-primary-700">{NEW_REQUEST_LINK}</button>
+            <button type="button" onClick={onNewRequest} className="inline-flex min-h-10 items-center text-xs font-bold text-primary-600 hover:text-primary-700">{NEW_REQUEST_LINK}</button>
           </div>
           <ul className="divide-y divide-slate-100">
             {items.map((item) => {

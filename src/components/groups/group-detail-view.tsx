@@ -276,7 +276,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
     <div className="w-full max-w-[1400px] mx-auto space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link href={paths.groups} className="hover:text-slate-900 flex items-center gap-1 transition-colors">
+        <Link href={paths.groups} className="hover:text-slate-900 flex max-sm:min-h-10 items-center gap-1 transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" />
           Группы
         </Link>
@@ -478,7 +478,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                     {(priceChip || debtChip) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="group-money-chips">
                         {priceChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
                         )}
                         {debtChip && (
                           <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:underline">{debtChip}</Link>

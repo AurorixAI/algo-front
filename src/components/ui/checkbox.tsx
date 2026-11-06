@@ -44,7 +44,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         ref={setRef}
         type="checkbox"
         disabled={disabled}
-        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        className={cn("peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed", size === "sm" ? "max-sm:-inset-3 max-sm:h-10 max-sm:w-10" : "max-sm:-inset-[11px] max-sm:h-10 max-sm:w-10")}
       />
       <span
         aria-hidden

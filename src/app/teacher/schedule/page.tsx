@@ -919,7 +919,7 @@ export default function TeacherSchedulePage() {
             setViewMode("week");
             openAddModal();
           }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm shadow-primary-600/25 transition-all self-start sm:self-auto disabled:cursor-not-allowed disabled:opacity-55"
+          className="flex min-h-10 items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm shadow-primary-600/25 transition-all self-start sm:self-auto disabled:cursor-not-allowed disabled:opacity-55"
         >
           <Plus className="w-4 h-4" />
           <span>Добавить в расписание</span>
@@ -1097,7 +1097,7 @@ export default function TeacherSchedulePage() {
           <button
             type="button"
             onClick={() => switchViewMode("today")}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex min-h-10 sm:min-h-0 items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               viewMode === "today"
                 ? "bg-white text-slate-900 shadow-sm shadow-slate-200/50"
                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
@@ -1119,7 +1119,7 @@ export default function TeacherSchedulePage() {
           <button
             type="button"
             onClick={() => switchViewMode("week")}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex min-h-10 sm:min-h-0 items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               viewMode === "week"
                 ? "bg-white text-slate-900 shadow-sm shadow-slate-200/50"
                 : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
@@ -1159,7 +1159,7 @@ export default function TeacherSchedulePage() {
               aria-expanded={isGroupFilterOpen}
               aria-controls={isGroupFilterOpen ? "schedule-group-filter-menu" : undefined}
               onClick={() => setIsGroupFilterOpen((prev) => !prev)}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+              className={`inline-flex min-h-10 items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                 selectedGroupFilter !== "all"
                   ? "bg-primary-50 text-primary-700 border-primary-200/80 shadow-xs"
                   : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 shadow-xs"

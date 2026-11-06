@@ -28,7 +28,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio({ c
         {...props}
         ref={ref}
         type="radio"
-        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed max-sm:-inset-[11px] max-sm:h-10 max-sm:w-10"
       />
       <span
         aria-hidden
