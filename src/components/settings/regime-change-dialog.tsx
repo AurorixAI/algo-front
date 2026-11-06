@@ -7,12 +7,21 @@ import { EFFECTS_LOADING_TEXT, EFFECTS_RETRY_LABEL, EFFECTS_TITLE } from "@/lib/
 import { accountingStartImpactLines } from "@/lib/payments";
 import { REGIME_HINT, regimeImpactLines, type RegimeImpact } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
-import { normalizeWhatIf, REGIME_WAIT_WHY, REGIME_WINDOW, regimeChangeKind, type WhatIfWindow } from "@/lib/whatif";
+import { DEBT_ADVANCE_NONE, debtAdvanceFooter, normalizeWhatIf, REGIME_WAIT_WHY, REGIME_WINDOW, regimeChangeKind, type WhatIfWindow } from "@/lib/whatif";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/components/money/dialog-footer";
 import { WhatIfBody } from "@/components/money/whatif-table";
 import { Modal } from "@/components/ui/modal";
 
 type Loaded = { window: WhatIfWindow | null; fallback: string[]; start: string[] };
+
+/** The footer: the lines of the server about the start of the accounting; when it has nothing to say - the debt/advance line counted from the rows of the table itself (Д1: it never contradicts them). */
+function startLines(impact: Parameters<typeof accountingStartImpactLines>[0], window: WhatIfWindow | null): string[] {
+  if (!impact) return [];
+  const lines = accountingStartImpactLines(impact).filter((line) => line !== DEBT_ADVANCE_NONE);
+  if (lines.length > 0) return lines;
+  const own = debtAdvanceFooter(window);
+  return window && window.items.length > 0 ? [own] : [DEBT_ADVANCE_NONE];
+}
 
 /**
  * Money-1 B3: the window that stands between «Сохранить» of the payment settings and a change of the billing MODE (a way to count, the day of the shared month, the size of a package).  The
@@ -44,7 +53,7 @@ export function RegimeChangeDialog({ open, changes, body, saving, error, onConfi
       .then((answer) => {
         if (!sequence.current.isCurrent(token)) return;
         const raw = answer.regime_impact ?? null;
-        setState({ loaded: { window: normalizeWhatIf(raw, "regime"), fallback: regimeImpactLines(raw as RegimeImpact | null), start: accountingStartImpactLines(answer.impact) }, failed: null });
+        setState({ loaded: { window: normalizeWhatIf(raw, "regime"), fallback: regimeImpactLines(raw as RegimeImpact | null), start: startLines(answer.impact, normalizeWhatIf(raw, "regime")) }, failed: null });
       })
       .catch((cause) => {
         if (!sequence.current.isCurrent(token)) return;

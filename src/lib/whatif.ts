@@ -42,8 +42,9 @@ export interface WhatIfItem {
   paid_until_before: string | null;
   paid_until_after: string | null;
   has_money: boolean;
-  charged_before: number;
-  charged_after: number;
+  /** null: the server could not forecast (a package group with no schedule) - no sum is shown, only its sentence. */
+  charged_before: number | null;
+  charged_after: number | null;
   lessons_before: LessonsPack | null;
   lessons_after: LessonsPack | null;
   next_period: NextPeriod | null;
@@ -122,8 +123,8 @@ export function normalizeWhatIfItem(raw: Partial<WhatIfItem> | null | undefined)
     paid_until_before: str(r.paid_until_before),
     paid_until_after: str(r.paid_until_after),
     has_money: Boolean(r.has_money),
-    charged_before: int(r.charged_before),
-    charged_after: int(r.charged_after),
+    charged_before: typeof r.charged_before === "number" ? int(r.charged_before) : null,
+    charged_after: typeof r.charged_after === "number" ? int(r.charged_after) : null,
     lessons_before: lessonsPack(r.lessons_before),
     lessons_after: lessonsPack(r.lessons_after),
     next_period: nextPeriod(r.next_period),
@@ -228,7 +229,8 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
       push({ key: "per-lesson", label: "≈ за урок", before: sumWord(item.per_lesson_before), after: sumWord(item.per_lesson_after), delta: formatSignedMoney(item.per_lesson_after - item.per_lesson_before), tone: sumTone(item.per_lesson_after - item.per_lesson_before, true) });
     }
   }
-  if (kind === "regime" && item.switch_on !== null && item.charged_before !== item.charged_after) {
+  const noForecast = kind === "regime" && item.switch_on !== null && (item.charged_before === null || item.charged_after === null);
+  if (kind === "regime" && item.switch_on !== null && item.charged_before !== null && item.charged_after !== null && item.charged_before !== item.charged_after) {
     const delta = item.charged_after - item.charged_before;
     push({ key: "charged", label: "Начислено за 30 дней", before: sumWord(item.charged_before), after: sumWord(item.charged_after), delta: formatSignedMoney(delta), tone: sumTone(delta, true) });
   }
@@ -242,7 +244,9 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
     const delta = item.advance_after - item.advance_before;
     push({ key: "advance", label: "Аванс", before: sumWord(item.advance_before), after: sumWord(item.advance_after), delta: formatSignedMoney(delta), tone: sumTone(delta, false) });
   }
-  if (item.paid_until_before !== item.paid_until_after) {
+  // Д2: a student who goes to a package has «осталось уроков», not «оплачено до» (the server sends a package with `lessons_after` and no date)
+  const toPackage = kind === "regime" && item.lessons_after !== null && item.paid_until_after === null;
+  if (item.paid_until_before !== item.paid_until_after && !toPackage) {
     const days = item.paid_until_before && item.paid_until_after ? daysBetween(item.paid_until_before, item.paid_until_after) : 0;
     push({
       key: "paid-until",
@@ -255,6 +259,9 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
   }
   const lb = item.lessons_before;
   const la = item.lessons_after;
+  if (toPackage && la && !lb) {
+    push({ key: "left", label: "Осталось уроков", before: NONE, after: String(la.left), delta: null, tone: "plain" });
+  }
   if (lb && la) {
     if (lb.covered !== la.covered) {
       const delta = la.covered - lb.covered;
@@ -281,7 +288,7 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
     when = item.switch_on === null ? "когда закончится пакет" : `с ${formatRecordWhen(item.switch_on)}${item.as_of ? `, на ${formatRecordWhen(item.as_of)}` : ""}`;
   }
   // a price window says its day ONCE, over the table (`whatIfAsOfText`), not under every student
-  return { id: item.membership_id, name: item.student_name, priceNote, fallback: rows.length === 0 && !priceNote ? item.text || null : null, when, rows };
+  return { id: item.membership_id, name: item.student_name, priceNote, fallback: (rows.length === 0 && !priceNote) || noForecast ? item.text || null : null, when, rows };
 }
 
 /** The students of a window that really move (a student with nothing to show is not listed). */
@@ -346,6 +353,15 @@ export function whatIfCaption(window: WhatIfWindow | null | undefined): string |
   return window.kind === "regime"
     ? `Перейдут на новый способ ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`
     : `Изменится у ${n} ${pluralRu(n, "ученика", "учеников", "учеников")}`;
+}
+
+/** Money-1 B, defect Д1: the footer under the table of a mode / day window - counted from the SAME items the rows are drawn from (debt or advance moves), never from a separate answer. */
+export const DEBT_ADVANCE_NONE = "Долг и аванс ни у кого не изменятся";
+export function debtAdvanceFooter(window: WhatIfWindow | null | undefined): string {
+  if (!window) return DEBT_ADVANCE_NONE;
+  const moved = window.items.filter((item) => item.debt_before !== item.debt_after || item.advance_before !== item.advance_after).length;
+  const n = moved + (window.truncated ? Math.max(0, window.itemsTotal - window.items.length) : 0);
+  return n > 0 ? `Долг или аванс изменится у ${n} ${pluralRu(n, "ученика", "учеников", "учеников")}` : DEBT_ADVANCE_NONE;
 }
 
 /** When every student has the same meaning of the price, it is said ONCE over the table, not under every name. */
