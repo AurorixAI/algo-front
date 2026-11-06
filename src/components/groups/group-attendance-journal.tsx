@@ -110,6 +110,7 @@ import { RECONCILE_DONE_TEXT } from "@/lib/lesson-reconcile";
 import { BACKDATED_LABEL, backdatedHintLines, correctionChipLabel, correctionHintLines } from "@/lib/attendance-corrections";
 import { nobodyCameQuestion } from "@/lib/attendance-ops";
 import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
+import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
@@ -1398,9 +1399,29 @@ export function GroupAttendanceJournal({
       {correcting && correctingLesson && (
         <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            Исправление урока {formatDateRu(correctingLesson.date)}. Меняйте отметки в подсвеченном столбце, затем нажмите «Сохранить исправление» в его заголовке.
-          </span>
+          <div className="min-w-0 flex-1">
+            <span>
+              Исправление урока {formatDateRu(correctingLesson.date)}. Меняйте отметки в подсвеченном столбце, затем нажмите «Сохранить исправление»<span className="max-sm:hidden"> в его заголовке</span>.
+            </span>
+            {/* R4 Д8: a phone has no room in the narrow head of the column (the pinned column «Ученик» covers it): the buttons are here, in the sight */}
+            <div className="mt-3 flex flex-col gap-2 sm:hidden" data-testid="correction-phone-bar">
+              <button
+                type="button"
+                disabled={correctionChanges.length === 0}
+                onClick={() => setCorrectionDialog({ reason: "", error: null, closed: null })}
+                className="min-h-10 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Сохранить исправление{correctionChanges.length > 0 ? ` (${correctionChanges.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCorrecting(null); setOpenCell(null); }}
+                className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1583,7 +1604,7 @@ export function GroupAttendanceJournal({
                             </div>
                           )}
                           {inCorrection && (
-                            <div className="flex flex-col gap-1 pt-1.5">
+                            <div className="flex flex-col gap-1 pt-1.5 max-sm:hidden">
                               <button
                                 type="button"
                                 disabled={correctionChanges.length === 0}
@@ -2105,17 +2126,14 @@ export function GroupAttendanceJournal({
         maxWidthClassName="max-w-[560px]"
         footer={
           <>
-            <button type="button" onClick={() => setCorrectionDialog(null)} disabled={correctionSaving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-            <button
-              type="button"
-              onClick={() => void submitCorrection()}
-              data-testid="correction-submit"
-              disabled={correctionSaving || correctionChanges.length === 0 || !effectsAllowConfirm(impact)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              {correctionSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Сохранить исправление
-            </button>
+            <ConfirmFooter
+              primary="Сохранить исправление"
+              onPrimary={() => void submitCorrection()}
+              testId="correction-submit"
+              disabled={correctionChanges.length === 0 || !effectsAllowConfirm(impact)}
+              busy={correctionSaving}
+              onCancel={() => setCorrectionDialog(null)}
+            />
           </>
         }
       >
