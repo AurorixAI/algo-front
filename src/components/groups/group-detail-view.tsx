@@ -34,7 +34,7 @@ import { useToast } from "@/components/ui/toast";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { GroupPriceAction } from "@/components/groups/group-price-action";
-import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupHeaderActions, groupJournalAccess, groupPageTabs, groupPriceChipText, groupTabQuery, groupWorkspacePaths, resolveGroupPageTab, type GroupDebtSummary, type GroupPageTab, type GroupWorkspace } from "@/lib/group-workspace";
+import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupWaitingChipText, groupHeaderActions, groupJournalAccess, groupPageTabs, groupPriceChipText, groupTabQuery, groupWorkspacePaths, resolveGroupPageTab, type GroupDebtSummary, type GroupPageTab, type GroupWorkspace } from "@/lib/group-workspace";
 import { priceLabelOf } from "@/lib/group-price";
 import { groupPaymentsHref } from "@/lib/group-payments";
 import { NumberInput } from "@/components/ui/number-input";
@@ -120,6 +120,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   // The debt of the group for the chip of the header (only while the tab «Оплаты» exists for this role)
   const [debt, setDebt] = useState<GroupDebtSummary | null>(null);
+  const [waiting, setWaiting] = useState<GroupDebtSummary | null>(null);
   const [debtTick, setDebtTick] = useState(0); // a price or a lesson type just changed: the debt of the group is read again
 
   const load = useCallback(async (silent = false) => {
@@ -232,11 +233,15 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   // IA audit F30: «Долг N» of the header (one request for the debtors of this group; read again when the tab changes)
   const debtEnabled = paymentsAccess === "show" && Boolean(group);
   useEffect(() => {
-    if (!debtEnabled) { setDebt(null); return undefined; }
+    if (!debtEnabled) { setDebt(null); setWaiting(null); return undefined; }
     let cancelled = false;
     orgApi.getPaymentsStatus({ bucket: "debt", groupId, limit: 500, offset: 0 })
       .then((result) => { if (!cancelled) setDebt(groupDebtSummary(result.items ?? [])); })
       .catch(() => { if (!cancelled) setDebt(null); });
+    // Money-1 B7: the students who only wait for the first payment - apart from the debtors
+    orgApi.getPaymentsStatus({ bucket: "waiting", groupId, limit: 500, offset: 0 })
+      .then((result) => { if (!cancelled) setWaiting(groupDebtSummary(result.items ?? [])); })
+      .catch(() => { if (!cancelled) setWaiting(null); });
     return () => { cancelled = true; };
   }, [debtEnabled, groupId, tab, debtTick]);
 
@@ -265,6 +270,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
 
   const priceChip = paymentsAccess === "show" ? groupPriceChipText(group.price_current, priceLabelOf(periodMode)) : null;
   const debtChip = paymentsAccess === "show" && debt ? groupDebtChipText(debt) : null;
+  const waitingChip = paymentsAccess === "show" ? groupWaitingChipText(waiting) : null;
   const headerMenu: RowMenuItem[] = groupHeaderActions({ archived: group.status === "archived", priceAvailable: paymentsAccess === "show", canManage }).map((action) => {
     if (action === "edit") return { key: action, label: GROUP_HEADER_LABEL.edit, icon: Edit2, onSelect: () => setEditing(true) };
     if (action === "price") return { key: action, label: GROUP_HEADER_LABEL.price, icon: Tag, onSelect: () => setPriceOpen(true) };
@@ -475,13 +481,16 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                     {/* LOGIC-A F14: the type of the lessons (plain text: it is changed in the edit form, #126) */}
                     <p className="mt-1 text-sm text-slate-600" data-testid="group-lesson-type-line">{lessonTypeLine(group.lesson_type)}</p>
                     {/* IA audit F30: the price and the debt of the group, one click from the tab «Оплаты» */}
-                    {(priceChip || debtChip) && (
+                    {(priceChip || debtChip || waitingChip) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="group-money-chips">
                         {priceChip && (
                           <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
                         )}
                         {debtChip && (
                           <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:underline">{debtChip}</Link>
+                        )}
+                        {waitingChip && (
+                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-waiting-chip" className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:underline">{waitingChip}</Link>
                         )}
                       </div>
                     )}

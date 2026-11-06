@@ -166,3 +166,28 @@ test("Б8: the make-up sentence of a confirmed excuse is a line of «Что из
   assert.match(lines[0].text, /Ученик может отработать пропущенный урок/);
   assert.equal(E.effectsEmpty(E.moneyEffectsOf({ moneyEffects: { students: [], payroll: [] } })), true);
 });
+
+test("Б5/Б6: the statement shows «Период продлён на N дней: ученик возвращался в группу» and «Оплаченные дни перешли…» in the words of the server; nothing is made up", () => {
+  const row = (seq, date, type, title) => ({ seq, date, type, title, debit: 0, credit: 0, outflow: 0, balance_after: 0, balance_text: null, details: {}, voided_at: null, voided_by_name: null, void_reason: null });
+  const statement = {
+    as_of: "2026-10-20", upcoming: [], summary: {}, membership: {},
+    rows: [
+      row(1, "2026-10-16", "pause", "Период продлён на 2 дня: ученик возвращался в группу (14.10–15.10)"),
+      row(2, "2026-10-25", "opening_paid_until", "Оплаченные дни перешли вместе с учеником: оплачено до 20.11"),
+    ],
+  };
+  const items = L.buildStatementItems(statement, "2026-10");
+  const titles = items.map((item) => item.title).filter(Boolean);
+  assert.ok(titles.includes("Период продлён на 2 дня: ученик возвращался в группу (14.10–15.10)"), JSON.stringify(titles));
+  assert.ok(titles.includes("Оплаченные дни перешли вместе с учеником: оплачено до 20.11"), JSON.stringify(titles));
+  assert.ok(items.filter((item) => item.title && /Период продлён/.test(item.title)).every((item) => item.charged === null && item.paid === null), "an information row: no money");
+});
+
+test("Б7: the header of a group says «Ждём оплату: M сум · N учеников» by the SAME function as the card of «Оплаты»; nobody waits - nothing", () => {
+  const W2 = require(path.join(root, "src/lib/group-workspace.ts"));
+  const summary = W2.groupDebtSummary([{ debt: 300000 }, { debt: 200000 }, { debt: 0 }]);
+  assert.equal(N(W2.groupWaitingChipText(summary)), "Ждём оплату: 500 000 сум · 2 ученика");
+  assert.equal(W2.groupWaitingChipText(summary), P.waitingLine(500000, 2));
+  assert.equal(W2.groupWaitingChipText(W2.groupDebtSummary([])), null);
+  assert.equal(W2.groupWaitingChipText(null), null);
+});

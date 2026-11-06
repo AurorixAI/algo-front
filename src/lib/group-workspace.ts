@@ -3,7 +3,7 @@
  * param, like the student card and the payments page.  This module is their pure part (no React, so node:test loads it): the paths of a
  * workspace, the «⋯» of the group header, the roster menu, the list filters with their deep link, the money chips of the header.
  */
-import { formatMoney } from "./payments";
+import { formatMoney, waitingLine } from "./payments";
 import { lacksGroupPrice, formatPrice, type GroupPriceBrief } from "./group-price";
 import { pluralRu } from "./plural";
 import { workspaceBases, type Workspace } from "./ia-links";
@@ -150,6 +150,11 @@ export function groupDebtSummary(rows: ReadonlyArray<{ debt?: number | null }>):
 export function groupDebtChipText(summary: GroupDebtSummary): string | null {
   if (summary.count <= 0) return null;
   return `Долг ${formatMoney(summary.total)} · ${summary.count} ${pluralRu(summary.count, ["ученик", "ученика", "учеников"])}`;
+}
+
+/** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - the SAME sentence as the card of «Оплаты» (`waitingLine`); null when nobody waits.  Calm, never the red of the debt. */
+export function groupWaitingChipText(summary: GroupDebtSummary | null | undefined): string | null {
+  return summary && summary.count > 0 ? waitingLine(summary.total, summary.count) : null;
 }
 
 /** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or «Цена группы не задана». */
