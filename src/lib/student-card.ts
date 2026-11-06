@@ -3,7 +3,7 @@
  */
 import { formatDayMonthRu } from "./business-time";
 import { debtRoleOf, formatMoney, type MembershipPaymentRow } from "./payments";
-import { rowBalance } from "./payments-ledger";
+import { advanceLabel, rowBalance } from "./payments-ledger";
 
 export interface StudentMoneyChip {
   label: string;
@@ -21,7 +21,9 @@ export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, 
   let debt = 0;
   let debtGroups = 0;
   let waiting = 0;
+  let advance = 0;
   for (const row of list) {
+    advance += rowBalance(row).advance;
     const value = rowBalance(row).debt;
     // Money-1 B7: the debtors and the ones who only wait are counted apart (one question for every screen: `debtRoleOf`)
     if (debtRoleOf(row) === "debtor") { debt += value; debtGroups += 1; }
@@ -33,9 +35,11 @@ export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, 
     .filter((row) => row.is_active && row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) && row.status !== "paused")
     .map((row) => String(row.paid_until).slice(0, 10))
     .sort();
-  if (ends.length === 0) return null;
+  // Money-1 B walk: the advance is said with the same number as the statement (`rowBalance`), next to the date it pays for
+  const advanceText = advance > 0 ? advanceLabel(advance) : null;
+  if (ends.length === 0) return advanceText ? { label: advanceText, tone: "ok", debtGroups: 0 } : null;
   const nearest = ends[0];
-  return { label: `Оплачено до ${formatDayMonthRu(nearest)}`, tone: "ok", debtGroups: 0 };
+  return { label: `Оплачено до ${formatDayMonthRu(nearest)}${advanceText ? ` · ${advanceText}` : ""}`, tone: "ok", debtGroups: 0 };
 }
 
 /** The editable fields of «Изменить данные…» and the patch of those that changed (nothing unchanged is sent). */
