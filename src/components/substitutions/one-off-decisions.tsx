@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { capitalizeFirst } from "@/lib/business-time";
 import {
   DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_MONTH_CLOSED_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionNoSheetText, decisionNote, decisionPayLines, decisionQuestion, decisionToastText, decisionWhoLine, decisionWindowLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText,
+  decisionAskedLine, decisionLessonLine, decisionNoSheetText, decisionFacts, decisionPayLines, decisionQuestion, decisionToastText, decisionWhoLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText,
   previewNamesSheetSum, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
@@ -197,7 +197,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       <Modal
         open={dialog !== null}
         title={dialog ? decisionQuestion(dialog.item, dialog.decision) : ""}
-        description={dialog ? decisionWindowLine(dialog.item) : undefined}
+        description={dialog ? decisionLessonLine(dialog.item) : undefined}
         onClose={close}
         busy={busy}
         maxWidthClassName="max-w-md"
@@ -216,8 +216,15 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       >
         {dialog && (
           <div className="space-y-3 text-sm text-slate-700">
-            <p data-testid="one-off-decision-note">{decisionNote(dialog.decision, dialog.item.studentsPaid)}</p>
-            <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={noSheetText} withPaid closedPurpose="decision" />
+            <dl data-testid="one-off-decision-facts" className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-1">
+              {decisionFacts(dialog.item, dialog.decision).map((fact) => (
+                <div key={fact.key} className="contents" data-testid={`decision-fact-${fact.key}`}>
+                  <dt className="text-slate-500">{fact.label}</dt>
+                  <dd className="min-w-0 break-words text-slate-800">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={noSheetText} withPaid teacherName={dialog.item.teacher?.name ?? null} closedPurpose="decision" />
             {problem && (
               <p role="alert" data-testid="one-off-decision-error" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{problem}</span>

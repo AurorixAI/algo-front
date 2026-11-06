@@ -69,7 +69,7 @@ export function UndoDecisionDialog({
     >
       <div className="space-y-2 pb-2 text-sm leading-6 text-slate-700">
         <p>{UNDO_DECISION_NOTE}</p>
-        <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={target?.money === "paid" ? DECISION_UNDO_NO_SHEET_TEXT : undefined} aboveLessonPanel={aboveLessonPanel} withPaid closedPurpose="decision" />
+        <MoneyEffectsBlock preview={preview} onRetry={retry} noneText={target?.money === "paid" ? DECISION_UNDO_NO_SHEET_TEXT : undefined} aboveLessonPanel={aboveLessonPanel} withPaid teacherName={target?.teacherName ?? null} closedPurpose="decision" />
         <DialogError error={error} closed={closed} text={(failure) => oneOffRefusalText(failure, "Не удалось отменить решение. Данные не изменены.")} onReopened={() => { setError(null); retry(); }} aboveLessonPanel={aboveLessonPanel} />
       </div>
     </Modal>

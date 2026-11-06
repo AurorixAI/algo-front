@@ -42,11 +42,11 @@ test("D-4: «Оплатить» - the window first asks the server what the deci
   hold.open();
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   const effects = await flat(page, '[data-testid="money-effects"]');
-  assert.match(effects, /Зарплата за ноябрь(?: 2026)? вырастет:\s*Каримова К\.\s*0 → 125 000\s*\+125 000 сум/);
+  assert.match(effects, /Зарплата Каримовой К\. за ноябрь\s*Было\s*0 сум\s*Станет\s*\+125 000 сум\s*125 000 сум/);
   const dialog = await flat(page, '[role="dialog"]');
   assert.equal((dialog.match(/125\s000/g) || []).length, 2, "the change and the sum after - the estimate of the row is not said a third time");
   assert.ok(!dialog.includes("Преподавателю ≈"), "the estimate is the line of the sheet now");
-  assert.match(dialog, /Ученикам урок бесплатный\. В зарплату входят все 3 ученика, включая «Не был»/);
+  assert.match(dialog, /Пришли\s*2 из 3\s*Для учеников\s*бесплатно — урок не списывается и не оплачивается\s*В зарплату\s*за всех 3 учеников, включая отметку «Не был»\s*Отменить\s*можно, пока ноябрь не закрыт/);
   assert.ok(!dialog.includes("Ведомость за ноябрь 2026 г. уже"), "an unpaid sheet: no extra warning");
   await page.click('[data-testid="one-off-decision-confirm"]');
   await page.waitForFunction(() => window.__log.includes("decided:l1"));
@@ -77,7 +77,7 @@ test("D-4: an administrator with the right sees the month and the state of the s
   await page.click('button[aria-label^="Включить в зарплату"]');
   await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
   const dialog = await flat(page, '[role="dialog"]');
-  assert.match(dialog, /Изменится зарплата за ноябрь(?: 2026)? — 1 преподаватель\./);
+  assert.match(dialog, /Изменится зарплата Каримовой К\. за ноябрь · суммы видит владелец/);
   assert.ok(!/[\d]\s?\d{3}\s*сум/.test(dialog), `no sum for an administrator: ${dialog}`);
   assert.ok(!dialog.includes("Ведомость за ноябрь 2026 г. уже сохранена"), "the administrator's «уже сохранена» is the block above, not said twice");
   await page.close();
@@ -88,7 +88,7 @@ test("UX pack №1: the owner is told what is paid already, in the ONE block: «
     { items: [ITEM({ payrollSheet: { month: "2026-11", status: "due" } })] }, OWNER);
   await page.click('button[aria-label^="Включить в зарплату"]');
   await page.waitForSelector('[data-testid="effect-paid"]');
-  assert.match(await flat(page, '[data-testid="effect-paid"]'), /^Уже выплачено 150\s000\sсум — до новой суммы останется 15\s834\sсум$/);
+  assert.match(await flat(page, '[data-testid="effect-paid"]'), /^Уже выплачено\s*150\s000\sсум\s*Останется выплатить\s*15\s834\sсум$/);
   assert.equal(await page.locator('[data-testid="one-off-decision-warning"]').count(), 0);
   assert.ok(!(await flat(page, '[role="dialog"]')).includes("выплачена"), "the false «sheet is paid» of an open month is gone");
   assert.equal(await page.textContent('[role="dialog"] h2'), "Включить урок в зарплату Каримовой К.?");
@@ -199,7 +199,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
   await run.page.waitForSelector('[data-testid="decided-undo"]');
   await run.page.click('[data-testid="decided-undo"]');
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
-  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата за ноябрь(?: 2026)? уменьшится:\s*Каримова К\.\s*125 000 → 0\s*−125 000 сум/);
+  assert.match(await flat(run.page, '[data-testid="money-effects"]'), /Зарплата Каримовой К\. за ноябрь\s*Было\s*125 000 сум\s*Станет\s*−125 000 сум\s*0 сум/);
   assert.ok(!(await flat(run.page, '[role="dialog"]')).includes("Сейчас урок оплачивается преподавателю"), "no second telling of the same");
   await run.page.close();
 

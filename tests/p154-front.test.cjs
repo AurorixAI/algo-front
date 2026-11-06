@@ -267,10 +267,12 @@ test("A: the buttons are named by the short day, never an ISO date (F3); the win
   assert.match(html, /aria-label="Включить в зарплату: 7-А, чт 05\.11"/);
   assert.match(html, /aria-label="Не включать: 7-А, чт 05\.11"/);
   assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
-  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение можно отменить, пока месяц не закрыт\.$/);
-  assert.match(O.decisionNote("pay"), /^Ученикам урок бесплатный\. В зарплату входят все ученики, включая «Не был»\./);
-  assert.match(O.decisionNote("skip"), /^Ученикам урок бесплатный\. В зарплату преподавателя он не войдёт\./);
-  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision, dialog\.item\.studentsPaid\)/);
+  const facts = (decide) => O.decisionFacts({ studentsPresent: 2, studentsTotal: 3, lessonDate: "2026-11-04" }, decide);
+  for (const decide of ["pay", "skip"]) assert.deepEqual(facts(decide).map((fact) => fact.label), ["Пришли", "Для учеников", "В зарплату", "Отменить"]);
+  for (const decide of ["pay", "skip"]) assert.equal(facts(decide)[3].value, "можно, пока ноябрь не закрыт", "the window says «можно отменить» for BOTH choices");
+  assert.match(facts("pay")[2].value, /^за всех учеников, включая отметку «Не был»$/);
+  assert.equal(facts("skip")[2].value, "не войдёт");
+  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionFacts\(dialog\.item, dialog\.decision\)/);
 });
 
 test("A: the new refusals of the server have words, not codes (F5)", () => {

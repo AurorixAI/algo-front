@@ -17,6 +17,7 @@ import { pluralRu } from "./plural";
 import { formatBusinessDate } from "./business-time";
 import { monthTitle } from "./payroll";
 import { monthLabel } from "./ru-calendar";
+import { genitiveShortName } from "./name-case";
 
 export type PeriodState = "none" | "open" | "closed" | "reopened";
 
@@ -179,6 +180,32 @@ export interface EffectRow {
   delta: string | null;
 }
 
+/** What is paid already and what is left, for one teacher (the owner; an open month only). */
+export interface EffectPaid {
+  paid: number;
+  /** «Останется выплатить» (left >= 0) / «Выплачено вперёд» (left is the sum paid ahead). */
+  leftLabel: string;
+  left: number;
+}
+
+export interface EffectTableRow {
+  name: string;
+  before: number | null;
+  after: number | null;
+  delta: number | null;
+  paid: EffectPaid | null;
+}
+
+/**
+ * The pay of the teachers of one month as the window draws it (owner 06.11, UX pack §5.3): ONE teacher - a title «Зарплата Эргашева К. за ноябрь», the group «Было / Станет +Δ», a line, the group
+ * «Уже выплачено / Останется выплатить»; several - a mini-table «Преподаватель · Было · Станет · ±» and under it the payouts, one line per teacher.
+ */
+export interface EffectTable {
+  title: string;
+  multi: boolean;
+  rows: EffectTableRow[];
+}
+
 export interface EffectLine {
   key: string;
   /** The line itself; for the pay of the teachers - its heading («Зарплата за сентябрь вырастет:»). */
@@ -187,6 +214,8 @@ export interface EffectLine {
   items?: string[];
   /** The same lines as a TABLE (re-audit С11): the name on the left, «было → станет» in the middle, the change on the right - one look of «Что изменится» in every window. */
   rows?: EffectRow[];
+  /** The pay of the teachers as the table of the window (the owner); `items` / `rows` / `after` are the same facts as texts (the toast). */
+  table?: EffectTable;
   /** Under the items, plain: what is paid already («Уже выплачено 150 000 сум — до новой суммы останется 15 834 сум»); only where the window asks for it (`withPaid`). */
   after?: string[];
   /** After them: what the person has to do («Сентябрь закрыт: сохраните новую сумму, чтобы она вошла в выплату»).  Only when something has to be done. */
@@ -233,7 +262,14 @@ export function paidLine(line: MoneyPayrollEffect): string | null {
   return `${paid} — это на ${sum(-left)} больше новой суммы: выплачено вперёд`;
 }
 
-function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean, today: string, withPaid = false): EffectLine[] {
+/** The payout of a teacher for the table: the same rule as `paidLine` (an open or reopened month, something paid, the fresh total known). */
+export function paidOf(line: MoneyPayrollEffect): EffectPaid | null {
+  if (line.state === "closed" || line.paid === null || line.paid <= 0 || line.freshAfter === null) return null;
+  const left = line.balanceAfter ?? line.freshAfter - line.paid;
+  return left >= 0 ? { paid: line.paid, leftLabel: "Останется выплатить", left } : { paid: line.paid, leftLabel: "Выплачено вперёд", left: -left };
+}
+
+function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean, today: string, withPaid = false, teacherName: string | null = null): EffectLine[] {
   const months = [...new Set(payroll.map((line) => line.month))].sort();
   // an action that did not move a sheet has no news about it (in the preview too: nothing to say)
   const groups = months
@@ -252,6 +288,12 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
     const several = closedMonths.some((group) => closedOf(group.moved).length > 1) || closedMonths.length > 1;
     const names = closedMonths.map((group, index) => monthLabel(group.month, today, index === 0)).join(" и ");
     const note = closedMonths.length > 0 ? `${names} ${closedMonths.length > 1 ? "закрыты" : "закрыт"}: владелец сохранит ${several ? "новые суммы" : "новую сумму"}.` : undefined;
+    // ONE teacher the window knows by name (a decision about his lesson): «Изменится зарплата Эргашева К. за ноябрь · суммы видит владелец» (owner 06.11)
+    if (teacherName && groups.length === 1 && groups[0].moved.length === 1) {
+      const whose = genitiveShortName(teacherName) ?? "преподавателя";
+      const closedNote = closedMonths.length > 0 ? `${monthLabel(groups[0].month, today, true)} закрыт: владелец сохранит новую сумму.` : undefined;
+      return [{ key: "payroll:admin", text: `${done ? "Изменилась" : "Изменится"} зарплата ${whose} за ${monthLabel(groups[0].month, today)} · суммы видит владелец`, note: closedNote, tone: closedNote ? "warn" : "plain" }];
+    }
     return [{ key: "payroll:admin", text: `${done ? "Изменилась" : "Изменится"} зарплата ${parts.join(", ")}. Суммы видит владелец.`, note, tone: note ? "warn" : "plain" }];
   }
 
@@ -283,7 +325,12 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
       change: line.freshBefore !== null && line.freshAfter !== null ? `${bare(line.freshBefore)} → ${bare(line.freshAfter)}` : null,
       delta: line.changedBy === null ? null : signedSum(line.changedBy),
     }));
-    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, rows, ...(after.length > 0 ? { after } : {}), note, tone });
+    const table: EffectTable = {
+      title: moved.length === 1 ? `Зарплата ${genitiveShortName(moved[0].teacherName) ?? (moved[0].teacherName ? `преподавателя ${moved[0].teacherName}` : "преподавателя")} за ${m}` : `Зарплата за ${m}`,
+      multi: moved.length > 1,
+      rows: moved.map((line) => ({ name: line.teacherName || "Преподаватель", before: line.freshBefore, after: line.freshAfter, delta: line.changedBy, paid: withPaid ? paidOf(line) : null })),
+    };
+    out.push({ key, text: `Зарплата за ${m} ${verb}:`, items, rows, table, ...(after.length > 0 ? { after } : {}), note, tone });
   }
   return out;
 }
@@ -295,11 +342,11 @@ function payrollGroups(payroll: ReadonlyArray<MoneyPayrollEffect>, done: boolean
  *  - the numbers could not be worked out (`unavailable`): one line, not an error.
  * `done`: the toast after the action (past tense).  `today` (business date) decides whether a month is named with its year.
  */
-export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean; today?: string; withPaid?: boolean } = {}): EffectLine[] {
+export function effectLines(effects: MoneyEffects | null | undefined, options: { done?: boolean; today?: string; withPaid?: boolean; teacherName?: string | null } = {}): EffectLine[] {
   if (!effects) return [];
   const done = options.done === true;
   const lines: EffectLine[] = effects.students.map((student) => ({ key: `student:${student.studentId}`, text: studentEffectText(student, done), tone: "plain" }));
-  lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate(), options.withPaid === true));
+  lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate(), options.withPaid === true, options.teacherName ?? null));
   if (effects.unavailable) lines.push({ key: "unavailable", text: `${EFFECTS_UNAVAILABLE_TEXT}. ${done ? EFFECTS_UNAVAILABLE_DONE_HINT : EFFECTS_UNAVAILABLE_HINT}`, tone: "warn" });
   if (lines.length === 0 && effects.text) lines.push({ key: "text", text: effects.text, tone: "plain" });
   return lines;
