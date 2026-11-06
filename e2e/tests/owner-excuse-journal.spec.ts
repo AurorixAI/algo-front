@@ -75,7 +75,7 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   // the note, then a double click on the button: ONE request carrying the decision and the note
   const note = "Справка не принесена";
   await dialog.getByLabel("Причина отказа (необязательно)").fill(note);
-  await dialog.getByRole("button", { name: "Отклонить", exact: true }).dblclick();
+  await dialog.getByRole("button", { name: "Отклонить пропуск", exact: true }).dblclick();
   const rejected = row.getByRole("button", { name: "Отклонена" });
   await expect(rejected).toBeVisible();
   await expect(dialog).toHaveCount(0);

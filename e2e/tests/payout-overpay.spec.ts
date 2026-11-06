@@ -71,8 +71,8 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await dialog.getByRole("radio", { name: "Наличные" }).click();
   await dialog.getByRole("button", { name: /Записать выплату/ }).click();
   const question = dialog.getByTestId("payout-overpay");
-  await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше начисленного сейчас — запишем как выплату вперёд`));
-  await expect(dialog.getByRole("button", { name: /Записать выплату вперёд/ })).toBeVisible();
+  await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше начисленного сейчас: эти\\s*${moneyPattern(15000)}\\s*сум запишем как выплату вперёд`));
+  await expect(dialog.getByRole("button", { name: new RegExp(`^Записать выплату\\s*${moneyPattern(40000)}\\s*сум$`) })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Отмена" })).toBeVisible();
   await expect(question).toContainText("покроется начислениями до конца месяца; если останется — уменьшит следующую выплату");       // R3 3 / #20: what the advance does in a month that is still going
   await shot(page, project, "02-overpay-question");
@@ -86,19 +86,19 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await expect(dialog.getByLabel("Сумма")).toHaveValue(new RegExp(`^${moneyPattern(40000)}$`)); // the typed amount is still there
   expect(await org.owner.api.get("/auth/org/payroll/payouts", { month })).toEqual([]);
 
-  // --- again, and this time «Записать выплату вперёд»
+  // --- again, and this time «Записать выплату 40 000 сум» (the one button names the sum; in the question it writes the advance)
   await dialog.getByRole("button", { name: /Записать выплату/ }).click();
   await expect(question).toBeVisible();
-  await dialog.getByRole("button", { name: /Записать выплату вперёд/ }).click();
+  await dialog.getByRole("button", { name: new RegExp(`^Записать выплату\\s*${moneyPattern(40000)}\\s*сум$`) }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(40000)}`))).toBeVisible();
   await expect(dialog).toHaveCount(0);
   // D-2 / D-3 (walk of 05.11): every number once.  The card says what is accrued now, the chip what was overpaid, the list the payout; the sentence of the server («Месяц открыт: начислено сейчас…») is not repeated
-  await expect(page.getByTestId("payroll-total-label")).toHaveText("Начислено сейчас");
+  await expect(page.getByTestId("payroll-total-label")).toHaveText("Начислено на сегодня");
   await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(25000)}\\s*сум`));
   await expect(block).toContainText(new RegExp(`Выплачено вперёд\\s*${moneyPattern(15000)}\\s*сум`));
   await expect(block).not.toContainText("Месяц открыт: начислено сейчас");
   await expect(block.getByTestId("payout-advance"), "an open month hands no advance on: the line says the overpay may still be earned back").toHaveCount(1);
-  await expect(block.getByTestId("payout-advance")).toContainText("Месяц ещё идёт: если к его концу начислится меньше выплаченного");
+  await expect(block.getByTestId("payout-advance")).toContainText("Покроется начислениями до конца месяца; если останется — уменьшит следующую выплату");
   await expect(block.getByRole("list", { name: "Выплаты" })).toContainText(new RegExp(`${moneyPattern(40000)}\\s*сум`));
   await shot(page, project, "03-sheet-overpaid-open-month");
   const written = await org.owner.api.get("/auth/org/payroll/payouts", { month });
@@ -118,7 +118,7 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await again.getByLabel("Сумма").fill("1 000");
   await again.getByRole("radio", { name: "Наличные" }).click();
   await again.getByRole("button", { name: /Записать выплату/ }).click();
-  await expect(again.getByTestId("payout-overpay")).toContainText(new RegExp(`Выплата больше начисленного сейчас на\\s*${moneyPattern(1000)}\\s*сум`));
+  await expect(again.getByTestId("payout-overpay")).toContainText(new RegExp(`Это на\\s*${moneyPattern(1000)}\\s*сум больше начисленного сейчас`));
   await again.getByRole("button", { name: "Отмена" }).click();
   await again.getByRole("button", { name: "Отмена" }).click(); // the second «Отмена» closes the window
   await expect(again).toHaveCount(0);
@@ -158,9 +158,9 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   await overpay.getByRole("radio", { name: "Наличные" }).click();
   await overpay.getByRole("button", { name: /Записать выплату/ }).click();
   const question = overpay.getByTestId("payout-overpay");
-  await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты`));
+  await expect(question).toContainText(new RegExp(`Это на\\s*${moneyPattern(15000)}\\s*сум больше, чем осталось выплатить: эти\\s*${moneyPattern(15000)}\\s*сум запишем как выплату вперёд и вычтем из следующей выплаты`));
   await shot(page, project, "05-closed-month-overpay-question");
-  await overpay.getByRole("button", { name: /Записать выплату вперёд/ }).click();
+  await overpay.getByRole("button", { name: new RegExp(`^Записать выплату\\s*${moneyPattern(115000)}\\s*сум$`) }).click();
   await expect(toast(page, new RegExp(`Выплата внесена: ${moneyPattern(115000)}`))).toBeVisible();
   await expect(pastBlock).toContainText(new RegExp(`Выплачено больше на\\s*${moneyPattern(15000)}\\s*сум`));
   await expect(pastBlock.getByTestId("payout-advance")).toHaveText("Вычтем из следующей выплаты");   // the chip says 15 000, the line only what happens to it
@@ -182,7 +182,7 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   const file = info.outputPath("sheet.xlsx");
   await download.saveAs(file);
   const strings = [...readZip(readFileSync(file)).values()].map((part) => part.toString("utf8")).join("\n");     // the text of the cells (shared or inline strings)
-  expect(strings, "the Excel file of the sheet has the line of the advance").toContain("Аванс прошлого месяца: 15 000 сум");
+  expect(strings, "the Excel file of the sheet has the line of the advance (the words of the server: dictionary «Выплачено больше»)").toMatch(new RegExp(`Выплачено больше в прошлом месяце:\\s*${moneyPattern(15000)}\\s*сум — вычтено, «К выплате» уменьшена на эту сумму`));
   // paying exactly what is left (85 000) is no question and settles the month
   await block.getByRole("button", { name: "Записать выплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Записать выплату" });

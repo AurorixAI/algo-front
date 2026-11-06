@@ -31,7 +31,7 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
 
   await adminPage.goto("/admin/payments");
   await expect(adminPage.getByText("Раздел «Оплаты» вам недоступен.")).toBeVisible();
-  await expect(adminPage.getByText("Доступ даёт владелец центра в настройках.")).toBeVisible();
+  await expect(adminPage.getByText("Доступ включает владелец центра.")).toBeVisible();
 
   // the server says the same (not only the menu hides it)
   await expect(admin.api.get("/auth/org/payments/summary")).rejects.toMatchObject({ status: 403 });

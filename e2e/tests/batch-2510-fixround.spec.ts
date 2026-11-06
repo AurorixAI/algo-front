@@ -30,7 +30,13 @@ async function shot(page: Page, name: string) {
 const today = () => businessNow().date;
 const wrap = (weekday: number) => ((weekday - 1 + 7) % 7) + 1;
 const mondayOf = (iso: string) => addDays(iso, 1 - weekdayOf(iso));
-const dmShort = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+/** «сб, 8 ноября» - the one date of a lesson (formatLessonWhen), written out by hand so the test does not reuse the code it checks. */
+const lessonDay = (iso: string) => {
+  const months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  const weekdays = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+  const at = new Date(`${iso}T12:00:00Z`);
+  return `${weekdays[at.getUTCDay()]}, ${Number(iso.slice(8, 10))} ${months[Number(iso.slice(5, 7)) - 1]}`;
+};
 
 /** The first date after today on the weekday `shift` days from today. */
 const ahead = (shift: number) => addDays(today(), shift);
@@ -142,7 +148,7 @@ test("a day off: the dry run lists the lessons «группа · дата · в�
   await expect(summary).toHaveText("Будут отменены 2 урока в 2 группах");               // the sentence has no names of groups in it any more
   const list = dialog.getByTestId("day-off-cancellable").getByRole("listitem");
   await expect(list).toHaveCount(2);
-  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${dmShort(d1)} · 10:00–11:00 · ${name}` })).toHaveCount(1);
+  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${lessonDay(d1)} · 10:00–11:00 · ${name}` })).toHaveCount(1);
   await expectNoHorizontalScroll(page);
   await shot(page, `19-day-off-list-preview-${project}`);
   await dialog.getByTestId("day-off-apply").click();

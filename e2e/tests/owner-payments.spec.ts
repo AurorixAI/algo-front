@@ -111,7 +111,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
   await dialog.getByLabel("Причина").fill("ab");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("Укажите причину (не короче 3 символов)");
+  await expect(dialog.getByRole("alert")).toContainText("Укажите причину — не короче 3 символов");
   await dialog.getByLabel("Причина").fill("Ошибочно внесена сумма");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
   await expect(toast(page, "Оплата отменена")).toBeVisible();

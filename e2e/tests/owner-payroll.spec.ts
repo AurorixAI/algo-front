@@ -25,6 +25,7 @@ const total = (amount: number) => new RegExp(`(?:К выплате|Начисл�
  *                                 | Эльдар 450 000 (individual) present but NEVER PAID (shown, not in the sum until «начислить»)
  *   teacher 2, «Индивидуально» (price of the group 800 000), 40 %:  Дилшод 800 000 present
  */
+const MONTHS_RU = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Зарплата");
@@ -70,7 +71,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
 
   // --- the month: the summary line, one calm line for an open month, «Как считается» and «Делитель» in the «⋯» menu
   await expect(page.getByTestId("payroll-month-summary")).toContainText("сохранено 0 из 2");
-  await expect(page.getByRole("status").filter({ hasText: "ещё идёт — расчёт предварительный" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: `${MONTHS_RU[Number(month.slice(5, 7)) - 1]} ещё идёт — суммы предварительные` })).toBeVisible();
   await expect(page.getByRole("button", { name: "Как считается", exact: true })).toHaveCount(0); // not floating next to the text
   await page.getByRole("button", { name: /^Ещё: как считается/ }).click();
   await page.getByRole("menuitem", { name: "Как считается" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
@@ -141,7 +142,9 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await preview.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Ведомость сохранена · версия 1")).toBeVisible();
   const row = page.getByRole("listitem").filter({ hasText: "Групповой" });
-  await expect(row).toContainText(/Сохранено \d\d\.\d\d/);
+  // UX pack §5.2-бис: ONE chip by priority - the excuse of this teacher still waits, so «Требует действия · 1» stands before «Сохранено дд.мм» (the saved date is checked on the card below)
+  await expect(row).toContainText("Требует действия · 1");
+  await expect(row).not.toContainText("Не рассчитано");
   await expect(row).toContainText(`${groupedDigits(t1Total)} сум`);
   await expect(page.getByTestId("payroll-month-summary")).toContainText(`${groupedDigits(t1Total)} сум`);
   await expect(page.getByTestId("payroll-month-summary")).toContainText("сохранено 1 из 2");
@@ -152,7 +155,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toContainText("Групповой");
   const card = page.getByRole("region", { name: "Итог ведомости" });
   await expect(card).toContainText(total(t1Total));
-  await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4} в \d\d:\d\d/);
+  await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4} · \d\d:\d\d/);
   await expect(card).toContainText("засчитано 3 посещения");
   await expect(page.getByTestId("sheet-todo-save")).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0); // no price field, no percent field
@@ -176,12 +179,16 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await org.setPayrollRate(t1.userId, { group: "70" });
   await page.reload();
   await page.getByRole("tab", { name: "Ведомость" }).click();
-  await expect(card).toContainText("После сохранения ведомость изменилась на");
-  await expect(card).toContainText(/\+[\s\d]+\s*сум/); // the difference of the total
-  await card.getByText("Что изменилось").click();
-  await expect(card).toContainText(/ставка/i);
+  // re-audit С1: the change is said ONCE, by the block «Что нужно сделать»; the card says what was saved
+  const todo = page.getByTestId("sheet-todo");
+  await expect(todo).toContainText("Зарплата изменилась на");
+  await expect(todo).toContainText(/\+[\s\d]+\s*сум — сохраните новую сумму/); // the difference of the total
+  await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4}: [\s\d]+\s*сум/);
+  await card.locator("summary", { hasText: "Что изменилось" }).first().click();
+  await card.locator("summary", { hasText: "Что изменилось" }).last().click(); // nested: the inner one opens the list of what moved
+  await expect(card).toContainText("Ставка «Группа»: 62,5% → 70%");
   await page.getByTestId("sheet-todo-save").click();
-  await expect(toast(page, /Ведомость пересохранена · версия 3/)).toBeVisible();
+  await expect(toast(page, /Новая сумма сохранена · версия 3/)).toBeVisible();
   await expect(card).toContainText("Ставка: Группа 70%");
 
   // --- and the API holds the same versions

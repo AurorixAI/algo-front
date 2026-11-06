@@ -24,7 +24,7 @@ export function PayrollMonthSummary({ totals, month, open }: { totals: MonthTota
           </div>
         ))}
       </dl>
-      <p className="text-xs text-slate-600" data-testid="payroll-month-status">
+      <p role="status" className="text-xs text-slate-600" data-testid="payroll-month-status">
         {status ? `${status} · ` : ""}{totals.saved}
       </p>
     </div>

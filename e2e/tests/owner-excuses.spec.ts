@@ -91,7 +91,7 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   // confirm for real, with a double click on the dialog's button: ONE request
   await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).click();
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Подтвердить", exact: true }).dblclick();
+  await dialog.getByRole("button", { name: "Подтвердить пропуск", exact: true }).dblclick();
   await expect(toast(page, "Пропуск подтверждён")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Ожидают (1)" })).toBeVisible();
   await expect(item("Оплативший Анвар")).toHaveCount(0);

@@ -86,7 +86,7 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await cancelSheet.getByLabel("Причина отмены").fill("Каникулы центра");
   await cancelSheet.getByRole("button", { name: "Отменить урок" }).click();
   await expect(toast(page, "Урок отменён")).toBeVisible();
-  await expect(second).toContainText("Отменён");
+  await expect(second).toContainText("Не состоялся");
   await expect(second).toContainText("Вторая"); // the server keeps the topic the dialog sends
   await expect(second).toContainText("Каникулы центра");
   await second.click();
@@ -100,7 +100,7 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await expect(moved).toContainText("Перенесён");
   await expect(moved).toContainText(/на \S+, \d\d\.\d\d, 19:00/);
   await expect(moved).not.toContainText("Причина");
-  await expect(moved).not.toContainText("Отменён");
+  await expect(moved).not.toContainText("Не состоялся");
   await moved.click();
   const movedSheet = page.getByRole("dialog", { name: "Для переноса" });
   // one text with the teacher's panel (owner decision 04.11, `movedAwayLines`)
@@ -129,7 +129,7 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await moveSheet.getByRole("button", { name: "Перенести урок" }).click();
   await expect(toast(page, "Урок перенесён")).toBeVisible();
   await expect(cards.filter({ hasText: "Для сдвига" }).first()).toContainText("Перенесён");
-  await expect(cards.filter({ hasText: "Для сдвига" }).first()).not.toContainText("Отменён");
+  await expect(cards.filter({ hasText: "Для сдвига" }).first()).not.toContainText("Не состоялся");
   // the new lesson stands on the next day (the next week when the day is a Sunday)
   if (weekdayOf(day) === 7) await page.getByRole("button", { name: "Следующая неделя" }).click();
   const fresh = cards.filter({ has: page.getByTestId("moved-from"), hasText: "13:00–14:00" });
