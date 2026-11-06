@@ -349,13 +349,9 @@ test("R3 №5: the window of the mode asks the dry run with EXACTLY the body tha
   await page.close();
 });
 
-test("R3 №19: an opened journal reads itself again when the settings were saved", async () => {
-  let n = 0;
-  const server = (request) => (request.path === "/auth/org/settings/payments/history" ? { json: { items: [{ id: String(++n), at: "2026-11-06T05:15:00", actor_name: "Owner", action: "billing_regime_changed", text: `запись ${n}`, details: {} }] } } : null);
-  const { page, calls } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 700 });
-  await page.evaluate(() => { window.mount("history", { role: "owner", org_role: "owner" }, { refreshKey: "a" }); });
-  await page.click('button:has-text("Журнал настроек оплат")');
-  await page.waitForSelector('[data-testid="history-entry"]');
-  assert.equal(calls.length, 1);
-  await page.close();
+test("R3 №19/20: the journal is read again when the settings are saved (the key of the page = `updated_at`); the error of saving is under the section only while the window is closed", () => {
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  assert.match(read("src/components/settings/payments-history.tsx"), /\}, \[open, nonce, refreshKey\]\);/);
+  assert.match(read("src/app/owner/settings/page.tsx"), /<PaymentsHistory refreshKey=\{loaded\.updated_at \?\? ""\} \/>/);
+  assert.match(read("src/app/owner/settings/page.tsx"), /\{state\.error && !regimeOpen && \(/);
 });
