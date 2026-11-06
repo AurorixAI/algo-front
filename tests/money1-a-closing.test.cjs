@@ -64,7 +64,12 @@ test("the reason: the field says «обязательно» where the server ask
 });
 
 test("the reason: the windows use the field - cancel of a payment / of a forgiveness / of a refund and the forgiveness itself: required; refund and replace: optional (as the server)", () => {
-  for (const file of ["components/payments/record-void-modal.tsx", "components/payments/writeoff-dialog.tsx"]) assert.match(src(file), /<ReasonField[\s\S]*?required/, file);
+  for (const file of ["components/payments/record-void-modal.tsx", "components/payments/writeoff-dialog.tsx"]) {
+    const text = src(file);
+    const at = text.indexOf("<ReasonField");
+    const element = text.slice(at, text.indexOf("/>", at));
+    assert.match(element, /\srequired\s/, `${file}: the reason is required (a bare \`required\`, not required={false})`);
+  }
   assert.match(src("components/payments/refund-dialog.tsx"), /Причина <span[^>]*>\(необязательно\)/);
   assert.match(src("components/payments/payment-dialog.tsx"), /Причина исправления <span[^>]*>\(необязательно\)/);
   assert.match(src("components/schedule/day-off-dialog.tsx"), /Причина <span[^>]*>\(обязательно\)/);
