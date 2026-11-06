@@ -171,7 +171,7 @@ test("a scheduled individual price is a quiet second line «с 01.12 — 400 000
 
 test("filters and counts: «Все (8)», «Индивидуальная цена (3)», «С долгом (1)»; individual by name, debt by the biggest debt", () => {
   const counts = G.paymentsCounts(VIEWS);
-  assert.deepEqual(counts, { all: 8, individual: 3, debt: 1 });
+  assert.deepEqual(counts, { all: 8, individual: 3, debt: 1, waiting: 0 });
   assert.equal(G.filterChipLabel("all", counts), "Все (8)");
   assert.equal(G.filterChipLabel("individual", counts), "Индивидуальная цена (3)");
   assert.equal(G.filterChipLabel("debt", counts), "С долгом (1)");

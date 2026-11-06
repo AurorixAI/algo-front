@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { businessNow } from "../support/time";
+import { addDays, businessNow } from "../support/time";
 import { dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
 
 /**
@@ -21,20 +21,28 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   const teacher = await org.addStaff("teacher", "Оплатин");
   const group = await org.createGroup({ name: "Группа О1", teacherId: teacher.userId });
   const student = await org.addStudent(group, "Анвар", "Платёжкин"); // the group has no price yet
+  // a REAL debtor next to him (Money-1 B7): charged from ten days ago, so his period is overdue - he is on «Должники», Платёжкин (period began today) only «Ждём оплату»
+  await org.setPaymentSettings({ accounting_start_date: addDays(today, -60) });
+  const debtor = await org.createStudent("Иван", "Должников");
+  await org.owner.api.post(`/auth/org/groups/${group.id}/students/${debtor.id}`, { pay_from: addDays(today, -10) });
   const page = await signIn(org.owner);
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Платёжкин Анвар", exact: true }) });
 
   // --- the group has no price: nobody is owed yet, the list says so above itself and leads to «Цены групп»
-  await page.goto("/owner/payments?bucket=waiting");   // Money-1 B7: a student whose period began today is «Ждём оплату», not a debtor yet
+  await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
-  await expect(page.getByText("У 1 ученика не задана цена")).toBeVisible();
+  await expect(page.getByText(/У 2 учеников не задана цена/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Задать", exact: true })).toHaveAttribute("href", /\/owner\/payments\/prices$/);
   await expect(row()).toHaveCount(0);
 
   // --- the price is set ON THE GROUP (its own spec covers the screen); the row now suggests the sum from it
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
+  // Money-1 B7: the overdue student is a debtor, the one whose period began today is NOT among them (the debtor is on the page, so the check is not an empty list)
   await page.getByRole("tab", { name: /Должники/ }).click();
+  await expect(page.getByRole("link", { name: "Должников Иван", exact: true })).toBeVisible();
+  await expect(row()).toHaveCount(0);
+  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText(money(450000)); // «Цена в месяц»
   await expect(row()).toContainText(/Ждём оплату до \d\d\.\d\d/);
@@ -53,7 +61,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await payDialog.getByRole("radio", { name: "Наличные" }).click();
   await payDialog.getByRole("button", { name: new RegExp(`^Внести\\s*${moneyPattern(450000)}`) }).click(); // the amount is in the button
   await expect(toast(page, "Оплата внесена")).toBeVisible();
-  await expect(row()).toHaveCount(0); // left «Должники» (Ещё не платил)
+  await expect(row()).toHaveCount(0); // left «Ждём оплату»
 
   // --- it is now under «Оплачено»
   await page.getByRole("tab", { name: "Без долга" }).click();
@@ -139,13 +147,13 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   const group = await org.createGroup({ name: "Группа О2", teacherId: teacher.userId });
   await org.addStudent(group, "Мадина", "Телефонова");
   const page = await signIn(org.owner);
-  await page.goto("/owner/payments?bucket=waiting");
+  await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(page.getByText(/не задана цена/)).toBeVisible(); // the group has no price yet: the warning above the list, no row
   await expectNoHorizontalScroll(page);
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
-  await page.getByRole("tab", { name: /Должники/ }).click();
+  await page.getByRole("tab", { name: /Ждём оплату/ }).click();   // Money-1 B7: her period began today
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
   await expect(row).toContainText(/Ждём оплату до \d\d\.\d\d/);
   await expect(row.getByRole("textbox")).toHaveCount(0);

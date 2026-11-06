@@ -348,7 +348,7 @@ test("billing mode: «Новый режим начнёт действовать 
   const page = read("src/app/owner/settings/page.tsx");
   // Money-1 B3: «Сохранить» of a change of the mode opens the window that asks the dry run (one per student)
   assert.match(page, /<RegimeChangeDialog open=\{regimeOpen\} changes=\{regimeDiff\}/);
-  assert.match(read("src/components/settings/regime-change-dialog.tsx"), /orgApi\.previewPaymentSettings\(changes\)/);
+  assert.match(read("src/components/settings/regime-change-dialog.tsx"), /orgApi\.previewPaymentSettings\(body\)/);
   assert.match(page, /\{REGIME_HINT\}/);
   assert.ok(G.CANCELLED_LESSON_TEXT.startsWith("Отменённый центром урок не уменьшает оплату месяца"));
 });

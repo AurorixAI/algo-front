@@ -1,5 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
+import { addDays, businessNow } from "../support/time";
 import { expectNoHorizontalScroll, groupMenuItem, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
@@ -152,7 +153,12 @@ test("the header of the group has no «Изменить…»; a changed «Тип
 test("the header of the group: the price chip and «Цена группы…» in «⋯» (the same dialog as «Цены групп»), «Долг N» leads to the tab «Оплаты»", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Ценовой");
   const group = await org.createGroup({ name: "Группа Г5", teacherId: teacher.userId });
-  await org.addStudent(group, "Тимур", "Должников");
+  // Money-1 B7: a REAL debtor (charged from ten days ago: overdue) and a student who only WAITS (joined today); the price is set below, the first price reaches back to the running periods
+  const today = businessNow().date;
+  await org.setPaymentSettings({ accounting_start_date: addDays(today, -60) });
+  const debtor = await org.createStudent("Тимур", "Должников");
+  await org.owner.api.post(`/auth/org/groups/${group.id}/students/${debtor.id}`, { pay_from: addDays(today, -10) });
+  await org.addStudent(group, "Рустам", "Ждущий");
   const page = await signIn(org.owner);
   await page.goto(`/owner/groups/${group.id}`);
   await expect(page.getByTestId("group-price-chip")).toContainText("Цена группы не задана");
@@ -162,8 +168,16 @@ test("the header of the group: the price chip and «Цена группы…» i
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы задана")).toBeVisible();
   await expect(page.getByTestId("group-price-chip")).toContainText(new RegExp(moneyPattern(500000)));
-  // Money-1 B7: the student joined today and has not paid - he only «ждём оплату», not a debtor: the chip «Долг» of the group is for debtors, the tab keeps his row
-  await expect(page.getByTestId("group-debt-chip")).toHaveCount(0);
-  await page.goto(`/owner/groups/${group.id}?tab=payments`);
-  await expect(page.getByTestId("group-payments-tab")).toBeVisible();
+  // the debt chip is the DEBTORS' (red, a link to the filtered tab); the student who only waits has his own grey chip and filter
+  await expect(page.getByTestId("group-debt-chip")).toContainText(/Долг .*· 1 ученик/);
+  await expect(page.getByTestId("group-waiting-chip")).toContainText(/Ждём оплату: .* · 1 ученик/);
+  await page.getByTestId("group-waiting-chip").click();
+  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=waiting`));
+  await expect(page.getByTestId("group-payments-tab")).toContainText("Ждущий Рустам");
+  await expect(page.getByTestId("group-payments-tab")).not.toContainText("Должников Тимур");
+  await page.goBack();
+  await page.getByTestId("group-debt-chip").click();
+  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=debt`));
+  await expect(page.getByTestId("group-payments-tab")).toContainText("Должников Тимур");
+  await expect(page.getByTestId("group-payments-tab")).not.toContainText("Ждущий Рустам");
 });

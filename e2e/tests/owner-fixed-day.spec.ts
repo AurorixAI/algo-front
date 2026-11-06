@@ -48,8 +48,13 @@ test("fixed payment day: the new mode waits for the next period; the running one
   // --- the running period is not touched: the whole price of the period is due, the amount starts as that
   const expectedAmount = fee;
 
-  await page.goto("/owner/payments?bucket=waiting");   // Money-1 B7: the period began today - «Ждём оплату»
+  // Money-1 B7: the period began today - he WAITS for the payment, he is not a debtor: «Должники» says so in its empty state (not a list that failed to load), «Ждём оплату» holds his row
+  const split = (await org.owner.api.get("/auth/org/payments/summary")).debt_split;
+  expect(split).toMatchObject({ debtors: 0, waiting_students: 1 });
+  await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
+  await expect(page.getByText("Должников нет")).toBeVisible();
+  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум`));
   await row.getByRole("button", { name: "Внести оплату" }).click();
