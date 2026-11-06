@@ -7,6 +7,7 @@ import { formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping, RE
 import { buildRefundPayload, METHODS, payError, refundPreviewText, validateRefund, type RefundFormValues } from "@/lib/payments-ledger";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
+import { SegmentedControl } from "@/components/ui/radio";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -95,20 +96,8 @@ export function RefundDialog({
 
         <div>
           <span id="refund-method-label" className={LABEL}>Способ возврата</span>
-          <div role="radiogroup" aria-labelledby="refund-method-label" className="flex flex-wrap gap-1.5">
-            {METHODS.map((method) => (
-              <button
-                key={method.key}
-                type="button"
-                role="radio"
-                aria-checked={values.method === method.key}
-                onClick={() => patch({ method: method.key })}
-                className={`min-h-10 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors sm:min-h-9 ${values.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-              >
-                {method.label}
-              </button>
-            ))}
-          </div>
+          {/* re-audit С7: the same control as the payment and the payout */}
+          <SegmentedControl ariaLabelledBy="refund-method-label" testId="refund-methods" value={values.method} onChange={(key) => patch({ method: key })} options={METHODS.map((method) => ({ value: method.key, label: method.label }))} className={METHODS.length >= 5 ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"} />
         </div>
 
         <div>
@@ -121,7 +110,7 @@ export function RefundDialog({
             placeholder="Например: ученик ушёл"
             className={FIELD}
           />
-          <p className="mt-1 text-xs text-slate-500">Оплаты остаются в истории, в выписке появится запись о возврате. Её можно отменить.</p>
+          <p className="mt-1 text-xs text-slate-500">Оплаты остаются в истории, в выписке появится запись о возврате. Возврат можно отменить.</p>
         </div>
 
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

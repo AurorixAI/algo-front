@@ -119,6 +119,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
    * lack a price the group has since got.  null while unknown; `failed` falls back to the sheet's own counters.
    */
   const [freshWarnings, setFreshWarnings] = useState<PayrollMonthWarnings | null>(null);
+  const [freshUndecided, setFreshUndecided] = useState(0);
   const [warningsFailed, setWarningsFailed] = useState(false);
   /** Money-1 A1: is the month of this teacher closed / reopened (null while unknown or when the list could not be read: the sheet then says nothing about it). */
   const [period, setPeriod] = useState<PayrollPeriodItem | null>(null);
@@ -206,7 +207,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   // The rate in force in the month of this sheet, read again after every save / recalculation (a quiet failure: the card just says nothing)
   const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
   useEffect(() => {
-    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); setPeriod(null); return undefined; }
+    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); setFreshUndecided(0); setPeriod(null); return undefined; }
     let cancelled = false;
     orgApi.getPayrollPeriods(sheet.month)
       .then((answer) => { if (!cancelled) setPeriod(periodOf(answer, sheet.teacher_id)); })
@@ -216,6 +217,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
         if (cancelled) return;
         const row = overview.teachers.find((candidate) => candidate.teacher_id === sheet.teacher_id);
         setFreshWarnings(row ? row.warnings : null);
+        setFreshUndecided(row?.undecided_lessons ?? 0);
         setWarningsFailed(!row);
       })
       .catch(() => { if (!cancelled) { setFreshWarnings(null); setWarningsFailed(true); } });
@@ -339,6 +341,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     noFeeHref: counts === sheet.warnings ? sheetNoFeeHref(sheet) : undefined,
     openUnknown: counts === sheet.warnings && sheet.id === null && counts?.open_lessons === null,
     undecidedVisits: sheet.undecided_total,
+    undecidedLessons: freshUndecided,
     changed: status?.tone === "changed" && sheet.id ? changedItem({ sheet: { id: sheet.id, stale: true }, payout: sheet.payout }) : null,
   }) : [];
   const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;

@@ -312,7 +312,8 @@ export function savedChangeLine(input: { payout: Partial<PayoutState> | null | u
   if (!state || state.fresh_total === null || state.changed_by === 0) return null;
   const iso = utcNaiveToBusinessIsoDate(input.updatedAt);
   const day = iso ? formatIsoDateLabel(iso, { day: "numeric", month: "long" }) : "";
-  return `Сохранено${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)} (${formatSignedMoney(state.changed_by).replace(/[\s\u00a0]*сум$/, "")})`;
+  // re-audit С1: the change (−45 000) is said ONCE - by the block «Что нужно сделать»; the card says what was saved
+  return `Сохранено${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)}`;
 }
 
 export function savedFactsLine(saved: string, facts: ReadonlyArray<string>): string {
@@ -409,12 +410,10 @@ export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis
   // UX pack №9: ONE plaque, the whole sentence (the words of the server: «Выплачено вперёд …» / «Выплачено больше … — вычтем из следующей выплаты»).
   // An open month is paid by what is accrued now (R3 #20): the payout above it is made ahead of what the month has not earned yet.
   return basis === "fresh"
-    ? `Это на ${formatMoney(overpay)} больше начисленного сейчас — запишем как выплату вперёд: она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.`
-    : `Это на ${formatMoney(overpay)} больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.`;
+    ? `Это на ${formatMoney(overpay)} больше начисленного сейчас: эти ${formatMoney(overpay)} запишем как выплату вперёд — она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.`
+    : `Это на ${formatMoney(overpay)} больше, чем осталось выплатить: эти ${formatMoney(overpay)} запишем как выплату вперёд и вычтем из следующей выплаты.`;
 }
 
-/** The name of the main button when the payout is above the rest and the person confirms it (the amount is added by the window). */
-export const PAYOUT_ADVANCE_LABEL = "Записать выплату вперёд";
 /** An OPEN month is paid by what is accrued now and hands nothing on yet (`advance_out = 0`): only what is left of the overpay at the END of the month goes on. */
 export const PAYOUT_ADVANCE_HINT_OPEN = "Покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.";
 
@@ -449,8 +448,9 @@ export function payoutAfterText(amount: number | null, state: PayoutState | null
   if (amount === null || amount < 1 || !state) return "";
   const rest = Math.max(state.balance, 0) - amount;
   if (rest > 0) return `Останется выплатить ${formatMoney(rest)}`;
-  if (rest === 0) return month ? `Это вся сумма — выплата за ${monthNameRu(month).toLowerCase()} будет закрыта` : "Это вся сумма — выплата будет закрыта";
-  return `Это на ${formatMoney(-rest)} больше ${state.basis === "fresh" ? "начисленного сейчас" : "остатка"}`;
+  // re-audit С6: «закрыта» is a word of the month («Месяц закрыт»): here it is the rest that is 0
+  if (rest === 0) return "Это вся сумма — останется выплатить 0 сум";
+  return `Это на ${formatMoney(-rest)} больше ${state.basis === "fresh" ? "начисленного сейчас" : "того, что осталось выплатить"}`;
 }
 
 /**

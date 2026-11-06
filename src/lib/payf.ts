@@ -7,7 +7,7 @@
  *  4. the names of the ways to count a payment live in ONE dictionary: `PAYMENT_MODELS` in `payments.ts`.
  */
 import type { MembershipPaymentRow } from "./payments";
-import { daysBetweenInclusive, formatDayMonthRu } from "./business-time";
+import { daysBetweenInclusive, formatDayMonthRu, formatLessonWhen } from "./business-time";
 import { formatMoney } from "./money-format";
 import { reasonProblemFor } from "./reason-rules";
 import { pluralRu } from "./plural";
@@ -185,6 +185,8 @@ export interface DayOffWarning {
 }
 
 /** Said in the dialogs of a day off when the server did not send its own sentence. */
+/** Re-audit С8: what a day off means for the money (a holiday: no recalculation for the students, the lessons are not in the salary of the teachers). */
+export const DAY_OFF_MONEY_LINE = "Ученикам перерасчёта нет, в зарплату преподавателей эти уроки не войдут.";
 export const EXAMS_NOTE = "Экзамены, снятые с уроков, при отмене выходного не вернутся — назначьте заново";
 /**
  * «Отменить выходной»: the server does not know whether the day off took exams off the lessons, so the sentence is conditional - and shown only when some lessons come back (rule 48).
@@ -251,10 +253,9 @@ export function dayOffLine(day: DayOffOut): string {
   return `${day.reason} · ${dayOffSpan(day)}${day.active ? "" : " · отменён"}`;
 }
 
-/** «21.10 · 10:00–11:00 · Группа 5» (+ « — идёт экзамен» for a lesson that is not cancelled): the ONE line of a lesson in every list of the two day-off windows (rule 48). */
+/** «ср, 21 октября · 10:00–11:00 · Группа 5» (+ « — идёт экзамен» for a lesson that is not cancelled): the ONE line of a lesson in every list of the two day-off windows (rule 48; re-audit С14: the one date utility). */
 export function dayOffLessonLine(lesson: DayOffLesson): string {
-  const time = lesson.startTime ? (lesson.endTime ? `${lesson.startTime}–${lesson.endTime}` : lesson.startTime) : "";
-  const head = [formatDayMonthRu(lesson.date), time, lesson.groupName].filter(Boolean).join(" · ");
+  const head = [formatLessonWhen({ date: lesson.date, startTime: lesson.startTime, endTime: lesson.endTime }), lesson.groupName].filter(Boolean).join(" · ");
   return `${head}${lesson.reason ? ` — ${lesson.reason}` : ""}`;
 }
 

@@ -4,13 +4,18 @@
  */
 import { MONTHS_SHORT_DATE } from "./ru-calendar";
 import type { OpenActionsByMonth, OpenActionsMonth, OpenAttendanceAction } from "@/lib/api";
-import { formatDateRu, formatIsoDateLabel } from "./business-time";
+import { formatDateRu, formatIsoDateLabel, formatWeekdayDate } from "./business-time";
 import { pluralRu } from "./plural";
 
 const WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
-/** YYYY-MM-DD -> «Пн, 13 окт». The calendar day is computed in UTC, so it never shifts with the viewer's zone. */
+/** YYYY-MM-DD -> «пн, 13 октября» (re-audit С14: the one date of a row; no «окт»). The calendar day never shifts with the viewer's zone. */
 export function formatLessonDate(isoDate: string | null | undefined): string {
+  return formatWeekdayDate(isoDate);
+}
+
+/** @deprecated the old short form «Пн, 13 окт»; kept for the tests of the calendar day. */
+export function formatLessonDateShort(isoDate: string | null | undefined): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
   if (!match) return "";
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
@@ -18,11 +23,11 @@ export function formatLessonDate(isoDate: string | null | undefined): string {
   return `${WEEKDAYS_SHORT[weekday]}, ${day} ${MONTHS_SHORT_DATE[month - 1]}`;
 }
 
-/** Newest lesson first; within a day the later lesson first, then by group name. */
+/** Oldest lesson first (re-audit Н6: the months go oldest first, so do the rows inside them; the oldest is the most overdue); within a day by the start, then by group name. */
 export function sortOpenLessons(items: OpenAttendanceAction[]): OpenAttendanceAction[] {
   return [...items].sort((a, b) =>
-    b.lessonDate.localeCompare(a.lessonDate)
-    || b.startTime.localeCompare(a.startTime)
+    a.lessonDate.localeCompare(b.lessonDate)
+    || a.startTime.localeCompare(b.startTime)
     || a.groupName.localeCompare(b.groupName, "ru"),
   );
 }
@@ -83,7 +88,7 @@ export function showsStatusColumn(items: ReadonlyArray<Pick<OpenAttendanceAction
 }
 
 /** The plaque over the list for an administrator without the money right (UX pack №7): ONE for the page, not a line in every row. */
-export const OPEN_LESSONS_NO_RIGHT_NOTICE = "Оформить прошедший урок — «Отметить» — может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» в меню строки.";
+export const OPEN_LESSONS_NO_RIGHT_NOTICE = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» — в меню строки (⋯).";
 
 /** «Показаны уроки без отметки с 1 сентября 2026»: from which day the list is counted (the accounting start of the centre). */
 export function sinceLine(since: string | null | undefined): string | null {
@@ -118,7 +123,7 @@ export interface OpenLessonGroup {
 
 /**
  * Lessons grouped by teacher: the most loaded teacher first, then by name; «Без преподавателя»
- * is always last. Rows inside a group keep the "newest first" order.
+ * is always last. Rows inside a group keep the "oldest first" order.
  */
 export function groupOpenLessonsByTeacher(items: OpenAttendanceAction[]): OpenLessonGroup[] {
   const groups = new Map<string, OpenLessonGroup>();

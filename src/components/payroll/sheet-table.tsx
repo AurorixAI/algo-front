@@ -165,11 +165,11 @@ export function PayrollSheetTable({
   const centreLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const priceColumn = priceColumnLabel(priceLabelProp ?? centreLabel);
 
-  const captionNode = caption ? <p data-testid="saved-table-note" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 print:rounded-none print:border-slate-400 print:bg-transparent">{caption}</p> : null;
+  // re-audit С1: the caption is the HEAD of the table (a line of text over its blocks, not a card of its own) and an empty table has none (nothing to say a version of)
+  const captionNode = caption ? <p data-testid="saved-table-note" className="px-1 text-xs font-semibold text-slate-700 print:text-black">{caption}</p> : null;
   if (sheet.lines.length === 0) {
     return (
       <div className="space-y-3">
-        {captionNode}
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
           В этом месяце у преподавателя нет учеников с засчитанными уроками.
         </p>

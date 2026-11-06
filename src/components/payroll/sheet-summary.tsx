@@ -78,11 +78,11 @@ export function SheetSummaryCard({
   return (
     <section
       aria-label="Итог ведомости"
-      className={`rounded-2xl border bg-white px-5 py-5 print:rounded-none print:border-slate-400 print:px-0 print:py-2 ${changed ? "border-amber-200 bg-amber-50/50" : "border-slate-200"}`}
+      className={`rounded-2xl border bg-white px-5 py-5 print:rounded-none print:border-0 print:bg-transparent print:px-0 print:py-2 ${changed ? "border-amber-200 bg-amber-50/50" : "border-slate-200"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className={`min-w-0 ${printTotals ? "print:hidden" : ""}`}>
-          <p className="text-sm text-slate-500" data-testid="payroll-total-label">{headline.label}</p>
+          <p className="text-sm text-slate-500" data-testid="payroll-total-label">{period?.tone === "reopened" && headline.label === "К выплате" ? "К выплате (сохранено)" : headline.label}</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(headline.value)}</p>
           {/* a changed sheet: the line holds the rate only - the counts of the SAVED sheet are under «Что изменилось ▸» (UX pack №3) */}
           <p className="mt-2 text-sm text-slate-600" data-testid="payroll-facts">{[headline.saved ? splitSavedFacts(facts).rest.join(" · ") : facts.join(" · "), writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
@@ -90,11 +90,12 @@ export function SheetSummaryCard({
         </div>
         {/* UX pack №3 / №19: the PRINT of a changed sheet is a document with ONE total (the saved one) and one line about the accrual of today */}
         {printTotals && (
-          <div className="hidden min-w-0 print:block" data-testid="sheet-print-totals">
-            <p className="text-sm text-black">{printTotals.label}</p>
-            <p className="mt-0.5 text-2xl font-bold tabular-nums text-black">{formatMoney(printTotals.value)}</p>
-            <p className="mt-1 text-xs text-black">{printTotals.accruedLine}</p>
-            {sheet.note && <p className="mt-1 break-words text-xs text-black">Примечание: {sheet.note}</p>}
+          <div className="hidden min-w-0 print:block print:border print:border-slate-500 print:px-3 print:py-2" data-testid="sheet-print-totals">
+            {/* re-audit С2: a paper document - a thin grey frame with room inside, the total 14 pt, the explanations not smaller than 10 pt */}
+            <p className="text-[10pt] text-black">{printTotals.label}</p>
+            <p className="mt-0.5 text-[14pt] font-bold tabular-nums text-black">{formatMoney(printTotals.value)}</p>
+            <p className="mt-1 text-[10pt] text-black">{printTotals.accruedLine}</p>
+            {sheet.note && <p className="mt-1 break-words text-[10pt] text-black">Примечание: {sheet.note}</p>}
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -103,7 +104,7 @@ export function SheetSummaryCard({
               type="button"
               onClick={onExcel}
               disabled={exporting}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Скачать Excel
@@ -112,7 +113,7 @@ export function SheetSummaryCard({
           <button
             type="button"
             onClick={onPrint}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <Printer className="h-4 w-4" />
             Печать
@@ -123,7 +124,7 @@ export function SheetSummaryCard({
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-3 print:hidden">
         <p role="status" className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
           {/* a reopened month is not «saved and done»: no green dot (UX pack №23) */}
-          {!(period?.tone === "reopened" && status.tone === "saved") && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />}
+          {!(period?.tone === "reopened" && status.tone === "saved") && status.tone !== "changed" && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[status.tone]}`} />}
           <span className="min-w-0" data-testid="sheet-status-text">
             {headline.saved ? savedChangeLine({ payout: sheet.payout, updatedAt: sheet.updated_at }) ?? status.text : status.text}
             {status.tone === "saved" && savedBy ? <span className="text-slate-500"> · {savedBy}</span> : null}
@@ -136,7 +137,7 @@ export function SheetSummaryCard({
             onClick={onPrimary}
             disabled={busy || Boolean(blockedReason)}
             title={blockedReason ?? undefined}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : status.action === "save" ? <Save className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
             {primaryLabel}
@@ -150,7 +151,7 @@ export function SheetSummaryCard({
           {period.canReopen && onReopen && (
             <button type="button" data-testid="reopen-month" onClick={onReopen} className="text-sm font-semibold text-primary-700 underline-offset-2 hover:underline">{REOPEN_BUTTON}</button>
           )}
-          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова</span>}
+          {period.tone === "reopened" && <span className="text-xs text-amber-900">Исправьте уроки — месяц закроется снова при сохранении</span>}
         </div>
       )}
 

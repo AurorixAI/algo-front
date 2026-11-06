@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, Ban, ClipboardCheck, Loader2 } from "lucide-react";
+import { AlertCircle, Ban, ClipboardCheck, Info, Loader2 } from "lucide-react";
 import { orgApi, type OpenActionsByMonth, type OpenAttendanceAction } from "@/lib/api";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 import { formatDateRu } from "@/lib/attendance-excuses";
@@ -23,7 +23,6 @@ import {
   openLessonKey,
   openLessonStatus,
   openLessonStatusHint,
-  openLessonTime,
   shouldRefetchForBadge,
 } from "@/lib/open-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -33,7 +32,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
 import { canManageMoney } from "@/lib/money-effects";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, formatLessonWhen } from "@/lib/business-time";
 import { openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
 import { cancelLessonLabel } from "@/lib/schedule-card-actions";
@@ -50,9 +49,9 @@ const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
  * The header and every row share the template, the padding and the gap, so a header and its cells have
  * one left edge, and cells are top-aligned like in «Пропуски».  Below `lg` a row is a card.
  */
-const COLS_WITH_STATUS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_152px]";
+const COLS_WITH_STATUS = "lg:grid-cols-[250px_minmax(0,1fr)_minmax(0,1fr)_152px]";
 /** UX pack №17: no column of a status that is the same in every row. */
-const COLS_NO_STATUS = "lg:grid-cols-[148px_minmax(0,1fr)_152px]";
+const COLS_NO_STATUS = "lg:grid-cols-[250px_minmax(0,1fr)_152px]";
 // Action cell: the primary button has one fixed width (the same for «Открыть» and «Отметить») and the «⋯» slot is always reserved; 40 px on a phone (UX pack rule 6), 32 from `lg`.
 const ACTION_BUTTON_CLASS = "inline-flex h-10 w-[96px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-2 text-xs font-semibold text-white hover:bg-primary-700 lg:h-8 lg:w-[88px]";
 const MENU_SLOT_CLASS = "flex h-10 w-10 shrink-0 items-center justify-center lg:h-8 lg:w-8";
@@ -223,12 +222,12 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
       ) : (
         <section className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white">
           {noRightNotice && (
-            <p role="note" data-testid="open-lessons-no-right" className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 lg:mx-4 lg:mt-3">
-              <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>{OPEN_LESSONS_NO_RIGHT_NOTICE}</span>
+            <p role="note" data-testid="open-lessons-no-right" className="mb-3 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 lg:mx-4 lg:mt-3">
+              <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /><span>{OPEN_LESSONS_NO_RIGHT_NOTICE}</span>
             </p>
           )}
           {sinceLine(byMonth?.since) && <p data-testid="open-since" className="px-1 pb-2 text-xs text-slate-600 lg:px-4 lg:pt-3">{sinceLine(byMonth?.since)}</p>}
-          <TableHeader show="lg" gridClass={COLS} labels={withStatus ? ["Урок", "Группа", "Статус", ""] : ["Урок", "Группа", ""]} aligns={withStatus ? ["center", "center", "center", "right"] : ["center", "center", "right"]} />
+          <TableHeader show="lg" gridClass={COLS} labels={withStatus ? ["Урок", "Группа", "Статус", ""] : ["Урок", "Группа", ""]} aligns={withStatus ? ["left", "left", "center", "right"] : ["left", "left", "right"]} />
           {months.map(({ month, groups }) => (
             <div key={month.month} data-testid="open-month" className="mt-6 first:mt-0 lg:mt-0">
               <h3 className="flex flex-wrap items-baseline gap-x-2 px-1 pb-1.5 text-sm font-bold text-slate-900 lg:border-t lg:border-slate-200 lg:bg-slate-100/80 lg:px-4 lg:py-2">
@@ -251,14 +250,12 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                     aria-disabled={access.locked || undefined}
                     className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS} ${access.locked ? "bg-slate-50 text-slate-500" : ""}`}
                   >
-                    <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:text-center">
-                      <p className="text-sm font-semibold leading-5 text-slate-900">{formatLessonDate(item.lessonDate)}</p>
-                      <p className="text-xs tabular-nums text-slate-500">{openLessonTime(item)}</p>
-                    </div>
+                    {/* re-audit С14 / Н6: ONE form of the lesson «чт, 22 октября · 18:00–19:00», to the left like the group */}
+                    <p className="text-sm font-semibold leading-5 tabular-nums text-slate-900" data-testid="open-lesson-when">{formatLessonWhen({ date: item.lessonDate, startTime: item.startTime, endTime: item.endTime })}</p>
 
-                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900 lg:text-center">
-                      {item.groupName}
-                      {item.isSubstitution && <span className="ml-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUBSTITUTE_BADGE}</span>}
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 break-words text-sm font-medium leading-5 text-slate-900">
+                      <span className="min-w-0">{item.groupName}</span>
+                      {item.isSubstitution && <span className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUBSTITUTE_BADGE}</span>}
                     </p>
 
                     {withStatus && (

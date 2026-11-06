@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Info, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { REASON_MIN } from "@/lib/payments";
 import { REASON_LIMITS } from "@/lib/reason-rules";
-import { DAY_OFF_LIST_PREVIEW, EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, sortDayOffLessons, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
+import { DAY_OFF_LIST_PREVIEW, DAY_OFF_MONEY_LINE, EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, sortDayOffLessons, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
@@ -20,7 +21,7 @@ export const DAY_OFF_TITLE = "Выходной день центра";
  * Lessons in a quiet list, by date and time, one line each («28.10 · 10:00–10:45 · Группа»); `tone` says whether they are cancelled («amber» = not).  A long list shows the first
  * five and «Показать все N» opens the rest - no hidden scrolling inside the window.
  */
-export function DayOffLessonList({ title, lessons, tone, testId }: { title: string; lessons: DayOffPlan["blocked"]; tone: "ok" | "warn"; testId: string }) {
+export function DayOffLessonList({ title, lessons, tone, testId, hideTitle = false }: { title: string; lessons: DayOffPlan["blocked"]; tone: "ok" | "warn"; testId: string; hideTitle?: boolean }) {
   const [all, setAll] = useState(false);
   if (lessons.length === 0) return null;
   const sorted = sortDayOffLessons(lessons);
@@ -28,8 +29,9 @@ export function DayOffLessonList({ title, lessons, tone, testId }: { title: stri
   const shown = long && !all ? sorted.slice(0, DAY_OFF_LIST_PREVIEW) : sorted;
   return (
     <div className={`rounded-xl border px-3.5 py-2.5 text-xs ${tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} data-testid={testId}>
-      <p className="font-semibold">{title}</p>
-      <ul className="mt-1 space-y-0.5" aria-label={title}>
+      {/* re-audit С8: the sentence over the list («Будет отменён 1 урок в 1 группе») is its title - no second heading */}
+      <p className={hideTitle ? "sr-only" : "font-semibold"}>{title}</p>
+      <ul className={`${hideTitle ? "" : "mt-1 "}space-y-0.5`} aria-label={title}>
         {shown.map((lesson) => <li key={`${lesson.groupId}-${lesson.lessonId}-${lesson.date}`}>{dayOffLessonLine(lesson)}</li>)}
       </ul>
       {long && (
@@ -50,6 +52,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const [form, setForm] = useState<DayOffForm>({ dateFrom: "", dateTo: "", reason: "" });
   const [plan, setPlan] = useState<DayOffPlan | null>(null);
+  const [reasonTouched, setReasonTouched] = useState(false);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
@@ -58,11 +61,14 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
   useEffect(() => {
     if (!open) return;
     setForm({ dateFrom: today, dateTo: "", reason: "" });
+    setReasonTouched(false);
     setPlan(null);
     setError(null);
   }, [open, today]);
 
   const problem = dayOffError(form);
+  // re-audit С8: the short reason is told UNDER ITS FIELD once the field was left (the line over the button says it for the button)
+  const reasonShort = reasonTouched && form.reason.trim().length < REASON_MIN;
   // the dry run depends on the DATES only: typing the reason does not ask the server again
   const datesProblem = dayOffDatesError(form);
   const key = JSON.stringify(dayOffPreviewBody(form));
@@ -133,21 +139,33 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
           </div>
         </div>
         <div>
-          <label htmlFor="day-off-reason" className={LABEL}>Причина</label>
-          <input id="day-off-reason" value={form.reason} onChange={(event) => patch({ reason: event.target.value })} maxLength={REASON_LIMITS.dayOff.max} placeholder="Например: Хайит, Навруз" className={FIELD} />
+          <label htmlFor="day-off-reason" className={LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
+          <input
+            id="day-off-reason"
+            value={form.reason}
+            onChange={(event) => patch({ reason: event.target.value })}
+            onBlur={() => setReasonTouched(form.reason.length > 0)}
+            maxLength={REASON_LIMITS.dayOff.max}
+            placeholder="Например: Хайит, Навруз"
+            aria-required="true"
+            aria-invalid={reasonShort ? true : undefined}
+            aria-describedby={reasonShort ? "day-off-reason-error" : undefined}
+            className={reasonShort ? FIELD.replace("border-slate-200", "border-red-500") : FIELD}
+          />
+          {reasonShort && <p id="day-off-reason-error" data-testid="day-off-reason-error" role="alert" className="mt-1 text-xs font-medium text-red-700">{`Укажите причину — не меньше ${REASON_MIN} символов`}</p>}
         </div>
 
         <div aria-live="polite" className="space-y-2" data-testid="day-off-plan">
-          {problem && <p className="text-xs text-slate-500">{problem}</p>}
           {checking && <p className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
           {!checking && plan && (
             <>
               <p className="text-sm font-medium text-slate-900" data-testid="day-off-plan-text">{dayOffSummary(plan)}</p>
               {plan.alreadyCancelled > 0 && <p className="text-xs text-slate-500">Уже отменено раньше: {plan.alreadyCancelled}</p>}
-              <DayOffLessonList title="Будут отменены" lessons={plan.cancellable} tone="ok" testId="day-off-cancellable" />
+              <DayOffLessonList title="Будут отменены" lessons={plan.cancellable} tone="ok" testId="day-off-cancellable" hideTitle />
               <DayOffLessonList title="Отмена будет переведена в праздник" lessons={plan.convertible ?? []} tone="ok" testId="day-off-convertible" />
               <DayOffLessonList title="Не будут отменены" lessons={plan.blocked} tone="warn" testId="day-off-blocked" />
-              <p className="text-xs text-slate-500" data-testid="day-off-exams-note">{plan.examsNote ?? EXAMS_NOTE}</p>
+              {plan.cancellable.length + (plan.convertible ?? []).length > 0 && <p className="text-xs text-slate-700" data-testid="day-off-money">{DAY_OFF_MONEY_LINE}</p>}
+              <p className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700" data-testid="day-off-exams-note"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />{plan.examsNote ?? EXAMS_NOTE}</p>
             </>
           )}
         </div>

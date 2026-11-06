@@ -1103,6 +1103,9 @@ export function monthRateLines(teacher: Pick<PayrollMonthTeacher, "rates" | "mis
 
 export const UNDECIDED_HINT = "Дополнительные уроки ждут решения: пока их не решили, в сумму они не входят. Решите «Включить в зарплату / Не включать» в «Заменах».";
 
+/** «1 дополнительный урок ждёт решения» (re-audit С1: the word of the dictionary, with the number from the data). */
+export const undecidedLessonsItem = (n: number): string => `${n} ${pluralRu(n, ["дополнительный урок ждёт решения", "дополнительных урока ждут решения", "дополнительных уроков ждут решения"])}`;
+
 /**
  * What of a teacher's month NEEDS AN ACTION (UX pack §5.2-бис): an unfinished lesson, an excuse that waits, a missing price, an additional lesson nobody decided - and the saved salary that CHANGED
  * («Зарплата изменилась на −45 000 сум — сохраните новую сумму»).  Each item is a link to where it is done.  «N учеников не оплатили часть уроков» is a note, not an action: it stays on the sheet.
@@ -1114,7 +1117,7 @@ export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" |
   if (undecided > 0) {
     views.push({
       key: "undecided",
-      text: `${undecided} ${pluralRu(undecided, ["доп. урок ждёт решения", "доп. урока ждут решения", "доп. уроков ждут решения"])}`,
+      text: undecidedLessonsItem(undecided),
       href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить",
     });
   }
@@ -1133,11 +1136,14 @@ export function sheetTodoItems(input: {
   noFeeHref?: string;
   openUnknown?: boolean;
   undecidedVisits?: number | null;
+  /** The additional LESSONS that wait (the month overview of the teacher): the item says their number. */
+  undecidedLessons?: number | null;
   changed?: WarningView | null;
 }): WarningView[] {
   const items = input.counts ? warningViews(input.counts, { noFeeHref: input.noFeeHref, openUnknown: input.openUnknown }).filter((view) => view.key !== "unpaid") : [];
-  if ((input.undecidedVisits ?? 0) > 0) {
-    items.push({ key: "undecided", text: "Дополнительные уроки ждут решения", href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить" });
+  const lessons = Math.max(0, Math.floor(Number(input.undecidedLessons) || 0));
+  if (lessons > 0 || (input.undecidedVisits ?? 0) > 0) {
+    items.push({ key: "undecided", text: lessons > 0 ? undecidedLessonsItem(lessons) : "Дополнительные уроки ждут решения", href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить" });
   }
   if (input.changed) items.push(input.changed);
   return items;
@@ -1413,15 +1419,8 @@ export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" |
     const who = students ? ` у ${students} ${pluralRu(students, ["ученика", "учеников", "учеников"])}` : "";
     parts.push(`без оплаты ${visitsText(sheet.unpaid_total)}${who}${accrued > 0 ? ` (начислено ${accrued})` : ""}`);
   }
-  const undecided = undecidedText(sheet.undecided_total);
-  if (undecided) parts.push(undecided);
+  // re-audit С1: the additional lessons that wait for a decision are the block «Что нужно сделать» (with their number and «Решить»), not a tail of the line of facts
   return parts;
-}
-
-/** #154: «ждут решения 3 посещения (в сумму не входят)» - the additional lessons nobody has decided; null when there are none. */
-export function undecidedText(visits: number | null | undefined): string | null {
-  const n = Math.max(0, Math.floor(Number(visits) || 0));
-  return n > 0 ? `ждут решения ${visitsText(n)} (в сумму не входят)` : null;
 }
 
 /** #154 (the month of a teacher): «Не решено: 2 урока» - held additional lessons that wait for «Оплатить / Не оплачивать». */

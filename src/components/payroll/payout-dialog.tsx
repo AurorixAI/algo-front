@@ -13,7 +13,6 @@ import {
   PAYOUT_ACTION_LABEL,
   payoutHeadline,
   PAYOUT_SUBTITLE,
-  PAYOUT_ADVANCE_LABEL,
   PAYOUT_METHODS,
   payoutAfterText,
   payoutError,
@@ -25,6 +24,7 @@ import {
 } from "@/lib/payroll-logica";
 import { monthTitle, type PayrollErrorLike } from "@/lib/payroll";
 import { Modal } from "@/components/ui/modal";
+import { SegmentedControl } from "@/components/ui/radio";
 import { DateInput } from "@/components/ui/date-input";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 
@@ -117,14 +117,14 @@ export function PayoutDialog({
     <Modal
       open={open}
       title={PAYOUT_ACTION_LABEL}
-      description={`${teacherName} · ${monthTitle(month)}`}
+      description={`${teacherName} · ${monthTitle(month)}${state?.basis === "fresh" ? " · месяц идёт" : ""}`}
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
         // UX pack №9 / rule 3: the main button names the action and the sum; off - with the line «почему»; «Отмена» of the question goes back to the form, of the form closes the window
         <ConfirmFooter
-          primary={`${overpay !== null ? PAYOUT_ADVANCE_LABEL : PAYOUT_ACTION_LABEL}${amountText}`}
+          primary={`${PAYOUT_ACTION_LABEL}${amountText}`}
           submitFor={overpay !== null ? undefined : "payout-form"}
           onPrimary={overpay !== null ? () => void send(overpay) : undefined}
           busy={busy}
@@ -148,7 +148,19 @@ export function PayoutDialog({
             <input id="payout-amount" value={values.amount} onChange={(event) => patch({ amount: reformatMoneyTyping(event.target.value) })} inputMode="numeric" autoComplete="off" autoFocus placeholder="475 000" className={`${FIELD} pr-12`} />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
           </div>
-          <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{after}</p>
+          {after && <p aria-live="polite" className="mt-1 text-xs text-slate-600">{after}</p>}
+          {overpay !== null && (
+            <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>{payoutOverpayQuestion(overpay, state?.basis)}</span>
+            </p>
+          )}
+        </div>
+
+        {/* re-audit С7: «Способ» is a row of its own over the whole width (four chips stand in one row); «Дата» and the note are one row under it */}
+        <div>
+          <span id="payout-method-label" className={LABEL}>Способ</span>
+          <SegmentedControl ariaLabelledBy="payout-method-label" testId="payout-methods" value={values.method} onChange={(key) => patch({ method: key })} options={PAYOUT_METHODS.map((method) => ({ value: method.key, label: method.label }))} className="grid-cols-2 sm:grid-cols-4" />
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
@@ -157,35 +169,11 @@ export function PayoutDialog({
             <DateInput id="payout-paid-on" value={values.paidOn} max={today} onChange={(next) => patch({ paidOn: next })} className={FIELD} />
           </div>
           <div>
-            <span id="payout-method-label" className={LABEL}>Способ</span>
-            <div role="radiogroup" aria-labelledby="payout-method-label" className="flex flex-wrap gap-1.5">
-              {PAYOUT_METHODS.map((method) => (
-                <button
-                  key={method.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={values.method === method.key}
-                  onClick={() => patch({ method: method.key })}
-                  className={`min-h-10 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors sm:min-h-9 ${values.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  {method.label}
-                </button>
-              ))}
-            </div>
+            <label htmlFor="payout-note" className={LABEL}>Примечание <span className="font-normal text-slate-500">(необязательно)</span></label>
+            <input id="payout-note" value={values.note} onChange={(event) => patch({ note: event.target.value })} maxLength={NOTE_MAX} autoComplete="off" className={FIELD} />
           </div>
         </div>
 
-        <div>
-          <label htmlFor="payout-note" className={LABEL}>Примечание <span className="font-normal text-slate-500">(необязательно)</span></label>
-          <input id="payout-note" value={values.note} onChange={(event) => patch({ note: event.target.value })} maxLength={NOTE_MAX} autoComplete="off" className={FIELD} />
-        </div>
-
-        {overpay !== null && (
-          <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>{payoutOverpayQuestion(overpay, state?.basis)}</span>
-          </p>
-        )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>
