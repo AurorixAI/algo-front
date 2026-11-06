@@ -291,14 +291,14 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={incomeHref(paymentsBase)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 max-sm:min-h-10"
           >
             <TrendingUp className="h-4 w-4 text-slate-500" aria-hidden="true" />
             Поступления
           </Link>
           <Link
             href={pricesBaseOf(groupsBasePath)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 max-sm:min-h-10"
           >
             <Tags className="h-4 w-4 text-slate-500" aria-hidden="true" />
             Цены групп

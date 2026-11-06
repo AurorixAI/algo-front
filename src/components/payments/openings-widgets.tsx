@@ -78,7 +78,7 @@ export function OpeningsHeaderLink({ paymentsBase, summary: given }: { paymentsB
     <Link
       href={openingsHref(paymentsBase)}
       data-testid="openings-header-link"
-      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 max-sm:min-h-10"
     >
       <ClipboardList className="h-4 w-4 text-slate-500" aria-hidden="true" />
       {OPENINGS_TITLE}

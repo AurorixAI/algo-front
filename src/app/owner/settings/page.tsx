@@ -624,7 +624,7 @@ function SectionNav({ sections, active, onSelect }: { sections: SectionKey[]; ac
               href={settingsSectionHref(key)}
               aria-current={active === key ? "page" : undefined}
               onClick={(event) => { event.preventDefault(); onSelect(key); }}
-              className={`block whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors md:px-4 md:py-2.5 ${
+              className={`block whitespace-nowrap rounded-lg px-3.5 py-2.5 text-sm font-medium transition-colors md:px-4 ${
                 active === key
                   ? "bg-white text-slate-900 shadow-sm md:bg-slate-900 md:text-white"
                   : "text-slate-500 hover:text-slate-800 md:hover:bg-slate-100"

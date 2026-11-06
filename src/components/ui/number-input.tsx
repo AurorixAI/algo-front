@@ -1,5 +1,6 @@
 "use client";
 
+import { TAP_ZONE } from "@/lib/tap-zone";
 import { cn } from "@/lib/utils";
 import { sanitizeWholeNumber, stepNumber } from "@/lib/form-fields";
 import { forwardRef, type InputHTMLAttributes } from "react";
@@ -87,7 +88,7 @@ function StepButton({ label, disabled, onClick, children }: { label: string; dis
       // keep the focus (and the phone's keypad) in the field
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-primary-600 disabled:pointer-events-none disabled:opacity-40"
+      className={`${TAP_ZONE} flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-primary-600 disabled:pointer-events-none disabled:opacity-40`}
     >
       {children}
     </button>

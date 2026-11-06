@@ -1,5 +1,6 @@
 "use client";
 
+import { TAP_ZONE, TAP_ZONE_ROWS } from "@/lib/tap-zone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2, Search, Users } from "lucide-react";
@@ -220,7 +221,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
       {rows !== null && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Фильтр учеников">
+          <div className={`flex flex-wrap items-center gap-1.5 ${TAP_ZONE_ROWS}`} role="group" aria-label="Фильтр учеников">
             {filters.map((key) => (
               <button
                 key={key}
@@ -228,7 +229,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
                 onClick={() => onFilterChange(key)}
                 aria-pressed={filter === key}
                 data-testid={`payments-filter-${key}`}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors ${
+                className={`${TAP_ZONE} rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors ${
                   filter === key ? "border-primary-600 bg-primary-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
