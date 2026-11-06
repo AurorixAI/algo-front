@@ -48,10 +48,10 @@ test("S2-1: the administrator's payrollSheetsAffected is only {month}: the toast
 
 // ── part 2: «Отменить выходной» ──────────────────────────────────────────────────────────────────────────────────
 
-test("#155 (2): ONE line of a lesson «28.10 · 10:00–10:45 · Группа» in every list of both windows; the lists go by date and time", () => {
-  assert.equal(F.dayOffLessonLine(lesson(1)), "28.10 · 10:00–10:45 · Группа 1");
-  assert.equal(F.dayOffLessonLine(lesson(1, { startTime: null, endTime: null })), "28.10 · Группа 1", "a server that sent no time (an older one): the line is still whole");
-  assert.equal(F.dayOffLessonLine(lesson(1, { reason: "идёт экзамен" })), "28.10 · 10:00–10:45 · Группа 1 — идёт экзамен");
+test("#155 (2): ONE line of a lesson «ср, 28 октября · 10:00–10:45 · Группа» in every list of both windows; the lists go by date and time", () => {
+  assert.equal(F.dayOffLessonLine(lesson(1)), "ср, 28 октября · 10:00–10:45 · Группа 1");
+  assert.equal(F.dayOffLessonLine(lesson(1, { startTime: null, endTime: null })), "ср, 28 октября · Группа 1", "a server that sent no time (an older one): the line is still whole");
+  assert.equal(F.dayOffLessonLine(lesson(1, { reason: "идёт экзамен" })), "ср, 28 октября · 10:00–10:45 · Группа 1 — идёт экзамен");
   const sorted = F.sortDayOffLessons([lesson(1, { date: "2026-10-29", startTime: "09:00" }), lesson(2, { startTime: "14:00" }), lesson(3, { startTime: "10:00", groupName: "Б" }), lesson(4, { startTime: "10:00", groupName: "А" })]);
   assert.deepEqual(sorted.map((item) => item.groupName), ["А", "Б", "Группа 2", "Группа 1"]);
 });
@@ -96,24 +96,24 @@ test("#155 (2): the reason in «Останутся отменёнными» is s
   assert.equal(F.keptReasonShort("Нужно проверить"), "Нужно проверить");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = text(renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored: [lesson(1)], kept: [{ ...lesson(2), reason: "Урок сегодня уже начался: остаётся отменённым" }], warnings: [] } })));
-  assert.match(html, /Останутся отменёнными — уже начались 28\.10 · 10:00–10:45 · Группа 2(?! —)/, "one reason for all: it is in the title, the line has no suffix");
+  assert.match(html, /Останутся отменёнными — уже начались ср, 28 октября · 10:00–10:45 · Группа 2(?! —)/, "one reason for all: it is in the title, the line has no suffix");
 });
 
 test("#155 (4): the substitutes that do not return: the block's title says it once, the line is built from the fields (not the server's message)", () => {
   assert.equal(F.NOT_RESTORED_TITLE, "Замена не вернётся — назначьте заново");
   const restored = [lesson(1, { date: "2026-10-28", startTime: "10:00" })];
   const warning = { code: "SUBSTITUTE_NOT_RESTORED", message: "28.10 — «Группа 1»: замена (Иванов И.) была снята выходным и не вернулась — назначьте её заново", groupId: "g1", lessonId: "l1", date: "2026-10-28", startTime: "10:00", substituteName: "Иванов И." };
-  assert.equal(F.dayOffNotRestoredLine(warning, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the end of the lesson comes from the lesson that came back");
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, groupName: "Группа 1", endTime: "10:45" }, []), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the server sends the end itself");
+  assert.equal(F.dayOffNotRestoredLine(warning, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the end of the lesson comes from the lesson that came back");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, groupName: "Группа 1", endTime: "10:45" }, []), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the server sends the end itself");
   // rule 48: the line of the substitute and the line of the lists agree on the time
   assert.ok(F.dayOffNotRestoredLine(warning, restored).startsWith(F.dayOffLessonLine(restored[0])));
   // the group and the time come from the lesson that came back when the warning has no start time
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, startTime: undefined }, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.");
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, substituteName: null }, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена");
-  assert.equal(F.dayOffNotRestoredLine({ code: "x", message: "m", date: "2026-10-28", substituteName: "Ким А." }, []), "28.10 — была замена: Ким А.");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, startTime: undefined }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И.");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, substituteName: null }, restored), "ср, 28 октября · 10:00–10:45 · Группа 1 — была замена");
+  assert.equal(F.dayOffNotRestoredLine({ code: "x", message: "m", date: "2026-10-28", substituteName: "Ким А." }, []), "ср, 28 октября — была замена: Ким А.");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored, kept: [], warnings: [warning] } }));
-  assert.match(text(html), /Замена не вернётся — назначьте заново 28\.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И\./);
+  assert.match(text(html), /Замена не вернётся — назначьте заново ср, 28 октября · 10:00–10:45 · Группа 1 — была замена: Иванов И\./);
   assert.doesNotMatch(html, /была снята выходным/, "the server's message is for the journal and the API");
   assert.doesNotMatch(html, /Вернутся без замены/);
 });
@@ -340,7 +340,7 @@ test("R4 1: one and the same short reason of all kept lessons goes into the titl
   assert.equal(F.keptBlock([]).title, "Останутся отменёнными");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = text(renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored: [], kept: [kept(1, "Урок изменён после выходного"), kept(2, "Урок изменён после выходного")], warnings: [] } })));
-  assert.match(html, /Останутся отменёнными — изменены после выходного 28\.10 · 10:00–10:45 · Группа 1 28\.10 · 10:00–10:45 · Группа 2/);
+  assert.match(html, /Останутся отменёнными — изменены после выходного ср, 28 октября · 10:00–10:45 · Группа 1 ср, 28 октября · 10:00–10:45 · Группа 2/);
 });
 
 test("R4 2: a waiting request for a lesson TODAY that is not over says «Пока нет решения — урок проводите вы»; no other request does", () => {

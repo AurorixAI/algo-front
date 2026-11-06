@@ -137,7 +137,7 @@ test("«Вернуть урок»: the dialog says what happens, has the reason 
   const { LessonReturnDialog } = component("groups/lesson-return-dialogs.tsx");
   const markup = html(React.createElement(LessonReturnDialog, { target: { groupId: "g1", lessonId: "l1", lessonDate: "2026-10-28" }, onClose() {}, onDone() {} }));
   const text = textOf(markup);
-  for (const part of ["Вернуть урок 28.10?", "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново.", "не входит в зарплату преподавателя", "Причина (обязательно)", "Причина и ваше имя останутся в журнале урока.", "Отмена"]) assert.ok(text.includes(part), part);
+  for (const part of ["Вернуть урок ср, 28 октября?", "Урок станет «не проведён»: отметки сохранятся, а завершить его можно будет заново.", "не входит в зарплату преподавателя", "Причина (обязательно)", "Причина и ваше имя останутся в журнале урока.", "Отмена"]) assert.ok(text.includes(part), part);
   assert.match(markup, /<button[^>]*data-testid="lesson-return-submit"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="lesson-return-submit"/, "no answer about money yet - the button waits");
   assert.match(text, /Считаем, что изменится…/, "and says why (rule 3: an off button has its line «почему»)");
   assert.equal(html(React.createElement(LessonReturnDialog, { target: null, onClose() {}, onDone() {} })), "");
@@ -154,10 +154,10 @@ test("«Вернуть на отметку»: the dialog says the lesson comes b
 });
 
 test("the words of the returns: the toast, the reason rules, the refusals in the server's own sentence", () => {
-  assert.equal(RET.returnTitle("2026-10-28"), "Вернуть урок 28.10?");
-  assert.equal(RET.returnDoneText("2026-10-28", true), "Урок 28.10 возвращён: он снова не проведён");
-  assert.equal(RET.returnDoneText("2026-10-28", false), "Урок 28.10 уже не проведён");          // a repeat: nothing is done twice (I-7)
-  assert.equal(RET.returnReviewDoneText("2026-10-28"), "Урок 28.10 возвращён в «Уроки без отметки»");
+  assert.equal(RET.returnTitle("2026-10-28"), "Вернуть урок ср, 28 октября?");
+  assert.equal(RET.returnDoneText("2026-10-28", true), "Урок ср, 28 октября возвращён: он снова не проведён");
+  assert.equal(RET.returnDoneText("2026-10-28", false), "Урок ср, 28 октября уже не проведён");          // a repeat: nothing is done twice (I-7)
+  assert.equal(RET.returnReviewDoneText("2026-10-28"), "Урок ср, 28 октября возвращён в «Уроки без отметки»");
   assert.match(RET.validateReturnReason("ab"), /не короче 3/);
   assert.equal(RET.validateReturnReason("abc"), null);
   assert.match(RET.validateReturnReason("x".repeat(501)), /не длиннее 500/);
@@ -478,7 +478,7 @@ test("an administrator without the money right: «Перевести в друг
   assert.doesNotMatch(draw(true), /enrol-transfer-why/, "the owner is not told why");
   assert.match(draw(false), /data-testid="enrol-transfer"[^>]*>|<button[^>]*disabled=""[^>]*data-testid="enrol-transfer"/, "off, not hidden");
   assert.match(draw(false), /disabled=""[^>]*aria-describedby="enrol-transfer-why"|aria-describedby="enrol-transfer-why"[^>]*disabled=""/);
-  assert.match(textOf(draw(false)), /Перевод переносит деньги ученика — его делает владелец или администратор с доступом к деньгам\./);
+  assert.match(textOf(draw(false)), /Переводить может владелец или администратор с доступом к деньгам\./);
   assert.match(draw(false), /data-testid="enrol-add"/, "adding to a group moves no money");
   assert.match(html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, onAssign() {} })), /data-testid="enrol-add"/);
   assert.match(html(React.createElement(StudentGroupsBlock, { profile, groupsBasePath: "/owner/groups", isTeacher: false, onAssign() {} })), /enrol-transfer-why/, "an absent flag is no right: off, with the reason");
@@ -505,7 +505,7 @@ test("R3 item 4: the days off are given, cancelled and continued only with the m
     const markup = draw(user);
     assert.doesNotMatch(markup, /data-testid="day-off-new"/);
     assert.match(markup, /data-testid="day-off-no-right"/);
-    assert.match(markup, /Журнал выходных вы видите/);
+    assert.match(markup, /Список выходных виден вам, менять его нельзя/);
     assert.match(markup, /Выходной день центра/, "the journal is there");
   }
   const src = read("src/components/schedule/days-off-panel.tsx");

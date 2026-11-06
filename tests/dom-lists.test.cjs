@@ -37,7 +37,7 @@ test("m6 / UX pack №7: an administrator WITHOUT the money right gets ONE plaqu
   await page.waitForSelector('[data-testid="open-month"]');
   assert.equal(await page.locator('[data-testid="open-lesson-no-right"]').count(), 0, "no line in a row");
   const notice = (await page.textContent('[data-testid="open-lessons-no-right"]')).replace(/\s+/g, " ").trim();
-  assert.equal(notice, "Оформить прошедший урок — «Отметить» — может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» в меню строки.");
+  assert.equal(notice, "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» — в меню строки (⋯).");
   assert.equal(await page.locator('[data-testid="open-lessons-no-right"]').count(), 1, "ONE plaque");
   const buttons = await page.$$eval('[data-testid="open-lesson-action"]', (links) => links.map((link) => link.textContent));
   assert.equal(buttons.length, 1, "only the lesson that is going on");

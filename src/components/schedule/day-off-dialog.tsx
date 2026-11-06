@@ -152,7 +152,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
             aria-describedby={reasonShort ? "day-off-reason-error" : undefined}
             className={reasonShort ? FIELD.replace("border-slate-200", "border-red-500") : FIELD}
           />
-          {reasonShort && <p id="day-off-reason-error" data-testid="day-off-reason-error" role="alert" className="mt-1 text-xs font-medium text-red-700">{`Укажите причину — не меньше ${REASON_MIN} символов`}</p>}
+          {reasonShort && <p id="day-off-reason-error" data-testid="day-off-reason-error" role="alert" className="mt-1 text-xs font-medium text-red-700">{`Укажите причину — не короче ${REASON_MIN} символов`}</p>}
         </div>
 
         <div aria-live="polite" className="space-y-2" data-testid="day-off-plan">

@@ -340,24 +340,24 @@ const action = (over) => ({
   markedCount: 0, rosterCount: 0, remainingCount: 0, ...over,
 });
 
-test("open lesson date reads «Пн, 13 окт» without timezone drift", () => {
-  assert.equal(openLessons.formatLessonDate("2026-10-13"), "Вт, 13 окт");
-  assert.equal(openLessons.formatLessonDate("2026-10-12"), "Пн, 12 окт");
-  assert.equal(openLessons.formatLessonDate("2026-01-01"), "Чт, 1 янв");
-  assert.equal(openLessons.formatLessonDate("2026-12-31"), "Чт, 31 дек");
-  assert.equal(openLessons.formatLessonDate("2026-10-13T00:00:00"), "Вт, 13 окт");
+test("open lesson date reads «вт, 13 октября» (the one date of a row, C14) without timezone drift", () => {
+  assert.equal(openLessons.formatLessonDate("2026-10-13"), "вт, 13 октября");
+  assert.equal(openLessons.formatLessonDate("2026-10-12"), "пн, 12 октября");
+  assert.equal(openLessons.formatLessonDate("2026-01-01"), "чт, 1 января");
+  assert.equal(openLessons.formatLessonDate("2026-12-31"), "чт, 31 декабря");
+  assert.equal(openLessons.formatLessonDate("2026-10-13T00:00:00"), "вт, 13 октября");
   assert.equal(openLessons.formatLessonDate(""), "");
   assert.equal(openLessons.formatLessonDate(null), "");
 });
 
-test("open lessons are sorted newest date first, later lesson first within a day", () => {
+test("open lessons are sorted OLDEST date first (as the months go, re-audit Н6), earlier lesson first within a day", () => {
   const sorted = openLessons.sortOpenLessons([
     action({ lessonId: "a", lessonDate: "2026-10-01" }),
     action({ lessonId: "b", lessonDate: "2026-10-13", startTime: "09:00" }),
     action({ lessonId: "c", lessonDate: "2026-10-13", startTime: "15:00" }),
     action({ lessonId: "d", lessonDate: "2026-10-13", startTime: "15:00", groupName: "Алгебра" }),
   ]);
-  assert.deepEqual(sorted.map((i) => i.lessonId), ["d", "c", "b", "a"]);
+  assert.deepEqual(sorted.map((i) => i.lessonId), ["a", "b", "d", "c"]);
   // the input is not mutated
   const input = [action({ lessonDate: "2026-10-01" }), action({ lessonDate: "2026-10-05" })];
   openLessons.sortOpenLessons(input);

@@ -56,7 +56,7 @@ test("№9: the hint of the field - the whole sum closes the month; a part says 
   const submit = page.locator('[data-testid="payout-submit"]');
   assert.equal(await submit.isDisabled(), false, "the form starts with what is left");
   assert.equal(plain(await submit.textContent()), "Записать выплату 757 500 сум");
-  assert.equal(plain(await page.textContent('[aria-live="polite"]')), "Это вся сумма — выплата за ноябрь будет закрыта");
+  assert.equal(plain(await page.textContent('[aria-live="polite"]')), "Это вся сумма — останется выплатить 0 сум");
   await page.fill("#payout-amount", "500 000");
   assert.equal(plain(await submit.textContent()), "Записать выплату 500 000 сум");
   assert.equal(plain(await page.textContent('[aria-live="polite"]')), "Останется выплатить 257 500 сум");
@@ -67,16 +67,16 @@ test("№9: the hint of the field - the whole sum closes the month; a part says 
   await page.close();
 });
 
-test("№9: more than is left - ONE plaque with the whole sentence, the button «Записать выплату вперёд 807 500 сум»; «Отмена» goes back to the form", async () => {
+test("№9: more than is left - ONE plaque with the whole sentence, the button «Записать выплату 807 500 сум»; «Отмена» goes back to the form", async () => {
   const { page } = await open(1280, STATE({}), overpayServer);
   await page.fill("#payout-amount", "807 500");
   await page.click('[role="radio"]:has-text("Наличные")');
   await page.click('[data-testid="payout-submit"]');
   await page.waitForSelector('[data-testid="payout-overpay"]');
-  assert.equal(plain(await page.textContent('[data-testid="payout-overpay"]')), "Это на 50 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
-  assert.equal(plain(await page.textContent('[data-testid="payout-submit"]')), "Записать выплату вперёд 807 500 сум");
+  assert.equal(plain(await page.textContent('[data-testid="payout-overpay"]')), "Это на 50 000 сум больше, чем осталось выплатить: эти 50 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");
+  assert.equal(plain(await page.textContent('[data-testid="payout-submit"]')), "Записать выплату 807 500 сум");
   assert.equal(await page.locator('[data-testid="payout-overpay"] span span').count(), 0, "no second line under the sentence");
-  assert.equal(plain(await page.textContent('[aria-live="polite"]')), "", "the hint under the field does not repeat the plaque (a fact once)");
+  assert.equal(await page.locator('[aria-live="polite"]').count(), 0, "the hint under the field does not repeat the plaque (a fact once)");
   await page.click('[data-testid="confirm-cancel"]');
   assert.equal(await page.locator('[data-testid="payout-overpay"]').count(), 0);
   assert.equal(plain(await page.inputValue("#payout-amount")), "807 500");

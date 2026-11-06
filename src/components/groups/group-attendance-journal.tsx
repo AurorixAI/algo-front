@@ -32,6 +32,7 @@ import {
 } from "@/lib/api";
 import {
   formatBusinessDate,
+  formatWeekdayDate,
   formatUtcNaiveAsBusinessDate,
   formatUtcNaiveAsBusinessDateTime,
 } from "@/lib/business-time";
@@ -2090,7 +2091,7 @@ export function GroupAttendanceJournal({
         onClose={() => setCancelMissed(null)}
         onCancelled={async (done, notes) => {
           await loadAttendanceRef.current(true);
-          showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
+          showToast(`Урок ${formatWeekdayDate(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
         }}
       />
 

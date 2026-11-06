@@ -1117,7 +1117,7 @@ export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" |
   if (undecided > 0) {
     views.push({
       key: "undecided",
-      text: undecidedLessonsItem(undecided),
+      text: `${undecided} ${pluralRu(undecided, ["доп. урок ждёт решения", "доп. урока ждут решения", "доп. уроков ждут решения"])}`,   // the short form of the narrow list (UX pack §5.2-бис); the block of the sheet has room for the full word (re-audit С1)
       href: "/owner/substitutions", tone: "warning", hint: UNDECIDED_HINT, target: "Замены", button: "Решить",
     });
   }
@@ -1464,7 +1464,7 @@ export function sheetCardStatus(input: {
   }
   const when = formatUtcNaiveAsBusinessDateTime(input.updatedAt);
   const [day, time] = when.split(" ");
-  return { tone: "saved", text: day && time ? `Сохранено ${day} в ${time}` : "Сохранено", action: input.reopened ? "recalculate" : null };
+  return { tone: "saved", text: day && time ? `Сохранено ${day} · ${time}` : "Сохранено", action: input.reopened ? "recalculate" : null };
 }
 
 // ── Warnings ────────────────────────────────────────────────────────────────

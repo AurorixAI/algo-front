@@ -5,7 +5,7 @@
  *
  * Pure: no React, no network.
  */
-import { formatDateRu, formatWeekdayDate } from "./business-time";
+import { formatWeekdayDate } from "./business-time";
 import type { ConfirmItem, ConfirmRequest } from "./confirm-dialog";
 import { journalHref, OPEN_LESSON_IN_PROGRESS_LABEL, OPEN_LESSON_MISSED_LABEL } from "./open-lessons";
 import { pluralRu } from "./plural";
@@ -40,9 +40,9 @@ export function openLessonKindText(kind: string | null | undefined): string {
 
 export const OPEN_LESSONS_LIST_LIMIT = 8;
 
-/** «14.10 · 8-Б · Посещаемость не отмечена» (the group is the server's `groupName`; left out when the answer has none). */
+/** «вт, 14 октября · 8-Б · Посещаемость не отмечена» (the group is the server's `groupName`; left out when the answer has none). */
 export function openLessonItemLine(item: OpenLessonItem): string {
-  const day = formatDateRu(item.lessonDate).slice(0, 5);
+  const day = formatWeekdayDate(item.lessonDate);
   return [day, (item.groupName ?? "").trim(), openLessonKindText(item.kind)].filter(Boolean).join(" · ");
 }
 

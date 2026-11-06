@@ -14,6 +14,29 @@ const { archiveServer } = require("../helpers/archive-fixture.cjs");
 const { openLessonsServer } = require("../helpers/open-lessons-fixture.cjs");
 const { toshmatovPreview: replacePreview } = require("../helpers/stage-numbers.cjs");
 
+const RECEIPT = { receipt_no: 21, org_name: "ALGO Math Center", org_city: "Ташкент", org_phone: "+998901234567", student_name: "Тошматов Бобур", display_id: "N13-0042-AL", group_name: "Алгебра 7 (вт/пт)", amount: 400000, amount_words: "Четыреста тысяч сум",
+  currency: "UZS", paid_on: "2026-11-05", valid_from: "2026-09-01", valid_to: "2026-09-30", lessons_count: null, partial_period: false, method: "cash", mode: "calendar",
+  allocations: [{ segment_id: "seg:09", period_from: "2026-09-01", period_to: "2026-09-30", amount: 400000, days: 30, bucket: "past_debt", closes: true, label: "Погашен долг за 01.09–30.09", price: 400000, segment_remaining_after: 0 }],
+  debt_before: 1200000, debt_after: 800000, advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30", price_snapshot: { amount: 400000, source: "group" }, note: null, accepted_by_name: "Арслан", created_at: "2026-11-05T09:12:00",
+  voided_at: null, void_reason: null, replaced_by_receipt_no: null, replaces_receipt_no: null, replaces_amount: null };
+const JOURNAL_PROPS = { students: [{ id: "st1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "active", group_id: "g1", current_group_id: "g1", groups_count: 1 }] };
+const JOURNAL_MENU = async (page) => {
+  await page.waitForSelector("table"); const today = await page.evaluate(() => { const d = new Date(Date.now() + 5 * 3600000); return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; });
+  await page.locator(`button[aria-label="Действия с уроком ${today}"]`).first().click(); await page.waitForSelector('[data-testid="menu-return-review"]');
+};
+/** The page «Замены» of the owner: two additional lessons wait for a decision of money, the requests of substitutions are empty. */
+const substitutionsServer = () => (request) => {
+  const { method, path: p } = request;
+  if (method === "GET" && p === "/auth/org/substitutions/summary") return { json: { pendingTotal: 0, oneOffDecisionsTotal: 2, waitingTotal: 2, urgentTotal: 0, overdueTotal: 0 } };
+  if (method === "GET" && p === "/auth/org/substitutions") return { json: { items: [], total: 0, pendingTotal: 0, urgentTotal: 0 } };
+  if (method === "GET" && p === "/auth/org/members") return { json: [] };
+  if (method === "GET" && p === "/auth/org/one-off-decisions") {
+    const item = (id, group, date, over = {}) => ({ lessonId: id, groupId: "g1", groupName: group, lessonDate: date, startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок — оплатить преподавателю?", teacher: { id: "t1", name: "Каримова К." }, createdBy: { id: "o1", name: "Арслан", role: "owner" }, studentsPresent: 2, studentsTotal: 3, studentsPaid: 3, moneyEstimate: { amount: 125000, reason: null }, payrollSheet: { month: "2026-11", status: "unpaid" }, periodClosed: false, ...over });
+    return { json: { total: 2, items: [item("l1", "7-А Алгебра", "2026-11-03"), item("l2", "9-Б Геометрия", "2026-10-28", { periodClosed: true, payrollSheet: { month: "2026-10", status: "saved" } })] } };
+  }
+  return null;
+};
+
 const isDry = (call) => /dry_run=true/.test(call.query);
 let currentExtra = null;         // a shot may add answers of its own (they go first)
 let currentPreview = null;       // a shot may set the answer of `payments/preview` (a function of the asked amount)
@@ -49,7 +72,7 @@ const server = (request) => {
   if (method === "POST" && p === "/auth/org/one-off-lessons/l7/money-decision" && isDry(request)) return { json: { lessonId: "l7", money: "wait", dryRun: true, payrollSheet: null, moneyEffects: { students: [], dryRun: true, text: "", payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Каримова К.", savedTotal: 125000, paid: 0, freshBefore: 125000, freshAfter: 0, freshTotal: 0, changedBy: -125000, driftAfter: -125000 }] } } };
   // R2-2а: the sheet page of a month that is open and moved after the saving (saved 120 834, accrued now 75 834)
   if (method === "GET" && p === "/auth/org/payroll/sheets/s1") return { json: { id: "s1", saved: true, month: "2026-11", period_start: "2026-11-01", period_end: "2026-11-30", month_open: true, teacher_id: "t1", teacher_name: "Эргашев К.", revision: 2,
-    percents: { group: "50" }, divisor_default: 12, lines: [], groups: [], total_amount: 120834, counted_total: 7, unpaid_total: 1, pending_excused_total: 0, undecided_total: 3, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1, unpaid_students: 1 }, written_off_total: 0,
+    percents: { group: "50" }, divisor_default: 12, lines: require("../helpers/sheet-lines.cjs").lines, groups: require("../helpers/sheet-lines.cjs").groups, total_amount: 120834, counted_total: 7, unpaid_total: 1, pending_excused_total: 0, undecided_total: 3, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1, unpaid_students: 1 }, written_off_total: 0,
     payout: { saved_total: 120834, fresh_total: 75834, target: 75834, paid: 150000, balance: -74166, state: "overpaid", basis: "fresh", changed_by: -45000, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0 },
     source_fingerprint: "fp", stale: true, note: null, created_by_name: "Арслан", created_at: "2026-11-05T05:00:00", updated_by_name: "Рустам Валиев", updated_at: "2026-11-05T05:00:00" } };
   if (method === "GET" && p === "/auth/org/payroll/sheets/s1/diff") return { json: { sheet_id: "s1", revision: 2, stale: true, source_fingerprint: "fp2", saved_total: 120834, fresh_total: 75834, delta_amount: -45000, reasons: [], rate_changes: [], lines: [] } };
@@ -138,6 +161,21 @@ const SHOTS = [
     await page.waitForSelector("table"); const today = await page.evaluate(() => { const d = new Date(Date.now() + 5 * 3600000); return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`; });
     await page.locator(`button[aria-label="Действия с уроком ${today}"]`).first().click(); await page.waitForSelector('[data-testid="menu-return-review"]');
   } },
+  { name: "02-toast-decision", entry: "money.entry.tsx", mount: "decisionsToast", props: { items: [{ lessonId: "l1", groupId: "g1", groupName: "7-А Алгебра", lessonDate: "2026-11-03", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок — оплатить преподавателю?", teacher: { id: "t1", name: "Каримова К." }, createdBy: { id: "o1", name: "Арслан", role: "owner" }, studentsPresent: 2, studentsTotal: 3, studentsPaid: 3, moneyEstimate: { amount: 125000, reason: null }, payrollSheet: { month: "2026-11", status: "unpaid" }, periodClosed: false }] }, sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => {
+    await page.click('button[aria-label^="Включить в зарплату: 7-А"]'); await page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]'); await page.click('[data-testid="one-off-decision-confirm"]'); await page.waitForSelector('[role="status"]');
+  } },
+  // closing of the re-audit (06.11, item 7): the pictures the first audit could not find
+  { name: "02-toast-payment", entry: "money.entry.tsx", mount: "toastPayment", props: { allocation: fixture("e1_create_300000").allocation }, sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[role="status"]'); } },
+  { name: "02-toast-return-review", entry: "money.entry.tsx", mount: "toastReturnReview", props: { effects: OWNER_EFFECTS }, sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[role="status"]'); } },
+  { name: "08-admin-with-access", entry: "money.entry.tsx", mount: "till", user: { role: "admin", org_role: "admin", payments_access: true }, props: { membership: TOSHMATOV }, preview: toshmatovPreview, effects: { ...STAGE_EFFECTS, payroll: [] }, sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForTimeout(600); await page.fill("#payment-amount", "400000"); await page.click('[data-testid="payment-methods"] >> text=Наличные'); await page.waitForSelector('[data-testid="payment-plan-rows"]'); } },
+  { name: "11-confirm-excuse", entry: "money.entry.tsx", mount: "excuse", props: { target: { decision: "confirmed", noteMode: "none", items: [{ id: "e1", studentName: "Иванов Иван", status: "pending", billingMode: "calendar", lessonDate: "2026-11-03", groupName: "7-А Алгебра", reason: "болел", reasonMeta: "Мама Ивана · 03.11.2026 16:35", deadline: null }] } },
+    extra: (request) => (request.method === "POST" && /\/attendance\/excuses\/e1\/review/.test(request.path) ? { json: { id: "e1", status: "pending", moneyEffects: OWNER_EFFECTS, money_effects: OWNER_EFFECTS, dryRun: true } } : null), sizes: [[1280, 900], [1024, 900], [375, 812]],
+    act: async (page) => { await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(800); } },
+  { name: "14-receipt", entry: "money.entry.tsx", mount: "receipt", props: { receipt: RECEIPT }, sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[aria-label^="Квитанция"]'); } },
+  { name: "16-substitutions", entry: "money.entry.tsx", mount: "substitutions", props: { role: "owner" }, search: "tab=decisions", extra: substitutionsServer(), sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForTimeout(1200); } },
+  { name: "25-debt-banner", entry: "money.entry.tsx", mount: "debtBanner", pathname: "/owner/dashboard", sizes: [[1280, 900], [1024, 900], [375, 812]], act: async (page) => { await page.waitForSelector('[data-testid="payments-alert"], a[href*="payments"]'); } },
+  { name: "26-journal-column-menu", entry: "money.entry.tsx", mount: "journal", props: JOURNAL_PROPS, sizes: [[1280, 900], [1024, 900], [375, 812]], act: JOURNAL_MENU },
   // UX pack §5.2 / §5.2-бис / §5.1-тер: the page «Зарплата» of November with the numbers of the walk (935 834 / 150 000 / 860 000 / 74 166), the chip «Требует действия · 3» open, the bar of the other months
   { name: "41-month-list", entry: "money.entry.tsx", mount: "monthPage", time: "2026-11-05T10:00:00+05:00", search: "month=2026-11", extra: monthServer(), sizes: [[1280, 900], [1024, 900], [375, 812]],
     act: async (page) => { await page.waitForSelector('[data-testid="changed-months-bar"]'); } },
@@ -192,6 +230,7 @@ const SHOTS = [
       await page.click("#__opener", { force: true });
       if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
       if (shot.media) await page.emulateMedia({ media: shot.media });
+      if (shot.pathname) await page.evaluate((value) => { window.__pathname = value; }, shot.pathname);
       if (shot.search) await page.evaluate((search) => { window.__search = search; }, shot.search);
       await page.evaluate(([fn, name, user, props]) => (fn === "mountShot" ? window.mountShot(name, user) : window.mount(name, user, props)), [shot.entry === "shots.entry.tsx" ? "mountShot" : "mount", shot.mount, shot.user ?? { role: "owner", org_role: "owner" }, shot.props ?? {}]);
       try { await shot.act(page); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }

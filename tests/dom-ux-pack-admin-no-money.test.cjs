@@ -52,7 +52,7 @@ test("№7: «Перевести в другую группу» of the card of a
   await off.page.evaluate((who) => window.mount("studentGroups", who, { moneyRight: false }), ADMIN);
   await off.page.waitForSelector('[data-testid="enrol-transfer"]');
   assert.equal(await off.page.isDisabled('[data-testid="enrol-transfer"]'), true);
-  assert.equal(plain(await off.page.textContent('[data-testid="enrol-transfer-why"]')), "Перевод переносит деньги ученика — его делает владелец или администратор с доступом к деньгам.");
+  assert.equal(plain(await off.page.textContent('[data-testid="enrol-transfer-why"]')), "Переводить может владелец или администратор с доступом к деньгам.");
   assert.equal(await off.page.isDisabled('[data-testid="enrol-add"]'), false);
   assert.ok(await contrastOf(off.page, '[data-testid="enrol-transfer-why"]') >= 4.5);
   const facts = await off.page.evaluate(layoutProbe, "body");
@@ -72,7 +72,7 @@ test("№7: the card of the days off of an administrator without the access is O
   const run = await openPage(browser, "shots.entry.tsx", (request) => (request.path === "/auth/org/days-off" ? { json: [] } : null), { width: 375, height: 812 });
   await run.page.evaluate((who) => window.mountShot("daysOff", who), ADMIN);
   await run.page.waitForSelector('[data-testid="day-off-no-right"]');
-  assert.equal(plain(await run.page.textContent('[data-testid="day-off-no-right"]')), "Назначает и отменяет владелец или администратор с доступом к деньгам. Журнал выходных вы видите.");
+  assert.equal(plain(await run.page.textContent('[data-testid="day-off-no-right"]')), "Назначает и отменяет владелец или администратор с доступом к деньгам. Список выходных виден вам, менять его нельзя.");
   assert.equal(await run.page.locator('[data-testid="day-off-new"]').count(), 0);
   assert.ok(!/уроки всех групп отменяются сразу/.test(plain(await run.page.textContent('[data-testid="days-off-panel"]'))));
   const facts = await run.page.evaluate(layoutProbe, "body");

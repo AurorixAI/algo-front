@@ -45,20 +45,20 @@ test("the error reader tells the overpay question from the other refusals", () =
 });
 
 test("the words of the owner", () => {
-  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Это на 25 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
-  assert.equal(Y.PAYOUT_ADVANCE_LABEL, "Записать выплату вперёд");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Это на 25 000 сум больше, чем осталось выплатить: эти 25 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");
+  assert.equal(Y.PAYOUT_ADVANCE_LABEL, undefined, "one name of the action: the button says «Записать выплату N» (re-audit С6)");
   assert.equal(Y.PAYOUT_ACTION_LABEL, "Записать выплату");
   assert.equal(Y.PAYOUT_SUBTITLE, "Запись о выплате — деньги ALGO не переводит.");
 });
 
-test("the dialog asks only what the server asked, and sends the flag only on «Записать выплату вперёд»", () => {
+test("the dialog asks only what the server asked, and sends the flag only on the button of the question", () => {
   const dialog = read("src/components/payroll/payout-dialog.tsx");
   assert.doesNotMatch(dialog, /payoutOverpay\(/, "no client-side pre-question: the screen's balance may be stale, the server counts under the lock");
   assert.doesNotMatch(dialog, /confirming/, "the old client-side confirmation state is gone");
   assert.match(dialog, /failure\.kind === "overpay_confirm" && failure\.overpay !== null\) \{[^}]*firstSend\.current = null;[^}]*setOverpay\(failure\.overpay\)/);
   assert.match(dialog, /void send\(null\)/, "the first send never carries the flag");
   assert.match(dialog, /onPrimary=\{overpay !== null \? \(\) => void send\(overpay\) : undefined\}/, "only the button of the question confirms, with the sum it showed");
-  assert.match(dialog, /overpay !== null \? PAYOUT_ADVANCE_LABEL : PAYOUT_ACTION_LABEL/);
+  assert.match(dialog, /primary=\{`\$\{PAYOUT_ACTION_LABEL\}\$\{amountText\}`\}/, "the button of the question is named like the form (the part that goes ahead is said by the plaque)");
   assert.match(dialog, /onCancel=\{overpay !== null \? \(\) => setOverpay\(null\) : onClose\}/, "«Отмена» of the question returns to the form, of the form closes");
   assert.match(dialog, /if \(sending\.current\) return;\s+sending\.current = true;/, "a second Enter / click before the next render (LESSONS 27)");
   assert.match(dialog, /payoutOverpayQuestion\(overpay, state\?\.basis\)/);
@@ -69,9 +69,9 @@ test("MUTATIONS: the guards removed from a copy of the dialog are caught by the 
   const variants = [
     dialog.replace("void send(null)", "void send(overpay ?? 1)"),                           // the flag from the first send
     dialog.replace("if (sending.current) return;", ""),                                     // no ref guard
-    dialog.replace("overpay !== null ? PAYOUT_ADVANCE_LABEL : PAYOUT_ACTION_LABEL", "PAYOUT_ACTION_LABEL"),   // no advance button
+    dialog.replace("onPrimary={overpay !== null ? () => void send(overpay) : undefined}", "onPrimary={undefined}"),   // no confirming button
   ];
-  const pins = [/void send\(null\)/, /if \(sending\.current\) return;/, /overpay !== null \? PAYOUT_ADVANCE_LABEL : PAYOUT_ACTION_LABEL/];
+  const pins = [/void send\(null\)/, /if \(sending\.current\) return;/, /onPrimary=\{overpay !== null \? \(\) => void send\(overpay\) : undefined\}/];
   variants.forEach((mutated, i) => {
     assert.notEqual(mutated, dialog);
     assert.doesNotMatch(mutated, pins[i], `mutation ${i} must break its pin`);
@@ -112,6 +112,6 @@ test("the server's sentence shows only when it adds to the chip and the figures"
 test("the hint under the amount says the same sum as the server's question, also when the month is already overpaid", () => {
   const over = { saved_total: 150000, fresh_total: 150000, target: 150000, paid: 175000, balance: -25000, state: "overpaid", basis: "saved",
     text: "", items: [], carry_in: 0, carry_used: 0, advance_out: 25000 };
-  assert.equal(plain(Y.payoutAfterText(100000, over)), "Это на 100 000 сум больше остатка");                 // server: left = max(balance, 0), excess = amount − left
-  assert.equal(plain(Y.payoutAfterText(100000, { ...over, paid: 75000, balance: 75000, state: "due" })), "Это на 25 000 сум больше остатка");
+  assert.equal(plain(Y.payoutAfterText(100000, over)), "Это на 100 000 сум больше, чем осталось выплатить");                 // server: left = max(balance, 0), excess = amount − left
+  assert.equal(plain(Y.payoutAfterText(100000, { ...over, paid: 75000, balance: 75000, state: "due" })), "Это на 25 000 сум больше, чем осталось выплатить");
 });

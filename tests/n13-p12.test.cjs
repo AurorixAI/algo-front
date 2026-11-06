@@ -51,8 +51,8 @@ test("open lessons are grouped by teacher: most lessons first, then name, no-tea
     ["Мария Орлова", 1],
     ["Без преподавателя", 3], // always last, even though it has the most lessons
   ]);
-  // rows inside a group: newest first
-  assert.deepEqual(groups[0].items.map((i) => i.lessonId), ["c", "b"]);
+  // rows inside a group: oldest first (re-audit Н6)
+  assert.deepEqual(groups[0].items.map((i) => i.lessonId), ["b", "c"]);
   assert.deepEqual(openLessons.groupOpenLessonsByTeacher([]), []);
 });
 

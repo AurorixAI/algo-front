@@ -144,7 +144,7 @@ test("F2: three tiles (nothing paid ahead) fill the width too - no empty fourth 
 
 test("F3: the subtitle does not repeat the title - the month and the number of teachers", async () => {
   const { page } = await openMonth(1280);
-  assert.equal(plain(await page.textContent('[data-testid="payroll-page-subtitle"]')), "Ноябрь 2026 · 3 преподавателя");
+  assert.equal(plain(await page.textContent('[data-testid="payroll-page-subtitle"]')), "3 преподавателя");
   assert.ok(!/Зарплата преподавателей за месяц/.test(plain(await page.textContent("body"))));
   await page.close();
 });

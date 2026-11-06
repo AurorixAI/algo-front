@@ -28,6 +28,12 @@ import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 import { ReceiptSheet } from "@/components/payments/receipt-view";
 import { StudentGroupsBlock } from "@/components/students/student-groups-block";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
+import { SubstitutionsPage } from "@/components/substitutions/substitutions-page";
+import { ExcuseDecisionDialog } from "@/components/attendance/excuse-decision-dialog";
+import { PaymentsAlertBanner } from "@/components/payments/payments-alert-banner";
+import { savedPaymentDetails } from "@/lib/payments-ledger";
+import { studentToast, toastWithEffects } from "@/lib/money-effects";
+import { returnReviewDoneText } from "@/lib/lesson-return";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -48,6 +54,13 @@ function DecisionsWithToast({ items }: { items: any[] }) {
       {toastNode}
     </>
   );
+}
+
+/** A toast the way a page shows it (closing of the re-audit, item 7): the text and the lines under it come from the real functions of the project. */
+function ToastProbe({ text, tone, details }: { text: string; tone: "success" | "warning" | "error"; details: string[] }) {
+  const { showToast, toastNode } = useToast();
+  React.useEffect(() => { showToast(text, tone, details); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <>{toastNode}</>;
 }
 
 function ClosedMonthProbe() {
@@ -113,6 +126,24 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "archive":
       root.render(<GroupArchiveDialog open group={{ id: "g1", name: "Архив-тест 3" }} groupsBasePath="/owner/groups" onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);
+      break;
+    case "toastPayment": {
+      const note = studentToast(savedPaymentDetails(props.allocation));
+      root.render(<ToastProbe text="Оплата внесена" tone={note.tone} details={note.details} />);
+      break;
+    }
+    case "toastReturnReview":
+      { const t = toastWithEffects({ moneyEffects: props.effects }); root.render(<ToastProbe text={returnReviewDoneText("2026-11-03")} tone={t.tone} details={t.details} />); }
+      break;
+    case "excuse":
+      root.render(<ExcuseDecisionDialog target={props.target} busy={false} onClose={() => log("close")} onSubmit={async () => { log("submit"); }} />);
+      break;
+    case "substitutions":
+      root.render(<SubstitutionsPage role={props.role ?? "owner"} />);
+      break;
+    case "debtBanner":
+      usePaymentsSummary.setState({ available: true, debtors: 5, studentsWithDebt: 5, debtTotal: 4350000, studentsExpired: 2 } as never);
+      root.render(<div className="mx-auto max-w-3xl p-4"><PaymentsAlertBanner paymentsBasePath="/owner/payments" /></div>);
       break;
     case "receipt":
       root.render(<div className="mx-auto max-w-xl p-4"><ReceiptSheet receipt={props.receipt} /></div>);

@@ -6,7 +6,7 @@
  *
  * Pure: no React, no network.
  */
-import { formatDateRu } from "./business-time";
+import { formatWeekdayDate } from "./business-time";
 import { formatMoney, REASON_MAX, REASON_MIN } from "./payments";
 
 export const RETURN_LESSON_LABEL = "Вернуть урок";
@@ -63,17 +63,17 @@ export function validateReturnReason(reason: string | null | undefined): string 
 }
 
 export function returnTitle(lessonDate: string): string {
-  return `Вернуть урок ${formatDateRu(lessonDate).slice(0, 5)}?`;
+  return `Вернуть урок ${formatWeekdayDate(lessonDate)}?`;
 }
 
 /** The toast after the return of a held lesson; `changed: false` is a repeat (the lesson was not held any more). */
 export function returnDoneText(lessonDate: string, changed: boolean): string {
-  const day = formatDateRu(lessonDate).slice(0, 5);
+  const day = formatWeekdayDate(lessonDate);
   return changed ? `Урок ${day} возвращён: он снова не проведён` : `Урок ${day} уже не проведён`;
 }
 
 export function returnReviewDoneText(lessonDate: string): string {
-  return `Урок ${formatDateRu(lessonDate).slice(0, 5)} возвращён в «Уроки без отметки»`;
+  return `Урок ${formatWeekdayDate(lessonDate)} возвращён в «Уроки без отметки»`;
 }
 
 /** A lesson cancelled by hand that has begun and can go back to the review: not the original of a move, not cancelled by a day off (the day off is undone itself). */

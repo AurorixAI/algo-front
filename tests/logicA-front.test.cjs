@@ -386,10 +386,10 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   const ready = { ...values, method: "cash" };
   assert.equal(Y.validatePayout(ready, "2026-11-12"), null);
   assert.deepEqual(Y.buildPayoutBody(ready), { amount: 125000, paid_on: "2026-11-12", method: "cash" });
-  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Это на 30 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");     // MN-32 (wave B P4): the server decides, the owner confirms
+  assert.equal(plain(Y.payoutOverpayQuestion(30000)), "Это на 30 000 сум больше, чем осталось выплатить: эти 30 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");     // MN-32 (wave B P4): the server decides, the owner confirms
   assert.equal(plain(Y.payoutAfterText(100000, owing)), "Останется выплатить 25 000 сум");
-  assert.equal(Y.payoutAfterText(125000, owing), "Это вся сумма — выплата будет закрыта");
-  assert.equal(Y.payoutAfterText(125000, owing, "2026-10"), "Это вся сумма — выплата за октябрь будет закрыта");
+  assert.equal(Y.payoutAfterText(125000, owing), "Это вся сумма — останется выплатить 0 сум");
+  assert.equal(Y.payoutAfterText(125000, owing, "2026-10"), "Это вся сумма — останется выплатить 0 сум");
   assert.match(Y.validatePayout({ ...ready, paidOn: "2026-11-13" }, "2026-11-12"), /не может быть в будущем/);
   assert.match(Y.validatePayout({ ...ready, amount: "" }, "2026-11-12"), /Укажите сумму/);
   assert.equal(plain(Y.payoutLine(named("A20_").payout)), "05.11.2026 · 475 000 сум · Наличные · Арслан");

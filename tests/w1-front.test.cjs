@@ -576,7 +576,7 @@ test("R3 14 / 15: the dialogs of a day off close a second press with a ref; a cr
   assert.match(panel, /continuingRef\.current = true/, "«Продолжить»");
   assert.match(panel, /setNoticeLines\(result\.blocked\.map\(dayOffLessonLine\)\)/);
   const P = require(path.join(root, "src/lib/payf.ts"));
-  assert.equal(P.dayOffLessonLine({ groupId: "g", groupName: "9-А", lessonId: "l", date: "2026-10-30", startTime: "10:00", endTime: "11:00", reason: "Урок уже начался" }), "30.10 · 10:00–11:00 · 9-А — Урок уже начался");
+  assert.equal(P.dayOffLessonLine({ groupId: "g", groupName: "9-А", lessonId: "l", date: "2026-10-30", startTime: "10:00", endTime: "11:00", reason: "Урок уже начался" }), "пт, 30 октября · 10:00–11:00 · 9-А — Урок уже начался");
 });
 
 test("R3 16: a pack decision shows what the server said about each DECIDED item (a holiday instead of «по вине центра», a released substitute)", () => {

@@ -282,8 +282,8 @@ const PAYOUT_STATE = { saved_total: 25000, fresh_total: 25000, target: 25000, pa
 
 test("payout above the balance (UX pack №9): ONE plaque with the whole sentence of a CLOSED month («вычтем из следующей выплаты») and of an OPEN one («покроется начислениями до конца месяца»); no second hint line", async () => {
   for (const [basis, question] of [
-    ["saved", /^Это на 15\s000\sсум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты\.$/],
-    ["fresh", /^Это на 15\s000\sсум больше начисленного сейчас — запишем как выплату вперёд: она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату\.$/],
+    ["saved", /^Это на 15\s000\sсум больше, чем осталось выплатить: эти 15\s000\sсум запишем как выплату вперёд и вычтем из следующей выплаты\.$/],
+    ["fresh", /^Это на 15\s000\sсум больше начисленного сейчас: эти 15\s000\sсум запишем как выплату вперёд — она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату\.$/],
   ]) {
     const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/payroll/sheets/s1/payouts" ? { status: 409, json: { detail: { code: "OVERPAY_CONFIRM_REQUIRED", message: "Выплата больше остатка на 15 000 сум", overpay: 15000, balance: 25000 } } } : null));
     await page.evaluate(([state]) => window.mount("payout", undefined, { state }), [{ ...PAYOUT_STATE, basis }]);
@@ -294,7 +294,7 @@ test("payout above the balance (UX pack №9): ONE plaque with the whole sentenc
     const text = (await page.textContent('[data-testid="payout-overpay"]')).replace(/\s+/g, " ").trim();
     assert.match(text, question, basis);
     assert.equal(calls.length, 1, "the first request carries no confirmation");
-    assert.match((await page.textContent('[data-testid="payout-submit"]')).replace(/\s+/g, " ").trim(), /^Записать выплату вперёд 40\s000\sсум$/);
+    assert.match((await page.textContent('[data-testid="payout-submit"]')).replace(/\s+/g, " ").trim(), /^Записать выплату 40\s000\sсум$/);
     await page.close();
   }
 });

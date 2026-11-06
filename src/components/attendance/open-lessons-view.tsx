@@ -5,7 +5,6 @@ import Link from "next/link";
 import { AlertCircle, Ban, ClipboardCheck, Info, Loader2 } from "lucide-react";
 import { orgApi, type OpenActionsByMonth, type OpenAttendanceAction } from "@/lib/api";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
-import { formatDateRu } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import {
   formatLessonDate,
@@ -32,7 +31,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
 import { canManageMoney } from "@/lib/money-effects";
-import { formatBusinessDate, formatLessonWhen } from "@/lib/business-time";
+import { formatBusinessDate, formatLessonWhen, formatWeekdayDate } from "@/lib/business-time";
 import { openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
 import { cancelLessonLabel } from "@/lib/schedule-card-actions";
@@ -191,7 +190,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     setByMonth((previous) => (previous ? withoutOpenLessons(previous, (row) => (
       row.actionType === "missed" && row.groupId === done.groupId && row.lessonId === done.lessonId && row.lessonDate === done.lessonDate
     )) : previous));
-    showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
+    showToast(`Урок ${formatWeekdayDate(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
     await load({ silent: true });
   };
 

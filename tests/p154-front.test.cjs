@@ -359,7 +359,7 @@ test("A: the cells «не решено» and «без оплаты» have their 
 
 test("A: the facts of the sheet and of the month say «не решено»", () => {
   const sheet = { lines: [], percents: {}, counted_total: 10, unpaid_total: 0, undecided_total: 2, warnings: {} };
-  assert.ok(P.sheetFactsParts(sheet, 0).includes("ждут решения 2 посещения (в сумму не входят)"));
+  assert.ok(!P.sheetFactsParts(sheet, 0).some((part) => /ждут решения/.test(part)), "re-audit С1: the undecided lessons are an item of the block «Что нужно сделать», not a tail of the facts");
   assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: 0 }, 0).some((part) => /ждут решения/.test(part)), false);
   assert.equal(P.sheetFactsParts({ ...sheet, undecided_total: undefined }, 0).some((part) => /ждут решения/.test(part)), false);
   assert.equal(P.undecidedLessonsText(2), "Не решено: 2 урока");

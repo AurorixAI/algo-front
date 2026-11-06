@@ -201,7 +201,7 @@ test("the history of a rate: «Группа 50%» and «с 01.09.2026 · who · 
 test("the card status: unsaved edits, not saved yet, changed data with the difference, «Сохранено 16.10.2026 в 08:56»", () => {
   const base = { saved: true, stale: false, dirty: false, updatedAt: "2026-10-16T03:56:00", delta: null };
   const card = (input) => { const status = R.sheetCardStatus(input); return { ...status, text: plain(status.text) }; };
-  assert.deepEqual(card(base), { tone: "saved", text: "Сохранено 16.10.2026 в 08:56", action: null });
+  assert.deepEqual(card(base), { tone: "saved", text: "Сохранено 16.10.2026 · 08:56", action: null });
   assert.deepEqual(R.sheetCardStatus({ ...base, saved: false, updatedAt: null }), { tone: "preview", text: "Не сохранено", action: "save" });
   assert.deepEqual(card({ ...base, stale: true, delta: -16666 }), { tone: "changed", text: "Зарплата изменилась на −16 666 сум — сохраните новую сумму", action: "recalculate" });
   assert.equal(plain(R.sheetCardStatus({ ...base, stale: true, delta: 4000 }).text), "Зарплата изменилась на +4 000 сум — сохраните новую сумму");
@@ -376,7 +376,7 @@ test("the card renders: the total big, one line of facts, the status and ONE mai
   const props = (status, over = {}) => ({ sheet, total: 1410415, accrued: 7, status, busy: false, onPrimary: () => {}, onExcel: () => {}, exporting: false, onPrint: () => {}, ...over });
   const saved = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: sheet.updated_at, delta: null }), { savedBy: "Владелец" })));
   const text = textOf(saved);
-  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 в 08:56", "Владелец", "Скачать Excel", "Печать"]) {
+  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 · 08:56", "Владелец", "Скачать Excel", "Печать"]) {
     assert.ok(text.includes(part), `the card shows «${part}»`);
   }
   assert.equal((text.match(/без оплаты/g) || []).length, 1, "the unpaid count is said once (in the line of facts)");

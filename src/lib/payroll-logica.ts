@@ -311,7 +311,7 @@ export function savedChangeLine(input: { payout: Partial<PayoutState> | null | u
   const state = normalizePayoutState(input.payout);
   if (!state || state.fresh_total === null || state.changed_by === 0) return null;
   const iso = utcNaiveToBusinessIsoDate(input.updatedAt);
-  const day = iso ? formatIsoDateLabel(iso, { day: "numeric", month: "long" }) : "";
+  const day = iso ? formatDateRu(iso) : "";
   // re-audit С1: the change (−45 000) is said ONCE - by the block «Что нужно сделать»; the card says what was saved
   return `Сохранено${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)}`;
 }
@@ -450,7 +450,7 @@ export function payoutAfterText(amount: number | null, state: PayoutState | null
   if (rest > 0) return `Останется выплатить ${formatMoney(rest)}`;
   // re-audit С6: «закрыта» is a word of the month («Месяц закрыт»): here it is the rest that is 0
   if (rest === 0) return "Это вся сумма — останется выплатить 0 сум";
-  return `Это на ${formatMoney(-rest)} больше ${state.basis === "fresh" ? "начисленного сейчас" : "того, что осталось выплатить"}`;
+  return `Это на ${formatMoney(-rest)} ${state.basis === "fresh" ? "больше начисленного сейчас" : "больше, чем осталось выплатить"}`;
 }
 
 /**

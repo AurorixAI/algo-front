@@ -22,7 +22,7 @@ test.after(async () => { await browser.close(); });
 
 const plain = (text) => text.replace(/\s+/g, " ").trim();
 const SHEET = { id: "s1", saved: true, month: "2026-11", period_start: "2026-11-01", period_end: "2026-11-30", month_open: true, teacher_id: "t1", teacher_name: "Эргашев К.", revision: 2,
-  percents: { group: "50" }, divisor_default: 12, lines: [], groups: [], total_amount: 120834, counted_total: 7, unpaid_total: 1, pending_excused_total: 0, undecided_total: 3, written_off_total: 0,
+  percents: { group: "50" }, divisor_default: 12, lines: require("./helpers/sheet-lines.cjs").lines, groups: require("./helpers/sheet-lines.cjs").groups, total_amount: 120834, counted_total: 7, unpaid_total: 1, pending_excused_total: 0, undecided_total: 3, written_off_total: 0,
   warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1, unpaid_students: 1 },
   payout: { saved_total: 120834, fresh_total: 75834, target: 75834, paid: 150000, balance: -74166, state: "overpaid", basis: "fresh", changed_by: -45000, change_text: null, text: "x", items: [], carry_in: 0, carry_used: 0, advance_out: 0 },
   source_fingerprint: "fp", stale: true, note: null, created_by_name: "Арслан", created_at: "2026-11-05T05:00:00", updated_by_name: "Рустам Валиев", updated_at: "2026-11-05T05:00:00" };

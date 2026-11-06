@@ -53,7 +53,7 @@ test("a reopened month, nothing changed (stale=false): the button «Сохран
   await page.waitForSelector(`${card} button:has-text("Сохранить и закрыть месяц")`);
   assert.match(await flat(page, '[data-testid="sheet-period"]'), /Месяц переоткрыт/);
   assert.equal(await page.locator('[aria-label="Итог ведомости"] span.bg-emerald-500').count(), 0, "UX pack №23: a reopened month is not «saved and done» - no green dot");
-  assert.match(await flat(page, card), /Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова/);
+  assert.match(await flat(page, card), /Исправьте уроки — месяц закроется снова при сохранении/);
   assert.equal(await page.locator(`${card} button:has-text("Пересохранить")`).count(), 0, "the word of a changed sheet is not here");
   assert.equal(await page.locator('[data-testid="reopen-month"]').count(), 0, "a month that is open is not reopened again");
   // the diff is read (the save needs the fingerprint of the data the owner looked at): the button is not blocked on it
@@ -93,7 +93,7 @@ test("a refusal of the server is told in its words, the month stays open and the
 // ── R2-2а (re-walk of 05.11): the table names itself when it is not the number of the card ─────────────────────────────
 
 // the data moved after the saving: saved 120 834, accrued now 75 834 (the lesson was taken back); the month is open
-const MOVED = { month_open: true, stale: true, total_amount: 120834, payout: PAYOUT({ saved_total: 120834, fresh_total: 75834, target: 75834, balance: 75834, basis: "fresh", changed_by: -45000, text: "Месяц открыт: начислено сейчас 75 834, выплат нет, к выплате 75 834" }) };
+const MOVED = { lines: require("./helpers/sheet-lines.cjs").lines, groups: require("./helpers/sheet-lines.cjs").groups, month_open: true, stale: true, total_amount: 120834, payout: PAYOUT({ saved_total: 120834, fresh_total: 75834, target: 75834, balance: 75834, basis: "fresh", changed_by: -45000, text: "Месяц открыт: начислено сейчас 75 834, выплат нет, к выплате 75 834" }) };
 
 test("R2-2а: a sheet whose total moved after the saving - above the table «Строки сохранённой ведомости 03.11 — итог 120 834 сум; после «Сохранить новую сумму» таблица покажет текущий расчёт»; the card says the number of now", async () => {
   const { page } = await open({ revision: 2, period: "open", saved: [], refuse: false, sheet: MOVED });
@@ -102,7 +102,7 @@ test("R2-2а: a sheet whose total moved after the saving - above the table «С�
   assert.equal(await page.locator('[data-testid="sheet-period"]').count(), 0, "UX pack №23: «Месяц открыт» is not a chip when the page says «месяц ещё идёт»");
   const card = await flat(page, '[aria-label="Итог ведомости"]');
   assert.match(card, /Начислено на сегодня\s*75 834 сум/);
-  assert.match(card, /Сохранено 3 ноября: 120 834 сум \(−45 000\)/);
+  assert.match(card, /Сохранено 03\.11\.2026: 120 834 сум/);
   await page.close();
 });
 

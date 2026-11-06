@@ -209,7 +209,7 @@ test("the sheet: a closed month has the chip and the button; reopened says what 
   assert.doesNotMatch(card(CP.periodView({ state: "closed", closedOn: "2026-11-03", reopened: null }), undefined), /reopen-month/);
   const reopened = textOf(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}));
   assert.ok(reopened.includes("Месяц переоткрыт"));
-  assert.ok(reopened.includes("Исправьте уроки и нажмите «Сохранить и закрыть месяц» — месяц закроется снова"));
+  assert.ok(reopened.includes("Исправьте уроки — месяц закроется снова при сохранении"));
   assert.doesNotMatch(card(CP.periodView({ state: "reopened", closedOn: "2026-11-03", reopened: null }), () => {}), /reopen-month/);
   const open = card(CP.periodView({ state: "open", closedOn: null, reopened: null }), () => {});
   assert.ok(textOf(open).includes("Месяц открыт"));
@@ -329,13 +329,13 @@ test("R3 item 10: the body of a save carries `confirm_open_lessons`; the 409 OPE
   assert.deepEqual(q.items.map((row) => [row.label, row.text, row.note ?? null]), [["пн, 12 октября", "7-А Алгебра", null], ["ср, 14 октября", "9-Б Геометрия", "урок не завершён"]], "the group name is the server's `groupName`");
   // a refusal without a list still asks (the count is the server's)
   assert.equal(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 3 } }).count, 3);
-  assert.equal(OL.openLessonItemLine({ lessonDate: "2026-10-12", groupId: "g", lessonId: "l", kind: "missed", groupName: "  " }, new Map()), "12.10 · Посещаемость не отмечена");
+  assert.equal(OL.openLessonItemLine({ lessonDate: "2026-10-12", groupId: "g", lessonId: "l", kind: "missed", groupName: "  " }, new Map()), "пн, 12 октября · Посещаемость не отмечена");
 });
 
 test("R3 item 9: `open_lesson_items` carry `groupName` - the question needs no second request for the names", () => {
   const item = { lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed" };
-  assert.equal(OL.openLessonItemLine(item), "12.10 · 7-А Алгебра · Посещаемость не отмечена");
-  assert.equal(OL.openLessonItemLine({ ...item, groupName: " " }), "12.10 · Посещаемость не отмечена", "no name - no group, and no second request for it");
+  assert.equal(OL.openLessonItemLine(item), "пн, 12 октября · 7-А Алгебра · Посещаемость не отмечена");
+  assert.equal(OL.openLessonItemLine({ ...item, groupName: " " }), "пн, 12 октября · Посещаемость не отмечена", "no name - no group, and no second request for it");
   assert.equal(OL.openLessonItemKey, undefined, "the list of «Уроки без отметки» is not read for names any more");
 });
 
@@ -437,7 +437,7 @@ test("D-2: an open month's card says «Начислено на сегодня 12
   const text = card(open);
   assert.ok(text.includes("Начислено на сегодня"));
   assert.ok(text.includes("120 834 сум"));
-  assert.ok(text.includes("Сохранено 3 ноября: 45 000 сум (+75 834)"), text);
+  assert.ok(text.includes("Сохранено 03.11.2026: 45 000 сум"), text);
   assert.ok(!text.includes("К выплате"), "the saved total is never «К выплате» in an open month");
   assert.equal(times(text, 45000), 2, "the saved sum once on the screen + once in the print-only total (a document with ONE total, UX pack №3)");
   assert.ok(text.includes("Итог ведомости"), "the printed document names its total");
@@ -470,9 +470,9 @@ test("D-2: the headline is told by the server's fields (`basis`), not by the dat
 });
 
 test("R3 item 11: a payout above what is accrued needs the owner's yes («больше начисленного сейчас»); the closed month keeps «больше остатка»", () => {
-  assert.equal(plain(Y.payoutOverpayQuestion(25000, "fresh")), "Это на 25 000 сум больше начисленного сейчас — запишем как выплату вперёд: она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.");
-  assert.equal(plain(Y.payoutOverpayQuestion(25000, "saved")), "Это на 25 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
-  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Это на 25 000 сум больше остатка — запишем как выплату вперёд и вычтем из следующей выплаты.");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "fresh")), "Это на 25 000 сум больше начисленного сейчас: эти 25 000 сум запишем как выплату вперёд — она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000, "saved")), "Это на 25 000 сум больше, чем осталось выплатить: эти 25 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");
+  assert.equal(plain(Y.payoutOverpayQuestion(25000)), "Это на 25 000 сум больше, чем осталось выплатить: эти 25 000 сум запишем как выплату вперёд и вычтем из следующей выплаты.");
   assert.deepEqual(Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" }, 25000), { amount: 150000, paid_on: "2026-11-05", method: "cash", confirm_overpay: true, overpay: 25000 });
   assert.ok(!("confirm_overpay" in Y.buildPayoutBody({ amount: "150 000", paidOn: "2026-11-05", method: "cash", note: "" })), "never sent by default");
 });
@@ -556,7 +556,7 @@ test("4б + R2-2в: in an open month the counts follow «Сохранено 03.1
   const card = (payout) => plain(textOf(html(React.createElement(SheetSummaryCard, { sheet: sheet({ month: "2026-11", total_amount: 45000, stale: true, counted_total: 3, payout }), total: 45000, accrued: 0, busy: false, onPrimary() {}, onPrint() {},
     status: R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: "2026-11-03T05:00:00", delta: 75834 }) }))));
   const text = card(open);
-  assert.ok(text.includes("Сохранено 3 ноября: 45 000 сум (+75 834)") && text.includes("Что изменилось") && text.includes("Сохранённая версия: засчитано 3 посещения"), text);
+  assert.ok(text.includes("Сохранено 03.11.2026: 45 000 сум") && text.includes("Что изменилось") && text.includes("Сохранённая версия: засчитано 3 посещения"), text);
   assert.ok(!/сум · .*засчитано 3 посещения/.test(text), "the counts are not left next to «Начислено на сегодня» on their own: they are under «Что изменилось»");
   // a closed month: the counts are the sheet's own, the line is as it was
   const closed = card(CLOSED_SEP);

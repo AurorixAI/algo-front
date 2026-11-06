@@ -212,13 +212,13 @@ test("2. the form: a date or a range of up to 14 days, a reason of 3 characters"
 });
 
 test("2. the words: the span, the line of the journal, the warning of a new lesson", () => {
-  assert.equal(F.dayOffSpan({ dateFrom: "2026-10-21", dateTo: "2026-10-21" }), "21.10");
-  assert.equal(F.dayOffSpan({ dateFrom: "2026-10-21", dateTo: "2026-10-23" }), "21.10–23.10");
-  assert.equal(F.dayOffLine({ id: "d", dateFrom: "2026-10-21", dateTo: "2026-10-21", reason: "Хайит", createdAt: null, createdByName: null, voidedAt: null, active: true }), "Хайит · 21.10");
+  assert.equal(F.dayOffSpan({ dateFrom: "2026-10-21", dateTo: "2026-10-21" }), "21.10.2026");
+  assert.equal(F.dayOffSpan({ dateFrom: "2026-10-21", dateTo: "2026-10-23" }), "21.10.2026–23.10.2026");
+  assert.equal(F.dayOffLine({ id: "d", dateFrom: "2026-10-21", dateTo: "2026-10-21", reason: "Хайит", createdAt: null, createdByName: null, voidedAt: null, active: true }), "Хайит · 21.10.2026");
   assert.match(F.dayOffLine({ id: "d", dateFrom: "2026-10-21", dateTo: "2026-10-21", reason: "Хайит", createdAt: null, createdByName: null, voidedAt: "x", active: false }), /отменён$/);
   assert.equal(F.dayOffWarning({ reason: "Хайит" }), "Это выходной день центра («Хайит»). Урок всё равно можно добавить.");
   assert.equal(F.dayOffWarning(null), null);
-  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }), "21.10 · 10:00–11:00 · Группа 5 — У урока идёт экзамен");
+  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }), "ср, 21 октября · 10:00–11:00 · Группа 5 — У урока идёт экзамен");
   assert.equal(F.dayOffSummary({ text: "Будут отменены 4 урока в 4 группах: Группа 1, Группа 2, Группа 3, Группа 4" }), "Будут отменены 4 урока в 4 группах");
   assert.equal(F.dayOffSummary({ text: "Уроков для отмены нет" }), "Уроков для отмены нет");
 });
@@ -305,7 +305,7 @@ test("the panel of the days off renders (before the list arrives) and the dialog
   assert.doesNotMatch(html, /Назначить выходной/);
   assert.match(html, /data-testid="day-off-no-right"/);
   assert.match(html, /Загрузка…/);
-  assert.match(html, /Назначает и отменяет владелец или администратор с доступом к деньгам\. Журнал выходных вы видите\./, "UX pack №7: ONE short line for who cannot give a day off");
+  assert.match(html, /Назначает и отменяет владелец или администратор с доступом к деньгам\. Список выходных виден вам, менять его нельзя\./, "UX pack №7: ONE short line for who cannot give a day off");
   assert.doesNotMatch(html, /уроки всех групп отменяются сразу/);
   const { DayOffDialog } = require(path.join(root, "src/components/schedule/day-off-dialog.tsx"));
   assert.equal(renderToStaticMarkup(React.createElement(DayOffDialog, { open: false, onClose() {}, onDone() {} })), "");              // closed: nothing
@@ -338,7 +338,7 @@ test("2. the dry run of a day off asks for the dates only; the dialog's lists an
   const list = renderToStaticMarkup(React.createElement(DayOffLessonList, { title: "Не будут отменены", tone: "warn", testId: "x", lessons: [{ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }] }));
   assert.doesNotMatch(list, /tabindex|overflow-y-auto/, "W1 round 2: no hidden scrolling inside the window");
   assert.match(list, /aria-label="Не будут отменены"/);
-  assert.match(list, /21\.10 · 10:00(–11:00)? · Группа 5 — У урока идёт экзамен/);
+  assert.match(list, /ср, 21 октября · 10:00(–11:00)? · Группа 5 — У урока идёт экзамен/);
 });
 
 test("4. the names are the frozen contract with the server: PAYMENT_MODELS = tests/fixtures/payf-mode-names.json (a copy of auth's mode_names.json)", () => {

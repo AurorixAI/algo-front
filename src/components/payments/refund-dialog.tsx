@@ -74,7 +74,7 @@ export function RefundDialog({
     >
       <form id="refund-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">
-          Можно вернуть: <span className="font-semibold tabular-nums text-emerald-700">{formatMoney(refundable)}</span>
+          Можно вернуть: <span className="font-semibold tabular-nums text-slate-900">{formatMoney(refundable)}</span>
         </p>
 
         <div>

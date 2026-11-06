@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { REASON_MIN } from "@/lib/payments";
 
 /** The sentence under a reason that is too short (the server asks the same: 3..500 characters after the trim). */
-export const REASON_SHORT_TEXT = `Укажите причину — не меньше ${REASON_MIN} символов`;
+export const REASON_SHORT_TEXT = `Укажите причину — не короче ${REASON_MIN} символов`;
 
 /**
  * Re-audit (closing, item 4): ONE field of a reason for the windows of money.  The label says whether the SERVER asks for it: «Причина (обязательно)» (3..500 characters, the window refuses a shorter

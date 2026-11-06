@@ -1,4 +1,4 @@
-// UX pack №13 in a real browser: the window «Исправить оплату».  The FIRST line says what it was and what it will be («Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум»), the sentence about
+// UX pack №13 in a real browser: the window «Исправить оплату».  The FIRST line says what it was and what it will be («Было: 400 000 сум · 05.11.2026 · наличные → станет: 200 000 сум»), the sentence about
 // the history stands over the fields (not under them), the block «Что изменится» shows the skeleton while the calculation is on its way, the main button names the action and the sum.  The CSS is the project's tailwind.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -39,13 +39,13 @@ async function open(width, hold) {
 test("№13: the first line is «Было: … → станет: …», it follows the amount, the date and the method live", async () => {
   const { page } = await open(1280);
   const change = page.locator('[data-testid="payment-replace-change"]');
-  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11 · наличные → станет: 400 000 сум");
+  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11.2026 · наличные → станет: 400 000 сум");
   await page.fill("#payment-amount", "200 000");
-  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум");
+  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11.2026 · наличные → станет: 200 000 сум");
   await page.click('[data-testid="payment-methods"] >> text=Карта');
-  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11 · наличные → станет: 200 000 сум · карта");
+  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11.2026 · наличные → станет: 200 000 сум · карта");
   await page.fill("#payment-amount", "");
-  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11 · наличные → станет: — · карта");
+  assert.equal(plain(await change.textContent()), "Было: 400 000 сум · 05.11.2026 · наличные → станет: — · карта");
   // it is the FIRST thing of the form, over the amount
   const order = await page.evaluate(() => { const a = document.querySelector('[data-testid="payment-replace-change"]').getBoundingClientRect().top; const b = document.querySelector("#payment-amount").getBoundingClientRect().top; return a < b; });
   assert.equal(order, true);
@@ -55,7 +55,7 @@ test("№13: the first line is «Было: … → станет: …», it follo
 test("№13: the sentence about the history stands OVER the fields, once; the reason has no second explanation under it", async () => {
   const { page } = await open(1280);
   const note = page.locator('[data-testid="payment-replace-note"]');
-  assert.equal(plain(await note.textContent()), "Прежняя запись будет отменена и останется в истории серым. Деньги всей группы распределятся заново.");
+  assert.equal(plain(await note.textContent()), "Прежняя запись будет отменена и останется в истории серым. Оплаты ученика в группе пересчитаются.");
   const geometry = await page.evaluate(() => ({ note: document.querySelector('[data-testid="payment-replace-note"]').getBoundingClientRect().top, amount: document.querySelector("#payment-amount").getBoundingClientRect().top, reason: document.querySelector("#payment-reason").getBoundingClientRect().top }));
   assert.ok(geometry.note < geometry.amount && geometry.amount < geometry.reason, JSON.stringify(geometry));
   assert.equal((plain(await page.textContent('[role="dialog"]')).match(/останется в истории серым/g) ?? []).length, 1);
