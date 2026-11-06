@@ -254,7 +254,13 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   // the cards carry ONE short line each
   await expect(section.getByText("Месяц считается с первого занятия ученика")).toBeVisible();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
-  const gap = async () => (await section.getByRole("radio", { name: /Свой месяц/ }).boundingBox())!.y - (await line.boundingBox())!.y;   // the page may scroll; what stands between the line and the cards must not change
+  // the page may scroll (and the section slides in for ~250 ms after the load: its elements move 1-2 px per frame); what stands between the line and the cards must not change.  Both boxes are read in ONE
+  // evaluate (one frame) - two `boundingBox()` calls are two round trips, and the slide between them looked like a jump of 2 px (R4 diagnosis: the gap is a constant 109 px at every frame of the slide)
+  const gap = () => page.evaluate(() => {
+    const top = document.querySelector('[data-testid="accounting-start-line"]')!.getBoundingClientRect().y;
+    const radio = (document.querySelector('input[name="payments-model"]') as HTMLInputElement).getBoundingClientRect().y;
+    return radio - top;
+  });
   const before = await gap();
   await expectNoHorizontalScroll(page);
   await shot(page, `28-settings-payments-calm-monthly-${project}`);
