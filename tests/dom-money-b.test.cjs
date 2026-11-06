@@ -559,3 +559,19 @@ test("RB Д5: the calendar icon of the price window stands INSIDE the date field
     await page.close();
   }
 });
+
+test("RB Д4 (остаток): on 375 the buttons of the groups block of a student and the price field are ≥ 40 px", async () => {
+  const phone = { width: 375, height: 812 };
+  let ctx = await openPage(browser, "money.entry.tsx", () => null, phone);
+  await ctx.page.evaluate(() => window.mount("studentGroups", { role: "owner", org_role: "owner" }, { moneyRight: true }));
+  await ctx.page.waitForSelector('button:has-text("Зачислить в группу")');
+  assert.deepEqual(await small(ctx.page, "body"), [], "groups block");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-08-student-groups-buttons-375.png") });
+  await ctx.page.close();
+  ctx = await openPage(browser, "money-b.entry.tsx", priceServer, phone);
+  await ctx.page.evaluate(() => window.mount("priceDialog", { role: "owner", org_role: "owner" }, {}));
+  await ctx.page.waitForSelector("#group-price-amount");
+  assert.deepEqual((await small(ctx.page, '[role="dialog"]')).filter((t) => !/Закрыть|Отмена|Сохранить/.test(t)), [], "price window fields");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-09-price-field-375.png") });
+  await ctx.page.close();
+});

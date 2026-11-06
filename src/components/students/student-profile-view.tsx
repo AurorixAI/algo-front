@@ -327,7 +327,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         <p className="text-sm text-slate-500 mb-6">{error || "Ученик не найден в системе"}</p>
         <Link
           href={backHref || defaultBackPath}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-medium text-sm transition-all"
+          className="inline-flex items-center gap-2 px-5 py-2.5 max-sm:min-h-10 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-medium text-sm transition-all"
         >
           <ArrowLeft className="w-4 h-4" /> Назад
         </Link>
@@ -392,7 +392,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         <button
           type="button"
           onClick={() => (backHref ? router.push(backHref) : router.back())}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors text-sm font-medium"
+          className="inline-flex items-center gap-2 px-3 py-1.5 max-sm:min-h-10 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors text-sm font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Назад</span>

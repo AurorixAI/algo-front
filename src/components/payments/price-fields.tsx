@@ -3,7 +3,7 @@
 import { reformatMoneyTyping } from "@/lib/payments";
 import { OVERRIDE_REASON_MAX } from "@/lib/group-price";
 
-export const PRICE_FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
+export const PRICE_FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 max-sm:py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 export const PRICE_LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
 /** An amount field: thousands separated while typing, «сум» at the right edge. */

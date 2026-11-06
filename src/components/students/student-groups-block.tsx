@@ -88,7 +88,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
               type="button"
               onClick={() => onAssign("add")}
               data-testid="enrol-add"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm max-sm:min-h-10 hover:bg-primary-700"
             >
               <Plus className="h-3.5 w-3.5" />
               {ENROL_ACTION_LABEL}
@@ -99,7 +99,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
               disabled={!moneyRight}
               aria-describedby={moneyRight ? undefined : "enrol-transfer-why"}
               data-testid="enrol-transfer"
-              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-600 disabled:bg-slate-50 disabled:hover:bg-white"
+              className="inline-flex items-center max-sm:min-h-10 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-600 disabled:bg-slate-50 disabled:hover:bg-white"
             >
               {TRANSFER_ACTION_LABEL}
             </button>
@@ -123,7 +123,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
             <button
               type="button"
               onClick={() => onAssign("transfer")}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-sm max-sm:min-h-10 hover:bg-primary-700"
             >
               <Users className="h-4 w-4" /> {ENROL_ACTION_LABEL}
             </button>
@@ -157,7 +157,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`${groupsBasePath}/${item.group_id}`}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm max-sm:min-h-10 hover:bg-slate-50"
                   >
                     Перейти в группу
                     <ExternalLink className="h-3.5 w-3.5" />
