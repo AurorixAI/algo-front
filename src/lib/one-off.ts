@@ -401,7 +401,7 @@ export function presentLine(present: number, total: number): string {
 
 /** «провёл Рахимов Т. · пришли 2 из 3» - who held the lesson and how many students came (a sentence of its own starts with a capital: the window does it). */
 export function decisionWhoLine(item: Pick<OneOffDecisionItem, "teacher" | "studentsPresent" | "studentsTotal">): string {
-  const who = item.teacher?.name ? `провёл ${item.teacher.name}` : "преподаватель не указан";
+  const who = item.teacher?.name ? `преподаватель: ${item.teacher.name}` : "преподаватель не указан";
   return `${who} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
 }
 
@@ -460,7 +460,7 @@ export const MONEY_RIGHT_TEXT = "Решение по зарплате прини
 export const DECISION_PAY_LABEL = "Включить в зарплату";
 export const DECISION_SKIP_LABEL = "Не включать";
 export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: включить в зарплату?";
-export const DECISIONS_GROUP_HINT = "Решаете вы: включить урок в зарплату преподавателя или нет. Решение можно отменить, пока месяц не закрыт.";
+export const DECISIONS_GROUP_HINT = "Решение принимает владелец или администратор с доступом к деньгам: включить урок в зарплату преподавателя или нет. Решение можно отменить, пока месяц не закрыт.";
 /** An administrator without the money access sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
 /** «Решает владелец: 2 дополнительных урока» - the one card of an administrator without the money access (UX pack №7; it is information, not his task: #159 M2, U4). */

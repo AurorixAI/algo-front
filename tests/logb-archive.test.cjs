@@ -48,7 +48,7 @@ test("[O4.R1] the title and the blockers of chain 2: the student with the two ac
   assert.match(text, /Остался 1 урок без отметки:/);
   assert.match(text, /Урока не было — отменить его при архивации/);
   assert.match(text, /Экзамены без попыток будут возвращены в черновик \(1\)\./);
-  assert.match(text, /Будущие уроки \(8\) создаваться не будут\./);
+  assert.match(text, /Будущие уроки \(8 шт\.\) не создадутся\./);
   assert.doesNotMatch(text, /Справок на решении/); // the fixture has no warnings
   assert.equal(A.archiveDialogView(impact, false).canSubmit, false);
 });
@@ -72,7 +72,7 @@ test("[O4.R1] a clean group: no stops, the button is on, the notes still say wha
   const view = A.archiveDialogView(clean, false);
   assert.equal(view.canSubmit, true);
   const text = textOf(body(clean));
-  assert.match(text, /Будущие уроки \(3\) создаваться не будут\./);
+  assert.match(text, /Будущие уроки \(3 шт\.\) не создадутся\./);
   assert.match(text, /Справок на решении: 2 — они останутся у администратора\./);
   assert.doesNotMatch(text, /без отметки/);
 });

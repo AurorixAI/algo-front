@@ -85,7 +85,7 @@ export function releaseExamsText(count: number): string {
 }
 
 export function stopFutureLessonsText(count: number): string {
-  return `Будущие уроки (${count}) создаваться не будут.`;
+  return `Будущие уроки (${count} шт.) не создадутся.`;
 }
 
 export function pendingExcusesText(count: number): string {

@@ -62,7 +62,7 @@ test("Ч1: an admin without the right sees ONE row «N урока ждут ре�
   const withRight = block({ canDecide: true });
   assert.match(withRight, /Включить в зарплату<\/button>/);
   assert.match(withRight, /Не включать<\/button>/);
-  assert.match(text(withRight), /Решаете вы: включить урок в зарплату преподавателя или нет/);
+  assert.match(text(withRight), /Решение принимает владелец или администратор с доступом к деньгам: включить урок в зарплату преподавателя или нет/);
   assert.doesNotMatch(text(withRight), /Решение об оплате принимает владелец/);
 });
 

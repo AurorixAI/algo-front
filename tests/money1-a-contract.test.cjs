@@ -114,7 +114,7 @@ test("R3 item 14: a decided lesson says what was decided, by whom and when; «О
   const text = plain(textOf(open));
   assert.ok(text.includes("Включён в зарплату"));
   assert.ok(text.includes("решил Арслан") && text.includes("28.10.2026 09:30"));
-  assert.ok(text.includes("провёл Каримова К."));
+  assert.ok(text.includes("преподаватель: Каримова К."));
   assert.match(open, /data-testid="decided-undo"/);
   assert.doesNotMatch(open, /period-closed/);
   const none = plain(textOf(html(React.createElement("ul", null, React.createElement(DecidedRow, { item: { ...DECIDED, money: "none" }, onUndo() {}, onReopened() {} })))));

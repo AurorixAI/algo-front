@@ -158,8 +158,8 @@ test("U4: «Просит включить в зарплату» only when the on
   assert.equal(O.decisionAskedLine(decision({ teacher: null })), "Просит включить в зарплату: Рахимов Т.", "nobody is named as the one who held it: the asker is shown");
 });
 
-test("U4: «провёл Фамилия И. · пришли 2 из 3» - the verb agrees with the number", () => {
-  assert.equal(O.decisionWhoLine(decision()), "провёл Рахимов Т. · пришли 2 из 3");
+test("U4: «преподаватель: Фамилия И. · пришли 2 из 3» - the verb agrees with the number", () => {
+  assert.equal(O.decisionWhoLine(decision()), "преподаватель: Рахимов Т. · пришли 2 из 3");
   assert.equal(O.presentLine(1, 10), "пришёл 1 из 10");
   assert.equal(O.presentLine(0, 10), "пришли 0 из 10");
   assert.equal(O.presentLine(2, 3), "пришли 2 из 3");
