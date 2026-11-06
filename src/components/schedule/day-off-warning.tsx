@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { Notice } from "@/components/ui/notice";
 import { orgApi } from "@/lib/api";
 import { dayOffWarning, type DayOffOut } from "@/lib/payf";
 
@@ -24,10 +24,5 @@ export function DayOffWarning({ date }: { date: string }) {
 
   const text = dayOffWarning(day);
   if (!text) return null;
-  return (
-    <p role="status" data-testid="day-off-warning" className="mt-1.5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-      {text}
-    </p>
-  );
+  return <Notice variant="warning" compact testId="day-off-warning" className="mt-1.5">{text}</Notice>;
 }

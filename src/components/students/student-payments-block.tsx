@@ -13,6 +13,7 @@ import { MembershipPayments } from "@/components/payments/membership-payments";
 import { useToast } from "@/components/ui/toast";
 import { studentArchiveAccess } from "@/lib/student-archive";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface StudentPaymentsBlockProps {
   profile: StudentProfile;
@@ -134,11 +135,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
           Загружаем оплаты…
         </div>
       ) : active.length === 0 && former.length === 0 ? (
-        <div className="flex flex-col items-center gap-1.5 py-8 text-center">
-          <Wallet className="h-6 w-6 text-slate-300" />
-          <p className="text-sm font-medium text-slate-700">{archived ? "Оплат по прежним группам нет" : "Ученик не состоит в группах"}</p>
-          <p className="text-xs text-slate-400">{archived ? "Оплаты появятся, если вернуть ученика в группу." : "Оплаты появятся после зачисления в группу."}</p>
-        </div>
+        <EmptyState variant="inline" icon={Wallet} title={archived ? "Оплат по прежним группам нет" : "Ученик не состоит в группах"} hint={archived ? "Оплаты появятся, если вернуть ученика в группу." : "Оплаты появятся после зачисления в группу."} />
       ) : (
         <>
           {active.length > 0 && <ul className="space-y-3">{active.map((row) => card(row, false))}</ul>}

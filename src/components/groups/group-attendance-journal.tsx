@@ -121,6 +121,7 @@ import { UNDO_DECISION_LABEL, canUndoDecision, undoToastText } from "@/lib/one-o
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Button } from "@/components/ui/button";
+import { CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 
 interface GroupAttendanceJournalProps {
   groupId: string;
@@ -354,9 +355,9 @@ function excuseTooltip(excuse: AttendanceExcuseInfo, { withLate = true }: { with
 }
 
 const EXCUSE_TONE_CLASS = {
-  pending: "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100",
-  confirmed: "border-emerald-300 bg-sky-50 text-emerald-700 hover:bg-sky-100",
-  rejected: "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100",
+  pending: `${CHIP_TONE_CLASS.warn} hover:bg-warning-100`,
+  confirmed: `${CHIP_TONE_CLASS.ok} hover:bg-success-100`,
+  rejected: `${CHIP_TONE_CLASS.danger} hover:bg-danger-100`,
 } as const;
 
 export function GroupAttendanceJournal({

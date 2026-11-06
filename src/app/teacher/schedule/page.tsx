@@ -37,6 +37,7 @@ import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, daySh
 import { Button } from "@/components/ui/button";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type LessonOccurrence = ScheduleOccurrence;
 
@@ -1628,10 +1629,7 @@ export default function TeacherSchedulePage() {
 
       <div>
         {weekPlanRows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center">
-            <CalendarIcon className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-            <p className="text-sm font-semibold text-slate-700">На эту неделю занятий нет</p>
-          </div>
+          <EmptyState icon={CalendarIcon} title="На эту неделю занятий нет" hint="Добавьте урок в расписание, и он появится здесь." />
         ) : (
           <div className="space-y-2.5">
             {weekPlanRows.map((row) => {

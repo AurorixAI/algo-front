@@ -32,6 +32,7 @@ import {
   type PayrollLine,
   type PayrollMark,
 } from "./payroll";
+import { CHIP_TONE_CLASS, type ChipTone } from "./chip-tone";
 
 const num = (value: unknown): number => {
   const parsed = Number(value);
@@ -206,11 +207,12 @@ export function overpaidExplain(state: Pick<PayoutState, "basis">): string {
     : "Вычтем из следующей выплаты.";
 }
 
+export const PAYOUT_CHIP_TONE: Record<PayoutTone, ChipTone> = { none: "neutral", due: "warn", ok: "ok", over: "info" };
 export const PAYOUT_CHIP_CLASS: Record<PayoutTone, string> = {
-  none: "border-slate-200 bg-slate-50 text-slate-600",
-  due: "border-amber-200 bg-amber-50 text-amber-900",
-  ok: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  over: "border-sky-200 bg-sky-50 text-sky-900",
+  none: CHIP_TONE_CLASS[PAYOUT_CHIP_TONE.none],
+  due: CHIP_TONE_CLASS[PAYOUT_CHIP_TONE.due],
+  ok: CHIP_TONE_CLASS[PAYOUT_CHIP_TONE.ok],
+  over: CHIP_TONE_CLASS[PAYOUT_CHIP_TONE.over],
 };
 
 /**

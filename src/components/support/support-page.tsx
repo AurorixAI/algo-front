@@ -26,6 +26,7 @@ import {
   type SupportItem,
 } from "@/lib/support";
 import { SUPPORT_CHANGED } from "./support-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 function StatusPill({ status }: { status: SupportItem["status"] }) {
   return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${SUPPORT_STATUS_TONES[status]}`}>{supportStatusWord(status)}</span>;
@@ -69,11 +70,7 @@ export function SupportPage() {
         </div>
       )}
       {items !== null && items.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-6 py-12 text-center" data-testid="support-empty">
-          <MessageSquare className="mx-auto mb-3 h-8 w-8 text-slate-300" aria-hidden />
-          <p className="font-semibold text-slate-700">{SUPPORT_EMPTY_TITLE}</p>
-          <p className="mt-1 text-sm text-slate-500">{SUPPORT_EMPTY_TEXT}</p>
-        </div>
+        <EmptyState testId="support-empty" icon={MessageSquare} title={SUPPORT_EMPTY_TITLE} hint={SUPPORT_EMPTY_TEXT} />
       )}
       {items !== null && items.length > 0 && (
         <ul className="space-y-2.5" data-testid="support-list">

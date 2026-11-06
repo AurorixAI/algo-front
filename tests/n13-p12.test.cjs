@@ -199,7 +199,7 @@ test("deadline of a pending excuse by the month end: days left, today, passed (r
   assert.equal(cell("2026-10-03", "pending", "nope"), null);
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /excuseDeadlineCell\(item, businessToday\)/);
-  assert.match(fs.readFileSync(path.join(__dirname, "../src/lib/chip-tone.ts"), "utf8"), /warn: "border-amber-200 bg-amber-50 text-amber-800"/);
+  assert.match(fs.readFileSync(path.join(__dirname, "../src/lib/chip-tone.ts"), "utf8"), /warn: "border-warning-200 bg-warning-50 text-warning-900"/);
 });
 
 test("student phone becomes a tel: link only when it is dialable", () => {

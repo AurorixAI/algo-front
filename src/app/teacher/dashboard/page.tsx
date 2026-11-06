@@ -33,6 +33,7 @@ import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { useToast } from "@/components/ui/toast";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface LessonSummary {
   id: string;
@@ -653,10 +654,7 @@ export default function TeacherDashboardPage() {
             </div>
 
             {groupFocus.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-5 py-10 text-center text-sm text-slate-400">
-                <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                Нет активных групп
-              </div>
+              <EmptyState icon={Users} title="Пока нет активных групп" hint="Когда владелец назначит вам группу, она появится здесь." />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {groupFocus.map(({ group, nextLesson, live }) => (
@@ -724,10 +722,7 @@ export default function TeacherDashboardPage() {
                 {liveExamError}
               </div>
             ) : !featuredDashboardExam ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
-                <FileCheck2 className="mx-auto mb-2 h-7 w-7 opacity-40" />
-                Нет экзаменов, требующих внимания
-              </div>
+              <EmptyState variant="inline" icon={FileCheck2} title="Экзаменов, требующих внимания, нет" hint="Новый экзамен можно подготовить заранее в разделе «Экзамены»." />
             ) : (
               <div className="space-y-3">
                 {[featuredDashboardExam].map((exam) => {

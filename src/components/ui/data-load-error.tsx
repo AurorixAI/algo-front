@@ -3,6 +3,7 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 
 interface DataLoadErrorProps {
   title?: string;
@@ -26,6 +27,23 @@ export function DataLoadError({
   compact = false,
   className,
 }: DataLoadErrorProps) {
+  // inside a screen the failure is the one Notice of the product; only the full-page state keeps its own card
+  if (compact) {
+    return (
+      <Notice
+        variant="error"
+        title={title}
+        className={className}
+        action={onRetry ? (
+          <Button type="button" variant="secondary" onClick={onRetry} disabled={isRetrying} icon={<RefreshCw className={cn("h-4 w-4", isRetrying && "animate-spin")} />} className="border-danger-200 text-danger-700 hover:bg-danger-50">
+            {isRetrying ? "Обновляем…" : "Повторить"}
+          </Button>
+        ) : undefined}
+      >
+        {message}
+      </Notice>
+    );
+  }
   return (
     <div
       role="alert"

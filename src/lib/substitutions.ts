@@ -520,6 +520,7 @@ export const NEW_REQUEST_LINK = "Новый запрос";
 
 export { declineShortName, genitiveShortName, type NameCase } from "./name-case";
 import { FEMININE, declineShortName, genitiveShortName } from "./name-case";
+import { CHIP_TONE_CLASS, type ChipTone } from "./chip-tone";
 
 /** «Замена: 9-А — пн, 26.10, 10:00–11:30 (вместо Иванова А.)»; an indeclinable surname: «(вместо: Ким А.)». */
 export function assignedLine(entry: { groupName: string; lessonDate: string; startTime: string; endTime: string; replacing?: { name: string } | null }): string {
@@ -997,12 +998,14 @@ export function lessonMarks(
   return marks;
 }
 
+/** The marks of a lesson read the ONE table of tones (lib/chip-tone.ts): amber = warn, blue = info, gray = neutral, red = danger. */
+const MARK_TONE: Record<LessonMark["tone"], ChipTone> = { amber: "warn", blue: "info", gray: "neutral", violet: "violet", red: "danger" };
 export const MARK_TONE_CLASS: Record<LessonMark["tone"], string> = {
-  amber: "bg-amber-50 text-amber-900 ring-amber-200",
-  blue: "bg-sky-50 text-sky-800 ring-sky-200",
-  gray: "bg-slate-100 text-slate-600 ring-slate-200",
-  violet: "bg-violet-50 text-violet-800 ring-violet-200",
-  red: "bg-rose-50 text-rose-700 ring-rose-200",
+  amber: CHIP_TONE_CLASS[MARK_TONE.amber],
+  blue: CHIP_TONE_CLASS[MARK_TONE.blue],
+  gray: CHIP_TONE_CLASS[MARK_TONE.gray],
+  violet: CHIP_TONE_CLASS[MARK_TONE.violet],
+  red: CHIP_TONE_CLASS[MARK_TONE.red],
 };
 
 /**

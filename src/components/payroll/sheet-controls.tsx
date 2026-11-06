@@ -24,6 +24,7 @@ import {
   type WarningView,
 } from "@/lib/payroll";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * «Печать» with the dates: the date grids are folded on screen («По датам»), but a printed sheet is the proof of its sums, so
@@ -320,7 +321,7 @@ export function AttentionLine({ views, label }: { views: WarningView[]; label: s
 /** «История сохранений»: who saved which version and when, newest first. */
 export function RevisionList({ revisions, currentRevision }: { revisions: PayrollRevision[]; currentRevision: number | null }) {
   if (revisions.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">Сохранений пока нет.</p>;
+    return <EmptyState title="Сохранений пока нет." hint="Каждое сохранение ведомости появится в этом списке." />;
   }
   return (
     <ol aria-label="История сохранений" className="space-y-2.5">

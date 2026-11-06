@@ -1,6 +1,7 @@
 "use client";
 
 import { type PeriodClosedInfo } from "@/lib/closed-period";
+import { Notice } from "@/components/ui/notice";
 import { PeriodClosedNotice } from "./period-closed-notice";
 
 /**
@@ -16,5 +17,5 @@ export function DialogError({ error, closed, text, onReopened, aboveLessonPanel 
 }) {
   if (closed) return <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={onReopened} />;
   if (error === null || error === undefined) return null;
-  return <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{text(error)}</p>;
+  return <Notice variant="error" compact>{text(error)}</Notice>;
 }

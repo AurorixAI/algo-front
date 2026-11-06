@@ -9,6 +9,7 @@ import { lessonTypeLabel } from "@/lib/payroll";
 import { formatPrice, groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
+import { StatusChip, Tag } from "@/components/ui/chip";
 
 interface GroupCardProps {
   group: GroupInfo & { avg_level?: "below_grade" | "at_grade" | "above_grade" | null };
@@ -49,21 +50,13 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
         <div className="flex flex-col items-end gap-2">
           {/* Status Badge */}
           {group.status === "active" && !group.teacher_id ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border bg-amber-50 text-amber-700 border-amber-200">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              Ожидание
-            </div>
+            <StatusChip tone="warn" dot>Ожидание</StatusChip>
           ) : (
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${group.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${group.status === "active" ? "bg-emerald-400" : "bg-slate-400"}`} />
-              {group.status === "active" ? "Активна" : "Архив"}
-            </div>
+            <StatusChip tone={group.status === "active" ? "ok" : "neutral"} dot>{group.status === "active" ? "Активна" : "Архив"}</StatusChip>
           )}
-          
+
           {group.substitution && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-violet-50 text-violet-700 border-violet-200" title="Вы ведёте в этой группе отдельные уроки вместо её преподавателя">
-              {substituteLabel ?? SUBSTITUTE_BADGE}
-            </div>
+            <Tag tone="violet" title="Вы ведёте в этой группе отдельные уроки вместо её преподавателя">{substituteLabel ?? SUBSTITUTE_BADGE}</Tag>
           )}
           <div className="flex items-center gap-1">
             {/* Visual arrow (actual link covers whole card, but arrow animates on hover) */}
@@ -79,15 +72,8 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
       </h3>
       
       <div className="relative z-10 flex flex-wrap items-center gap-2 mb-6 text-sm text-slate-500">
-        <span className="flex items-center gap-1.5 bg-slate-100/80 px-3 py-1.5 rounded-xl border border-slate-200/50 backdrop-blur-sm">
-          <GraduationCap className="w-4 h-4 text-slate-500" /> {group.class_level ? `${group.class_level} класс` : "Без класса"}
-        </span>
-        <span
-          data-testid="group-lesson-type"
-          className="flex items-center gap-1.5 bg-primary-50/70 text-primary-700 px-3 py-1.5 rounded-xl border border-primary-100 font-medium"
-        >
-          {lessonTypeLabel(group.lesson_type)}
-        </span>
+        <Tag><GraduationCap className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />{group.class_level ? `${group.class_level} класс` : "Без класса"}</Tag>
+        <Tag testId="group-lesson-type">{lessonTypeLabel(group.lesson_type)}</Tag>
         {group.teacher_name && (
           <span className="text-slate-400 px-1 truncate max-w-[120px]">
             {group.teacher_name}

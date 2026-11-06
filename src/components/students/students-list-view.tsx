@@ -18,6 +18,7 @@ import { studentGroupId, studentHasGroup } from "@/lib/student-status";
 import { isArchivedStatus } from "@/lib/student-archive";
 import { useCopy } from "@/lib/use-copy";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface StudentInfo {
   id: string;
@@ -268,13 +269,9 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
           </button>
         </div>
       ) : students.length === 0 && activeTab === "archived" ? (
-        <p className="py-10 text-center text-sm text-slate-400">
-          {search ? "Ученики не найдены" : "В архиве пока никого нет"}
-        </p>
+        <EmptyState variant={search ? "filtered" : "inline"} title={search ? "Ученики не найдены" : "В архиве пока никого нет"} hint={search ? "Попробуйте другое имя или сбросьте поиск." : undefined} />
       ) : students.length === 0 && activeTab === "ungrouped" ? (
-        <p className="py-10 text-center text-sm text-slate-400">
-          {search ? "Ученики не найдены" : "Все ученики распределены по группам"}
-        </p>
+        <EmptyState variant={search ? "filtered" : "inline"} title={search ? "Ученики не найдены" : "Все ученики распределены по группам"} hint={search ? "Попробуйте другое имя или сбросьте поиск." : undefined} />
       ) : students.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center md:p-16">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">

@@ -39,6 +39,7 @@ import { splitLayout } from "@/lib/payroll-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1 print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-[11px] whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
@@ -171,9 +172,7 @@ export function PayrollSheetTable({
   if (sheet.lines.length === 0) {
     return (
       <div className="space-y-3">
-        <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
-          В этом месяце у преподавателя нет учеников с засчитанными уроками.
-        </p>
+        <EmptyState title="В этом месяце у преподавателя нет учеников с засчитанными уроками." hint="Когда уроки будут засчитаны, они появятся здесь." />
       </div>
     );
   }

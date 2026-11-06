@@ -591,11 +591,11 @@ test("F14: one <Chip> and one registry of statuses (exam, diagnostic, money) ins
   const T = require(path.join(root, "src/lib/chip-tone.ts"));
   const R = require(path.join(root, "src/lib/status-registry.ts"));
   for (const tone of ["neutral", "warn", "danger", "ok", "info", "violet", "muted"]) assert.ok(T.CHIP_TONE_CLASS[tone], tone);
-  assert.match(T.chipClass({ tone: "ok", size: "md" }), /rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 px-2 py-0\.5 text-xs/);
+  assert.match(T.chipClass({ tone: "ok", size: "md" }), /rounded-tag border border-success-200 bg-success-50 text-success-800 px-2 py-0\.5 text-xs/);
   assert.match(T.chipClass({ tone: "danger", pill: true }), /rounded-full/);
   const { Chip } = require(path.join(root, "src/components/ui/chip.tsx"));
   const html = renderToStaticMarkup(React.createElement(Chip, { tone: "warn", testId: "c", title: "t" }, "Ожидает"));
-  assert.match(html, /<span class="[^"]*border-amber-200[^"]*" title="t" data-testid="c">Ожидает<\/span>/);
+  assert.match(html, /<span class="[^"]*border-warning-200[^"]*" title="t" data-testid="c">Ожидает<\/span>/);
   // exams: three copies became one
   assert.deepEqual(Object.keys(R.EXAM_STATUS), ["draft", "variants_ready", "lobby", "active", "closed", "archived"]);
   assert.equal(R.examStatusView("nonsense").label, "Черновик");

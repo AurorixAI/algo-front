@@ -12,6 +12,7 @@ import { formatBusinessDate, formatDateRu } from "./business-time";
 import { REASON_MAX, REASON_MIN } from "./payments";
 import { monthInSentence, monthLabel, type PeriodState } from "./money-effects";
 import { genitiveShortName } from "./name-case";
+import { CHIP_TONE_CLASS, type ChipTone } from "./chip-tone";
 
 export interface PeriodReopened {
   /** Naive UTC timestamp of the reopening. */
@@ -127,10 +128,11 @@ export function monthPeriodView(view: PeriodView | null, monthRunning: boolean):
   return monthRunning && view?.tone === "open" ? null : view;
 }
 
+export const PERIOD_CHIP_TONE: Record<PeriodTone, ChipTone> = { open: "neutral", closed: "neutral", reopened: "warn" };
 export const PERIOD_CHIP_CLASS: Record<PeriodTone, string> = {
-  open: "border-slate-200 bg-slate-50 text-slate-600",
-  closed: "border-slate-300 bg-slate-100 text-slate-800",
-  reopened: "border-amber-200 bg-amber-50 text-amber-900",
+  open: CHIP_TONE_CLASS.neutral,
+  closed: CHIP_TONE_CLASS.neutral,
+  reopened: CHIP_TONE_CLASS.warn,
 };
 
 // ── «Переоткрыть месяц» ───────────────────────────────────────────────────────────────────────────

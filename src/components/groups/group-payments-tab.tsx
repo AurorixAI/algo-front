@@ -51,6 +51,7 @@ import { MembershipRowActions } from "@/components/payments/membership-row-actio
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
 const GRID_COLS = "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]"; // the student column is capped so the price sits near the names (owner 23.10); «Цена» is left-aligned and «Оплата» has room for the chip and the bar (owner 26.10); the actions take the rest and stay right
@@ -264,10 +265,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
           <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : shown.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-12 text-center">
-          <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Users className="h-5 w-5" /></span>
-          <p className="text-sm font-medium text-slate-600">{emptyFilterText(filter, search)}</p>
-        </div>
+        <EmptyState icon={Users} variant="filtered" title={emptyFilterText(filter, search)} />
       ) : (
         <section aria-label="Оплаты учеников группы" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
           <div role="presentation" className={`hidden items-center gap-x-6 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>

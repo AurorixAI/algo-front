@@ -94,8 +94,8 @@ test("status: the chip says the state, the second line says «оплачено �
   assert.equal(rules.statusDetail(row("none", { paid_until: null, period_mode: null })), "");
   // tone: red only for overdue, amber for «soon» and the last day, grey for paid
   assert.deepEqual(["expired", "expiring", "ends_today", "active", "none"].map((status) => rules.statusTone(status)), ["danger", "warning", "warning", "ok", "muted"]);
-  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expired")], /rose/);
-  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expiring")], /amber/);
+  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expired")], /danger/);
+  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expiring")], /warning/);
   assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { canManageMoney, REOPEN_MONTH_LABEL } from "@/lib/money-effects";
 import {
   REOPEN_EXPLAIN,
@@ -16,6 +16,7 @@ import {
 import { REASON_MAX } from "@/lib/payments";
 import { useReopenMonth } from "@/lib/use-reopen-month";
 import { useAuthStore } from "@/lib/store";
+import { Notice } from "@/components/ui/notice";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -40,14 +41,15 @@ export function PeriodClosedNotice({
   const allowed = canReopenFrom(info, canManageMoney(user));
   const text = periodClosedText(info, { canReopen: allowed, purpose });
   return (
-    <div role="alert" data-testid="period-closed" className={`space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 ${className}`}>
-      <p className="flex items-start gap-2 text-sm text-amber-900">
-        <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-        <span className="min-w-0"><span className="font-semibold" data-testid="period-closed-head">{text.head}</span>{text.advice ? <> <span data-testid="period-closed-advice">{text.advice}</span></> : null}</span>
-      </p>
-      {allowed && !open && (
-        <Button type="button" data-testid="period-closed-reopen" onClick={() => setOpen(true)} variant="secondary" size="md">{REOPEN_MONTH_LABEL}</Button>
-      )}
+    <div className={`space-y-2 ${className}`}>
+      <Notice
+        variant="blocked"
+        role="alert"
+        testId="period-closed"
+        action={allowed && !open ? <Button type="button" data-testid="period-closed-reopen" onClick={() => setOpen(true)} variant="secondary" size="md">{REOPEN_MONTH_LABEL}</Button> : undefined}
+      >
+        <span className="font-semibold" data-testid="period-closed-head">{text.head}</span>{text.advice ? <> <span data-testid="period-closed-advice">{text.advice}</span></> : null}
+      </Notice>
       {allowed && open && <ReopenInline info={info} onClose={() => setOpen(false)} onReopened={() => { setOpen(false); onReopened(); }} />}
     </div>
   );
@@ -90,7 +92,7 @@ function ReopenInline({ info, onClose, onReopened }: { info: PeriodClosedInfo & 
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Переоткрыть месяц
         </Button>
-        <button type="button" onClick={onClose} disabled={busy} className="inline-flex min-h-[40px] items-center rounded-lg px-3.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">Отмена</button>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Отмена</Button>
       </div>
     </div>
   );

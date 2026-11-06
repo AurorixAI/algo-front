@@ -38,6 +38,7 @@ import {
   type MethodSegment,
 } from "@/lib/payments-income-v2";
 import { Button } from "@/components/ui/button";
+import { SkeletonBlock } from "@/components/ui/skeleton";
 
 /** The group / teacher the screen is narrowed to: carried to «Должники» and to the label of the till. */
 
@@ -52,19 +53,16 @@ export function ProgressBar({ pct, label }: { pct: number; label: string }) {
   );
 }
 
-function Block({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-xl bg-slate-100 ${className}`} aria-hidden />;
-}
 
 /** The page while the first answer is on its way: the same shapes as the real thing, so nothing jumps. */
 export function IncomeSkeleton() {
   return (
     <div className="space-y-5" role="status" aria-busy="true" aria-label="Загрузка поступлений" data-testid="income-skeleton">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[0, 1, 2, 3].map((index) => <Block key={index} className="h-[118px] rounded-2xl" />)}
+        {[0, 1, 2, 3].map((index) => <SkeletonBlock key={index} className="h-[118px] rounded-card" />)}
       </div>
-      <Block className="h-16 rounded-2xl" />
-      <Block className="h-56 rounded-2xl" />
+      <SkeletonBlock className="h-16 rounded-card" />
+      <SkeletonBlock className="h-56 rounded-card" />
     </div>
   );
 }

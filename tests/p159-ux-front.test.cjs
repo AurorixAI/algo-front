@@ -71,10 +71,10 @@ test("U1: the closing day is the 1st of the month AFTER NEXT (the window of the 
 test("U1: the cell is one line, no solid fill; the grey text has no frame; the header «Срок» is centred", () => {
   const soon = renderToStaticMarkup(React.createElement(cells.DeadlineBadge, { item: req({ minutesToStart: 300 }) }));
   assert.match(text(soon), /через 5 ч/);
-  assert.match(soon, /bg-amber-50/);
+  assert.match(soon, /bg-warning-50/);
   const now = renderToStaticMarkup(React.createElement(cells.DeadlineBadge, { item: req({ minutesToStart: 30 }) }));
-  assert.match(now, /bg-rose-50/);
-  assert.match(now, /text-rose-700/);
+  assert.match(now, /bg-danger-50/);
+  assert.match(now, /text-danger-700/);
   for (const html of [soon, now, renderToStaticMarkup(React.createElement(cells.DeadlineBadge, { item: req({ overdue: true, minutesToStart: -2820 }) }))]) {
     assert.doesNotMatch(html, /bg-rose-[6-9]00|bg-red-|text-white/, "no solid fill");
   }

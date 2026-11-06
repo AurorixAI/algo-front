@@ -25,6 +25,7 @@ import {
 import { groupPriceHref, pricesBaseOf, type PriceSource } from "./group-price";
 import type { PluralForms } from "./plural";
 import type { DivisorRow, PayoutState } from "./payroll-logica";
+import { CHIP_TONE_CLASS, type ChipTone } from "./chip-tone";
 
 // ── Lesson types ────────────────────────────────────────────────────────────
 
@@ -1369,10 +1370,11 @@ export function sheetStatus(sheet: Pick<PayrollMonthSheetRef, "stale" | "updated
   return { tone: "saved", label: day ? `Сохранено ${day}` : "Сохранено" };
 }
 
+export const STATUS_CHIP_TONE: Record<StatusChipTone, ChipTone> = { none: "neutral", saved: "ok", changed: "warn" };
 export const STATUS_CHIP_CLASS: Record<StatusChipTone, string> = {
-  none: "border-slate-200 bg-slate-50 text-slate-600",
-  saved: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  changed: "border-amber-200 bg-amber-50 text-amber-800",
+  none: CHIP_TONE_CLASS[STATUS_CHIP_TONE.none],
+  saved: CHIP_TONE_CLASS[STATUS_CHIP_TONE.saved],
+  changed: CHIP_TONE_CLASS[STATUS_CHIP_TONE.changed],
 };
 
 /** «версия 3»: the word the owner reads in the history of a sheet (it was «редакция»). */

@@ -300,7 +300,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(chromeSrc, /TABLE_HEAD_CELL = "min-w-0 text-\[13px\] font-semibold text-slate-500"/); // ordinary case, never ALL CAPS (UX-1 B)
   // badges: one base class (size, radius, type), tones from the shared palette; placed as flex items so no line box shifts them
   const tone = require(path.join(root, "src/lib/chip-tone.ts"));
-  assert.match(tone.CHIP_BASE_CLASS, /rounded-md border px-2 py-0\.5 text-left text-xs font-medium leading-4/);
+  assert.match(tone.CHIP_BASE_CLASS, /rounded-tag border px-2 py-0\.5 text-left text-xs font-medium leading-4/);
   assert.match(excuses, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}/);
   assert.match(open, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[CHIP_TONE\[item\.actionType\]\]\}/);
   assert.match(excuses, /<div className="flex min-w-0 xl:-my-px xl:justify-center">/);

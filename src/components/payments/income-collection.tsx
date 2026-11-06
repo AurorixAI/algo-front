@@ -6,6 +6,7 @@ import { Hint } from "@/components/ui/hint";
 import { formatMoney } from "@/lib/payments";
 import { COLLECTION_COST_HINT, COLLECTION_COST_LINE, collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr)_7rem_6.5rem] md:items-center md:gap-x-4";
 
@@ -80,9 +81,7 @@ export function CollectionTable({ collection, paymentsBase, debtToday, caption }
   const debtNote = collectionDebtNote(collection, debtToday);
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" data-testid="collection-empty">
-        <p className="text-sm font-medium text-slate-600">В этом месяце в группах нет стоимости обучения</p>
-      </div>
+      <EmptyState testId="collection-empty" title="В этом месяце в группах нет стоимости обучения" hint="Стоимость появится, когда у групп будет цена на этот месяц." />
     );
   }
   return (

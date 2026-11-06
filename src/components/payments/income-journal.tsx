@@ -27,6 +27,8 @@ import {
 import { Select } from "@/components/ui/select";
 import { IncomeError } from "./income-parts";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonLine } from "@/components/ui/skeleton";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
@@ -99,9 +101,9 @@ export function JournalSkeleton() {
     <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white" role="status" aria-busy="true" aria-label="Загрузка оплат" data-testid="journal-skeleton">
       {[0, 1, 2, 3, 4].map((index) => (
         <div key={index} className="flex items-center gap-3 px-4 py-3.5">
-          <div className="h-4 w-16 animate-pulse rounded bg-slate-100" />
-          <div className="h-4 flex-1 animate-pulse rounded bg-slate-100" />
-          <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+          <SkeletonLine className="w-16" />
+          <SkeletonLine className="flex-1" />
+          <SkeletonLine className="w-20" />
         </div>
       ))}
     </div>
@@ -339,12 +341,7 @@ export function JournalSection(props: JournalSectionProps) {
         ) : !journal ? (
           <JournalSkeleton />
         ) : listedRows(journal.rows).length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" data-testid="journal-empty">
-            <p className="text-sm font-medium text-slate-600">{journalEmptyText(props.empty)}</p>
-            {props.empty.narrowed && (
-              <button type="button" onClick={props.onResetNarrowing} className="mt-2 text-sm font-medium text-primary-700 hover:underline">Сбросить поиск и фильтры</button>
-            )}
-          </div>
+          <EmptyState testId="journal-empty" variant={props.empty.narrowed ? "filtered" : "card"} title={journalEmptyText(props.empty)} action={props.empty.narrowed ? <Button variant="secondary" size="sm" onClick={props.onResetNarrowing}>Сбросить поиск и фильтры</Button> : undefined} />
         ) : (
           <JournalList rows={journal.rows} withYear={withYear} activeId={props.activeId} onOpen={props.onOpen} history={journal.history} />
         )}

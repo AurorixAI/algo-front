@@ -60,6 +60,7 @@ import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Date · operation · charged · paid · balance: a bank statement.  Date and money are centred, the operation is left.
@@ -457,11 +458,7 @@ export function StatementTimeline({
   return (
     <>
       {!hasRows ? (
-        <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-12 text-center">
-          <ScrollText className="h-6 w-6 text-slate-300" aria-hidden />
-          <p className="text-sm font-medium text-slate-700">В выписке пока нет записей</p>
-          <p className="max-w-sm text-xs text-slate-500">Стоимость появится, когда начнётся первый период, оплаты — после первой оплаты.</p>
-        </div>
+        <EmptyState icon={ScrollText} title="В выписке пока нет записей" hint="Стоимость появится, когда начнётся первый период, оплаты — после первой оплаты." />
       ) : (
         <section aria-label="Записи счёта" className="md:overflow-hidden md:rounded-2xl md:border md:border-slate-200 md:bg-white">
           <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 text-[13px] font-semibold text-slate-500 ${GRID}`}>

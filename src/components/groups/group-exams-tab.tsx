@@ -22,6 +22,8 @@ import { copyText } from "@/lib/use-copy";
 import { groupExamLinks, groupExamsAccess } from "@/lib/group-exams";
 import { groupWorkspacePaths, withoutJournalLink, type GroupWorkspace } from "@/lib/group-workspace";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { buttonClass } from "@/lib/button-style";
 
 type ExamStatusFilter = ExamTab;
 
@@ -255,13 +257,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
             .filter((e) => !e.group_id && e.status !== "closed" && e.status !== "archived" && e.status !== "active")
             .filter((e) => !librarySearch || e.title.toLowerCase().includes(librarySearch.toLowerCase()))
             .length === 0 && (
-            <div className="text-center py-8 text-slate-400">
-              <Library className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">{librarySearch ? "Шаблоны не найдены" : "Нет доступных шаблонов"}</p>
-              <Link href={links.library} className="text-xs text-primary-600 hover:underline mt-1 block">
-                Создать экзамен в библиотеке →
-              </Link>
-            </div>
+            <EmptyState variant="inline" icon={Library} title={librarySearch ? "Шаблоны не найдены" : "Нет доступных шаблонов"} action={<Link href={links.library} className={buttonClass({ variant: "secondary", size: "sm" })}>Создать экзамен в библиотеке</Link>} />
           )}
         </div>
         </Modal>
