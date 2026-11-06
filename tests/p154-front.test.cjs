@@ -250,7 +250,7 @@ test("A: the row of money - the lesson, who held it, how many came; no amount; t
   // the teacher asked for his OWN lesson: «Просит включить в зарплату» says nothing new and is not shown; an administrator asked for the lesson of another: it is
   const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "two", createdBy: { id: "a1", name: "Каримова Д.", role: "admin" } })], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   const plain = text(html);
-  assert.match(plain, /Дополнительные уроки: включить в зарплату\? · 2/);
+  assert.match(plain, /Дополнительные уроки ждут решения · 2/);
   assert.doesNotMatch(plain, /Дополнительный урок — оплатить преподавателю\?/, "the question is in the window, not in every row");
   assert.match(plain, /7-А · чт, 5 ноября · 16:00–17:00/);
   assert.match(plain, /преподаватель: Рахимов Т\. · пришли 3 из 10/);

@@ -148,6 +148,10 @@ interface ModalProps {
  * window, scroll lock, Escape and the Tab trap of the topmost dialog, focus in and back to the opener.  The side sheet
  * (`placement="right"`) is the same dialog on the same stack, so a drawer never reinvents any of it.
  */
+const SCROLL_EDGE = {
+  background: "linear-gradient(#fff 30%, rgba(255,255,255,0)) center top / 100% 28px no-repeat local, linear-gradient(rgba(255,255,255,0), #fff 70%) center bottom / 100% 28px no-repeat local, linear-gradient(rgba(15,23,42,0.12), rgba(15,23,42,0)) center top / 100% 10px no-repeat scroll, linear-gradient(rgba(15,23,42,0), rgba(15,23,42,0.12)) center bottom / 100% 10px no-repeat scroll",
+} as const;
+
 export function Modal({
   open, title, description, onClose, children, footer, maxWidthClassName, busy = false,
   icon, bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false,
@@ -197,7 +201,8 @@ export function Modal({
     </div>
   );
 
-  const body = <div className={layout.body}>{children}</div>;
+  // re-audit Н12: a body that scrolls says so - a soft grey edge appears at the bottom (and the top) only while there is more to scroll (not coloured; the white covers it at the end of the scroll)
+  const body = <div className={layout.body} style={SCROLL_EDGE}>{children}</div>;
 
   const footerRow = footer && <div className={layout.footer}>{footer}</div>;
 

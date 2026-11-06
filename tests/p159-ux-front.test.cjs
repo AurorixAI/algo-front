@@ -169,14 +169,14 @@ test("U4: «преподаватель: Фамилия И. · пришли 2 и�
 });
 
 test("U4: the section «Оплата дополнительных уроков · N» - one table section, the question is not repeated in a row; the admin without the right gets ONE collapsed row", () => {
-  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: включить в зарплату?");
+  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки ждут решения");
   assert.equal(O.decisionsViewLine(1), "Решает владелец: 1 дополнительный урок");
   assert.equal(O.decisionsViewLine(2), "Решает владелец: 2 дополнительных урока");
   assert.equal(O.decisionsViewLine(5), "Решает владелец: 5 дополнительных уроков");
   assert.equal(O.decisionsViewLine(21), "Решает владелец: 21 дополнительный урок");
   const props = { loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} };
   const owner = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "b" })], canDecide: true, ...props }));
-  assert.match(text(owner), /Дополнительные уроки: включить в зарплату\? · 2/);
+  assert.match(text(owner), /Дополнительные уроки ждут решения · 2/);
   assert.equal((owner.match(/data-testid="one-off-decision-row"/g) || []).length, 2);
   assert.doesNotMatch(text(owner), /Дополнительный урок — оплатить преподавателю\?/);
   assert.doesNotMatch(owner, /bg-amber|border-amber/, "no yellow warning block");

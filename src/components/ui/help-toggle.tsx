@@ -19,9 +19,10 @@ export function HelpToggle({ children, label = "Подробнее", testId }: {
         aria-label={label}
         title={label}
         data-testid={testId}
-        className="relative ml-1.5 inline-flex h-4 w-4 before:absolute before:-inset-3 before:content-[''] shrink-0 items-center justify-center rounded-full border border-slate-300 align-middle text-[10px] font-bold leading-none text-slate-500 hover:border-slate-400 hover:bg-slate-100"
+        className="group -my-3 -mr-2 ml-0 inline-flex h-10 w-10 shrink-0 items-center justify-center align-middle focus-visible:outline-none"
       >
-        ?
+        {/* the touch target is 40 px (re-audit С3); the mark stays the small circle */}
+        <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold leading-none text-slate-500 group-hover:border-slate-400 group-hover:bg-slate-100 group-focus-visible:ring-2 group-focus-visible:ring-primary-500/40">?</span>
       </button>
       {open && <span id={id} role="note" className="mt-1 block text-xs font-normal leading-relaxed text-slate-500">{children}</span>}
     </>

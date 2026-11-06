@@ -142,7 +142,6 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<SubstitutionsPage role={props.role ?? "owner"} />);
       break;
     case "debtBanner":
-      usePaymentsSummary.setState({ available: true, debtors: 5, studentsWithDebt: 5, debtTotal: 4350000, studentsExpired: 2 } as never);
       root.render(<div className="mx-auto max-w-3xl p-4"><PaymentsAlertBanner paymentsBasePath="/owner/payments" /></div>);
       break;
     case "receipt":

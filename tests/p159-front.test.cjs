@@ -109,7 +109,7 @@ test("B: nothing on the screens speaks of an «empty make-up» that waits for a 
     const visible = read(file).split("\n").filter((line) => /["'`]/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
     assert.doesNotMatch(visible, /пуст\w+ отработк|отработк\w* без учеников|Отработка без учеников/i, file);
   }
-  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: включить в зарплату?");
+  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки ждут решения");
   assert.equal(O.decisionQuestion({ title: "" }), "Включить урок в зарплату преподавателя?");
   const payroll = require(path.join(root, "src/lib/payroll.ts"));
   assert.doesNotMatch(payroll.UNDECIDED_MARK_HINT + payroll.NO_PAY_MARK_HINT, /отработк/i, "the hints of the sheet name no make-up");

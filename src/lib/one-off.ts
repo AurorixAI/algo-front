@@ -459,7 +459,7 @@ export function payrollWarning(sheet: DecisionPayrollSheet | null | undefined): 
 export const MONEY_RIGHT_TEXT = "Решение по зарплате принимает владелец или администратор с доступом к деньгам";
 export const DECISION_PAY_LABEL = "Включить в зарплату";
 export const DECISION_SKIP_LABEL = "Не включать";
-export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: включить в зарплату?";
+export const DECISIONS_GROUP_TITLE = "Дополнительные уроки ждут решения";
 export const DECISIONS_GROUP_HINT = "Решение принимает владелец или администратор с доступом к деньгам: включить урок в зарплату преподавателя или нет. Решение можно отменить, пока месяц не закрыт.";
 /** An administrator without the money access sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;

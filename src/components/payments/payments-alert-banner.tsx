@@ -99,7 +99,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
               <Link
                 href={`${paymentsBasePath}?bucket=debt`}
                 aria-label="Открыть список"
-                className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] font-semibold text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 sm:h-9 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white sm:px-3.5 sm:text-sm sm:font-medium sm:text-slate-700 sm:hover:border-slate-300 sm:hover:bg-slate-50"
+                className="inline-flex h-10 items-center rounded-lg px-2.5 text-[13px] sm:h-8 sm:px-2 font-semibold text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 sm:h-9 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white sm:px-3.5 sm:text-sm sm:font-medium sm:text-slate-700 sm:hover:border-slate-300 sm:hover:bg-slate-50"
               >
                 <span className="sm:hidden">Открыть</span>
                 <span className="hidden sm:inline">Открыть список</span>
@@ -109,7 +109,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
                 onClick={() => { writeDismissedAt(copy.count); setDismissedAt(copy.count); }}
                 aria-label="Скрыть напоминание"
                 title="Скрыть до следующего сеанса или пока ждущих не станет больше"
-                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+                className="rounded-lg p-3 text-slate-500 transition-colors hover:bg-slate-100 sm:p-2 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
