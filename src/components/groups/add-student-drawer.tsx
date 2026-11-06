@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { Search, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
@@ -29,6 +29,7 @@ import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmFooter } from "@/components/money/dialog-footer";
 
 interface Student {
   id: string;
@@ -295,7 +296,7 @@ export function AddStudentDrawer({
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col"
-      footerClassName="p-3 sm:p-4 space-y-2 sm:space-y-3"
+      footerClassName="flex flex-col gap-2 p-3 sm:p-4 sm:gap-3"
       footer={
         <>
         {transfers.length > 0 && !moneyRight && (
@@ -328,8 +329,8 @@ export function AddStudentDrawer({
             <p className="mt-1 text-xs text-slate-500">
               {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
             </p>
-            {priceHint && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
-            <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
+            {priceHint && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
+            <p className="mt-0.5 max-h-8 overflow-y-auto text-xs text-slate-500">
               {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
             </p>
           </fieldset>
@@ -345,7 +346,7 @@ export function AddStudentDrawer({
                   )}
                 </p>
                 {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
-                {priceHint && transfers.length === 0 && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
+                {priceHint && transfers.length === 0 && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
               </>
             )}
             <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
@@ -382,18 +383,17 @@ export function AddStudentDrawer({
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
         )}
-        <button
-          onClick={handleAdd}
+        {/* re-audit В1: the footer of every window of money */}
+        <ConfirmFooter
+          primary={adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
+          onPrimary={() => void handleAdd()}
+          busy={adding}
           disabled={selected.size === 0 || adding || !transferAllowed}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {adding ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <UserPlus className="w-4 h-4" />
-          )}
-          {adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
-        </button>
+          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
+          whyId="enrol-why"
+          onCancel={onClose}
+          testId="enrol-submit"
+        />
         </>
       }
     >
@@ -427,13 +427,13 @@ export function AddStudentDrawer({
 
       {/* Student list */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        {tooShort && <p className="px-4 pt-3 text-xs text-slate-400">Введите минимум 2 символа</p>}
+        {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
           </div>
         ) : available.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-slate-400">
+          <p className="px-6 py-10 text-center text-sm text-slate-500">
             {searching
               ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
               : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
@@ -450,7 +450,7 @@ export function AddStudentDrawer({
                 >
                   {/* Avatar */}
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                    isSelected ? "bg-primary-600 text-white" : "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600"
+                    isSelected ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
                   }`}>
                     {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
                   </div>
@@ -476,7 +476,7 @@ export function AddStudentDrawer({
           </div>
         )}
         {!loading && totalFound > students.length && (
-          <p className="px-4 py-3 text-xs text-slate-400 text-center">
+          <p className="px-4 py-3 text-xs text-slate-500 text-center">
             Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
           </p>
         )}

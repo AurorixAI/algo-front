@@ -2,7 +2,7 @@
  * IA audit F12: ONE vocabulary of enrolment and transfer for every screen that does either (the card of the student, the group page, the
  * dialogs).  Pure: no React, so node:test loads it.  «Зачислить в группу» is the first enrolment AND an additional one;
  * «Перевести в другую группу» closes the current memberships and moves the student.  No «Добавить в группу», «Перевести сюда»,
- * «Добавить ученика», «Перевести» alone.
+ * «Добавить ученика»; «Перевести» is the BUTTON of the window titled «Перевести в другую группу» (re-audit В2), never an action name of a menu.
  */
 export const ENROL_ACTION_LABEL = "Зачислить в группу";
 export const TRANSFER_ACTION_LABEL = "Перевести в другую группу";
@@ -23,6 +23,8 @@ export function enrolDialogTitle(mode: "add" | "transfer", hasCurrentGroup: bool
   return hasCurrentGroup ? TRANSFER_ACTION_LABEL : ENROL_ACTION_LABEL;
 }
 
+/** The main button: the title already says «в другую группу», so the button of a transfer is «Перевести» (re-audit В2); an enrolment keeps its title. */
+export const TRANSFER_SUBMIT_LABEL = "Перевести";
 export function enrolSubmitLabel(mode: "add" | "transfer", hasCurrentGroup: boolean): string {
-  return enrolDialogTitle(mode, hasCurrentGroup);
+  return mode === "transfer" && hasCurrentGroup ? TRANSFER_SUBMIT_LABEL : enrolDialogTitle(mode, hasCurrentGroup);
 }

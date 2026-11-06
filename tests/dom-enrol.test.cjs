@@ -52,7 +52,7 @@ test("M2: an administrator with `payments_access` and the owner keep the switch 
     await page.waitForSelector('[role="radiogroup"]');
     assert.equal(await page.locator('[data-testid="enrol-second-group"]').count(), 0);
     await page.waitForSelector('[data-testid="transfer-carried"]');
-    assert.match(await page.textContent('[data-testid="transfer-carried"]'), /Оплата 300 000 сум перенесётся/);
+    assert.match((await page.textContent('[data-testid="transfer-carried"]')).replace(/\s+/g, " "), /Оплата 300 000 сум перенесётся/);
     assert.equal(plainText(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится", "ONE title of the block");
     assert.equal(plainText(await page.textContent('button:has-text("Перевести (1)")')), "Перевести (1)", "the button names the action of the mode, not «Зачислить»");
     assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0, "the window is about the money of the student: no salary block");

@@ -32,11 +32,17 @@ async function openAssign(width) {
   return run;
 }
 
-test("№15: «Что изменится» is the sentence of the server about the student's money; the salary of the teachers is NOT in the window even when the server sends it", async () => {
+// the sentence of the server is shown as ROWS (its parts divided by «; » are lines of their own, re-audit В2); put together with «; » it is the sentence itself
+const rowsText = async (locator) => (await locator.allTextContents()).map(plain).join("; ");
+
+test("№15: «Что изменится» is the sentence of the server about the student's money (as rows, numbers do not break); the salary of the teachers is NOT in the window even when the server sends it", async () => {
   const { page } = await openAssign(1280);
   const block = page.locator('[data-testid="transfer-preview"]');
   assert.equal(plain(await block.locator("h3").textContent()), "Что изменится");
-  assert.equal(plain(await block.locator('[data-testid="transfer-carried"] li').first().textContent()), SENTENCE);
+  assert.equal(await rowsText(block.locator('[data-testid="transfer-carried"] li')), SENTENCE);
+  assert.ok((await block.locator('[data-testid="transfer-carried"] li').count()) >= 2, "rows, not one paragraph");
+  const raw = await block.locator('[data-testid="transfer-carried"]').textContent();
+  assert.ok(/640\u00a0000\u00a0сум/.test(raw) && /280\u00a0000\u00a0сум/.test(raw) && /360\u00a0000\u00a0сум/.test(raw), "the sums of the server's sentence carry non-breaking spaces: " + JSON.stringify(raw));
   const dialog = plain(await page.textContent('[role="dialog"]'));
   assert.ok(!/зарплат|Каримова К\.|Эргашев К\.|Подробнее|закрыт/i.test(dialog.replace(/Преподаватель: Камол Эргашев/g, "")), dialog);
   assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
@@ -44,33 +50,41 @@ test("№15: «Что изменится» is the sentence of the server about t
   await page.close();
 });
 
-test("№15: the group price is said ONCE; the old line «Действующая оплата перейдёт…» is gone (the sentence of the server says it with the sums)", async () => {
+test("№15 / В2: the group price is said ONCE (on the card of the group); no «Ученик берёт цену…», no «Цена группы:», no «Эту цену получит»; the old line «Действующая оплата перейдёт…» is gone", async () => {
   const { page } = await openAssign(1280);
   const dialog = plain(await page.textContent('[role="dialog"]'));
-  assert.equal((dialog.match(/Ученик берёт цену новой группы/g) ?? []).length, 1, dialog);
+  assert.equal((dialog.match(/360 000 сум\/мес/g) ?? []).length, 1, dialog);
+  assert.ok(!/Ученик берёт цену|Цена группы|Эту цену получит|индивидуальная цена прежней/.test(dialog), dialog);
   assert.ok(!/Действующая оплата перейдёт/.test(dialog));
-  assert.match(plain(await page.textContent('[data-testid="assign-price-hint"]')), /^Ученик берёт цену новой группы/);
+  assert.equal(await page.locator('[data-testid="assign-price-hint"]').count(), 0);
   await page.close();
 });
 
-test("№15: the card «Текущая группа» reads at 4.5:1 or better; on a phone it is short (no teacher line, no icon)", async () => {
-  for (const width of [1280, 375]) {
+test("В2: «Перевести в другую группу» - who and from where is ONE line under the title (readable, 4.5:1); the window does not scroll itself; the list is as tall as its content; the button is «Перевести» in one line", async () => {
+  for (const width of [1280, 1024, 375]) {
     const { page } = await openAssign(width);
+    await page.waitForTimeout(250);
     const facts = await page.evaluate(() => {
-      const card = document.querySelector('[data-testid="assign-current-group"]');
+      const line = document.querySelector('[data-testid="assign-current-group"]');
+      const dialog = document.querySelector('[role="dialog"]');
       const parse = (css) => { const m = /rgba?\(([^)]+)\)/.exec(css); const [r, g, b, a = 1] = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r, g, b, a }; };
       const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
-      const bg = parse(getComputedStyle(card).backgroundColor);
-      const ratios = [...card.querySelectorAll("p")].filter((p) => p.getBoundingClientRect().height > 0).map((p) => {
-        const fg = parse(getComputedStyle(p).color);
-        const a = lum(fg), b = lum(bg);
-        return { text: p.textContent.trim().slice(0, 30), ratio: Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 10) / 10 };
-      });
-      return { ratios, height: Math.round(card.getBoundingClientRect().height), teacherVisible: [...card.querySelectorAll("p")].some((p) => /Преподаватель:/.test(p.textContent) && p.getBoundingClientRect().height > 0) };
+      const ratios = [...line.querySelectorAll("span")].filter((el) => el.children.length === 0 && el.textContent.trim()).map((el) => { const a = lum(parse(getComputedStyle(el).color)), b = lum({ r: 255, g: 255, b: 255 }); return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 10) / 10; });
+      const body = dialog.querySelector("h2").parentElement.parentElement.parentElement.nextElementSibling;
+      const list = document.querySelector('[data-testid="assign-groups"]');
+      const rows = list.querySelectorAll(':scope > div > div[class*="cursor-pointer"]').length;
+      const block = document.querySelector('[data-testid="transfer-preview"]').getBoundingClientRect();
+      const submit = document.querySelector('[data-testid="assign-submit"]');
+      const lineBox = line.getBoundingClientRect();
+      return { text: line.textContent.replace(/\s+/g, " ").trim(), ratios, lineHeight: Math.round(lineBox.height), scrolled: body.scrollTop, listHeight: Math.round(list.getBoundingClientRect().height), rows, blockBottom: Math.round(block.bottom), submitTop: Math.round(submit.getBoundingClientRect().top), submitHeight: Math.round(submit.getBoundingClientRect().height), submitText: submit.textContent.trim(), vh: window.innerHeight };
     });
-    assert.ok(facts.ratios.length >= 2 && facts.ratios.every((item) => item.ratio >= 4.5), `${width}: ${JSON.stringify(facts)}`);
-    if (width === 375) { assert.equal(facts.teacherVisible, false, "folded on a phone"); assert.ok(facts.height <= 64, JSON.stringify(facts)); }
-    else assert.equal(facts.teacherVisible, true);
+    assert.match(facts.text, /^Иванов Иван · сейчас в «Алгебра 7 \(вт\/пт\)»$/, JSON.stringify(facts));
+    assert.ok(facts.ratios.length > 0 && facts.ratios.every((ratio) => ratio >= 4.5), JSON.stringify(facts));
+    assert.equal(facts.scrolled, 0, `${width}: the body of the window was not scrolled by the window itself`);
+    assert.ok(facts.listHeight <= facts.rows * 150 + 60, `${width}: the list is as tall as its groups, not a fixed box (it was 220 / 340 px with one group): ${JSON.stringify(facts)}`);
+    assert.ok(facts.blockBottom <= facts.submitTop + 1, `${width}: «Что изменится» is above the button: ${JSON.stringify(facts)}`);
+    assert.equal(facts.submitText, "Перевести");
+    assert.ok(facts.submitHeight <= 48, `${width}: one line: ${JSON.stringify(facts)}`);
     await page.close();
   }
 });
@@ -100,7 +114,7 @@ for (const width of [1280, 375]) {
     assert.equal(plain(await page.textContent('button:has-text("Перевести (1)")')), "Перевести (1)");
     assert.equal(await page.locator('button:has-text("Зачислить (1)")').count(), 0);
     assert.equal(plain(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится");
-    assert.equal(plain(await page.textContent('[data-testid="transfer-carried"] li')), SENTENCE);
+    assert.equal(await rowsText(page.locator('[data-testid="transfer-carried"] li')), SENTENCE);
     assert.ok(!/зарплат|Каримова К\./i.test(plain(await page.textContent('[data-testid="transfer-preview"]'))));
     assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
     // the other mode of the same window keeps «Зачислить»
@@ -115,15 +129,3 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
-
-test("№15, a phone: «Что изменится» is brought into the screen when the answer comes - the person sees what they confirm, above the button", async () => {
-  const { page } = await openAssign(375);
-  await page.waitForTimeout(250);
-  const where = await page.evaluate(() => {
-    const block = document.querySelector('[data-testid="transfer-preview"]').getBoundingClientRect();
-    const buttons = [...document.querySelectorAll('[role="dialog"] button')].filter((b) => /Перевести в другую группу/.test(b.textContent)).map((b) => b.getBoundingClientRect());
-    return { top: Math.round(block.top), bottom: Math.round(block.bottom), buttonTop: Math.round(buttons[buttons.length - 1].top), vh: window.innerHeight };
-  });
-  assert.ok(where.top >= 0 && where.bottom <= where.buttonTop + 1, JSON.stringify(where));
-  await page.close();
-});

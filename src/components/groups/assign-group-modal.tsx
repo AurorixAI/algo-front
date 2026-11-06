@@ -10,8 +10,6 @@ import {
   Loader2,
   Check,
   GraduationCap,
-  UserCheck,
-  User,
   Sparkles,
   CheckCircle2,
   RotateCcw,
@@ -19,12 +17,10 @@ import {
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
-  enrolPriceHint,
   formatPrice,
   groupPriceHref,
   priceLabelOf,
   targetGroupPriceHint,
-  targetGroupPriceText,
   type GroupPriceBrief,
 } from "@/lib/group-price";
 import { formAllowsConfirm } from "@/lib/money-preview";
@@ -40,6 +36,7 @@ import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, vali
 import { formatBusinessDate } from "@/lib/business-time";
 import { enrolDialogTitle, enrolSubmitLabel } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
+import { CONFIRM_FOOTER_CLASS, CONFIRM_PRIMARY_BLUE, CONFIRM_PRIMARY_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
 
 export interface GroupInfo {
   id: string;
@@ -113,7 +110,6 @@ export function AssignGroupModal({
   const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
-  const priceHint = enrolPriceHint({ transfer: isTransfer, moneyAvailable });
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   // An individual price is an exception: off by default, a sum and a reason when on.
   const [exceptionOn, setExceptionOn] = useState(false);
@@ -264,7 +260,6 @@ export function AssignGroupModal({
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
-  const selectedPriceLine = selectedGroup ? targetGroupPriceText(selectedGroup.price_current, priceLabel) : null;
   const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1) : null;
 
   const closeAfterSuccess = () => {
@@ -280,70 +275,52 @@ export function AssignGroupModal({
       open={open}
       title={assignedSuccessGroup ? successTitle : formTitle}
       description={assignedSuccessGroup ? (
-        <span className="font-semibold text-emerald-600">
+        <span className="font-semibold text-emerald-700">
           {isAdd ? "Прежние группы сохранены" : isTransfer ? "Текущая группа и журнал обновлены" : "Успешно распределен в группу"}
         </span>
       ) : (
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span>Ученик:</span>
-          <span className="font-semibold text-slate-800">{studentName}</span>
+        // re-audit В2: who and from where on ONE line under the title (the card «Текущая группа» that scrolled out of sight is gone)
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" data-testid="assign-current-group">
+          <span className="font-semibold text-slate-800">{studentName}</span>{" "}
           {studentGrade && (
             <span className="rounded bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600">{studentGrade} класс</span>
           )}
+          {(isTransfer || (isAdd && currentGroupLabel)) && (
+            <span className="text-slate-600">
+              · {isAdd ? "уже занимается в" : "сейчас в"} «<span className="whitespace-nowrap">{currentGroupLabel || "…"}</span>»
+            </span>
+          )}
         </span>
       )}
-      icon={assignedSuccessGroup ? <CheckCircle2 className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
       onClose={closeAfterSuccess}
       busy={assigning}
-      maxWidthClassName="max-w-lg"
-      bodyClassName="overflow-y-auto overscroll-contain min-h-0"
-      footerClassName={assignedSuccessGroup ? "p-4 sm:p-5 bg-white" : "p-4 sm:p-5 bg-white grid grid-cols-2 gap-3"}
+      maxWidthClassName={MONEY_WINDOW_FORM}
+      bodyClassName="px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0"
+      footerClassName={CONFIRM_FOOTER_CLASS}
       footer={assignedSuccessGroup ? (
-        <>
-    <button
-      type="button"
-      onClick={() => {
-        onAssigned(assignedSuccessGroup);
-        onClose();
-      }}
-      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold text-sm shadow-md shadow-emerald-600/20 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] transition-all cursor-pointer"
-    >
-      <CheckCircle2 className="w-4 h-4" />
-      <span>Отлично, закрыть</span>
-    </button>
-        </>
+        <button
+          type="button"
+          onClick={() => {
+            onAssigned(assignedSuccessGroup);
+            onClose();
+          }}
+          data-testid="assign-done"
+          className={`${CONFIRM_PRIMARY_CLASS} ${CONFIRM_PRIMARY_BLUE}`}
+        >
+          Отлично, закрыть
+        </button>
       ) : (
-        <>
-      <button
-        type="button"
-        onClick={onClose}
-        className="w-full flex items-center justify-center py-2.5 sm:py-3 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-all shadow-2xs"
-      >
-        Отмена
-      </button>
-      <button
-        type="button"
-        onClick={handleAssign}
-        disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed}
-        className={`w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${
-          !selectedGroupId || excluded.has(selectedGroupId)
-            ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none"
-            : "bg-gradient-to-r from-primary-600 to-indigo-600 text-white shadow-md shadow-primary-600/20 hover:from-primary-700 hover:to-indigo-700 cursor-pointer"
-        }`}
-      >
-        {assigning ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>{isTransfer ? "Переводим..." : "Зачисление..."}</span>
-          </>
-        ) : (
-          <>
-            <UserCheck className="w-4 h-4" />
-            <span>{enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}</span>
-          </>
-        )}
-      </button>
-        </>
+        // re-audit В1: the footer of every window of money; «почему» stands over the off button
+        <ConfirmFooter
+          primary={assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}
+          onPrimary={() => void handleAssign()}
+          busy={assigning}
+          disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed}
+          why={!selectedGroupId ? "Выберите группу" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
+          whyId="assign-why"
+          onCancel={onClose}
+          testId="assign-submit"
+        />
       )}
     >
       {assignedSuccessGroup ? (
@@ -354,7 +331,7 @@ export function AssignGroupModal({
       initial={{ scale: 0.4, rotate: -10 }}
       animate={{ scale: 1, rotate: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 18 }}
-      className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-xl shadow-emerald-500/25 ring-8 ring-emerald-50"
+      className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center text-white"
     >
       <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
     </motion.div>
@@ -396,73 +373,63 @@ export function AssignGroupModal({
         </div>
       ) : (
         <>
-    {/* Current membership is context, not a selectable destination. */}
-    <div className="px-6 pt-5 pb-4 bg-slate-50/80 border-b border-slate-100 space-y-3 flex-shrink-0">
-      {(isTransfer || (isAdd && currentGroupLabel)) && (
-        <div data-testid="assign-current-group" className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3.5 py-2.5 sm:py-3">
-          <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-800 sm:flex">
-            <Users className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-indigo-800">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
-            <p className="truncate text-sm font-bold text-indigo-950">
-              {currentGroupLabel || "Определяем группу ученика…"}
-              {!isAdd && currentGroup?.class_level ? ` · ${currentGroup.class_level} класс` : ""}
-            </p>
-            {!isAdd && currentGroup?.teacher_name && (
-              <p className="hidden truncate text-xs text-indigo-900 sm:block">Преподаватель: {currentGroup.teacher_name}</p>
-            )}
-            {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
-              <p className="text-xs text-amber-800">Членство во всех текущих группах будет закрыто</p>
+    {/* The current membership is context, not a destination: it stands in the line under the title.  Several current groups: one amber line. */}
+    <div className="space-y-2.5 pb-3">
+      {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
+        <p className="text-xs text-amber-800">Членство во всех текущих группах будет закрыто</p>
+      )}
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {/* Teacher Selector */}
+        <div>
+          <label htmlFor="assign-group-prepodavatel" className="mb-1 block text-xs font-semibold text-slate-600">
+            Преподаватель
+          </label>
+          <Select
+            id="assign-group-prepodavatel"
+            value={selectedTeacherId}
+            onChange={(e) => setSelectedTeacherId(e.target.value)}
+            options={[{ value: "", label: "Все преподаватели" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
+            buttonClassName="bg-white py-2.5 pl-3.5"
+          />
+        </div>
+
+        {/* Search Bar */}
+        <div>
+          <label htmlFor="assign-group-search" className="mb-1 block text-xs font-semibold text-slate-600">Группа</label>
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              id="assign-group-search"
+              type="text"
+              placeholder="Поиск группы"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Очистить поиск"
+                className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:text-slate-700"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
         </div>
-      )}
-
-      {/* Teacher Selector */}
-      <div>
-        <label htmlFor="assign-group-prepodavatel" className="block text-xs font-semibold text-slate-600 mb-1.5">
-          Преподаватель
-        </label>
-        <Select
-          id="assign-group-prepodavatel"
-          value={selectedTeacherId}
-          onChange={(e) => setSelectedTeacherId(e.target.value)}
-          options={[{ value: "", label: "Все преподаватели" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
-          buttonClassName="bg-white py-2.5 pl-3.5"
-        />
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Поиск по названию группы или классу..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none shadow-2xs"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-600"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
     </div>
 
-    {/* Groups List with Constant Fixed Height to prevent jumping */}
-    <div className="p-5 h-[220px] max-h-[220px] overflow-y-auto bg-slate-50/40 flex-shrink-0 sm:h-[340px] sm:max-h-[340px]">
+    {/* The list is as tall as its content (at most 40 % of the screen, then it scrolls): no empty space between the groups and the money under them (re-audit В2) */}
+    <div className="max-h-[40vh] overflow-y-auto rounded-2xl bg-slate-50/60 p-2.5 flex-shrink-0 sm:max-h-[300px]" data-testid="assign-groups">
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+        <div className="flex min-h-[120px] flex-col items-center justify-center text-slate-500">
           <Loader2 className="w-8 h-8 text-primary-500 animate-spin mb-3" />
           <p className="text-xs font-medium text-slate-500">Загрузка доступных групп...</p>
         </div>
       ) : loadError ? (
-        <div className="flex h-full items-center justify-center px-3">
+        <div className="flex min-h-[120px] items-center justify-center px-3">
           <DataLoadError
             compact
             title="Не удалось загрузить группы"
@@ -471,8 +438,8 @@ export function AssignGroupModal({
           />
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full px-4 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center text-slate-400 mb-3">
+        <div className="flex min-h-[120px] flex-col items-center justify-center px-4 py-3 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200/80 flex items-center justify-center text-slate-500 mb-3">
             <GraduationCap className="w-7 h-7 text-slate-300" />
           </div>
           <h4 className="text-sm font-bold text-slate-800 mb-1">
@@ -499,8 +466,8 @@ export function AssignGroupModal({
           )}
         </div>
       ) : (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1 mb-1 text-xs font-semibold text-slate-500">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1 mb-1 text-xs font-semibold text-slate-600">
             <span>{isTransfer ? "Группы для перевода" : isAdd ? "Группы для добавления" : "Доступные группы"} ({filteredGroups.length})</span>
             <span>Заполняемость</span>
           </div>
@@ -574,7 +541,7 @@ export function AssignGroupModal({
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 text-xs font-semibold text-slate-700">
                     <Users className="w-3.5 h-3.5 text-slate-400" />
                     <span>
-                      {count} <span className="text-slate-400 font-normal">/ {max}</span>
+                      {count} <span className="text-slate-500 font-normal">/ {max}</span>
                     </span>
                   </div>
                 </div>
@@ -585,34 +552,30 @@ export function AssignGroupModal({
       )}
     </div>
 
+    {/* The price is said ONCE - on the card of the group in the list.  Here: only what changes it (a group without a price; an individual price of the student) */}
     {moneyAvailable && selectedGroup && (
-      <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs">
-        {selectedPriceLine && (
-          <>
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs" data-testid="assign-price">
+        {selectedGroup.price_current === null && (
+          <div className="mb-2 border-b border-slate-200 pb-2" data-testid="assign-price-missing">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className={`font-semibold ${selectedGroup.price_current ? "text-slate-800" : "text-amber-800"}`}>
-                «{selectedGroup.name}»: {selectedPriceLine.charAt(0).toLowerCase()}{selectedPriceLine.slice(1)}
-              </span>
-              {selectedGroup.price_current === null && groupsBasePath && (
-                <a href={groupPriceHref(groupsBasePath, selectedGroup.id)} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
+              <span className="font-semibold text-amber-800">«{selectedGroup.name}»: цена группы не задана</span>
+              {groupsBasePath && (
+                <a href={groupPriceHref(groupsBasePath, selectedGroup.id)} className="inline-flex min-h-10 items-center font-semibold text-primary-700 hover:underline sm:min-h-0">Задать цену группы</a>
               )}
             </p>
-            {selectedPriceNote && <p className="mt-0.5 text-slate-500">{selectedPriceNote}</p>}
-            {priceHint && <p className="mt-0.5 text-slate-500" data-testid="assign-price-hint">{priceHint}</p>}
-          </>
+            {selectedPriceNote && <p className="mt-0.5 text-slate-600">{selectedPriceNote}</p>}
+          </div>
         )}
-        <div className={selectedPriceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
-          <EnrolPriceToggle
-            idPrefix="assign-group-price"
-            enabled={exceptionOn}
-            amount={exceptionAmount}
-            reason={exceptionReason}
-            onEnabled={(value) => { setAssignmentError(null); setExceptionOn(value); }}
-            onAmount={(text) => { setAssignmentError(null); setExceptionAmount(text); }}
-            onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
-            compact
-          />
-        </div>
+        <EnrolPriceToggle
+          idPrefix="assign-group-price"
+          enabled={exceptionOn}
+          amount={exceptionAmount}
+          reason={exceptionReason}
+          onEnabled={(value) => { setAssignmentError(null); setExceptionOn(value); }}
+          onAmount={(text) => { setAssignmentError(null); setExceptionAmount(text); }}
+          onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
+          compact
+        />
         {!isTransfer && (
           <div className="mt-2 border-t border-slate-200 pt-2">
             <OpeningToggle
@@ -631,10 +594,10 @@ export function AssignGroupModal({
       </div>
     )}
 
-    {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} />}
+    {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} className="mt-3" />}
 
     {assignmentError && (
-      <div role="alert" className="mx-5 mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">
+      <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">
         <X className="mt-0.5 h-4 w-4 shrink-0" />
         <span>{assignmentError}</span>
       </div>

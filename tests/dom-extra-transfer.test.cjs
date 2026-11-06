@@ -14,6 +14,8 @@ const AFTER = (id) => ({ code: "transfer_balance_after", message: AFTER_TEXT, ..
 const STUDENT = { id: "st1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "active", group_id: "g1", current_group_id: "g1", groups_count: 1 };
 const EMPTY = { students: [], payroll: [], text: "", dryRun: true };
 const flat = async (page, selector) => (await page.textContent(selector)).replace(/\s+/g, " ").replace(/ /g, " ");
+// the sentence of the server is shown as rows (its parts divided by «; » are lines of their own, re-audit В2): put together with «; » it is the sentence
+const sentence = async (page) => (await page.locator('[data-testid="transfer-carried"] li').allTextContents()).map((text) => text.replace(/\s+/g, " ").replace(/ /g, " ").trim()).join("; ");
 
 test("D-6 bulk: «Что переедет» of «Добавить ученика» shows the sentence of the new account from `warnings[]` (the bulk answer has no `carried`) - once, with the sum that stays", async () => {
   const run = await openPage(browser, "enrol.entry.tsx", (request) => {
@@ -28,7 +30,7 @@ test("D-6 bulk: «Что переедет» of «Добавить ученика
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
   await run.page.click('button:has-text("Иванов Иван")');
   await run.page.waitForSelector('[data-testid="transfer-carried"]');
-  const text = await flat(run.page, '[data-testid="transfer-carried"]');
+  const text = await sentence(run.page);
   assert.equal(text, AFTER_TEXT);
   assert.ok(!text.includes("Остаток денег"), "the older sentence of the same transfer is not said next to it");
   assert.ok(!(await flat(run.page, '[data-testid="transfer-preview"]')).includes("Оплаты и долги не переносятся"), "not «ничего не переносится» - the money is carried");
@@ -48,7 +50,7 @@ test("D-6 single: the window «Перевести в другую группу»
   await run.page.evaluate(() => window.mount("assign"));
   await run.page.click("text=7-Б Геометрия");
   await run.page.waitForSelector('[data-testid="transfer-carried"]');
-  assert.equal(await flat(run.page, '[data-testid="transfer-carried"]'), AFTER_TEXT);
+  assert.equal(await sentence(run.page), AFTER_TEXT);
   await run.page.close();
 });
 

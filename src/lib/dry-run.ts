@@ -54,3 +54,12 @@ export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> |
 }
 
 export const CARRIED_NONE_TEXT = "Деньги не изменятся: в прошлой группе у ученика нет оплат и долга.";
+
+/**
+ * One sentence of the server about a transfer as ROWS (re-audit В2: «абзац 15 px, а не строки»): its parts divided by «; » are lines of their own («…пойдут на остаток месяца» / «аванс останется 360 000 сум»).
+ * The words are the server's; only the line breaks are ours.
+ */
+export function carriedRows(message: string): string[] {
+  const parts = message.split(/;\s+/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [message];
+}
