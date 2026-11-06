@@ -327,6 +327,8 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   // F12: a new mode starts for each student from the start of his next period; the dry run says whom it touches and when.
   const regimeDiff = regimeChanges(diffPaymentSettings(loaded, form, paymentsScopeKeys(model)) as Record<string, unknown>);
   const regimeChanged = Object.keys(regimeDiff).length > 0;
+  // the dry run of the window is asked with EXACTLY the body that «Сохранить» sends (R3 №5)
+  const saveBody = diffPaymentSettings(loaded, form, paymentsScopeKeys(model)) as Record<string, unknown>;
   // Money-1 B3: «Сохранить» of a change of the mode opens the window that says, per student, what it does (the dry run is asked inside it)
   const [regimeOpen, setRegimeOpen] = useState(false);
   const saveSection = () => { if (regimeChanged) setRegimeOpen(true); else void draft.save("payments"); };
@@ -343,7 +345,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
       saving={state.saving}
       saved={state.saved}
     >
-      <RegimeChangeDialog open={regimeOpen} changes={regimeDiff} saving={state.saving} error={state.error} onConfirm={confirmRegime} onClose={() => setRegimeOpen(false)} />
+      <RegimeChangeDialog open={regimeOpen} changes={regimeDiff} body={saveBody} saving={state.saving} error={state.error} onConfirm={confirmRegime} onClose={() => setRegimeOpen(false)} />
       <AccountingStartLine
         loaded={loaded.accounting_start_date ?? null}
         value={form.accounting_start_date ?? null}
@@ -453,9 +455,9 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         </button>
       </div>
 
-      <PaymentsHistory />
+      <PaymentsHistory refreshKey={loaded.updated_at ?? ""} />
 
-      {state.error && (
+      {state.error && !regimeOpen && (
         <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{state.error}</p>
       )}
     </SettingsSection>

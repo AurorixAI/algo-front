@@ -11,7 +11,7 @@ import { SETTINGS_HISTORY_EMPTY, SETTINGS_HISTORY_FAILED, SETTINGS_HISTORY_TITLE
  * The OWNER only (the page of settings is the owner's; an administrator gets 403 from the server).  Closed by default - one line; the records are read when it is opened.  A record is a sentence of the
  * server; the students it moved are behind «Подробнее».
  */
-export function PaymentsHistory() {
+export function PaymentsHistory({ refreshKey = "" }: { /** Changes when the settings were saved: an opened journal reads itself again (R3 №19). */ refreshKey?: string }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<{ entries: SettingsHistoryEntry[] | null; failed: boolean }>({ entries: null, failed: false });
   const [nonce, setNonce] = useState(0);
@@ -25,7 +25,7 @@ export function PaymentsHistory() {
       .then((answer) => { if (sequence.current.isCurrent(token)) setState({ entries: settingsHistoryOf(answer), failed: false }); })
       .catch(() => { if (sequence.current.isCurrent(token)) setState({ entries: null, failed: true }); });
     return () => { sequence.current.next(); };
-  }, [open, nonce]);
+  }, [open, nonce, refreshKey]);
 
   return (
     <section className="rounded-xl bg-slate-50 px-4 py-3" data-testid="payments-history">

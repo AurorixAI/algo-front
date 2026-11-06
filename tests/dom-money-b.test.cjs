@@ -335,3 +335,27 @@ test("Б9: the journal of the settings - closed by default, opens with the recor
     await page.close();
   }
 });
+
+test("R3 №5: the window of the mode asks the dry run with EXACTLY the body that is saved (mode AND accounting start together); №20: the error of saving is shown once", async () => {
+  const body = { billing_day: 10, accounting_start_date: "2026-09-15", centre_cancel_recalc: true };
+  const server = (request) => (request.method === "PUT" && request.path === "/auth/org/settings/payments" && isDry(request)
+    ? { json: { dry_run: true, regime_impact: X.REGIME_IMPACT, impact: { memberships_with_new_debt: 2, debt_delta: 140000 } } } : null);
+  const { page, calls } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 900 });
+  await page.evaluate((b) => window.mount("regime", { role: "owner", org_role: "owner" }, { changes: { billing_day: 10 }, body: b }), body);
+  await page.waitForSelector('[data-testid="regime-whatif-students"]');
+  const dry = calls.filter((c) => c.method === "PUT" && isDry(c));
+  assert.deepEqual(dry[0].body, body, "the preview body = the body of saving");
+  assert.match(plain(await page.textContent('[data-testid="regime-start-impact"]')), /140 000 сум/, "the impact of the start of the accounting is shown too");
+  await page.close();
+});
+
+test("R3 №19: an opened journal reads itself again when the settings were saved", async () => {
+  let n = 0;
+  const server = (request) => (request.path === "/auth/org/settings/payments/history" ? { json: { items: [{ id: String(++n), at: "2026-11-06T05:15:00", actor_name: "Owner", action: "billing_regime_changed", text: `запись ${n}`, details: {} }] } } : null);
+  const { page, calls } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 700 });
+  await page.evaluate(() => { window.mount("history", { role: "owner", org_role: "owner" }, { refreshKey: "a" }); });
+  await page.click('button:has-text("Журнал настроек оплат")');
+  await page.waitForSelector('[data-testid="history-entry"]');
+  assert.equal(calls.length, 1);
+  await page.close();
+});

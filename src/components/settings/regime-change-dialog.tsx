@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { EFFECTS_LOADING_TEXT, EFFECTS_RETRY_LABEL, EFFECTS_TITLE } from "@/lib/money-effects";
+import { accountingStartImpactLines } from "@/lib/payments";
 import { REGIME_HINT, regimeImpactLines, type RegimeImpact } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { normalizeWhatIf, REGIME_WAIT_WHY, REGIME_WINDOW, regimeChangeKind, type WhatIfWindow } from "@/lib/whatif";
@@ -11,17 +12,19 @@ import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/compo
 import { WhatIfBody } from "@/components/money/whatif-table";
 import { Modal } from "@/components/ui/modal";
 
-type Loaded = { window: WhatIfWindow | null; fallback: string[] };
+type Loaded = { window: WhatIfWindow | null; fallback: string[]; start: string[] };
 
 /**
  * Money-1 B3: the window that stands between «Сохранить» of the payment settings and a change of the billing MODE (a way to count, the day of the shared month, the size of a package).  The
  * server is asked (`dry_run`) what the change does to EACH student it switches - in сум, in lessons and in dates - and the answer is on screen before the button that makes it:
  * «Было → станет» per student, the students with an individual price apart, the totals last.  The button waits for the answer (I-5).
  */
-export function RegimeChangeDialog({ open, changes, saving, error, onConfirm, onClose }: {
+export function RegimeChangeDialog({ open, changes, body, saving, error, onConfirm, onClose }: {
   open: boolean;
   /** The part of the unsaved settings that touches the mode (`regimeChanges`). */
   changes: Record<string, unknown>;
+  /** EXACTLY what «Сохранить» sends (the whole changed part of the section): the dry run is asked with it, so «было → станет» is the result that is saved (R3 №5). */
+  body: Record<string, unknown>;
   saving: boolean;
   error?: string | null;
   onConfirm: () => void;
@@ -30,18 +33,18 @@ export function RegimeChangeDialog({ open, changes, saving, error, onConfirm, on
   const [state, setState] = useState<{ loaded: Loaded | null; failed: string | null }>({ loaded: null, failed: null });
   const [nonce, setNonce] = useState(0);
   const sequence = useRef(createRequestSequence());
-  const key = JSON.stringify(changes);
+  const key = JSON.stringify(body);
   const copy = REGIME_WINDOW[regimeChangeKind(changes)];
 
   useEffect(() => {
     if (!open) return undefined;
     const token = sequence.current.next();
     setState({ loaded: null, failed: null });
-    orgApi.previewPaymentSettings(changes)
+    orgApi.previewPaymentSettings(body)
       .then((answer) => {
         if (!sequence.current.isCurrent(token)) return;
         const raw = answer.regime_impact ?? null;
-        setState({ loaded: { window: normalizeWhatIf(raw, "regime"), fallback: regimeImpactLines(raw as RegimeImpact | null) }, failed: null });
+        setState({ loaded: { window: normalizeWhatIf(raw, "regime"), fallback: regimeImpactLines(raw as RegimeImpact | null), start: accountingStartImpactLines(answer.impact) }, failed: null });
       })
       .catch((cause) => {
         if (!sequence.current.isCurrent(token)) return;
@@ -85,6 +88,11 @@ export function RegimeChangeDialog({ open, changes, saving, error, onConfirm, on
             <WhatIfBody window={loaded.window} testId="regime-whatif" />
           ) : (
             <p className="text-slate-600" data-testid="regime-none">{loaded.fallback[0] ?? "Способ оплаты не изменит деньги ни у одного ученика"}</p>
+          )}
+          {loaded && loaded.start.length > 0 && (
+            <ul className="space-y-0.5 border-t border-slate-200 pt-2 text-slate-700" data-testid="regime-start-impact">
+              {loaded.start.map((line) => <li key={line}>{line}</li>)}
+            </ul>
           )}
         </section>
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

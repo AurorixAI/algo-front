@@ -32,10 +32,10 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<GroupCreateModal open teachers={[]} onClose={() => log("close")} onCreated={() => log("created")} selfAssignTeacher={Boolean(props.self)} />);
       break;
     case "regime":
-      root.render(<RegimeChangeDialog open changes={props.changes} saving={false} onConfirm={() => log("confirm")} onClose={() => log("close")} />);
+      root.render(<RegimeChangeDialog open changes={props.changes} body={props.body ?? props.changes} saving={false} onConfirm={() => log("confirm")} onClose={() => log("close")} />);
       break;
     case "history":
-      root.render(<div className="mx-auto max-w-2xl p-4"><PaymentsHistory /></div>);
+      root.render(<div className="mx-auto max-w-2xl p-4"><PaymentsHistory refreshKey={props.refreshKey} /></div>);
       break;
     case "payments":
       w.__search = props.search ?? "";
