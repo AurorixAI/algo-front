@@ -38,18 +38,19 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   }, [indeterminate, props.checked]);
 
   return (
-    <span className={cn("relative inline-flex shrink-0", size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]", className)}>
+    <span className={cn("relative inline-flex shrink-0 items-center justify-center", size === "sm" ? "h-4 w-4 max-sm:-m-3" : "h-[18px] w-[18px] max-sm:-m-[11px]", "max-sm:h-10 max-sm:w-10", className)}>
       <input
         {...props}
         ref={setRef}
         type="checkbox"
         disabled={disabled}
-        className={cn("peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed", size === "sm" ? "max-sm:-inset-3 max-sm:h-10 max-sm:w-10" : "max-sm:-inset-[11px] max-sm:h-10 max-sm:w-10")}
+        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
       />
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none flex h-full w-full items-center justify-center rounded-md border border-slate-300 bg-white text-white shadow-xs transition-colors",
+          size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]",
+          "pointer-events-none flex shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-white shadow-xs transition-colors",
           "peer-hover:border-primary-400 peer-focus-visible:border-primary-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/40",
           "peer-checked:border-primary-600 peer-checked:bg-primary-600 peer-checked:peer-hover:border-primary-700 peer-checked:peer-hover:bg-primary-700",
           "peer-disabled:border-slate-200 peer-disabled:bg-slate-100 peer-disabled:opacity-60 peer-disabled:peer-checked:border-primary-300 peer-disabled:peer-checked:bg-primary-300",

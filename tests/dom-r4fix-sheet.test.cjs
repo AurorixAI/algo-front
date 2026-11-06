@@ -82,3 +82,40 @@ for (const width of [1280, 1024, 375, 340]) {
     await page.close();
   });
 }
+
+// the elements of a screen that are smaller than 40 px in height (a checkbox / radio: the invisible input is the target)
+const small = (page) => page.evaluate(() => {
+  const out = [];
+  for (const el of document.querySelectorAll("button, a[href], [role=tab], input:not([type=hidden])")) {
+    if (el.closest(".sr-only")) continue;
+    const style = getComputedStyle(el);
+    if (style.visibility === "hidden" || style.display === "none") continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    if (rect.height < 39.5) out.push(`${(el.getAttribute("aria-label") || el.textContent || el.type || "").trim().slice(0, 30)} ${Math.round(rect.width)}x${Math.round(rect.height)}`);
+  }
+  return out;
+});
+
+test("Д7 375: the sheet of a closed month (back link, tabs, «Записать выплату», «Отменить» of a payout, «По датам», «Переоткрыть месяц») has no target under 40 px", async () => {
+  sheet = sheetOf({ stale: false, changedBy: 0, fresh: 757500, undecidedTotal: 0 }); undecidedLessons = 0;
+  sheet.payout.items = [{ id: "p1", paid_on: "2026-11-05", amount: 50000, method: "cash", note: null, created_by_name: "Рустам Валиев", created_at: "2026-11-05T05:00:00", voided_at: null, void_reason: null }];
+  const { page } = await open(375);
+  assert.deepEqual(await small(page), []);
+  assert.ok(await page.locator('[data-testid="reopen-month"]').count() >= 0);
+  await page.screenshot({ path: path.join(os.tmpdir(), "r4fix-sheet-closed-375.png"), fullPage: true });
+  await page.close();
+});
+
+test("Д7 375: the checkbox «начислить» is a 40 px target (the box stays 18 px) and the probe is clean", async () => {
+  sheet = sheetOf({ stale: false, changedBy: 0, fresh: 757500, undecidedTotal: 0, month: "2026-11", monthOpen: true }); undecidedLessons = 0;
+  const { page } = await open(375);
+  const box = await page.evaluate(() => { const el = document.querySelector('section[aria-label^="Группа"] input[type=checkbox]'); if (!el) return null; const r = el.getBoundingClientRect(); const v = el.nextElementSibling.getBoundingClientRect(); return { w: r.width, h: r.height, vw: v.width }; });
+  assert.ok(box, "the table has the checkbox of the line with unpaid lessons");
+  assert.ok(box.w >= 40 && box.h >= 40, JSON.stringify(box));
+  assert.equal(box.vw, 18);
+  const probe = await page.evaluate(layoutProbe, "body");
+  assert.deepEqual(probe.bad, [], JSON.stringify(probe.bad));
+  await page.screenshot({ path: path.join(os.tmpdir(), "r4fix-sheet-open-375.png"), fullPage: true });
+  await page.close();
+});
