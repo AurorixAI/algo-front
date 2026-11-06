@@ -33,6 +33,8 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   const range = payFromRange(def.today, accountingStart);
   const past = payFromIsPast(value, def);
   const changed = value !== def.default_pay_from;
+  // Д3: the line is there whenever the server sent `immediate` (today's lesson charges at once too); «ничего не начислится», «Считаем…» and a failure - only for a day in the past
+  const said = preview.status === "ready" && preview.immediate.students.length > 0;
   return (
     <div data-testid="pay-from">
       <label htmlFor={`${idPrefix}-pay-from`} className={PRICE_LABEL}>{PAY_FROM_LABEL}</label>
@@ -61,7 +63,7 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
       {past && preview.status === "failed" && (
         <p className="mt-1 text-xs text-amber-900" role="alert" data-testid="pay-from-failed">{PAY_FROM_FAILED_TEXT}{onRetry && <>{" "}<button type="button" onClick={onRetry} className="font-semibold underline">Повторить</button></>}</p>
       )}
-      {past && preview.status === "ready" && (
+      {preview.status === "ready" && (past || said) && (
         <div className="mt-1 space-y-0.5 text-xs text-slate-800" role="status" data-testid="pay-from-immediate">
           {preview.immediate.students.length === 0 && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
           {/* one student: his line only - the total would say the same again */}

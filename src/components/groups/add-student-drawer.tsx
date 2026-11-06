@@ -1,5 +1,6 @@
 "use client";
 
+import { TAP_ZONE } from "@/lib/tap-zone";
 import { useState, useEffect, useCallback } from "react";
 import { Search, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
@@ -235,9 +236,9 @@ export function AddStudentDrawer({
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
   // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
   const pickedIds = Array.from(selected.keys()).sort();
-  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && pickedIds.length > 0 && !dryException.error && !payProblem
-    ? `${groupId}|${pickedIds.join(",")}|${payBody}|${JSON.stringify(dryException.request)}` : null;
-  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunBulkAdd(groupId, pickedIds, { pay_from: payBody as string, price_override: dryException.request }, signal));
+  const payPreviewKey = open && moneyAvailable && payFromAllowed && payDef !== null && pickedIds.length > 0 && !dryException.error && !payProblem
+    ? `${groupId}|${pickedIds.join(",")}|${payBody ?? ""}|${JSON.stringify(dryException.request)}` : null;
+  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunBulkAdd(groupId, pickedIds, { pay_from: payBody, price_override: dryException.request }, signal));
   const pickedNames = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
 
   const handleAdd = async () => {
@@ -447,7 +448,7 @@ export function AddStudentDrawer({
               role="switch"
               aria-checked={allClasses}
               onClick={() => setAllClasses((value) => !value)}
-              className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-500 hover:text-slate-600"}`}
+              className={`${TAP_ZONE} inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-500 hover:text-slate-600"}`}
             >
               {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
               Все классы

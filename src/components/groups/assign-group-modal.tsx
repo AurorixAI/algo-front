@@ -289,9 +289,9 @@ export function AssignGroupModal({
   const payFromValue = payFrom || payDef?.default_pay_from || "";
   const payBody = payFromAllowed ? payFromRequest(payFromValue, payDef, moneyAvailable) : null;
   const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFromValue, payDef, payFromRange(payDef?.today ?? formatBusinessDate(), accountingStart)) : null;
-  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && selectedGroupId && !dryException.error && !payProblem
-    ? `${selectedGroupId}|${studentId}|${payBody}|${JSON.stringify(dryException.request)}` : null;
-  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { pay_from: payBody as string, price_override: dryException.request }, signal));
+  const payPreviewKey = open && moneyAvailable && payFromAllowed && payDef !== null && selectedGroupId && !dryException.error && !payProblem
+    ? `${selectedGroupId}|${studentId}|${payBody ?? ""}|${JSON.stringify(dryException.request)}` : null;
+  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { pay_from: payBody, price_override: dryException.request }, signal));
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
   const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1) : null;
