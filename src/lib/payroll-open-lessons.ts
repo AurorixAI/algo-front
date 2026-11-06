@@ -86,7 +86,7 @@ export function openLessonQuestionLine(item: OpenLessonItem): string {
 
 /** Where the lesson is marked: the journal of its group at the day (the first lesson of the list); null without a group. */
 export function openLessonJournalHref(item: OpenLessonItem | undefined, groupsBasePath = "/owner/groups"): string | null {
-  return item?.groupId ? journalHref(groupsBasePath, { groupId: item.groupId, lessonDate: item.lessonDate, lessonId: item.lessonId }) : null;
+  return item?.groupId ? journalHref(groupsBasePath, { groupId: item.groupId, lessonDate: item.lessonDate, lessonId: item.lessonId, teacherId: item.teacherId }) : null;
 }
 
 /**

@@ -20,8 +20,15 @@ test.before(async () => {
 test.after(async () => { await browser.close(); });
 
 const plain = (text) => text.replace(/\s+/g, " ").trim();
+// server 64a929b: `?dry_run=true` answers what the cancellation does to money (`deductions`, `moneyEffects`); «Праздник, выходной» recalculates nothing
 const server = (request) => {
-  if (request.method === "POST" && request.path === "/auth/org/groups/g1/attendance/reconcile/cancel") return { json: { ok: true, cancelled: true, version: 3, warnings: [] } };
+  if (request.method === "POST" && request.path === "/auth/org/groups/g1/attendance/reconcile/cancel") {
+    if (/dry_run=true/.test(request.query)) {
+      const holiday = request.body.cancellationKind === "holiday";
+      return { json: { ok: true, cancelled: true, version: 3, warnings: [], dryRun: true, deductions: holiday ? [] : [{ studentId: "s1", name: "Иванов Иван", amount: 46000 }, { studentId: "s2", name: "Петрова Мария", amount: 46000 }], moneyEffects: { students: [], payroll: [], text: "", dryRun: true } } };
+    }
+    return { json: { ok: true, cancelled: true, version: 3, warnings: [] } };
+  }
   return null;
 };
 async function open(width, user = { role: "owner", org_role: "owner" }) {
@@ -33,16 +40,19 @@ async function open(width, user = { role: "owner", org_role: "owner" }) {
 
 test("№5: «Кто за это платит» and under each option its consequence for the student and for the teacher", async () => {
   const { page } = await open(1280);
-  assert.equal(plain(await page.textContent("legend")).startsWith("Кто за это платит"), true);
+  assert.equal(plain(await page.textContent("legend")).startsWith("Вид отмены"), true);
   const options = [];
   for (const key of ["centre", "holiday"]) {
     const card = page.locator(`[data-testid="cancellation-kind-${key}"]`);
-    options.push([plain(await card.locator("span.font-semibold").textContent()), plain(await card.locator('[data-testid="cancellation-kind-students"]').textContent()), plain(await card.locator('[data-testid="cancellation-kind-teacher"]').textContent())]);
+    options.push([plain(await card.locator("span.font-semibold").textContent()), plain(await card.locator('[data-testid="cancellation-kind-students"]').textContent())]);
   }
-  assert.deepEqual(options, [
-    ["По вине центра", "Ученикам — перерасчёт в следующей оплате, если он включён в настройках", "Преподавателю — урок не оплачивается"],
-    ["Праздник, выходной", "Ученикам — без перерасчёта", "Преподавателю — урок не оплачивается"],
+  assert.deepEqual(options.map((row) => row.slice(0, 2)), [
+    ["По вине центра", "Ученикам: перерасчёт, если он включён в настройках центра"],
+    ["Праздник, выходной", "Ученикам: без перерасчёта"],
   ]);
+  // re-audit С3: the pay of the teacher is the same in both - said ONCE under them, not in each
+  assert.equal(await page.locator('[data-testid="cancellation-kind-teacher"]').count(), 1);
+  assert.equal(plain(await page.textContent('[data-testid="cancellation-kind-teacher"]')), "Преподавателю: урок не входит в зарплату");
   assert.equal(await page.locator('input[type="radio"]:checked').count(), 1, "«по вине центра» is the default");
   await page.close();
 });
@@ -69,7 +79,7 @@ test("№5: the kind chosen goes with the request; a teacher is not asked", asyn
   await run.page.fill("#cancel-missed-reason", "праздник");
   await run.page.click('[data-testid="cancel-missed-submit"]');
   await run.page.waitForFunction(() => window.__log && window.__log.some((line) => String(line).startsWith("cancelled:")));
-  const sent = run.calls.find((call) => call.path.endsWith("/attendance/reconcile/cancel"));
+  const sent = run.calls.find((call) => call.path.endsWith("/attendance/reconcile/cancel") && !/dry_run=true/.test(call.query));
   assert.equal(sent.body.cancellationKind, "holiday");
   await run.page.close();
   const teacher = await open(1280, { role: "teacher", org_role: "teacher" });
@@ -91,3 +101,18 @@ for (const width of [1280, 1024, 375]) {
     await page.close();
   });
 }
+
+test("№5 / server 64a929b: «Что изменится» comes from the dry run - «перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)»; «Праздник, выходной» - «перерасчёта не будет»; nothing is written by the preview", async () => {
+  const run = await open(1280);
+  await run.page.waitForSelector('[data-testid="cancel-effects-students"]');
+  assert.equal(plain(await run.page.textContent('[data-testid="cancel-effects-students"]')), "Ученикам — перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)");
+  assert.ok(/92\u00a0000\u00a0сум/.test(await run.page.textContent('[data-testid="cancel-effects-students"]')), "non-breaking spaces");
+  assert.equal(plain(await run.page.textContent('[data-testid="cancel-effects"] h3')), "Что изменится");
+  assert.ok(!/в следующей оплате|вычет|списан/i.test(plain(await run.page.textContent('[role="dialog"]'))));
+  await run.page.click('[data-testid="cancellation-kind-holiday"]');
+  await run.page.waitForFunction(() => /перерасчёта не будет/.test(document.querySelector('[data-testid="cancel-effects-students"]')?.textContent ?? ""));
+  const dry = run.calls.filter((call) => call.path.endsWith("/attendance/reconcile/cancel"));
+  assert.ok(dry.length >= 2 && dry.every((call) => /dry_run=true/.test(call.query)), "only previews were asked");
+  assert.deepEqual(dry.map((call) => call.body.cancellationKind), ["centre", "holiday"]);
+  await run.page.close();
+});

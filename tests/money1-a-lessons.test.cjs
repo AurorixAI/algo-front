@@ -289,7 +289,7 @@ test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says
   assert.match(journal, /if \(nobodyCame !== null\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(nobodyCame, \{[^}]*\}\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
   const panel = read("src/lib/use-teacher-lesson-panel.ts");
   assert.match(panel, /if \(failure\.kind === "nobody_came"\) askNobody = failure\.text;/);
-  assert.match(panel, /if \(askNobody !== null && \(await askConfirm\(nobodyCameQuestion\(askNobody\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);
+  assert.match(panel, /if \(askNobody !== null && \(await askConfirm\(nobodyCameQuestion\(askNobody, \{[^}]*\}\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);
   assert.match(panel, /\n\s*confirmNobodyCame,\s*\/\/ R3 #8/, "the first request carries the flag too (false)");
   assert.equal((panel.match(/handleFinishLesson\(acknowledgeLiveExam, marks, true\)/g) || []).length, 1, "true goes only with the second try");
   assert.equal((journal.match(/finishLesson\(lesson, acknowledgeLiveExam, true\)/g) || []).length, 1, "true goes only with the second try");

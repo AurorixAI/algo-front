@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { CANCELLATION_KIND_LEGEND, CANCELLATION_KINDS, type CancellationKind } from "@/lib/payf";
+import { CANCELLATION_KIND_LEGEND, CANCELLATION_TEACHER_LINE, CANCELLATION_KINDS, type CancellationKind } from "@/lib/payf";
 import { Radio } from "@/components/ui/radio";
 import { HelpToggle } from "@/components/ui/help-toggle";
 
@@ -39,13 +39,13 @@ export function CancellationKindField({ value, onChange, canChooseKind, name = "
                 <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
                 <span id={lineId} className="mt-0.5 block text-xs leading-snug text-slate-700">
                   <span data-testid="cancellation-kind-students" className="block">{option.students}</span>
-                  <span data-testid="cancellation-kind-teacher" className="block">{option.teacher}</span>
                 </span>
               </span>
             </label>
           );
         })}
       </div>
+      <p data-testid="cancellation-kind-teacher" className="text-xs text-slate-700">{CANCELLATION_TEACHER_LINE}</p>
     </fieldset>
   );
 }

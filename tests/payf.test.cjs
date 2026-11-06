@@ -277,11 +277,11 @@ test("the small components render their words", () => {
   const field = html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true }));
   assert.match(field, /По вине центра/);
   assert.match(field, /Праздник, выходной/);
-  assert.match(field, /Ученикам — перерасчёт в следующей оплате, если он включён в настройках/);
-  assert.match(field, /Ученикам — без перерасчёта/);
-  assert.equal((field.match(/Преподавателю — урок не оплачивается/g) ?? []).length, 2, "each option says what it does to the teacher");
+  assert.match(field, /Ученикам: перерасчёт, если он включён в настройках центра/);
+  assert.match(field, /Ученикам: без перерасчёта/);
+  assert.equal((field.match(/Преподавателю: урок не входит в зарплату/g) ?? []).length, 1, "the teacher is said ONCE under both options (re-audit С3)");
   assert.match(field, /aria-describedby="[^"]+"/);                                                   // the hint is tied to the field and to its radios
-  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {}, canChooseKind: true })), /Кто за это платит/);
+  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {}, canChooseKind: true })), /Вид отмены/);
   assert.equal(html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: false })), "");     // a teacher sees no choice
 
   const { CentreCancelSetting } = require(path.join(root, "src/components/payments/centre-cancel-setting.tsx"));

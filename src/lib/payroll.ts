@@ -344,6 +344,8 @@ export interface OpenLessonItem {
   groupName?: string | null;
   lessonId: string;
   kind: string;
+  /** Server a324010: the teacher of the lesson - «Открыть журнал» starts «Кто провёл» with him. */
+  teacherId?: string | null;
 }
 
 /**

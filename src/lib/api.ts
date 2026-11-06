@@ -1367,6 +1367,16 @@ function diagnosticsPage(offset: number, status?: string) {
   return withTimeLimit(DIAGNOSTICS_REQUEST_LIMIT_MS, (signal) => api<PagedResponse<any> | any[]>(`/auth/org/diagnostics?${query.toString()}`, { signal }));
 }
 
+export interface CancelMissedResult {
+  ok: boolean;
+  cancelled: boolean;
+  version?: number;
+  warnings?: OpsWarning[];
+  dryRun?: boolean;
+  moneyEffects?: unknown;
+  deductions?: Array<{ studentId: string; name: string | null; amount: number }>;
+}
+
 export const orgApi = {
   get: () => api<OrgInfo>("/auth/org"),
   stats: () => api<Record<string, any>>("/auth/org/stats"),
@@ -1680,8 +1690,10 @@ export const orgApi = {
   cancelMissedGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; cancellationReason: string; cancellationKind?: CancellationKind },
+    options: { dryRun?: boolean; signal?: AbortSignal } = {},
   ) =>
-    api<{ ok: boolean; cancelled: boolean; version?: number; warnings?: OpsWarning[] }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+    // server 64a929b: `?dry_run=true` runs the same road and writes nothing; `moneyEffects` + `deductions` ([{studentId, name, amount}], the money right only) say what the cancellation does to money
+    api<CancelMissedResult>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel${options.dryRun ? "?dry_run=true" : ""}`, { method: "POST", body: data, signal: options.signal }),
 
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
   restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean }, signal?: AbortSignal) =>

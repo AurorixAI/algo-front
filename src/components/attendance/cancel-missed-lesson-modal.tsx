@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { orgApi } from "@/lib/api";
-import { formatDateRu } from "@/lib/attendance-excuses";
 import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
@@ -11,12 +10,22 @@ import { warningTexts } from "@/lib/ops-errors";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { CANCEL_CONSEQUENCES, substitutionErrorText } from "@/lib/substitutions";
 import { CancellationKindField } from "./cancellation-kind-field";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { cancelMoneyView } from "@/lib/cancel-preview";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
+import { EFFECTS_TITLE } from "@/lib/money-effects";
+import { periodClosedOf } from "@/lib/closed-period";
+import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { formatLessonWhen } from "@/lib/business-time";
+import { tidyMoneyText } from "@/lib/money-format";
 
 export interface CancelMissedTarget {
   groupId: string;
   lessonId: string;
   /** YYYY-MM-DD */
   lessonDate: string;
+  /** «7-А Алгебра · вт, 3 ноября · 11:00–12:00» - the lesson in the words of a window (re-audit С3); the date alone when the screen has no more. */
+  lessonLabel?: string;
 }
 
 /**
@@ -47,6 +56,14 @@ export function CancelMissedLessonModal({
     setKind(DEFAULT_CANCELLATION_KIND);
     setError(null);
   }, [target?.groupId, target?.lessonId, target?.lessonDate]);
+
+  // server 64a929b: the same road with `?dry_run=true` says what the cancellation does to money (asked again when the kind changes); a failure of the preview never blocks the real call
+  const previewKey = target ? `${target.groupId}|${target.lessonId}|${target.lessonDate}|${canChooseKind ? kind : "centre"}` : null;
+  const { preview, retry } = useMoneyPreview(previewKey, (signal) => orgApi.cancelMissedGroupAttendance(target!.groupId, {
+    lessonDate: target!.lessonDate, lessonId: target!.lessonId, cancellationReason: DRY_RUN_REASON, ...cancellationKindBody(kind, canChooseKind),
+  }, { dryRun: true, signal }));
+  const closed = preview.status === "failed" ? periodClosedOf(preview.error) : null;
+  const money = preview.status === "ready" ? cancelMoneyView(preview.answer) : null;
 
   const submit = async () => {
     if (!target || busy || sending.current) return;
@@ -79,7 +96,7 @@ export function CancelMissedLessonModal({
     <Modal
       open={target !== null}
       title="Урока не было"
-      description={target ? `Урок ${formatDateRu(target.lessonDate)} будет отмечен как не состоявшийся` : undefined}
+      description={target ? (target.lessonLabel ?? `Урок ${formatLessonWhen({ date: target.lessonDate })} будет отмечен как не состоявшийся`) : undefined}
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
@@ -111,6 +128,19 @@ export function CancelMissedLessonModal({
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
           />
           <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+          {closed && <PeriodClosedNotice info={closed} onReopened={retry} />}
+          {money && (money.students || money.payroll.length > 0) && (
+            <section aria-label={EFFECTS_TITLE} data-testid="cancel-effects" className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+              <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
+              {money.students && <p className="text-sm text-slate-800" data-testid="cancel-effects-students">{money.students}</p>}
+              {money.payroll.map((line) => (
+                <div key={line.key} className="text-sm text-slate-800">
+                  <p>{tidyMoneyText(line.text)}</p>
+                  {line.items?.map((item) => <p key={item} className="pl-3 tabular-nums">{tidyMoneyText(item)}</p>)}
+                </div>
+              ))}
+            </section>
+          )}
           {error && <p role="alert" className="text-xs font-medium text-rose-600">{error}</p>}
         </div>
       )}

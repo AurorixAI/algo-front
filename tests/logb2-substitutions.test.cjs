@@ -480,7 +480,7 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
   }
   const cancel = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "cancel", binding: { state: "ok", title: "Контрольная №3", canCancel: false } }))));
   assert.match(cancel, /Причина отмены/);
-  assert.match(cancel, /Кто за это платит/);                                    // W1 F4 + lead note: the kind of the cancellation is asked here too, under a short title
+  assert.match(cancel, /Вид отмены/);                                    // W1 F4 + lead note: the kind of the cancellation is asked here too, under a short title
   assert.doesNotMatch(cancel, /Ученики не отмечаются/, "the long explanation is under a «?»");
   assert.match(cancel, /По вине центра/);
   assert.match(cancel, /Экзамен «Контрольная №3» уже идёт — отменить урок нельзя/);

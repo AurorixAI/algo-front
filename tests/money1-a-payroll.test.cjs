@@ -611,3 +611,12 @@ test("UX pack №3 / №19: the caption in the head of the table - «Показ�
   assert.equal(Y.sheetPrintTotals({ payout: stateOf({ changed_by: 0 }), today: "2026-11-05" }), null, "nothing moved: the card prints as it is");
 });
 
+
+test("server a324010: `open_lesson_items[].teacherId` goes into «Открыть журнал» (`teacher=`), so «Кто провёл» starts with the teacher of the lesson", () => {
+  const teacherId = "11111111-2222-3333-4444-555555555555";
+  const item = { lessonDate: "2026-10-12", groupId: "g1", groupName: "7-А Алгебра", lessonId: "l1", kind: "missed", teacherId };
+  const q = OL.openLessonsQuestion(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 1, items: [item] } }));
+  assert.match(q.link.href, new RegExp(`&teacher=${teacherId}$`));
+  const without = OL.openLessonsQuestion(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 1, items: [{ ...item, teacherId: undefined }] } }));
+  assert.doesNotMatch(without.link.href, /teacher=/);
+});
