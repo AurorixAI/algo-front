@@ -78,7 +78,7 @@ import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, usePrint
  * numbers on the right, the status and the button centred.  A table from 1280; 1024 and a phone get cards in the same order.
  */
 export const MONTH_COLUMNS = {
-  grid: "xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)]",
+  grid: "xl:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,0.9fr)]",
   labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено, сум", "Остаток, сум", "Статус", ""],
   aligns: ["left", "right", "right", "right", "center", "center"] as Array<"left" | "right" | "center">,
 };

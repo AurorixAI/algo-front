@@ -60,7 +60,7 @@ function InlineTodo({ status, name }: { status: RowStatusView; name: string }) {
         onClick={() => setOpen((value) => !value)}
         className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 break-words text-left">{status.label}</span>
+        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
@@ -129,7 +129,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
         onClick={() => dispatch({ type: "click", mousePins: true })}
         className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 break-words text-left">{status.label}</span>
+        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && typeof document !== "undefined" && createPortal(
