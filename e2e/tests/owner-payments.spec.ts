@@ -46,7 +46,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText(money(450000)); // «Цена в месяц»
   await expect(row()).toContainText(/Ждём оплату до \d\d\.\d\d/);
-  await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(450000)}`));
+  await expect(row()).toContainText(new RegExp(`К оплате ${moneyPattern(450000)}`));
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
   const payDialog = page.getByRole("dialog", { name: "Оплата от ученика" });

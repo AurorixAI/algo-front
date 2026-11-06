@@ -48,7 +48,7 @@ test("«Выбрать» from the group library -> lesson -> lobby; «Экзам
   await expect(page.getByRole("heading", { name: "Экзамен назначен!" })).toBeVisible();
   await expect(done).toContainText(`${lesson.startTime}–${lesson.endTime}`);
   await expect(page.getByText(/Код доступа для учеников/)).toBeVisible();
-  await page.getByRole("button", { name: "Закрыть", exact: true }).click();
+  await page.locator(`[data-modal-part="footer"]`).getByRole("button", { name: "Закрыть", exact: true }).click();
 
   // the list of the tab is read again: the exam is in the lobby of the lesson (not a draft of the group)
   let where = "";

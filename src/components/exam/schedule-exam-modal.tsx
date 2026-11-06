@@ -185,8 +185,8 @@ export function ScheduleExamModal({
   return (
     <Modal
       open
-      title={examTitle}
-      description={isPrintDelivery ? "Подготовка печатного комплекта" : isReschedule ? "Перенос проведения" : "Назначение на занятие"}
+      title={isPrintDelivery ? "Подготовить печатный комплект" : "Назначить экзамен на занятие"}
+      description={<><span className="font-semibold text-slate-700">{examTitle}</span>{" · "}{isPrintDelivery ? "Подготовка печатного комплекта" : isReschedule ? "Перенос проведения" : "Назначение на занятие"}</>}
       onClose={onClose}
       busy={submitting}
       size="lg"

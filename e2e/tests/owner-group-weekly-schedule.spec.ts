@@ -307,11 +307,11 @@ test("the teacher's own form is the same: two weekdays at once, an own overlap i
   await expect(form.getByLabel("Окончание")).toHaveValue("17:00");
   // the teacher already has 15:00-16:30 on the second weekday: the form says so and does not save
   await expect(form.getByText(/накладка по времени/).first()).toBeVisible();
-  await expect(form.getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
   // later in the day the two weekdays go through
   await fillTime(form.getByLabel("Начало"), "17:00");
   await expect(form.getByLabel("Окончание")).toHaveValue("18:30");
-  await form.getByRole("button", { name: "Сохранить урок" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
   expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([weekdayOf(d1), weekdayOf(d2)].sort());
@@ -412,7 +412,7 @@ test("teacher screenshots: the add form with Пн+Ср+Пт and the week after s
   await expect(form.getByLabel("Окончание")).toHaveValue("23:30");
   await form.getByLabel(/Тема занятия/).fill("Алгебра");
   await shot(page, `11-teacher-add-days-${info.project.name}`);
-  await form.getByRole("button", { name: "Сохранить урок" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
   await page.getByRole("button", { name: /На неделю/ }).click();
   await page.getByTitle("Следующая неделя").click(); // from today on: the next week shows all three days
