@@ -4,8 +4,9 @@
  * The sentences about the day are the server's (`billing.text` of the answer of adding, `PAY_FROM_RANGE` / `PAY_FROM_NOT_APPLICABLE`, `billing.immediate.text` of the dry run); this file arranges them.
  * Pure: no React, no network.  Contract: `MONEY1_B_SERVER_REPORT.md`, Б1.
  */
-import { addIsoDays, formatDateRu } from "./business-time";
-import { tidyMoneyText } from "./money-format";
+import { addIsoDays, formatDateRu, formatDayMonthRu } from "./business-time";
+import { formatMoney, tidyMoneyText } from "./money-format";
+import { pluralRu } from "./plural";
 
 const isIsoDateString = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -37,7 +38,37 @@ export interface BillingBrief {
   first_lesson: string | null;
   text: string;
   /** The dry run only, and only for a caller with access to money: what is charged AT ONCE. */
-  immediate: { amount: number; lessons: number; text: string } | null;
+  immediate: { amount: number; lessons: number; text: string; parts: ImmediatePart[] } | null;
+}
+
+/** One month (or a part of it) of what is charged at once: «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9».  The server adds `parts` to `immediate`; an older server sends none (the sentence alone is shown). */
+export interface ImmediatePart {
+  label: string;
+  from: string;
+  amount: number;
+  lessons: number;
+  lessons_in_period: number;
+  whole: boolean;
+}
+
+export function normalizeParts(raw: unknown): ImmediatePart[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    const p = (item ?? {}) as Partial<ImmediatePart>;
+    if (typeof p.label !== "string" || !p.label) return [];
+    return [{ label: p.label, from: isIsoDateString(p.from) ? p.from : "", amount: Math.round(Number(p.amount) || 0), lessons: Math.round(Number(p.lessons) || 0), lessons_in_period: Math.round(Number(p.lessons_in_period) || 0), whole: Boolean(p.whole) }];
+  });
+}
+
+/** The lines of the break-down: «Ноябрь, весь месяц — 400 000 сум» for a whole month, «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» for a part. */
+export function immediatePartLines(parts: ImmediatePart[]): string[] {
+  return parts.map((part) => {
+    const sum = formatMoney(part.amount);
+    if (part.whole || !part.from) return `${part.label}, весь месяц — ${sum}`;
+    const day = formatDayMonthRu(part.from);
+    const lessons = `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
+    return `${part.label}, с ${day} — ${sum} · ${lessons}`;
+  });
 }
 
 export function normalizeBilling(raw: unknown): BillingBrief | null {
@@ -50,7 +81,7 @@ export function normalizeBilling(raw: unknown): BillingBrief | null {
     default_pay_from: isIsoDateString(r.default_pay_from) ? r.default_pay_from : r.pay_from,
     first_lesson: isIsoDateString(r.first_lesson) ? r.first_lesson : null,
     text: tidyMoneyText(String(r.text ?? "")),
-    immediate: now && typeof now.text === "string" && now.text ? { amount: Math.round(Number(now.amount) || 0), lessons: Math.round(Number(now.lessons) || 0), text: tidyMoneyText(now.text) } : null,
+    immediate: now && typeof now.text === "string" && now.text ? { amount: Math.round(Number(now.amount) || 0), lessons: Math.round(Number(now.lessons) || 0), text: tidyMoneyText(now.text), parts: normalizeParts((now as { parts?: unknown }).parts) } : null,
   };
 }
 
@@ -85,7 +116,7 @@ export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начисли
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 export interface BulkImmediate {
-  students: Array<{ studentId: string; text: string }>;
+  students: Array<{ studentId: string; text: string; parts: ImmediatePart[] }>;
   total: string | null;
 }
 
@@ -95,8 +126,8 @@ export function normalizeBulkImmediate(raw: unknown): BulkImmediate {
   const list = Array.isArray(r.students) ? r.students : r.billing ? [{ student_id: "", billing: r.billing }] : [];
   const students = list.flatMap((item) => {
     const entry = item as { student_id?: unknown; billing?: unknown };
-    const text = normalizeBilling(entry.billing)?.immediate?.text;
-    return text ? [{ studentId: String(entry.student_id ?? ""), text }] : [];
+    const now = normalizeBilling(entry.billing)?.immediate;
+    return now?.text ? [{ studentId: String(entry.student_id ?? ""), text: now.text, parts: now.parts }] : [];
   });
   const total = typeof r.immediate_total?.text === "string" && r.immediate_total.text ? tidyMoneyText(r.immediate_total.text) : null;
   return { students, total };

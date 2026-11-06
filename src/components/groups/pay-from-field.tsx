@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
-import { PAY_FROM_LABEL, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, immediatePartLines, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 
 export const PAY_FROM_FAILED_TEXT = "Не удалось посчитать, сколько начислится сразу";
@@ -68,10 +68,11 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
           {preview.immediate.students.length === 0 && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
           {/* one student: his line only - the total would say the same again */}
           {preview.immediate.students.length === 1 && <p className="font-medium">{preview.immediate.students[0].text}</p>}
+          {preview.immediate.students.length === 1 && <PartLines parts={preview.immediate.students[0].parts} />}
           {preview.immediate.students.length > 1 && (
             <>
               <ul className="space-y-0.5" data-testid="pay-from-immediate-students">
-                {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}</li>)}
+                {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}<PartLines parts={line.parts} /></li>)}
               </ul>
               {preview.immediate.total && <p className="font-semibold" data-testid="pay-from-immediate-total">{preview.immediate.total}</p>}
             </>
@@ -79,5 +80,15 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
         </div>
       )}
     </div>
+  );
+}
+
+/** «Сразу начислится» by months (the `parts` of the server); nothing when an older server sends none. */
+function PartLines({ parts }: { parts: ImmediatePart[] }) {
+  if (parts.length === 0) return null;
+  return (
+    <ul className="mt-0.5 space-y-0.5 font-normal text-slate-700" data-testid="pay-from-immediate-parts">
+      {immediatePartLines(parts).map((line) => <li key={line} className="break-words">{line}</li>)}
+    </ul>
   );
 }
