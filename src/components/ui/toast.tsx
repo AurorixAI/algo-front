@@ -4,30 +4,51 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { tidyMoneyText } from "@/lib/money-format";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { toastClosable, toastLifetimeMs } from "@/lib/toast-timing";
+
+export type ToastType = "success" | "error" | "warning" | "info";
 
 export interface ToastMessage {
   text: string;
-  type: "success" | "error" | "warning";
+  type: ToastType;
   /** Extra lines (for example skipped students with the server reason). */
   details?: string[];
+  /** At most ONE link after the sentence («Открыть выписку»). */
+  link?: { label: string; href: string };
 }
 
 /**
- * UX pack, rule 4: a success is GREEN (white on emerald-700: 5.5:1), a failure red (white on red-600: 4.8:1); a warning is a light amber surface with dark amber text - an amber FILL with white text is
- * not allowed (white on amber-600 is 3.2:1).
+ * The toast of the product (design system, wave 1): ONE phrase and at most one link, an icon (the meaning is not only the colour), one shape, four tones:
+ *  - success: GREEN fill (white on success-700: 5.5:1);  error: danger fill (white on danger-700: 6.3:1);
+ *  - warning: a light amber surface with dark amber text - an amber FILL with white text is not allowed (white on amber-600 is 3.2:1);  info: a light sky surface.
+ * Every other floating message of the product uses `toastSurfaceClass` - there are no toast looks of its own.
  */
-const TONE: Record<ToastMessage["type"], string> = {
-  success: "bg-emerald-700 text-white",
-  warning: "border border-amber-300 bg-amber-50 text-amber-950",
-  error: "bg-red-600 text-white",
+const TONE: Record<ToastType, string> = {
+  success: "bg-success-700 text-white",
+  warning: "border border-warning-300 bg-warning-50 text-warning-950",
+  error: "bg-danger-700 text-white",
+  info: "border border-info-200 bg-info-50 text-info-900",
 };
-const CLOSE_HOVER: Record<ToastMessage["type"], string> = {
+const CLOSE_HOVER: Record<ToastType, string> = {
   success: "hover:bg-white/20",
-  warning: "hover:bg-amber-200",
+  warning: "hover:bg-warning-200",
   error: "hover:bg-white/20",
+  info: "hover:bg-info-100",
 };
+const LINK_TONE: Record<ToastType, string> = {
+  success: "text-white",
+  warning: "text-warning-950",
+  error: "text-white",
+  info: "text-info-900",
+};
+const ICON: Record<ToastType, typeof CheckCircle2> = { success: CheckCircle2, warning: AlertTriangle, error: XCircle, info: Info };
+
+/** The look of a toast without its content (a message that is not shown by `useToast`, e.g. «Выходим…», borrows it). */
+export function toastSurfaceClass(type: ToastType): string {
+  return `break-words rounded-card px-4 py-3 shadow-pop text-sm font-medium sm:px-5 ${TONE[type]}`;
+}
 
 const HOST_ID = "toast-host";
 
@@ -63,7 +84,7 @@ function ToastPortal({ children }: { children: ReactNode }) {
  * A toast with details stays longer and has a close button.
  */
 export function useToast(): {
-  showToast: (text: string, type?: ToastMessage["type"], details?: string[]) => void;
+  showToast: (text: string, type?: ToastType, details?: string[], link?: ToastMessage["link"]) => void;
   toastNode: ReactNode;
 } {
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -71,9 +92,9 @@ export function useToast(): {
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  const showToast = useCallback((text: string, type: ToastMessage["type"] = "success", details?: string[]) => {
+  const showToast = useCallback((text: string, type: ToastType = "success", details?: string[], link?: ToastMessage["link"]) => {
     if (timer.current) clearTimeout(timer.current);
-    setToast({ text: tidyMoneyText(text), type, details: details?.map((line) => tidyMoneyText(line)) });
+    setToast({ text: tidyMoneyText(text), type, details: details?.map((line) => tidyMoneyText(line)), link });
     timer.current = setTimeout(() => setToast(null), toastLifetimeMs(type, Boolean(details?.length)));
   }, []);
 
@@ -87,11 +108,16 @@ export function useToast(): {
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className={`pointer-events-auto w-full max-w-[calc(100vw-2rem)] break-words px-4 py-3 sm:w-auto sm:max-w-md sm:px-5 rounded-2xl shadow-lg text-sm font-medium ${TONE[toast.type]}`}
+            data-tone={toast.type}
+            className={`pointer-events-auto w-full max-w-[calc(100vw-2rem)] sm:w-auto sm:max-w-md ${toastSurfaceClass(toast.type)}`}
           >
             <div className="flex items-start gap-3">
+              {(() => { const Icon = ICON[toast.type]; return <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />; })()}
               <div className="min-w-0 flex-1">
                 <p>{toast.text}</p>
+                {toast.link && (
+                  <Link href={toast.link.href} data-testid="toast-link" className={`mt-1 inline-block font-semibold underline underline-offset-2 ${LINK_TONE[toast.type]}`}>{toast.link.label}</Link>
+                )}
                 {toast.details && toast.details.length > 0 && (
                   <ul className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 text-xs font-normal list-disc pl-4">
                     {toast.details.map((line, index) => <li key={index}>{line}</li>)}
@@ -103,7 +129,7 @@ export function useToast(): {
                   type="button"
                   onClick={() => setToast(null)}
                   aria-label="Закрыть"
-                  className={`shrink-0 rounded p-0.5 ${CLOSE_HOVER[toast.type]}`}
+                  className={`-my-1 -mr-1.5 shrink-0 rounded-tag p-1.5 ${CLOSE_HOVER[toast.type]}`}
                 >
                   <X className="h-4 w-4" />
                 </button>

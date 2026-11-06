@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { lockScroll } from "@/lib/scroll-lock";
 import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
-import { modalLayout, shouldRememberOpener } from "@/lib/modal-layout";
+import { modalLayout, shouldRememberOpener, type ModalSize } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 /**
  * R3 M1: the `submit` of a React portal climbs the REACT tree, not the DOM one: a dialog opened from inside a form (the notice «Переоткрыть месяц» in the form of a pause) would send
@@ -123,12 +124,12 @@ interface ModalProps {
   children: ReactNode;
   /** Buttons row; rendered under the body with a divider. */
   footer?: ReactNode;
-  /** Tailwind max-width class of the dialog. */
+  /** The width of the dialog: `sm` 448 (a question), `md` 520 (a form, the default), `lg` 640 (a table or a list).  A side sheet is 480 whatever the size. */
+  size?: ModalSize;
+  /** Tailwind max-width class: only for what the three sizes do not cover (a side sheet that is wider). */
   maxWidthClassName?: string;
   /** While true the backdrop, Escape and the cross do not close the dialog. */
   busy?: boolean;
-  /** A tile with an icon before the title (dialogs that open an object keep their icon). */
-  icon?: ReactNode;
   /** Replaces the padding of the scrolling body (a dialog whose sections bring their own paddings). */
   bodyClassName?: string;
   /** Replaces the layout and padding of the footer row (the divider stays). */
@@ -153,8 +154,8 @@ const SCROLL_EDGE = {
 } as const;
 
 export function Modal({
-  open, title, description, onClose, children, footer, maxWidthClassName, busy = false,
-  icon, bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false,
+  open, title, description, onClose, children, footer, size, maxWidthClassName, busy = false,
+  bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -174,37 +175,30 @@ export function Modal({
   const side = placement === "right" || placement === "sheet";
   // A bottom sheet slides up, a side sheet slides in; the choice is made when the dialog opens (the viewport is known by then).
   const slideUp = placement === "sheet" && mounted && typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
-  const layout = modalLayout({ placement, maxWidthClassName, bodyClassName, footerClassName });
+  const layout = modalLayout({ placement, size, maxWidthClassName, bodyClassName, footerClassName });
 
   const header = (
-    <div className={layout.header}>
-      <div className="flex min-w-0 items-center gap-3">
-        {icon && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-primary-100/50 text-primary-600">
-            {icon}
-          </div>
-        )}
-        <div className="min-w-0">
-          <h2 id={titleId} className={layout.title}>{title}</h2>
-          {description && <div className="mt-1 text-xs text-slate-500">{description}</div>}
-        </div>
+    <div className={layout.header} data-modal-part="header">
+      <div className="min-w-0">
+        <h2 id={titleId} className={layout.title}>{title}</h2>
+        {description && <div className="mt-1 text-xs text-slate-500">{description}</div>}
       </div>
-      <button
+      <Button
         type="button"
         onClick={onClose}
         disabled={busy}
         aria-label="Закрыть"
-        className="p-2.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
+        variant="ghost" size="icon"
       >
         <X className="w-5 h-5" />
-      </button>
+      </Button>
     </div>
   );
 
   // re-audit Н12: a body that scrolls says so - a soft grey edge appears at the bottom (and the top) only while there is more to scroll (not coloured; the white covers it at the end of the scroll)
-  const body = <div className={layout.body} style={SCROLL_EDGE}>{children}</div>;
+  const body = <div className={layout.body} style={SCROLL_EDGE} data-modal-part="body">{children}</div>;
 
-  const footerRow = footer && <div className={layout.footer}>{footer}</div>;
+  const footerRow = footer && <div className={layout.footer} data-modal-part="footer">{footer}</div>;
 
   const content = (
     <AnimatePresence>
@@ -215,7 +209,7 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm touch-none ${aboveLessonPanel ? "z-[100000]" : "z-[100]"}`}
+            className={`fixed inset-0 bg-slate-900/40 touch-none ${aboveLessonPanel ? "z-[100000]" : "z-[100]"}`}
             onClick={() => { if (!busy && Date.now() - openedAtRef.current >= BACKDROP_GRACE_MS) onClose(); }}
           />
           {side ? (
