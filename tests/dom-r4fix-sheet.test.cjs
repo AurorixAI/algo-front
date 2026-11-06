@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const { execFileSync } = require("node:child_process");
 const { launch, openPage } = require("./helpers/dom-page.cjs");
-const { layoutProbe } = require("./helpers/layout-probe.cjs");
+const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
 
 const root = path.join(__dirname, "..");
 let browser;
@@ -83,19 +83,7 @@ for (const width of [1280, 1024, 375, 340]) {
   });
 }
 
-// the elements of a screen that are smaller than 40 px in height (a checkbox / radio: the invisible input is the target)
-const small = (page) => page.evaluate(() => {
-  const out = [];
-  for (const el of document.querySelectorAll("button, a[href], [role=tab], input:not([type=hidden])")) {
-    if (el.closest(".sr-only")) continue;
-    const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none") continue;
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) continue;
-    if (rect.height < 39.5) out.push(`${(el.getAttribute("aria-label") || el.textContent || el.type || "").trim().slice(0, 30)} ${Math.round(rect.width)}x${Math.round(rect.height)}`);
-  }
-  return out;
-});
+const small = (page) => page.evaluate(touchTargets, "body");
 
 test("Д7 375: the sheet of a closed month (back link, tabs, «Записать выплату», «Отменить» of a payout, «По датам», «Переоткрыть месяц») has no target under 40 px", async () => {
   sheet = sheetOf({ stale: false, changedBy: 0, fresh: 757500, undecidedTotal: 0 }); undecidedLessons = 0;
@@ -107,13 +95,18 @@ test("Д7 375: the sheet of a closed month (back link, tabs, «Записать 
   await page.close();
 });
 
-test("Д7 375: the checkbox «начислить» is a 40 px target (the box stays 18 px) and the probe is clean", async () => {
+test("Д7 375: the checkbox «начислить» has a 40 px tap zone, its box and input stay 18 px, a tap on the zone toggles it, the probe is clean", async () => {
   sheet = sheetOf({ stale: false, changedBy: 0, fresh: 757500, undecidedTotal: 0, month: "2026-11", monthOpen: true }); undecidedLessons = 0;
   const { page } = await open(375);
-  const box = await page.evaluate(() => { const el = document.querySelector('section[aria-label^="Группа"] input[type=checkbox]'); if (!el) return null; const r = el.getBoundingClientRect(); const v = el.nextElementSibling.getBoundingClientRect(); return { w: r.width, h: r.height, vw: v.width }; });
-  assert.ok(box, "the table has the checkbox of the line with unpaid lessons");
-  assert.ok(box.w >= 40 && box.h >= 40, JSON.stringify(box));
-  assert.equal(box.vw, 18);
+  const input = page.locator('section[aria-label^="Группа"] input[type=checkbox]').first();
+  assert.equal(await input.count(), 1, "the table has the checkbox of the line with unpaid lessons");
+  await input.scrollIntoViewIfNeeded();
+  const box = await input.boundingBox();
+  assert.ok(box.width <= 18.5 && box.height <= 18.5, JSON.stringify(box));
+  assert.deepEqual(await small(page), []);
+  const before = await input.isChecked();
+  await page.mouse.click(box.x + 9, box.y - 9);                  // 9 px above the box: inside the 40 px zone, outside the box
+  assert.equal(await input.isChecked(), !before, "a tap on the zone toggles the checkbox");
   const probe = await page.evaluate(layoutProbe, "body");
   assert.deepEqual(probe.bad, [], JSON.stringify(probe.bad));
   await page.screenshot({ path: path.join(os.tmpdir(), "r4fix-sheet-open-375.png"), fullPage: true });

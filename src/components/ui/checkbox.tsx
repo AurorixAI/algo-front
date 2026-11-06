@@ -38,7 +38,12 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   }, [indeterminate, props.checked]);
 
   return (
-    <span className={cn("relative inline-flex shrink-0 items-center justify-center", size === "sm" ? "h-4 w-4 max-sm:-m-3" : "h-[18px] w-[18px] max-sm:-m-[11px]", "max-sm:h-10 max-sm:w-10", className)}>
+    <span
+      // R4 Д7: on a phone the tap zone is 40 px (an invisible ::after of the wrapper; the box and the flow stay 18 px).  Inside a <label> the label passes the click on; alone, the wrapper does
+      onClick={(event) => { if (event.target !== inputRef.current && !(event.target as HTMLElement).closest("label") && !disabled) inputRef.current?.click(); }}
+      className={cn("relative inline-flex shrink-0", size === "sm" ? "h-4 w-4 max-sm:after:-inset-3" : "h-[18px] w-[18px] max-sm:after:-inset-[11px]", "max-sm:after:absolute max-sm:after:content-['']", className)}
+      data-touch-zone=""
+    >
       <input
         {...props}
         ref={setRef}
@@ -49,8 +54,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       <span
         aria-hidden
         className={cn(
-          size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]",
-          "pointer-events-none flex shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-white shadow-xs transition-colors",
+          "pointer-events-none flex h-full w-full items-center justify-center rounded-md border border-slate-300 bg-white text-white shadow-xs transition-colors",
           "peer-hover:border-primary-400 peer-focus-visible:border-primary-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/40",
           "peer-checked:border-primary-600 peer-checked:bg-primary-600 peer-checked:peer-hover:border-primary-700 peer-checked:peer-hover:bg-primary-700",
           "peer-disabled:border-slate-200 peer-disabled:bg-slate-100 peer-disabled:opacity-60 peer-disabled:peer-checked:border-primary-300 peer-disabled:peer-checked:bg-primary-300",

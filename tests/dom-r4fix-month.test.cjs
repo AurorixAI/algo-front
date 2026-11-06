@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const { execFileSync } = require("node:child_process");
 const { launch, openPage } = require("./helpers/dom-page.cjs");
+const { touchTargets } = require("./helpers/layout-probe.cjs");
 const { monthServer, KAMOL, SABINA } = require("./helpers/month-list-fixture.cjs");
 
 const root = path.join(__dirname, "..");
@@ -26,20 +27,7 @@ async function openMonth(width, server = monthServer()) {
   await run.page.waitForSelector('[data-testid="month-tile-accrued"]');
   return run;
 }
-/** The visible interactive elements smaller than 40 px in a side (a checkbox / radio: its invisible input is the target, so the box is measured by the input). */
-const small = (page, scope = "body") => page.evaluate((sel) => {
-  const out = [];
-  for (const el of document.querySelectorAll(`${sel} button, ${sel} a[href], ${sel} [role="tab"], ${sel} input:not([type=hidden]), ${sel} select`)) {
-    if (el.closest(".sr-only") || el.closest("[hidden]")) continue;
-    const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none") continue;
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) continue;
-    if (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio") && style.opacity === "0" && rect.width < 40) { out.push(`${el.type} ${Math.round(rect.width)}x${Math.round(rect.height)}`); continue; }
-    if (rect.height < 39.5 || (el.getAttribute("aria-label") && !el.textContent.trim() && rect.width < 39.5)) out.push(`${(el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 30)} ${Math.round(rect.width)}x${Math.round(rect.height)}`);
-  }
-  return out;
-}, scope);
+const small = (page, scope = "body") => page.evaluate(touchTargets, scope);
 
 test("Д6: «Требует действия · N» is ONE line at 1280 (nowrap)", async () => {
   const { page } = await openMonth(1280);
