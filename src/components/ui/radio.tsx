@@ -38,7 +38,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio({ c
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none flex h-full w-full items-center justify-center rounded-full border border-slate-300 bg-white shadow-xs transition-colors",
+          "pointer-events-none flex h-full w-full items-center justify-center rounded-full border border-slate-300 bg-white shadow-card transition-colors",
           "peer-hover:border-primary-400 peer-focus-visible:border-primary-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/40",
           "peer-checked:border-primary-600 peer-checked:bg-primary-600 peer-checked:peer-hover:border-primary-700 peer-checked:peer-hover:bg-primary-700",
           "peer-disabled:border-slate-200 peer-disabled:bg-slate-100 peer-disabled:opacity-60 peer-disabled:peer-checked:border-primary-300 peer-disabled:peer-checked:bg-primary-300",

@@ -17,6 +17,7 @@ import { displayPhone, telHref } from "@/lib/phone";
 import { studentGroupId, studentHasGroup } from "@/lib/student-status";
 import { isArchivedStatus } from "@/lib/student-archive";
 import { useCopy } from "@/lib/use-copy";
+import { Button } from "@/components/ui/button";
 
 interface StudentInfo {
   id: string;
@@ -173,25 +174,25 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
         {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + students.length} из {total}
       </span>
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="button"
           disabled={page === 0}
           onClick={() => setPage((p) => Math.max(0, p - 1))}
-          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          variant="secondary" size="icon"
           aria-label="Предыдущая страница"
         >
           <ChevronLeft className="w-4 h-4" />
-        </button>
+        </Button>
         <span>Стр. {page + 1} / {pageCount}</span>
-        <button
+        <Button
           type="button"
           disabled={page >= pageCount - 1}
           onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          variant="secondary" size="icon"
           aria-label="Следующая страница"
         >
           <ChevronRight className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
     </>
   ) : null;
@@ -434,7 +435,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                               onClick={(e) => handleCopyId(s.display_id!, e)}
                               className={`group/id inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
                                 copiedId === s.display_id
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-card"
                                   : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/60"
                               }`}
                               title="Нажмите, чтобы скопировать ID ученика"

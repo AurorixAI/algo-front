@@ -59,7 +59,7 @@ export function GroupPriceCancelDialog({
       description={groupName}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName={MONEY_WINDOW_QUESTION}
+      size="sm"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary={refused ? null : "Отменить цену"} onPrimary={() => void submit()} busy={busy} onCancel={onClose} cancelLabel={refused ? "Закрыть" : "Не отменять"} testId="group-price-cancel-confirm" />}
     >

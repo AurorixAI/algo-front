@@ -158,7 +158,7 @@ test("the student card: a grey badge and the hint for a cancelled invite; no «�
   assert.match(card, /isDead \? "bg-slate-50 text-slate-600 border-slate-200"/);
   // IA audit F32 / Q1: «Назначить диагностику» opens the dialog of THIS student, only in the administrator's workspace, never for an archived one
   assert.match(card, /const diagnosticsEnabled = diagnosticsAllowed\(\{ workspace, archived: access\.showBanner \}\);/);
-  assert.match(card, /\{diagnosticsEnabled && \(\s*<button\s+type="button"\s+onClick=\{\(\) => setDiagnosticOpen\(true\)\}/);
+  assert.match(card, /\{diagnosticsEnabled && \(\s*<Button\s+type="button"\s+onClick=\{\(\) => setDiagnosticOpen\(true\)\}/);
   assert.doesNotMatch(card, /\/admin\/students\/new/);
 });
 

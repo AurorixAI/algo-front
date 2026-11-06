@@ -71,7 +71,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel, danger, 
       description={description}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
+      size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>Отмена</Button>

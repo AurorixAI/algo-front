@@ -22,6 +22,7 @@ import {
 } from "@/lib/group-workspace";
 import { ImportButton } from "@/components/import/import-button";
 import { useToast } from "@/components/ui/toast";
+import { Button } from "@/components/ui/button";
 
 const STATUS_TABS: ReadonlyArray<{ key: GroupStatusFilter; label: string }> = [
   { key: "active", label: "Активные" },
@@ -113,13 +114,13 @@ function GroupsListContent({ workspace }: { workspace: Workspace }) {
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <ImportButton onImported={loadData} />
-          <button
+          <Button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
+            variant="primary" size="md"
           >
             <Plus className="w-4 h-4" />
             Новая группа
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -197,13 +198,13 @@ function GroupsListContent({ workspace }: { workspace: Workspace }) {
           <p className="text-slate-500 text-sm mb-6 text-center max-w-xs">
             Создайте учебную группу и добавьте в неё учеников для совместного обучения.
           </p>
-          <button
+          <Button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium text-sm"
+            variant="primary" size="md"
           >
             <Plus className="w-4 h-4" />
             Создать группу
-          </button>
+          </Button>
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

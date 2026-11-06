@@ -37,7 +37,7 @@ export function GroupPriceHistoryModal({
 
   return (
     <>
-      <Modal open={open && prices !== null} title="История цены" description={groupName} onClose={onClose} maxWidthClassName="max-w-lg">
+      <Modal open={open && prices !== null} title="История цены" description={groupName} onClose={onClose} size="md">
         {history.length === 0 && cancelled.length === 0 ? (
           <p className="py-4 text-sm text-slate-500">Цена этой группы ещё не задавалась.</p>
         ) : (

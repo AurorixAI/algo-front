@@ -46,6 +46,7 @@ import { canDecideMoney, decisionMatches, listedCountFor, moneyRightLostFor, wai
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 type Tab = "pending" | "decided";
 
@@ -377,16 +378,16 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             </label>
           )}
           {filterOn && (
-            <button
+            <Button
               type="button"
               data-testid="filter-chip"
               onClick={() => { setFilter({ teacherId: "", groupId: "" }); setPage(0); }}
               aria-label={`Сбросить фильтр: ${filterText}`}
-              className="inline-flex h-10 max-w-full items-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-3 text-sm font-medium text-primary-800 hover:bg-primary-100 sm:hidden"
+              variant="secondary" size="md" className="max-w-full sm:hidden"
             >
               <span className="truncate">{filterText}</span>
               <X className="h-4 w-4 shrink-0" aria-hidden />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -394,9 +395,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       {pendingTab && selectedItems.length > 0 && (
         <div role="region" aria-label="Массовые действия" className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/60 px-3.5 py-2.5">
           <span className="mr-auto text-sm font-semibold text-primary-900">Выбрано: {selectedItems.length}</span>
-          <button type="button" onClick={() => setBulkKind("substitute")} className="h-10 rounded-lg sm:h-8 bg-primary-600 px-3 text-xs font-semibold text-white hover:bg-primary-700">Назначить замену</button>
-          <button type="button" onClick={() => setBulkKind("cancel")} className="h-10 rounded-lg sm:h-8 border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50">Отменить уроки</button>
-          <button type="button" onClick={() => setBulkKind("reject")} className="h-10 rounded-lg sm:h-8 border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Отклонить</button>
+          <Button type="button" onClick={() => setBulkKind("substitute")} variant="primary" size="md">Назначить замену</Button>
+          <Button type="button" onClick={() => setBulkKind("cancel")} variant="secondary" size="sm" className="border-danger-200 text-danger-700 hover:bg-danger-50">Отменить уроки</Button>
+          <Button type="button" onClick={() => setBulkKind("reject")} variant="secondary" size="md">Отклонить</Button>
           <button type="button" onClick={() => setSelected(new Set())} className="h-10 rounded-lg sm:h-8 px-2.5 text-xs font-semibold text-slate-600 hover:bg-white">Снять выбор</button>
         </div>
       )}
@@ -427,7 +428,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <AlertCircle className="h-8 w-8 text-rose-500" />
             <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-            <button type="button" onClick={() => void load()} className="min-h-10 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
           </div>
         ) : items.length === 0 ? (
           decisionsOnly ? null : <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
@@ -486,14 +487,14 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                           <div className="flex min-w-0 justify-start xl:justify-center"><DeadlineBadge item={item} /></div>
                         </div>
                         <div className="flex items-center justify-end xl:-my-1.5">
-                          <button
+                          <Button
                             type="button"
                             onClick={() => setDialogItem(item)}
                             aria-label={`Решить: ${item.group.name}, ${item.teacher.name}`}
-                            className="h-10 w-full rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 xl:w-auto"
+                            variant="primary" size="md" className="w-full xl:w-auto"
                           >
                             Решить
-                          </button>
+                          </Button>
                         </div>
                       </>
                     ) : (
@@ -532,9 +533,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <Button type="button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
             <span>{page + 1} из {pageCount}</span>
-            <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+            <Button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

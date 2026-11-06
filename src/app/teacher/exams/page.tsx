@@ -52,6 +52,7 @@ import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
 import { examStatusView, DRAFT_TAB_LABEL } from "@/lib/status-registry";
+import { Button } from "@/components/ui/button";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -198,7 +199,7 @@ function ExamCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
-      className="group relative bg-white hover:bg-slate-50/70 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-200 transition-all duration-200"
+      className="group relative bg-white hover:bg-slate-50/70 rounded-2xl border border-slate-200/90 shadow-card hover:shadow-md hover:border-primary-200 transition-all duration-200"
     >
 
       <Link href={examHref} className={`block p-5 ${isArchived ? "cursor-default opacity-85" : ""}`}>
@@ -292,7 +293,7 @@ function ExamCard({
           <div className="flex items-center gap-2 shrink-0">
             {/* Quick Actions Menu Trigger */}
             <div className="relative">
-              <button
+              <Button
                 ref={menuTriggerRef}
                 type="button"
                 aria-expanded={menuOpen}
@@ -304,10 +305,10 @@ function ExamCard({
                   setMenuOpen(!menuOpen);
                 }}
                 title="Опции экзамена"
-                className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer"
+                variant="secondary" size="icon"
               >
                 <MoreVertical className="w-4 h-4" />
-              </button>
+              </Button>
 
               {/* Portaled + flipped: never clipped by the card / list, reachable by keyboard and touch. */}
               <FloatingPanel
@@ -879,15 +880,15 @@ export default function TeacherExamsPage() {
       {hasMore && !loading && (
         <div className="flex flex-col items-center gap-2 pt-1">
           <p className="text-xs text-slate-500">Показано {exams.length} из {totalExams}</p>
-          <button
+          <Button
             type="button"
             onClick={() => void loadMore()}
             disabled={loadingMore}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-primary-300 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            variant="secondary" size="md"
           >
             {loadingMore && <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600" />}
             Показать ещё
-          </button>
+          </Button>
           {moreError && <p role="alert" className="text-xs font-medium text-rose-600">{moreError} Нажмите «Показать ещё», чтобы повторить.</p>}
         </div>
       )}

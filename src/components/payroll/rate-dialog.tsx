@@ -112,7 +112,7 @@ export function TeacherRateDialog({
       description={name}
       onClose={onClose}
       busy={saving}
-      maxWidthClassName="max-w-[480px]"
+      size="md"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Сохранить" submitFor={FORM_ID} busy={saving} disabled={checked.changed === 0} why="Измените ставку, чтобы сохранить" whyId="rate-why" onCancel={onClose} testId="rate-save" />}
     >

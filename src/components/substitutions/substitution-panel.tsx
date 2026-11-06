@@ -14,6 +14,8 @@ import { outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcom
 import { TRUNCATED_TEXT, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
 import { canDecideInPanel, panelView } from "@/lib/substitution-panel-state";
 import type { SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
+import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/lib/button-style";
 
 export const PANEL_TITLE = "Подробнее";
 export const PANEL_LOAD_ERROR = "Не удалось загрузить историю";
@@ -156,9 +158,9 @@ export function SubstitutionPanel({
   const footer = item && (lessonLink || bases || (canDecideInPanel(view, audience) && onDecide)) ? (
     <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2">
       {canDecideInPanel(view, audience) && onDecide && (
-        <button type="button" onClick={() => onDecide(item)} data-testid="panel-decide" className="h-9 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700">Решить</button>
+        <Button onClick={() => onDecide(item)} data-testid="panel-decide">Решить</Button>
       )}
-      {lessonLink && <Link href={lessonLink} data-testid="panel-open-lesson" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800">Открыть урок</Link>}
+      {lessonLink && <Link href={lessonLink} data-testid="panel-open-lesson" className={buttonClass({ variant: "secondary" })}>Открыть урок</Link>}
       {bases && <Link href={groupHref(bases.groups, item.group.id)} data-testid="panel-group-link" className="text-sm font-semibold text-primary-700 hover:underline">Группа ›</Link>}
       {workspace === "owner" && item.teacher.id && <Link href={teacherHref(item.teacher.id)} data-testid="panel-teacher-link" className="text-sm font-semibold text-primary-700 hover:underline">Преподаватель ›</Link>}
     </div>
@@ -188,7 +190,7 @@ export function SubstitutionPanel({
         {error ? (
           <div role="alert" data-testid="panel-error" className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
             <p className="text-sm font-medium text-rose-800">{error}</p>
-            <button type="button" onClick={() => setRetry((value) => value + 1)} className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50">Повторить</button>
+            <Button type="button" onClick={() => setRetry((value) => value + 1)} variant="secondary" size="sm" className="border-danger-200 text-danger-700 hover:bg-danger-50">Повторить</Button>
           </div>
         ) : timeline ? (
           <PanelTimeline rows={timeline.rows} truncated={timeline.truncated} onOpenRequest={onOpenRequest} />

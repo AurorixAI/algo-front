@@ -53,7 +53,7 @@ export function UndoDecisionDialog({
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
-      maxWidthClassName="max-w-md"
+      size="sm"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
         <ConfirmFooter

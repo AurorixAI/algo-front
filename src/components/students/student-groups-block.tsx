@@ -13,6 +13,7 @@ import { livePauses, type PauseOut } from "@/lib/payments-logica";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { Button } from "@/components/ui/button";
 
 /** Active memberships of the profile; an older server sends only the single `group`. */
 export function profileMemberships(profile: Pick<StudentProfile, "groups" | "group" | "student">): StudentGroupMembership[] {
@@ -84,25 +85,25 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
         <h2 className="text-base font-semibold text-slate-800">Группы</h2>
         {groupActions && memberships.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <Button
               type="button"
               onClick={() => onAssign("add")}
               data-testid="enrol-add"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700"
+              variant="primary" size="sm"
             >
               <Plus className="h-3.5 w-3.5" />
               {ENROL_ACTION_LABEL}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => onAssign("transfer")}
               disabled={!moneyRight}
               aria-describedby={moneyRight ? undefined : "enrol-transfer-why"}
               data-testid="enrol-transfer"
-              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-600 disabled:bg-slate-50 disabled:hover:bg-white"
+              variant="secondary" size="sm"
             >
               {TRANSFER_ACTION_LABEL}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -120,13 +121,13 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
             <p className="text-xs text-amber-800">Чтобы вернуть его в группу, нажмите «Вернуть из архива» вверху карточки.</p>
           )}
           {groupActions && (
-            <button
+            <Button
               type="button"
               onClick={() => onAssign("transfer")}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700"
+              variant="primary" size="sm"
             >
               <Users className="h-4 w-4" /> {ENROL_ACTION_LABEL}
-            </button>
+            </Button>
           )}
         </div>
       ) : (

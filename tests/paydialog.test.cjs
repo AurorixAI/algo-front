@@ -450,7 +450,7 @@ test("the dialog layout: amount first, chips under it, then the plan, then metho
   assert.match(dialog, /<div className="sm:w-44">\s*<label htmlFor="payment-paid-on"/);
   // the primary button is in the footer (never scrolls away)
   assert.match(dialog, /footerClassName=/);
-  assert.match(read("src/components/money/dialog-footer.tsx"), /flex flex-col-reverse gap-2 sm:flex-row/);   // the footer of every window of money (ConfirmFooter)
+  assert.match(read("src/components/ui/modal-actions.tsx"), /flex flex-col-reverse gap-2 sm:flex-row/);   // the footer of every window of money (ConfirmFooter)
   // the pay2 rules stay: server calculation, idempotency key, duplicate, correction
   assert.match(dialog, /usePaymentPreview\(\{/);
   assert.match(dialog, /orgApi\.createPayment\(membership\.membership_id, body, idempotencyKey\.current\)/);

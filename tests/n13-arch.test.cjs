@@ -261,7 +261,7 @@ test("the card: «⋯ → В архив», the banner and the modals follow stud
   assert.match(view, /\{headerMenu\.length > 0 && \(\s*<div className="shrink-0">\s*<RowMenu/);
   // the banner for an archived card; its button only for who may restore
   assert.match(view, /\{access\.showBanner && \(\s*<div role="status"/);
-  assert.match(view, /\{access\.canRestore && \(\s*<button[^>]*onClick=\{\(\) => setRestoreOpen\(true\)\}/);
+  assert.match(view, /\{access\.canRestore && \(\s*<Button[^>]*onClick=\{\(\) => setRestoreOpen\(true\)\}/);
   assert.match(view, /Вернуть из архива/);
   assert.match(view, /archiveBannerTitle\(archiveInfo\.archivedAt\)/);
   assert.match(view, /Причина: \{archiveInfo\.reason\}/);
@@ -312,7 +312,7 @@ test("an archived card hides «Добавить в группу / Перевес
   const groups = read("src/components/students/student-groups-block.tsx");
   assert.match(groups, /const \{ groupActions, showBanner: archived \} = studentArchiveAccess\(\{ isTeacher, status: profile\.student\.status \}\)/);
   assert.match(groups, /\{groupActions && memberships\.length > 0 && \(/);
-  assert.match(groups, /\{groupActions && \(\s*<button/);
+  assert.match(groups, /\{groupActions && \(\s*<Button/);
   assert.doesNotMatch(groups, /\{!isTeacher && /);
   assert.match(groups, /Ученик в архиве и не состоит в группах/);
 
@@ -347,8 +347,8 @@ test("the archive dialog: title, reason (≤300, optional), the note, buttons, t
   assert.match(modal, />Причина \(необязательно\)</);
   assert.match(modal, /maxLength=\{ARCHIVE_REASON_MAX\}/);
   assert.match(modal, /\{ARCHIVE_KEEPS_NOTE\}/);
-  assert.match(modal, /Отмена<\/button>/);
-  assert.match(modal, /В архив\s*<\/button>/);
+  assert.match(modal, /<ModalActions[^>]*onCancel=/, "the shared footer: «Отмена» is its ghost button");
+  assert.match(modal, /<ModalActions[^>]*primary="В архив"[^>]*tone="danger"/);
   assert.match(modal, /orgApi\.archiveStudent\(studentId, normalizeArchiveReason\(reason\)\)/);
   assert.match(modal, /htmlFor="student-archive-reason"/);
   assert.match(modal, /id="student-archive-reason"/);
@@ -366,7 +366,7 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
   assert.match(modal, /const ids = restoreGroupIds\(selected, options\);/);
   assert.match(modal, /<fieldset/);
   assert.match(modal, /<legend/);
-  assert.match(modal, />Вернуть\s*<\/button>|Вернуть\s*\n\s*<\/button>/);
+  assert.match(modal, /<ModalActions[^>]*primary="Вернуть"/);
   assert.match(modal, /Не удалось вернуть ученика в эти группы:/);
   assert.match(modal, /Готово/);
   // the student is back the moment the server answers: the card is told at once (once), the notice only keeps the dialog open
@@ -374,8 +374,8 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
   assert.equal((modal.match(/onRestored\(/g) || []).length, 1, "onRestored is called from exactly one place");
   // «Готово», the cross, Escape, the backdrop and «Отмена» only close: nothing to refresh any more ...
   assert.equal((modal.match(/onClose=\{close\}/g) || []).length, 2, "both dialogs");
-  assert.match(modal, /onClick=\{close\} className="rounded-xl bg-primary-600[^"]*">Готово</);
-  assert.match(modal, /onClick=\{close\} disabled=\{busy\}[^>]*>Отмена</);
+  assert.match(modal, /<ModalActions primary="Готово" onPrimary=\{close\}/);
+  assert.match(modal, /<ModalActions primary="Вернуть"[\s\S]*?onCancel=\{close\}/, "«Отмена» of the shared footer only closes");
   // ... and every way out forgets the notice, so a dialog that opens again never shows the old result for a frame
   assert.match(modal, /const close = \(\) => \{ setDone\(null\); onClose\(\); \};/);
   // the card reloading under the notice (archived_groups empties) must not wipe the notice: it is cleared only on open

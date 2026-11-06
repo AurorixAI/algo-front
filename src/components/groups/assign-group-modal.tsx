@@ -39,7 +39,8 @@ import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { PayFromField } from "./pay-from-field";
 import { enrolDialogTitle, enrolSubmitLabel } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
-import { CONFIRM_FOOTER_CLASS, CONFIRM_PRIMARY_BLUE, CONFIRM_PRIMARY_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
+import { Button } from "@/components/ui/button";
 
 export interface GroupInfo {
   id: string;
@@ -328,21 +329,18 @@ export function AssignGroupModal({
       )}
       onClose={closeAfterSuccess}
       busy={assigning}
-      maxWidthClassName={MONEY_WINDOW_FORM}
+      size="md"
       bodyClassName="px-5 sm:px-6 pt-2 pb-4 overflow-y-auto overscroll-contain min-h-0"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={assignedSuccessGroup ? (
-        <button
-          type="button"
-          onClick={() => {
+        <ConfirmFooter
+          primary="Отлично, закрыть"
+          onPrimary={() => {
             onAssigned(assignedSuccessGroup);
             onClose();
           }}
-          data-testid="assign-done"
-          className={`${CONFIRM_PRIMARY_CLASS} ${CONFIRM_PRIMARY_BLUE}`}
-        >
-          Отлично, закрыть
-        </button>
+          testId="assign-done"
+        />
       ) : (
         // re-audit В1: the footer of every window of money; «почему» stands over the off button
         <ConfirmFooter
@@ -487,16 +485,16 @@ export function AssignGroupModal({
                 : "В организации пока не создано ни одной учебной группы."}
           </p>
           {(search || selectedTeacherId) && (
-            <button
+            <Button
               onClick={() => {
                 setSearch("");
                 setSelectedTeacherId("");
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              variant="secondary" size="sm"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Сбросить фильтры
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -522,7 +520,7 @@ export function AssignGroupModal({
                 className={`group relative flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 ${
                   isSelected
                     ? "bg-primary-50/80 border-primary-400 shadow-sm ring-2 ring-primary-500/20"
-                    : "bg-white border-slate-200/90 hover:border-primary-300 hover:bg-white hover:shadow-xs"
+                    : "bg-white border-slate-200/90 hover:border-primary-300 hover:bg-white hover:shadow-card"
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-3">
@@ -530,7 +528,7 @@ export function AssignGroupModal({
                   <div
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                       isSelected
-                        ? "border-primary-600 bg-primary-600 text-white shadow-xs"
+                        ? "border-primary-600 bg-primary-600 text-white shadow-card"
                         : "border-slate-300 bg-white group-hover:border-primary-400 text-transparent"
                     }`}
                   >

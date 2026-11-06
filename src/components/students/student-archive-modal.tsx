@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { orgApi, type StudentArchiveResult } from "@/lib/api";
 import {
   ARCHIVE_KEEPS_NOTE,
@@ -17,6 +16,8 @@ import {
 import { logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 interface StudentArchiveModalProps {
   open: boolean;
@@ -82,20 +83,7 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       description={studentName}
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="student-archive-form"
-            disabled={busy || (!settle.preview && !settle.failure?.refused)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            В архив
-          </button>
-        </>
-      }
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="В архив" submitFor="student-archive-form" tone="danger" disabled={busy || (!settle.preview && !settle.failure?.refused)} busy={busy} onCancel={onClose} />}
     >
       <form id="student-archive-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <div>

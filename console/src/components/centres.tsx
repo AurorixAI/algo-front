@@ -300,7 +300,7 @@ function LimitsDialog({ open, org, onClose, onSaved }: { open: boolean; org: Org
       description={org.name}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
+      size="sm"
       footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Отмена</Button><Button onClick={save} loading={busy}>Сохранить</Button></>}
     >
       <div className="space-y-4">

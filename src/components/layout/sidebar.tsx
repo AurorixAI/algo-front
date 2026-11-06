@@ -40,6 +40,7 @@ import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomN
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { SupportDialog } from "@/components/support/support-dialog";
 import { useSupportDialog } from "@/lib/support-store";
+import { toastSurfaceClass } from "@/components/ui/toast";
 import { SUPPORT_LABEL, SUPPORT_MY_LABEL, bindClientErrorsTo } from "@/lib/support";
 import { resetClientState } from "@/lib/reset-client-state";
 import { LOGOUT_UNCONFIRMED_TEXT, SESSION_NOTICE_KEY } from "@/lib/session-sync";
@@ -374,7 +375,7 @@ export function Sidebar() {
             <Link
               href="/teacher/exams/new"
               className={cn(
-                "w-full flex items-center justify-center h-10 rounded-xl text-xs font-bold transition-all shadow-2xs group overflow-hidden relative border",
+                "w-full flex items-center justify-center h-10 rounded-xl text-xs font-bold transition-all shadow-card group overflow-hidden relative border",
                 "text-slate-700 bg-slate-50/80 hover:bg-primary-50 hover:text-primary-700 border-slate-200/80 hover:border-primary-200",
                 collapsed ? "px-0 gap-0" : "px-3 gap-2"
               )}
@@ -540,7 +541,7 @@ export function Sidebar() {
             profileOpen ? "bg-slate-100" : "hover:bg-slate-50"
           )}
         >
-          <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-2xs uppercase">
+          <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-card uppercase">
             {user?.first_name?.[0] || user?.full_name?.[0] || role[0]}
             {supportUnread > 0 && <span aria-hidden="true" data-testid="support-unread-dot" className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />}
           </div>
@@ -580,7 +581,7 @@ export function Sidebar() {
     />
     <SupportDialog />
     {leaving && (
-      <div role="status" data-testid="logging-out" className="fixed inset-x-0 top-4 z-[100030] mx-auto w-fit max-w-[calc(100vw-2rem)] rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-lg print:hidden">
+      <div role="status" data-testid="logging-out" className={`fixed inset-x-0 top-4 z-[100030] mx-auto w-fit max-w-[calc(100vw-2rem)] print:hidden ${toastSurfaceClass("info")}`}>
         Выходим…
       </div>
     )}

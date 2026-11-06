@@ -32,6 +32,9 @@ import {
   type HandoverChoices,
 } from "@/lib/staff-lifecycle";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 export type MemberAction = { kind: "remove" } | { kind: "role"; role: string };
 
@@ -183,25 +186,9 @@ export function RemoveMemberDialog({
       title={isRole ? "Изменить роль" : (hasGroups ? groupsBlockTitle() : "Удалить сотрудника")}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-xl"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            Отмена
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={submitDisabled}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
-              isRole || hasGroups ? "bg-primary-600 hover:bg-primary-700" : "bg-rose-600 hover:bg-rose-700"
-            }`}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {submitLabel}
-          </button>
-        </>
-      }
+      size="lg"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={<ModalActions primary={submitLabel} onPrimary={() => void submit()} tone={isRole || hasGroups ? "primary" : "danger"} disabled={submitDisabled} busy={busy} onCancel={onClose} />}
     >
       <RemovalDialogBody
         name={name}
@@ -293,9 +280,9 @@ export function RemovalDialogBody({
         {loadError && (
           <div role="alert" className="space-y-2">
             <p className="text-sm font-medium text-rose-700">{loadError}</p>
-            <button type="button" onClick={onRetry} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <Button type="button" onClick={onRetry} variant="secondary" size="sm">
               Повторить
-            </button>
+            </Button>
           </div>
         )}
 

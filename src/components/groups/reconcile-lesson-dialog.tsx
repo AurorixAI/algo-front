@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Radio } from "@/components/ui/radio";
 import { DialogError } from "@/components/money/dialog-error";
+import { Button } from "@/components/ui/button";
 
 export interface ReconcileTarget {
   groupId: string;
@@ -107,7 +108,7 @@ export function ReconcileLessonDialog({
         {loadError ? (
           <div role="alert" className="space-y-2">
             <p className="text-sm font-medium text-rose-700">{loadError}</p>
-            <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="sm">Повторить</Button>
           </div>
         ) : !list ? (
           <p role="status" className="flex items-center gap-2 py-3 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Загружаем преподавателей…</p>

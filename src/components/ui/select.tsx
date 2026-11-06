@@ -389,7 +389,7 @@ export function Select({
           onKeyUp={handleKeyUp}
           className={cn(
             "w-full px-4 py-3 rounded-xl text-left text-sm font-medium transition-all duration-200 cursor-pointer flex items-center justify-between gap-2",
-            "bg-slate-50 border border-slate-200 text-slate-900 shadow-xs",
+            "bg-slate-50 border border-slate-200 text-slate-900 shadow-card",
             "hover:border-slate-300 hover:bg-slate-100/70",
             "focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white",
             open && "border-primary-500 ring-2 ring-primary-500/10 bg-white shadow-sm",

@@ -28,6 +28,8 @@ import {
   supportTextProblem,
 } from "@/lib/support";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 export const SUPPORT_CHANGED = "support:changed";
 
@@ -135,16 +137,10 @@ export function SupportDialog() {
       title="Написать в поддержку"
       onClose={close}
       busy={busy}
-      maxWidthClassName="max-w-lg"
+      size="md"
       bodyClassName="p-5 sm:p-6 overflow-y-auto overscroll-contain min-h-0"
-      footer={
-        sent ? undefined : (
-          <>
-            <Button variant="secondary" onClick={close} disabled={busy}>Отмена</Button>
-            <Button onClick={() => void submit()} loading={busy} data-testid="support-submit">Отправить</Button>
-          </>
-        )
-      }
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={sent ? undefined : <ModalActions primary="Отправить" onPrimary={() => void submit()} busy={busy} testId="support-submit" onCancel={close} />}
     >
       {sent ? (
         <SupportSentView sent={sent} myPath={myPath} onDone={hide} />

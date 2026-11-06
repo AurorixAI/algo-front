@@ -690,7 +690,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
   // the three numbers are right-aligned in the table (UX pack §5.2), the status is centred, the button fills its cell (at least 40 px high)
   assert.match(html, /xl:text-right" data-testid="teacher-sum"/);
-  assert.match(html, /min-h-\[40px\] w-full/);
+  assert.match(html, /data-size="md"[^>]*class="[^"]*min-h-control[^"]*w-full/, "the button is a Button md (40 px) and fills its cell");
   assert.doesNotMatch(html, /Действия: Иванов/);
   // an action that is running disables the buttons of the others
   assert.match(render({}, true), /disabled=""/);

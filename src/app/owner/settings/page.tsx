@@ -72,6 +72,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { useToast } from "@/components/ui/toast";
 import { profileUpdateBody } from "@/lib/profile-form";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
+import { Button } from "@/components/ui/button";
 
 interface SettingsSectionProps {
   title: string;
@@ -548,7 +549,7 @@ function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
       ) : draft.status === "unavailable" ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">
           Не удалось загрузить настройки зарплаты.
-          <button type="button" onClick={draft.retry} className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-rose-700 hover:bg-rose-100">Повторить</button>
+          <Button type="button" onClick={draft.retry} variant="secondary" size="sm" className="border-danger-200 text-danger-700 hover:bg-danger-50">Повторить</Button>
         </div>
       ) : (
         <>

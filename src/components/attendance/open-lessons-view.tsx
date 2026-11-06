@@ -36,6 +36,7 @@ import { openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
 import { cancelLessonLabel } from "@/lib/schedule-card-actions";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
+import { Button } from "@/components/ui/button";
 
 /** Calm chips (the palette and the size of the «Пропуски» tab): only a started-but-unfinished lesson gets a subtle amber. */
 const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
@@ -209,7 +210,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
       <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
         <AlertCircle className="h-8 w-8 text-rose-500" />
         <p className="max-w-md text-sm font-medium text-rose-800">{loadError ?? "Не удалось загрузить уроки"}</p>
-        <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+        <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
       </div>
     );
   }

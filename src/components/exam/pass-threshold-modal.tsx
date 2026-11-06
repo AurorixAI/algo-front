@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { Loader2, Target, X } from "lucide-react";
 import { useScrollLock } from "@/components/ui/modal";
 import { PASS_THRESHOLD_HINT, PASS_THRESHOLD_WHEN_HINT, parsePassThreshold } from "@/lib/exam-pass-threshold";
+import { Button } from "@/components/ui/button";
 
 interface PassThresholdModalProps {
   open: boolean;
@@ -113,14 +114,14 @@ export function PassThresholdModal({ open, current, onClose, onSave }: PassThres
           >
             Отмена
           </button>
-          <button
+          <Button
             type="submit"
             disabled={saving || parsed === null}
-            className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+            variant="primary" size="md" className="min-w-36"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Сохранить
-          </button>
+          </Button>
         </div>
       </form>
     </div>

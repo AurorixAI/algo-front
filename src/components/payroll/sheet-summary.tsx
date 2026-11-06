@@ -17,6 +17,7 @@ import { RESAVE_LABEL, savedChangeLine, sheetHeadline, sheetPrintTotals, sheetWr
 import { CLOSE_MONTH_LABEL, REOPEN_BUTTON, type PeriodView } from "@/lib/closed-period";
 import { DiffDetails } from "./sheet-controls";
 import { PeriodChip } from "./period-chip";
+import { Button } from "@/components/ui/button";
 
 const DOT: Record<SheetCardStatus["tone"], string> = {
   preview: "bg-slate-400",
@@ -102,24 +103,24 @@ export function SheetSummaryCard({
         )}
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           {onExcel && (
-            <button
+            <Button
               type="button"
               onClick={onExcel}
               disabled={exporting}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              variant="secondary" size="md"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Скачать Excel
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="button"
             onClick={onPrint}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            variant="secondary" size="md"
           >
             <Printer className="h-4 w-4" />
             Печать
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -135,16 +136,16 @@ export function SheetSummaryCard({
         </p>
         {/* a changed salary is saved by the button of the block «Что нужно сделать» over the card - ONE button, not two */}
         {status.action && !changed && (
-          <button
+          <Button
             type="button"
             onClick={onPrimary}
             disabled={busy || Boolean(blockedReason)}
             title={blockedReason ?? undefined}
-            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            variant="primary" size="md" className="w-full sm:w-auto"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : status.action === "save" ? <Save className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
             {primaryLabel}
-          </button>
+          </Button>
         )}
       </div>
       )}

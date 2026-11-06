@@ -39,6 +39,8 @@ import { ChangeKindForm } from "./change-kind-form";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -260,24 +262,22 @@ export function LessonActionSheet({
       title={title}
       onClose={close}
       busy={busy}
-      maxWidthClassName="max-w-md"
+      size="sm"
       aboveLessonPanel={aboveLessonPanel}
-      footer={mode === "menu" ? (
-        <button type="button" onClick={close} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Закрыть</button>
-      ) : (
-        <>
-          <button type="button" onClick={() => { if (moveOnly) close(); else { setMode("menu"); setError(null); } }} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={mode === "menu"
+        ? <ModalActions primary={null} onCancel={close} />
+        : (
+          <ModalActions
+            primary={mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : mode === "kind" ? CHANGE_KIND_BUTTON : mode === "restore" ? SCHEDULE_ACTION_LABEL.restore : SCHEDULE_ACTION_LABEL.reschedule}
+            tone={mode === "cancel" ? "danger" : "primary"}
+            onPrimary={() => void submit()}
             disabled={busy || Boolean(reasonProblem) || restoreWaits || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
-            className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : mode === "kind" ? CHANGE_KIND_BUTTON : mode === "restore" ? SCHEDULE_ACTION_LABEL.restore : SCHEDULE_ACTION_LABEL.reschedule}
-          </button>
-        </>
-      )}
+            busy={busy}
+            onCancel={() => { if (moveOnly) close(); else { setMode("menu"); setError(null); } }}
+            cancelLabel="Назад"
+          />
+        )}
     >
       {lesson && (
         <div className="space-y-4 pb-1">

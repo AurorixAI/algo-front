@@ -41,6 +41,9 @@ import {
   sortInvitations,
 } from "@/lib/staff-lifecycle";
 import { Radio, SegmentedControl } from "@/components/ui/radio";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 type Member = OrgMemberRow;
 type Invitation = InvitationRow;
@@ -267,12 +270,12 @@ function OwnerTeachersContent() {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Сотрудники</h1>
           <p className="text-slate-500 mt-1 font-medium">Управление доступом и сотрудниками организации</p>
         </div>
-        <button
+        <Button
           onClick={() => { setInviteForm({ email: "", org_role: "teacher" }); setInviteError(null); setShowInvite(true); setSent(null); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 active:scale-95 transition-all shadow-sm shadow-primary-600/20"
+          variant="primary" size="md"
         >
           <Plus className="w-4 h-4" /> Пригласить сотрудника
-        </button>
+        </Button>
       </div>
 
       {/* Custom Tabs */}
@@ -370,24 +373,24 @@ function OwnerTeachersContent() {
                           </div>
                           <div className="flex items-center gap-4 sm:ml-auto">
                             {rates[m.user_id || m.id] && (
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => setRateTeacherId(m.user_id || m.id)}
                                 aria-label={`Изменить ставку: ${staffDisplayName(m, "Без имени")}`}
-                                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-200 hover:text-primary-700"
+                                variant="secondary" size="sm"
                               >
                                 Изменить ставку
-                              </button>
+                              </Button>
                             )}
                             {m.org_role !== "owner" && (
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => setRoleTarget(m)}
                                 aria-label={`Сменить роль: ${staffDisplayName(m, "Без имени")}`}
-                                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-200 hover:text-primary-700"
+                                variant="secondary" size="sm"
                               >
                                 Сменить роль
-                              </button>
+                              </Button>
                             )}
                             <StaffAccessMenu member={m} actorRole="owner" showToast={showToast} />
                             {m.org_role !== "owner" ? (
@@ -466,22 +469,22 @@ function OwnerTeachersContent() {
                       </div>
                       <div className="flex items-center gap-2 sm:ml-auto">
                         {expired ? (
-                          <button
+                          <Button
                             type="button"
                             onClick={() => inviteAgain(inv)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 rounded-xl transition-all text-sm font-medium shadow-sm"
+                            variant="secondary" size="sm"
                           >
                             <RotateCcw className="w-4 h-4" /> {INVITE_AGAIN_LABEL}
-                          </button>
+                          </Button>
                         ) : (
-                          <button
+                          <Button
                             type="button"
                             onClick={() => handleResend(inv.id)}
                             disabled={resendingId !== null}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 rounded-xl transition-all text-sm font-medium shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            variant="secondary" size="sm"
                           >
                             {resendingId === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {INVITE_RESEND_LABEL}
-                          </button>
+                          </Button>
                         )}
                         {!expired && (
                           <button
@@ -536,13 +539,13 @@ function OwnerTeachersContent() {
                           <p className="mt-0.5 text-xs text-slate-400">{removedOnText(m.removed_at)}</p>
                         </div>
                       </div>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => setRestoreTarget(m)}
-                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-200 hover:text-primary-700 sm:ml-auto"
+                        variant="secondary" size="sm" className="sm:ml-auto"
                       >
                         <RotateCcw className="h-4 w-4" /> {RESTORE_TITLE}
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
@@ -588,15 +591,8 @@ function OwnerTeachersContent() {
         title={RESTORE_TITLE}
         onClose={() => setRestoreTarget(null)}
         busy={restoring}
-        maxWidthClassName="max-w-md"
-        footer={
-          <>
-            <button type="button" onClick={() => setRestoreTarget(null)} disabled={restoring} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button type="button" onClick={() => void confirmRestore()} disabled={restoring} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-              {restoring && <Loader2 className="h-4 w-4 animate-spin" />} {RESTORE_TITLE}
-            </button>
-          </>
-        }
+        size="sm"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={RESTORE_TITLE} onPrimary={() => void confirmRestore()} busy={restoring} onCancel={() => setRestoreTarget(null)} />}
       >
         {restoreTarget && <p className="pb-1 text-sm leading-6 text-slate-700">{restoreConfirmText(staffDisplayName(restoreTarget, "Без имени"))}</p>}
       </Modal>
@@ -608,7 +604,7 @@ function OwnerTeachersContent() {
         description={sent ? undefined : "Приглашение придёт сотруднику на почту"}
         onClose={() => setShowInvite(false)}
         busy={saving}
-        maxWidthClassName="max-w-lg"
+        size="md"
         bodyClassName="p-6 sm:p-8 overflow-y-auto overscroll-contain min-h-0"
       >
         {sent ? (
@@ -667,17 +663,17 @@ function OwnerTeachersContent() {
             </div>
 
             <div className="pt-2">
-              <button
+              <Button
                 onClick={handleInvite}
                 disabled={saving}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-sm active:scale-[0.98]"
+                variant="primary" size="lg" className="w-full"
               >
                 {saving ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>Отправить приглашение</>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -743,15 +739,8 @@ function RoleChangeDialog({
       description={name}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button type="button" onClick={() => void submit()} disabled={busy || role === member.org_role} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Изменить роль
-          </button>
-        </>
-      }
+      size="sm"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Изменить роль" onPrimary={() => void submit()} disabled={busy || role === member.org_role} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-3 pb-1">
         <SegmentedControl

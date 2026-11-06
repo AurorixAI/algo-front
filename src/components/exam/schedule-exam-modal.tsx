@@ -224,7 +224,7 @@ export function ScheduleExamModal({
                   key={group.id}
                   type="button"
                   onClick={() => setGroupId(group.id)}
-                  className={`flex min-h-14 items-center justify-between rounded-xl px-3.5 py-3 text-left transition-all ${group.id === groupId ? "bg-white text-primary-800 shadow-sm ring-1 ring-primary-300" : "bg-white/70 text-slate-700 ring-1 ring-slate-200/70 hover:bg-white hover:shadow-xs hover:ring-slate-300"}`}
+                  className={`flex min-h-14 items-center justify-between rounded-xl px-3.5 py-3 text-left transition-all ${group.id === groupId ? "bg-white text-primary-800 shadow-sm ring-1 ring-primary-300" : "bg-white/70 text-slate-700 ring-1 ring-slate-200/70 hover:bg-white hover:shadow-card hover:ring-slate-300"}`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${group.id === groupId ? "bg-primary-100 text-primary-600" : "bg-white/75 text-indigo-500"}`}><Users className="h-4 w-4" /></span><span className="truncate text-sm font-bold">{group.name}</span></span>
                   {group.id === groupId && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white shadow-sm"><Check className="h-3.5 w-3.5" /></span>}

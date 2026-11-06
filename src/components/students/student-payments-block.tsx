@@ -12,6 +12,7 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { MembershipPayments } from "@/components/payments/membership-payments";
 import { useToast } from "@/components/ui/toast";
 import { studentArchiveAccess } from "@/lib/student-archive";
+import { Button } from "@/components/ui/button";
 
 interface StudentPaymentsBlockProps {
   profile: StudentProfile;
@@ -125,7 +126,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
         <div role="alert" className="flex flex-col items-center gap-2 py-6 text-center">
           <AlertCircle className="h-6 w-6 text-rose-500" />
           <p className="text-sm font-medium text-rose-800">{error}</p>
-          <button type="button" onClick={load} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+          <Button type="button" onClick={load} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : rows === null ? (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">

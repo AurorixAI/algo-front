@@ -27,6 +27,7 @@ import { useMoneyDenied } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { RecalcNote } from "./recalc-note";
+import { Button } from "@/components/ui/button";
 
 /**
  * The printed sheet.  The page chrome (menu, header strip, buttons) has `print:hidden`; the sheet is
@@ -248,14 +249,14 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
       <style>{"@page { margin: 12mm; }"}</style>
 
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <button
+        <Button
           type="button"
           onClick={goBack}
-          className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          variant="ghost" size="md"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад
-        </button>
+        </Button>
         {receipt && (context.membershipId || context.studentId || context.groupId) && (
           <nav aria-label="Перейти" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium" data-testid="receipt-links">
             {context.membershipId && <Link href={statementHref(bases.payments, context.membershipId)} data-testid="receipt-link-statement" className="inline-flex min-h-10 items-center text-primary-700 hover:underline">Выписка</Link>}
@@ -264,14 +265,14 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
           </nav>
         )}
         {receipt && (
-          <button
+          <Button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+            variant="primary" size="md"
           >
             <Printer className="h-4 w-4" />
             Печать / Сохранить PDF
-          </button>
+          </Button>
         )}
       </div>
 
@@ -285,7 +286,7 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
           {noRight ? <Wallet className="h-7 w-7 text-slate-300" /> : <AlertCircle className="h-7 w-7 text-rose-500" />}
           <p className="text-sm font-medium text-slate-700">{message}</p>
           {!noRight && failure?.retry && (
-            <button type="button" onClick={() => void load()} className="mt-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="md" className="mt-1">Повторить</Button>
           )}
         </div>
       ) : receipt ? (

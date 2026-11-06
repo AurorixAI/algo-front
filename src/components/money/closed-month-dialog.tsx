@@ -13,7 +13,7 @@ import { PeriodClosedNotice } from "./period-closed-notice";
 export function useClosedMonthDialog(aboveLessonPanel = false): { show: (info: PeriodClosedInfo, retry: () => void) => void; node: ReactNode } {
   const [shown, setShown] = useState<{ info: PeriodClosedInfo; retry: () => void } | null>(null);
   const node = (
-    <Modal open={shown !== null} title="Месяц закрыт" onClose={() => setShown(null)} maxWidthClassName={MONEY_WINDOW_QUESTION} aboveLessonPanel={aboveLessonPanel}
+    <Modal open={shown !== null} title="Месяц закрыт" onClose={() => setShown(null)} size="sm" aboveLessonPanel={aboveLessonPanel}
       footerClassName={CONFIRM_FOOTER_CLASS} footer={<ConfirmFooter primary={null} onCancel={() => setShown(null)} />}>
       {shown && <PeriodClosedNotice info={shown.info} aboveLessonPanel={aboveLessonPanel} onReopened={() => { const again = shown.retry; setShown(null); again(); }} />}
     </Modal>

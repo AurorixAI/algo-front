@@ -6,6 +6,8 @@ import { payrollFormulaText } from "@/lib/payroll";
 import { HOW_TITLE, howItWorksLines, payrollExample } from "@/lib/payroll-help";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { Modal } from "@/components/ui/modal";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 /**
  * «Как считается зарплата»: the formula in one line (with the centre's name of the price), the rules in words and one worked
@@ -37,16 +39,8 @@ export function PayrollHowItWorksDialog({ open, divisor, onClose }: { open: bool
       open={open}
       title={HOW_TITLE}
       onClose={onClose}
-      maxWidthClassName="max-w-[560px]"
-      footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-        >
-          Понятно
-        </button>
-      }
+      size="lg"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Понятно" onPrimary={onClose} />}
     >
       <PayrollHowItWorksBody divisor={divisor} priceLabel={priceLabel} />
     </Modal>

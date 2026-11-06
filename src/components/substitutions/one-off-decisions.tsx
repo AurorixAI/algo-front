@@ -18,6 +18,7 @@ import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { Button } from "@/components/ui/button";
 
 /**
  * One row of the payment of an additional lesson (#159 U4) - the same row for who decides (with the buttons) and for who only looks (an administrator without the right).
@@ -50,24 +51,24 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
       </div>
       {canDecide && (
         <div className="flex shrink-0 gap-2">
-          <button
+          <Button
             type="button"
             disabled={closed}
             onClick={() => onPick(item, "pay")}
             aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-            className="h-10 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:flex-none"
+            variant="primary" size="md" className="flex-1 md:flex-none"
           >
             {DECISION_PAY_LABEL}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             disabled={closed}
             onClick={() => onPick(item, "skip")}
             aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-            className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:flex-none"
+            variant="secondary" size="md" className="flex-1 md:flex-none"
           >
             {DECISION_SKIP_LABEL}
-          </button>
+          </Button>
         </div>
       )}
     </li>
@@ -155,7 +156,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       <div role="alert" data-testid="one-off-decisions-error" className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800">
         <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
         <span className="min-w-0 flex-1">{error || DECISIONS_LOAD_ERROR_TEXT}</span>
-        <button type="button" onClick={onRetry} className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-100">Повторить</button>
+        <Button type="button" onClick={onRetry} variant="secondary" size="sm" className="border-danger-200 text-danger-700 hover:bg-danger-50">Повторить</Button>
       </div>
     );
   }
@@ -200,7 +201,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
         description={dialog ? decisionLessonLine(dialog.item) : undefined}
         onClose={close}
         busy={busy}
-        maxWidthClassName="max-w-md"
+        size="sm"
         footerClassName={CONFIRM_FOOTER_CLASS}
         footer={dialog ? (
           <ConfirmFooter

@@ -305,8 +305,8 @@ test("table headers and captions of the attendance screens are ordinary case, ne
 
 test("«Подтвердить» and «Отклонить» sit side by side in every waiting row, both through the dialog; the menu keeps only rare actions", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  const confirmAt = page.indexOf('onClick={() => openDialog(item, "confirmed", "none")}\n                            className="flex h-8');
-  const rejectAt = page.indexOf('onClick={() => openDialog(item, "rejected", "optional")}\n                            className="flex h-8');
+  const confirmAt = page.indexOf('onClick={() => openDialog(item, "confirmed", "none")}\n                            variant="primary"');
+  const rejectAt = page.indexOf('onClick={() => openDialog(item, "rejected", "optional")}\n                            variant="secondary"');
   const menuAt = page.indexOf("<RowMenu items={menuFor(item)}");
   assert.ok(confirmAt > 0 && rejectAt > confirmAt && menuAt > rejectAt, "Подтвердить, then Отклонить, then «⋯» in one row");
   assert.match(page, /aria-label=\{`Подтвердить: \$\{item\.student\.full_name\}`\}/);

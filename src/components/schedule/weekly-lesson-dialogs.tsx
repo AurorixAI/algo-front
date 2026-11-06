@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { orgApi, type LessonEvent, type RecurringLessonEndImpact } from "@/lib/api";
 import { MAKEUP_DAYS, NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, oneOffAddedText, type OneOffChoice, type OneOffRole } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
@@ -18,6 +18,8 @@ import {
   reconcileDayTimes, timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type DayTimes, type WeeklyLesson,
 } from "@/lib/lesson-slot-form";
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 const DATE_REQUIRED_TEXT = "Выберите дату";
 const ONE_OFF_NO_TEACHER_TEXT = "У группы нет преподавателя: разовый урок добавить нельзя. Выберите преподавателя в карточке группы.";
@@ -186,14 +188,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, 
       description={`Урок группы «${group.name}»`}
       onClose={onClose}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className={CANCEL_BUTTON}>Отмена</button>
-          <button type="submit" form="lesson-add-form" disabled={busy || Boolean(blocking)} className={PRIMARY_BUTTON}>
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Сохранить урок
-          </button>
-        </>
-      }
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={"Сохранить урок"} submitFor="lesson-add-form" disabled={busy || Boolean(blocking)} busy={busy} onCancel={onClose} />}
     >
       <form id="lesson-add-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
         {!teacherAssigned && (
@@ -447,14 +442,16 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
       footer={
-        <>
-          {!hasChanges && !mainSaved && <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>}
-          <button type="button" onClick={onClose} disabled={busy} className={CANCEL_BUTTON}>Отмена</button>
-          <button type="submit" form="weekly-lesson-edit-form" disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem) || Boolean(exams && !releaseExams)} className={PRIMARY_BUTTON}>
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Изменить расписание
-          </button>
-        </>
+        <ModalActions
+          primary="Изменить расписание"
+          submitFor="weekly-lesson-edit-form"
+          disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem) || Boolean(exams && !releaseExams)}
+          busy={busy}
+          onCancel={onClose}
+          extra={!hasChanges && !mainSaved ? <p className="text-xs text-slate-600 sm:text-right">Измените хотя бы один параметр расписания.</p> : undefined}
+        />
       }
     >
       <form id="weekly-lesson-edit-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
@@ -654,22 +651,9 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
-      maxWidthClassName="max-w-lg"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className={`${CANCEL_BUTTON} inline-flex items-center gap-1.5 sm:mr-auto`}>
-            <ArrowLeft className="h-3.5 w-3.5" /> Назад
-          </button>
-          <button
-            type="button"
-            onClick={() => void confirm()}
-            disabled={busy || loadingImpact || !impact || !impact.canEnd || Boolean(reasonProblemFor("cancel", reason)) || (impact.affectedExamCount > 0 && !release)}
-            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy ? "Прекращаем…" : "Прекратить занятия"}
-          </button>
-        </>
-      }
+      size="md"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={<ModalActions primary={busy ? "Прекращаем…" : "Прекратить занятия"} tone="danger" onPrimary={() => void confirm()} disabled={busy || loadingImpact || !impact || !impact.canEnd || Boolean(reasonProblemFor("cancel", reason)) || (impact.affectedExamCount > 0 && !release)} onCancel={onClose} cancelLabel="Назад" cancelDisabled={busy} />}
     >
       <div className="space-y-4 pb-1">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">

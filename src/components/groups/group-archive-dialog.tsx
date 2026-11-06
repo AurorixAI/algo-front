@@ -36,6 +36,7 @@ import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-f
 import { groupHref } from "@/lib/ia-links";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 const FIELD_CLASS =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -128,10 +129,9 @@ export function GroupArchiveDialog({
       <Modal
         open={open}
         title={archiveTitle(group.name)}
-        icon={<Archive className="h-5 w-5" />}
         onClose={onClose}
         busy={busy}
-        maxWidthClassName="max-w-xl"
+        size="lg"
         footerClassName={CONFIRM_FOOTER_CLASS}
         footer={(
           // UX pack №6 / rule 3: the archive can be undone («Вернуть из архива») - the main button is blue; an off button says why over the footer
@@ -218,7 +218,7 @@ export function ArchiveDialogBody({
     return (
       <div role="alert" className="space-y-2 pb-1">
         <p className="text-sm font-medium text-rose-700">{loadError}</p>
-        <button type="button" onClick={onRetry} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+        <Button type="button" onClick={onRetry} variant="secondary" size="sm">Повторить</Button>
       </div>
     );
   }
@@ -248,12 +248,12 @@ export function ArchiveDialogBody({
                   {student.displayId && <span className="ml-2 text-xs text-slate-500">{student.displayId}</span>}
                 </p>
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" disabled={busy} onClick={() => onTransfer({ id: student.id, name: student.name })} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-primary-200 hover:text-primary-700 disabled:opacity-50">
+                  <Button type="button" disabled={busy} onClick={() => onTransfer({ id: student.id, name: student.name })} variant="secondary" size="sm">
                     {TRANSFER_STUDENTS_BUTTON}
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => onArchiveStudent({ id: student.id, name: student.name })} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-rose-200 hover:text-rose-700 disabled:opacity-50">
+                  </Button>
+                  <Button type="button" disabled={busy} onClick={() => onArchiveStudent({ id: student.id, name: student.name })} variant="secondary" size="sm">
                     В архив
-                  </button>
+                  </Button>
                 </span>
               </li>
             ))}
@@ -351,9 +351,9 @@ export function GroupArchivedBanner({
           <Archive className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /> <span>{archivedBannerText(archivedAt)}</span>
         </p>
         {onRestore && (
-          <button type="button" onClick={onRestore} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100">
+          <Button type="button" onClick={onRestore} variant="secondary" size="md" className="shrink-0">
             <RotateCcw className="h-4 w-4" /> {RESTORE_BUTTON}
-          </button>
+          </Button>
         )}
       </div>
       {typeof studentCount === "number" && studentCount > 0 && (
@@ -420,7 +420,7 @@ export function GroupRestoreDialog({
       description={`«${group.name}»`}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
+      size="sm"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
         <ConfirmFooter

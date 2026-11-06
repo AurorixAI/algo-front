@@ -806,14 +806,14 @@ test("routes: owner and admin share the page; the «Должники» tab reads
 test("the shared Modal has a `sheet` placement: a bottom sheet on a phone, the side drawer from md", () => {
   const { modalLayout } = require(path.join(root, "src/lib/modal-layout.ts"));
   const sheet = modalLayout({ placement: "sheet" });
-  assert.match(sheet.card, /rounded-t-3xl/);
+  assert.match(sheet.card, /rounded-t-modal/);
   assert.match(sheet.card, /max-h-\[88vh\]/);
   assert.match(sheet.card, /md:rounded-none md:h-full md:max-h-none/);
   assert.match(sheet.header, /border-b/); // the header of a side sheet
   // the old placements are untouched
   assert.match(modalLayout({ placement: "right" }).card, /h-full/);
-  assert.doesNotMatch(modalLayout({ placement: "right" }).card, /rounded-t-3xl/);
-  assert.match(modalLayout({}).card, /rounded-\[24px\]/);
+  assert.doesNotMatch(modalLayout({ placement: "right" }).card, /rounded-t-modal/);
+  assert.match(modalLayout({}).card, /rounded-modal/);
   const modal = read("src/components/ui/modal.tsx");
   assert.match(modal, /placement === "sheet"/);
   assert.match(modal, /initial=\{slideUp \? \{ y: "100%" \} : \{ x: "100%" \}\}/);

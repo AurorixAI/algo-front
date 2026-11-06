@@ -70,7 +70,7 @@ test("В2: «Перевести в другую группу» - who and from wh
       const parse = (css) => { const m = /rgba?\(([^)]+)\)/.exec(css); const [r, g, b, a = 1] = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r, g, b, a }; };
       const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
       const ratios = [...line.querySelectorAll("span")].filter((el) => el.children.length === 0 && el.textContent.trim()).map((el) => { const a = lum(parse(getComputedStyle(el).color)), b = lum({ r: 255, g: 255, b: 255 }); return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 10) / 10; });
-      const body = dialog.querySelector("h2").parentElement.parentElement.parentElement.nextElementSibling;
+      const body = dialog.querySelector('[data-modal-part="body"]');
       const list = document.querySelector('[data-testid="assign-groups"]');
       const rows = list.querySelectorAll(':scope > div > div[class*="cursor-pointer"]').length;
       const block = document.querySelector('[data-testid="transfer-preview"]').getBoundingClientRect();

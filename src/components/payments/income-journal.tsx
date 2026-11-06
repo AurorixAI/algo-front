@@ -26,6 +26,7 @@ import {
 } from "@/lib/payments-income-v2";
 import { Select } from "@/components/ui/select";
 import { IncomeError } from "./income-parts";
+import { Button } from "@/components/ui/button";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
@@ -289,15 +290,15 @@ export function JournalSection(props: JournalSectionProps) {
               buttonClassName="h-10 bg-white px-3.5 py-0 font-medium text-slate-700 shadow-none hover:bg-slate-50"
             />
           )}
-          <button
+          <Button
             type="button"
             onClick={props.onExport}
             disabled={props.exporting || !journal || journal.total === 0}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl sm:w-auto border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20 disabled:opacity-50"
+            variant="secondary" size="md" className="w-full sm:w-auto"
           >
             {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-500" aria-hidden />}
             Скачать Excel
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -354,9 +355,9 @@ export function JournalSection(props: JournalSectionProps) {
           <span>{paging.text}</span>
           {paging.pages > 1 && (
             <span className="inline-flex items-center gap-1">
-              <button type="button" onClick={() => props.onPage(paging.page - 1)} disabled={!paging.canPrev || loading} aria-label="Предыдущая страница" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+              <Button type="button" onClick={() => props.onPage(paging.page - 1)} disabled={!paging.canPrev || loading} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
               <span className="min-w-[5.5rem] text-center tabular-nums">{paging.page} из {paging.pages}</span>
-              <button type="button" onClick={() => props.onPage(paging.page + 1)} disabled={!paging.canNext || loading} aria-label="Следующая страница" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
+              <Button type="button" onClick={() => props.onPage(paging.page + 1)} disabled={!paging.canNext || loading} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
             </span>
           )}
         </nav>

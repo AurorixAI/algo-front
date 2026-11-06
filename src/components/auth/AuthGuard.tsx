@@ -6,6 +6,7 @@ import { useAuthStore } from "@/lib/store";
 import { REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { forbiddenTarget, isRoleAllowed } from "@/lib/role-home";
 import { loginUrlForPage } from "@/lib/safe-redirect";
+import { Button } from "@/components/ui/button";
 
 type UserRole = "owner" | "admin" | "teacher";
 
@@ -126,15 +127,15 @@ export function AuthGuard({
           <h1 className="text-xl font-bold text-slate-900">Доступ закрыт</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">{closed}</p>
           <p className="mt-2 text-sm text-slate-500">Если это ошибка — свяжитесь с руководством центра или напишите на support@algolab.me.</p>
-          <button
+          <Button
             type="button"
-            className="mt-6 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            variant="primary" size="md" className="mt-6"
             onClick={() => {
               void useAuthStore.getState().logout().finally(() => { window.location.href = "/login"; });
             }}
           >
             Выйти
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -145,16 +146,16 @@ export function AuthGuard({
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4 text-center px-6" role="alert">
           <p className="text-sm text-slate-600">{REFRESH_UNAVAILABLE_MESSAGE}</p>
-          <button
+          <Button
             type="button"
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            variant="primary" size="md"
             onClick={() => {
               setUnavailable(false);
               setAttempt((n) => n + 1);
             }}
           >
             Повторить
-          </button>
+          </Button>
         </div>
       </div>
     );

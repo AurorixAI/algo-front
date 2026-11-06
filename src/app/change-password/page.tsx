@@ -8,6 +8,7 @@ import { useAuthStore } from "@/lib/store";
 import { authApi, REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { roleHome } from "@/lib/role-home";
+import { Button } from "@/components/ui/button";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -76,16 +77,16 @@ export default function ChangePasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4 text-center px-6" role="alert">
           <p className="text-sm text-slate-600">{REFRESH_UNAVAILABLE_MESSAGE}</p>
-          <button
+          <Button
             type="button"
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            variant="primary" size="md"
             onClick={() => {
               setUnavailable(false);
               setAttempt((n) => n + 1);
             }}
           >
             Повторить
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -149,14 +150,14 @@ export default function ChangePasswordPage() {
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{error}</div>
             )}
 
-            <button
+            <Button
               onClick={submit}
               disabled={busy || !current || !next || !confirm}
-              className="w-full py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              variant="primary" size="lg" className="w-full"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Сохранить пароль
-            </button>
+            </Button>
           </div>
         </div>
       </motion.div>

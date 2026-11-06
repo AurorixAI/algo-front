@@ -120,6 +120,7 @@ import { movedByOf, toastWithEffects } from "@/lib/money-effects";
 import { UNDO_DECISION_LABEL, canUndoDecision, undoToastText } from "@/lib/one-off";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { Button } from "@/components/ui/button";
 
 interface GroupAttendanceJournalProps {
   groupId: string;
@@ -1405,21 +1406,21 @@ export function GroupAttendanceJournal({
             </span>
             {/* R4 Д8: a phone has no room in the narrow head of the column (the pinned column «Ученик» covers it): the buttons are here, in the sight */}
             <div className="mt-3 flex flex-col gap-2 sm:hidden" data-testid="correction-phone-bar">
-              <button
+              <Button
                 type="button"
                 disabled={correctionChanges.length === 0}
                 onClick={() => setCorrectionDialog({ reason: "", error: null, closed: null })}
-                className="min-h-10 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="primary" size="md"
               >
                 Сохранить исправление{correctionChanges.length > 0 ? ` (${correctionChanges.length})` : ""}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => { setCorrecting(null); setOpenCell(null); }}
-                className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                variant="secondary" size="md"
               >
                 Отмена
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1605,22 +1606,22 @@ export function GroupAttendanceJournal({
                           )}
                           {inCorrection && (
                             <div className="flex flex-col gap-1 pt-1.5 max-sm:hidden">
-                              <button
+                              <Button
                                 type="button"
                                 disabled={correctionChanges.length === 0}
                                 onClick={() => setCorrectionDialog({ reason: "", error: null, closed: null })}
                                 title={correctionChanges.length === 0 ? "Измените хотя бы одну отметку" : undefined}
-                                className="rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                variant="primary" size="sm"
                               >
                                 Сохранить исправление{correctionChanges.length > 0 ? ` (${correctionChanges.length})` : ""}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
                                 onClick={() => { setCorrecting(null); setOpenCell(null); }}
-                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                                variant="secondary" size="sm"
                               >
                                 Отмена
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -2120,7 +2121,7 @@ export function GroupAttendanceJournal({
         description="Исправление попадёт в журнал изменений с вашим именем и причиной"
         onClose={() => setCorrectionDialog(null)}
         busy={correctionSaving}
-        maxWidthClassName="max-w-[560px]"
+        size="lg"
         footer={
           <>
             <ConfirmFooter

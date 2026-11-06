@@ -587,7 +587,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               exit={{ opacity: 0 }}
               className="flex-1 flex flex-col w-full"
             >
-              <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+              <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-card">
                 <TestHeader
                   mode="diagnostic"
                   timer={formatTime(elapsedMs)}
@@ -629,14 +629,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       {canSkipQuestion(notChecked, currentTask.task_id) && (
                         <>
                           <p className="mt-2">{SKIP_HINT}</p>
-                          <button
+                          <Button
                             type="button"
                             disabled={isSubmitting}
                             onClick={() => void handleSubmit(SKIP_ANSWER)}
-                            className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                            variant="secondary" size="sm" className="mt-2"
                           >
                             {SKIP_BUTTON_LABEL}
-                          </button>
+                          </Button>
                         </>
                       )}
                     </div>

@@ -594,7 +594,7 @@ export default function ExamDraftPage() {
               </p>
               {draft.group_name && (
                 <div className="pt-0.5">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-semibold rounded-full shadow-2xs">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-semibold rounded-full shadow-card">
                     <Users className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Для группы: {draft.group_name}</span>
                   </div>
@@ -604,7 +604,7 @@ export default function ExamDraftPage() {
 
             {/* QR Code Container */}
             <div className="p-3.5 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-sm max-w-[210px] mx-auto flex flex-col items-center">
-              <div className="p-2 bg-white rounded-xl shadow-xs border border-slate-100">
+              <div className="p-2 bg-white rounded-xl shadow-card border border-slate-100">
                 <QRCode
                   value={getExamUrl(publishResult.access_code)}
                   size={135}
@@ -858,7 +858,7 @@ export default function ExamDraftPage() {
             onClick={() => setShowAnswers(!showAnswers)}
             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
               showAnswers
-                ? "bg-primary-50 text-primary-700 border-primary-200 shadow-xs"
+                ? "bg-primary-50 text-primary-700 border-primary-200 shadow-card"
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
             }`}
           >
@@ -1011,7 +1011,7 @@ export default function ExamDraftPage() {
                                 exit={{ opacity: 0, height: 0 }}
                                 className="ml-10 mt-2.5 flex flex-wrap items-center gap-2 overflow-hidden"
                               >
-                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
+                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-card max-w-full">
                                   <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
                                   <span className="text-xs text-emerald-800">Правильный ответ:</span>
                                   <MathRenderer
@@ -1024,7 +1024,7 @@ export default function ExamDraftPage() {
                                   return (
                                     <span
                                       key={i}
-                                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-slate-50 text-slate-800 border border-slate-200/80 max-w-full hover:bg-slate-100/70 transition-colors shadow-2xs"
+                                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-slate-50 text-slate-800 border border-slate-200/80 max-w-full hover:bg-slate-100/70 transition-colors shadow-card"
                                       title={distExplanation ? `Дистрактор: ${distExplanation}` : undefined}
                                     >
                                       <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />

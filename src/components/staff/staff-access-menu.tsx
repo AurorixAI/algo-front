@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { KeyRound, Loader2, Mail } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -20,6 +20,8 @@ import {
   passwordLinkSentText,
 } from "@/lib/staff-lifecycle";
 import type { OrgMemberRow } from "@/lib/ops-b-types";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 /**
  * «⋯» of a row of the staff list: «Отправить ссылку для смены пароля» (the owner -> an administrator / a teacher, an administrator -> a teacher) and «Изменить почту»
@@ -98,15 +100,8 @@ export function StaffAccessMenu({
         description={name}
         onClose={close}
         busy={busy}
-        maxWidthClassName="max-w-md"
-        footer={
-          <>
-            <button type="button" onClick={close} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button type="button" onClick={() => void sendLink()} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Отправить ссылку
-            </button>
-          </>
-        }
+        size="sm"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Отправить ссылку" onPrimary={() => void sendLink()} busy={busy} onCancel={close} />}
       >
         <div className="pb-1">
           <p className="text-sm leading-6 text-slate-700">{passwordLinkConfirmText(name, member.email)}</p>
@@ -119,15 +114,8 @@ export function StaffAccessMenu({
         description={name}
         onClose={close}
         busy={busy}
-        maxWidthClassName="max-w-md"
-        footer={
-          <>
-            <button type="button" onClick={close} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button type="button" onClick={() => void changeEmail()} disabled={busy || !email.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Отправить подтверждение
-            </button>
-          </>
-        }
+        size="sm"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Отправить подтверждение" onPrimary={() => void changeEmail()} disabled={busy || !email.trim()} busy={busy} onCancel={close} />}
       >
         <div className="space-y-3 pb-1">
           <p className="text-sm leading-6 text-slate-700">{emailChangeIntroText(name)}</p>

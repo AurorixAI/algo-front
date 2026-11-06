@@ -186,7 +186,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                       onClick={(e) => handleCopyId(s.display_id!, e)}
                       className={`group/id inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
                         copiedId === s.display_id
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-card"
                           : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/60"
                       }`}
                       title="Нажмите, чтобы скопировать ID ученика"

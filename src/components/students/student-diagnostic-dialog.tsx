@@ -2,12 +2,15 @@
 
 import { Select } from "@/components/ui/select";
 import { useState } from "react";
-import { Check, Copy, Loader2, Send } from "lucide-react";
+import { Check, Copy, Send } from "lucide-react";
 import QRCode from "qrcode.react";
 import { orgApi } from "@/lib/api";
 import { DIAGNOSTIC_KIND_LABEL, diagnosticLink, shareUrls, type DiagnosticKind } from "@/lib/student-diagnostic";
 import { useCopy } from "@/lib/use-copy";
 import { Modal } from "@/components/ui/modal";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 
@@ -58,17 +61,10 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
       description={`${studentName} · ${classLevel} класс`}
       onClose={onClose}
       busy={busy}
-      footer={code ? (
-        <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
-      ) : (
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button type="button" onClick={() => void create()} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Создать ссылку
-          </button>
-        </>
-      )}
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={code
+        ? <ModalActions primary="Готово" onPrimary={onClose} />
+        : <ModalActions primary="Создать ссылку" onPrimary={() => void create()} busy={busy} onCancel={onClose} />}
     >
       {code ? (
         <div className="space-y-4 pb-2" data-testid="student-diagnostic-created">
@@ -81,10 +77,10 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={() => void copy(link, "link")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <Button type="button" onClick={() => void copy(link, "link")} variant="secondary" size="md">
               {copied === "link" ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
               {copied === "link" ? "Скопировано" : "Копировать ссылку"}
-            </button>
+            </Button>
             <a href={share.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-emerald-50"><Send className="h-4 w-4 text-emerald-600" />WhatsApp</a>
             <a href={share.telegram} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-sky-50"><Send className="h-4 w-4 text-sky-500" />Telegram</a>
           </div>

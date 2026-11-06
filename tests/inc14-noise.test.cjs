@@ -36,8 +36,14 @@ test("no native <select> is left: every dropdown is the project's Select (combob
 
 test("the journal toolbar: «Кто внёс» is the same height / radius / border as «Скачать Excel», full width on a phone", () => {
   const journal = read("src/components/payments/income-journal.tsx");
-  const button = /<button\s+type="button"\s+onClick=\{props\.onExport\}[\s\S]*?className="([^"]+)"/.exec(journal)[1];
-  for (const token of ["h-10", "rounded-xl", "border-slate-200", "text-sm", "hover:bg-slate-50", "w-full", "sm:w-auto"]) assert.ok(button.includes(token), `Excel button: ${token}`);
+  const excel = /<Button\s+type="button"\s+onClick=\{props\.onExport\}[^>]*>/.exec(journal)[0];
+  // the same box as the select beside it: the Button `md` is 40 px (min-h-control), a secondary one - white with a frame, a hover fill; on a phone the full width
+  assert.match(excel, /variant="secondary" size="md"/);
+  assert.match(excel, /className="w-full sm:w-auto"/);
+  const style = read("src/lib/button-style.ts");
+  assert.match(style, /md: "min-h-control /);
+  assert.match(style, /secondary: "border border-slate-200 bg-white [^"]*hover:bg-slate-50/);
+  assert.match(style, /rounded-control/);
   const field = /<Select\s+ariaLabel="Кто внёс оплату"[\s\S]*?\/>/.exec(journal)[0];
   for (const token of ["h-10", "hover:bg-slate-50", "w-full sm:w-auto"]) assert.ok(field.includes(token), `author select: ${token}`);
   assert.doesNotMatch(field, /rounded-(?!xl)/);

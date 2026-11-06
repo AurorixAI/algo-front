@@ -59,6 +59,7 @@ import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 /**
  * Date · operation · charged · paid · balance: a bank statement.  Date and money are centred, the operation is left.
@@ -268,22 +269,22 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={goBack} className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+        <Button type="button" onClick={goBack} variant="ghost" size="sm">
           <ArrowLeft className="h-4 w-4" />
           Назад
-        </button>
+        </Button>
         {statement && (
           <div className="flex flex-wrap items-center gap-2">
             {statement.membership.is_active && (
-              <button type="button" onClick={() => setPayOpen(true)} data-testid="statement-pay" className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
+              <Button type="button" onClick={() => setPayOpen(true)} data-testid="statement-pay" variant="secondary" size="md">
                 <Wallet className="h-4 w-4" />
                 {PAY_ACTION_LABEL}
-              </button>
+              </Button>
             )}
-            <button type="button" onClick={() => void exportExcel()} disabled={exporting} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+            <Button type="button" onClick={() => void exportExcel()} disabled={exporting} variant="secondary" size="md">
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-slate-500" />}
               Excel
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -298,7 +299,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           {noRight ? <Wallet className="h-7 w-7 text-slate-300" /> : <AlertCircle className="h-7 w-7 text-rose-500" />}
           <p className="text-sm font-medium text-slate-700">{message}</p>
           {!noRight && failure?.retry && (
-            <button type="button" onClick={() => void load()} className="mt-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="md" className="mt-1">Повторить</Button>
           )}
         </div>
       ) : statement && m ? (
@@ -308,25 +309,25 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           {/* Month switcher */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="statement-months">
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 type="button"
                 onClick={() => setMonth(month === null ? openingMonth : shiftMonthKey(month, -1))}
                 disabled={month !== null && month <= months[0]}
                 aria-label="Предыдущий месяц"
-                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
+                variant="secondary" size="icon"
               >
                 <ChevronLeft className="h-4 w-4" />
-              </button>
+              </Button>
               <span className={`min-w-[9rem] text-center text-sm ${month ? "font-semibold text-slate-900" : "text-slate-500"}`} aria-live="polite">{month ? statementMonthLabel(month) : "Выберите месяц"}</span>
-              <button
+              <Button
                 type="button"
                 onClick={() => setMonth(month === null ? openingMonth : shiftMonthKey(month, 1))}
                 disabled={month !== null && month >= months[months.length - 1]}
                 aria-label="Следующий месяц"
-                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"
+                variant="secondary" size="icon"
               >
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <button
               type="button"

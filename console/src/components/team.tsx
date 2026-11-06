@@ -201,7 +201,7 @@ function StaffDialog({ open, roles, onClose, onCreated }: { open: boolean; roles
       description="Сотрудник войдёт по этой почте и временному паролю."
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-lg"
+      size="md"
       footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Отмена</Button><Button onClick={submit} loading={busy}>Добавить</Button></>}
     >
       <form

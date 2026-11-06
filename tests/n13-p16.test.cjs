@@ -134,8 +134,10 @@ test("«Пропуски»: «Подтвердить» (primary) and «Откл�
   }
   assert.match(page, /excuseJournalHref\(groupsBasePath, item\)/);
   // owner decision 20.10: both decisions sit side by side in every waiting row; the filled one is the main action, the outlined one is calm (not red: it is reversible)
-  assert.match(page, /bg-emerald-600 px-3 text-xs font-semibold text-white/);
-  assert.match(page, /border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700/);
+  // design system, wave 1: no green button (green is a state) - the filled one is the PRIMARY Button, the calm one a SECONDARY Button
+  assert.match(page, /onClick=\{\(\) => openDialog\(item, "confirmed", "none"\)\}\s+variant="primary" size="sm"/);
+  assert.match(page, /onClick=\{\(\) => openDialog\(item, "rejected", "optional"\)\}\s+variant="secondary" size="sm"/);
+  assert.doesNotMatch(page, /bg-emerald-600/, "no green fill on a button");
   assert.doesNotMatch(page, /Примечание \(необязательно\)|aria-label="Примечание к решению"/);
   assert.doesNotMatch(page, /Снять фото|capture=|Camera/);
   assert.match(page, /справки нет|excuseFilesLabel/);

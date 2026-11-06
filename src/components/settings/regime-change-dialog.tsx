@@ -66,7 +66,7 @@ export function RegimeChangeDialog({ open, changes, body, saving, error, onConfi
       description={REGIME_HINT}
       onClose={onClose}
       busy={saving}
-      maxWidthClassName={MONEY_WINDOW_TABLE}
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary={copy.primary} onPrimary={onConfirm} busy={saving} disabled={!ready} why={REGIME_WAIT_WHY} whyId="regime-why" onCancel={onClose} testId="regime-confirm" />}
     >

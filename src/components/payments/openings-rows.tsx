@@ -25,6 +25,7 @@ import { studentHref } from "@/lib/ia-links";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NumberInput } from "@/components/ui/number-input";
+import { Button } from "@/components/ui/button";
 
 /**
  * Wide layout (xl): ONE column template for the header and every row, so each header sits over its cells.
@@ -220,9 +221,9 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
       ) : shown.clear ? (
         <div className={`flex items-center justify-between gap-2 ${span}`}>
           <p className="text-xs font-medium text-rose-700">Сохранённый остаток будет убран</p>
-          <button type="button" onClick={() => onUndo(row)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100">
+          <Button type="button" onClick={() => onUndo(row)} variant="ghost" size="sm">
             <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Вернуть
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 xl:contents">

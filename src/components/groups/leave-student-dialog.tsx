@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { logicaError, settledLines } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 /**
  * «Убрать ученика из группы?» with the money: the server says what is left on the account after leaving; the owner chooses per
@@ -73,20 +74,7 @@ export function LeaveStudentDialog({
       description={studentName}
       onClose={onClose}
       busy={busy}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy || !ready}
-            className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Убрать из группы
-          </button>
-        </>
-      )}
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Убрать из группы" onPrimary={() => void submit()} tone="danger" disabled={busy || !ready} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-3 pb-2">
         <p className="text-sm text-slate-600">Ученик останется в системе, но перестанет числиться в этой группе.</p>

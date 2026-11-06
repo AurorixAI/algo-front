@@ -72,6 +72,7 @@ import { confirmUnfinishedLessons, sendConfirmingOpenLessons } from "./confirm-o
 import { SheetSummaryCard } from "./sheet-summary";
 import { SheetTodoBlock } from "./sheet-todo";
 import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, usePrintWithDates } from "./sheet-controls";
+import { Button } from "@/components/ui/button";
 
 /**
  * The columns of the list (UX pack §5.2): Преподаватель | Зарплата, сум | Выплачено | Остаток | Статус | действие.  The identity on the left (under the name, quiet: the rates and the lessons), the three
@@ -387,48 +388,48 @@ function PayrollMonthContent() {
       <div className="space-y-2 print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <nav aria-label="Месяц" className="flex items-center gap-1 self-start rounded-xl border border-slate-200 bg-white p-1">
-            <button
+            <Button
               type="button"
               aria-label="Предыдущий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, -1))}
-              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 max-sm:h-10 max-sm:w-10"
+              variant="ghost" size="icon"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
+            </Button>
             <span className="min-w-[10.5rem] px-2 text-center text-sm font-semibold text-slate-900" aria-live="polite">{monthTitle(month)}</span>
-            <button
+            <Button
               type="button"
               aria-label="Следующий месяц"
               onClick={() => goToMonth(shiftMonthKey(month, 1))}
               disabled={nextDisabled}
-              className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 max-sm:h-10 max-sm:w-10"
+              variant="ghost" size="icon"
             >
               <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </nav>
 
           <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-wrap" data-testid="payroll-month-actions">
-            <button
+            <Button
               type="button"
               onClick={() => void downloadMonth()}
               disabled={savedCount === 0 || exporting}
               title={savedCount === 0 ? "Сначала сохраните зарплату хотя бы одного преподавателя" : undefined}
-              className="inline-flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-4"
+              variant="secondary" size="md" className="min-w-0 flex-1 sm:flex-none"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Скачать Excel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => void calculate(calculationScope(teachers).map((teacher) => teacher.teacher_id), true)}
               disabled={!overview || teachers.length === 0 || busy || !gate.ready}
               aria-describedby={gate.text && !allSaved ? "payroll-calculate-hint" : undefined}
               title={allSaved ? ALL_SAVED_TEXT : undefined}
-              className="inline-flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-5"
+              variant="primary" size="md" className="min-w-0 flex-1 sm:flex-none"
             >
               {calculating === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
               Рассчитать всех
-            </button>
+            </Button>
             {overview && <PayrollPageMenu divisor={overview.divisor} />}
           </div>
         </div>
@@ -473,7 +474,7 @@ function PayrollMonthContent() {
             <AlertCircle className="h-8 w-8 text-rose-500" />
             <p className="max-w-md text-sm font-medium text-rose-800">{failure.message}</p>
             {failure.retry && (
-              <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+              <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
             )}
           </div>
         ) : teachers.length === 0 ? (
@@ -512,14 +513,14 @@ function PayrollMonthContent() {
               <h2 className="text-lg font-bold text-slate-900">Предпросмотр расчёта</h2>
               <p className="text-sm text-slate-500">Ведомость ещё не сохранена. Проверьте и сохраните.</p>
             </div>
-            <button
+            <Button
               type="button"
               onClick={closePreviews}
-              className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              variant="ghost" size="md"
             >
               <X className="h-4 w-4" />
               Закрыть предпросмотр
-            </button>
+            </Button>
           </div>
 
           {previewList.length > 1 && (
@@ -731,16 +732,16 @@ export function TeacherRow({
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 xl:mt-0 xl:justify-center">
-        <button
+        <Button
           type="button"
           onClick={run}
           disabled={busy || blocked}
           title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
           aria-label={`${action.label}: ${teacher.teacher_name}`}
-          className="inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-[280px] xl:max-w-none"
+          variant="secondary" size="md" className="w-full sm:max-w-[280px] xl:max-w-none"
         >
           {action.label}
-        </button>
+        </Button>
       </div>
     </li>
   );

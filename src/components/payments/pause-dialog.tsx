@@ -33,6 +33,7 @@ import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
+import { Button } from "@/components/ui/button";
 
 const CALC_DEBOUNCE_MS = 350;
 
@@ -267,11 +268,11 @@ export function PauseDialog({
                         <input aria-label={acting?.action === "cancel" ? "Причина отмены паузы" : "Причина изменения паузы"} value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Причина отмены" : "Причина изменения"} className={PRICE_FIELD} autoComplete="off" />
                       )}
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => void finish()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                        <Button type="button" onClick={() => void finish()} disabled={busy} variant="primary" size="sm">
                           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           {acting?.action === "end" ? "Закончить паузу" : "Отменить паузу"}
-                        </button>
-                        <button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} className="rounded-lg px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100">Не надо</button>
+                        </Button>
+                        <Button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} variant="ghost" size="sm">Не надо</Button>
                       </div>
                     </div>
                   )}

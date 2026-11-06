@@ -4,7 +4,7 @@ import { GROUP_NO_TEACHERS_TEXT, GROUP_TEACHER_LATER_HINT } from "@/lib/staff-li
 import { Select } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, GraduationCap, Hash, Type, Layers, AlignLeft, Loader2, BookOpen } from "lucide-react";
+import { Users, GraduationCap, Hash, Type, Layers, AlignLeft, BookOpen } from "lucide-react";
 import { orgApi, GroupInfo } from "@/lib/api";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DEFAULT_LESSON_TYPE, LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
@@ -16,6 +16,8 @@ import { priceLabelOf } from "@/lib/group-price";
 import { canManageMoney } from "@/lib/money-effects";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { useAuthStore } from "@/lib/store";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 interface GroupCreateModalProps {
   open: boolean;
@@ -121,28 +123,11 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
       open={open}
       title="Новая группа"
       description="Заполните данные для создания"
-      icon={<GraduationCap className="w-5 h-5" />}
       onClose={handleClose}
       busy={saving}
       bodyClassName="px-6 py-2 space-y-5 overflow-y-auto overscroll-contain min-h-0"
-      footerClassName="flex items-center justify-end gap-3 p-6 pt-4 bg-slate-50/50 mt-2"
-      footer={
-        <>
-          <button
-            onClick={handleClose}
-            className="px-5 py-2.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl font-medium transition-colors"
-          >
-            Отмена
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!form.name.trim() || saving}
-            className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary-600/20 active:scale-95"
-          >
-            {saving ? "Создание…" : "Создать группу"}
-          </button>
-        </>
-      }
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={<ModalActions primary={saving ? "Создание…" : "Создать группу"} onPrimary={handleSubmit} disabled={!form.name.trim() || saving} onCancel={handleClose} />}
     >
           {/* Name */}
           <div className="space-y-1">

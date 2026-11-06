@@ -477,40 +477,43 @@ test("the excuses page patches a decision in place and reads the list again only
 
 // ── Modal: the defaults are pinned, an override lands where it should ────────────────────────────────
 
-test("Modal defaults: width 480, the body padding and scroll, the footer layout under a divider, the card of a centred dialog", () => {
+test("Modal defaults: width 520 (a form; a question is 448, a table 640), the body padding and scroll, the footer layout under a divider, the card of a centred dialog", () => {
   const L = lib("modal-layout.ts");
   const layout = L.modalLayout();
-  assert.equal(L.MODAL_DEFAULT_MAX_WIDTH, "max-w-[480px]");
+  assert.equal(L.MODAL_DEFAULT_MAX_WIDTH, "max-w-[520px]");
+  assert.deepEqual(L.MODAL_WIDTH, { sm: "max-w-md", md: "max-w-[520px]", lg: "max-w-[640px]" }, "three widths: a question 448, a form 520, a table 640");
+  assert.equal(L.modalLayout({ size: "sm" }).card.includes("max-w-md"), true);
+  assert.equal(L.MODAL_ACTIONS_FOOTER_CLASS, "flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3");
   assert.equal(L.MODAL_BODY_DEFAULT, "px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0");
   assert.equal(L.MODAL_FOOTER_DEFAULT, "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
   assert.equal(layout.body, L.MODAL_BODY_DEFAULT);
   assert.equal(layout.footer, "shrink-0 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
   assert.equal(
     layout.card,
-    "bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-[480px] max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none",
+    "bg-white rounded-modal shadow-pop border border-slate-100 w-full max-w-[520px] max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none",
   );
   assert.equal(layout.header, "flex items-start justify-between gap-3 p-5 sm:p-6 pb-3 sm:pb-4 shrink-0");
-  assert.equal(layout.title, "text-lg sm:text-xl font-bold text-slate-900");
+  assert.equal(layout.title, "text-title font-bold text-slate-900", "one title for both placements: 20 px bold");
 });
 
 test("Modal overrides: the width replaces the default, bodyClassName REPLACES the body padding, footerClassName replaces the footer layout but keeps its divider", () => {
   const L = lib("modal-layout.ts");
   const custom = L.modalLayout({ maxWidthClassName: "max-w-[620px]", bodyClassName: "px-6 py-3 min-h-0", footerClassName: "flex items-center justify-between gap-3 p-6" });
   assert.match(custom.card, / w-full max-w-\[620px\] max-h-full /);
-  assert.doesNotMatch(custom.card, /max-w-\[480px\]/);
+  assert.doesNotMatch(custom.card, /max-w-\[520px\]/);
   assert.equal(custom.body, "px-6 py-3 min-h-0", "no default padding left over");
   assert.equal(custom.footer, "shrink-0 border-t border-slate-100 flex items-center justify-between gap-3 p-6");
   assert.doesNotMatch(custom.footer, /flex-col-reverse/);
   // the side sheet: full height, no card chrome, safe areas, its own header and title
   const side = L.modalLayout({ placement: "right", maxWidthClassName: "max-w-md" });
-  assert.match(side.card, /^bg-white shadow-2xl w-full max-w-md h-full /);
-  assert.doesNotMatch(side.card, /rounded-\[24px\]/);
+  assert.match(side.card, /^bg-white shadow-pop w-full max-w-md h-full /);
+  assert.doesNotMatch(side.card, /rounded-modal/);
   assert.equal(side.header, "flex items-start justify-between gap-3 p-5 border-b border-slate-100 shrink-0");
-  assert.equal(side.title, "font-semibold text-slate-900");
+  assert.equal(side.title, "text-title font-bold text-slate-900");
   assert.equal(side.body, L.MODAL_BODY_DEFAULT, "the default body is the same for a sheet");
   // the component takes everything from the layout
   const modal = read("src/components/ui/modal.tsx");
-  assert.match(modal, /modalLayout\(\{ placement, maxWidthClassName, bodyClassName, footerClassName \}\)/);
+  assert.match(modal, /modalLayout\(\{ placement, size, maxWidthClassName, bodyClassName, footerClassName \}\)/);
   assert.equal((modal.match(/className=\{layout\.card\}/g) || []).length, 2);
   assert.match(modal, /className=\{layout\.body\}/);
   assert.match(modal, /className=\{layout\.footer\}/);

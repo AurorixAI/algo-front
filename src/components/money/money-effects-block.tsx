@@ -19,6 +19,7 @@ import { periodClosedOf, type ClosedPurpose } from "@/lib/closed-period";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
 import { tidyMoneyText } from "@/lib/money-format";
+import { Button } from "@/components/ui/button";
 
 const NUM = "whitespace-nowrap text-right tabular-nums";
 const deltaClass = (delta: number | null) => (delta !== null && delta > 0 ? "text-emerald-700" : "text-slate-600");
@@ -217,7 +218,7 @@ export function MoneyEffectsBlock({
         {failed && (
           <div role="alert" className="space-y-1.5">
             <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
-            <button type="button" data-testid="money-effects-retry" onClick={onRetry} className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 sm:min-h-[32px]">{EFFECTS_RETRY_LABEL}</button>
+            <Button type="button" data-testid="money-effects-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
           </div>
         )}
         {preview.status === "ready" && preview.effects !== null && <EffectLines effects={preview.effects} withPaid={withPaid} teacherName={teacherName} />}

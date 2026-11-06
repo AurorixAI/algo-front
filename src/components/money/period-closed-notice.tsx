@@ -16,6 +16,7 @@ import {
 import { REASON_MAX } from "@/lib/payments";
 import { useReopenMonth } from "@/lib/use-reopen-month";
 import { useAuthStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
 
 /**
  * Money-1 A1 + UX pack rule 2 / №27: the refusal «месяц закрыт» (409 `PERIOD_CLOSED`, a pause's 422 `PAUSE_LOCKED`) in the window of a lesson / a pause / a decision.  It is its OWN amber block
@@ -45,7 +46,7 @@ export function PeriodClosedNotice({
         <span className="min-w-0"><span className="font-semibold" data-testid="period-closed-head">{text.head}</span>{text.advice ? <> <span data-testid="period-closed-advice">{text.advice}</span></> : null}</span>
       </p>
       {allowed && !open && (
-        <button type="button" data-testid="period-closed-reopen" onClick={() => setOpen(true)} className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-white px-3.5 text-sm font-semibold text-amber-900 hover:bg-amber-100">{REOPEN_MONTH_LABEL}</button>
+        <Button type="button" data-testid="period-closed-reopen" onClick={() => setOpen(true)} variant="secondary" size="md">{REOPEN_MONTH_LABEL}</Button>
       )}
       {allowed && open && <ReopenInline info={info} onClose={() => setOpen(false)} onReopened={() => { setOpen(false); onReopened(); }} />}
     </div>
@@ -79,16 +80,16 @@ function ReopenInline({ info, onClose, onReopened }: { info: PeriodClosedInfo & 
         <p role="alert" data-testid="reopen-inline-error" className="text-xs font-medium text-amber-900">{typeof error === "string" ? error : reopenErrorText(error)}</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
           data-testid="reopen-submit"
           onClick={() => void submit()}
           disabled={busy || typeof revision !== "number"}
-          className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+          variant="primary" size="md"
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Переоткрыть месяц
-        </button>
+        </Button>
         <button type="button" onClick={onClose} disabled={busy} className="inline-flex min-h-[40px] items-center rounded-lg px-3.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50">Отмена</button>
       </div>
     </div>

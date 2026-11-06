@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1022,7 +1021,7 @@ export default function NewExamPage() {
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <GlassCard className="p-6 sm:p-10">
                   <div className="text-center mb-8">
-                    <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-xs">
+                    <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-card">
                       <Monitor className="w-7 h-7 text-indigo-600" />
                     </div>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Способ проведения</h2>
@@ -1110,7 +1109,7 @@ export default function NewExamPage() {
                     {/* Header */}
                     <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-sm">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center text-primary-600 shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center text-primary-600 shadow-card">
                           <FileCheck2 className="w-4 h-4" />
                         </div>
                         <div>
@@ -1120,7 +1119,7 @@ export default function NewExamPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200/80 shadow-xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200/80 shadow-card">
                           {config.mode === "online" && <Monitor className="w-3.5 h-3.5" />}
                           {config.mode === "print" && <Printer className="w-3.5 h-3.5" />}
                           {config.mode === "hybrid" && <QrCode className="w-3.5 h-3.5" />}
@@ -1131,7 +1130,7 @@ export default function NewExamPage() {
 
                     <div className="p-5 sm:p-6 space-y-4">
                       {/* Top Meta Bar (Title, Group, Class, Type) */}
-                      <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
                             <FileText className="w-6 h-6" />
@@ -1174,7 +1173,7 @@ export default function NewExamPage() {
                       {/* 4 Metric Cards Grid */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                         {/* Time */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-card flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500">Время</span>
                             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -1190,7 +1189,7 @@ export default function NewExamPage() {
                         </div>
 
                         {/* Variants */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-card flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500">Вариант</span>
                             <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -1208,7 +1207,7 @@ export default function NewExamPage() {
                         </div>
 
                         {/* Questions */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-card flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500">Задания</span>
                             <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -1224,7 +1223,7 @@ export default function NewExamPage() {
                         </div>
 
                         {/* Source */}
-                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-card flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500">Источник</span>
                             <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">

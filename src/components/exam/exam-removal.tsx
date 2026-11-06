@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { examsApi } from "@/lib/api";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 /** What the teacher is about to do with the exam: put it away (reversible) or erase it (not). */
 export type ExamRemovalMode = "archive" | "delete";
@@ -121,28 +123,11 @@ export function ExamRemovalDialog({
       title={copy?.heading ?? ""}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
-      footer={
-        <>
-          <button ref={closeRef} type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            {shown?.blocked ? "Закрыть" : "Отмена"}
-          </button>
-          {!shown?.blocked && copy && (
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={busy}
-              className={
-                copy.destructive
-                  ? "flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-                  : "flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-              }
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {copy.action}
-            </button>
-          )}
-        </>
-      }
+      size="sm"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={shown?.blocked || !copy
+        ? <ModalActions primary={null} onCancel={onClose} cancelRef={closeRef} cancelDisabled={busy} />
+        : <ModalActions primary={copy.action} onPrimary={onConfirm} tone={copy.destructive ? "danger" : "primary"} busy={busy} onCancel={onClose} cancelRef={closeRef} />}
     >
       {shown && <ExamRemovalBody removal={shown.removal} error={shown.error} />}
     </Modal>

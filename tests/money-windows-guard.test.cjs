@@ -73,19 +73,23 @@ test("the buttons of the footer of a window of money are only from ConfirmFooter
       if (!shared || (/<Button\b/.test(footer))) bad.push(`${rel(file)}: ${footer.replace(/\s+/g, " ").slice(0, 120)}`);
       else if (raw && !/CONFIRM_PRIMARY_CLASS/.test(footer)) bad.push(`${rel(file)} (raw button): ${footer.replace(/\s+/g, " ").slice(0, 120)}`);
     }
-    assert.ok(!/from "@\/components\/ui\/button"/.test(read(file)), `${rel(file)} imports the gradient Button`);
   }
   assert.deepEqual(bad, [], bad.join("\n"));
 });
 
-test("the shared footer itself: a FLAT blue (or red) main button in one line, «Отмена» a plain text button, the keyboard's focus ring only", () => {
-  const text = read(path.join(root, "components/money/dialog-footer.tsx"));
-  assert.match(text, /CONFIRM_PRIMARY_BLUE = "bg-primary-600 hover:bg-primary-700"/);
-  assert.match(text, /CONFIRM_PRIMARY_DANGER = "bg-red-600 hover:bg-red-700"/);
-  assert.match(text, /whitespace-nowrap/);
-  assert.match(text, /focus-visible:ring-2/);
-  assert.doesNotMatch(text, /border border-slate|shadow/, "no frame and no shadow on the buttons of the footer");
-  assert.doesNotMatch(text.match(/CONFIRM_CANCEL_CLASS = [^;]*;/)[0].replace("hover:bg-slate-100", ""), /\bborder\b|\bbg-/, "«Отмена» is text");
+test("the shared footer itself: a FLAT main button (primary blue or danger) in one line, «Отмена» a ghost button, the keyboard's focus ring only; the Button under it has no gradient and no glow", () => {
+  const actions = read(path.join(root, "components/ui/modal-actions.tsx"));
+  assert.match(actions, /variant=\{tone\}/, "the main button is primary or danger");
+  assert.match(actions, /variant="ghost"/, "«Отмена» is a ghost button (text, no frame)");
+  assert.match(actions, /flex flex-col-reverse gap-2 sm:flex-row/, "the row: from sm on the right, on a phone one under another, the main one on top");
+  const style = read(path.join(root, "lib/button-style.ts"));
+  assert.match(style, /whitespace-nowrap/);
+  assert.match(style, /focus-visible:ring-2/);
+  assert.match(style, /primary: "bg-primary-600 text-white hover:bg-primary-700/);
+  assert.match(style, /danger: "bg-danger-600 text-white hover:bg-danger-700/);
+  assert.doesNotMatch(style, /gradient|shadow|backdrop|scale/, "no gradient, no shadow, no glow on a button");
+  assert.doesNotMatch(read(path.join(root, "components/ui/button.tsx")), /framer-motion|whileHover|whileTap/, "the button does not grow under the mouse");
+  assert.doesNotMatch(style.match(/ghost: "[^"]*"/)[0], /\bborder\b/, "«Отмена» is text: no frame");
 });
 
 // re-audit В6 / №24: text of the screens of money is not slate-400 (2.5:1 on white); slate-500 (4.76:1) is the lightest

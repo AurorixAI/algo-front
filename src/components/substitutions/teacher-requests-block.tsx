@@ -23,6 +23,7 @@ import type { AssignedToMe, ClearedForMe, MineOut, SubstitutionItem } from "@/li
 import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-time";
 import { todayPendingHint } from "@/lib/schedule-card-actions";
 import { useNow } from "@/lib/use-now";
+import { Button } from "@/components/ui/button";
 
 /**
  * T2 (LOGIC-B2): on the teacher's dashboard - «Запросы на замену» (waiting ones with «Отозвать», the decided ones of the last 14 days
@@ -92,7 +93,7 @@ export function TeacherRequestsBlock({
   return (
     <section aria-label={MY_REQUESTS_TITLE} className="grid gap-5"        /* in the left column of the dashboard (under «Группы в фокусе»): one under the other */>
       {items.length > 0 && (
-        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-card sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
               <Repeat2 className="h-5 w-5 text-amber-600" />
@@ -110,15 +111,15 @@ export function TeacherRequestsBlock({
                     <OutcomeChip item={item} audience="teacher" />
                     {hint && <span data-testid="today-pending-hint" className="text-xs font-medium text-amber-800">{hint}</span>}
                     {item.status === "pending" && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => void withdraw(item.id)}
                         disabled={busyId !== null}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                        variant="ghost" size="sm"
                       >
                         {busyId === item.id && <Loader2 className="h-3 w-3 animate-spin" />}
                         Отозвать
-                      </button>
+                      </Button>
                     )}
                     <DetailsButton item={item} onOpen={(row) => setPanel({ id: row.id, seed: row })} />
                   </span>
@@ -156,10 +157,10 @@ export function AssignedLessons({ entries }: { entries: AssignedToMe[] }) {
   if (entries.length === 0) return null;
   // one lesson: the row says everything at once, nothing to open
   if (entries.length === 1) {
-    return <p data-testid="assigned-lessons" className="rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm font-bold text-violet-950 shadow-xs">{assignedSingleLine(entries[0])}</p>;
+    return <p data-testid="assigned-lessons" className="rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm font-bold text-violet-950 shadow-card">{assignedSingleLine(entries[0])}</p>;
   }
   return (
-    <details data-testid="assigned-lessons" className="group rounded-2xl border border-violet-100 bg-violet-50/50 shadow-xs">
+    <details data-testid="assigned-lessons" className="group rounded-2xl border border-violet-100 bg-violet-50/50 shadow-card">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-violet-950 [&::-webkit-details-marker]:hidden">
         <span>{assignedTitle(entries.length)}</span>
         <ChevronRight className="h-4 w-4 shrink-0 text-violet-500 transition-transform group-open:rotate-90" aria-hidden />

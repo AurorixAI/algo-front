@@ -56,6 +56,7 @@ import { PayrollSheetTable } from "./sheet-table";
 import { SheetSummaryCard } from "./sheet-summary";
 import { SheetTodoBlock } from "./sheet-todo";
 import { BackLink, ConflictBanner, PayrollForbidden, RateRequiredNotice, RevisionList, SaveBar, usePrintWithDates } from "./sheet-controls";
+import { Button } from "@/components/ui/button";
 
 type Tab = "sheet" | "history";
 
@@ -369,7 +370,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
           <AlertCircle className="h-7 w-7 text-rose-500" />
           <p className="text-sm font-medium text-slate-700">{failure.message}</p>
           {failure.retry && (
-            <button type="button" onClick={() => void load()} className="mt-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="md" className="mt-1">Повторить</Button>
           )}
         </div>
       ) : sheet && status ? (
@@ -405,7 +406,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               {revisionsFailed ? (
                 <div role="alert" className="flex flex-col items-center gap-2 py-10 text-center">
                   <p className="text-sm font-medium text-slate-700">Не удалось загрузить историю сохранений</p>
-                  <button type="button" onClick={() => void loadRevisions()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+                  <Button type="button" onClick={() => void loadRevisions()} variant="secondary" size="md">Повторить</Button>
                 </div>
               ) : revisions === null ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-primary-600" />Загрузка…</div>

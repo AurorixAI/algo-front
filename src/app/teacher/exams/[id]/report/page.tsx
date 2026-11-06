@@ -335,7 +335,7 @@ export default function ExamReportPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-3 border-violet-600 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-600 border-t-transparent" />
           <p className="text-sm font-medium text-slate-500">Загрузка педагогического отчёта...</p>
         </div>
       </div>
@@ -526,7 +526,7 @@ export default function ExamReportPage() {
         </div>
 
         {/* ── ТАБЫ РАЗДЕЛОВ (Как в Диагностике) ────────────────────────────── */}
-        <div className="flex flex-col rounded-2xl border border-slate-200/80 bg-slate-200/40 p-1.5 shadow-xs sm:flex-row">
+        <div className="flex flex-col rounded-2xl border border-slate-200/80 bg-slate-200/40 p-1.5 shadow-card sm:flex-row">
           <button
             onClick={() => setActiveTab("diagnosis")}
             className={cn(
@@ -618,7 +618,7 @@ export default function ExamReportPage() {
                   {structured.strengths!.map((item, idx) => (
                     <div
                       key={idx}
-                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-emerald-50/40 via-white to-white p-5 transition-all hover:border-emerald-300/80 hover:shadow-xs relative overflow-hidden"
+                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-emerald-50/40 via-white to-white p-5 transition-all hover:border-emerald-300/80 hover:shadow-card relative overflow-hidden"
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
@@ -669,7 +669,7 @@ export default function ExamReportPage() {
                   {structured.critical_gaps!.map((item, idx) => (
                     <div
                       key={idx}
-                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-rose-50/40 via-white to-white p-5 transition-all hover:border-rose-300/80 hover:shadow-xs relative overflow-hidden"
+                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-rose-50/40 via-white to-white p-5 transition-all hover:border-rose-300/80 hover:shadow-card relative overflow-hidden"
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white">

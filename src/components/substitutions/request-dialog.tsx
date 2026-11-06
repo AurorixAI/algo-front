@@ -28,6 +28,9 @@ import type { CreateSubstitutionOut, MyLesson, SubstitutionReasonCode } from "@/
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SegmentedControl } from "@/components/ui/radio";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 /** The lesson the dialog was opened on; `null` = «Новый запрос»: the teacher picks the lessons himself. */
 export interface RequestLesson {
@@ -187,24 +190,11 @@ export function RequestDialog({
       open
       title={REQUEST_DIALOG_TITLE}
       description={lesson ? lessonLine(lesson.groupName, lesson.lessonDate, lesson.startTime, lesson.endTime) : "Выберите уроки, которые не сможете провести"}
-      icon={<UserMinus className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
-      maxWidthClassName="max-w-lg"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={!canSend}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {sendLabel(Math.max(total, 1))}
-          </button>
-        </>
-      }
+      size="md"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={sendLabel(Math.max(total, 1))} onPrimary={() => void send()} disabled={!canSend} busy={busy} onCancel={onClose} />}
     >
       <RequestBody
         reasonCode={reasonCode}
@@ -325,9 +315,9 @@ export function RequestBody({
               <label className="text-xs font-semibold text-slate-500">По
                 <DateInput value={to} onChange={(next) => onTo(next)} wrapperClassName="mt-1" className={DATE_CLASS} />
               </label>
-              <button type="button" onClick={onShow} disabled={othersLoading} className="col-span-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:col-span-1">
+              <Button type="button" onClick={onShow} disabled={othersLoading} variant="secondary" size="md" className="col-span-2 sm:col-span-1">
                 Показать уроки
-              </button>
+              </Button>
             </div>
             {othersError && <p role="alert" className="text-xs font-medium text-rose-700">{othersError}</p>}
             {othersLoading && (

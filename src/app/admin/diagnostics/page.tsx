@@ -24,6 +24,7 @@ import {
   DIAGNOSTIC_ACTIONS_COLUMN, DiagnosticActionSpacer, DiagnosticStatusBadge, diagnosticActionClass,
 } from "@/components/diagnostics/list-chrome";
 import { INVITE_CANCELLED_LABEL, inviteCancelHint, isInviteAssigned, isInviteRunning, isInviteWaiting } from "@/lib/diagnostic-invite";
+import { Button } from "@/components/ui/button";
 
 interface DiagnosticInvite {
   id: string;
@@ -188,13 +189,13 @@ export default function AdminDiagnosticsPage() {
         <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-rose-500" />
         <h1 className="text-lg font-bold text-slate-900">Диагностики временно недоступны</h1>
         <p className="text-sm text-slate-500 mt-2">{loadError}</p>
-        <button
+        <Button
           type="button"
           onClick={() => { setLoading(true); void loadInvites(); }}
-          className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
+          variant="primary" size="md" className="mt-5"
         >
           <RotateCcw className="w-4 h-4" /> Повторить
-        </button>
+        </Button>
       </div>
     );
   }
@@ -294,7 +295,7 @@ export default function AdminDiagnosticsPage() {
             placeholder="Поиск по имени или коду..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-xs"
+            className="w-full pl-10 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-card"
           />
           {search && (
             <button
@@ -325,7 +326,7 @@ export default function AdminDiagnosticsPage() {
                 onClick={() => setTimePeriod(tp.id)}
                 className={`px-3 py-1.5 rounded-lg transition-all text-xs cursor-pointer ${
                   timePeriod === tp.id
-                    ? "bg-white text-slate-900 font-semibold shadow-xs"
+                    ? "bg-white text-slate-900 font-semibold shadow-card"
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
@@ -363,7 +364,7 @@ export default function AdminDiagnosticsPage() {
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 cursor-pointer ${
               assignedOnly
                 ? "bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/25"
-                : "bg-white text-slate-600 border-slate-200 hover:border-emerald-500/50 hover:text-emerald-700 shadow-xs"
+                : "bg-white text-slate-600 border-slate-200 hover:border-emerald-500/50 hover:text-emerald-700 shadow-card"
             }`}
           >
             <Users className="w-3.5 h-3.5" />

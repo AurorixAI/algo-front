@@ -26,7 +26,7 @@ test("cancel of a payment: the red button names the action, the secondary one is
   assert.equal(await page.textContent('label[for="record-void-reason"]'), "Причина (обязательно)");
   assert.equal(await page.textContent('button[form="record-void-form"]'), "Отменить оплату");
   assert.equal(await page.textContent('[data-testid="confirm-cancel"]'), "Не отменять");
-  assert.match(await page.getAttribute('button[form="record-void-form"]', "class"), /bg-red-600/, "red: cancelling a payment cannot be undone for the money");
+  assert.equal(await page.getAttribute('button[form="record-void-form"]', "data-variant"), "danger", "red: cancelling a payment cannot be undone for the money");
   assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0, "nothing about the pay of the teachers");
   await page.fill("#record-void-reason", "ав");
   await page.click('button[form="record-void-form"]');

@@ -26,6 +26,7 @@ import { BalanceNote } from "./balance-note";
 import { MembershipPriceLine } from "./membership-price";
 import { MembershipRowActions } from "./membership-row-actions";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
+import { Button } from "@/components/ui/button";
 
 interface MembershipPaymentsProps {
   row: MembershipPaymentRow;
@@ -146,13 +147,13 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
           <Link href={statement} onClick={() => markReceiptNavigation(row.membership_id)} className="text-xs font-medium text-primary-700 hover:underline">Выписка</Link>
           {/* S-5: the debt of a student who has left can still be paid (at most the debt) */}
           {canPayLeftDebt(row, archived) && (
-            <button
+            <Button
               type="button"
               onClick={() => setForm({ kind: "create" })}
-              className="rounded-lg border border-primary-600 bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+              variant="primary" size="sm"
             >
               Оплатить долг
-            </button>
+            </Button>
           )}
         </div>
       )}

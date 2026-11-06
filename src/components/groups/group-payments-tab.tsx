@@ -50,6 +50,7 @@ import { moneyChipTone } from "@/lib/status-registry";
 import { MembershipRowActions } from "@/components/payments/membership-row-actions";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { Button } from "@/components/ui/button";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
 const GRID_COLS = "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]"; // the student column is capped so the price sits near the names (owner 23.10); «Цена» is left-aligned and «Оплата» has room for the chip and the bar (owner 26.10); the actions take the rest and stay right
@@ -260,7 +261,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
         <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <AlertCircle className="h-8 w-8 text-rose-500" />
           <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-          <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+          <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : shown.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-12 text-center">
@@ -411,9 +412,9 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
       <div className="flex items-center gap-2 lg:justify-end">
         {canPayLeftDebt(view.row) && (
-          <button type="button" onClick={onPay} className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-3.5 py-2 text-center text-xs font-semibold text-white hover:bg-primary-700 lg:flex-none lg:py-1.5">
+          <Button type="button" onClick={onPay} variant="primary" size="sm" className="min-w-0 flex-1 lg:flex-none">
             Оплатить долг
-          </button>
+          </Button>
         )}
         <Link
           href={statementHref(paymentsBasePath, view.membershipId)}

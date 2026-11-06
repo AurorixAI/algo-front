@@ -224,7 +224,7 @@ test("«Переоткрыть месяц»: the dialog says what opening does, 
   for (const part of ["Переоткрыть месяц?", "Каримова К. · октябрь 2026", "Пока месяц открыт, уроки этого месяца можно исправлять", "после исправлений нажмите «Сохранить и закрыть месяц»", "Причина", "Причина и ваше имя останутся в журнале", "Отмена"]) {
     assert.ok(text.includes(part), part);
   }
-  assert.match(open, /<button type="submit" form="reopen-month-form"[^>]*>[\s\S]*?Переоткрыть месяц<\/button>/);
+  assert.match(open, /<button\b[^>]*\btype="submit"[^>]*\bform="reopen-month-form"[^>]*>[\s\S]*?Переоткрыть месяц<\/button>/);
   assert.match(open, /<textarea id="reopen-month-reason"[^>]*maxLength="500"|maxlength="500"/i);
   assert.equal(html(React.createElement(ReopenMonthDialog, { target: null, onClose() {}, onReopened() {} })), "");
   const src = read("src/lib/use-reopen-month.ts");
@@ -304,7 +304,7 @@ test("R3 item 1: the reopening sends `sheet_revision`; the button waits for it; 
   assert.match(src, /if \(isSheetChanged\(cause\)\) void readRevision\(target\.month, target\.teacherId\);/);
   const open = html(React.createElement(component("payroll/reopen-month-dialog.tsx").ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К." }, onClose() {}, onReopened() {} }));
   assert.match(open, /data-testid="reopen-reading"/, "while the revision is read the dialog says so");
-  assert.match(open, /data-testid="reopen-submit"[^>]*disabled/, "and the button waits");
+  assert.match(open.match(/<button\b[^>]*data-testid="reopen-submit"[^>]*>/)[0], /\bdisabled\b/, "and the button waits");
   const known = html(React.createElement(component("payroll/reopen-month-dialog.tsx").ReopenMonthDialog, { target: { month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", sheetRevision: 3 }, onClose() {}, onReopened() {} }));
   assert.ok(!/reopen-reading/.test(known));
 });

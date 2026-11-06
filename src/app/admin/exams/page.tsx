@@ -21,6 +21,7 @@ import { examsApi, type AdminExamMonitorState, type ExamSummary } from "@/lib/ap
 import { businessDateWithOffset, formatBusinessCalendarDate, formatIsoDateLabel, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 import { examListState, lobbyBucketOf, lobbyCounts, lobbyExamLabel, monitorLobbyCounts, type DashboardExamState, type LobbyBucket } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
+import { Button } from "@/components/ui/button";
 
 type Period = "all" | "today" | "yesterday" | "7d" | "30d";
 /**
@@ -211,7 +212,7 @@ export default function AdminExamsPage() {
       <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-rose-500" />
       <h1 className="text-lg font-bold text-slate-900">Мониторинг экзаменов временно недоступен</h1>
       <p className="mt-2 text-sm text-slate-500">{error}</p>
-      <button type="button" onClick={() => void load({ manual: true })} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"><RefreshCw className="h-4 w-4" /> Повторить</button>
+      <Button type="button" onClick={() => void load({ manual: true })} variant="primary" size="md" className="mt-5"><RefreshCw className="h-4 w-4" /> Повторить</Button>
     </div>
   );
 
@@ -240,7 +241,7 @@ export default function AdminExamsPage() {
         const details = rowDetails(exam);
         const latestChange = latestEvent(exam, ["lesson_cancelled", "lesson_rescheduled", "exam_rescheduled"]);
         return <article key={exam.exam_id} className="flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-slate-50/70 xl:flex-row xl:items-center"><div className="flex min-w-0 flex-1 gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><FileText className="h-5 w-5" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-900">{exam.title}</h3><Chip tone={status.tone} pill>{status.label}</Chip></div><p className="mt-1 text-sm font-medium text-slate-600">{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p>{(details.primary || details.secondary) && <div className={`mt-2 flex items-start gap-2 text-sm ${details.warning ? "text-amber-800" : "text-slate-500"}`}>{details.warning ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />}<div>{details.primary && <p>{details.primary}</p>}{details.secondary && <p className="mt-0.5 text-xs opacity-80">{details.secondary}</p>}</div></div>}</div></div><div className="flex shrink-0 items-center justify-between gap-5 xl:justify-end">{latestChange?.at && <p className="text-right text-xs text-slate-400">Изменено: {formatEventTime(latestChange.at)}</p>}<Link href={`/admin/exams/${exam.exam_id}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"><Eye className="h-4 w-4" /> Просмотреть <ChevronRight className="h-4 w-4" /></Link></div></article>;
-      })}</div>}{listState && items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</button></div>}</section>
+      })}</div>}{listState && items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><Button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} variant="secondary" size="md"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</Button></div>}</section>
     </div>
   );
 }

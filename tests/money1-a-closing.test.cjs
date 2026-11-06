@@ -127,7 +127,7 @@ test("Н2: the reopened month says one short sentence, the label says that the s
   const text = src("components/payroll/sheet-summary.tsx");
   assert.match(text, /Исправьте уроки — месяц закроется снова при сохранении/);
   assert.match(text, /К выплате \(сохранено\)/);
-  assert.match(text, /min-h-10 w-full[^"]*sm:w-auto/);
+  assert.match(text, /variant="primary" size="md" className="w-full sm:w-auto"/, "the main button: a Button md (40 px), the full width on a phone");
 });
 
 // ── the payout ──────────────────────────────────────────────────────────────────────────────────

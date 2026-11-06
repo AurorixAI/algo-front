@@ -24,6 +24,7 @@ import {
   skipReasonText,
 } from "@/lib/import-report";
 import { FileInput } from "@/components/ui/file-input";
+import { Button } from "@/components/ui/button";
 
 interface ImportModalProps {
   open: boolean;
@@ -122,50 +123,49 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
           : step === "review" ? "Проверьте данные перед записью"
           : "Импорт завершён"
       }
-      icon={<FileSpreadsheet className="w-5 h-5" />}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-[620px]"
+      size="lg"
       bodyClassName="px-6 py-3 overflow-y-auto overscroll-contain min-h-0"
-      footerClassName="flex items-center justify-between gap-3 p-6 pt-4 bg-slate-50/50"
+      footerClassName="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 pt-4"
       footer={
         <>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-600">
             {step === "review" && preview && (
               <span>{preview.issues.filter(i => i.level === "error").length} ошибок · {preview.issues.filter(i => i.level === "warning").length} предупреждений</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
             {step === "upload" && (
               <>
-                <button onClick={onClose} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">Отмена</button>
-                <button
+                <Button onClick={onClose} variant="ghost" size="md">Отмена</Button>
+                <Button
                   onClick={runPreview}
                   disabled={!file || busy}
-                  className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-600/20 active:scale-95 flex items-center gap-2"
+                  variant="primary" size="md"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   Далее
-                </button>
+                </Button>
               </>
             )}
             {step === "review" && (
               <>
-                <button onClick={() => { setStep("upload"); setError(null); }} disabled={busy} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-40">
+                <Button onClick={() => { setStep("upload"); setError(null); }} disabled={busy} variant="ghost" size="md">
                   <ArrowLeft className="w-4 h-4" /> Назад
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={runCommit}
                   disabled={!preview?.ok || busy}
-                  className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 flex items-center gap-2"
+                  variant="primary" size="md"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   Подтвердить импорт
-                </button>
+                </Button>
               </>
             )}
             {step === "done" && (
-              <button onClick={onClose} className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-all active:scale-95">Готово</button>
+              <Button onClick={onClose} variant="primary" size="md">Готово</Button>
             )}
           </div>
         </>
@@ -240,9 +240,9 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, clearFile
             <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">{IMPORT_OPENING_COLUMNS_HINT}</p>
           </div>
         </div>
-        <button onClick={onDownloadTemplate} className="shrink-0 px-4 py-2 bg-white border border-primary-200 text-primary-700 rounded-xl text-sm font-semibold hover:bg-primary-50 transition-colors">
+        <Button onClick={onDownloadTemplate} variant="secondary" size="md" className="shrink-0">
           Скачать .xlsx
-        </button>
+        </Button>
       </div>
 
       {/* Dropzone */}
@@ -312,13 +312,13 @@ export function SkippedTable({ rows }: { rows: ImportSkipped[] }) {
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
         <h4 className="text-[13px] font-semibold text-slate-600">Пропущено и почему</h4>
-        <button
+        <Button
           type="button"
           onClick={() => saveBlobAs(new Blob([importReportCsv(rows)], { type: "text/csv;charset=utf-8" }), IMPORT_REPORT_FILENAME)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:text-primary-700"
+          variant="secondary" size="sm"
         >
           <Download className="h-3.5 w-3.5" /> {IMPORT_REPORT_BUTTON}
-        </button>
+        </Button>
       </div>
       <div className="max-h-56 overflow-auto rounded-2xl border border-slate-100">
         <table className="w-full min-w-[520px] text-left text-xs">

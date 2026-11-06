@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
+import { Button } from "@/components/ui/button";
 
 /** What the exam bound to the lesson means for the cancellation (the page reads `lesson-exam-binding` when the panel opens). */
 export interface LessonCancelBinding {
@@ -80,14 +81,14 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
       </div>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onBack} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white">Назад</button>
-        <button
+        <Button
           type="button"
           onClick={confirm}
           disabled={busy || (binding !== undefined && (!binding || binding.loading || !binding.canCancel))}
-          className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+          variant="danger" size="sm"
         >
           {busy ? "Сохранение..." : oneOff ? "Отменить урок" : "Урока не было"}
-        </button>
+        </Button>
       </div>
     </div>
   );

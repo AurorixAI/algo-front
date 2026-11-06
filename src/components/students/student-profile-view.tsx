@@ -44,6 +44,7 @@ import {
   ARCHIVED_TOAST, archiveBannerTitle, archiveDiagnosticCounts, archiveGroupNames, archiveResultDetails, restoreNeedsReading,
   studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
 } from "@/lib/student-archive";
+import { Button } from "@/components/ui/button";
 
 const TAB_ICON: Record<ProfileTab, typeof Brain> = {
   diagnostics: Brain,
@@ -389,14 +390,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* ── Top Navigation Bar ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
-        <button
+        <Button
           type="button"
           onClick={() => (backHref ? router.push(backHref) : router.back())}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors text-sm font-medium"
+          variant="ghost" size="sm"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Назад</span>
-        </button>
+        </Button>
       </div>
 
       {/* ── Archive banner: the student left the center ───────────────────── */}
@@ -411,14 +412,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
             </div>
           </div>
           {access.canRestore && (
-            <button
+            <Button
               type="button"
               onClick={() => setRestoreOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 sm:shrink-0"
+              variant="secondary" size="md" className="sm:shrink-0"
             >
               <ArchiveRestore className="h-4 w-4" aria-hidden />
               Вернуть из архива
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -566,13 +567,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   </p>
                   {/* the administrator creates the invite for THIS student (F32); the owner has no diagnostic buttons (owner decision 22.10) */}
                   {diagnosticsEnabled && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setDiagnosticOpen(true)}
-                      className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-primary-600 text-white rounded-xl text-xs font-medium hover:bg-primary-700 shadow-sm"
+                      variant="primary" size="sm"
                     >
                       <Plus className="w-3.5 h-3.5" /> Назначить диагностику
-                    </button>
+                    </Button>
                   )}
                 </div>
               ) : (
@@ -629,15 +630,15 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                             <div className="flex flex-wrap items-center gap-2">
                               {/* IA audit F15: a waiting invite can be sent again from the card (administrator) */}
                               {diagnosticsEnabled && isShareableInvite(diag.status) && diag.code && (
-                                <button
+                                <Button
                                   type="button"
                                   data-testid="student-diagnostic-copy-link"
                                   onClick={() => { void copy(diagnosticLink(window.location.origin, diag.code), `invite-${diag.invite_id}`).then((ok) => showToast(ok ? "Ссылка на диагностику скопирована" : "Не удалось скопировать", ok ? "success" : "error")); }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  variant="secondary" size="sm"
                                 >
                                   <Copy className="h-3.5 w-3.5" aria-hidden />
                                   {copiedInvite === `invite-${diag.invite_id}` ? "Скопировано" : "Скопировать ссылку"}
-                                </button>
+                                </Button>
                               )}
                               <DiagnosticStatusBadge
                                 testId="student-diagnostic-status"
@@ -1011,13 +1012,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   {dataError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{dataError}</p>}
 
                   <div className="flex items-center gap-2 pt-2">
-                    <button
+                    <Button
                       type="submit"
                       disabled={savingNotes}
-                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
+                      variant="primary" size="sm"
                     >
                       {savingNotes ? "Сохранение..." : "Сохранить"}
-                    </button>
+                    </Button>
                     <button
                       type="button"
                       onClick={() => { setEditingNotes(false); setDataError(null); }}

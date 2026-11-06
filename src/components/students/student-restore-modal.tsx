@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { orgApi, type StudentArchivedGroup } from "@/lib/api";
 import {
   defaultRestoreSelection,
@@ -16,6 +16,8 @@ import {
 } from "@/lib/student-archive";
 import { Modal } from "@/components/ui/modal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 interface StudentRestoreModalProps {
   open: boolean;
@@ -95,9 +97,7 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
         title="Ученик возвращён из архива"
         description={studentName}
         onClose={close}
-        footer={
-          <button type="button" onClick={close} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
-        }
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Готово" onPrimary={close} />}
       >
         <div className="space-y-4 pb-2" role="status">
           {done.lines.length > 0 && (
@@ -136,20 +136,8 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
       description={studentName}
       onClose={close}
       busy={busy}
-      footer={
-        <>
-          <button type="button" onClick={close} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="submit"
-            form="student-restore-form"
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" aria-hidden />}
-            Вернуть
-          </button>
-        </>
-      }
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={<ModalActions primary="Вернуть" submitFor="student-restore-form" busy={busy} icon={<CheckCircle2 className="h-4 w-4" aria-hidden />} onCancel={close} />}
     >
       <form id="student-restore-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3 pb-2" noValidate>
         {options.length > 0 && (

@@ -53,7 +53,7 @@ import {
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { EFFECTS_TITLE } from "@/lib/money-effects";
-import { CONFIRM_FOOTER_CLASS, CONFIRM_PRIMARY_BLUE, CONFIRM_PRIMARY_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { groupPriceHref } from "@/lib/group-price";
 import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
 import { Modal } from "@/components/ui/modal";
@@ -239,12 +239,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       description={kind === "create" ? `${membership.student_name} · ${membership.group_name} · деньги поступают в центр` : `${membership.student_name} · ${membership.group_name}`}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-[520px]"
+      size="md"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={saved ? (
-        <button type="button" onClick={onClose} data-testid="payment-done" className={`${CONFIRM_PRIMARY_CLASS} ${CONFIRM_PRIMARY_BLUE}`}>
-          Готово
-        </button>
+        <ConfirmFooter primary="Готово" onPrimary={onClose} testId="payment-done" />
       ) : (
         <ConfirmFooter
           primary={payButtonLabel(kind, amountNow)}

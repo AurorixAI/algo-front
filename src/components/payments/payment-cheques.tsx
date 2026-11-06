@@ -16,6 +16,9 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import type { RowMenuItem } from "@/components/ui/row-menu";
 import { FileInput } from "@/components/ui/file-input";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 /**
  * IA audit F10: «Прикрепить чек» lived only in the embedded payment history of the student card; that history is gone («Выписка» is the
@@ -155,15 +158,15 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
             </button>
             <span className="shrink-0 text-slate-500">{formatFileSize(file.size_bytes)}</span>
-            <button
+            <Button
               type="button"
               onClick={() => setToDelete({ payment, file })}
               aria-label={`Удалить файл ${file.filename}`}
               title="Удалить"
-              className="ml-auto shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-rose-600 print:hidden"
+              variant="ghost" size="icon" className="ml-auto shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </li>
         ))}
         {uploading && (
@@ -194,15 +197,7 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
         description={toDelete?.file.filename || undefined}
         onClose={() => setToDelete(null)}
         busy={deleting}
-        footer={
-          <>
-            <button type="button" onClick={() => setToDelete(null)} disabled={deleting} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button type="button" onClick={() => void remove()} disabled={deleting} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Удалить
-            </button>
-          </>
-        }
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Удалить" onPrimary={() => void remove()} tone="danger" busy={deleting} onCancel={() => setToDelete(null)} />}
       >
         <p className="pb-2 text-sm text-slate-600">Файл будет удалён без возможности восстановления.</p>
       </Modal>

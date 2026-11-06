@@ -67,6 +67,10 @@ import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
 import { periodClosedOf } from "@/lib/closed-period";
 import { MONEY_RIGHT_TEXT, canManageMoney, toastWithEffects } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/lib/button-style";
 
 const PAGE_SIZE = 50;
 
@@ -680,7 +684,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
           <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <AlertCircle className="h-8 w-8 text-rose-500" />
             <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-            <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+            <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
           </div>
         ) : items.length === 0 ? (
           <EmptyState icon={CheckCircle2} title={EMPTY_TEXT[tab]} hint={EMPTY_HINT[tab]} />
@@ -779,37 +783,37 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                     <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab || tab === "rejected" ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
                       {pendingTab && moneyRight && (
                         <>
-                          <button
+                          <Button
                             type="button"
                             disabled={busy}
                             aria-label={`Подтвердить: ${item.student.full_name}`}
                             onClick={() => openDialog(item, "confirmed", "none")}
-                            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 xl:flex-none"
+                            variant="primary" size="sm" className="flex-1 xl:flex-none"
                           >
                             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                             Подтвердить
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
                             disabled={busy}
                             aria-label={`Отклонить: ${item.student.full_name}`}
                             onClick={() => openDialog(item, "rejected", "optional")}
-                            className="flex h-8 flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 xl:flex-none"
+                            variant="secondary" size="sm" className="flex-1 xl:flex-none"
                           >
                             Отклонить
-                          </button>
+                          </Button>
                         </>
                       )}
                       {tab === "rejected" && moneyRight && (
-                        <button
+                        <Button
                           type="button"
                           disabled={busy}
                           aria-label={`Подтвердить: ${item.student.full_name}`}
                           onClick={() => openDialog(item, "confirmed", "none")}
-                          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-white px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 xl:flex-none"
+                          variant="secondary" size="sm" className="flex-1"
                         >
                           Подтвердить
-                        </button>
+                        </Button>
                       )}
                       <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />
                     </div>
@@ -831,9 +835,9 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} aria-label="Предыдущая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <Button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
             <span>{page + 1} из {pageCount}</span>
-            <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)} aria-label="Следующая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+            <Button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}
@@ -855,20 +859,20 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         title={viewer?.file.filename || "Справка"}
         description={viewer ? formatFileSize(viewer.file.size_bytes) : undefined}
         onClose={closeViewer}
-        maxWidthClassName="max-w-[760px]"
+        size="lg"
         footer={
           viewer ? (
             <>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => { setFileToDelete({ excuseId: viewer.excuseId, file: viewer.file }); closeViewer(); }}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 sm:mr-auto"
+                icon={<Trash2 className="h-4 w-4" />}
+                className="text-danger-700 hover:bg-danger-50 hover:text-danger-700 sm:mr-auto"
               >
-                <Trash2 className="h-4 w-4" />
                 Удалить файл
-              </button>
+              </Button>
               {viewer.url && (
-                <a href={viewer.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 px-5 py-2.5 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <a href={viewer.url} target="_blank" rel="noopener noreferrer" className={buttonClass({ variant: "secondary" })}>
                   Открыть в новой вкладке
                 </a>
               )}
@@ -909,15 +913,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         description={fileToDelete?.file.filename || undefined}
         onClose={() => setFileToDelete(null)}
         busy={fileBusyId !== null}
-        footer={
-          <>
-            <button type="button" onClick={() => setFileToDelete(null)} disabled={fileBusyId !== null} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button type="button" onClick={() => void deleteFile()} disabled={fileBusyId !== null} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-              {fileBusyId !== null && <Loader2 className="h-4 w-4 animate-spin" />}
-              Удалить
-            </button>
-          </>
-        }
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Удалить" onPrimary={() => void deleteFile()} tone="danger" busy={fileBusyId !== null} onCancel={() => setFileToDelete(null)} />}
       >
         <p className="pb-2 text-sm text-slate-600">Файл будет удалён без возможности восстановления.</p>
       </Modal>

@@ -200,7 +200,7 @@ test("E-C/3: what only the manager has (menu, restore, add student, removal, dia
   const view = read(VIEW);
   assert.match(view, /const canManage = !isTeacher;/);
   assert.match(view, /groupHeaderActions\(\{[^}]*canManage \}\)/);
-  assert.match(view, /canManage && <button/); // «Вернуть из архива»
+  assert.match(view, /canManage && <Button/); // «Вернуть из архива»
   assert.match(view, /\{canManage && group\.status === "active" && \(/); // «Добавить учеников»
   assert.match(view, /canRemove=\{canManage && group\.status === "active"\}/);
   assert.match(view, /\{canManage && \(\s*<>\s*<AddStudentDrawer/); // the dialogs

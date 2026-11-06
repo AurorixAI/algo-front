@@ -282,7 +282,7 @@ test("R3 #4: an error toast stays at least 8 s and has the cross «Закрыт�
   const toast = read("src/components/ui/toast.tsx");
   assert.match(toast, /toastLifetimeMs\(type, Boolean\(details\?\.length\)\)/);
   assert.match(toast, /aria-label="Закрыть"/);
-  const mutated = loadMutated("src/lib/toast-timing.ts", 'return type === "success" ? SUCCESS_TOAST_MS : ERROR_TOAST_MS;', "return SUCCESS_TOAST_MS;");
+  const mutated = loadMutated("src/lib/toast-timing.ts", 'return type === "success" || type === "info" ? SUCCESS_TOAST_MS : ERROR_TOAST_MS;', "return SUCCESS_TOAST_MS;");
   assert.ok(mutated.toastLifetimeMs("error", false) < 8000, "the old 3.5 s would fail the first assertion");
 });
 

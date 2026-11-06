@@ -150,7 +150,7 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
         title={INDIVIDUAL_PRICE_TITLE}
         description={`${studentName} · ${row.group_name}`}
         onClose={onClose}
-        maxWidthClassName="max-w-lg"
+        size="md"
         footerClassName={CONFIRM_FOOTER_CLASS}
         footer={<ConfirmFooter primary={null} onCancel={onClose} />}
       >
@@ -368,7 +368,7 @@ export function AssignOverrideDialog({
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName={MONEY_WINDOW_TABLE}
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Сохранить" submitFor="membership-price-form" busy={busy} onCancel={onClose} testId="membership-price-save" />}
     >

@@ -59,6 +59,9 @@ import { CancellationKindField } from "@/components/attendance/cancellation-kind
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { outcomeOf, systemReasonOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 const FIELD_CLASS =
   "w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -244,27 +247,13 @@ function DecisionDialogInner({
       open
       title={decisionHeader(item)}
       description={itemLessonLine(item)}
-      icon={<Repeat2 className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-2xl"
-      footer={
-        stale ? (
-          <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Закрыть</button>
-        ) : (
-          <>
-            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy || (touched && blocked)}
-              className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${kind === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {submitLabel}
-            </button>
-          </>
-        )
-      }
+      size="lg"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={stale
+        ? <ModalActions primary="Закрыть" onPrimary={onClose} />
+        : <ModalActions primary={submitLabel} onPrimary={() => void submit()} tone={kind === "cancel" ? "danger" : "primary"} disabled={busy || (touched && blocked)} busy={busy} onCancel={onClose} />}
     >
       {stale ? (
         <StaleBody message={stale.message} item={stale.item ?? item} />
@@ -495,7 +484,7 @@ export function SubstituteForm({
     return (
       <div role="alert" className="space-y-2">
         <p className="text-sm font-medium text-rose-700">{candidatesError}</p>
-        <button type="button" onClick={onRetry} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+        <Button type="button" onClick={onRetry} variant="secondary" size="sm">Повторить</Button>
       </div>
     );
   }

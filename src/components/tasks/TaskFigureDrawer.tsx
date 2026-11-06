@@ -200,7 +200,7 @@ export function TaskFigureDrawer({
         <button
           type="button"
           onClick={handleOpen}
-          className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 shadow-xs border active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
+          className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 shadow-card border active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
             variant === "pill"
               ? "bg-slate-50 hover:bg-slate-100/90 text-slate-700 hover:text-slate-900 border-slate-200/90 hover:border-slate-300 dark:bg-slate-800/80 dark:text-slate-200 dark:border-slate-700"
               : "bg-indigo-50/70 hover:bg-indigo-50 text-indigo-700 border-indigo-200/80 hover:border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-700"
@@ -304,7 +304,7 @@ export function TaskFigureDrawer({
           >
             {!imageLoaded && !imageError && (
               <div className="flex flex-col items-center justify-center p-12 gap-3 min-w-[240px] min-h-[200px]">
-                <div className="w-10 h-10 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-10 h-10 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                 <span className="text-xs text-slate-600 font-semibold">Загрузка чертежа...</span>
               </div>
             )}

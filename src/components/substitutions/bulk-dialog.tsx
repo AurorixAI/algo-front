@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Repeat2 } from "lucide-react";
+import { Repeat2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/substitutions";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import type { CandidatesOut, DecideBulkOut, SubstitutionItem } from "@/lib/substitution-types";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 export type BulkKind = "substitute" | "cancel" | "reject";
 
@@ -118,23 +120,11 @@ export function BulkDialog({
     <Modal
       open
       title={`${TITLE[kind]} (${items.length})`}
-      icon={<Repeat2 className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-lg"
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy || (touched && Boolean(problem))}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${kind === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {SUBMIT[kind]}
-          </button>
-        </>
-      }
+      size="md"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={<ModalActions primary={SUBMIT[kind]} onPrimary={() => void submit()} tone={kind === "cancel" ? "danger" : "primary"} disabled={busy || (touched && Boolean(problem))} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-4 pb-1">
         {kind === "substitute" && (

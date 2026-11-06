@@ -10,6 +10,7 @@ import { canManageMoney } from "@/lib/money-effects";
 import { ReadonlyEmailField } from "@/components/settings/readonly-email-field";
 import { profileUpdateBody } from "@/lib/profile-form";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
+import { Button } from "@/components/ui/button";
 
 export default function AdminSettingsPage() {
   const { user, updateUser } = useAuthStore();
@@ -77,9 +78,9 @@ export default function AdminSettingsPage() {
           </div>
           <ReadonlyEmailField id={`${uid}-email`} email={user?.email} labelClassName="block text-sm font-semibold text-slate-700 mb-1.5" inputClassName="w-full px-3 py-2 border border-slate-200 rounded-xl" />
           <div className="flex justify-end">
-            <button onClick={handleProfile} disabled={savingProfile} className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50">
+            <Button onClick={handleProfile} disabled={savingProfile} variant="primary" size="md">
               <Save className="w-4 h-4" /> {savingProfile ? "..." : "Сохранить"}
-            </button>
+            </Button>
           </div>
         </div>
       </motion.div>
@@ -104,9 +105,9 @@ export default function AdminSettingsPage() {
             <input id={`${uid}-confirm-password`} type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} placeholder="Подтвердите пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div className="flex justify-end">
-            <button onClick={handlePw} disabled={savingPw || !pw.current_password || !pw.new_password} className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50">
+            <Button onClick={handlePw} disabled={savingPw || !pw.current_password || !pw.new_password} variant="primary" size="md">
               <Lock className="w-4 h-4" /> {savingPw ? "..." : "Изменить"}
-            </button>
+            </Button>
           </div>
         </div>
       </motion.div>

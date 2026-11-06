@@ -22,6 +22,7 @@ import { COPY_FAILED_TEXT, examLinkHere } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
 import { groupExamLinks, groupExamsAccess } from "@/lib/group-exams";
 import { groupWorkspacePaths, withoutJournalLink, type GroupWorkspace } from "@/lib/group-workspace";
+import { Button } from "@/components/ui/button";
 
 type ExamStatusFilter = ExamTab;
 
@@ -292,16 +293,16 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                               <p className="font-semibold text-sm text-slate-800 truncate">{exam.title}</p>
                               <p className="text-xs text-slate-500">{exam.tasks_per_variant} зад · {exam.variants_count} вар</p>
                             </div>
-                            <button
+                            <Button
                               onClick={() => {
                                 setModalState("none");
                                 setAssignTarget(exam);
                               }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer shadow-xs"
+                              variant="primary" size="sm" className="shrink-0"
                             >
                               <Check className="w-3.5 h-3.5" />
                               Выбрать
-                            </button>
+                            </Button>
                           </div>
                         ))}
                       {allExams
@@ -325,7 +326,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
         </AnimatePresence>
 
         {/* Header + Add button */}
-        <div className="flex items-center justify-between bg-white rounded-2xl p-5 border border-slate-100 shadow-xs">
+        <div className="flex items-center justify-between bg-white rounded-2xl p-5 border border-slate-100 shadow-card">
           <div>
             <h3 className="font-bold text-slate-900 text-base">Экзамены группы</h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -341,7 +342,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
         </div>
 
         {/* Filter Bar + Search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-3 border border-slate-100 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-3 border border-slate-100 shadow-card">
           {/* Status pills */}
           <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl overflow-x-auto scrollbar-none">
             {([
@@ -361,7 +362,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                   className={cn(
                     "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
                     isActive
-                      ? "bg-white text-slate-900 shadow-xs"
+                      ? "bg-white text-slate-900 shadow-card"
                       : "text-slate-500 hover:text-slate-700"
                   )}
                 >
@@ -396,7 +397,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
 
         {/* Exams list or empty states */}
         {groupExams.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-xs">
+          <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-card">
             <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h4 className="font-bold text-slate-900 text-sm">Нет назначенных экзаменов</h4>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
@@ -412,7 +413,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
             )}
           </div>
         ) : filteredGroupExams.length === 0 ? (
-          <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-xs">
+          <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-card">
             <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2 opacity-60" />
             <h4 className="font-bold text-slate-800 text-sm">Экзамены не найдены</h4>
             <p className="text-xs text-slate-400 mt-1">
@@ -433,7 +434,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
               <ExamRow
                 key={ex.exam_id}
                 href={links.exam(ex.exam_id, groupExamReturnHref)}
-                className="group/exam bg-white hover:bg-slate-50/70 rounded-2xl p-5 border border-slate-100 shadow-2xs hover:shadow-sm hover:border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all block cursor-pointer"
+                className="group/exam bg-white hover:bg-slate-50/70 rounded-2xl p-5 border border-slate-100 shadow-card hover:shadow-sm hover:border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all block cursor-pointer"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center shrink-0 group-hover/exam:bg-primary-100/70 transition-colors">
@@ -493,7 +494,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
                       }}
                       className={`group/code inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
                         copiedId === ex.exam_id
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-card"
                           : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/60"
                       }`}
                       title="Скопировать ссылку для учеников"

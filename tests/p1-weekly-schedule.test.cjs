@@ -257,7 +257,7 @@ test("the day chips: label-in-name, a hint tied to the group, the invalid state 
 test("wiring: «Добавить в расписание» is in the header of «Расписание группы» for the owner and the administrator, not on an archived group", () => {
   const overview = read("src/components/groups/group-schedule-overview.tsx");
   assert.match(overview, /const canManage = \(viewerRole === "owner" \|\| viewerRole === "admin"\) && !archived/);
-  assert.match(overview, /\{canManage && \(\s*<button[^>]*onClick=\{\(\) => void openAdd\(\)\}/);
+  assert.match(overview, /\{canManage && \(\s*<Button[^>]*onClick=\{\(\) => void openAdd\(\)\}/);
   assert.match(overview, /Добавить в расписание/);
   assert.match(overview, /teacherAssigned = true/);
   assert.match(overview, /NO_TEACHER_SCHEDULE_HINT/);

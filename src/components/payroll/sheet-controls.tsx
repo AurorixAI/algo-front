@@ -23,6 +23,7 @@ import {
   type SheetStatusView,
   type WarningView,
 } from "@/lib/payroll";
+import { Button } from "@/components/ui/button";
 
 /**
  * «Печать» with the dates: the date grids are folded on screen («По датам»), but a printed sheet is the proof of its sums, so
@@ -132,25 +133,25 @@ export function SaveBar({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={onDiscard}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            variant="secondary" size="md"
           >
             <Undo2 className="h-4 w-4" />
             Отменить правки
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onSave}
             disabled={disabled}
             title={blockedReason ?? undefined}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary" size="md"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? "Сохранение…" : "Сохранить"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

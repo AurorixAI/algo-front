@@ -4,6 +4,7 @@ import { EFFECTS_LOADING_TEXT, EFFECTS_TITLE, effectsFailureText, EFFECTS_RETRY_
 import type { EffectsPreview } from "@/lib/money-preview";
 import { CARRIED_NONE_TEXT, carriedOf, carriedRows } from "@/lib/dry-run";
 import { tidyMoneyText } from "@/lib/money-format";
+import { Button } from "@/components/ui/button";
 
 /**
  * «Что изменится» before a transfer is confirmed (UX pack №15; the principle of the owner: the window shows only its own - the money OF THE STUDENT): the dry run of the same request
@@ -33,7 +34,7 @@ export function TransferPreviewBlock({ preview, onRetry, names, className = "mx-
         <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
         <div role="alert" className="mt-1.5 space-y-1.5">
           <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
-          <button type="button" data-testid="transfer-preview-retry" onClick={onRetry} className="inline-flex min-h-[40px] items-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100">{EFFECTS_RETRY_LABEL}</button>
+          <Button type="button" data-testid="transfer-preview-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
         </div>
       </section>
     );

@@ -52,6 +52,7 @@ import { CollectionTable } from "./income-collection";
 import { JournalDrawer, JournalSection } from "./income-journal";
 import { IncomeError, IncomeOverviewView, IncomeSkeleton } from "./income-parts";
 import { DateInput } from "@/components/ui/date-input";
+import { Button } from "@/components/ui/button";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
@@ -393,7 +394,7 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="income-period" onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => onChange(stepPeriod(period, -1))} aria-label={prev} title={prev} className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+        <Button type="button" onClick={() => onChange(stepPeriod(period, -1))} aria-label={prev} title={prev} variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
         {custom ? (
           <span className="inline-flex min-w-[10rem] items-center justify-center gap-0.5 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium tabular-nums text-primary-800" data-testid="period-chip" aria-live="polite">
             {rangeChipText(period, today)}
@@ -402,18 +403,18 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
         ) : (
           <span className="min-w-[10rem] px-2 text-center text-sm font-semibold text-slate-800" aria-live="polite" data-testid="period-title">{periodTitle(period)}</span>
         )}
-        <button type="button" onClick={() => onChange(stepPeriod(period, 1))} disabled={!canStepForward(period, today)} aria-label={next} title={next} className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
+        <Button type="button" onClick={() => onChange(stepPeriod(period, 1))} disabled={!canStepForward(period, today)} aria-label={next} title={next} variant="secondary" size="icon"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
       </div>
-      <button type="button" onClick={openPicker} aria-expanded={open} data-testid="period-custom" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+      <Button type="button" onClick={openPicker} aria-expanded={open} data-testid="period-custom" variant="secondary" size="md">
         <CalendarRange className="h-4 w-4 text-slate-500" aria-hidden />
         Свой период
-      </button>
+      </Button>
       {open && (
         <div className="flex w-full flex-wrap items-center gap-1.5" data-testid="period-picker">
           <DateInput wrapperClassName="w-40 shrink-0" aria-label="С какого дня" value={from} max={today} onChange={(next) => setFrom(next)} className={`${FIELD} py-2`} />
           <span className="text-slate-500" aria-hidden>—</span>
           <DateInput wrapperClassName="w-40 shrink-0" aria-label="По какой день" value={to} max={today} onChange={(next) => setTo(next)} className={`${FIELD} py-2`} />
-          <button type="button" onClick={apply} disabled={problem !== null} className="rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">Показать</button>
+          <Button type="button" onClick={apply} disabled={problem !== null} variant="primary" size="md">Показать</Button>
           {problem && <p role="alert" className="w-full text-sm font-medium text-rose-600">{problem}</p>}
         </div>
       )}

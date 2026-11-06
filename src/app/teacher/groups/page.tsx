@@ -11,6 +11,7 @@ import { useAuthStore } from "@/lib/store";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { Button } from "@/components/ui/button";
 
 
 
@@ -57,13 +58,13 @@ export default function TeacherGroupsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Мои группы</h1>
         </div>
-        <button
+        <Button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
+          variant="primary" size="md"
         >
           <Plus className="w-4 h-4" />
           Новая группа
-        </button>
+        </Button>
       </div>
 
 
@@ -108,13 +109,13 @@ export default function TeacherGroupsPage() {
           <p className="text-slate-500 text-sm mb-6 text-center max-w-xs">
             Создайте группу, добавьте учеников и отслеживайте их прогресс в одном месте.
           </p>
-          <button
+          <Button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium text-sm"
+            variant="primary" size="md"
           >
             <Plus className="w-4 h-4" />
             Создать первую группу
-          </button>
+          </Button>
         </motion.div>
           ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

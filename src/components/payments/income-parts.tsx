@@ -37,6 +37,7 @@ import {
   type IncomeOverview,
   type MethodSegment,
 } from "@/lib/payments-income-v2";
+import { Button } from "@/components/ui/button";
 
 /** The group / teacher the screen is narrowed to: carried to «Должники» and to the label of the till. */
 
@@ -75,9 +76,9 @@ export function IncomeError({ message, onRetry, denied = false }: { message: str
       {denied ? <Wallet className="h-7 w-7 text-slate-300" aria-hidden /> : <AlertCircle className="h-7 w-7 text-rose-500" aria-hidden />}
       <p className="text-sm font-medium text-slate-700">{message}</p>
       {!denied && onRetry && (
-        <button type="button" onClick={onRetry} className="mt-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <Button type="button" onClick={onRetry} variant="secondary" size="md" className="mt-1">
           Повторить
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -75,6 +75,7 @@ import { OpeningsGroups } from "@/components/payments/openings-rows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileInput } from "@/components/ui/file-input";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { Button } from "@/components/ui/button";
 
 type Notice = { tone: "info" | "warn"; text: string } | null;
 
@@ -489,14 +490,14 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
           {data && <p className="mt-0.5 text-sm text-slate-500" data-testid="openings-intro">{openingsIntro(data.accounting_start)}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button type="button" onClick={() => void download()} disabled={!data || busyFile !== null} data-testid="openings-download" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+          <Button type="button" onClick={() => void download()} disabled={!data || busyFile !== null} data-testid="openings-download" variant="secondary" size="md">
             {busyFile === "export" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Скачать файл
-          </button>
-          <button type="button" onClick={() => fileInput.current?.click()} disabled={!data || busyFile !== null} data-testid="openings-upload" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+          </Button>
+          <Button type="button" onClick={() => fileInput.current?.click()} disabled={!data || busyFile !== null} data-testid="openings-upload" variant="secondary" size="md">
             {busyFile === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Загрузить файл
-          </button>
+          </Button>
           <FileInput ref={fileInput} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Файл с остатками (.xlsx)" data-testid="openings-file" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} />
         </div>
       </div>
@@ -514,7 +515,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
         <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <AlertCircle className="h-8 w-8 text-rose-500" />
           <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-          <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+          <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : tooMany ? (
         <div data-testid="openings-too-many" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
@@ -635,8 +636,8 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
           {dirtyCount > 0 && (
             <div role="region" aria-label="Несохранённые правки" data-testid="openings-save-bar" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-primary-200 bg-white px-4 py-3 shadow-lg">
               <p className="mr-auto text-sm text-slate-700"><span className="font-semibold text-slate-900" data-testid="openings-changed">Изменено: {dirtyCount}</span> <span className="text-slate-500">— пока не сохранено</span></p>
-              <button type="button" onClick={discardAll} className="rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Отменить правки</button>
-              <button type="button" onClick={startReview} data-testid="openings-check" className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">Проверить</button>
+              <Button type="button" onClick={discardAll} variant="ghost" size="md">Отменить правки</Button>
+              <Button type="button" onClick={startReview} data-testid="openings-check" variant="primary" size="md">Проверить</Button>
             </div>
           )}
         </div>

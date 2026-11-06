@@ -41,6 +41,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { GroupExamsTab } from "@/components/groups/group-exams-tab";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { useAuthStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
 
 type Tab = GroupPageTab;
 
@@ -431,14 +432,14 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               {/* Form Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 <div className="flex items-center gap-3">
-                  <button
+                  <Button
                     onClick={handleSave}
                     disabled={!editState.name.trim() || saving || Number(editState.max_students) < group.student_count}
-                    className="flex items-center gap-2 px-7 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                    variant="primary" size="lg"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     {saving ? "Сохранение…" : "Сохранить изменения"}
-                  </button>
+                  </Button>
                   <button
                     onClick={() => setEditing(false)}
                     className="flex items-center gap-1.5 px-5 py-3 text-slate-500 hover:text-slate-800 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
@@ -502,15 +503,15 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {group.status === "archived" ? (
-                    canManage && <button
+                    canManage && <Button
                       type="button"
                       onClick={() => setRestoreOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-xs cursor-pointer"
+                      variant="secondary" size="md"
                       title="Вернуть группу из архива"
                     >
                       <RotateCcw className="w-4 h-4 text-emerald-600" />
                       Вернуть из архива
-                    </button>
+                    </Button>
                   ) : (
                     <RowMenu items={headerMenu} label={`Действия: ${group.name}`} width={240} />
                   )}
@@ -555,14 +556,14 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
               {canManage && group.status === "active" && (
-                <button
+                <Button
                   type="button"
                   onClick={() => setAddOpen(true)}
-                  className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
+                  variant="primary" size="md"
                 >
                   <UserPlus className="h-4 w-4" />
                   {ENROL_STUDENTS_BUTTON_LABEL}
-                </button>
+                </Button>
               )}
             </div>
             <GroupStudentTable

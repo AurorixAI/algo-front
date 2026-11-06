@@ -138,7 +138,7 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
               disabled={disabled}
               onClick={() => onChange({ color })}
               className={`w-7 h-7 rounded-full border-2 transition-all ${COLOR_CLASSES[color].dot} ${
-                value.color === color ? "border-slate-900 scale-110 shadow-xs" : "border-transparent opacity-60 hover:opacity-100"
+                value.color === color ? "border-slate-900 scale-110 shadow-card" : "border-transparent opacity-60 hover:opacity-100"
               }`}
             />
           ))}
@@ -241,7 +241,7 @@ export function WeekdayChips({ idPrefix, days, onChange, disabled = false, inval
               disabled={disabled}
               onClick={() => onChange(single ? [day.id] : toggleDay(days, day.id))}
               className={`h-9 min-w-[2.5rem] rounded-xl border px-2.5 text-xs font-semibold transition-colors ${
-                on ? "border-primary-500 bg-primary-600 text-white shadow-xs" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                on ? "border-primary-500 bg-primary-600 text-white shadow-card" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
               {/* the name begins with the visible text («Пн Понедельник»): what is seen is what is said */}

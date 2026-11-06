@@ -81,6 +81,8 @@ import {
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
 import { Modal, useScrollLock } from "@/components/ui/modal";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -902,7 +904,7 @@ export default function ExamHubPage() {
   // «⋯» of the live block (the header has no buttons): the same list in the same order for every status.
   const actionsMenu = (wrapperClass = "") => (
     <div className={cn("relative", wrapperClass)}>
-                <button
+                <Button
                   ref={headerMenuTriggerRef}
                   type="button"
                   aria-expanded={headerMenuOpen}
@@ -910,10 +912,10 @@ export default function ExamHubPage() {
                   aria-label="Опции экзамена"
                   onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
                   title="Опции экзамена"
-                  className="p-2.5 rounded-xl border border-slate-200/90 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer bg-white shadow-2xs"
+                  variant="secondary" size="icon"
                 >
                   <MoreVertical className="w-4 h-4" />
-                </button>
+                </Button>
 
                 {/* Portaled + flipped: never clipped by the header card, reachable by keyboard and touch. */}
                 <FloatingPanel
@@ -1117,14 +1119,14 @@ export default function ExamHubPage() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl border border-slate-200/80 shadow-xs relative"
+        className="bg-white rounded-3xl border border-slate-200/80 shadow-card relative"
       >
         <div className="p-6 md:p-7">
           {/* Title, one status and one quiet line of facts: no button, no «⋯» here. */}
           <div>
             {/* Icon + Title + Status + Facts: the header carries information only, every action lives in the live block of the «Лобби / Live» tab */}
             <div className="flex min-w-0 items-start gap-4 sm:gap-5">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-card">
                 <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
 
@@ -1156,7 +1158,7 @@ export default function ExamHubPage() {
       </motion.div>
 
       {isPastUnstartedDelivery && (
-        <section className="overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/70 p-5 shadow-2xs">
+        <section className="overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/70 p-5 shadow-card">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-1 gap-3.5">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
@@ -1193,13 +1195,13 @@ export default function ExamHubPage() {
 
       {/* ─── Centered Navigation Tabs Bar (Outside Header Card) ─── */}
       <div className="flex items-center justify-center">
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/90 rounded-2xl p-1.5 border border-slate-200/60 shadow-2xs overflow-x-auto max-w-full">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/90 rounded-2xl p-1.5 border border-slate-200/60 shadow-card overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab("lobby")}
             className={cn(
               "flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
               activeTab === "lobby"
-                ? "bg-white text-slate-900 shadow-xs"
+                ? "bg-white text-slate-900 shadow-card"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
           >
@@ -1217,7 +1219,7 @@ export default function ExamHubPage() {
             className={cn(
               "flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
               activeTab === "tasks"
-                ? "bg-white text-slate-900 shadow-xs"
+                ? "bg-white text-slate-900 shadow-card"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
             )}
           >
@@ -1231,7 +1233,7 @@ export default function ExamHubPage() {
               className={cn(
                 "flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
                 activeTab === "analytics"
-                  ? "bg-white text-slate-900 shadow-xs"
+                  ? "bg-white text-slate-900 shadow-card"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
               )}
             >
@@ -1253,7 +1255,7 @@ export default function ExamHubPage() {
       {activeTab === "lobby" && (
         isPrintDelivery ? (
           <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-6 md:p-8 shadow-2xs">
+            <div className="relative overflow-hidden rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-6 md:p-8 shadow-card">
               <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-violet-200/30 blur-2xl pointer-events-none" />
               <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-4 max-w-2xl">
@@ -1356,12 +1358,12 @@ export default function ExamHubPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-card">
                 <p className="text-xs font-semibold text-slate-500">Формат</p>
                 <p className="mt-2 text-base font-bold text-slate-900">Бумажный экзамен</p>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">Без ссылок, лобби и веб-сессий учеников.</p>
               </div>
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-card">
                 <p className="text-xs font-semibold text-slate-500">Привязка</p>
                 <p className="mt-2 text-base font-bold text-slate-900">{exam.group_name || "Группа не выбрана"}</p>
                 {boundLessonLabel ? (
@@ -1372,7 +1374,7 @@ export default function ExamHubPage() {
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">Комплект выпускается только для одного фактического занятия.</p>
                 )}
               </div>
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-card">
                 <p className="text-xs font-semibold text-slate-500">Статус</p>
                 <p className="mt-2 text-base font-bold text-slate-900">
                   {exam.status === "print_ready" ? "Готов к печати" : exam.status === "active" ? "В проведении" : exam.status === "closed" ? "Завершён" : "Требует подготовки"}
@@ -1384,7 +1386,7 @@ export default function ExamHubPage() {
         ) : (
         <div className="space-y-6">
           {!exam.group_id && (
-            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-card">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5" />
@@ -1408,7 +1410,7 @@ export default function ExamHubPage() {
             </div>
           )}
           {/* The LIVE BLOCK: the counters of the room and EVERY action of the exam (the header above has none): one main action by status, one quiet link, «⋯». */}
-          <div data-testid="exam-live-block" className="flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
+          <div data-testid="exam-live-block" className="flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-card lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-4 lg:flex-1">
               <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black text-xl shrink-0">
                 {totalConnected}
@@ -1555,7 +1557,7 @@ export default function ExamHubPage() {
                       exit={{ opacity: 0, scale: 0.8 }}
                       transition={{ duration: 0.2 }}
                       className={cn(
-                        "relative p-4 rounded-2xl border transition-all flex flex-col justify-between shadow-2xs group",
+                        "relative p-4 rounded-2xl border transition-all flex flex-col justify-between shadow-card group",
                         isIncompleteFinal && "bg-amber-50/40 border-amber-200/80",
                         !isFinalized && s.status === "waiting" && "bg-white border-slate-200/90 hover:border-primary-300",
                         !isFinalized && s.status === "in_progress" && "bg-primary-50/40 border-primary-200/80 hover:border-primary-400",
@@ -1664,7 +1666,7 @@ export default function ExamHubPage() {
       {activeTab === "tasks" && (
         <div className="space-y-6">
           {/* Variant Switcher & Answer Toggle Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-card">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-slate-500 mr-1">Варианты:</span>
               {(exam.variants || []).map((v) => (
@@ -1689,7 +1691,7 @@ export default function ExamHubPage() {
                 className={cn(
                   "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
                   showAnswers
-                    ? "bg-primary-50 text-primary-700 border-primary-200 shadow-xs"
+                    ? "bg-primary-50 text-primary-700 border-primary-200 shadow-card"
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
                 )}
               >
@@ -1708,7 +1710,7 @@ export default function ExamHubPage() {
                       setShowDistractors({});
                     }}
                     title="Свернуть все анализы типичных ошибок"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all cursor-pointer shadow-card"
                   >
                     <X className="w-3.5 h-3.5 text-rose-500" />
                     <span>Свернуть всё</span>
@@ -1793,7 +1795,7 @@ export default function ExamHubPage() {
                                 exit={{ opacity: 0, height: 0 }}
                                 className="my-3 overflow-hidden"
                               >
-                                <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
+                                <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-card max-w-full">
                                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                                   <span className="text-xs font-semibold text-emerald-800">Правильный ответ:</span>
                                   <span className="text-sm sm:text-base font-medium text-emerald-950">
@@ -1837,7 +1839,7 @@ export default function ExamHubPage() {
                                       {t.distractor_meta.map((dm, dIdx) => (
                                         <div
                                           key={dIdx}
-                                          className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5"
+                                          className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-card space-y-2.5"
                                         >
                                           <div className="flex flex-wrap items-start justify-between gap-2">
                                             <div className="flex items-start gap-2.5 flex-1 min-w-0">
@@ -2279,7 +2281,7 @@ export default function ExamHubPage() {
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 flex items-start gap-3.5 shadow-2xs"
+                    className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 flex items-start gap-3.5 shadow-card"
                   >
                     <div className="w-9 h-9 rounded-xl bg-amber-100/90 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
                       <AlertTriangle className="w-5 h-5" />
@@ -2297,7 +2299,7 @@ export default function ExamHubPage() {
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shadow-2xs"
+                    className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shadow-card"
                   >
                     <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
                       <AlertTriangle className="w-4 h-4" />
@@ -2516,13 +2518,13 @@ export default function ExamHubPage() {
                       </button>
                     </div>
                     <div className="flex justify-end border-t border-slate-100 pt-4">
-                      <button
+                      <Button
                         type="button"
                         onClick={closeDeliveryDecisionModal}
-                        className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                        variant="ghost" size="sm"
                       >
                         Не сейчас
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -2600,13 +2602,9 @@ export default function ExamHubPage() {
         description={isPrintDelivery ? "Завершить проведение экзамена на бумаге?" : "Ученики ещё пишут. Завершить экзамен для всех?"}
         onClose={() => setShowCloseConfirm(false)}
         busy={actionLoading}
-        maxWidthClassName="max-w-md"
-        footer={
-          <>
-            <Button variant="secondary" size="md" onClick={() => setShowCloseConfirm(false)} disabled={actionLoading}>Отмена</Button>
-            <Button variant="danger" size="md" loading={actionLoading} onClick={handleCloseExam}>Завершить</Button>
-          </>
-        }
+        size="sm"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+        footer={<ModalActions primary="Завершить" tone="danger" onPrimary={handleCloseExam} busy={actionLoading} onCancel={() => setShowCloseConfirm(false)} />}
       >
         <p className="text-sm text-slate-600">
           {isPrintDelivery ? "Экзамен будет отмечен проведённым." : "Работы, которые ещё не сданы, будут сданы автоматически, дальше ответы вносить нельзя."}
@@ -2727,13 +2725,13 @@ export default function ExamHubPage() {
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setShowAssignModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    variant="ghost" size="sm"
                   >
                     Закрыть
-                  </button>
+                  </Button>
                 </div>
               </div>
             </motion.div>

@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, CalendarCheck, CheckCircle2, Eraser, Loader2, X } from "lucide-react";
 import { FloatingPanel } from "@/components/ui/floating-panel";
-import { CONFIRM_FOOTER_CLASS, CONFIRM_CANCEL_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { Button } from "@/components/ui/button";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import {
   atStudentsWord,
@@ -64,7 +65,7 @@ export function OpeningsBulkBar({
         <div data-testid="openings-bulk-paid-panel">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-900">Оплачено до…</p>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" aria-hidden="true" /></button>
+            <Button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" variant="ghost" size="icon"><X className="h-4 w-4" aria-hidden="true" /></Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {quick.map((item) => (
@@ -76,7 +77,7 @@ export function OpeningsBulkBar({
               <label htmlFor="openings-bulk-date" className="mb-1 block text-xs font-semibold text-slate-600">Другая дата</label>
               <DateInput id="openings-bulk-date" value={date} onChange={(next) => setDate(next)} className={FIELD} />
             </div>
-            <button type="button" onClick={() => date && apply(date)} disabled={!date} data-testid="openings-bulk-paid-apply" className="h-9 rounded-xl bg-primary-600 px-3.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">Применить</button>
+            <Button type="button" onClick={() => date && apply(date)} disabled={!date} data-testid="openings-bulk-paid-apply" variant="primary" size="md">Применить</Button>
           </div>
         </div>
       </FloatingPanel>
@@ -137,14 +138,14 @@ export function OpeningsReviewDialog({
   const saveable = Boolean(preview) && canSave(preview, reason) && !saving && (!state?.reasonForced || problem === null);
   const goodCount = preview ? preview.summary.changed : 0;
 
-  const dropErrors = errorIds.length > 0 && goodCount > 0 ? <button type="button" onClick={onDropErrors} disabled={saving} data-testid="openings-review-drop-errors" className={CONFIRM_CANCEL_CLASS}>Без этих строк</button> : null;
+  const dropErrors = errorIds.length > 0 && goodCount > 0 ? <Button variant="ghost" onClick={onDropErrors} disabled={saving} data-testid="openings-review-drop-errors" className="max-md:min-h-11">Без этих строк</Button> : null;
   return (
     <Modal
       open={state !== null}
       title="Проверьте перед сохранением"
       onClose={onClose}
       busy={saving}
-      maxWidthClassName="max-w-xl"
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary={goodCount > 0 ? `Сохранить ${goodCount}` : "Сохранить"} onPrimary={onSave} busy={saving} disabled={!saveable} why={saveable ? null : "Исправьте строки с ошибками или уберите их"} whyId="openings-review-why" onCancel={onClose} cancelLabel={errorIds.length > 0 ? "Вернуться к таблице" : "Отмена"} testId="openings-review-save" extra={dropErrors} />}
     >
@@ -244,7 +245,7 @@ export function OpeningsExcelDialog({
       description={state?.fileName}
       onClose={onClose}
       busy={saving}
-      maxWidthClassName="max-w-2xl"
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary={count > 0 ? excelApplyLabel(count) : "Применить"} onPrimary={onApply} busy={saving} disabled={!applyable} why={applyable ? null : "Нет строк, которые можно применить"} whyId="openings-excel-why" onCancel={onClose} testId="openings-excel-apply" />}
     >
@@ -322,7 +323,7 @@ export function OpeningsDoneDialog({ open, missing, busy, error, onConfirm, onCl
       title="Закончить заполнение остатков?"
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-md"
+      size="sm"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Да, готово" onPrimary={onConfirm} busy={busy} onCancel={onClose} testId="openings-done-confirm" />}
     >

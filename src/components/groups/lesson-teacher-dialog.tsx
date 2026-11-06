@@ -21,6 +21,9 @@ import {
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { Radio } from "@/components/ui/radio";
 import { useAuthStore } from "@/lib/store";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { Button } from "@/components/ui/button";
 
 export interface LessonTeacherTarget {
   groupId: string;
@@ -123,28 +126,20 @@ export function LessonTeacherDialog({
     <Modal
       open
       title={lessonTeacherDialogTitle(target.lessonDate, target.startTime, target.endTime)}
-      icon={<UserRoundCheck className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
-      maxWidthClassName="max-w-lg"
-      footer={
-        <>
-          {canReturn && (
-            <button type="button" onClick={() => void send(null)} disabled={busy} className="mr-auto rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-              {RETURN_GROUP_TEACHER_ACTION}
-            </button>
-          )}
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-          <button
-            type="button"
-            onClick={() => void send(pick)}
-            disabled={busy || !pick}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {ASSIGN_TEACHER_ACTION}
-          </button>
-        </>
-      }
+      size="md"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+      footer={(
+        <ModalActions
+          primary={ASSIGN_TEACHER_ACTION}
+          onPrimary={() => void send(pick)}
+          disabled={busy || !pick}
+          busy={busy}
+          onCancel={onClose}
+          leading={canReturn ? <Button variant="ghost" onClick={() => void send(null)} disabled={busy} className="max-md:min-h-11">{RETURN_GROUP_TEACHER_ACTION}</Button> : undefined}
+        />
+      )}
     >
       <LessonTeacherBody
         list={list}
@@ -188,7 +183,7 @@ export function LessonTeacherBody({
     return (
       <div role="alert" className="space-y-2 pb-1">
         <p className="text-sm font-medium text-rose-700">{loadError}</p>
-        <button type="button" onClick={onRetry} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+        <Button type="button" onClick={onRetry} variant="secondary" size="sm">Повторить</Button>
       </div>
     );
   }

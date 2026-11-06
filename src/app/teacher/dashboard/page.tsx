@@ -598,7 +598,7 @@ export default function TeacherDashboardPage() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: i * 0.05 }}
-            className={`bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-slate-100 shadow-xs relative overflow-hidden group hover:border-slate-200 transition-all ${s.onClick ? "cursor-pointer focus-within:ring-2 focus-within:ring-amber-300" : ""}`}
+            className={`bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-slate-100 shadow-card relative overflow-hidden group hover:border-slate-200 transition-all ${s.onClick ? "cursor-pointer focus-within:ring-2 focus-within:ring-amber-300" : ""}`}
           >
             {s.onClick && (
               <button
@@ -670,7 +670,7 @@ export default function TeacherDashboardPage() {
                         <h3 className="truncate font-bold text-slate-900 transition-colors group-hover:text-primary-700">{group.name}</h3>
                         <p className="mt-0.5 text-xs text-slate-500">{group.class_level ? `${group.class_level} класс · ` : ""}{group.student_count} {pluralRu(group.student_count, ["ученик", "ученика", "учеников"])}</p>
                       </div>
-                      <span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-2xs ring-1 ring-slate-100">
+                      <span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-card ring-1 ring-slate-100">
                         {group.class_level ? `${group.class_level} кл` : "Группа"}
                       </span>
                     </div>
@@ -938,9 +938,9 @@ export default function TeacherDashboardPage() {
                             ? "bg-white border-amber-300 shadow-sm border-l-4 border-l-amber-500 hover:border-amber-400 ring-1 ring-amber-500/10"
                             : "bg-white border-emerald-300 shadow-sm border-l-4 border-l-emerald-500 hover:border-emerald-400 ring-1 ring-emerald-500/10"
                           : status.type === "upcoming" && status.diffMinutes <= 60
-                          ? "bg-white border-amber-200 shadow-2xs border-l-4 border-l-amber-500 hover:border-amber-300 hover:shadow-sm"
+                          ? "bg-white border-amber-200 shadow-card border-l-4 border-l-amber-500 hover:border-amber-300 hover:shadow-sm"
                           : status.type === "upcoming"
-                          ? "bg-white border-slate-200 shadow-2xs border-l-4 border-l-blue-500 hover:border-blue-300 hover:shadow-sm"
+                          ? "bg-white border-slate-200 shadow-card border-l-4 border-l-blue-500 hover:border-blue-300 hover:shadow-sm"
                           : "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white border-l-4 border-l-slate-300"
                       }`}
                     >
@@ -957,45 +957,45 @@ export default function TeacherDashboardPage() {
                                 event.stopPropagation();
                                 setDashboardRefreshNonce((current) => current + 1);
                               }}
-                              className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 shadow-2xs transition-colors hover:bg-amber-100"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 shadow-card transition-colors hover:bg-amber-100"
                             >
                               <AlertCircle className="h-3 w-3 text-amber-600" />
                               Статус не проверен · Повторить
                             </button>
                           ) : isCancelled ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-2xs">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-card">
                               <X className="w-3 h-3" />
                               Отменён
                             </span>
                           ) : ledByOtherTeacher ? (
-                            <span data-testid="led-by-substitute" className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-2xs">
+                            <span data-testid="led-by-substitute" className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-card">
                               {ledByText(l.replacedBy?.name)}
                             </span>
                           ) : isFinished ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-2xs">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-card">
                               <CheckCircle2 className="w-3 h-3 text-slate-400" />
                               Завершён
                             </span>
                           ) : subsequentLesson ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-card">
                               <AlertCircle className="w-3 h-3 text-rose-600" />
                               Урок не начат
                             </span>
                           ) : instanceStatus === "in_progress" ? (
                             status.isPastEndTime ? (
                               isAttSaved ? (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                   <Clock className="w-3 h-3 text-amber-600" />
                                   Завершите урок
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-card">
                                   <AlertCircle className="w-3 h-3 text-rose-600" />
                                   Отметьте посещаемость
                                 </span>
                               )
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-card">
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
@@ -1005,24 +1005,24 @@ export default function TeacherDashboardPage() {
                             )
                           ) : status.type === "live" ? (
                             status.isPastEndTime ? (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 Урок не начат
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-card group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
                                 <Play className="w-3 h-3 fill-white" />
                                 Начать урок
                               </span>
                             )
                           ) : status.type === "upcoming" ? (
                             status.diffMinutes <= 60 ? (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 Через {formatMinutesUntil(status.diffMinutes)}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-card">
                                 <CalendarIcon className="w-3 h-3 text-blue-600" />
                                 В {l.startTime}
                               </span>

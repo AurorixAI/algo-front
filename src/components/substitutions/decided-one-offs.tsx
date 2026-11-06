@@ -13,6 +13,7 @@ import {
 } from "@/lib/one-off";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
+import { Button } from "@/components/ui/button";
 
 /**
  * R3 #28 (the money right): «Решённые дополнительные уроки» of a month on the tab «Решённые» of «Замены» - what was decided (paid to the teacher or not), who decided and when.
@@ -54,9 +55,9 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
           <p className="text-xs text-slate-500">{DECIDED_HINT}</p>
         </div>
         <div className="flex items-center gap-1" role="group" aria-label="Месяц">
-          <button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 sm:h-8 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+          <Button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} variant="secondary" size="md" className="w-10 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
           <span data-testid="decided-month" className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{monthTitle(month)}</span>
-          <button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 sm:h-8 sm:w-8 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
+          <Button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} variant="secondary" size="md" className="w-10 sm:w-8"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
         </div>
       </header>
       {loading ? (
@@ -65,7 +66,7 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
         <div role="alert" data-testid="decided-error" className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm text-rose-800">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1">{error}</span>
-          <button type="button" onClick={() => void load()} className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-100">Повторить</button>
+          <Button type="button" onClick={() => void load()} variant="secondary" size="sm" className="border-danger-200 text-danger-700 hover:bg-danger-50">Повторить</Button>
         </div>
       ) : items.length === 0 ? (
         <p className="px-4 py-3 text-sm text-slate-500" data-testid="decided-empty">{DECIDED_EMPTY_TEXT}</p>
@@ -97,15 +98,15 @@ export function DecidedRow({ item, onUndo, onReopened }: { item: DecidedOneOffIt
       </div>
       <div className="shrink-0 md:max-w-[18rem] md:text-right">
         {item.canUndo ? (
-          <button
+          <Button
             type="button"
             data-testid="decided-undo"
             onClick={() => onUndo({ lessonId: item.lessonId, lessonDate: item.lessonDate, money: item.money, teacherName: item.teacher?.name ?? null })}
             aria-label={`${UNDO_DECISION_BUTTON}: ${item.groupName}, ${formatDateRu(item.lessonDate)}`}
-            className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:h-9 md:w-auto"
+            variant="secondary" size="md" className="w-full md:w-auto"
           >
             {UNDO_DECISION_BUTTON}
-          </button>
+          </Button>
         ) : (
           <PeriodClosedNotice
             info={{ month: item.lessonDate.slice(0, 7), teacherId: item.teacher?.id ?? null, teacherName: item.teacher?.name ?? null, closedOn: null, message: DECIDED_MONTH_CLOSED_TEXT }}

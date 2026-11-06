@@ -38,6 +38,7 @@ import { groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { splitLayout } from "@/lib/payroll-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1 print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1 max-sm:text-[11px] whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
@@ -207,16 +208,16 @@ export function PayrollSheetTable({
               {block.lessonTime && <span className="text-sm text-slate-500">{block.lessonTime}</span>}
               <span className="ml-auto flex items-center gap-3">
                 {block.columns.length > 0 && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => toggleDates(key)}
                     aria-expanded={showDates}
                     aria-controls={gridId}
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 print:hidden sm:min-h-8"
+                    variant="secondary" size="md" className="print:hidden"
                   >
                     <CalendarDays className="h-3.5 w-3.5" />
                     {showDates ? "Скрыть даты" : "По датам"}
-                  </button>
+                  </Button>
                 )}
               </span>
             </header>

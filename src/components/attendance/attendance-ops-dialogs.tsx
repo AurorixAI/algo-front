@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import {
   CONFLICT_EXPLAIN,
@@ -15,6 +15,8 @@ import {
 } from "@/lib/attendance-ops";
 import { MARK_CELL_LABEL } from "@/lib/attendance-marks";
 import type { AttendanceConflictDetail, LiveExamItem } from "@/lib/ops-b-types";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 export interface AttendanceConflictState {
   detail: AttendanceConflictDetail;
@@ -100,21 +102,11 @@ export function AttendanceConflictDialog({
     <Modal
       open={conflict !== null}
       title="Отметки уже изменены"
-      icon={<RefreshCw className="h-5 w-5" />}
       onClose={() => undefined}
       busy
       aboveLessonPanel={aboveLessonPanel}
-      maxWidthClassName="max-w-lg"
-      footer={
-        <>
-          <button type="button" onClick={onTakeTheirs} disabled={busy} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-            {CONFLICT_TAKE_THEIRS}
-          </button>
-          <button type="button" onClick={onKeepMine} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {CONFLICT_KEEP_MINE}
-          </button>
-        </>
-      }
+      size="md"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={CONFLICT_KEEP_MINE} onPrimary={onKeepMine} busy={busy} onCancel={onTakeTheirs} cancelLabel={CONFLICT_TAKE_THEIRS} />}
     >
       {conflict && <AttendanceConflictBody conflict={conflict} names={names} error={error} />}
     </Modal>
@@ -153,15 +145,8 @@ export function LiveExamConfirmDialog({
       onClose={onBack}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}
-      maxWidthClassName="max-w-md"
-      footer={
-        <>
-          <button type="button" onClick={onBack} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">{FINISH_LESSON_BACK}</button>
-          <button type="button" onClick={onConfirm} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} {FINISH_LESSON_ACTION}
-          </button>
-        </>
-      }
+      size="sm"
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={FINISH_LESSON_ACTION} onPrimary={onConfirm} busy={busy} onCancel={onBack} cancelLabel={FINISH_LESSON_BACK} />}
     >
       {exams && <LiveExamConfirmBody exams={exams} />}
     </Modal>

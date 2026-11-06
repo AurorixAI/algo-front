@@ -35,6 +35,7 @@ import { LessonScopeFields, LessonSlotFields, ShiftedDayNote } from "@/component
 import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
+import { Button } from "@/components/ui/button";
 
 type LessonOccurrence = ScheduleOccurrence;
 
@@ -978,7 +979,7 @@ export default function TeacherSchedulePage() {
           type="button"
           onClick={() => setIsWeekPlanOpen(true)}
           aria-label="Открыть подробный план недели"
-          className="group min-h-[128px] rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5"
+          className="group min-h-[128px] rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5"
         >
           <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
@@ -997,7 +998,7 @@ export default function TeacherSchedulePage() {
           </div>
         </button>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs min-h-[128px] flex items-start gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card min-h-[128px] flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <Clock className="w-6 h-6" />
           </div>
@@ -1013,7 +1014,7 @@ export default function TeacherSchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs min-h-[128px] flex items-start gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card min-h-[128px] flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <CheckCheck className="w-6 h-6" />
           </div>
@@ -1034,7 +1035,7 @@ export default function TeacherSchedulePage() {
             type="button"
             onClick={() => openLesson(nextAction.lesson, "today")}
             aria-label={`${nextAction.label}: ${nextAction.lesson.groupName}, ${nextAction.lesson.startTime}`}
-            className={`rounded-2xl p-4 sm:p-5 border shadow-xs min-h-[128px] flex items-start gap-4 text-left transition-colors ${nextActionTone}`}
+            className={`rounded-2xl p-4 sm:p-5 border shadow-card min-h-[128px] flex items-start gap-4 text-left transition-colors ${nextActionTone}`}
           >
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${nextActionIconTone}`}>
               <Sparkles className="w-6 h-6" />
@@ -1061,7 +1062,7 @@ export default function TeacherSchedulePage() {
         ) : activeExamAction ? (
           <Link
             href={`/teacher/exams/${activeExamAction.exam_id}`}
-            className="rounded-2xl p-4 sm:p-5 border border-primary-200 bg-primary-50/60 shadow-xs min-h-[128px] flex items-start gap-4 text-left transition-colors hover:bg-primary-50"
+            className="rounded-2xl p-4 sm:p-5 border border-primary-200 bg-primary-50/60 shadow-card min-h-[128px] flex items-start gap-4 text-left transition-colors hover:bg-primary-50"
           >
             <div className="w-12 h-12 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
               <Radio className="w-6 h-6" />
@@ -1091,7 +1092,7 @@ export default function TeacherSchedulePage() {
       </div>
 
       {/* Modern View Mode Switcher Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-100 shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-100 shadow-card">
         {/* Left: Beautiful Pill Tabs */}
         <div className="flex items-center bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 gap-1 w-full sm:w-auto">
           <button
@@ -1161,8 +1162,8 @@ export default function TeacherSchedulePage() {
               onClick={() => setIsGroupFilterOpen((prev) => !prev)}
               className={`inline-flex min-h-10 items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                 selectedGroupFilter !== "all"
-                  ? "bg-primary-50 text-primary-700 border-primary-200/80 shadow-xs"
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 shadow-xs"
+                  ? "bg-primary-50 text-primary-700 border-primary-200/80 shadow-card"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 shadow-card"
               }`}
             >
               <span>
@@ -1245,7 +1246,7 @@ export default function TeacherSchedulePage() {
       {viewMode === "week" && (
         <div className="space-y-4">
           {/* Week Navigation Toolbar */}
-          <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100 shadow-xs">
+          <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100 shadow-card">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setWeekOffset((p) => p - 1)}
@@ -1288,7 +1289,7 @@ export default function TeacherSchedulePage() {
                 className={`rounded-2xl border transition-all flex flex-col min-h-[360px] ${
                   isToday
                     ? "bg-primary-50/20 border-primary-300 shadow-sm"
-                    : "bg-white border-slate-100 shadow-2xs"
+                    : "bg-white border-slate-100 shadow-card"
                 }`}
               >
                 {/* Day Header */}
@@ -1465,7 +1466,7 @@ export default function TeacherSchedulePage() {
                       lessonStatus === "cancelled"
                         ? "bg-slate-50 border-slate-200/60 opacity-75 border-l-4 border-l-slate-400"
                       : lessonStatus === "completed"
-                        ? "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white hover:shadow-xs border-l-4 border-l-slate-300"
+                        ? "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white hover:shadow-card border-l-4 border-l-slate-300"
                         : subsequentLesson
                         ? "bg-white border-rose-300 shadow-md border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
                         : status.type === "live"
@@ -1475,10 +1476,10 @@ export default function TeacherSchedulePage() {
                           ? "bg-white border-amber-300 shadow-md border-l-4 border-l-amber-500 hover:border-amber-400 ring-1 ring-amber-500/10"
                           : "bg-white border-emerald-300 shadow-md border-l-4 border-l-emerald-500 hover:border-emerald-400 ring-1 ring-emerald-500/10"
                         : status.type === "upcoming" && status.diffMinutes <= 60
-                        ? "bg-white border-amber-200 shadow-xs border-l-4 border-l-amber-500 hover:border-amber-300 hover:shadow-md"
+                        ? "bg-white border-amber-200 shadow-card border-l-4 border-l-amber-500 hover:border-amber-300 hover:shadow-md"
                         : status.type === "upcoming"
-                        ? "bg-white border-slate-200/90 shadow-xs border-l-4 border-l-blue-500 hover:border-blue-300 hover:shadow-md"
-                        : "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white hover:shadow-xs border-l-4 border-l-slate-300"
+                        ? "bg-white border-slate-200/90 shadow-card border-l-4 border-l-blue-500 hover:border-blue-300 hover:shadow-md"
+                        : "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white hover:shadow-card border-l-4 border-l-slate-300"
                     }`}
                   >
                     <div>
@@ -1505,24 +1506,24 @@ export default function TeacherSchedulePage() {
                           {lessonStatus === "cancelled" ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200"><X className="w-3 h-3" />{isMovedAway(l.substitutionOutcome) ? "Перенесён" : "Отменён"}</span>
                           ) : lessonStatus === "completed" ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-2xs"><CheckCircle2 className="w-3 h-3 text-slate-400" />Завершён</span>
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-card"><CheckCircle2 className="w-3 h-3 text-slate-400" />Завершён</span>
                           ) : subsequentLesson ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs"><AlertCircle className="w-3 h-3 text-rose-600" />Урок не начат</span>
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-card"><AlertCircle className="w-3 h-3 text-rose-600" />Урок не начат</span>
                           ) : lessonStatus === "in_progress" ? (
                             status.isPastEndTime ? (
                               isAttSaved ? (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                   <Clock className="w-3 h-3 text-amber-600" />
                                   Завершите урок
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-card">
                                   <AlertCircle className="w-3 h-3 text-rose-600" />
                                   Отметьте посещаемость
                                 </span>
                               )
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-card">
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
@@ -1532,24 +1533,24 @@ export default function TeacherSchedulePage() {
                             )
                           ) : status.type === "live" ? (
                             status.isPastEndTime ? (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 Урок не начат
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-card group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
                                 <Play className="w-3 h-3 fill-white" />
                                 Начать урок
                               </span>
                             )
                           ) : status.type === "upcoming" ? (
                             status.diffMinutes <= 60 ? (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-card">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 Через {formatMinutesUntil(status.diffMinutes)}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-card">
                                 <CalendarIcon className="w-3 h-3 text-blue-600" />
                                 В {l.startTime}
                               </span>
@@ -1703,7 +1704,7 @@ export default function TeacherSchedulePage() {
                   <button
                     type="button"
                     onClick={() => setIsWeekPlanOpen(false)}
-                    className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-xs ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+                    className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-card ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
                   >
                     Закрыть
                   </button>
@@ -1863,22 +1864,22 @@ export default function TeacherSchedulePage() {
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
                     disabled={savingLesson}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 rounded-xl transition-colors"
+                    variant="ghost" size="sm"
                   >
                     Отмена
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
                     disabled={!!addConflict || !!addPastTimeConflict || savingLesson}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
+                    variant="primary" size="sm"
                   >
                     {savingLesson && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {savingLesson ? "Сохраняем…" : "Сохранить урок"}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </motion.div>

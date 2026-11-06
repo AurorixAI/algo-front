@@ -738,7 +738,7 @@ export default function ExamPage() {
 
                 {/* Group Banner if bound */}
                 {examInfo.group_name && (
-                  <div className="flex items-center gap-3 p-3 bg-indigo-50/90 border border-indigo-200/90 rounded-2xl mb-5 text-left shadow-2xs">
+                  <div className="flex items-center gap-3 p-3 bg-indigo-50/90 border border-indigo-200/90 rounded-2xl mb-5 text-left shadow-card">
                     <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
                       <Users className="w-4 h-4 text-indigo-600" />
                     </div>
@@ -754,7 +754,7 @@ export default function ExamPage() {
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-emerald-50/95 border border-emerald-300 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-xs"
+                    className="p-4 bg-emerald-50/95 border border-emerald-300 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
                   >
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
@@ -771,7 +771,7 @@ export default function ExamPage() {
                   <motion.div
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-xs"
+                    className="p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
                   >
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
@@ -808,7 +808,7 @@ export default function ExamPage() {
                 </div>
 
                 {/* Rules of Examination (Правила экзамена) */}
-                <div className="p-4 bg-slate-50/90 border border-slate-200/80 rounded-2xl mb-5 text-left space-y-2.5 shadow-2xs">
+                <div className="p-4 bg-slate-50/90 border border-slate-200/80 rounded-2xl mb-5 text-left space-y-2.5 shadow-card">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800 tracking-wide">
                     <ShieldCheck className="w-4 h-4 text-slate-600" />
                     <span>Правила прохождения</span>
@@ -913,7 +913,7 @@ export default function ExamPage() {
 
                 {/* Header Icon Badge & Title */}
                 <div className="flex items-center gap-3.5 mb-4">
-                  <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/90 flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/90 flex items-center justify-center shrink-0 shadow-card">
                     <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
                   </div>
                   <div>
@@ -935,7 +935,7 @@ export default function ExamPage() {
                   const formattedSec = remSec.toString().padStart(2, "0");
 
                   return (
-                    <div className="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-xs">
+                    <div className="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-card">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
@@ -944,7 +944,7 @@ export default function ExamPage() {
                       </div>
 
                       {/* Prominent Digital Countdown Box */}
-                      <div className="flex items-center justify-center py-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-2xs">
+                      <div className="flex items-center justify-center py-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-card">
                         <div className="flex items-baseline gap-1 font-mono">
                           <span className="text-3xl font-black text-slate-900 tracking-tight">{formattedMin}</span>
                           <span className="text-xs font-sans font-bold text-slate-500 mr-2">мин</span>
@@ -1055,7 +1055,7 @@ export default function ExamPage() {
         {/* ═══════════════ EXAM ═══════════════ */}
         {phase === "exam" && task && (
           <div className="relative z-10 w-full flex-1 flex flex-col">
-            <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+            <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-card">
               <TestHeader
                 mode="exam"
                 timer={formatTime(timeLeft)}

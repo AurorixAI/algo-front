@@ -15,6 +15,7 @@ import {
   type OpeningsSummary,
 } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
+import { Button } from "@/components/ui/button";
 
 /**
  * The three small pieces of «Остатки на начало» that live on other screens (ROADMAP #125).  They are built here and wired by the
@@ -53,16 +54,16 @@ export function OpeningsBanner({ paymentsBase, summary: given }: { paymentsBase:
       <p className="min-w-0 flex-1 text-sm leading-5 text-slate-700" style={{ flexBasis: "14rem" }}>{bannerText(summary!.totals.missing)}</p>
       <div className="flex shrink-0 items-center gap-2">
         <Link href={openingsHref(paymentsBase)} data-testid="openings-banner-open" className="inline-flex h-9 items-center rounded-xl bg-primary-600 px-3.5 text-sm font-semibold text-white hover:bg-primary-700">Заполнить</Link>
-        <button
+        <Button
           type="button"
           onClick={() => void skip()}
           disabled={busy}
           data-testid="openings-banner-skip"
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          variant="secondary" size="md"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
           Не нужно
-        </button>
+        </Button>
       </div>
       {failed && <p role="alert" className="basis-full text-xs font-medium text-rose-700">Не удалось сохранить ответ — попробуйте ещё раз</p>}
     </div>
@@ -119,7 +120,7 @@ export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given, 
       <div className="mb-3 flex items-start justify-between gap-2">
         <h3 className="text-base font-semibold text-slate-900">Запуск учёта оплат</h3>
         {expanded && (
-          <button type="button" onClick={() => setExpanded(false)} aria-label="Свернуть" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" aria-hidden="true" /></button>
+          <Button type="button" onClick={() => setExpanded(false)} aria-label="Свернуть" variant="ghost" size="icon"><X className="h-4 w-4" aria-hidden="true" /></Button>
         )}
       </div>
       <ol className="space-y-2.5">

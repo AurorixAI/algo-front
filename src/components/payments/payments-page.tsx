@@ -63,6 +63,7 @@ import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
 /** The «⋯» of a row: 40 px on a phone (R3 №13), compact from `xl`. */
@@ -394,7 +395,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <AlertCircle className="h-8 w-8 text-rose-500" />
           <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-          <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+          <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : items.length === 0 ? (
         <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
@@ -433,9 +434,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} aria-label="Предыдущая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <Button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
             <span>{page + 1} из {pageCount}</span>
-            <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)} aria-label="Следующая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+            <Button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}
@@ -593,13 +594,13 @@ function PaymentRow({
 
 function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => void }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onPay}
-      className="min-h-10 flex-1 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:min-h-0 xl:flex-none"
+      variant="secondary" size="sm" className="flex-1 xl:flex-none"
     >
       {PAY_ACTION_LABEL}
-    </button>
+    </Button>
   );
 }
 

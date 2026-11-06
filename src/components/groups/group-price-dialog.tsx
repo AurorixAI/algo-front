@@ -176,7 +176,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       description={`${groupName} · ${priceColumnLabel(label)}`}
       onClose={onClose}
       busy={saving}
-      maxWidthClassName={MONEY_WINDOW_TABLE}
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Сохранить" submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >

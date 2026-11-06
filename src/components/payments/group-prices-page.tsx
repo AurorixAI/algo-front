@@ -32,6 +32,7 @@ import { GroupPriceCancelDialog } from "@/components/groups/group-price-cancel-d
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
 import { GroupPriceHistoryModal } from "@/components/groups/group-price-history-modal";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
+import { Button } from "@/components/ui/button";
 
 /** Wide layout (xl): group · price · scheduled · individual prices · actions.  Below it the rows are cards. */
 const GRID_COLS = "xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_212px]";
@@ -200,7 +201,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
         <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <AlertCircle className="h-8 w-8 text-rose-500" />
           <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-          <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
+          <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-14 text-center">
@@ -328,15 +329,15 @@ function PriceRow({
       </div>
 
       <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
-        <button
+        <Button
           type="button"
           onClick={onEdit}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-60 xl:w-[7.5rem] xl:flex-none"
+          variant="secondary" size="sm" className="flex-1 xl:w-[7.5rem] xl:flex-none"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
           {item.current ? "Изменить цену" : "Задать цену"}
-        </button>
+        </Button>
         {/* IA audit F3: the history is an icon, not a «⋯» with one item */}
         <button
           type="button"

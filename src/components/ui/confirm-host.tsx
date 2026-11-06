@@ -35,7 +35,7 @@ export function ConfirmHost() {
       title={shown?.title ?? ""}
       description={shown?.subtitle ? tidyMoneyText(shown.subtitle) : undefined}
       onClose={() => answerConfirm(false)}
-      maxWidthClassName={MONEY_WINDOW_QUESTION}
+      size="sm"
       aboveLessonPanel
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(

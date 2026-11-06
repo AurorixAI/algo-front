@@ -251,7 +251,7 @@ export default function NewStudentPage() {
             >
               <GlassCard variant="elevated" className="p-6 sm:p-8 md:p-10 shadow-xl border border-slate-200/80">
                 <div className="text-center mb-8">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shadow-xs">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shadow-card">
                     <Check className="w-8 h-8 text-emerald-600" />
                   </div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-1">Диагностика готова!</h2>
@@ -274,7 +274,7 @@ export default function NewStudentPage() {
                         Ссылка для прохождения
                       </p>
                       <div className="flex flex-col sm:flex-row gap-2.5">
-                        <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 text-sm font-mono text-slate-700 truncate select-all shadow-2xs flex items-center">
+                        <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 text-sm font-mono text-slate-700 truncate select-all shadow-card flex items-center">
                           {diagnosticLink}
                         </div>
                         <Button
