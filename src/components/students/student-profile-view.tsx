@@ -328,7 +328,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         <p className="text-sm text-slate-500 mb-6">{error || "Ученик не найден в системе"}</p>
         <Link
           href={backHref || defaultBackPath}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-medium text-sm transition-all"
+          className="inline-flex items-center gap-2 px-5 py-2.5 max-sm:min-h-10 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-medium text-sm transition-all"
         >
           <ArrowLeft className="w-4 h-4" /> Назад
         </Link>

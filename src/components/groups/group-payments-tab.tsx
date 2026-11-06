@@ -1,5 +1,6 @@
 "use client";
 
+import { TAP_ZONE, TAP_ZONE_ROWS } from "@/lib/tap-zone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2, Search, Users } from "lucide-react";
@@ -51,6 +52,7 @@ import { MembershipRowActions } from "@/components/payments/membership-row-actio
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/lib/button-style";
 import { EmptyState } from "@/components/ui/empty-state";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
@@ -222,7 +224,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
       {rows !== null && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Фильтр учеников">
+          <div className={`flex flex-wrap items-center gap-1.5 ${TAP_ZONE_ROWS}`} role="group" aria-label="Фильтр учеников">
             {filters.map((key) => (
               <button
                 key={key}
@@ -230,7 +232,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
                 onClick={() => onFilterChange(key)}
                 aria-pressed={filter === key}
                 data-testid={`payments-filter-${key}`}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors ${
+                className={`${TAP_ZONE} rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors ${
                   filter === key ? "border-primary-600 bg-primary-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
@@ -376,19 +378,13 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
 
       <div className="flex items-center gap-2 lg:justify-end">
-        <button
-          type="button"
-          onClick={onPay}
-          className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold lg:flex-none lg:py-1.5 ${
-            due ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700" : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
-          }`}
-        >
+        <Button type="button" onClick={onPay} variant={due ? "primary" : "secondary"} size="sm" className="min-w-0 flex-1 lg:flex-none">
           {PAY_ACTION_LABEL}
-        </button>
+        </Button>
         <Link
           href={statementHref(paymentsBasePath, view.membershipId)}
           onClick={() => markReceiptNavigation(view.membershipId)}
-          className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:py-1.5"
+          className={`${buttonClass({ variant: "secondary", size: "sm" })} text-center`}
         >
           Выписка
         </Link>
@@ -417,7 +413,7 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
         <Link
           href={statementHref(paymentsBasePath, view.membershipId)}
           onClick={() => markReceiptNavigation(view.membershipId)}
-          className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:py-1.5"
+          className={`${buttonClass({ variant: "secondary", size: "sm" })} text-center`}
         >
           Выписка
         </Link>

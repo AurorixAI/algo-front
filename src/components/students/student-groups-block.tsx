@@ -158,7 +158,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`${groupsBasePath}/${item.group_id}`}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm max-sm:min-h-10 hover:bg-slate-50"
                   >
                     Перейти в группу
                     <ExternalLink className="h-3.5 w-3.5" />

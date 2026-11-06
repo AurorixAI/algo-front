@@ -488,10 +488,10 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                           <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
                         )}
                         {debtChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:underline">{debtChip}</Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:underline">{debtChip}</Link>
                         )}
                         {waitingChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id, "waiting")} data-testid="group-waiting-chip" className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:underline">{waitingChip}</Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id, "waiting")} data-testid="group-waiting-chip" className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:underline">{waitingChip}</Link>
                         )}
                       </div>
                     )}

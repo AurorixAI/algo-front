@@ -255,3 +255,38 @@ test("R3 №7/8/10/12/17/18: the window says a fact once, one date format, the m
   const R = require(path.join(root, "src/lib/pay-from.ts"));
   assert.equal(typeof R.normalizeBulkImmediate, "function");
 });
+
+// ── Обход stage «Деньги-1 / Б» (RB): Д1, Д2, замечание З4 ───────────────────────────────────────────────────────────────
+test("RB Д1: the footer «Долг и аванс…» is counted from the SAME rows the table draws - it never says «ни у кого» over rows that move", () => {
+  const moving = W.normalizeWhatIf({ items: [base({ membership_id: "a", student_name: "А", debt_before: 110000, debt_after: 0 }), base({ membership_id: "b", student_name: "Б", advance_after: 290000 }), base({ membership_id: "c", student_name: "В" })], items_total: 3 }, "regime");
+  assert.equal(N(W.debtAdvanceFooter(moving)), "Долг или аванс изменится у 2 учеников");
+  const students = W.whatIfStudents(moving).filter((s) => s.rows.some((r) => r.key === "debt" || r.key === "advance"));
+  assert.equal(students.length, 2, "the footer and the table count the same students");
+  const still = W.normalizeWhatIf({ items: [base({ membership_id: "c", student_name: "В" })], items_total: 1 }, "regime");
+  assert.equal(W.debtAdvanceFooter(still), W.DEBT_ADVANCE_NONE);
+  const cut = W.normalizeWhatIf({ items: [base({ membership_id: "a", student_name: "А", debt_after: 5 })], items_total: 4, truncated: true }, "regime");
+  assert.equal(N(W.debtAdvanceFooter(cut)), "Долг или аванс изменится у 4 учеников", "the students beyond the cut of the list are counted too");
+  assert.equal(N(W.debtAdvanceFooter(W.normalizeWhatIf({ items: [base({ debt_after: 5 })], items_total: 1 }, "regime"))), "Долг или аванс изменится у 1 ученика");
+});
+
+test("RB Д2 (front): a package shows «осталось уроков» instead of «оплачено до»; no forecast - no sum, the sentence of the server", () => {
+  const toPackage = W.whatIfStudentOf(W.normalizeWhatIfItem(base({ student_name: "М", switch_on: "2026-12-01", as_of: "2026-12-30", charged_before: 400000, charged_after: 300000, paid_until_before: "2026-12-31", paid_until_after: null, lessons_before: null, lessons_after: { covered: 12, used: 0, left: 9, package_size: 12 } })), "regime");
+  const keys = toPackage.rows.map((r) => r.key);
+  assert.ok(keys.includes("left") && !keys.includes("paid-until"), keys.join());
+  assert.equal(toPackage.rows.find((r) => r.key === "left").after, "9");
+  const none = W.whatIfStudentOf(W.normalizeWhatIfItem({ ...base({ student_name: "Н", switch_on: "2026-12-01", text: "Н: начисления по пакету начнутся с первого урока" }), charged_before: null, charged_after: null }), "regime");
+  assert.ok(!none.rows.some((r) => r.key === "charged"), "no sum when there is no forecast");
+  assert.equal(none.fallback, "Н: начисления по пакету начнутся с первого урока");
+  const win = W.normalizeWhatIf({ items: [], charged_before_total: null, charged_after_total: null }, "regime");
+  assert.ok(!W.whatIfTotals(win).some((t) => t.key === "charged"), "no total without a forecast");
+});
+
+const SC = require(path.join(root, "src/lib/student-card.ts"));
+test("RB З4: the card of a student with an advance says the advance next to «Оплачено до» - the number of the statement", () => {
+  const row = (o) => ({ debt: 0, advance: 0, is_active: true, paid_until: "2026-12-22", status: "active", ...o });
+  const chip = SC.studentMoneyChip([row({ advance: 290000 })]);
+  assert.equal(N(chip.label), "Оплачено до 22.12 · Аванс 290 000 сум");
+  assert.equal(chip.tone, "ok");
+  assert.equal(N(SC.studentMoneyChip([row({})]).label), "Оплачено до 22.12");
+  assert.equal(N(SC.studentMoneyChip([row({ advance: 100, paid_until: null }), row({ advance: 200, paid_until: null })]).label), "Аванс 300 сум", "the sum of the groups; no date - the advance alone");
+});

@@ -56,6 +56,11 @@ function touchTargets(rootSelector) {
       width = after.position === "absolute" ? parseFloat(after.width) : zone.getBoundingClientRect().width;
       height = after.position === "absolute" ? parseFloat(after.height) : zone.getBoundingClientRect().height;
     }
+    else {
+      // Д4: a small-looking control with an invisible tap zone (`TAP_ZONE`: its ::after, absolute, 40 px high) counts by the zone
+      const after = getComputedStyle(el, "::after");
+      if (after.position === "absolute" && after.content !== "none") height = Math.max(height, parseFloat(after.height) || 0);
+    }
     if (width === 0 || height === 0) continue;
     if (height < 39.5) out.push(`${(el.getAttribute("aria-label") || el.textContent || el.type || "").trim().slice(0, 30)} ${Math.round(width)}x${Math.round(height)}`);
   }

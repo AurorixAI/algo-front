@@ -9,6 +9,8 @@ import { PaymentsHistory } from "@/components/settings/payments-history";
 import { PaymentsPage } from "@/components/payments/payments-page";
 import { PaymentsAlertBanner } from "@/components/payments/payments-alert-banner";
 import { GroupDetailView } from "@/components/groups/group-detail-view";
+import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
+import OwnerSettingsPage from "@/app/owner/settings/page";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -48,6 +50,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "groupHeader":
       w.__params = { id: "g1" };
       root.render(<GroupDetailView workspace="owner" />);
+      break;
+    case "groupPayments":
+      root.render(<GroupPaymentsTab groupId="g1" groupName="7-А Алгебра" groupPrice={{ amount: 300000, valid_from: "2026-09-01" } as never} groupsBasePath="/owner/groups" studentsBasePath="/owner/students" paymentsBasePath="/owner/payments" joinedAt={{}} filter={props.filter ?? "all"} onFilterChange={() => log("filter")} />);
+      break;
+    case "settings":
+      root.render(<OwnerSettingsPage />);
       break;
     case "till":
       root.render(<PaymentDialog open kind="create" membership={{ membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" } as never} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);

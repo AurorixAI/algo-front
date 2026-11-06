@@ -206,7 +206,8 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
             min={range.min}
             max={range.max}
             onChange={(next) => { setError(null); setValidFrom(next); }}
-            className={`${PRICE_FIELD} sm:w-1/2`}
+            wrapperClassName="sm:w-1/2"
+            className={PRICE_FIELD}
           />
         </div>
 

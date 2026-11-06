@@ -440,3 +440,139 @@ test("R3 №6/DOM: the header of a group - the red chip «Долг» for the deb
   await page.screenshot({ path: path.join(SHOTS, "08-group-header-chips-1280.png") });
   await page.close();
 });
+
+// ── Обход stage (RB): Д1, Д3, Д4, Д5, З4 in a real DOM ──────────────────────────────────────────────────────────────────
+const { touchTargets } = require("./helpers/layout-probe.cjs");
+const small = (page, scope = "body") => page.evaluate(touchTargets, scope);
+
+test("RB Д1: the window of the mode - the footer under the table agrees with its rows (rows move -> «изменится у N», nothing moves -> «ни у кого»)", async () => {
+  const run = async (regimeImpact, impact) => {
+    const { page } = await openPage(browser, "money-b.entry.tsx", (r) => (r.method === "PUT" && isDry(r) ? { json: { dry_run: true, regime_impact: regimeImpact, impact } } : null), { width: 1280, height: 900 });
+    await page.evaluate(() => window.mount("regime", { role: "owner", org_role: "owner" }, { changes: { billing_day: 10 } }));
+    await page.waitForSelector('[data-testid="regime-start-impact"]');
+    const text = plain(await page.textContent('[data-testid="regime-start-impact"]'));
+    const rows = await page.locator('[data-testid="whatif-row"][data-row="debt"], [data-testid="whatif-row"][data-row="advance"]').count();
+    await page.close();
+    return { text, rows };
+  };
+  const zero = { memberships_with_new_debt: 0, debt_delta: 0, memberships_with_changed_advance: 0, advance_delta: 0 };
+  const moving = { ...X.REGIME_IMPACT, items: [{ ...X.REGIME_IMPACT.items[0], charged_before: 0, charged_after: 0, debt_before: 110000, debt_after: 0 }, { ...X.REGIME_IMPACT.items[1], charged_before: 0, charged_after: 0, debt_before: 0, debt_after: 0, advance_before: 0, advance_after: 290000 }] };
+  const a = await run(moving, zero);
+  assert.equal(a.rows, 2);
+  assert.equal(a.text, "Долг или аванс изменится у 2 учеников");
+  assert.ok(!/ни у кого/.test(a.text));
+  const still = { ...X.REGIME_IMPACT, items: [{ ...X.REGIME_IMPACT.items[0], charged_before: 900000, charged_after: 1176000, debt_before: 900000, debt_after: 900000 }] };
+  const b = await run(still, zero);
+  assert.equal(b.rows, 0);
+  assert.equal(b.text, "Долг и аванс ни у кого не изменятся");
+  await atAllWidths("money-b.entry.tsx", (r) => (r.method === "PUT" && isDry(r) ? { json: { dry_run: true, regime_impact: moving, impact: zero } } : null), async ({ page }, width) => {
+    await page.evaluate(() => window.mount("regime", { role: "owner", org_role: "owner" }, { changes: { billing_day: 10 } }));
+    await page.waitForSelector('[data-testid="regime-start-impact"]');
+    await page.waitForTimeout(600);
+    await probe(page, '[role="dialog"]', `regime footer ${width}`);
+  }, "RBfix-07-regime-footer");
+});
+
+test("RB Д3: «Оплата с» = today and a lesson today - the window says «Сразу начислится…» whenever the server sent it (no sentence when it sent none)", async () => {
+  const dry = (billing) => (request) => (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)
+    ? { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing }] } } : null);
+  const today = { pay_from: "2026-11-09", explicit: false, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x" };
+  let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "Сразу начислится 350 000 сум (за 7 уроков)" } }));
+  await ctx.page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("Сразу начислится")');
+  assert.equal(plain(await ctx.page.textContent('[data-testid="pay-from-immediate"]')), "Сразу начислится 350 000 сум (за 7 уроков)");
+  assert.equal(await ctx.page.inputValue("#add-student-pay-from"), "09.11.2026", "the default day, not a changed one");
+  assert.equal(ctx.calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path)).pop().body.pay_from, undefined, "the default day is not sent");
+  await ctx.page.close();
+  ctx = await openDrawer(OWNER, dry(today));
+  await ctx.page.waitForSelector('[data-testid="pay-from"]');
+  await ctx.page.waitForTimeout(900);
+  assert.equal(await ctx.page.locator('[data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no line, no «ничего не начислится» on the default day");
+  await ctx.page.close();
+});
+
+test("RB Д4: on 375 every tap target is ≥ 40 px - header chips of a group, filters of the payments tab, «Все классы», the tabs of the settings, «Меньше/Больше»", async () => {
+  const phone = { width: 375, height: 812 };
+  const GROUP = { id: "g1", name: "7-А Алгебра", status: "active", class_level: 7, teacher_id: "t1", teacher_name: "Каримова К.", max_students: 30, student_count: 2, students: [], price_current: { amount: 300000 }, lesson_type: "group", schedule: [] };
+  const groupServer = (request) => {
+    if (request.path === "/auth/org/groups/g1") return { json: GROUP };
+    return paymentsServer()(request);
+  };
+  // 1. the header of a group
+  let ctx = await openPage(browser, "money-b.entry.tsx", groupServer, phone);
+  await ctx.page.evaluate(() => window.mount("groupHeader", { role: "owner", org_role: "owner" }, { refresh: true }));
+  await ctx.page.waitForSelector('[data-testid="group-waiting-chip"]', { timeout: 8000 });
+  assert.deepEqual(await small(ctx.page, '[data-testid="group-money-chips"]'), [], "header chips");
+  await probe(ctx.page, "body", "group header 375");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-01-group-header-chips-375.png") });
+  await ctx.page.close();
+  // 2. the filters of the tab «Оплаты» of the group
+  ctx = await openPage(browser, "money-b.entry.tsx", paymentsServer(), phone);
+  await ctx.page.evaluate(() => window.mount("groupPayments", { role: "owner", org_role: "owner" }, { refresh: true }));
+  await ctx.page.waitForSelector('[data-testid="payments-filter-all"]', { timeout: 8000 });
+  assert.deepEqual(await small(ctx.page, '[role="group"][aria-label="Фильтр учеников"]'), [], "filters");
+  const boxes = await ctx.page.evaluate(() => [...document.querySelectorAll('[role="group"] button')].map((b) => { const r = b.getBoundingClientRect(); return [r.top, r.bottom]; }));
+  for (let i = 1; i < boxes.length; i += 1) if (boxes[i][0] > boxes[i - 1][0] + 5) assert.ok(boxes[i][0] - boxes[i - 1][1] >= 9.5, "the tap zones of wrapped rows do not overlap");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-02-group-payments-filters-375.png") });
+  await ctx.page.close();
+  // 3. the header of «Оплаты»
+  ctx = await openPage(browser, "money-b.entry.tsx", paymentsServer(), phone);
+  await ctx.page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true }));
+  await ctx.page.waitForSelector('[role="tab"]');
+  assert.deepEqual((await small(ctx.page, "body")).filter((t) => /Поступления|Цены групп|Остатки/.test(t)), [], "the links of the header");
+  await ctx.page.close();
+  // 4. «Все классы» in the add window
+  ctx = await openPage(browser, "money-b.entry.tsx", drawerServer(), phone);
+  await ctx.page.evaluate(() => window.mount("addDrawer", { role: "owner", org_role: "owner" }, { summary: { accountingStart: "2026-09-01" }, refresh: false }));
+  await ctx.page.waitForSelector('button:has-text("Все классы")');
+  assert.deepEqual((await small(ctx.page, '[role="dialog"]')).filter((t) => /Все классы/.test(t)), []);
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-03-add-student-all-classes-375.png") });
+  await ctx.page.close();
+  // 5. the stepper of the group form
+  ctx = await openPage(browser, "money-b.entry.tsx", () => null, phone);
+  await ctx.page.evaluate(() => window.mount("groupCreate", { role: "owner", org_role: "owner" }, {}));
+  await ctx.page.waitForSelector('button[aria-label="Больше"]');
+  assert.deepEqual((await small(ctx.page, '[role="dialog"]')).filter((t) => /^(Меньше|Больше)/.test(t)), []);
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-04-group-create-stepper-375.png") });
+  await ctx.page.close();
+  // 6. the tabs of the settings
+  ctx = await openPage(browser, "money-b.entry.tsx", () => null, phone);
+  await ctx.page.evaluate(() => window.mount("settings", { role: "owner", org_role: "owner" }, {}));
+  await ctx.page.waitForSelector('nav[aria-label="Разделы настроек"]', { timeout: 8000 });
+  assert.deepEqual(await small(ctx.page, 'nav[aria-label="Разделы настроек"]'), [], "settings tabs");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-05-settings-tabs-375.png") });
+  await ctx.page.close();
+});
+
+test("RB Д5: the calendar icon of the price window stands INSIDE the date field (as in the payment window)", async () => {
+  for (const [width, height] of WIDTHS) {
+    const { page } = await openPage(browser, "money-b.entry.tsx", priceServer, { width, height });
+    await page.evaluate(() => window.mount("priceDialog", { role: "owner", org_role: "owner" }, {}));
+    await page.waitForSelector("#group-price-from");
+    const geo = await page.evaluate(() => {
+      const input = document.querySelector("#group-price-from").getBoundingClientRect();
+      const icon = document.querySelector("#group-price-from").parentElement.querySelector("button, svg").getBoundingClientRect();
+      return { inputRight: input.right, inputLeft: input.left, iconRight: icon.right, iconLeft: icon.left };
+    });
+    assert.ok(geo.iconLeft >= geo.inputLeft && geo.iconRight <= geo.inputRight + 0.5, `${width}: the icon is inside the field ${JSON.stringify(geo)}`);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(SHOTS, `RBfix-06-price-window-date-${width}.png`) });
+    await page.close();
+  }
+});
+
+test("RB Д4 (остаток): on 375 the buttons of the groups block of a student and the price field are ≥ 40 px", async () => {
+  const phone = { width: 375, height: 812 };
+  let ctx = await openPage(browser, "money.entry.tsx", () => null, phone);
+  await ctx.page.evaluate(() => window.mount("studentGroups", { role: "owner", org_role: "owner" }, { moneyRight: true }));
+  await ctx.page.waitForSelector('button:has-text("Зачислить в группу")');
+  assert.deepEqual(await small(ctx.page, "body"), [], "groups block");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-08-student-groups-buttons-375.png") });
+  await ctx.page.close();
+  ctx = await openPage(browser, "money-b.entry.tsx", priceServer, phone);
+  await ctx.page.evaluate(() => window.mount("priceDialog", { role: "owner", org_role: "owner" }, {}));
+  await ctx.page.waitForSelector("#group-price-amount");
+  await ctx.page.waitForTimeout(600);      // the window fades in (scale)
+  assert.deepEqual((await small(ctx.page, '[role="dialog"]')).filter((t) => !/Закрыть|Отмена|Сохранить/.test(t)), [], "price window fields");
+  await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-09-price-field-375.png") });
+  await ctx.page.close();
+});
