@@ -113,7 +113,7 @@ const drawerServer = (extra) => (request) => {
   if (own) return own;
   if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g2", name: "7-Б Геометрия" }] };
   if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT], total: 1 } };
-  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09" } };
+  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/st9" && !isDry(request)) return { json: { status: "added", billing: { pay_from: "2026-11-12", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата считается с 12.11.2026: так выбрал сотрудник" } } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk") return { json: { group_id: "g2", added: 1, skipped: 0, skipped_details: [], warnings: [] } };
   return null;
@@ -134,7 +134,7 @@ test("Б1: the owner sees «Оплата с» with the first lesson by default; 
     const { page, calls } = await openDrawer(user);
     await page.waitForSelector('[data-testid="pay-from"]');
     assert.equal(await page.inputValue("#add-student-pay-from"), "09.11.2026");
-    assert.match(plain(await page.textContent('[data-testid="pay-from-hint"]')), /Оплата считается с 09\.11\.2026 — с первого занятия группы/);
+    assert.match(plain(await page.textContent('[data-testid="pay-from-hint"]')), /Оплата с 09\.11\.2026 — первое занятие группы с сегодня/);
     await page.click('button:has-text("Зачислить (1)")');
     await page.waitForTimeout(250);
     assert.equal(bulk(calls).length, 1);
@@ -157,7 +157,7 @@ test("Б1: the owner sees «Оплата с» with the first lesson by default; 
 
 test("Б1: a day in the past - the dry run says «Сразу начислится N сум (за K уроков)» before the button", async () => {
   const server = (request) => {
-    if (request.method === "POST" && /students\/st9$/.test(request.path) && isDry(request)) return { json: { status: "added", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } } };
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } } };
     return null;
   };
   const { page, calls } = await openDrawer(OWNER, server);
@@ -165,8 +165,8 @@ test("Б1: a day in the past - the dry run says «Сразу начислитс�
   await page.fill("#add-student-pay-from", "26.10.2026");
   await page.keyboard.press("Tab");
   await page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("Сразу начислится")');
-  assert.equal(plain(await page.textContent('[data-testid="pay-from-immediate"]')), "Сразу начислится 300 000 сум (за 14 уроков)");
-  const dry = calls.filter((c) => isDry(c) && /students\/st9$/.test(c.path));
+  assert.match(plain(await page.textContent('[data-testid="pay-from-immediate"]')), /Ученик Новый: Сразу начислится 300 000 сум \(за 14 уроков\).*Всего сразу начислится 300 000 сум \(за 14 уроков\)/);
+  const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
   assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
   await page.close();
@@ -176,12 +176,12 @@ test("Б1: an administrator WITHOUT the money right - no date field at all, one 
   const { page, calls } = await openDrawer(ADMIN_NO_MONEY);
   await page.waitForSelector('[data-testid="pay-from-line"]');
   assert.equal(await page.locator("#add-student-pay-from").count(), 0, "not blocked - absent");
-  assert.equal(plain(await page.textContent('[data-testid="pay-from-line"]')), "Оплата считается с 09.11.2026 — с первого занятия группы");
+  assert.equal(plain(await page.textContent('[data-testid="pay-from-line"]')), "Оплата с 09.11.2026 — первое занятие группы с сегодня");
   assert.ok(!/сум/.test(await page.textContent('[role="dialog"]')), "no sum");
   await page.click('button:has-text("Зачислить (1)")');
   await page.waitForTimeout(250);
   assert.equal(bulk(calls)[0].body.pay_from, undefined);
-  assert.ok(!calls.some((c) => isDry(c) && /students\/st9$/.test(c.path)), "no dry run of the charge without the money right");
+  assert.ok(!calls.some((c) => isDry(c)), "no dry run of the charge without the money right");
   await page.close();
 });
 
@@ -300,20 +300,20 @@ test("Б7: the red banner counts the debtors only - not those who wait", async (
   await ctx.page.close();
 });
 
-test("Б9: the repeated payment - the server's sentence and «Внести ещё одну?», the button is NOT off", async () => {
+test("Б9: the repeated payment - the server's sentence as it is, the button is NOT off", async () => {
   const server = (request) => {
     if (request.method === "GET" && /memberships\/m1\/payments\/preview/.test(request.path)) {
       const base = require("./helpers/stage-numbers.cjs").toshmatovPreview(Number(/amount=(\d+)/.exec(request.query)?.[1]) || undefined);
-      return { json: { ...base, warnings: [{ code: "payment_repeated", message: "Такая же оплата внесена 5 минут назад — Owner Иван" }] } };
+      return { json: { ...base, warnings: [{ code: "payment_repeated", message: "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?" }] } };
     }
     return null;
   };
   const { page } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 900 });
   await page.evaluate(() => window.mount("till", { role: "owner", org_role: "owner" }, {}));
   await page.waitForSelector('[data-testid="payment-repeated"]');
-  assert.equal(plain(await page.textContent('[data-testid="payment-repeated"]')), "Такая же оплата внесена 5 минут назад — Owner Иван. Внести ещё одну?");
-  assert.equal((await page.textContent('[data-testid="payment-plan"]')).includes("5 минут назад") , true);
-  assert.equal((plain(await page.textContent('[role="dialog"]')).match(/5 минут назад/g) ?? []).length, 1, "said once");
+  assert.equal(plain(await page.textContent('[data-testid="payment-repeated"]')), "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?");
+  assert.equal((await page.textContent('[data-testid="payment-plan"]')).includes("сегодня в 10:15") , true);
+  assert.equal((plain(await page.textContent('[role="dialog"]')).match(/сегодня в 10:15/g) ?? []).length, 1, "said once");
   await page.close();
 });
 

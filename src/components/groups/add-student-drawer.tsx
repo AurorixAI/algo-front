@@ -232,10 +232,11 @@ export function AddStudentDrawer({
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request }, signal));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
   // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
-  const onlyId = selected.size === 1 ? Array.from(selected.keys())[0] : null;
-  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && onlyId && !dryException.error && !payProblem
-    ? `${groupId}|${onlyId}|${payBody}|${JSON.stringify(dryException.request)}` : null;
-  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(groupId, onlyId as string, { pay_from: payBody as string, price_override: dryException.request }, signal));
+  const pickedIds = Array.from(selected.keys()).sort();
+  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && pickedIds.length > 0 && !dryException.error && !payProblem
+    ? `${groupId}|${pickedIds.join(",")}|${payBody}|${JSON.stringify(dryException.request)}` : null;
+  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunBulkAdd(groupId, pickedIds, { pay_from: payBody as string, price_override: dryException.request }, signal));
+  const pickedNames = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
@@ -405,7 +406,7 @@ export function AddStudentDrawer({
           </div>
         )}
         {payFromAllowed && (
-          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} many={selected.size > 1} />
+          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} names={pickedNames} />
         )}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (

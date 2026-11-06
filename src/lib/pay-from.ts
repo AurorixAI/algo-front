@@ -19,12 +19,14 @@ export interface PayFromDefault {
   today: string;
   first_lesson: string | null;
   default_pay_from: string;
+  /** The server's one sentence: «Оплата с 09.11.2026 — первое занятие группы с сегодня» (null from an older server). */
+  text: string | null;
 }
 
 export function normalizePayFromDefault(raw: unknown): PayFromDefault | null {
   const r = (raw ?? {}) as Partial<PayFromDefault>;
   if (!isIsoDateString(r.default_pay_from) || !isIsoDateString(r.today)) return null;
-  return { today: r.today, first_lesson: isIsoDateString(r.first_lesson) ? r.first_lesson : null, default_pay_from: r.default_pay_from };
+  return { today: r.today, first_lesson: isIsoDateString(r.first_lesson) ? r.first_lesson : null, default_pay_from: r.default_pay_from, text: typeof r.text === "string" && r.text.trim() ? r.text.trim() : null };
 }
 
 /** What the answer of adding says about the charge (`billing` of the single route; null for a transfer). */
@@ -69,6 +71,7 @@ export function payFromRequest(value: string, def: PayFromDefault | null, moneyR
 /** The quiet line for a role without money, and under the field for the others: «Оплата считается с 06.11.2026 — с первого занятия группы» (the words of the server's `billing.text`). */
 export function payFromDefaultLine(def: PayFromDefault | null): string | null {
   if (!def) return null;
+  if (def.text) return def.text;       // the sentence of the server; ours below only for an older server
   const when = formatDateRu(def.default_pay_from);
   return def.first_lesson === null ? `Оплата считается с ${when}: у группы нет занятий в ближайшие дни` : `Оплата считается с ${when} — с первого занятия группы`;
 }
@@ -79,7 +82,25 @@ export function payFromIsPast(value: string, def: PayFromDefault | null): boolea
 }
 
 export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начислится";
-export const PAY_FROM_MANY_PAST = "За прошедшие дни начислят сразу — каждому ученику по его счёту";
+
+/** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
+export interface BulkImmediate {
+  students: Array<{ studentId: string; text: string }>;
+  total: string | null;
+}
+
+export function normalizeBulkImmediate(raw: unknown): BulkImmediate {
+  const r = (raw ?? {}) as { students?: unknown; billing?: unknown; immediate_total?: { text?: unknown } | null };
+  // the dry run of ONE add (`billing` at the top) and of a bulk one (`students[].billing`) read the same way
+  const list = Array.isArray(r.students) ? r.students : r.billing ? [{ student_id: "", billing: r.billing }] : [];
+  const students = list.flatMap((item) => {
+    const entry = item as { student_id?: unknown; billing?: unknown };
+    const text = normalizeBilling(entry.billing)?.immediate?.text;
+    return text ? [{ studentId: String(entry.student_id ?? ""), text }] : [];
+  });
+  const total = typeof r.immediate_total?.text === "string" && r.immediate_total.text ? tidyMoneyText(r.immediate_total.text) : null;
+  return { students, total };
+}
 
 /** The field cannot be sent: an empty or impossible date. */
 export function payFromProblem(value: string, def: PayFromDefault | null, range: { min: string; max: string }): string | null {

@@ -369,8 +369,6 @@ export interface PreviewView {
 
 /** Money-1 B9: `code` of the warning «Такая же оплата внесена 5 минут назад — Иванов А.». */
 export const PAYMENT_REPEATED_CODE = "payment_repeated";
-/** The question after the server's sentence: the person decides, nothing is forbidden. */
-export const PAYMENT_REPEATED_QUESTION = "Внести ещё одну?";
 
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;

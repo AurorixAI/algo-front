@@ -1546,6 +1546,11 @@ export const orgApi = {
     api<{ billing?: unknown }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=add&dry_run=true`, {
       method: "POST", body: { pay_from: options.pay_from, ...(options.price_override ? { price_override: options.price_override } : {}) }, signal,
     }),
+  /** Money-1 B1: what a BULK add from a past «Оплата с» would charge at once - `students[].billing.immediate` and `immediate_total` (the money right only); nothing is written. */
+  dryRunBulkAdd: (groupId: string, studentIds: string[], options: { pay_from: string; price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
+    api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/bulk?mode=add&dry_run=true`, {
+      method: "POST", body: { student_ids: studentIds, pay_from: options.pay_from, ...(options.price_override ? { price_override: options.price_override } : {}) }, signal,
+    }),
   /** R3 #15: `mode=transfer&dry_run=true` - what a transfer would carry over (`carried: [{code, message}]`, the sums for the money right); nothing is written. */
   dryRunTransferStudent: (groupId: string, studentId: string, options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
     api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=transfer&dry_run=true`, {

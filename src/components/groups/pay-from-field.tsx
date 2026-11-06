@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
-import { PAY_FROM_LABEL, PAY_FROM_MANY_PAST, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 import { DateInput } from "@/components/ui/date-input";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
@@ -11,7 +11,7 @@ import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
  * Money-1 B1 - «Оплата с» of a student who is added to a group.  With access to money: the date, the first lesson of the group by default, and - for a day in the past - what is charged at once.
  * Without it the field is NOT here (not blocked, absent): one quiet line says from which day the student is charged.  A transfer has no such field (the server refuses it): the caller draws nothing.
  */
-export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accountingStart, preview, many = false }: {
+export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accountingStart, preview, names }: {
   idPrefix: string;
   moneyRight: boolean;
   def: PayFromDefault | null;
@@ -20,8 +20,8 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   accountingStart: string | null;
   /** The dry run of the add of ONE student from a past day. */
   preview: PayFromPreview;
-  /** More than one student is chosen: one day for all, no sum in advance. */
-  many?: boolean;
+  /** id → name of the students chosen (a line per student names him when there are several). */
+  names?: ReadonlyMap<string, string> | null;
 }) {
   if (!def) return null;
   if (!moneyRight) {
@@ -52,13 +52,21 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
       <p className="mt-1 text-xs text-slate-500" data-testid="pay-from-hint">
         {changed ? "Дату выбрали вы: ученик платит с неё." : payFromDefaultLine(def)}
       </p>
-      {past && !many && (
-        <p className="mt-1 text-xs font-medium text-slate-800" role="status" data-testid="pay-from-immediate">
-          {preview.status === "loading" && <span className="inline-flex items-center gap-1.5 font-normal text-slate-500"><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />Считаем…</span>}
-          {preview.status === "ready" && (preview.text ?? PAY_FROM_NOTHING_NOW)}
-        </p>
+      {past && preview.status === "loading" && (
+        <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-500" role="status" data-testid="pay-from-immediate"><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />Считаем…</p>
       )}
-      {past && many && <p className="mt-1 text-xs text-slate-600" data-testid="pay-from-many">{PAY_FROM_MANY_PAST}</p>}
+      {past && preview.status === "ready" && (
+        <div className="mt-1 space-y-0.5 text-xs text-slate-800" role="status" data-testid="pay-from-immediate">
+          {preview.immediate.students.length === 0 && !preview.immediate.total && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
+          {preview.immediate.students.length === 1 && !preview.immediate.total && <p className="font-medium">{preview.immediate.students[0].text}</p>}
+          {(preview.immediate.students.length > 1 || (preview.immediate.students.length === 1 && preview.immediate.total)) && (
+            <ul className="space-y-0.5" data-testid="pay-from-immediate-students">
+              {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}</li>)}
+            </ul>
+          )}
+          {preview.immediate.total && <p className="font-semibold" data-testid="pay-from-immediate-total">{preview.immediate.total}</p>}
+        </div>
+      )}
     </div>
   );
 }

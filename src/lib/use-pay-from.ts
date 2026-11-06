@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { orgApi } from "./api";
-import { normalizeBilling, normalizePayFromDefault, type PayFromDefault } from "./pay-from";
+import { normalizeBulkImmediate, normalizePayFromDefault, type BulkImmediate, type PayFromDefault } from "./pay-from";
 import { createRequestSequence } from "./request-sequence";
 
 /** «Оплата с» by default for a group: asked when the window opens; a failure leaves the field out (nothing is invented). */
@@ -20,13 +20,13 @@ export function usePayFromDefault(groupId: string, enabled: boolean): { def: Pay
   return state;
 }
 
-export type PayFromPreview = { status: "idle" } | { status: "loading" } | { status: "ready"; text: string | null } | { status: "failed" };
+export type PayFromPreview = { status: "idle" } | { status: "loading" } | { status: "ready"; immediate: BulkImmediate } | { status: "failed" };
 
 /**
  * What adding ONE student from a past day would charge at once (the dry run of the add; `billing.immediate.text`, the money right only).  Asked once the person stops changing the day;
  * `key` is null while there is nothing to ask (no past day, several students, no money right).
  */
-export function usePayFromPreview(key: string | null, load: (signal: AbortSignal) => Promise<{ billing?: unknown }>): PayFromPreview {
+export function usePayFromPreview(key: string | null, load: (signal: AbortSignal) => Promise<unknown>): PayFromPreview {
   const [state, setState] = useState<PayFromPreview>({ status: "idle" });
   const sequence = useRef(createRequestSequence());
   const loader = useRef(load);
@@ -38,7 +38,7 @@ export function usePayFromPreview(key: string | null, load: (signal: AbortSignal
     const controller = new AbortController();
     const timer = setTimeout(() => {
       loader.current(controller.signal)
-        .then((answer) => { if (sequence.current.isCurrent(token)) setState({ status: "ready", text: normalizeBilling(answer.billing)?.immediate?.text ?? null }); })
+        .then((answer) => { if (sequence.current.isCurrent(token)) setState({ status: "ready", immediate: normalizeBulkImmediate(answer) }); })
         .catch(() => { if (sequence.current.isCurrent(token) && !controller.signal.aborted) setState({ status: "failed" }); });
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); sequence.current.next(); };

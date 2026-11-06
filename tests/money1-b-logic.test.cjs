@@ -127,7 +127,12 @@ test("Б1: «Оплата с» - without the money right there is no date and no
   assert.equal(F.payFromRequest("", def, true), null);
   assert.deepEqual(F.payFromRange("2026-10-21", "2026-09-01"), { min: "2026-09-01", max: "2026-12-22" });
   assert.equal(F.payFromProblem("2026-12-23", def, F.payFromRange("2026-10-21", null)), "«Оплата с» — от 01.01.2020 до 22.12.2026");
-  assert.equal(F.payFromDefaultLine(def), "Оплата считается с 06.11.2026 — с первого занятия группы");
+  assert.equal(F.payFromDefaultLine({ ...def, text: "Оплата с 06.11.2026 — первое занятие группы с сегодня" }), "Оплата с 06.11.2026 — первое занятие группы с сегодня", "the sentence of the server wins");
+  assert.equal(F.payFromDefaultLine(def), "Оплата считается с 06.11.2026 — с первого занятия группы", "only an older server has none");
+  const bulk = F.normalizeBulkImmediate({ students: [{ student_id: "a", billing: { pay_from: "2026-10-01", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } }, { student_id: "b", billing: { pay_from: "2026-10-01" } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } });
+  assert.deepEqual(bulk.students.map((x) => x.studentId), ["a"]);
+  assert.equal(N(bulk.total), "Всего сразу начислится 300 000 сум (за 14 уроков)");
+  assert.deepEqual(F.normalizeBulkImmediate({ students: [{ student_id: "a", billing: { pay_from: "2026-10-01" } }], immediate_total: null }), { students: [], total: null }, "no money right: no sums");
   assert.equal(F.payFromDefaultLine({ ...def, first_lesson: null }), "Оплата считается с 06.11.2026: у группы нет занятий в ближайшие дни");
   assert.equal(F.payFromIsPast("2026-10-01", def), true);
   assert.equal(F.payFromIsPast("2026-10-21", def), false);
@@ -145,12 +150,12 @@ test("Б2: the price of a new group exists only with the money right", () => {
   assert.deepEqual(G.groupCreatePrice("", true), { error: null, request: null });
 });
 
-test("Б9: the repeated payment is a note with a question, not a ban; the journal of the settings", () => {
-  const preview = { warnings: [{ code: "payment_repeated", message: "Такая же оплата внесена 5 минут назад — Owner Иван" }, { code: "large_overpay", message: "Большая переплата" }], result: { allocations: [], debt_after: 0, advance_after: 0 } };
+test("Б9: the repeated payment is the server's sentence, not a ban; the journal of the settings", () => {
+  const preview = { warnings: [{ code: "payment_repeated", message: "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?" }, { code: "large_overpay", message: "Большая переплата" }], result: { allocations: [], debt_after: 0, advance_after: 0 } };
   const view = L.previewView(preview);
-  assert.equal(view.repeated, "Такая же оплата внесена 5 минут назад — Owner Иван");
+  assert.equal(view.repeated, "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?");
   assert.deepEqual(view.warnings, ["Большая переплата"], "the repeat is not a plain bullet");
-  assert.equal(L.PAYMENT_REPEATED_QUESTION, "Внести ещё одну?");
+  assert.equal(L.PAYMENT_REPEATED_QUESTION, undefined, "the sentence is the server's, nothing of ours is added");
   const list = H.settingsHistoryOf({ items: [{ id: "1", at: "2026-11-06T05:15:00", actor_name: "Owner Иван", action: "billing_regime_changed", text: "Изменён способ оплаты: способ «Свой месяц» → «Пакет уроков»", details: { items_total: 60, items: [{ text: "Алия: долг 0 → 1" }] } }] });
   assert.equal(list[0].when, "06.11.2026 10:15");
   assert.equal(list[0].kind, "Способ оплаты");
