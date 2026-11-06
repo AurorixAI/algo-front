@@ -36,10 +36,10 @@ test("Б3: the price window lists EVERY affected student in lessons, dates and t
   const rows = (name) => Object.fromEntries(students.find((s) => s.name === name).rows.map((r) => [r.key, r]));
   assert.deepEqual([rows("Каримова Алия").covered.before, rows("Каримова Алия").covered.after, rows("Каримова Алия").covered.delta], ["12", "10", "−2 урока"]);
   assert.equal(rows("Каримова Алия").left.after, "10");
-  assert.deepEqual([rows("Назаров Тимур")["paid-until"].before, rows("Назаров Тимур")["paid-until"].after, rows("Назаров Тимур")["paid-until"].delta], ["04.12", "29.11", "−5 дней"]);
+  assert.deepEqual([rows("Назаров Тимур")["paid-until"].before, rows("Назаров Тимур")["paid-until"].after, rows("Назаров Тимур")["paid-until"].delta], ["04.12.2026", "29.11.2026", "−5 дней"]);
   assert.equal(N(rows("Назаров Тимур").advance.delta), "−50 000 сум");
   const next = rows("Юлдашев Рустам")["next-period"];
-  assert.equal(next.label, "Следующий период с 05.12");
+  assert.equal(next.label, "Следующий период с 05.12.2026");
   assert.deepEqual([N(next.before), N(next.after), N(next.delta)], ["300 000 сум", "400 000 сум", "+100 000 сум"]);
   assert.equal(students[0].when, null);
   assert.equal(W.whatIfAsOfText(w), "Числа — на 01.12.2026, когда цена дойдёт до учеников");
@@ -66,10 +66,11 @@ test("Б3: the window of the mode - a student with a package in progress waits f
     override_students: [],
   }, "regime");
   const s = W.whatIfStudents(regime);
-  assert.equal(s[0].when, "с 01.11, на 30.11");
+  assert.equal(s[0].when, "с 01.11.2026, на 30.11.2026");
   assert.equal(N(s[0].rows.find((r) => r.key === "charged").delta), "+276 000 сум");
   assert.equal(s[1].when, "когда закончится пакет");
-  assert.equal(N(s[1].rows[0].before), "600 000 сум за пакет из 12 уроков");
+  assert.equal(N(s[1].priceNote), "Цена 600 000 сум: за пакет из 12 уроков → за месяц", "the meaning of the price is ONE line, not a cell of the numbers");
+  assert.ok(!s[1].rows.some((r) => r.key === "price"));
   assert.ok(!s[1].rows.some((r) => r.key === "debt" || r.key === "charged"), "no figures of a day that does not exist");
   assert.equal(W.regimeChangeKind({ billing_day: 10 }), "day");
   assert.equal(W.regimeChangeKind({ period_mode: "lessons" }), "mode");
@@ -233,4 +234,24 @@ test("R3 №3: after a SAVED payment the warning «payment_repeated» is dropped
   assert.deepEqual(L.warningsAfterSave(answer).map((w) => w.code), ["large_overpay"]);
   assert.deepEqual(L.warningsAfterSave([answer[0]]), [], "only the repeat: the window closes with the toast");
   assert.deepEqual(L.warningsAfterSave(undefined), []);
+});
+
+test("R3 №7/8/10/12/17/18: the window says a fact once, one date format, the meaning of the price as a line, nobody is dropped silently, its own words for one student", () => {
+  const w = W.normalizeWhatIf(PRICE, "price");
+  assert.equal(W.whatIfCaption(w), "Изменится у 3 учеников", "a count over the table, not the sentence of the server again");
+  const GPr = require(path.join(root, "src/lib/group-price.ts"));
+  assert.equal(GPr.impactStudentsText({ students_following: 4, students_with_override: 1 }, { overridesListed: true }), "Цену получат 4 ученика", "the individual price is said under the table only");
+  assert.match(GPr.impactStudentsText({ students_following: 4, students_with_override: 1 }), /индивидуальная цена/, "without the list the clause stays");
+  // №10: one meaning for everybody -> ONE line over the table
+  const same = (n) => base({ membership_id: n, student_name: n, switch_on: "2026-11-01", as_of: "2026-11-30", price_amount: 300000, price_unit_before: "за месяц", price_unit_after: "за общий месяц", charged_before: 1, charged_after: 2 });
+  const r = W.normalizeWhatIf({ items: [same("a"), same("b")], items_total: 2, override_students: [] }, "regime");
+  assert.equal(N(W.whatIfCommonPriceNote(W.whatIfStudents(r))), "Цена 300 000 сум: за месяц → за общий месяц");
+  // №17: a student the server counted but whose rows are empty is not dropped
+  const lone = W.normalizeWhatIf({ items: [base({ membership_id: "z", student_name: "Зубов", text: "Зубов: оплачено уроков 12 → 10" })], items_total: 1, override_students: [] }, "price");
+  assert.deepEqual(W.whatIfStudents(lone).map((x) => [x.name, x.fallback]), [["Зубов", "Зубов: оплачено уроков 12 → 10"]]);
+  // №18: ONE student's individual price has its own words
+  assert.equal(W.whatIfAsOfText(w, true), "Числа — на 01.12.2026, когда начнёт действовать цена ученика");
+  assert.equal(W.whatIfAsOfText(w), "Числа — на 01.12.2026, когда цена дойдёт до учеников");
+  const R = require(path.join(root, "src/lib/pay-from.ts"));
+  assert.equal(typeof R.normalizeBulkImmediate, "function");
 });

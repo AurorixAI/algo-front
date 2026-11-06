@@ -4,7 +4,7 @@
  * the confirmation).  Pure: no React, no network.  The numbers and the summary sentence are the server's (`impact.money`, `regime_impact`); this file only arranges them as rows of a table.
  * Contract: `MONEY1_B_SERVER_REPORT.md` («Контракт для фронта» Б3, «Раунд R3»).
  */
-import { daysBetween, formatDateRu, formatDayMonthRu } from "./business-time";
+import { daysBetween, formatDateRu, formatRecordWhen } from "./business-time";
 import { formatMoney, formatSignedMoney, tidyMoneyText } from "./money-format";
 import { daysLabel, lessonsWord, pluralRu } from "./plural";
 
@@ -200,6 +200,10 @@ export interface WhatIfRow {
 export interface WhatIfStudent {
   id: string;
   name: string;
+  /** The meaning of the price in the new way, ONE line (not a number of the table): «Цена 300 000 сум: за общий месяц → за общий месяц с 10-го числа». */
+  priceNote: string | null;
+  /** The server's sentence about a student who has no row of numbers (counted by the server, never dropped silently). */
+  fallback: string | null;
   /** «на 01.12» / «с 01.11, на 30.11» / «когда закончится пакет»: the day the numbers are read on. */
   when: string | null;
   rows: WhatIfRow[];
@@ -207,7 +211,8 @@ export interface WhatIfStudent {
 
 const NONE = "—";
 const sumWord = (value: number): string => formatMoney(value);
-const dateOrNone = (iso: string | null): string => (iso ? formatDayMonthRu(iso) : NONE);
+/** One date format in the whole window: «ДД.ММ.ГГГГ» (a table and a record, UX pack §1). */
+const dateOrNone = (iso: string | null): string => (iso ? formatRecordWhen(iso) : NONE);
 const signedCount = (delta: number, unit: (n: number) => string): string => `${delta < 0 ? "−" : "+"}${Math.abs(delta)} ${unit(Math.abs(delta))}`;
 const sumTone = (delta: number, risesIsWorse: boolean): RowTone => (delta === 0 ? "plain" : (delta > 0) === risesIsWorse ? "worse" : "better");
 
@@ -216,8 +221,9 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
   const rows: WhatIfRow[] = [];
   const push = (row: WhatIfRow) => rows.push(row);
   const meaning = item.price_unit_before && item.price_unit_after && item.price_unit_before !== item.price_unit_after;
+  let priceNote: string | null = null;
   if (kind === "regime" && meaning && item.price_amount) {
-    push({ key: "price", label: "Цена", before: tidyMoneyText(`${formatMoney(item.price_amount)} ${item.price_unit_before}`), after: tidyMoneyText(`${formatMoney(item.price_amount)} ${item.price_unit_after}`), delta: null, tone: "plain" });
+    priceNote = tidyMoneyText(`Цена ${formatMoney(item.price_amount)}: ${item.price_unit_before} → ${item.price_unit_after}`);
     if (item.per_lesson_before && item.per_lesson_after) {
       push({ key: "per-lesson", label: "≈ за урок", before: sumWord(item.per_lesson_before), after: sumWord(item.per_lesson_after), delta: formatSignedMoney(item.per_lesson_after - item.per_lesson_before), tone: sumTone(item.per_lesson_after - item.per_lesson_before, true) });
     }
@@ -263,7 +269,7 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
   if (next) {
     push({
       key: "next-period",
-      label: `Следующий период с ${formatDayMonthRu(next.period_from)}`,
+      label: `Следующий период с ${formatRecordWhen(next.period_from)}`,
       before: sumWord(next.amount_before),
       after: sumWord(next.amount_after),
       delta: formatSignedMoney(next.difference),
@@ -272,16 +278,16 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
   }
   let when: string | null = null;
   if (kind === "regime") {
-    when = item.switch_on === null ? "когда закончится пакет" : `с ${formatDayMonthRu(item.switch_on)}${item.as_of ? `, на ${formatDayMonthRu(item.as_of)}` : ""}`;
+    when = item.switch_on === null ? "когда закончится пакет" : `с ${formatRecordWhen(item.switch_on)}${item.as_of ? `, на ${formatRecordWhen(item.as_of)}` : ""}`;
   }
   // a price window says its day ONCE, over the table (`whatIfAsOfText`), not under every student
-  return { id: item.membership_id, name: item.student_name, when, rows };
+  return { id: item.membership_id, name: item.student_name, priceNote, fallback: rows.length === 0 && !priceNote ? item.text || null : null, when, rows };
 }
 
 /** The students of a window that really move (a student with nothing to show is not listed). */
 export function whatIfStudents(window: WhatIfWindow | null | undefined): WhatIfStudent[] {
   if (!window) return [];
-  return window.items.map((item) => whatIfStudentOf(item, window.kind)).filter((student) => student.rows.length > 0);
+  return window.items.map((item) => whatIfStudentOf(item, window.kind)).filter((student) => student.rows.length > 0 || student.priceNote !== null || student.fallback !== null);
 }
 
 /** «ещё 14 учеников» under a truncated list; null when the list is whole. */
@@ -309,12 +315,27 @@ export function overrideLine(student: OverrideStudent, kind: WhatIfKind): string
 
 /** The title over the individual prices: they do not follow the change. */
 export const OVERRIDES_TITLE = "Индивидуальная цена — не меняется";
-export const OVERRIDES_NOTE_PRICE = "У этих учеников своя цена: изменение цены группы их не затронет.";
-export const OVERRIDES_NOTE_REGIME = "У этих учеников своя цена: число то же, но считается по-новому.";
 
-/** The day the price reaches the student - for the caption over the table. */
-export function whatIfAsOfText(window: WhatIfWindow | null | undefined): string | null {
-  return window?.kind === "price" && window.asOf ? `Числа — на ${formatDateRu(window.asOf)}, когда цена дойдёт до учеников` : null;
+/** The day the price reaches the student - for the caption over the table.  The window of ONE student's individual price says it in its own words (`single`). */
+export function whatIfAsOfText(window: WhatIfWindow | null | undefined, single = false): string | null {
+  if (window?.kind !== "price" || !window.asOf) return null;
+  return single ? `Числа — на ${formatDateRu(window.asOf)}, когда начнёт действовать цена ученика` : `Числа — на ${formatDateRu(window.asOf)}, когда цена дойдёт до учеников`;
+}
+
+/** The line over the table: HOW MANY the change moves - the rows say who and by how much, so the sentence of the server is not repeated (one fact - once). */
+export function whatIfCaption(window: WhatIfWindow | null | undefined): string | null {
+  if (!window || window.items.length === 0) return null;
+  // the students that are drawn + those the server counted beyond its cut of the list
+  const n = whatIfStudents(window).length + Math.max(0, window.itemsTotal - window.items.length);
+  return window.kind === "regime"
+    ? `Перейдут на новый способ ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`
+    : `Изменится у ${n} ${pluralRu(n, "ученика", "учеников", "учеников")}`;
+}
+
+/** When every student has the same meaning of the price, it is said ONCE over the table, not under every name. */
+export function whatIfCommonPriceNote(students: ReadonlyArray<WhatIfStudent>): string | null {
+  const notes = students.map((student) => student.priceNote);
+  return notes.length > 0 && notes[0] !== null && notes.every((note) => note === notes[0]) ? notes[0] : null;
 }
 
 

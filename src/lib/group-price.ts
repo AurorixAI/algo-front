@@ -626,14 +626,15 @@ function studentsWord(count: number): string {
 }
 
 /** «Цену получат 12 учеников; у 2 — индивидуальная цена, их не затронет». */
-export function impactStudentsText(impact: Pick<PriceImpact, "students_following" | "students_with_override">): string {
+export function impactStudentsText(impact: Pick<PriceImpact, "students_following" | "students_with_override">, options: { overridesListed?: boolean } = {}): string {
   const following = Math.max(0, impact.students_following | 0);
   const exceptions = Math.max(0, impact.students_with_override | 0);
   const verb = following % 10 === 1 && following % 100 !== 11 ? "получит" : "получат";
   const head = following > 0
     ? `Цену ${verb} ${following} ${studentsWord(following)}`
     : "В группе пока нет учеников, которые получат эту цену";
-  if (exceptions === 0) return head;
+  // the individual prices are listed (and explained) under the table: said once
+  if (exceptions === 0 || options.overridesListed) return head;
   return `${head}; у ${exceptions} — индивидуальная цена, ${exceptions === 1 ? "её" : "их"} не затронет`;
 }
 

@@ -700,6 +700,8 @@ export interface PriceImpactMoney {
   days_lost_total: number;
   backdated: boolean;
   items: PriceImpactItem[];
+  /** Money-1 B3: the students with an individual price, listed apart (the rest of the new fields are read by `normalizeWhatIf`). */
+  override_students?: unknown[];
 }
 
 export function normalizePriceMoney(raw: Partial<PriceImpactMoney> | null | undefined): PriceImpactMoney | null {

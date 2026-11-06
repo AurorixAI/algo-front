@@ -246,7 +246,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
               </p>
             ) : shownImpact ? (
               <>
-                <p>{impactStudentsText(shownImpact)}.</p>
+                <p>{impactStudentsText(shownImpact, { overridesListed: Boolean(shownImpact.money?.override_students?.length) })}.</p>
                 {shownImpact.first_price && <p className="text-slate-700" data-testid="first-price-note">{tidyMoneyText(shownImpact.first_price.text)}</p>}
                 <PriceImpactMoneyBlock money={shownImpact.money} />
                 {stale && (

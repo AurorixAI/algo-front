@@ -8,11 +8,11 @@ import { WhatIfBody } from "@/components/money/whatif-table";
 /**
  * The money part of «Что изменится» of a price change (Money-1 B3): the sentence of the server and EVERY student the price moves as a table «было → станет».
  */
-export function PriceImpactMoneyBlock({ money }: { money: PriceImpactMoney | null | undefined }) {
+export function PriceImpactMoneyBlock({ money, single = false }: { money: PriceImpactMoney | null | undefined; /** The window of one student's individual price. */ single?: boolean }) {
   // Money-1 B3: every student the price moves, «было → станет» in сум, in lessons and in dates (+ the next period), the individual prices apart
   const window = normalizeWhatIf(money as unknown as Record<string, unknown> | null | undefined, "price");
   if (!window || (window.items.length === 0 && window.overrides.length === 0 && !window.text)) return null;
-  return <WhatIfBody window={window} testId="price-impact-money" />;
+  return <WhatIfBody window={window} testId="price-impact-money" single={single} />;
 }
 
 /**

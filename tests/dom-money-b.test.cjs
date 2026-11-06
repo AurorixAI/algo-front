@@ -57,9 +57,14 @@ test("Б3: the price window - EVERY affected student «было → станет
     assert.deepEqual(names.map(plain), ["Каримова Алия", "Назаров Тимур", "Юлдашев Рустам"]);
     const text = plain(await page.textContent('[data-testid="price-impact-money-students"]'));
     assert.match(text, /Оплачено уроков.*12.*10.*−2 урока/);
-    assert.match(text, /Оплачено до.*04\.12.*29\.11.*−5 дней/);
-    assert.match(text, /Следующий период с 05\.12.*300 000 сум.*400 000 сум.*\+100 000 сум/);
-    assert.match(plain(await page.textContent('[data-testid="price-impact-money-summary"]')), /^Изменится у 3 учеников/);
+    assert.match(text, /Оплачено до.*04\.12\.2026.*29\.11\.2026.*−5 дней/);
+    assert.match(text, /Следующий период с 05\.12\.2026.*300 000 сум.*400 000 сум.*\+100 000 сум/);
+    assert.equal(plain(await page.textContent('[data-testid="price-impact-money-summary"]')), "Изменится у 3 учеников");
+    const whole = plain(await page.textContent('[role="dialog"]'));
+    assert.equal((whole.match(/индивидуальн/gi) ?? []).length, 2, "the individual price: its title and the student, not three times");
+    assert.ok(!/аванс уменьшится на 50 000/.test(whole), "the sentence of the server is not repeated over its own table");
+    // no inner scroll: the list is as tall as its rows, only the body of the window scrolls
+    assert.equal(await page.evaluate(() => { const ul = document.querySelector('[data-testid="price-impact-money-students"] ul'); return ul.scrollHeight - ul.clientHeight; }), 0);
     assert.match(plain(await page.textContent('[data-testid="price-impact-money-overrides"]')), /Индивидуальная цена — не меняется.*Юсупов Бек · 250 000 сум · цена группы 600 000 сум → 700 000 сум/);
     assert.match(plain(await page.textContent('[data-testid="price-impact-money-summary"]')), /оплаченных уроков станет меньше на 2, следующий период дороже на 100 000 сум у 1 ученика/);
     assert.equal(plain(await page.textContent('[data-testid="price-impact-money-asof"]')), "Числа — на 01.12.2026, когда цена дойдёт до учеников");
@@ -92,8 +97,8 @@ test("Б3: the window of the mode - per student with the charge of 30 days, a pa
   assert.equal(await page.locator('[data-testid="regime-confirm"]').isDisabled(), false);
   assert.equal(plain(await page.textContent('[data-testid="regime-confirm"]')), "Изменить день");
   const text = plain(await page.textContent('[data-testid="regime-whatif-students"]'));
-  assert.match(text, /Каримова Алия.*с 01\.11, на 30\.11.*Начислено за 30 дней.*900 000 сум.*1 176 000 сум.*\+276 000 сум/);
-  assert.match(text, /Пакетов Закир.*когда закончится пакет.*Цена.*600 000 сум за пакет из 12 уроков.*600 000 сум за общий месяц/);
+  assert.match(text, /Каримова Алия.*с 01\.11\.2026, на 30\.11\.2026.*Начислено за 30 дней.*900 000 сум.*1 176 000 сум.*\+276 000 сум/);
+  assert.match(text, /Пакетов Закир.*когда закончится пакет.*Цена 600 000 сум: за пакет из 12 уроков → за общий месяц/);
   assert.ok(!/Долг/.test(text), "the debt equal to the charge of 30 days is not said twice");
   assert.match(text, /≈ за урок.*50 000 сум.*23 077 сум/);
   assert.equal((plain(await page.textContent('[role="dialog"]')).match(/Что изменится/g) ?? []).length, 1, "one title");

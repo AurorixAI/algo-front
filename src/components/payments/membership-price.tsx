@@ -289,7 +289,7 @@ function OverrideImpactBlock({ impact, blocked, checking }: { impact: PriceImpac
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700" data-testid="override-impact">
       <p className="font-semibold text-slate-800">Что изменится</p>
-      <PriceImpactMoneyBlock money={impact.money} />
+      <PriceImpactMoneyBlock money={impact.money} single />
       {stale && (
         <div>
           <p>{stale.text}</p>

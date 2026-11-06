@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  OVERRIDES_NOTE_PRICE,
-  OVERRIDES_NOTE_REGIME,
   OVERRIDES_TITLE,
   overrideLine,
   overrideMoreText,
   whatIfAsOfText,
+  whatIfCaption,
+  whatIfCommonPriceNote,
   whatIfMoreText,
   whatIfStudents,
   type RowTone,
@@ -24,18 +24,21 @@ import { tidyMoneyText } from "@/lib/money-format";
  */
 const TONE: Record<RowTone, string> = { worse: "text-amber-800", better: "text-emerald-700", plain: "text-slate-600" };
 
-export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow | null; testId?: string }) {
+export function WhatIfBody({ window, testId = "whatif", single = false }: { window: WhatIfWindow | null; testId?: string; /** The window of ONE student's individual price: its own wording, no list of other individual prices. */ single?: boolean }) {
   if (!window) return null;
   const students = whatIfStudents(window);
   const more = whatIfMoreText(window);
-  const asOf = whatIfAsOfText(window);
+  const asOf = whatIfAsOfText(window, single);
+  const caption = whatIfCaption(window);
+  const commonNote = whatIfCommonPriceNote(students);
   const overrideMore = overrideMoreText(window);
   if (students.length === 0 && window.overrides.length === 0) {
     return <p className="text-slate-600" data-testid={`${testId}-none`}>{window.text || "Деньги учеников не изменятся"}</p>;
   }
   return (
     <div className="space-y-3 text-[13px] leading-5" data-testid={testId}>
-      {window.text && <p className="font-medium text-slate-800" data-testid={`${testId}-summary`}>{window.text}</p>}
+      {(caption ?? window.text) && <p className="font-medium text-slate-800" data-testid={`${testId}-summary`}>{caption ?? window.text}</p>}
+      {commonNote && <p className="text-slate-700" data-testid={`${testId}-price-note`}>{commonNote}</p>}
       {asOf && <p className="text-slate-600" data-testid={`${testId}-asof`}>{asOf}</p>}
       {students.length > 0 && (
         <div data-testid={`${testId}-students`}>
@@ -46,13 +49,15 @@ export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow
             <span>Станет</span>
             <span>Разница</span>
           </div>
-          <ul className="max-h-[46vh] divide-y divide-slate-200 overflow-y-auto overscroll-contain sm:max-h-72" aria-label="У кого изменятся деньги">
+          <ul className="divide-y divide-slate-200" aria-label="У кого изменятся деньги">
             {students.map((student) => (
               <li key={student.id || student.name} className="py-2" data-testid="whatif-student">
                 <p className="flex flex-wrap items-baseline justify-between gap-x-3 font-semibold text-slate-900">
                   <span className="min-w-0 break-words">{student.name}</span>
                   {student.when && <span className="text-xs font-normal text-slate-500">{student.when}</span>}
                 </p>
+                {student.priceNote && !commonNote && <p className="mt-0.5 text-slate-600" data-testid="whatif-price-note">{student.priceNote}</p>}
+                {student.fallback && <p className="mt-0.5 text-slate-600" data-testid="whatif-fallback">{student.fallback}</p>}
                 <ul className="mt-1 space-y-1.5 sm:space-y-0.5">
                   {student.rows.map((row) => (
                     <li
@@ -82,10 +87,9 @@ export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow
           {more && <p className="mt-1 text-slate-500" data-testid={`${testId}-more`}>{more}</p>}
         </div>
       )}
-      {window.overrides.length > 0 && (
+      {!single && window.overrides.length > 0 && (
         <div className="space-y-1 rounded-lg bg-slate-100 px-3 py-2" data-testid={`${testId}-overrides`}>
           <p className="font-semibold text-slate-800">{OVERRIDES_TITLE}</p>
-          <p className="text-slate-600">{window.kind === "price" ? OVERRIDES_NOTE_PRICE : OVERRIDES_NOTE_REGIME}</p>
           <ul className="max-h-28 space-y-0.5 overflow-y-auto text-slate-700">
             {window.overrides.map((student) => <li key={student.membership_id || student.student_name} data-testid="whatif-override" className="break-words">{overrideLine(student, window.kind)}</li>)}
           </ul>
