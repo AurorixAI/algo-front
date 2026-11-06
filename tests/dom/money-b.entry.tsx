@@ -26,7 +26,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   const root = createRoot(document.getElementById("root")!);
   switch (name) {
     case "addDrawer":
-      root.render(<AddStudentDrawer open groupId="g2" groupClassLevel={7} existingStudentIds={new Set()} onClose={() => log("close")} onAdded={(result) => log(JSON.stringify(result))} />);
+      root.render(<AddStudentDrawer open groupId="g2" groupClassLevel={7} groupPrice={props.groupPrice} existingStudentIds={new Set()} onClose={() => log("close")} onAdded={(result) => log(JSON.stringify(result))} />);
       break;
     case "priceDialog":
       root.render(<GroupPriceDialog open groupId="g1" groupName="Алгебра 7" label="Цена в месяц" current={{ amount: 600000, valid_from: "2026-09-01" } as never} history={[]} onClose={() => log("close")} onSaved={() => log("saved")} onConflict={() => log("conflict")} />);

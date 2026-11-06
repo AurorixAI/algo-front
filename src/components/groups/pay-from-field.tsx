@@ -2,7 +2,8 @@
 
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
-import { PAY_FROM_LABEL, immediatePartLines, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { formatMoney } from "@/lib/money-format";
+import { PAY_FROM_LABEL, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 
 export const PAY_FROM_FAILED_TEXT = "Не удалось посчитать, сколько начислится сразу";
@@ -67,12 +68,15 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
         <div className="mt-1 space-y-0.5 text-xs text-slate-800" role="status" data-testid="pay-from-immediate">
           {preview.immediate.students.length === 0 && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
           {/* one student: his line only - the total would say the same again */}
-          {preview.immediate.students.length === 1 && <p className="font-medium">{preview.immediate.students[0].text}</p>}
-          {preview.immediate.students.length === 1 && <PartLines parts={preview.immediate.students[0].parts} />}
+          {preview.immediate.students.length === 1 && <ImmediateBlock amount={preview.immediate.students[0].amount} parts={preview.immediate.students[0].parts} text={preview.immediate.students[0].text} />}
           {preview.immediate.students.length > 1 && (
             <>
               <ul className="space-y-0.5" data-testid="pay-from-immediate-students">
-                {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}<PartLines parts={line.parts} /></li>)}
+                {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}{line.parts.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 text-slate-700" data-testid="pay-from-immediate-parts">
+                    {immediatePartRows(line.parts).map((row) => <li key={row.label} className="flex justify-between gap-3"><span className="min-w-0 break-words">{row.label}</span><span className="whitespace-nowrap tabular-nums">{row.amount}</span></li>)}
+                  </ul>
+                )}</li>)}
               </ul>
               {preview.immediate.total && <p className="font-semibold" data-testid="pay-from-immediate-total">{preview.immediate.total}</p>}
             </>
@@ -83,12 +87,26 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   );
 }
 
-/** «Сразу начислится» by months (the `parts` of the server); nothing when an older server sends none. */
-function PartLines({ parts }: { parts: ImmediatePart[] }) {
-  if (parts.length === 0) return null;
+/**
+ * «Сразу начислится» as a BLOCK, like «Что изменится» of the payment window: a light card, the title on the left and the total on the right (bold), under it a row per month - the caption left, the sum right (tabular, never wrapped).
+ * Nothing but the sentence of the server when an older server sends no `parts`.
+ */
+function ImmediateBlock({ amount, parts, text }: { amount: number; parts: ImmediatePart[]; text: string }) {
+  if (parts.length === 0) return <p className="font-medium">{text}</p>;
   return (
-    <ul className="mt-0.5 space-y-0.5 font-normal text-slate-700" data-testid="pay-from-immediate-parts">
-      {immediatePartLines(parts).map((line) => <li key={line} className="break-words">{line}</li>)}
-    </ul>
+    <div data-testid="pay-from-immediate-block" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-900">Сразу начислится</p>
+        <p data-testid="pay-from-immediate-total-sum" className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-900">{formatMoney(amount)}</p>
+      </div>
+      <ul className="mt-2 space-y-1" data-testid="pay-from-immediate-parts">
+        {immediatePartRows(parts).map((row) => (
+          <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs text-slate-700">
+            <span className="min-w-0 break-words">{row.label}</span>
+            <span className="whitespace-nowrap tabular-nums">{row.amount}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

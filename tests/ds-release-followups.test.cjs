@@ -36,6 +36,17 @@ test("immediate.parts: the break-down lines in the words of the owner; no parts 
   assert.deepEqual(payFrom.normalizeParts("junk"), []);
 });
 
+test("the block «Сразу начислится»: rows with the caption on the left and the sum on the right; the line beside the big number of a sheet is short and says больше / меньше", () => {
+  const rows = payFrom.immediatePartRows(payFrom.normalizeParts(PARTS)).map((r) => ({ label: nb(r.label), amount: nb(r.amount) }));
+  assert.deepEqual(rows, [{ label: "Октябрь, с 27.10 · 2 урока из 9", amount: "89 000 сум" }, { label: "Ноябрь, весь месяц", amount: "400 000 сум" }]);
+  const Y = require(src("lib/payroll-logica.ts"));
+  const moved = { saved_total: 120834, fresh_total: 75834, target: 75834, paid: 0, balance: 75834, state: "unpaid", basis: "fresh", changed_by: -45000, text: "" };
+  assert.equal(nb(Y.sheetVersionLine({ payout: moved, updatedAt: "2026-11-05T05:00:00" })), "В таблице ниже — сохранённая версия 05.11: 120 834 сум (на 45 000 сум больше)");
+  assert.equal(nb(Y.sheetVersionLine({ payout: { ...moved, saved_total: 45000, fresh_total: 120834, changed_by: 75834 }, updatedAt: "2026-11-05T05:00:00" })), "В таблице ниже — сохранённая версия 05.11: 45 000 сум (на 75 834 сум меньше)");
+  assert.equal(Y.sheetVersionLine({ payout: { ...moved, changed_by: 0 } }), null);
+  assert.doesNotMatch(nb(Y.sheetVersionLine({ payout: moved })), /сохраните/, "the call to save is said by «Что нужно сделать» only");
+});
+
 test("namesakes get a telling detail: the end of the phone, else the day added, else the ID; a unique name gets nothing", () => {
   const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234" };
   const b = { id: "2", full_name: "Иванов  Иван", student_phone: null, joined_at: "2026-10-12T05:00:00" };

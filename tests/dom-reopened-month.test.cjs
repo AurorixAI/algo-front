@@ -102,7 +102,7 @@ test("R2-2а: a sheet whose total moved after the saving - above the table «С�
   assert.equal(await page.locator('[data-testid="sheet-period"]').count(), 0, "UX pack №23: «Месяц открыт» is not a chip when the page says «месяц ещё идёт»");
   const card = await flat(page, '[aria-label="Итог ведомости"]');
   assert.match(card, /Начислено на сегодня\s*75 834 сум/);
-  assert.match(card, /В таблице — сохранённая версия 03\.11: 120 834 сум\. Сейчас начислено 75 834 сум \(−45 000 сум\) — сохраните новую сумму/);
+  assert.match(card, /В таблице ниже — сохранённая версия 03\.11: 120 834 сум \(на 45 000 сум больше\)/);
   await page.close();
 });
 

@@ -60,6 +60,14 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
   });
 }
 
+/** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
+export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
+  return parts.map((part) => ({
+    label: part.whole || !part.from ? `${part.label}, весь месяц` : `${part.label}, с ${formatDayMonthRu(part.from)} · ${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`,
+    amount: formatMoney(part.amount),
+  }));
+}
+
 /** The lines of the break-down: «Ноябрь, весь месяц — 400 000 сум» for a whole month, «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» for a part. */
 export function immediatePartLines(parts: ImmediatePart[]): string[] {
   return parts.map((part) => {
@@ -116,7 +124,7 @@ export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начисли
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 export interface BulkImmediate {
-  students: Array<{ studentId: string; text: string; parts: ImmediatePart[] }>;
+  students: Array<{ studentId: string; text: string; amount: number; parts: ImmediatePart[] }>;
   total: string | null;
 }
 
@@ -127,7 +135,7 @@ export function normalizeBulkImmediate(raw: unknown): BulkImmediate {
   const students = list.flatMap((item) => {
     const entry = item as { student_id?: unknown; billing?: unknown };
     const now = normalizeBilling(entry.billing)?.immediate;
-    return now?.text ? [{ studentId: String(entry.student_id ?? ""), text: now.text, parts: now.parts }] : [];
+    return now?.text ? [{ studentId: String(entry.student_id ?? ""), text: now.text, amount: now.amount, parts: now.parts }] : [];
   });
   const total = typeof r.immediate_total?.text === "string" && r.immediate_total.text ? tidyMoneyText(r.immediate_total.text) : null;
   return { students, total };

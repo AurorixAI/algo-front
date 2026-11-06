@@ -437,7 +437,7 @@ test("D-2: an open month's card says «Начислено на сегодня 12
   const text = card(open);
   assert.ok(text.includes("Начислено на сегодня"));
   assert.ok(text.includes("120 834 сум"));
-  assert.ok(text.includes("В таблице — сохранённая версия 03.11: 45 000 сум. Сейчас начислено 120 834 сум (+75 834 сум) — сохраните новую сумму"), text);   // rule 113: the big number and the table are told apart in ONE line beside it
+  assert.ok(text.includes("В таблице ниже — сохранённая версия 03.11: 45 000 сум (на 75 834 сум меньше)"), text);   // rule 113: the big number and the table are told apart in ONE line beside it
   assert.ok(!text.includes("К выплате"), "the saved total is never «К выплате» in an open month");
   assert.equal(times(text, 45000), 2, "the saved sum once in the line beside the big number + once in the print-only total (a document with ONE total, UX pack №3)");
   assert.ok(text.includes("Итог ведомости"), "the printed document names its total");

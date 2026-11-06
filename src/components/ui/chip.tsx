@@ -5,18 +5,24 @@ import { chipClass, type ChipSize, type ChipTone } from "@/lib/chip-tone";
  * IA audit F14: THE chip - a status, a tag, a count in a row.  One border, one palette (`ChipTone`), two sizes, two shapes; the classes were
  * typed by hand in about seventy places.  Pure markup (no hooks), so a server render and node:test show it as it is.
  */
-export function Chip({ tone = "neutral", size = "md", pill = false, title, testId, className = "", children }: {
+export function Chip({ tone = "neutral", size = "md", pill = false, bleed, title, testId, className = "", children }: {
   tone?: ChipTone;
   size?: ChipSize;
   /** A rounded pill instead of a rounded rectangle. */
   pill?: boolean;
+  /**
+   * In a cell of a table: the chip leans out to the left by its own frame and padding, so the TEXT of the chip stands on the same vertical as the line under it and the header of the column (the fill goes into the gap of the
+   * column).  `"xl"` only from 1280, where the table is a table; below it the chip is a chip in a card.
+   */
+  bleed?: "always" | "xl";
   title?: string;
   testId?: string;
   className?: string;
   children: ReactNode;
 }) {
+  const lean = bleed ? `${bleed === "xl" ? "xl:" : ""}${size === "sm" ? "-ml-[7px]" : size === "lg" ? "-ml-[13px]" : "-ml-[9px]"}` : "";
   return (
-    <span className={`${chipClass({ tone, size, pill })}${className ? ` ${className}` : ""}`} title={title} data-testid={testId}>
+    <span className={`${chipClass({ tone, size, pill })}${lean ? ` ${lean}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-bleed={bleed || undefined}>
       {children}
     </span>
   );

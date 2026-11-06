@@ -291,14 +291,16 @@ function savedDayShort(updatedAt: string | null | undefined): string {
 }
 
 /**
- * The ONE line beside the big number of a sheet whose data moved after the saving (release review 06.11, rule 113: a sum is explained on the same screen):
- * «В таблице — сохранённая версия 05.11: 120 834 сум. Сейчас начислено 75 834 сум (−45 000) — сохраните новую сумму».  null when nothing moved or the fresh total cannot be counted.
+ * The ONE short line beside the big number of a sheet whose data moved after the saving (release review 06.11, rule 113: a sum is explained on the same screen):
+ * «В таблице ниже — сохранённая версия 05.11: 120 834 сум (на 45 000 сум больше)» - «больше» / «меньше» is the saved version against what is accrued now.  The call to save is said ONCE, by «Что нужно сделать».
  */
 export function sheetVersionLine(input: { payout: Partial<PayoutState> | null | undefined; updatedAt?: string | null }): string | null {
   const state = normalizePayoutState(input.payout);
   if (!state || state.fresh_total === null || state.changed_by === 0) return null;
   const day = savedDayShort(input.updatedAt);
-  return `В таблице — сохранённая версия${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)}. Сейчас начислено ${formatMoney(state.fresh_total)} (${formatSignedMoney(state.changed_by)}) — сохраните новую сумму`;
+  const diff = state.saved_total - state.fresh_total;
+  const against = diff === 0 ? "" : ` (на ${formatMoney(Math.abs(diff))} ${diff > 0 ? "больше" : "меньше"})`;
+  return `В таблице ниже — сохранённая версия${day ? ` ${day}` : ""}: ${formatMoney(state.saved_total)}${against}`;
 }
 
 /**
