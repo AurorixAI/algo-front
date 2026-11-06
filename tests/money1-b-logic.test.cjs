@@ -155,7 +155,7 @@ test("Б9: the repeated payment is the server's sentence, not a ban; the journal
   const view = L.previewView(preview);
   assert.equal(view.repeated, "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?");
   assert.deepEqual(view.warnings, ["Большая переплата"], "the repeat is not a plain bullet");
-  assert.equal(L.PAYMENT_REPEATED_QUESTION, undefined, "the sentence is the server's, nothing of ours is added");
+  assert.ok(!/Внести ещё одну\?$/.test(require("fs").readFileSync(path.join(root, "src/components/payments/payment-repeated-note.tsx"), "utf8").replace(/\s+/g, " ").match(/<p>.*?<\/p>/)[0].replace("</p>", "")), "nothing of ours is appended to the server's sentence");
   const list = H.settingsHistoryOf({ items: [{ id: "1", at: "2026-11-06T05:15:00", actor_name: "Owner Иван", action: "billing_regime_changed", text: "Изменён способ оплаты: способ «Свой месяц» → «Пакет уроков»", details: { items_total: 60, items: [{ text: "Алия: долг 0 → 1" }] } }] });
   assert.equal(list[0].when, "06.11.2026 10:15");
   assert.equal(list[0].kind, "Способ оплаты");
@@ -226,4 +226,11 @@ test("R3 №1/2/6/23: ONE question «debtor or waiting» for the list, the tab o
   assert.equal(N(card.label), "Ждём оплату · 300 000 сум");
   assert.equal(card.tone, "muted");
   assert.equal(card.debtGroups, 0);
+});
+
+test("R3 №3: after a SAVED payment the warning «payment_repeated» is dropped (the question is for the preview); other warnings stay", () => {
+  const answer = [{ code: "payment_repeated", message: "Такая же оплата уже внесена сегодня в 10:15 — внести ещё одну?" }, { code: "large_overpay", message: "Большая переплата" }];
+  assert.deepEqual(L.warningsAfterSave(answer).map((w) => w.code), ["large_overpay"]);
+  assert.deepEqual(L.warningsAfterSave([answer[0]]), [], "only the repeat: the window closes with the toast");
+  assert.deepEqual(L.warningsAfterSave(undefined), []);
 });

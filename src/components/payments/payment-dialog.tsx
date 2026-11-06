@@ -27,6 +27,7 @@ import {
   PRICE_NOT_SET_TEXT,
   savedPaymentDetails,
   validatePaymentForm,
+  warningsAfterSave,
   type PaymentFormValues,
 } from "@/lib/payments-ledger";
 import { PaymentRepeatedNote } from "./payment-repeated-note";
@@ -214,7 +215,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);
       rememberMethod(values.method);
       onSaved(result);
-      if (result.warnings.length > 0) setSaved({ warnings: result.warnings, details: savedPaymentDetails(result.allocation) });
+      const after = warningsAfterSave(result.warnings);
+      if (after.length > 0) setSaved({ warnings: after, details: savedPaymentDetails(result.allocation) });
       else onClose();
     } catch (cause) {
       const failure = payError(cause, "Не удалось сохранить оплату");

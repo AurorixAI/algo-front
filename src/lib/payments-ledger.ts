@@ -372,6 +372,14 @@ export interface PreviewView {
 /** Money-1 B9: `code` of the warning «Такая же оплата внесена 5 минут назад — Иванов А.». */
 export const PAYMENT_REPEATED_CODE = "payment_repeated";
 
+/**
+ * The warnings that stay on screen AFTER a payment was saved.  `payment_repeated` is a question for the moment BEFORE «Внести» (the preview): in the answer of the save it would ask it too late - the
+ * payment is already booked - so it is dropped there (R3 №3).
+ */
+export function warningsAfterSave<T extends { code?: string }>(warnings: ReadonlyArray<T> | null | undefined): T[] {
+  return (warnings ?? []).filter((warning) => warning.code !== PAYMENT_REPEATED_CODE);
+}
+
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;
   if (!preview || !result) return null;
