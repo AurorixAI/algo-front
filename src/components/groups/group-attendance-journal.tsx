@@ -79,7 +79,7 @@ import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/grou
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { groupsBaseOf, purposeMarks } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
-import { assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { LESSON_CANCELLED_LABEL, assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -1489,7 +1489,7 @@ export function GroupAttendanceJournal({
                     const teacherLabel = substituteLabel(teacherInfo);
                     // UX pack №26: at most two chips in the head of a column, the rest behind «ещё N»
                     const chipPlan = headerChipPlan({
-                      marks: [...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })],
+                      marks: [...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }).filter((mark) => !(lessonStatus === "cancelled" && mark.text === LESSON_CANCELLED_LABEL)), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(user?.org_role), groupId })],
                       teacherLabel: teacherLabel || null,
                       correctionLabel: correction && lessonStatus === "completed" ? correctionChipLabel(correction) : null,
                       backdatedLabel: attendanceData?.backdated?.[key] ? BACKDATED_LABEL : null,
