@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, ChevronRight, Copy, FileText, Library, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, ChevronRight, Copy, FileText, Library, Loader2, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { examsApi, type ExamSummary, type GroupDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -16,7 +15,7 @@ import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/ex
 import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { examStatusView, DRAFT_TAB_LABEL } from "@/lib/status-registry";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal, useScrollLock } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
@@ -173,157 +172,99 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
       )}
       {!(loadError && groupExams.length === 0) && (
       <div className="space-y-4">
-        {/* Unified Modal Container with Single Persistent Backdrop */}
-        <AnimatePresence>
-          {modalState !== "none" && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              {/* Single Persistent Backdrop Blur */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-                onClick={() => setModalState("none")}
-              />
+        {/* «Добавить экзамен»: the question of how, then the library; two ordinary windows of the project */}
+        <Modal open={modalState === "chooser"} title="Добавить экзамен" description={`Группа «${group?.name}»`} onClose={() => setModalState("none")} size="sm">
+          <div className="space-y-3 pb-2">
+            <button
+              onClick={() => setModalState("library")}
+              className="w-full flex items-start gap-4 p-4 rounded-2xl border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all text-left group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                <Library className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">Из библиотеки</p>
+                <p className="text-xs text-slate-500 mt-0.5">Выбрать готовый шаблон из ваших экзаменов</p>
+              </div>
+            </button>
 
-              {/* Inner Modal Cards with Smooth Crossfade/Morph */}
-              <AnimatePresence mode="wait">
-                {modalState === "chooser" && (
-                  <motion.div
-                    key="modal-chooser"
-                    initial={{ opacity: 0, scale: 0.94, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: 10 }}
-                    transition={{ duration: 0.18 }}
-                    className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden"
-                  >
-                    <div className="bg-gradient-to-r from-primary-600 to-violet-600 p-5 text-white">
-                      <button
-                        onClick={() => setModalState("none")}
-                        className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <h3 className="font-bold text-base">Добавить экзамен</h3>
-                      <p className="text-xs text-white/70 mt-0.5">Группа «{group?.name}»</p>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <button
-                        onClick={() => setModalState("library")}
-                        className="w-full flex items-start gap-4 p-4 rounded-2xl border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all text-left group cursor-pointer"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
-                          <Library className="w-5 h-5 text-violet-600" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">Из библиотеки</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Выбрать готовый шаблон из ваших экзаменов</p>
-                        </div>
-                      </button>
+            <Link
+              href={links.newExam}
+              onClick={() => setModalState("none")}
+              className="w-full flex items-start gap-4 p-4 rounded-2xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all text-left group block cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                <Plus className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">Создать новый</p>
+                <p className="text-xs text-slate-500 mt-0.5">Собрать экзамен с нуля, группа уже привязана</p>
+              </div>
+            </Link>
+          </div>
+        </Modal>
 
-                      <Link
-                        href={links.newExam}
-                        onClick={() => setModalState("none")}
-                        className="w-full flex items-start gap-4 p-4 rounded-2xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all text-left group block cursor-pointer"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                          <Plus className="w-5 h-5 text-emerald-600" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">Создать новый</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Собрать экзамен с нуля, группа уже привязана</p>
-                        </div>
-                      </Link>
-                    </div>
-                  </motion.div>
-                )}
+        <Modal open={modalState === "library"} title="Выбрать из библиотеки" description={`Назначить для группы «${group?.name}»`} onClose={() => setModalState("none")}>
+        {/* Search */}
+        <div className="pb-3">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Поиск по названию..."
+              value={librarySearch}
+              onChange={(e) => setLibrarySearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
+            />
+          </div>
+        </div>
 
-                {modalState === "library" && (
-                  <motion.div
-                    key="modal-library"
-                    initial={{ opacity: 0, scale: 0.94, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: 10 }}
-                    transition={{ duration: 0.18 }}
-                    className="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[85vh]"
-                  >
-                    <div className="bg-gradient-to-r from-primary-600 to-violet-600 p-5 text-white shrink-0">
-                      <button
-                        onClick={() => setModalState("none")}
-                        className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <h3 className="font-bold text-base">Выбрать из библиотеки</h3>
-                      <p className="text-xs text-white/70 mt-0.5">Назначить для группы «{group?.name}»</p>
-                    </div>
-
-                    {/* Search */}
-                    <div className="p-4 border-b border-slate-100 shrink-0">
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          placeholder="Поиск по названию..."
-                          value={librarySearch}
-                          onChange={(e) => setLibrarySearch(e.target.value)}
-                          className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* List */}
-                    <div className="overflow-y-auto flex-1 p-4 space-y-2">
-                      {allExams
-                        .filter((e) => !e.group_id && e.status !== "closed" && e.status !== "archived" && e.status !== "active")
-                        .filter((e) =>
-                          !librarySearch ||
-                          e.title.toLowerCase().includes(librarySearch.toLowerCase())
-                        )
-                        .map((exam) => (
-                          <div
-                            key={exam.exam_id}
-                            className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-primary-50/20 transition-all"
-                          >
-                            <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                              <FileText className="w-4 h-4 text-primary-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm text-slate-800 truncate">{exam.title}</p>
-                              <p className="text-xs text-slate-500">{exam.tasks_per_variant} зад · {exam.variants_count} вар</p>
-                            </div>
-                            <Button
-                              onClick={() => {
-                                setModalState("none");
-                                setAssignTarget(exam);
-                              }}
-                              variant="primary" size="sm" className="shrink-0"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Выбрать
-                            </Button>
-                          </div>
-                        ))}
-                      {allExams
-                        .filter((e) => !e.group_id && e.status !== "closed" && e.status !== "archived" && e.status !== "active")
-                        .filter((e) => !librarySearch || e.title.toLowerCase().includes(librarySearch.toLowerCase()))
-                        .length === 0 && (
-                        <div className="text-center py-8 text-slate-400">
-                          <Library className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                          <p className="text-sm">{librarySearch ? "Шаблоны не найдены" : "Нет доступных шаблонов"}</p>
-                          <Link href={links.library} className="text-xs text-primary-600 hover:underline mt-1 block">
-                            Создать экзамен в библиотеке →
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {/* List */}
+        <div className="space-y-2 pb-2">
+          {allExams
+            .filter((e) => !e.group_id && e.status !== "closed" && e.status !== "archived" && e.status !== "active")
+            .filter((e) =>
+              !librarySearch ||
+              e.title.toLowerCase().includes(librarySearch.toLowerCase())
+            )
+            .map((exam) => (
+              <div
+                key={exam.exam_id}
+                className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-primary-50/20 transition-all"
+              >
+                <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-primary-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-slate-800 truncate">{exam.title}</p>
+                  <p className="text-xs text-slate-500">{exam.tasks_per_variant} зад · {exam.variants_count} вар</p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setModalState("none");
+                    setAssignTarget(exam);
+                  }}
+                  variant="primary" size="sm" className="shrink-0"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Выбрать
+                </Button>
+              </div>
+            ))}
+          {allExams
+            .filter((e) => !e.group_id && e.status !== "closed" && e.status !== "archived" && e.status !== "active")
+            .filter((e) => !librarySearch || e.title.toLowerCase().includes(librarySearch.toLowerCase()))
+            .length === 0 && (
+            <div className="text-center py-8 text-slate-400">
+              <Library className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{librarySearch ? "Шаблоны не найдены" : "Нет доступных шаблонов"}</p>
+              <Link href={links.library} className="text-xs text-primary-600 hover:underline mt-1 block">
+                Создать экзамен в библиотеке →
+              </Link>
             </div>
           )}
-        </AnimatePresence>
+        </div>
+        </Modal>
 
         {/* Header + Add button */}
         <div className="flex items-center justify-between bg-white rounded-2xl p-5 border border-slate-100 shadow-card">
@@ -333,12 +274,12 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
               Экзамены, назначенные для «{group.name}»
             </p>
           </div>
-          {access.canAssign && <button
+          {access.canAssign && <Button
             onClick={() => setModalState("chooser")}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-primary-600/20 transition-all cursor-pointer"
+            variant="primary" size="sm"
           >
             <Plus className="w-4 h-4" /> Добавить экзамен
-          </button>}
+          </Button>}
         </div>
 
         {/* Filter Bar + Search */}

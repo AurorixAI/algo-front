@@ -40,7 +40,6 @@ import {
   EyeOff,
   Activity,
   ArrowRight,
-  X,
   Plus,
   Printer,
   MoreVertical,
@@ -160,7 +159,9 @@ const diffColors: Record<string, string> = {
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { pluralRu } from "@/lib/payments";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal, useScrollLock } from "@/components/ui/modal";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 import { useToast } from "@/components/ui/toast";
 import { COPY_FAILED_TEXT, examLinkHere, examLinkDisplay } from "@/lib/exam-link";
 import { copyText } from "@/lib/use-copy";
@@ -1290,87 +1291,56 @@ export default function ExamDraftPage() {
       />
 
       {/* Group Assignment Modal */}
-      <AnimatePresence>
-        {showAssignModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-              onClick={() => setShowAssignModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="relative z-10 bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-indigo-600" />
-                  Привязать экзамен к группе
-                </h3>
+      <Modal
+        open={showAssignModal}
+        title="Привязать экзамен к группе"
+        onClose={() => setShowAssignModal(false)}
+        size="sm"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+        footer={<ModalActions primary={null} onCancel={() => setShowAssignModal(false)} cancelLabel="Отмена" />}
+      >
+          <p className="text-sm text-slate-500 mb-4">
+            Выберите группу (класс), для которой предназначен этот экзамен:
+          </p>
+
+          {groups.length === 0 ? (
+            <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 rounded-xl border border-slate-200 mb-4">
+              Нет доступных групп. Создайте группу в разделе «Школа».
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-1 overscroll-contain">
+              {groups.map((g) => (
                 <button
-                  onClick={() => setShowAssignModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  key={g.id}
+                  onClick={() => handleAssignGroup(g)}
+                  disabled={assignLoading}
+                  className={cn(
+                    "w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
+                    draft?.group_id === g.id
+                      ? "border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900"
+                      : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-800"
+                  )}
                 >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <p className="text-sm text-slate-500 mb-4">
-                Выберите группу (класс), для которой предназначен этот экзамен:
-              </p>
-
-              {groups.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 rounded-xl border border-slate-200 mb-4">
-                  Нет доступных групп. Создайте группу в разделе «Школа».
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-1 overscroll-contain">
-                  {groups.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => handleAssignGroup(g)}
-                      disabled={assignLoading}
-                      className={cn(
-                        "w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
-                        draft?.group_id === g.id
-                          ? "border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900"
-                          : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-800"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
-                          {g.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold">{g.name}</div>
-                          <div className="text-xs text-slate-400">
-                            {g.student_count || 0} {pluralRu(g.student_count || 0, ["ученик", "ученика", "учеников"])} {g.class_level ? `· ${g.class_level} класс` : ""}
-                          </div>
-                        </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                      {g.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">{g.name}</div>
+                      <div className="text-xs text-slate-400">
+                        {g.student_count || 0} {pluralRu(g.student_count || 0, ["ученик", "ученика", "учеников"])} {g.class_level ? `· ${g.class_level} класс` : ""}
                       </div>
-                      {draft?.group_id === g.id && (
-                        <Check className="w-4 h-4 text-indigo-600" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+                    </div>
+                  </div>
+                  {draft?.group_id === g.id && (
+                    <Check className="w-4 h-4 text-indigo-600" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" onClick={() => setShowAssignModal(false)}>
-                  Отмена
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </Modal>
       {toastNode}
     </div>
   );

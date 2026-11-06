@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -1985,14 +1984,14 @@ export default function ExamHubPage() {
                 )}
 
                 {!report && !reportLoading && reportStep === 0 && isFinalized && sessions.some((s) => s.status === "submitted") && (
-                  <button
+                  <Button
                     type="button"
                     onClick={handleGenerateReport}
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:from-violet-700 hover:to-indigo-700 transition-all shadow-violet-100"
+                    variant="primary" size="sm"
                   >
                     <Sparkles className="h-4 w-4" />
                     Создать отчёт
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -2187,352 +2186,222 @@ export default function ExamHubPage() {
       </FloatingPanel>
 
       {/* ─── Big Fullscreen QR Code Modal ─── */}
-      <AnimatePresence>
-        {showQrModal && exam.access_code && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-              onClick={() => setShowQrModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 10 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
-              className="relative z-10 bg-white rounded-3xl p-8 md:p-12 max-w-lg w-full text-center space-y-6 shadow-2xl border border-slate-100/80"
-            >
-              <button
-                onClick={() => setShowQrModal(false)}
-                className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
-                  Проекция на экран
-                </span>
-                <h3 className="text-2xl font-black text-slate-900">{exam.title}</h3>
-                <p className="text-sm text-slate-500">Отсканируйте камеру телефона для входа</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 inline-block shadow-inner">
-                <QRCode
-                  value={examLinkHere(exam.access_code)}
-                  size={260}
-                  level="Q"
-                />
-              </div>
-
-              <div className="bg-slate-900 text-white rounded-2xl p-4 flex items-center justify-between px-8">
-                <span className="text-xs font-semibold text-slate-500">PIN код:</span>
-                <span className="text-3xl font-mono font-black text-amber-400 tracking-wider">
-                  {exam.access_code}
-                </span>
-              </div>
-            </motion.div>
+      <Modal
+        open={Boolean(showQrModal && exam.access_code)}
+        title={exam.title}
+        description="Проекция на экран: отсканируйте камерой телефона для входа"
+        onClose={() => setShowQrModal(false)}
+      >
+        {exam.access_code && (
+          <div className="space-y-5 pb-3 text-center">
+            <div className="inline-block rounded-card border-2 border-slate-200 bg-white p-6">
+              <QRCode value={examLinkHere(exam.access_code)} size={260} level="Q" />
+            </div>
+            <div className="flex items-center justify-between rounded-control bg-slate-900 px-6 py-4 text-white">
+              <span className="text-xs font-semibold text-slate-300">PIN код:</span>
+              <span className="font-mono text-3xl font-bold tracking-wider text-amber-400">{exam.access_code}</span>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ─── Task Replacement Modal ─── */}
-      <AnimatePresence>
-        {replaceTarget && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-              onClick={() => setReplaceTarget(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
-              className="relative z-10 bg-white rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-100/80"
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600">
-                    <Shuffle className="w-5 h-5" />
+      <Modal
+        open={Boolean(replaceTarget)}
+        title="Замена задачи"
+        description="Выберите подходящий вариант того же навыка"
+        onClose={() => setReplaceTarget(null)}
+        size="lg"
+      >
+          <div className="space-y-4 pb-2">
+            {!isDraft && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 flex items-start gap-3.5 shadow-card"
+              >
+                <div className="w-9 h-9 rounded-xl bg-amber-100/90 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-amber-950">Замена задач доступна только в режиме черновика</h4>
+                  <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                    Экзамен уже был запущен или завершён (статус: <strong>{exam?.status === "lobby" ? lobbyExamLabel(examState, "") : exam?.status === "active" ? "Идёт экзамен" : exam?.status === "closed" ? "Завершён" : "В архиве"}</strong>). Список задач зафиксирован для обеспечения равных условий и точности аналитики.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {replaceError && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shadow-card"
+              >
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold text-rose-950">Внимание</h4>
+                  <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">{replaceError}</p>
+                </div>
+              </motion.div>
+            )}
+
+            {altLoading ? (
+              <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-3">
+                <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
+                <p className="text-sm font-semibold">Поиск альтернативных задач того же навыка...</p>
+              </div>
+            ) : alternatives.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">
+                Нет доступных альтернативных задач для этого навыка.
+              </div>
+            ) : (
+              alternatives.map((alt) => (
+                <div
+                  key={alt.task_id}
+                  className="p-4 rounded-2xl border border-slate-200 hover:border-primary-400 hover:shadow-md transition-all flex flex-col gap-3 group bg-slate-50/50 hover:bg-white"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={cn(
+                        "px-2.5 py-0.5 rounded-md text-[11px] font-bold",
+                        diffColors[alt.difficulty] || diffColors.B
+                      )}
+                    >
+                      Уровень {alt.difficulty}
+                    </span>
+                    {isDraft ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={replacingTaskId === alt.task_id}
+                        onClick={() => handleConfirmReplace(alt.task_id)}
+                      >
+                        Выбрать эту
+                      </Button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-xs font-medium border border-slate-200/60">
+                        <Clock className="w-3.5 h-3.5" />
+                        Только просмотр
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 leading-none">Замена задачи</h3>
-                    <p className="text-xs text-slate-400 mt-1">Выберите подходящий вариант того же навыка</p>
+                  <div className="text-base text-slate-900 leading-relaxed font-normal py-1">
+                    <TaskStatement task={alt} />
                   </div>
                 </div>
-                <button
-                  onClick={() => setReplaceTarget(null)}
-                  className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 overscroll-contain">
-                {!isDraft && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 flex items-start gap-3.5 shadow-card"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-amber-100/90 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-amber-950">Замена задач доступна только в режиме черновика</h4>
-                      <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
-                        Экзамен уже был запущен или завершён (статус: <strong>{exam?.status === "lobby" ? lobbyExamLabel(examState, "") : exam?.status === "active" ? "Идёт экзамен" : exam?.status === "closed" ? "Завершён" : "В архиве"}</strong>). Список задач зафиксирован для обеспечения равных условий и точности аналитики.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-
-                {replaceError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shadow-card"
-                  >
-                    <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-rose-950">Внимание</h4>
-                      <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">{replaceError}</p>
-                    </div>
-                  </motion.div>
-                )}
-
-                {altLoading ? (
-                  <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-3">
-                    <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
-                    <p className="text-sm font-semibold">Поиск альтернативных задач того же навыка...</p>
-                  </div>
-                ) : alternatives.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 text-sm">
-                    Нет доступных альтернативных задач для этого навыка.
-                  </div>
-                ) : (
-                  alternatives.map((alt) => (
-                    <div
-                      key={alt.task_id}
-                      className="p-4 rounded-2xl border border-slate-200 hover:border-primary-400 hover:shadow-md transition-all flex flex-col gap-3 group bg-slate-50/50 hover:bg-white"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={cn(
-                            "px-2.5 py-0.5 rounded-md text-[11px] font-bold",
-                            diffColors[alt.difficulty] || diffColors.B
-                          )}
-                        >
-                          Уровень {alt.difficulty}
-                        </span>
-                        {isDraft ? (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            loading={replacingTaskId === alt.task_id}
-                            onClick={() => handleConfirmReplace(alt.task_id)}
-                          >
-                            Выбрать эту
-                          </Button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-xs font-medium border border-slate-200/60">
-                            <Clock className="w-3.5 h-3.5" />
-                            Только просмотр
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-base text-slate-900 leading-relaxed font-normal py-1">
-                        <TaskStatement task={alt} />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
+              ))
+            )}
           </div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {/* ─── Resolution modal for an expired, unstarted delivery ───────────── */}
-      {showDeliveryDecisionModal && typeof document !== "undefined" && createPortal(
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[210] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto p-4 sm:p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delivery-decision-title"
-          >
+      <Modal
+        open={showDeliveryDecisionModal}
+        title={showDeliveryCancellation
+          ? (isPrintDelivery ? "Аннулировать печатный комплект" : "Отменить экзамен")
+          : "Как поступить с экзаменом?"}
+        description={showDeliveryCancellation ? "Отмена проведения" : "Требуется решение"}
+        onClose={closeDeliveryDecisionModal}
+        busy={actionLoading}
+        size="lg"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+        footer={showDeliveryCancellation ? (
+          <ModalActions
+            primary={isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
+            tone="danger"
+            onPrimary={handleCancelDelivery}
+            busy={actionLoading}
+            onCancel={() => {
+              setShowDeliveryCancellation(false);
+              setDeliveryCancellationError(null);
+              setDeliveryCancellationReason("");
+            }}
+            cancelLabel="Назад к выбору"
+          />
+        ) : (
+          <ModalActions primary={null} onCancel={closeDeliveryDecisionModal} cancelLabel="Не сейчас" />
+        )}
+      >
+        {showDeliveryCancellation ? (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+          <p className="text-sm font-semibold text-amber-950">Укажите причину отмены</p>
+          <p className="mt-1 text-sm leading-6 text-amber-900/80">
+            {isPrintDelivery
+              ? "Комплект будет аннулирован. Чтобы провести этот экзамен в другой день, создайте его копию и назначьте на новое занятие."
+              : "Доступ в лобби будет закрыт, а экзамен вернётся в черновики без привязки к группе и занятию."}
+          </p>
+        </div>
+        <div>
+          <label className="block text-[13px] font-semibold text-slate-600" htmlFor="delivery-cancellation-reason">
+            Причина
+          </label>
+          <textarea
+            id="delivery-cancellation-reason"
+            value={deliveryCancellationReason}
+            onChange={(event) => setDeliveryCancellationReason(event.target.value)}
+            maxLength={500}
+            rows={3}
+            placeholder="Например: урок отменён, экзамен проведём на следующем занятии"
+            className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+          />
+          {deliveryCancellationError && (
+            <p className="mt-2 text-xs font-medium text-rose-700">{deliveryCancellationError}</p>
+          )}
+        </div>
+      </div>
+        ) : (
+      <div className="space-y-5">
+        <p className="max-w-xl text-sm leading-6 text-slate-600">
+          Выберите, что сделать с экзаменом, который не был проведён в назначенное занятие.
+        </p>
+        <div className={cn("grid gap-3", isPrintDelivery ? "grid-cols-1" : "sm:grid-cols-2")}>
+          {!isPrintDelivery && (
             <button
               type="button"
-              aria-label="Закрыть окно"
-              className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-sm"
-              onClick={closeDeliveryDecisionModal}
-              disabled={actionLoading}
-            />
-            <motion.section
-              initial={{ opacity: 0, scale: 0.97, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 12 }}
-              transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              className="relative z-10 my-auto w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_32px_100px_rgba(15,23,42,0.35)] ring-1 ring-black/5"
+              onClick={() => {
+                setReturnToDeliveryDecision(true);
+                setShowDeliveryDecisionModal(false);
+                setShowScheduleModal(true);
+              }}
+              className="group rounded-2xl border border-primary-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             >
-              <header className="relative overflow-hidden bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 px-6 py-6 text-white sm:px-7 sm:py-7">
-                <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
-                <button
-                  type="button"
-                  onClick={closeDeliveryDecisionModal}
-                  disabled={actionLoading}
-                  className="absolute right-5 top-5 z-20 rounded-xl p-2 text-white/85 transition-colors hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Закрыть"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <div className="relative flex items-center gap-3.5 pr-10">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 shadow-inner">
-                    {showDeliveryCancellation ? <X className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-white/70">
-                      {showDeliveryCancellation ? "Отмена проведения" : "Требуется решение"}
-                    </p>
-                    <h2 id="delivery-decision-title" className="mt-1 truncate text-lg font-bold tracking-tight">
-                      {showDeliveryCancellation
-                        ? (isPrintDelivery ? "Аннулировать печатный комплект" : "Отменить экзамен")
-                        : "Как поступить с экзаменом?"}
-                    </h2>
-                  </div>
-                </div>
-              </header>
-
-              <div className="bg-gradient-to-b from-slate-50/80 via-white to-white p-6 sm:p-7">
-                {showDeliveryCancellation ? (
-                  <div className="space-y-5">
-                    <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                      <p className="text-sm font-semibold text-amber-950">Укажите причину отмены</p>
-                      <p className="mt-1 text-sm leading-6 text-amber-900/80">
-                        {isPrintDelivery
-                          ? "Комплект будет аннулирован. Чтобы провести этот экзамен в другой день, создайте его копию и назначьте на новое занятие."
-                          : "Доступ в лобби будет закрыт, а экзамен вернётся в черновики без привязки к группе и занятию."}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-[13px] font-semibold text-slate-600" htmlFor="delivery-cancellation-reason">
-                        Причина
-                      </label>
-                      <textarea
-                        id="delivery-cancellation-reason"
-                        value={deliveryCancellationReason}
-                        onChange={(event) => setDeliveryCancellationReason(event.target.value)}
-                        maxLength={500}
-                        rows={3}
-                        placeholder="Например: урок отменён, экзамен проведём на следующем занятии"
-                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                      />
-                      {deliveryCancellationError && (
-                        <p className="mt-2 text-xs font-medium text-rose-700">{deliveryCancellationError}</p>
-                      )}
-                    </div>
-                    <footer className="flex flex-col-reverse gap-2 rounded-2xl bg-slate-50 p-2.5 sm:flex-row sm:items-center sm:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowDeliveryCancellation(false);
-                          setDeliveryCancellationError(null);
-                          setDeliveryCancellationReason("");
-                        }}
-                        disabled={actionLoading}
-                        className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Назад к выбору
-                      </button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        loading={actionLoading}
-                        onClick={handleCancelDelivery}
-                        icon={<X className="h-4 w-4" />}
-                        className="px-4 py-2.5"
-                      >
-                        {isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
-                      </Button>
-                    </footer>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    <p className="max-w-xl text-sm leading-6 text-slate-600">
-                      Выберите, что сделать с экзаменом, который не был проведён в назначенное занятие.
-                    </p>
-                    <div className={cn("grid gap-3", isPrintDelivery ? "grid-cols-1" : "sm:grid-cols-2")}>
-                      {!isPrintDelivery && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReturnToDeliveryDecision(true);
-                            setShowDeliveryDecisionModal(false);
-                            setShowScheduleModal(true);
-                          }}
-                          className="group rounded-2xl border border-primary-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-                        >
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100">
-                            <CalendarDays className="h-5 w-5" />
-                          </span>
-                          <p className="mt-3 text-sm font-semibold text-slate-900">Перенести экзамен</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            Выберите новое занятие. Прежний код закроется, а для нового урока будет создан новый.
-                          </p>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeliveryCancellationError(null);
-                          setShowDeliveryCancellation(true);
-                        }}
-                        className="group rounded-2xl border border-rose-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-700 transition-colors group-hover:bg-rose-100">
-                          <X className="h-5 w-5" />
-                        </span>
-                        <p className="mt-3 text-sm font-semibold text-slate-900">
-                          {isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          {isPrintDelivery
-                            ? "Укажите причину. После этого можно создать копию для другого занятия."
-                            : "Укажите причину. Доступ закроется, а экзамен вернётся в черновики."}
-                        </p>
-                      </button>
-                    </div>
-                    <div className="flex justify-end border-t border-slate-100 pt-4">
-                      <Button
-                        type="button"
-                        onClick={closeDeliveryDecisionModal}
-                        variant="ghost" size="sm"
-                      >
-                        Не сейчас
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.section>
-          </motion.div>,
-          document.body,
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-sm font-semibold text-slate-900">Перенести экзамен</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Выберите новое занятие. Прежний код закроется, а для нового урока будет создан новый.
+              </p>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setDeliveryCancellationError(null);
+              setShowDeliveryCancellation(true);
+            }}
+            className="group rounded-2xl border border-rose-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-700 transition-colors group-hover:bg-rose-100">
+              <X className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm font-semibold text-slate-900">
+              {isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {isPrintDelivery
+                ? "Укажите причину. После этого можно создать копию для другого занятия."
+                : "Укажите причину. Доступ закроется, а экзамен вернётся в черновики."}
+            </p>
+          </button>
+        </div>
+      </div>
         )}
+      </Modal>
 
       <AnimatePresence>
         {showScheduleModal && exam && (
@@ -2636,108 +2505,72 @@ export default function ExamHubPage() {
       />
 
       {/* ─── Assign / Switch Group Modal ─── */}
-      <AnimatePresence>
-        {showAssignModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-              onClick={() => setShowAssignModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/60 overflow-hidden"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-primary-600 to-violet-600 p-5 text-white">
-                <button
-                  onClick={() => setShowAssignModal(false)}
-                  className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-white/70">
-                      {exam.group_id ? "Сменить группу" : "Привязать экзамен к группе"}
-                    </p>
-                    <h3 className="font-bold text-sm leading-tight mt-0.5 line-clamp-1">{exam.title}</h3>
-                  </div>
-                </div>
-              </div>
+      <Modal
+        open={showAssignModal}
+        title={exam.title}
+        description={exam.group_id ? "Сменить группу" : "Привязать экзамен к группе"}
+        onClose={() => setShowAssignModal(false)}
+        size="sm"
+      >
+          <div className="space-y-3 pb-2">
+            <p className="text-xs text-slate-500 font-medium">
+              Выберите группу, которой будет доступен экзамен:
+            </p>
 
-              {/* Group List */}
-              <div className="p-4 space-y-3">
-                <p className="text-xs text-slate-500 font-medium">
-                  Выберите группу, которой будет доступен экзамен:
-                </p>
-
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {groups.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-6">Нет доступных групп</p>
-                  ) : (
-                    groups.map((g) => (
-                      <button
-                        key={g.id}
-                        type="button"
-                        onClick={() => handleAssignGroup(g)}
-                        disabled={assignLoading}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {groups.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">Нет доступных групп</p>
+              ) : (
+                groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => handleAssignGroup(g)}
+                    disabled={assignLoading}
+                    className={cn(
+                      "w-full text-left p-3.5 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
+                      exam.group_id === g.id
+                        ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20"
+                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
                         className={cn(
-                          "w-full text-left p-3.5 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
-                          exam.group_id === g.id
-                            ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20"
-                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
+                          exam.group_id === g.id ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-                              exam.group_id === g.id ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
-                            )}
-                          >
-                            {g.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{g.name}</p>
-                            <p className="text-xs text-slate-400">{(g as any).student_count || 0} {pluralRu((g as any).student_count || 0, ["ученик", "ученика", "учеников"])}</p>
-                          </div>
-                        </div>
-                        {exam.group_id === g.id ? (
-                          <span className="text-xs font-bold text-primary-700 bg-primary-100 px-2 py-0.5 rounded-md">
-                            Текущая
-                          </span>
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
+                        {g.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{g.name}</p>
+                        <p className="text-xs text-slate-400">{(g as any).student_count || 0} {pluralRu((g as any).student_count || 0, ["ученик", "ученика", "учеников"])}</p>
+                      </div>
+                    </div>
+                    {exam.group_id === g.id ? (
+                      <span className="text-xs font-bold text-primary-700 bg-primary-100 px-2 py-0.5 rounded-md">
+                        Текущая
+                      </span>
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                  <Button
-                    type="button"
-                    onClick={() => setShowAssignModal(false)}
-                    variant="ghost" size="sm"
-                  >
-                    Закрыть
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                variant="ghost" size="sm"
+              >
+                Закрыть
+              </Button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      </Modal>
       {toastNode}
     </div>
   );

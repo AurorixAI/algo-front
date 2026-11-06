@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { useTouchDensity } from "@/components/ui/touch-density";
 import { TestBackground } from "@/components/ui/test-background";
 import { TestHeader } from "@/components/ui/test-header";
 import { QuestionCard } from "@/components/ui/question-card";
@@ -52,6 +53,7 @@ function formatTime(ms: number): string {
 }
 
 export default function DiagnosticPage({ params }: { params: { code: string } }) {
+  useTouchDensity();
   const code = params.code;
   const router = useRouter();
   const user = useAuthStore((s) => s.user);

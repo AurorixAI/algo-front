@@ -323,13 +323,13 @@ test("E-C/5: the tab is in the list of the teacher and the administrator, not th
 
 test("E-C/5: a button the role cannot use is not rendered (add, create the first, copy the code, the chevron of a row without a page)", () => {
   const tab = read(EXAMS_TAB);
-  assert.match(tab, /\{access\.canAssign && <button\s+onClick=\{\(\) => setModalState\("chooser"\)\}/);
+  assert.match(tab, /\{access\.canAssign && <Button\s+onClick=\{\(\) => setModalState\("chooser"\)\}/);
   assert.match(tab, /\{access\.canAssign && \(\s*<Link\s+href=\{links\.newExam\}/);
   assert.match(tab, /\{access\.showCode && ex\.access_code && \(ex\.status === "active" \|\| ex\.status === "lobby"\) && \(/);
   assert.match(tab, /<ExamRow\s+key=\{ex\.exam_id\}\s+href=\{links\.exam\(ex\.exam_id, groupExamReturnHref\)\}/);
   assert.match(tab, /if \(href\) return <Link href=\{href\}/);
   // mutation: the old tab (everyone gets the add button) is seen
-  assert.doesNotMatch(tab.replace("{access.canAssign && <button", "{<button"), /\{access\.canAssign && <button\s+onClick/);
+  assert.doesNotMatch(tab.replace("{access.canAssign && <Button", "{<Button"), /\{access\.canAssign && <Button\s+onClick/);
 });
 
 test("E-C/5: mutation - an administrator who may bind an exam is seen by the table", () => {

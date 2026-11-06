@@ -4,8 +4,7 @@ import { Select } from "@/components/ui/select";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { lessonFromAttendanceAction, useTeacherLessonPanel } from "@/lib/use-teacher-lesson-panel";
 import { TeacherLessonPanelView } from "@/components/teacher/lesson-panel";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { pollFailure } from "@/lib/staff-busy";
@@ -17,10 +16,10 @@ import { examsApi, orgApi, type OpenAttendanceAction, type GroupInfo, type Lesso
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
 import { businessDateWithOffset, businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
-import { Calendar as CalendarIcon, Clock, Plus, MapPin, Video, ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles, ArrowRight, X, CheckCircle2, AlertCircle, Play, CheckCheck, Radio, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, MapPin, Video, ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles, ArrowRight, X, CheckCircle2, AlertCircle, Play, CheckCheck, Radio } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
 import { DAYS, classCountLabel, completedLessonsProgressLabel, getLessonTimeStatus } from "@/lib/schedule-time";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal, useScrollLock } from "@/components/ui/modal";
 import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
@@ -36,6 +35,8 @@ import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
 import { Button } from "@/components/ui/button";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 
 type LessonOccurrence = ScheduleOccurrence;
 
@@ -913,18 +914,18 @@ export default function TeacherSchedulePage() {
         </div>
 
         {/* Add lesson button */}
-        <button
+        <Button
           type="button"
           disabled={scheduleDataUnavailable}
           onClick={() => {
             setViewMode("week");
             openAddModal();
           }}
-          className="flex min-h-10 items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm shadow-primary-600/25 transition-all self-start sm:self-auto disabled:cursor-not-allowed disabled:opacity-55"
+          variant="primary" size="sm" className="self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Добавить в расписание</span>
-        </button>
+        </Button>
       </div>
 
       {scheduleError && (
@@ -1600,120 +1601,83 @@ export default function TeacherSchedulePage() {
       )}
 
       {/* MODAL: WEEK PLAN SUMMARY */}
-      {mounted && typeof document !== "undefined" && isWeekPlanOpen &&
-        createPortal(
-          <AnimatePresence>
-            <div
-              onClick={(event) => {
-                if (event.target === event.currentTarget) setIsWeekPlanOpen(false);
-              }}
-              className="fixed inset-0 z-[99998] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md sm:p-6"
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.97, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: 12 }}
-                className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="week-plan-title"
-              >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 pb-5 pt-6 sm:px-7">
-                  <div>
-                    <p className="text-xs font-semibold text-violet-600">Расписание</p>
-                    <h2 id="week-plan-title" className="mt-1 text-xl font-bold text-slate-900">План недели</h2>
-                    <p className="mt-1 text-sm text-slate-500">{weekRangeText}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsWeekPlanOpen(false)}
-                    aria-label="Закрыть план недели"
-                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
+      <Modal
+        open={mounted && isWeekPlanOpen}
+        title="План недели"
+        description={weekRangeText}
+        onClose={() => setIsWeekPlanOpen(false)}
+        size="lg"
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+        footer={<ModalActions primary={null} onCancel={() => setIsWeekPlanOpen(false)} />}
+      >
+        <div className="pb-2">
+      <div className="grid grid-cols-3 gap-2 pb-4">
+        <div className="rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-slate-100">
+          <p className="text-xs font-semibold text-slate-500">По плану</p>
+          <p className="mt-1 text-lg font-bold text-slate-900">{weekKpi.planned}</p>
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center ring-1 ring-emerald-100">
+          <p className="text-xs font-semibold text-emerald-700">Проведено</p>
+          <p className="mt-1 text-lg font-bold text-emerald-800">{weekKpi.completed}</p>
+        </div>
+        <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-center ring-1 ring-slate-200">
+          <p className="text-xs font-semibold text-slate-600">Отменено</p>
+          <p className="mt-1 text-lg font-bold text-slate-700">{weekKpi.cancelled}</p>
+        </div>
+      </div>
 
-                <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
-                  <div className="rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-slate-100">
-                    <p className="text-xs font-semibold text-slate-500">По плану</p>
-                    <p className="mt-1 text-lg font-bold text-slate-900">{weekKpi.planned}</p>
+      <div>
+        {weekPlanRows.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center">
+            <CalendarIcon className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-700">На эту неделю занятий нет</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {weekPlanRows.map((row) => {
+              const statusClass = row.tone === "emerald"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : row.tone === "slate"
+                  ? "border-slate-200 bg-slate-100 text-slate-700"
+                  : row.tone === "blue"
+                    ? "border-blue-200 bg-blue-50 text-blue-800"
+                    : row.tone === "amber"
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-violet-200 bg-violet-50 text-violet-800";
+              return (
+                <button
+                  key={`${row.lesson.occurrenceDate}_${row.lesson.id}`}
+                  type="button"
+                  onClick={() => {
+                    setIsWeekPlanOpen(false);
+                    openLesson(row.lesson, "week");
+                  }}
+                  className="group flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                >
+                  <div className="min-w-[116px]">
+                    <p className="text-xs font-bold text-slate-800">
+                      {capitalizeFirst(formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" }))}
+                    </p>
+                    <p className={`mt-0.5 text-xs ${row.label === "Перенесён" || row.label === "Отменён" ? "text-slate-400 line-through" : "text-slate-500"}`}>{timeRange(row.lesson.startTime, row.lesson.endTime)}</p>
                   </div>
-                  <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center ring-1 ring-emerald-100">
-                    <p className="text-xs font-semibold text-emerald-700">Проведено</p>
-                    <p className="mt-1 text-lg font-bold text-emerald-800">{weekKpi.completed}</p>
+                  <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
+                    <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      {[`${row.lesson.classLevel} класс`, placeText(row.lesson)].filter(Boolean).join(" · ")}
+                    </p>
                   </div>
-                  <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-center ring-1 ring-slate-200">
-                    <p className="text-xs font-semibold text-slate-600">Отменено</p>
-                    <p className="mt-1 text-lg font-bold text-slate-700">{weekKpi.cancelled}</p>
-                  </div>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 sm:px-7">
-                  {weekPlanRows.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center">
-                      <CalendarIcon className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                      <p className="text-sm font-semibold text-slate-700">На эту неделю занятий нет</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {weekPlanRows.map((row) => {
-                        const statusClass = row.tone === "emerald"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                          : row.tone === "slate"
-                            ? "border-slate-200 bg-slate-100 text-slate-700"
-                            : row.tone === "blue"
-                              ? "border-blue-200 bg-blue-50 text-blue-800"
-                              : row.tone === "amber"
-                                ? "border-amber-200 bg-amber-50 text-amber-800"
-                                : "border-violet-200 bg-violet-50 text-violet-800";
-                        return (
-                          <button
-                            key={`${row.lesson.occurrenceDate}_${row.lesson.id}`}
-                            type="button"
-                            onClick={() => {
-                              setIsWeekPlanOpen(false);
-                              openLesson(row.lesson, "week");
-                            }}
-                            className="group flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                          >
-                            <div className="min-w-[116px]">
-                              <p className="text-xs font-bold text-slate-800">
-                                {capitalizeFirst(formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" }))}
-                              </p>
-                              <p className={`mt-0.5 text-xs ${row.label === "Перенесён" || row.label === "Отменён" ? "text-slate-400 line-through" : "text-slate-500"}`}>{timeRange(row.lesson.startTime, row.lesson.endTime)}</p>
-                            </div>
-                            <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
-                              <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>
-                              <p className="mt-0.5 truncate text-xs text-slate-500">
-                                {[`${row.lesson.classLevel} класс`, placeText(row.lesson)].filter(Boolean).join(" · ")}
-                              </p>
-                            </div>
-                            <span className={`inline-flex h-8 w-[132px] shrink-0 items-center justify-center rounded-full border px-3 text-xs font-medium ${statusClass}`}>
-                              {row.label}
-                            </span>
-                            <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-600" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
-                  <button
-                    type="button"
-                    onClick={() => setIsWeekPlanOpen(false)}
-                    className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-card ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
-                  >
-                    Закрыть
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          </AnimatePresence>,
-          document.body,
+                  <span className={`inline-flex h-8 w-[132px] shrink-0 items-center justify-center rounded-full border px-3 text-xs font-medium ${statusClass}`}>
+                    {row.label}
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-600" />
+                </button>
+              );
+            })}
+          </div>
         )}
+      </div>
+        </div>
+      </Modal>
 
       <TeacherLessonPanelView
         panel={lessonPanel}
@@ -1728,166 +1692,124 @@ export default function TeacherSchedulePage() {
       />
 
       {/* MODAL: ADD LESSON */}
-      {mounted &&
-        createPortal(
-          <AnimatePresence>
-            {isAddModalOpen && (
-              <div
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) setIsAddModalOpen(false);
-                }}
-                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-md transition-all"
-              >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-slate-900">Добавить урок в расписание</h3>
-                <button
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      <Modal
+        open={mounted && isAddModalOpen}
+        title="Добавить урок в расписание"
+        onClose={() => setIsAddModalOpen(false)}
+        busy={savingLesson}
+        footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
+        footer={<ModalActions primary={savingLesson ? "Сохраняем…" : "Сохранить урок"} submitFor="schedule-add-lesson-form" disabled={!!addConflict || !!addPastTimeConflict || savingLesson} busy={savingLesson} onCancel={() => setIsAddModalOpen(false)} />}
+      >
+        <form id="schedule-add-lesson-form" onSubmit={handleAddLesson} className="space-y-4 pb-2">
+          {/* Conflict warning banner */}
+          {addConflict && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800">
+                <span className="font-bold">Внимание, накладка по времени:</span> в этот день уже есть урок группы «{addConflict.groupName}» ({addConflict.startTime} - {addConflict.endTime}).
               </div>
+            </div>
+          )}
 
-              <form onSubmit={handleAddLesson} className="space-y-4">
-                {/* Conflict warning banner */}
-                {addConflict && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="text-xs text-amber-800">
-                      <span className="font-bold">Внимание, накладка по времени:</span> в этот день уже есть урок группы «{addConflict.groupName}» ({addConflict.startTime} - {addConflict.endTime}).
-                    </div>
-                  </div>
-                )}
+          {/* Group select */}
+          <div>
+            <label htmlFor="sched-add-gruppa" className="block text-xs font-semibold text-slate-700 mb-1">
+              Группа
+            </label>
+            <Select
+              id="sched-add-gruppa"
+              value={newGroupId}
+              onChange={(e) => setNewGroupId(e.target.value)}
+              disabled={savingLesson}
+              options={groups.length === 0
+                ? [{ value: "default-grp", label: "Основная группа (5 класс)" }]
+                : groups.map((g) => ({ value: g.id, label: `${g.name} (${g.class_level || 5} класс)` }))}
+              buttonClassName="px-3 py-2 text-xs"
+            />
+          </div>
 
-                {/* Group select */}
-                <div>
-                  <label htmlFor="sched-add-gruppa" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Группа
-                  </label>
-                  <Select
-                    id="sched-add-gruppa"
-                    value={newGroupId}
-                    onChange={(e) => setNewGroupId(e.target.value)}
-                    disabled={savingLesson}
-                    options={groups.length === 0
-                      ? [{ value: "default-grp", label: "Основная группа (5 класс)" }]
-                      : groups.map((g) => ({ value: g.id, label: `${g.name} (${g.class_level || 5} класс)` }))}
-                    buttonClassName="px-3 py-2 text-xs"
-                  />
-                </div>
+          <LessonScopeFields
+            idPrefix="sched-add"
+            scope={newLessonScope}
+            onScope={(next) => {
+              setNewLessonScope(next);
+              setScheduleError(null);
+              // a one-off lesson opens on the day chosen first (or today): a date of the open week
+              if (next === "one_off" && newDays.length > 0) setNewLessonDate(businessWeekdayDate(newDays[0], weekOffset));
+            }}
+            days={newDays}
+            onDays={(next) => { applyAddDays(next); setScheduleError(null); }}
+            daysInvalid={newLessonScope === "recurring" && newDays.length === 0 && Boolean(scheduleError)}
+            date={newLessonDate}
+            onDate={(next) => setNewLessonDate(next)}
+            dateMax={weekPeriod.end}
+            validFrom={newValidFrom}
+            onValidFrom={(next) => { setNewValidFrom(next); setScheduleError(null); }}
+            disabled={savingLesson}
+            afterOneOffKind={oneOffRole === null ? (
+              <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">{NO_ONE_OFF_RIGHT_TEXT}</p>
+            ) : (
+              <OneOffPurposeFields
+                idPrefix="sched-add"
+                role={oneOffRole}
+                choice={newChoice}
+                onChoice={(next) => { setNewChoice(next); setScheduleError(null); }}
+                makeup={newMakeup.state}
+                onReload={newMakeup.reload}
+                onPickCandidate={(candidate) => { setTimesEdited(true); setNewStartTime(candidate.startTime); setNewEndTime(candidate.endTime); }}
+                disabled={savingLesson}
+                invalid={addTouched && Boolean(choiceProblem(newChoice, oneOffRole, candidatesOf(newMakeup.state)))}
+              />
+            )}
+          />
 
-                <LessonScopeFields
-                  idPrefix="sched-add"
-                  scope={newLessonScope}
-                  onScope={(next) => {
-                    setNewLessonScope(next);
-                    setScheduleError(null);
-                    // a one-off lesson opens on the day chosen first (or today): a date of the open week
-                    if (next === "one_off" && newDays.length > 0) setNewLessonDate(businessWeekdayDate(newDays[0], weekOffset));
-                  }}
-                  days={newDays}
-                  onDays={(next) => { applyAddDays(next); setScheduleError(null); }}
-                  daysInvalid={newLessonScope === "recurring" && newDays.length === 0 && Boolean(scheduleError)}
-                  date={newLessonDate}
-                  onDate={(next) => setNewLessonDate(next)}
-                  dateMax={weekPeriod.end}
-                  validFrom={newValidFrom}
-                  onValidFrom={(next) => { setNewValidFrom(next); setScheduleError(null); }}
-                  disabled={savingLesson}
-                  afterOneOffKind={oneOffRole === null ? (
-                    <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">{NO_ONE_OFF_RIGHT_TEXT}</p>
-                  ) : (
-                    <OneOffPurposeFields
-                      idPrefix="sched-add"
-                      role={oneOffRole}
-                      choice={newChoice}
-                      onChoice={(next) => { setNewChoice(next); setScheduleError(null); }}
-                      makeup={newMakeup.state}
-                      onReload={newMakeup.reload}
-                      onPickCandidate={(candidate) => { setTimesEdited(true); setNewStartTime(candidate.startTime); setNewEndTime(candidate.endTime); }}
-                      disabled={savingLesson}
-                      invalid={addTouched && Boolean(choiceProblem(newChoice, oneOffRole, candidatesOf(newMakeup.state)))}
-                    />
-                  )}
-                />
+          <LessonSlotFields
+            idPrefix="sched-add"
+            value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
+            disabled={savingLesson}
+            endInvalid={addTimeProblem !== null}
+            perDay={newLessonScope === "recurring" ? {
+              days: newDays,
+              times: newDayTimes,
+              onTimes: (times) => { setNewDayTimes(times); setScheduleError(null); },
+              invalidDays: addTimeProblems.map((item) => item.day),
+            } : undefined}
+            onChange={(patch) => {
+              if (patch.startTime !== undefined || patch.endTime !== undefined) setTimesEdited(true);
+              if (patch.startTime !== undefined) setNewStartTime(patch.startTime);
+              if (patch.endTime !== undefined) setNewEndTime(patch.endTime);
+              if (patch.format !== undefined) setNewFormat(patch.format);
+              if (patch.room !== undefined) setNewRoom(patch.room);
+              if (patch.topic !== undefined) setNewTopic(patch.topic);
+              if (patch.color !== undefined) setNewColor(patch.color);
+            }}
+          />
 
-                <LessonSlotFields
-                  idPrefix="sched-add"
-                  value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
-                  disabled={savingLesson}
-                  endInvalid={addTimeProblem !== null}
-                  perDay={newLessonScope === "recurring" ? {
-                    days: newDays,
-                    times: newDayTimes,
-                    onTimes: (times) => { setNewDayTimes(times); setScheduleError(null); },
-                    invalidDays: addTimeProblems.map((item) => item.day),
-                  } : undefined}
-                  onChange={(patch) => {
-                    if (patch.startTime !== undefined || patch.endTime !== undefined) setTimesEdited(true);
-                    if (patch.startTime !== undefined) setNewStartTime(patch.startTime);
-                    if (patch.endTime !== undefined) setNewEndTime(patch.endTime);
-                    if (patch.format !== undefined) setNewFormat(patch.format);
-                    if (patch.room !== undefined) setNewRoom(patch.room);
-                    if (patch.topic !== undefined) setNewTopic(patch.topic);
-                    if (patch.color !== undefined) setNewColor(patch.color);
-                  }}
-                />
-
-                {addShifted && <ShiftedDayNote shifted={addShifted} />}
-                {/* Conflict warning / Past time warning */}
-                {(addConflict || addPastTimeConflict) && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold">
-                        {addPastTimeConflict || "Внимание: пересечение по времени!"}
-                      </p>
-                      {addConflict && !addPastTimeConflict && (
-                        <p className="mt-0.5">
-                          {addByDay ? `${dayShort(addConflict.dayOfWeek)}: в` : "В"} это время уже назначен урок группы «{addConflict.groupName}» ({addConflict.startTime} — {addConflict.endTime}).
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {scheduleError && (
-                  <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="whitespace-pre-line">{scheduleError}</span>
+          {addShifted && <ShiftedDayNote shifted={addShifted} />}
+          {/* Conflict warning / Past time warning */}
+          {(addConflict || addPastTimeConflict) && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">
+                  {addPastTimeConflict || "Внимание: пересечение по времени!"}
+                </p>
+                {addConflict && !addPastTimeConflict && (
+                  <p className="mt-0.5">
+                    {addByDay ? `${dayShort(addConflict.dayOfWeek)}: в` : "В"} это время уже назначен урок группы «{addConflict.groupName}» ({addConflict.startTime} — {addConflict.endTime}).
                   </p>
                 )}
+              </div>
+            </div>
+          )}
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <Button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    disabled={savingLesson}
-                    variant="ghost" size="sm"
-                  >
-                    Отмена
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={!!addConflict || !!addPastTimeConflict || savingLesson}
-                    variant="primary" size="sm"
-                  >
-                    {savingLesson && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    {savingLesson ? "Сохраняем…" : "Сохранить урок"}
-                  </Button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>,
-      document.body
-    )}
+          {scheduleError && (
+            <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="whitespace-pre-line">{scheduleError}</span>
+            </p>
+          )}
+        </form>
+      </Modal>
 
       {/* Stop / change the weekly lesson: the dialogs shared with the group page of the owner and the administrator */}
       <EndWeeklyLessonDialog
