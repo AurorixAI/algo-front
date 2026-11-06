@@ -47,6 +47,12 @@ test("the block «Сразу начислится»: rows with the caption on th
   assert.doesNotMatch(nb(Y.sheetVersionLine({ payout: moved })), /сохраните/, "the call to save is said by «Что нужно сделать» only");
 });
 
+test("the server sends the month in lower case («ноябрь»): the caption of a row starts with a capital; a period label «06.10–05.11» is untouched", () => {
+  const lower = [{ label: "октябрь", from: "2026-10-27", amount: 89000, lessons: 2, lessons_in_period: 9, whole: false }, { label: "ноябрь", from: "2026-11-01", amount: 400000, lessons: 8, lessons_in_period: 8, whole: true }, { label: "06.10–05.11", from: "2026-10-06", amount: 1000, lessons: 0, lessons_in_period: 0, whole: true }];
+  assert.deepEqual(payFrom.immediatePartRows(lower).map((r) => nb(r.label)), ["Октябрь, с 27.10 · 2 урока из 9", "Ноябрь, весь месяц", "06.10–05.11, весь месяц"]);
+  assert.match(nb(payFrom.immediatePartLines(lower)[0]), /^Октябрь, с 27\.10/);
+});
+
 test("namesakes get a telling detail: the end of the phone, else the day added, else the ID; a unique name gets nothing", () => {
   const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234" };
   const b = { id: "2", full_name: "Иванов  Иван", student_phone: null, joined_at: "2026-10-12T05:00:00" };

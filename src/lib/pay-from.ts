@@ -63,19 +63,22 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
 /** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
-    label: part.whole || !part.from ? `${part.label}, весь месяц` : `${part.label}, с ${formatDayMonthRu(part.from)} · ${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`,
+    label: part.whole || !part.from ? `${capital(part.label)}, весь месяц` : `${capital(part.label)}, с ${formatDayMonthRu(part.from)} · ${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`,
     amount: formatMoney(part.amount),
   }));
 }
 
 /** The lines of the break-down: «Ноябрь, весь месяц — 400 000 сум» for a whole month, «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» for a part. */
+/** The server sends the month in lower case («ноябрь»); a caption of a row starts with a capital. */
+const capital = (text: string): string => text.charAt(0).toLocaleUpperCase("ru") + text.slice(1);
+
 export function immediatePartLines(parts: ImmediatePart[]): string[] {
   return parts.map((part) => {
     const sum = formatMoney(part.amount);
-    if (part.whole || !part.from) return `${part.label}, весь месяц — ${sum}`;
+    if (part.whole || !part.from) return `${capital(part.label)}, весь месяц — ${sum}`;
     const day = formatDayMonthRu(part.from);
     const lessons = `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
-    return `${part.label}, с ${day} — ${sum} · ${lessons}`;
+    return `${capital(part.label)}, с ${day} — ${sum} · ${lessons}`;
   });
 }
 

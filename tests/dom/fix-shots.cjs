@@ -22,8 +22,8 @@ const paymentsServer = (request) => {
 };
 const ST = (id, first, last, extra = {}) => ({ id, first_name: first, last_name: last, full_name: `${last} ${first}`, class_level: 7, status: "new", group_id: null, current_group_id: null, groups_count: 0, ...extra });
 const PARTS = [
-  { label: "Октябрь", from: "2026-10-27", amount: 89000, lessons: 2, lessons_in_period: 9, whole: false },
-  { label: "Ноябрь", from: "2026-11-01", amount: 400000, lessons: 8, lessons_in_period: 8, whole: true },
+  { label: "октябрь", from: "2026-10-27", amount: 89000, lessons: 2, lessons_in_period: 9, whole: false },
+  { label: "ноябрь", from: "2026-11-01", amount: 400000, lessons: 8, lessons_in_period: 8, whole: true },
 ];
 const STUDENTS = [ST("a", "Иван", "Иванов", { student_phone: "+998901231234" }), ST("b", "Иван", "Иванов", { student_phone: "+998907775599" }), ST("c", "Пётр", "Петров")];
 // the mock tells ONE story: «Оплата с» is 09.11 (the first lesson) by default - nothing is charged at once (`immediate` null); a day in the past charges October from 27.10 and November whole

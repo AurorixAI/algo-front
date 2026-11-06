@@ -95,7 +95,13 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
   await input.press("Tab");
-  await expect(drawer.getByTestId("pay-from-immediate")).toContainText(/Сразу начислится \d[\d\s\u00a0]*\sсум/);
+  // «Сразу начислится» is a BLOCK (design system): the title, the total (its own test id) and a row per month - the caption on the left, the sum on the right
+  const immediate = drawer.getByTestId("pay-from-immediate-block");
+  await expect(immediate).toContainText("Сразу начислится");
+  await expect(immediate.getByTestId("pay-from-immediate-total-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
+  const firstRow = immediate.getByTestId("pay-from-immediate-parts").locator("li").first();
+  await expect(firstRow).toContainText(/^[А-ЯЁ0-9][^,]*, (весь месяц|с \d\d\.\d\d)/);        // the server sends «ноябрь»: the caption starts with a capital
+  await expect(firstRow).toContainText(/\d[\d\s\u00a0]*\sсум$/);
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
   const membership = await org.membershipId(student.id, group.id);

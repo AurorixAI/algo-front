@@ -183,7 +183,17 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   const todo = page.getByTestId("sheet-todo");
   await expect(todo).toContainText("Зарплата изменилась на");
   await expect(todo).toContainText(/\+[\s\d]+\s*сум — сохраните новую сумму/); // the difference of the total
-  await expect(card).toContainText(/Сохранено \d\d\.\d\d\.\d{4}: [\s\d]+\s*сум/);
+  // release review 06.11 (rule 113): ONE line beside the big number tells the table apart from the number of today: the saved version, its sum and the difference against what is accrued now
+  const versionLine = card.getByTestId("sheet-version-line");
+  await expect(versionLine).toHaveText(/^В таблице ниже — сохранённая версия \d\d\.\d\d: [\s\d]+\s*сум \(на [\s\d]+\s*сум (больше|меньше)\)$/);
+  const digits = (text: string) => Number(text.replace(/\D/g, ""));
+  const lineText = (await versionLine.innerText()).replace(/\u00a0/g, " ");
+  const [, savedInLine, diffInLine, word] = /версия \d\d\.\d\d: ([\d ]+) сум \(на ([\d ]+) сум (больше|меньше)\)/.exec(lineText)!;
+  const headingText = (await page.getByTestId("saved-table-note").innerText()).replace(/\u00a0/g, " ");
+  expect(digits(/· ([\d ]+) сум/.exec(headingText)![1])).toBe(digits(savedInLine));            // the number of the line is the sum of the heading of the table
+  const accruedNow = digits((await card.getByTestId("payroll-total").innerText()));
+  expect(digits(diffInLine)).toBe(Math.abs(digits(savedInLine) - accruedNow));                  // the difference is saved minus accrued
+  expect(word).toBe(digits(savedInLine) > accruedNow ? "больше" : "меньше");
   await card.locator("summary", { hasText: "Что изменилось" }).first().click();
   await card.locator("summary", { hasText: "Что изменилось" }).last().click(); // nested: the inner one opens the list of what moved
   await expect(card).toContainText("Ставка «Группа»: 62,5% → 70%");
