@@ -136,7 +136,7 @@ test("the payments table: sentence-case headers, a tab bar that scrolls with a f
   const header = page.slice(page.indexOf("<div className={`hidden border-b border-slate-100 bg-slate-50"), page.indexOf("<ul className=\"space-y-2.5"));
   assert.doesNotMatch(header, /uppercase|tracking-wider/);
   assert.match(header, /text-\[13px\] font-semibold text-slate-500/);
-  assert.match(page, /<ScrollHint focusable=\{false\} className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
+  assert.match(page, /<ScrollHint focusable=\{false\} (?:data-allow-hscroll="" )?className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
   assert.match(page, /shrink-0 whitespace-nowrap/); // a label is never squeezed
   assert.match(page, /bucketTabLabel\(label, bucketCount\(summaryForTabs, key\)\)/);
   assert.match(page, /kind: "create", row, payment: null/);

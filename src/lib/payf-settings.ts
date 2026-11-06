@@ -22,7 +22,7 @@ export const HELP_LABEL = "Подробнее";
 
 /** The three ways to count a payment: ONE line each (the long hint of `PAYMENT_MODELS` is the «?» of the card). */
 export const PAYMENT_MODEL_SHORT_HINT: Record<"payment_date" | "fixed_day" | "lessons", string> = {
-  payment_date: "Месяц считается с даты «Оплата с» — по умолчанию это первое занятие ученика в группе: 05.10 → 04.11",
+  payment_date: "Месяц — с даты «Оплата с», по умолчанию с первого занятия",
   fixed_day: "У всех один период, например с 1-го числа",
   lessons: "Оплата закрывает N проведённых уроков",
 };

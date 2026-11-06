@@ -328,7 +328,8 @@ test("price: the money part of «Что изменится», the refusal and th
   assert.ok(banner.includes("Нельзя изменить цену задним числом") && banner.includes("Каримов А."));
   assert.match(html(React.createElement(PriceBlockedBanner, { error })), /role="alert"/);
   const block = text(React.createElement(PriceImpactMoneyBlock, { money }));
-  assert.ok(block.includes("аванс купит меньше дней") && block.includes("Ахмедов Б.: оплачено до 12.11 → 10.11"));
+  // Money-1 B3: the window is a table «было → станет» of every student (the sentence of the server over it), not the old bullet lines
+  assert.ok(["Ахмедов Б.", "Оплачено до", "12.11", "10.11"].every((part) => block.includes(part)), block);
   assert.match(plain(G.priceEndedText(600000)), /^Индивидуальная цена закончилась\. Сейчас — цена группы 600 000/);
 });
 
@@ -345,7 +346,9 @@ test("billing mode: «Новый режим начнёт действовать 
   assert.deepEqual(G.regimeImpactLines({ students_affected: 0, first_switch: null, latest_switch: null, defer: true }), ["Режим сменится без последствий: ни у кого нет идущего периода."]);
   assert.deepEqual(G.regimeChanges({ period_mode: "lessons", expiring_days: 5, billing_day: 3 }), { period_mode: "lessons", billing_day: 3 });
   const page = read("src/app/owner/settings/page.tsx");
-  assert.match(page, /orgApi\.previewPaymentSettings\(regimeDiff\)/);
+  // Money-1 B3: «Сохранить» of a change of the mode opens the window that asks the dry run (one per student)
+  assert.match(page, /<RegimeChangeDialog open=\{regimeOpen\} changes=\{regimeDiff\}/);
+  assert.match(read("src/components/settings/regime-change-dialog.tsx"), /orgApi\.previewPaymentSettings\(changes\)/);
   assert.match(page, /\{REGIME_HINT\}/);
   assert.ok(G.CANCELLED_LESSON_TEXT.startsWith("Отменённый центром урок не уменьшает оплату месяца"));
 });

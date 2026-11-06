@@ -154,16 +154,16 @@ test("the chart opens at the last day with money (else today, else the end) and 
 test("tab counts under a group / teacher filter come from /payments/status with the same filter; the centre's summary stays for the banner", async () => {
   const calls = [];
   const rows = (ids) => ids.map((id) => ({ student_id: id }));
-  const answers = { debt: { total: 3, items: rows(["a", "b", "a"]) }, expiring: { total: 1, items: rows(["c"]) }, active: { total: 7, items: rows(["d"]) }, paused: { total: 0, items: [] } };
+  const answers = { debt: { total: 3, items: rows(["a", "b", "a"]) }, expiring: { total: 1, items: rows(["c"]) }, active: { total: 7, items: rows(["d"]) }, paused: { total: 0, items: [] }, waiting: { total: 2, items: rows(["w", "w"]) } };
   const counts = await P.filteredTabCounts(async (query) => { calls.push(query); return answers[query.bucket]; });
-  assert.deepEqual(counts, { debt: 2, expiring: 1, active: 7, paused: 0 }, "debtors are students (a, b), the rest memberships");
-  assert.deepEqual(calls.map((query) => query.bucket).sort(), ["active", "debt", "expiring", "paused"]);
-  assert.ok(calls.filter((query) => query.bucket !== "debt").every((query) => query.limit === 1), "only the total is wanted");
+  assert.deepEqual(counts, { debt: 2, waiting: 1, expiring: 1, active: 7, paused: 0 }, "debtors and the waiting ones are students (a, b / w), the rest memberships");
+  assert.deepEqual(calls.map((query) => query.bucket).sort(), ["active", "debt", "expiring", "paused", "waiting"]);
+  assert.ok(calls.filter((query) => query.bucket !== "debt" && query.bucket !== "waiting").every((query) => query.limit === 1), "only the total is wanted");
   // more debtors than one answer holds: the exact total instead of a guess
   assert.equal((await P.filteredTabCounts(async (query) => (query.bucket === "debt" ? { total: 900, items: rows(["a", "b"]) } : { total: 0, items: [] }))).debt, 900);
   // the tab bar reads the narrowed numbers: «Должники (2) / Без долга (7)»; none while they are on their way
   const summary = P.narrowedTabSummary(counts);
-  assert.deepEqual(P.visibleBuckets(summary, "debt").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(summary, tab.key))), ["Должники (2)", "Скоро платить (1)", "Без долга (7)"]);
+  assert.deepEqual(P.visibleBuckets(summary, "debt").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(summary, tab.key))), ["Должники (2)", "Ждём оплату (1)", "Скоро платить (1)", "Без долга (7)"]);
   assert.equal(P.narrowedTabSummary(null), null);
   assert.equal(P.bucketCount(P.narrowedTabSummary(null), "debt"), null);
   const page = read("src/components/payments/payments-page.tsx");

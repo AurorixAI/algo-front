@@ -271,9 +271,8 @@ export function whatIfStudentOf(item: WhatIfItem, kind: WhatIfKind): WhatIfStude
   let when: string | null = null;
   if (kind === "regime") {
     when = item.switch_on === null ? "когда закончится пакет" : `с ${formatDayMonthRu(item.switch_on)}${item.as_of ? `, на ${formatDayMonthRu(item.as_of)}` : ""}`;
-  } else if (item.as_of) {
-    when = `на ${formatDayMonthRu(item.as_of)}`;
   }
+  // a price window says its day ONCE, over the table (`whatIfAsOfText`), not under every student
   return { id: item.membership_id, name: item.student_name, when, rows };
 }
 
@@ -295,26 +294,6 @@ export function overrideMoreText(window: WhatIfWindow | null | undefined): strin
   if (!window || !window.overrideTruncated) return null;
   const rest = window.overrideTotal - window.overrides.length;
   return rest > 0 ? `и ещё ${rest}` : null;
-}
-
-/** The totals under the table: «Итого: оплаченных уроков −2 · следующий период +100 000 сум у 3 учеников»; "" when there is nothing to total. */
-export interface WhatIfTotal { key: string; label: string; value: string }
-
-export function whatIfTotals(window: WhatIfWindow | null | undefined): WhatIfTotal[] {
-  if (!window) return [];
-  const out: WhatIfTotal[] = [];
-  if (window.lessonsLostTotal > 0) out.push({ key: "lessons", label: "Оплаченных уроков станет меньше", value: `на ${window.lessonsLostTotal}` });
-  if (window.nextPeriodStudents > 0) {
-    out.push({
-      key: "next-period",
-      label: `Следующий период ${window.nextPeriodDeltaTotal >= 0 ? "дороже" : "дешевле"} у ${window.nextPeriodStudents} ${pluralRu(window.nextPeriodStudents, "ученика", "учеников", "учеников")}`,
-      value: formatSignedMoney(window.nextPeriodDeltaTotal),
-    });
-  }
-  if (window.kind === "regime" && window.chargedBeforeTotal !== null && window.chargedAfterTotal !== null && window.chargedBeforeTotal !== window.chargedAfterTotal) {
-    out.push({ key: "charged", label: `Начислено за ${window.horizonDays ?? 30} дней после перехода`, value: `${formatMoney(window.chargedBeforeTotal)} → ${formatMoney(window.chargedAfterTotal)}` });
-  }
-  return out.map((total) => ({ ...total, label: tidyMoneyText(total.label), value: tidyMoneyText(total.value) }));
 }
 
 /** The line of a student with an individual price: «Юсупов Бек · 250 000 сум · цена группы 600 000 → 700 000 сум; число не меняется». */

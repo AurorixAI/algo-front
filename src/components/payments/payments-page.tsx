@@ -286,7 +286,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
           <p className="text-sm text-slate-500">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={incomeHref(paymentsBase)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -330,7 +330,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         {/* On a phone the tabs scroll sideways; the edge that hides a tab fades out (ScrollHint) */}
         <div ref={tabsRef} className="min-w-0 xl:w-fit">
-          <ScrollHint focusable={false} className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
+          <ScrollHint focusable={false} data-allow-hscroll="" className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
             {/* the role sits one level below the scroller: ScrollHint owns the attributes of its own box */}
             <div role="tablist" className="flex w-max min-w-full gap-1">
               {visibleBuckets(summaryForTabs, bucket).map(({ key, label }) => (

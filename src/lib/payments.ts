@@ -749,7 +749,6 @@ export { pluralRu };
 
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "debt", label: "Должники" },
-  { key: "waiting", label: "Ждём оплату" },
   { key: "expiring", label: "Скоро платить" },
   { key: "active", label: "Без долга" },
 ];
@@ -757,9 +756,12 @@ export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
 /** «На паузе»: a fourth tab, shown while somebody is on a pause (or while it is the open one). */
 export const PAUSED_BUCKET: { key: PaymentBucket; label: string } = { key: "paused", label: "На паузе" };
 
+/** Money-1 B7: «Ждём оплату» - the debt of a period that has just begun; a tab of its own next to «Должники», shown while somebody waits. */
+export const WAITING_BUCKET: { key: PaymentBucket; label: string } = { key: "waiting", label: "Ждём оплату" };
+
 /** `?bucket=` of the page; unknown or missing values (and the old `due` / `none` links) open «Должники», the most urgent tab. */
 export function parseBucket(value: string | null | undefined): PaymentBucket {
-  return [...PAYMENT_BUCKETS, PAUSED_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
+  return [...PAYMENT_BUCKETS, PAUSED_BUCKET, WAITING_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
 }
 
 /**
@@ -800,7 +802,7 @@ export function visibleBuckets(summary: { buckets?: { paused?: number | null; wa
   const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);
   // Money-1 B7: «Ждём оплату» stands next to «Должники» while somebody waits (or while it is the open tab)
   const waiting = Number(summary?.students_waiting ?? summary?.buckets?.waiting ?? 0);
-  const base = PAYMENT_BUCKETS.filter((bucket) => bucket.key !== "waiting" || waiting > 0 || open === "waiting");
+  const base = waiting > 0 || open === "waiting" ? [PAYMENT_BUCKETS[0], WAITING_BUCKET, ...PAYMENT_BUCKETS.slice(1)] : PAYMENT_BUCKETS;
   return paused > 0 || open === "paused" ? [...base, PAUSED_BUCKET] : base;
 }
 
@@ -972,7 +974,7 @@ const NEVER_PAID_OVERDUE = "Ещё не платил · просрочено";
 export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone } {
   if (row.status === "paused") return { label: statusLabel(row), tone: statusTone(row.status) };
   // Money-1 B7: a student who only waits is not a debtor - a calm grey chip, never the red «Просрочено»
-  if (isWaitingRow(row)) return { label: WAITING_CHIP, tone: "muted" };
+  if (isWaitingRow(row)) return { label: (row as { waiting_reason?: string | null }).waiting_reason || WAITING_CHIP, tone: "muted" };
   if ((row.debt ?? 0) > 0) {
     if (row.status === "expired" || row.debt_reason === "overdue") return { label: statusLabel({ ...row, status: "expired" }), tone: "danger" };
     const neverPaid = row.debt_reason === "never_paid" || (!row.last_payment && (row.status === "none" || row.status === "ends_today" || row.status === "expiring"));

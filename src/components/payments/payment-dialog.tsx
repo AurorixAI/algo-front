@@ -28,9 +28,8 @@ import {
   savedPaymentDetails,
   validatePaymentForm,
   type PaymentFormValues,
-  PAYMENT_REPEATED_QUESTION,
 } from "@/lib/payments-ledger";
-import { tidyMoneyText } from "@/lib/money-format";
+import { PaymentRepeatedNote } from "./payment-repeated-note";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   chipSelected,
@@ -466,12 +465,7 @@ export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?:
           <p>{plan.priceAhead.join(" ")}</p>
         </div>
       )}
-      {plan.repeated && (
-        <div role="note" data-testid="payment-repeated" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{tidyMoneyText(plan.repeated)}. {PAYMENT_REPEATED_QUESTION}</p>
-        </div>
-      )}
+      {plan.repeated && <PaymentRepeatedNote text={plan.repeated} />}
       {plan.warnings.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-4 text-xs text-amber-900">
           {plan.warnings.map((message) => <li key={message}>{message}</li>)}

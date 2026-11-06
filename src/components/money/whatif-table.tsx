@@ -9,7 +9,6 @@ import {
   whatIfAsOfText,
   whatIfMoreText,
   whatIfStudents,
-  whatIfTotals,
   type RowTone,
   type WhatIfWindow,
 } from "@/lib/whatif";
@@ -17,18 +16,17 @@ import { tidyMoneyText } from "@/lib/money-format";
 
 /**
  * «Деньги-1 / Б», Б3 - the body of the window «Что изменится» of a change of a price / of the billing mode / of the day of the shared month: the sentence of the server over the list, then EVERY
- * student the change moves as a small table «было → станет» (сум, уроки, даты; the next period too), the students with an individual price apart, the totals last.
+ * student the change moves as a small table «было → станет» (сум, уроки, даты; the next period too), the students with an individual price apart, the sentence of the server over it carries the totals (said once).
  *
  * Numbers go to the right edge and are `tabular-nums` (DESIGN_SYSTEM_AUDIT, decision 1).  From 640 px a row is four columns (what / was / will be / the difference); on a phone it is a card:
  * the name of the number and the difference on the first line, «было → станет» under it.  Colour is meaning: the amber/rose only for what is WORSE for the student, never a whole block.
  * The block draws NO title: the title «Что изменится» belongs to the window (UX pack, rule 1).
  */
-const TONE: Record<RowTone, string> = { worse: "text-rose-700", better: "text-emerald-700", plain: "text-slate-600" };
+const TONE: Record<RowTone, string> = { worse: "text-amber-800", better: "text-emerald-700", plain: "text-slate-600" };
 
 export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow | null; testId?: string }) {
   if (!window) return null;
   const students = whatIfStudents(window);
-  const totals = whatIfTotals(window);
   const more = whatIfMoreText(window);
   const asOf = whatIfAsOfText(window);
   const overrideMore = overrideMoreText(window);
@@ -65,16 +63,16 @@ export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 tabular-nums sm:grid-cols-[minmax(0,1fr)_6.75rem_6.75rem_6rem]"
                     >
                       <span className="min-w-0 break-words text-slate-700">{row.label}</span>
-                      <span className={`col-start-2 row-start-1 text-right font-medium sm:col-start-4 ${TONE[row.tone]}`} data-col="delta">{row.delta ?? ""}</span>
                       <span className="col-span-2 flex flex-wrap items-baseline justify-end gap-x-1.5 text-right text-slate-900 sm:contents">
                         <span className="text-right text-slate-600 sm:col-start-2 sm:row-start-1" data-col="before">
                           <span className="mr-1 text-[11px] uppercase tracking-wide text-slate-500 sm:hidden">было</span>{tidyMoneyText(row.before)}
                         </span>
-                        <span aria-hidden="true" className="text-slate-400 sm:hidden">→</span>
+                        <span aria-hidden="true" className="text-slate-500 sm:hidden">→</span>
                         <span className="text-right font-semibold sm:col-start-3 sm:row-start-1" data-col="after">
                           <span className="mr-1 text-[11px] font-normal uppercase tracking-wide text-slate-500 sm:hidden">станет</span>{tidyMoneyText(row.after)}
                         </span>
                       </span>
+                      <span className={`col-start-2 row-start-1 text-right font-medium sm:col-start-4 ${TONE[row.tone]}`} data-col="delta">{row.delta ?? ""}</span>
                     </li>
                   ))}
                 </ul>
@@ -83,16 +81,6 @@ export function WhatIfBody({ window, testId = "whatif" }: { window: WhatIfWindow
           </ul>
           {more && <p className="mt-1 text-slate-500" data-testid={`${testId}-more`}>{more}</p>}
         </div>
-      )}
-      {totals.length > 0 && (
-        <dl className="space-y-0.5 border-t border-slate-200 pt-2" data-testid={`${testId}-totals`}>
-          {totals.map((total) => (
-            <div key={total.key} className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums" data-total={total.key}>
-              <dt className="min-w-0 text-slate-600">{total.label}</dt>
-              <dd className="whitespace-nowrap text-right font-semibold text-slate-900">{total.value}</dd>
-            </div>
-          ))}
-        </dl>
       )}
       {window.overrides.length > 0 && (
         <div className="space-y-1 rounded-lg bg-slate-100 px-3 py-2" data-testid={`${testId}-overrides`}>
