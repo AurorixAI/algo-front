@@ -81,7 +81,7 @@ export function CollectionTable({ collection, paymentsBase, debtToday, caption }
   const debtNote = collectionDebtNote(collection, debtToday);
   if (rows.length === 0) {
     return (
-      <EmptyState testId="collection-empty" title="В этом месяце в группах нет стоимости обучения" hint="Стоимость появится, когда у групп будет цена на этот месяц." />
+      <EmptyState testId="collection-empty" title="В этом месяце в группах нет стоимости обучения" hint="Стоимость появится, когда у групп будет задана цена." />
     );
   }
   return (

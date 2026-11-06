@@ -1629,7 +1629,7 @@ export default function TeacherSchedulePage() {
 
       <div>
         {weekPlanRows.length === 0 ? (
-          <EmptyState icon={CalendarIcon} title="На эту неделю занятий нет" hint="Добавьте урок в расписание, и он появится здесь." />
+          <EmptyState icon={CalendarIcon} title="На эту неделю занятий нет" hint="Добавьте урок, и он появится здесь." action={<Button variant="secondary" size="sm" onClick={() => { setIsWeekPlanOpen(false); setIsAddModalOpen(true); }}>Добавить урок</Button>} />
         ) : (
           <div className="space-y-2.5">
             {weekPlanRows.map((row) => {
