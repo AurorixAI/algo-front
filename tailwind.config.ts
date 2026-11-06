@@ -16,6 +16,17 @@ import colors from "tailwindcss/colors";
 export const SHADOW_CARD = "0 1px 2px rgb(15 23 42 / 0.05), 0 2px 8px -2px rgb(15 23 42 / 0.06)";
 export const SHADOW_POP = "0 12px 32px -8px rgb(15 23 42 / 0.18)";
 
+/**
+ * NEUTRAL - the one grey of the product (owner decision 06.11: warm, friendly, not cold).  `slate` IS this palette, so the 5000 existing `slate-*` classes follow without a migration.
+ * Text: 900 (almost black, a hint of warmth) / 700 / 600; muted 500 (>= 4.5:1 on the page and on a white surface - pinned by tests/design-gate); borders 200 (300 on hover);
+ * surfaces: white, with 50 / 100 for a zone inside a card.  400 and 300 are for icons and disabled things only.
+ */
+export const NEUTRAL = {
+  50: "#faf9f7", 100: "#f2f1ed", 200: "#e5e3de", 300: "#d0cdc6", 400: "#9b978f", 500: "#6a665e", 600: "#524f48", 700: "#3d3b36", 800: "#2a2926", 900: "#1c1b19", 950: "#100f0e",
+};
+/** The colour of the page behind the cards. */
+export const PAGE_BG = "#f7f7f5";
+
 const config: Config = {
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
@@ -35,10 +46,11 @@ const config: Config = {
           800: "#1e40af",
           900: "#1e3a8a",
         },
-        background: "#eff3f8",
-        "background-light": "#eff3f8",
+        background: PAGE_BG,
+        "background-light": PAGE_BG,
+        slate: NEUTRAL,
         // roles (the audit §3.1): palettes that already exist, under the name of what they MEAN
-        neutral: colors.slate,
+        neutral: NEUTRAL,
         accent: {
           50: "#eff6ff", 100: "#dbeafe", 200: "#bfdbfe", 300: "#93c5fd", 400: "#60a5fa", 500: "#3b82f6", 600: "#2563eb", 700: "#1d4ed8", 800: "#1e40af", 900: "#1e3a8a",
         },
@@ -46,7 +58,7 @@ const config: Config = {
         warning: colors.amber,
         danger: colors.rose,
         info: colors.sky,
-        muted: { DEFAULT: colors.slate[500], strong: colors.slate[600], subtle: colors.slate[400], surface: colors.slate[100] },
+        muted: { DEFAULT: NEUTRAL[500], strong: NEUTRAL[600], subtle: NEUTRAL[400], surface: NEUTRAL[100] },
       },
       fontSize: {
         caption: ["0.75rem", { lineHeight: "1rem" }],

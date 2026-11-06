@@ -72,7 +72,7 @@ test("Button is flat: no gradient, no shadow, no transform; a keyboard focus dra
   assert.equal(flat.transform, "none");
   assert.deepEqual(rgb(flat.bg), [37, 99, 235], "primary-600");
   assert.ok(ratio(rgb(flat.bg), rgb(flat.color)) >= 4.5, "white on primary-600 passes AA");
-  assert.deepEqual(rgb(flat.disabledBg), [226, 232, 240], "disabled: slate-200");
+  assert.deepEqual(rgb(flat.disabledBg), [229, 227, 222], "disabled: neutral-200");
   assert.ok(ratio(rgb(flat.disabledBg), rgb(flat.disabledColor)) >= 3.5, "the label of a disabled button is still legible");
   await page.hover('button[data-variant="primary"][data-size="md"]');
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('button[data-variant="primary"][data-size="md"]')).transform), "none", "no scale under the mouse");

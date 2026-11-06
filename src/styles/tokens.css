@@ -3,6 +3,12 @@
  * (tests/design-gate.test.cjs compares the two).  Colours live only in the config: a class needs the palette, a rule can use `theme()`.
  */
 :root {
+  /* the warm neutrals (tailwind.config.ts NEUTRAL / PAGE_BG) */
+  --color-bg: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-border: #e5e3de;
+  --color-text: #1c1b19;
+  --color-muted: #6a665e;
   --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 2px 8px -2px rgb(15 23 42 / 0.06);
   --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18);
   --radius-tag: 6px;

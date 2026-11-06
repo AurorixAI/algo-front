@@ -8,7 +8,7 @@
 /* Fonts: Inter and Noto Serif come from next/font (app/layout.tsx); a CSS @import after the Tailwind layers is ignored by browsers (WB-P5, F-A18). */
 
 :root {
-  --background: #eff3f8;
+  --background: var(--color-bg);
 }
 
 * {
@@ -29,7 +29,7 @@ body {
 
 body {
   background: var(--background);
-  color: #1e293b;
+  color: var(--color-text);
   /* A standalone (home-screen) page runs under the status bar: keep the page below it.  0 in a browser tab. */
   padding-top: env(safe-area-inset-top);
 }

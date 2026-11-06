@@ -105,3 +105,28 @@ test("the CSS of the project builds the token classes (a class that is not in th
   for (const cls of [".shadow-card", ".shadow-pop", ".rounded-tag", ".min-h-control", ".text-success-700", ".bg-danger-600"]) assert.ok(css.includes(cls + " {") || css.includes(cls + "{") || css.includes(cls + ","), `${cls} is built`);
   assert.ok(css.includes("--control-h-touch"), "tokens.css is part of the build");
 });
+
+// ── contrast of the text pairs of the tokens (WCAG AA, 4.5:1) ─────────────────────────────────────────────
+const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0); };
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+test("warm neutrals: the text pairs of the tokens keep 4.5:1 (primary / secondary / muted on the page and on a white surface; the accent; white on the fills)", () => {
+  const { config } = loadConfig();
+  const mod = (() => { const ts = require("typescript"); const src = fs.readFileSync(path.join(__dirname, "..", "tailwind.config.ts"), "utf8"); const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText; const m = { exports: {} }; new Function("module", "exports", "require", out)(m, m.exports, require); return m.exports; })();
+  const N = mod.NEUTRAL, BG = mod.PAGE_BG, WHITE = "#ffffff", colors = config.theme.extend.colors;
+  const pairs = [
+    ["primary text 900 on page", N[900], BG], ["primary text 900 on surface", N[900], WHITE],
+    ["body text 700 on page", N[700], BG], ["body text 700 on surface", N[700], WHITE],
+    ["secondary text 600 on page", N[600], BG], ["secondary text 600 on surface", N[600], WHITE],
+    ["muted 500 on page", colors.muted.DEFAULT, BG], ["muted 500 on surface", colors.muted.DEFAULT, WHITE], ["muted 500 on a zone (neutral 50)", colors.muted.DEFAULT, N[50]],
+    ["link primary-700 on page", colors.accent[700], BG], ["white on primary-600", WHITE, colors.accent[600]],
+    ["white on danger-600", WHITE, colors.danger[600]], ["white on success-700", WHITE, colors.success[700]],
+    ["warning-900 on warning-50", colors.warning[900], colors.warning[50]], ["info-900 on info-50", colors.info[900], colors.info[50]],
+  ];
+  const bad = pairs.filter(([, fg, bg]) => contrast(fg, bg) < 4.5).map(([name, fg, bg]) => `${name}: ${contrast(fg, bg).toFixed(2)}`);
+  assert.deepEqual(bad, []);
+  assert.deepEqual(colors.slate, mod.NEUTRAL, "slate IS the neutral palette: one grey in one place");
+  assert.equal(BG, "#f7f7f5");
+  // the page background of the CSS follows the token
+  assert.match(fs.readFileSync(path.join(SRC, "styles", "tokens.css"), "utf8"), /--color-bg: #f7f7f5;/);
+});

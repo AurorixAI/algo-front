@@ -433,7 +433,7 @@ test("R3 №6/DOM: the header of a group - the red chip «Долг» for the deb
   assert.equal(plain(await page.textContent('[data-testid="group-waiting-chip"]')), "Ждём оплату: 300 000 сум · 1 ученик");
   assert.match(plain(await page.textContent('[data-testid="group-debt-chip"]')), /^Долг 600 000 сум · 1 ученик$/);
   const colorOf = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).color, sel);
-  assert.equal(await colorOf('[data-testid="group-waiting-chip"]'), "rgb(71, 85, 105)", "slate-600, not red");
+  assert.equal(await colorOf('[data-testid="group-waiting-chip"]'), "rgb(82, 79, 72)", "neutral-600 (warm slate-600), not red");
   assert.equal(await colorOf('[data-testid="group-debt-chip"]'), "rgb(190, 18, 60)", "rose-700");
   assert.match(await page.getAttribute('[data-testid="group-waiting-chip"]', "href"), /tab=payments&filter=waiting/);
   assert.match(await page.getAttribute('[data-testid="group-debt-chip"]', "href"), /tab=payments&filter=debt/);
