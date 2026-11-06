@@ -218,8 +218,10 @@ export function AddStudentDrawer({
   const { def: payDef } = usePayFromDefault(groupId, open && payFromAllowed);
   useEffect(() => { if (payDef) setPayFrom((current) => current || payDef.default_pay_from); }, [payDef]);
   const payRange = payFromRange(payDef?.today ?? today, accountingStart);
-  const payBody = payFromAllowed ? payFromRequest(payFrom, payDef, moneyAvailable) : null;
-  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFrom, payDef, payRange) : null;
+  // the default is there from the first frame the server answered (no flash of an empty date)
+  const payFromValue = payFrom || payDef?.default_pay_from || "";
+  const payBody = payFromAllowed ? payFromRequest(payFromValue, payDef, moneyAvailable) : null;
+  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFromValue, payDef, payRange) : null;
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
@@ -406,7 +408,7 @@ export function AddStudentDrawer({
           </div>
         )}
         {payFromAllowed && (
-          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} names={pickedNames} />
+          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={pickedNames} />
         )}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (

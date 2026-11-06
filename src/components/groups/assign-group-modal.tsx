@@ -285,8 +285,10 @@ export function AssignGroupModal({
   const payFromAllowed = !isTransfer && Boolean(selectedGroupId) && !(selectedGroupId && excluded.has(selectedGroupId));
   const { def: payDef } = usePayFromDefault(selectedGroupId ?? "", open && payFromAllowed);
   useEffect(() => { setPayFrom(payDef ? payDef.default_pay_from : ""); }, [payDef]);
-  const payBody = payFromAllowed ? payFromRequest(payFrom, payDef, moneyAvailable) : null;
-  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFrom, payDef, payFromRange(payDef?.today ?? formatBusinessDate(), accountingStart)) : null;
+  // the default is there from the first frame the server answered (no flash of an empty date)
+  const payFromValue = payFrom || payDef?.default_pay_from || "";
+  const payBody = payFromAllowed ? payFromRequest(payFromValue, payDef, moneyAvailable) : null;
+  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFromValue, payDef, payFromRange(payDef?.today ?? formatBusinessDate(), accountingStart)) : null;
   const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && selectedGroupId && !dryException.error && !payProblem
     ? `${selectedGroupId}|${studentId}|${payBody}|${JSON.stringify(dryException.request)}` : null;
   const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { pay_from: payBody as string, price_override: dryException.request }, signal));
@@ -629,7 +631,7 @@ export function AssignGroupModal({
 
     {payFromAllowed && (
       <div className="mt-3">
-        <PayFromField idPrefix="assign-group" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAssignmentError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} />
+        <PayFromField idPrefix="assign-group" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAssignmentError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} />
       </div>
     )}
 

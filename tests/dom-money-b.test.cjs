@@ -61,7 +61,7 @@ test("Б3: the price window - EVERY affected student «было → станет
     assert.match(text, /Следующий период с 05\.12\.2026.*300 000 сум.*400 000 сум.*\+100 000 сум/);
     assert.equal(plain(await page.textContent('[data-testid="price-impact-money-summary"]')), "Изменится у 3 учеников");
     const whole = plain(await page.textContent('[role="dialog"]'));
-    assert.equal((whole.match(/индивидуальн/gi) ?? []).length, 2, "the individual price: its title and the student, not three times");
+    assert.equal((whole.match(/индивидуальн/gi) ?? []).length, 1, "the individual price is said ONCE (its title), not three times");
     assert.ok(!/аванс уменьшится на 50 000/.test(whole), "the sentence of the server is not repeated over its own table");
     // no inner scroll: the list is as tall as its rows, only the body of the window scrolls
     assert.equal(await page.evaluate(() => { const ul = document.querySelector('[data-testid="price-impact-money-students"] ul'); return ul.scrollHeight - ul.clientHeight; }), 0);
@@ -112,12 +112,13 @@ test("Б3: the window of the mode - per student with the charge of 30 days, a pa
   }, "02-regime-window");
 });
 
+const STUDENT2 = { id: "st8", first_name: "Второй", last_name: "Ученик", full_name: "Ученик Второй", class_level: 7, status: "new", group_id: null, current_group_id: null, groups_count: 0 };
 const STUDENT = { id: "st9", first_name: "Новый", last_name: "Ученик", full_name: "Ученик Новый", class_level: 7, status: "new", group_id: null, current_group_id: null, groups_count: 0 };
 const drawerServer = (extra) => (request) => {
   const own = extra ? extra(request) : null;
   if (own) return own;
   if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g2", name: "7-Б Геометрия" }] };
-  if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT], total: 1 } };
+  if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT, STUDENT2], total: 2 } };
   if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/st9" && !isDry(request)) return { json: { status: "added", billing: { pay_from: "2026-11-12", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата считается с 12.11.2026: так выбрал сотрудник" } } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk") return { json: { group_id: "g2", added: 1, skipped: 0, skipped_details: [], warnings: [] } };
@@ -170,7 +171,7 @@ test("Б1: a day in the past - the dry run says «Сразу начислитс�
   await page.fill("#add-student-pay-from", "26.10.2026");
   await page.keyboard.press("Tab");
   await page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("Сразу начислится")');
-  assert.match(plain(await page.textContent('[data-testid="pay-from-immediate"]')), /Ученик Новый: Сразу начислится 300 000 сум \(за 14 уроков\).*Всего сразу начислится 300 000 сум \(за 14 уроков\)/);
+  assert.equal(plain(await page.textContent('[data-testid="pay-from-immediate"]')), "Сразу начислится 300 000 сум (за 14 уроков)", "ONE student: his line, the total would say the same again (R3 №12)");
   const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
   assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
@@ -359,4 +360,39 @@ test("R3 №19/20: the journal is read again when the settings are saved (the ke
   assert.match(read("src/components/settings/payments-history.tsx"), /\}, \[open, nonce, refreshKey\]\);/);
   assert.match(read("src/app/owner/settings/page.tsx"), /<PaymentsHistory refreshKey=\{loaded\.updated_at \?\? ""\} \/>/);
   assert.match(read("src/app/owner/settings/page.tsx"), /\{state\.error && !regimeOpen && \(/);
+});
+
+test("R3 №11/12: a failed calculation of «сразу начислится» says so with «Повторить» (never «ничего не начислится»); several students - a line each and the total", async () => {
+  let fail = true;
+  const server = (request) => {
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) {
+      if (fail) return { status: 500, json: { detail: "boom" } };
+      const one = (id, amount) => ({ student_id: id, billing: { pay_from: "2026-10-26", immediate: { amount, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } });
+      return { json: { students: [one("st9", 300000), one("st8", 300000)], immediate_total: { amount: 600000, lessons: 28, students: 2, text: "Всего сразу начислится 600 000 сум (за 28 уроков)" } } };
+    }
+    return null;
+  };
+  const { page } = await openDrawer(OWNER, server);
+  await page.click('button:has-text("Ученик Второй")');
+  await page.waitForSelector('[data-testid="pay-from"]');
+  await page.fill("#add-student-pay-from", "26.10.2026");
+  await page.keyboard.press("Tab");
+  await page.waitForSelector('[data-testid="pay-from-failed"]');
+  const failed = plain(await page.textContent('[data-testid="pay-from-failed"]'));
+  assert.match(failed, /Не удалось посчитать, сколько начислится сразу Повторить/);
+  assert.equal(await page.locator('[data-testid="pay-from-immediate"]').count(), 0, "never «ничего не начислится» after a failure");
+  fail = false;
+  await page.click('[data-testid="pay-from-failed"] button');
+  await page.waitForSelector('[data-testid="pay-from-immediate-total"]');
+  const text = plain(await page.textContent('[data-testid="pay-from-immediate"]'));
+  assert.match(text, /Ученик Новый: Сразу начислится 300 000 сум.*Ученик Второй: Сразу начислится 300 000 сум.*Всего сразу начислится 600 000 сум \(за 28 уроков\)/);
+  await page.close();
+});
+
+test("R3 №22: no flash of «Укажите дату» before the default of the server arrives", async () => {
+  const { page } = await openDrawer(OWNER);
+  await page.waitForSelector('[data-testid="pay-from"]');
+  assert.equal(await page.locator('[data-testid="enrol-why"]').count(), 0);
+  assert.equal(await page.locator('button:has-text("Зачислить")').first().isDisabled(), false);
+  await page.close();
 });

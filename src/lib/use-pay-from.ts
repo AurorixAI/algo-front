@@ -26,8 +26,11 @@ export type PayFromPreview = { status: "idle" } | { status: "loading" } | { stat
  * What adding ONE student from a past day would charge at once (the dry run of the add; `billing.immediate.text`, the money right only).  Asked once the person stops changing the day;
  * `key` is null while there is nothing to ask (no past day, several students, no money right).
  */
-export function usePayFromPreview(key: string | null, load: (signal: AbortSignal) => Promise<unknown>): PayFromPreview {
-  const [state, setState] = useState<PayFromPreview>({ status: "idle" });
+export function usePayFromPreview(key: string | null, load: (signal: AbortSignal) => Promise<unknown>): PayFromPreview & { retry: () => void } {
+  // the answer belongs to the KEY it was asked for: for any other key the status is «loading» at once - an old answer is never shown for a new day (R3 №22)
+  const [answer, setAnswer] = useState<{ key: string | null; value: PayFromPreview }>({ key: null, value: { status: "idle" } });
+  const [nonce, setNonce] = useState(0);
+  const setState = (value: PayFromPreview) => setAnswer({ key, value });
   const sequence = useRef(createRequestSequence());
   const loader = useRef(load);
   loader.current = load;
@@ -42,6 +45,8 @@ export function usePayFromPreview(key: string | null, load: (signal: AbortSignal
         .catch(() => { if (sequence.current.isCurrent(token) && !controller.signal.aborted) setState({ status: "failed" }); });
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); sequence.current.next(); };
-  }, [key]);
-  return state;
+  }, [key, nonce]);
+  const retry = () => setNonce((value) => value + 1);
+  if (key === null) return { status: "idle", retry };
+  return answer.key === key && answer.value.status !== "idle" ? { ...answer.value, retry } : { status: "loading", retry };
 }
