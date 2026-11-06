@@ -571,6 +571,7 @@ test("RB Д4 (остаток): on 375 the buttons of the groups block of a stude
   ctx = await openPage(browser, "money-b.entry.tsx", priceServer, phone);
   await ctx.page.evaluate(() => window.mount("priceDialog", { role: "owner", org_role: "owner" }, {}));
   await ctx.page.waitForSelector("#group-price-amount");
+  await ctx.page.waitForTimeout(600);      // the window fades in (scale)
   assert.deepEqual((await small(ctx.page, '[role="dialog"]')).filter((t) => !/Закрыть|Отмена|Сохранить/.test(t)), [], "price window fields");
   await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-09-price-field-375.png") });
   await ctx.page.close();
