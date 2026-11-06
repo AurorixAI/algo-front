@@ -34,6 +34,9 @@ import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
+import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
+import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
+import { PayFromField } from "./pay-from-field";
 import { enrolDialogTitle, enrolSubmitLabel } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, CONFIRM_PRIMARY_BLUE, CONFIRM_PRIMARY_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
@@ -123,6 +126,8 @@ export function AssignGroupModal({
   // re-audit 6 (closing): the individual price of the PRESENT group does not move with the student - said only to a student who really has it (the memberships of the student tell it: `price.source`)
   const [hadOverride, setHadOverride] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
+  // Money-1 B1 «Оплата с»: the day the student is charged from in the chosen group ("" until the default of that group arrives); a transfer has no such field
+  const [payFrom, setPayFrom] = useState("");
 
   useEffect(() => {
     setHadOverride(false);
@@ -153,6 +158,7 @@ export function AssignGroupModal({
       setOpeningOn(false);
       setOpening(emptyOpeningValues());
       setOpeningNeedsReason(false);
+      setPayFrom("");
 
       Promise.all([
         orgApi.listGroups(),
@@ -228,6 +234,7 @@ export function AssignGroupModal({
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAssignmentError(exception.error); return; }
+    if (payProblem) { setAssignmentError(payProblem); return; }
     const todayDate = formatBusinessDate();
     const withOpening = moneyAvailable && !isTransfer && openingOn;
     if (withOpening) {
@@ -243,6 +250,7 @@ export function AssignGroupModal({
         mode,
         price_override: exception.request,
         opening_balance: withOpening ? buildOpeningIn(opening) : null,
+        pay_from: payBody,
       });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
@@ -251,13 +259,15 @@ export function AssignGroupModal({
       }
       const notes = splitTransferNotes(result.warnings);
       setServerWarnings(notes.warnings);
-      setServerInfos(notes.infos);
+      // the server's sentence about the day the charge starts (only when the person chose it)
+      const billingLine = payBody ? normalizeBilling(result.billing)?.text : "";
+      setServerInfos(billingLine ? [...notes.infos, billingLine] : notes.infos);
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
       const failure = logicaError(e);
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
-      setAssignmentError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message || (isAdd ? "Не удалось зачислить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
+      setAssignmentError(payFromErrorText(failure) || (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message) || (isAdd ? "Не удалось зачислить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
     } finally {
       setAssigning(false);
     }
@@ -270,6 +280,16 @@ export function AssignGroupModal({
     : null;
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => (selectedGroupId ? orgApi.dryRunTransferStudent(selectedGroupId, studentId, { price_override: dryException.request }, signal) : Promise.reject(new Error("no group"))));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
+
+  // Money-1 B1: «Оплата с» for ADDING (not a transfer): the default of the chosen group; a past day - the dry run says what is charged at once
+  const payFromAllowed = !isTransfer && Boolean(selectedGroupId) && !(selectedGroupId && excluded.has(selectedGroupId));
+  const { def: payDef } = usePayFromDefault(selectedGroupId ?? "", open && payFromAllowed);
+  useEffect(() => { setPayFrom(payDef ? payDef.default_pay_from : ""); }, [payDef]);
+  const payBody = payFromAllowed ? payFromRequest(payFrom, payDef, moneyAvailable) : null;
+  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFrom, payDef, payFromRange(payDef?.today ?? formatBusinessDate(), accountingStart)) : null;
+  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && selectedGroupId && !dryException.error && !payProblem
+    ? `${selectedGroupId}|${studentId}|${payBody}|${JSON.stringify(dryException.request)}` : null;
+  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { pay_from: payBody as string, price_override: dryException.request }, signal));
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
   const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1) : null;
@@ -327,7 +347,7 @@ export function AssignGroupModal({
           primary={assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}
           onPrimary={() => void handleAssign()}
           busy={assigning}
-          disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed}
+          disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null}
           why={!selectedGroupId ? "Выберите группу" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
           whyId="assign-why"
           onCancel={onClose}
@@ -604,6 +624,12 @@ export function AssignGroupModal({
             />
           </div>
         )}
+      </div>
+    )}
+
+    {payFromAllowed && (
+      <div className="mt-3">
+        <PayFromField idPrefix="assign-group" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAssignmentError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} />
       </div>
     )}
 

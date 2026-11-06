@@ -14,7 +14,9 @@ import {
 } from "@/lib/group-price";
 import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
+import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
+import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, ENROL_STUDENTS_TITLE } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -25,6 +27,7 @@ import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { PayFromField } from "./pay-from-field";
 import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
@@ -106,6 +109,8 @@ export function AddStudentDrawer({
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
   const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
+  // Money-1 B1 «Оплата с»: the day the added student is charged from ("" until the server's default arrives)
+  const [payFrom, setPayFrom] = useState("");
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
@@ -122,6 +127,7 @@ export function AddStudentDrawer({
     setOpening(emptyOpeningValues());
     setOpeningNeedsReason(false);
     setAllClasses(false);
+    setPayFrom("");
   }, [open]);
 
   // Group names for the "currently in ..." hints; a failure only drops the hints.
@@ -207,6 +213,13 @@ export function AddStudentDrawer({
   // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
   const today = formatBusinessDate();
   const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add");
+  // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there)
+  const payFromAllowed = selected.size > 0 && (transfers.length === 0 || mode === "add");
+  const { def: payDef } = usePayFromDefault(groupId, open && payFromAllowed);
+  useEffect(() => { if (payDef) setPayFrom((current) => current || payDef.default_pay_from); }, [payDef]);
+  const payRange = payFromRange(payDef?.today ?? today, accountingStart);
+  const payBody = payFromAllowed ? payFromRequest(payFrom, payDef, moneyAvailable) : null;
+  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFrom, payDef, payRange) : null;
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
@@ -218,6 +231,11 @@ export function AddStudentDrawer({
     : null;
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request }, signal));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
+  // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
+  const onlyId = selected.size === 1 ? Array.from(selected.keys())[0] : null;
+  const payPreviewKey = open && moneyAvailable && payFromAllowed && payBody !== null && payBody < (payDef?.today ?? "") && onlyId && !dryException.error && !payProblem
+    ? `${groupId}|${onlyId}|${payBody}|${JSON.stringify(dryException.request)}` : null;
+  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(groupId, onlyId as string, { pay_from: payBody as string, price_override: dryException.request }, signal));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
@@ -225,6 +243,7 @@ export function AddStudentDrawer({
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAddError(exception.error); return; }
+    if (payProblem) { setAddError(payProblem); return; }
     const withOpening = openingAllowed && openingOn;
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: today, accountingStart, today });
@@ -242,35 +261,44 @@ export function AddStudentDrawer({
       };
       const openingBody = withOpening ? buildOpeningIn(opening) : null;
       // One student with an opening balance goes through the route that takes it; the bulk route has no such field.
-      const result = openingBody
+      // One student with an opening balance - or with a chosen «Оплата с» - goes through the route that answers `billing` (the server's sentence); the bulk route has no such field.
+      const singleRoute = Boolean(openingBody) || (payBody !== null && picked.length === 1);
+      let billingLine: string | null = null;
+      const result = singleRoute
         ? await orgApi.addStudentToGroup(groupId, picked[0].id, {
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           opening_balance: openingBody,
-        }).then((single) => ({
-          added: single.status === "added" ? 1 : 0,
-          skipped: single.status === "added" ? 0 : 1,
-          skipped_details: single.status === "added" ? [] : [{ student_id: picked[0].id, reason: "уже в этой группе" }],
-          warnings: single.warnings,
-        }))
+          pay_from: payBody,
+        }).then((single) => {
+          billingLine = payBody ? normalizeBilling(single.billing)?.text || null : null;
+          return {
+            added: single.status === "added" ? 1 : 0,
+            skipped: single.status === "added" ? 0 : 1,
+            skipped_details: single.status === "added" ? [] : [{ student_id: picked[0].id, reason: "уже в этой группе" }],
+            warnings: single.warnings,
+          };
+        })
         : await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
           // The mode only matters for students who are already in another group.
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
+          pay_from: payBody,
         });
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
+      if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
       onAdded({
         added: result.added,
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
         warnings: notes.warnings,
-        infos: notes.infos,
+        infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
       });
     } catch (e: any) {
       const failure = logicaError(e, "Ошибка добавления учеников");
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
-      setAddError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message);
+      setAddError(payFromErrorText(failure) ?? (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message));
     } finally {
       setAdding(false);
     }
@@ -376,6 +404,9 @@ export function AddStudentDrawer({
             />
           </div>
         )}
+        {payFromAllowed && (
+          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFrom} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} many={selected.size > 1} />
+        )}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
@@ -385,8 +416,8 @@ export function AddStudentDrawer({
           primary={adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
           onPrimary={() => void handleAdd()}
           busy={adding}
-          disabled={selected.size === 0 || adding || !transferAllowed}
-          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
+          disabled={selected.size === 0 || adding || !transferAllowed || payProblem !== null}
+          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem}
           whyId="enrol-why"
           onCancel={onClose}
           testId="enrol-submit"

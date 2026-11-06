@@ -46,13 +46,15 @@ export interface PaymentSettings {
   admin_can_manage: boolean;
   /** PAY-F: a lesson the CENTRE cancelled is deducted from the next payment of a monthly mode (false: not recalculated, as before). */
   centre_cancel_recalc: boolean;
+  /** Money-1 B8: the server's sentence of the setting above («Урок, отменённый центром, уменьшит долг ученика сразу …»); read only. */
+  recalc_hint?: string | null;
   /** The day the center starts to count money (PAY-2): nothing before it is charged.  Always the effective date from the server. */
   accounting_start_date?: string | null;
   updated_by: string | null;
   updated_at: string | null;
 }
 
-export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" | "updated_at">>;
+export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" | "updated_at" | "recalc_hint">>;
 
 /** What a change of `accounting_start_date` touches (`PUT /org/settings/payments?dry_run=true`). */
 export interface AccountingStartImpact {
@@ -71,7 +73,7 @@ export interface PaymentSettingsChanged extends PaymentSettings {
   dry_run?: boolean;
   impact?: AccountingStartImpact | null;
   /** LOGIC-A F12: only on the dry run of a change of the billing mode: who is touched and when each switches. */
-  regime_impact?: { students_affected: number; first_switch: string | null; latest_switch: string | null; defer: boolean } | null;
+  regime_impact?: ({ students_affected: number; first_switch: string | null; latest_switch: string | null; defer: boolean } & Record<string, unknown>) | null;
 }
 
 export interface PaymentsSummary {
@@ -1111,6 +1113,8 @@ export const MONEY_DENIED_HOME = "На главную";
 export const CARRY_OVER_CODE = "payment_carried_over";
 /** Walk of 05.11, D-6: the sentence of a transfer about the NEW account after it («Перенесено 640 000 сум; аванс останется …»). */
 export const TRANSFER_BALANCE_CODE = "transfer_balance_after";
+/** Money-1 B6: the days paid for WITHOUT money (the «оплачено до» of an opening balance) travel with the student - «Оплаченные дни — по 20.11.2026 — перешли вместе с учеником». */
+export const PAID_DAYS_CARRIED_CODE = "paid_days_carried_over";
 
 export interface ServerNote {
   code?: string;
@@ -1134,7 +1138,7 @@ export function splitTransferNotes(
     if (!note?.message) continue;
     if (note.code === CARRY_OVER_CODE && withBalance.has(note.student_id ?? "")) continue;
     const line = note.student_id && nameOf ? `${nameOf(note.student_id)} — ${note.message}` : note.message;
-    (note.code === CARRY_OVER_CODE || note.code === TRANSFER_BALANCE_CODE ? infos : warnings).push(line);
+    (note.code === CARRY_OVER_CODE || note.code === TRANSFER_BALANCE_CODE || note.code === PAID_DAYS_CARRIED_CODE ? infos : warnings).push(line);
   }
   return { infos, warnings };
 }
@@ -1405,7 +1409,7 @@ export type PaymentModel = "payment_date" | "fixed_day" | "lessons";
 
 // PAY-F: ONE dictionary of the names (settings, hints, statements); the server mirrors it in `payments_texts.MODE_NAMES`.
 export const PAYMENT_MODELS: Array<{ key: PaymentModel; title: string; hint: string }> = [
-  { key: "payment_date", title: "Свой месяц у каждого ученика", hint: "Месяц считается с первого занятия ученика: 05.10 → 04.11" },
+  { key: "payment_date", title: "Свой месяц у каждого ученика", hint: "Месяц считается с даты «Оплата с» — по умолчанию это первое занятие ученика в группе: 05.10 → 04.11" },
   { key: "fixed_day", title: "Общий месяц для всех", hint: "У всех один период, например с 1-го по последнее число; первый неполный месяц — по урокам" },
   { key: "lessons", title: "Пакет уроков", hint: "Оплата закрывает заданное число проведённых уроков; отменённые уроки не списываются" },
 ];

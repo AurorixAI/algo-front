@@ -10,6 +10,12 @@ import { staffDisplayName } from "@/lib/staff-name";
 import { DEFAULT_LESSON_TYPE, LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
+import { MoneyField } from "@/components/payments/price-fields";
+import { GROUP_CREATE_PRICE_HINT, groupCreatePrice } from "@/lib/group-form";
+import { priceLabelOf } from "@/lib/group-price";
+import { canManageMoney } from "@/lib/money-effects";
+import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useAuthStore } from "@/lib/store";
 
 interface GroupCreateModalProps {
   open: boolean;
@@ -59,9 +65,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
   const [saving, setSaving] = useState(false);
   const [maxDraft, setMaxDraft] = useState(String(form.max_students));
   const [error, setError] = useState<string | null>(null);
+  // Money-1 B2: the price of the group is MONEY - the field exists only for the owner and an administrator with access to money (for the others it is not there, not blocked)
+  const moneyRight = canManageMoney(useAuthStore((state) => state.user)) && !selfAssignTeacher;
+  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
+  const [priceText, setPriceText] = useState("");
 
   useEffect(() => {
     if (open) {
+      setPriceText("");
       setForm({
         name: "",
         class_level: 9,
@@ -77,6 +88,8 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
+    const price = groupCreatePrice(priceText, moneyRight);
+    if (price.error) { setError(price.error); return; }
     setSaving(true);
     setError(null);
     try {
@@ -88,6 +101,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
         max_students: form.max_students,
         // A teacher creating a group for himself does not choose the kind: it is a plain «Группа» (the owner changes it).
         ...(selfAssignTeacher ? {} : { lesson_type: form.lesson_type }),
+        ...(price.request !== null ? { price: price.request } : {}),
       });
       onCreated(group);
     } catch (e: any) {
@@ -217,6 +231,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
             </div>
           ) : (
             <GroupTeacherField teachers={teachers} value={form.teacher_id} onChange={(next) => setForm({ ...form, teacher_id: next })} />
+          )}
+
+          {/* Price: money roles only */}
+          {moneyRight && (
+            <div data-testid="group-create-price">
+              <MoneyField id="group-create-price" label={priceLabel} optionalHint="(необязательно)" value={priceText} onChange={(next) => { setError(null); setPriceText(next); }} describedBy="group-create-price-hint" />
+              <p id="group-create-price-hint" className="mt-1 text-xs text-slate-500">{GROUP_CREATE_PRICE_HINT}</p>
+            </div>
           )}
 
           {/* Description */}

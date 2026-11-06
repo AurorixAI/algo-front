@@ -1489,7 +1489,8 @@ export const orgApi = {
     api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${encodePathId(id)}/acknowledge-report`, { method: "POST" }),
 
   // Groups
-  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number; lesson_type?: LessonType }) =>
+  /** `price` (Money-1 B2): the first price of the group "from the very start" - sent only with access to money (403 `MONEY_RIGHT_REQUIRED` otherwise, no group is created). */
+  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number; lesson_type?: LessonType; price?: number }) =>
     api<GroupInfo>("/auth/org/groups", { method: "POST", body: data }),
   listGroups: (params?: { teacher_id?: string; class_level?: number }) => {
     const query = new URLSearchParams();
@@ -1515,12 +1516,14 @@ export const orgApi = {
    * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
    * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
-  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null }) => {
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null; pay_from?: string | null }) => {
     const query = options?.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
     // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership ride along (needs access to money).
+    // Money-1 B1: `pay_from` («Оплата с») is a day that changes the charge - the money right only.
     const extra = {
       ...(options?.price_override ? { price_override: options.price_override } : {}),
       ...(options?.opening_balance ? { opening_balance: options.opening_balance } : {}),
+      ...(options?.pay_from ? { pay_from: options.pay_from } : {}),
     };
     const body = Object.keys(extra).length > 0 ? extra : undefined;
     return api<{
@@ -1531,8 +1534,18 @@ export const orgApi = {
       display_id?: string | null;
       /** Server hints (third group, class mismatch); never a refusal. */
       warnings?: PaymentWarning[];
+      /** Money-1 B1: from which day the student is charged and why (null for a transfer). */
+      billing?: unknown;
     }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}${query}`, { method: "POST", body });
   },
+  /** Money-1 B1: «Оплата с» by default - the first lesson of the group from today (readable by every administrator). */
+  getPayFromDefault: (groupId: string, signal?: AbortSignal) =>
+    api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/pay-from-default`, { signal }),
+  /** Money-1 B1: what adding ONE student from a past «Оплата с» would charge at once (`billing.immediate`; needs access to money); nothing is written. */
+  dryRunAddStudent: (groupId: string, studentId: string, options: { pay_from: string; price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
+    api<{ billing?: unknown }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=add&dry_run=true`, {
+      method: "POST", body: { pay_from: options.pay_from, ...(options.price_override ? { price_override: options.price_override } : {}) }, signal,
+    }),
   /** R3 #15: `mode=transfer&dry_run=true` - what a transfer would carry over (`carried: [{code, message}]`, the sums for the money right); nothing is written. */
   dryRunTransferStudent: (groupId: string, studentId: string, options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
     api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=transfer&dry_run=true`, {
@@ -1545,7 +1558,7 @@ export const orgApi = {
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}`, { method: "DELETE" }),
   /** One `price_override` (sum + reason) for everybody added, or none: the students follow the price of the group. */
-  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null }) =>
+  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; pay_from?: string | null }) =>
     api<{
       group_id: string;
       added: number;
@@ -1561,6 +1574,8 @@ export const orgApi = {
         body: {
           student_ids: studentIds,
           ...(options?.price_override ? { price_override: options.price_override } : {}),
+          // Money-1 B1: one «Оплата с» for everybody added (the money right only)
+          ...(options?.pay_from ? { pay_from: options.pay_from } : {}),
         },
       }
     ),
@@ -1884,6 +1899,8 @@ export const orgApi = {
   getPaymentSettings: () => api<PaymentSettings>("/auth/org/settings/payments"),
   updatePaymentSettings: (data: PaymentSettingsUpdate) =>
     api<PaymentSettingsChanged>("/auth/org/settings/payments", { method: "PUT", body: data }),
+  /** Money-1 B9: the journal of the money settings (the owner only; an administrator gets 403): who changed the way to count / the day / the recalculation / the start of the accounting, and the sums. */
+  getPaymentSettingsHistory: (limit = 50) => api<unknown>(`/auth/org/settings/payments/history?limit=${Math.max(1, Math.min(200, Math.floor(limit)))}`),
   /** What a new start of the accounting would change (`dry_run`: nothing is saved; the answer holds the CURRENT settings and the impact). */
   previewPaymentSettings: (data: PaymentSettingsUpdate) =>
     api<PaymentSettingsChanged>("/auth/org/settings/payments?dry_run=true", { method: "PUT", body: data }),

@@ -2,7 +2,7 @@
  * Money-1 R3 #15: what an action of the money of a student does to the packs and the saved sheets is shown BEFORE the button is pressed - the server answers the same request
  * with `?dry_run=true` (no `Idempotency-Key`, nothing is written).  Pure: the keys and the bodies of those asks, and the words of a transfer's «что переедет».
  */
-import { CARRY_OVER_CODE, TRANSFER_BALANCE_CODE } from "./payments";
+import { CARRY_OVER_CODE, PAID_DAYS_CARRIED_CODE, TRANSFER_BALANCE_CODE } from "./payments";
 import { tidyMoneyText } from "./money-format";
 
 /** A dry run of a cancel needs a reason too (the server checks it like the real one); the person has not typed it yet. */
@@ -31,7 +31,7 @@ export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> |
       const entry = item as { code?: unknown; message?: unknown; student_id?: unknown } | null;
       const message = typeof entry?.message === "string" ? entry.message.trim() : "";
       const code = String(entry?.code ?? "");
-      if (!message || (onlyMoney && code !== CARRY_OVER_CODE && code !== TRANSFER_BALANCE_CODE)) continue;
+      if (!message || (onlyMoney && code !== CARRY_OVER_CODE && code !== TRANSFER_BALANCE_CODE && code !== PAID_DAYS_CARRIED_CODE)) continue;
       const studentId = typeof entry?.student_id === "string" && entry.student_id ? entry.student_id : undefined;
       const key = `${code}|${studentId ?? ""}|${message}`;
       if (seen.has(key)) continue;

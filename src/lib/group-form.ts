@@ -30,3 +30,21 @@ export function groupUpdateBody(
     ...(withType ? { lesson_type: state.lesson_type as LessonType } : {}),
   };
 }
+
+// ── Money-1 B2: the price at the creation of a group ───────────────────────
+
+/** The field is optional: a group may be created without a price and get it later («Цены групп»). */
+export const GROUP_CREATE_PRICE_HINT = "Можно задать позже. Цена действует с самого начала; 0 — занятия бесплатные.";
+
+/**
+ * The price of the form of a new group.  `request` is what goes to the server - ONLY with access to money (`withMoney`): without it the field is not drawn and nothing is sent, whatever was typed
+ * (the server answers 403 `MONEY_RIGHT_REQUIRED` and creates no group otherwise).  An empty field is no price; 0 is a price (free lessons).
+ */
+export function groupCreatePrice(text: string, withMoney: boolean): { error: string | null; request: number | null } {
+  if (!withMoney) return { error: null, request: null };
+  const digits = text.replace(/\D+/g, "");
+  if (digits === "") return { error: null, request: null };
+  const value = Number(digits);
+  if (!Number.isSafeInteger(value) || value > 10_000_000_000) return { error: "Цена слишком большая", request: null };
+  return { error: null, request: value };
+}
