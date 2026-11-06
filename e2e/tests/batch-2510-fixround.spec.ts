@@ -28,6 +28,8 @@ async function shot(page: Page, name: string) {
 }
 
 const today = () => businessNow().date;
+// the date and the time of a lesson are held together by non-breaking spaces and a word joiner (formatLessonWhen): a text with plain spaces matches them
+const lessonWhenRe = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "[ \\u00a0]").replace(/–/g, "\\u2060?–\\u2060?"));
 const wrap = (weekday: number) => ((weekday - 1 + 7) % 7) + 1;
 const mondayOf = (iso: string) => addDays(iso, 1 - weekdayOf(iso));
 /** «сб, 8 ноября» - the one date of a lesson (formatLessonWhen), written out by hand so the test does not reuse the code it checks. */
@@ -148,7 +150,7 @@ test("a day off: the dry run lists the lessons «группа · дата · в�
   await expect(summary).toHaveText("Будут отменены 2 урока в 2 группах");               // the sentence has no names of groups in it any more
   const list = dialog.getByTestId("day-off-cancellable").getByRole("listitem");
   await expect(list).toHaveCount(2);
-  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${lessonDay(d1)} · 10:00–11:00 · ${name}` })).toHaveCount(1);
+  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: lessonWhenRe(`${lessonDay(d1)} · 10:00–11:00 · ${name}`) })).toHaveCount(1);
   await expectNoHorizontalScroll(page);
   await shot(page, `19-day-off-list-preview-${project}`);
   await dialog.getByTestId("day-off-apply").click();
