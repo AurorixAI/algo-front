@@ -186,7 +186,7 @@ test("the correction of a held lesson: the dry run (impact) is asked for the mon
   assert.doesNotMatch(journal, /const impactKey = [^;]*moneyRight/);
   assert.match(journal, /orgApi\.attendanceCorrectionImpact\(groupId, \{ lessonDate: correctingLesson\.date, lessonId: correctingLesson\.id, records: correcting\.draft \}, signal\)/);
   assert.match(journal, /if \(!effectsAllowConfirm\(impact\)\) return;/);
-  assert.match(journal, /disabled=\{correctionSaving \|\| correctionChanges\.length === 0 \|\| !effectsAllowConfirm\(impact\)\}/);
+  assert.match(journal, /disabled=\{correctionChanges\.length === 0 \|\| !effectsAllowConfirm\(impact\)\}[\s\S]{0,40}busy=\{correctionSaving\}/);
   assert.match(journal, /<MoneyEffectsBlock preview=\{impact\} onRetry=\{retryImpact\} \/>/);
   assert.doesNotMatch(journal, /correction-money-note/, "no general note instead of the block");
   assert.match(journal, /closed: periodClosedOf\(err\)/);

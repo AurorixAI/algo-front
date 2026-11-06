@@ -367,7 +367,7 @@ test("A: the facts of the sheet and of the month say «не решено»", () 
   assert.equal(P.undecidedLessonsText(0), null);
   assert.equal(P.undecidedLessonsText(undefined), null);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /не решено: \{line\.undecided\}/);
-  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /undecidedVisits: sheet\.undecided_total/);   // UX pack §5.2-бис: the item «Решить» of the block «Что нужно сделать»
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /undecidedVisits: warningsFailed \? sheet\.undecided_total : null/);   // UX pack §5.2-бис: the item «Решить» of the block «Что нужно сделать»
   // UX round of the owner (05.11): the month list says it in the ONE line of what needs an action («1 доп. урок ждёт решения», a link to «Замены»), not as a second red line
   assert.match(read("src/lib/payroll.ts"), /export function rowStatus[\s\S]*teacherAttention\(teacher\)/);   // the items of the ONE status chip (UX pack §5.2-бис)
   assert.equal(P.teacherAttention({ warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }, undecided_lessons: 2 })[0].text, "2 доп. урока ждут решения");

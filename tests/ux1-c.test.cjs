@@ -114,7 +114,7 @@ test("the month page wires the gate: no toast for a state the screen prevents, t
   assert.match(page, /calculationGate\(teachers\)/);
   assert.match(page, /disabled=\{!overview \|\| teachers\.length === 0 \|\| busy \|\| !gate\.ready\}/);
   assert.match(page, /id="payroll-calculate-hint"/);
-  assert.match(page, /aria-describedby=\{gate\.text \? "payroll-calculate-hint" : undefined\}/);
+  assert.match(page, /aria-describedby=\{gate\.text && !allSaved \? "payroll-calculate-hint" : undefined\}/);
   assert.match(page, /Указать в «Сотрудниках»/);
   // no percent is typed, kept or sent from this page any more
   assert.doesNotMatch(page, /percentKey|monthPercentText|percentProblems|buildCalculateBody|markAttempted|PercentEditor|sanitizePercentTyping/);
