@@ -11,6 +11,7 @@ import { GroupsListView } from "@/components/groups/groups-list-view";
 import { PaymentsPage } from "@/components/payments/payments-page";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { ModalActions } from "@/components/ui/modal-actions";
+import { TouchDensity } from "@/components/ui/touch-density";
 import TeacherDashboard from "@/app/teacher/dashboard/page";
 import TeacherSchedule from "@/app/teacher/schedule/page";
 import TeacherExams from "@/app/teacher/exams/page";
@@ -85,9 +86,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "gallery": root.render(<Gallery />); break;
     case "groups": page(<GroupsListView workspace="owner" />); break;
     case "payments": page(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
-    case "teacherDashboard": page(<TeacherDashboard />); break;
-    case "teacherSchedule": page(<TeacherSchedule />); break;
-    case "teacherExams": page(<TeacherExams />); break;
+    case "teacherDashboard": page(<><TouchDensity /><TeacherDashboard /></>); break;
+    case "teacherSchedule": page(<><TouchDensity /><TeacherSchedule /></>); break;
+    case "teacherExams": page(<><TouchDensity /><TeacherExams /></>); break;
     default: break;
   }
 };

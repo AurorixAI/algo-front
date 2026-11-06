@@ -921,7 +921,7 @@ export default function TeacherSchedulePage() {
             setViewMode("week");
             openAddModal();
           }}
-          variant="primary" size="sm" className="self-start sm:self-auto"
+          variant="primary" size="md" className="self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Добавить в расписание</span>

@@ -129,7 +129,7 @@ export function useToast(): {
                   type="button"
                   onClick={() => setToast(null)}
                   aria-label="Закрыть"
-                  className={`-my-1 -mr-1.5 shrink-0 rounded-tag p-1.5 ${CLOSE_HOVER[toast.type]}`}
+                  className={`-my-1 shrink-0 rounded-tag p-1.5 ${CLOSE_HOVER[toast.type]}`}
                 >
                   <X className="h-4 w-4" />
                 </button>

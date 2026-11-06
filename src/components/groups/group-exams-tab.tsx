@@ -276,7 +276,7 @@ export function GroupExamsTab({ group, workspace }: { group: GroupDetail; worksp
           </div>
           {access.canAssign && <Button
             onClick={() => setModalState("chooser")}
-            variant="primary" size="sm"
+            variant="primary" size="md"
           >
             <Plus className="w-4 h-4" /> Добавить экзамен
           </Button>}
