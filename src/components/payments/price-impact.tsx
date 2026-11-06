@@ -1,32 +1,18 @@
 "use client";
 
-import { AlertTriangle, ShieldAlert } from "lucide-react";
-import { priceItemLine, priceMoneyLines, type LogicaError, type PriceImpactMoney } from "@/lib/payments-logica";
+import { ShieldAlert } from "lucide-react";
+import type { LogicaError, PriceImpactMoney } from "@/lib/payments-logica";
+import { normalizeWhatIf } from "@/lib/whatif";
+import { WhatIfBody } from "@/components/money/whatif-table";
 
 /**
- * The money part of «Что изменится» of a price change: «С этого дня у 2 учеников появится долг: 140 000 сум.» / «У 1 ученика аванс
- * купит меньше дней…» and, below, who it is (the first ones, with the numbers).  The sheets that go «Есть изменения» are counted here too.
+ * The money part of «Что изменится» of a price change (Money-1 B3): the sentence of the server and EVERY student the price moves as a table «было → станет».
  */
 export function PriceImpactMoneyBlock({ money }: { money: PriceImpactMoney | null | undefined }) {
-  const lines = priceMoneyLines(money, 0);
-  const items = (money?.items ?? []).filter((item) => item.debt_after !== item.debt_before || item.advance_after !== item.advance_before || item.paid_until_after !== item.paid_until_before);
-  if (lines.length === 0 && items.length === 0) return null;
-  return (
-    <div className="space-y-1.5" data-testid="price-impact-money">
-      {lines.map((line) => (
-        <p key={line} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>{line}</span>
-        </p>
-      ))}
-      {items.length > 0 && (
-        <ul className="max-h-40 space-y-0.5 overflow-y-auto pl-1 text-slate-600" aria-label="У кого изменятся деньги">
-          {items.slice(0, 12).map((item) => <li key={item.membership_id}>{priceItemLine(item)}</li>)}
-          {items.length > 12 && <li className="text-slate-500">и ещё {items.length - 12}</li>}
-        </ul>
-      )}
-    </div>
-  );
+  // Money-1 B3: every student the price moves, «было → станет» in сум, in lessons and in dates (+ the next period), the individual prices apart
+  const window = normalizeWhatIf(money as unknown as Record<string, unknown> | null | undefined, "price");
+  if (!window || (window.items.length === 0 && window.overrides.length === 0 && !window.text)) return null;
+  return <WhatIfBody window={window} testId="price-impact-money" />;
 }
 
 /**

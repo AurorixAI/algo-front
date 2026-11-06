@@ -52,7 +52,7 @@ export const CANCELLATION_TEACHER_LINE = "Преподавателю: урок �
 /**
  * The choice in the dialog of a cancellation (UX pack №5): the centre's fault is the default, a holiday is nobody's.  Under EACH option stands what it does to the money (the words of
  * the dictionary: «перерасчёт» for the student, «не входит в зарплату» for the teacher), so nothing has to be guessed before the button.  Checked against the server (`lesson_cancel._kind_for`,
- * `payments_service`): «по вине центра» is deducted from the NEXT payment only when the centre switched «Вычитать из следующей оплаты» on (the setting of «Оплаты»), a holiday never; a
+ * `payments_service`): «по вине центра» lowers the debt AT ONCE only when the centre switched «Уменьшать долг сразу» on (the setting of «Оплаты»), a holiday never; a
  * lesson that did not take place is not paid to the teacher in either case.  The server has no preview of the cancellation with numbers (`reconcile/cancel` has no dry run) - the sums are not told.
  */
 export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: string; students: string; teacher: string }> = [

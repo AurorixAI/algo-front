@@ -239,13 +239,13 @@ test.describe("monthly centre", () => {
     const membership = await org.membershipId(student.id, group.id);
     const page = await signIn(org.owner);
 
-    // --- 1. the setting: «Общий месяц для всех» + «Вычитать из следующей оплаты»
+    // --- 1. the setting: «Общий месяц для всех» + «Уменьшать долг сразу»
     await page.goto("/owner/settings?section=payments");
     const section = page.getByRole("region", { name: "Оплаты" });
     await section.getByRole("radio", { name: /Общий месяц для всех/ }).check();
     await pickOption(page, section.getByRole("combobox", { name: "День, с которого начинается общий месяц" }), String(billingDay));
     await expect(section.getByTestId("centre-cancel-setting")).toBeVisible();
-    await section.getByRole("radio", { name: "Вычитать из следующей оплаты" }).check();
+    await section.getByRole("radio", { name: "Уменьшать долг сразу" }).check();
     await shot(page, `06-settings-recalc-${project}`);
     await section.getByRole("button", { name: "Сохранить" }).click();
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();

@@ -145,6 +145,16 @@ export interface PriceImpact {
   stale_sheets: PriceImpactSheet[];
   /** LOGIC-A decision 4: who gets a debt / buys fewer days with the new price (null from an older server and for a role without money). */
   money?: PriceImpactMoney | null;
+  /** Money-1 B2: only when this is the FIRST price of the group - the day it really acts from (the start of the running period of each student) and the server's sentence. */
+  first_price?: FirstPriceImpact | null;
+}
+
+export interface FirstPriceImpact {
+  requested_valid_from: string | null;
+  valid_from: string | null;
+  moved: boolean;
+  students_without_price: number;
+  text: string;
 }
 
 /** `PUT /org/groups/{id}/price`; with `?dry_run=1` only `impact` is filled (`current` and `history` are null). */

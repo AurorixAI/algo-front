@@ -48,7 +48,9 @@ import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMEN
 import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
-import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
+import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges } from "@/lib/payments-logica";
+import { RegimeChangeDialog } from "@/components/settings/regime-change-dialog";
+import { PaymentsHistory } from "@/components/settings/payments-history";
 import { effectLines, effectLineTexts, moneyEffectsOf } from "@/lib/money-effects";
 import { DivisorEffects } from "@/components/payroll/divisor-effects";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
@@ -175,9 +177,10 @@ function usePaymentSettingsDraft(enabled: boolean) {
   const setSave = (scope: PaymentSettingsScope, state: SaveState) =>
     setSaves((previous) => ({ ...previous, [scope]: state }));
 
-  const save = async (scope: PaymentSettingsScope) => {
+  /** `true` when the settings are saved (or there was nothing to save); the window of a change of the mode closes only then. */
+  const save = async (scope: PaymentSettingsScope): Promise<boolean> => {
     const problem = validatePaymentSettings(form, scope);
-    if (problem) { setSave(scope, { saving: false, saved: false, error: problem }); return; }
+    if (problem) { setSave(scope, { saving: false, saved: false, error: problem }); return false; }
     // Only the fields this section shows: a hidden leftover (the other model's size, say) is not sent.
     const keys = scope === "payments" ? paymentsScopeKeys(paymentModelOf(form)) : ATTENDANCE_SCOPE_KEYS;
     const changes = diffPaymentSettings(loaded, form, keys);
@@ -185,7 +188,7 @@ function usePaymentSettingsDraft(enabled: boolean) {
       setSave(scope, { saving: false, saved: true, error: null });
       setTimeout(() => setSaves((previous) => ({ ...previous, [scope]: { ...previous[scope], saved: false } })), 3000);
     };
-    if (Object.keys(changes).length === 0) { flashSaved(); return; }
+    if (Object.keys(changes).length === 0) { flashSaved(); return true; }
     setSave(scope, { saving: true, saved: false, error: null });
     try {
       const updated = await orgApi.updatePaymentSettings(changes);
@@ -199,8 +202,10 @@ function usePaymentSettingsDraft(enabled: boolean) {
       });
       flashSaved();
       void refreshSummary(true, { recheck: true });
+      return true;
     } catch (e: any) {
       setSave(scope, { saving: false, saved: false, error: e.message || "Ошибка сохранения" });
+      return false;
     }
   };
 
@@ -321,21 +326,11 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   const model = paymentModelOf(form);
   // F12: a new mode starts for each student from the start of his next period; the dry run says whom it touches and when.
   const regimeDiff = regimeChanges(diffPaymentSettings(loaded, form, paymentsScopeKeys(model)) as Record<string, unknown>);
-  const regimeKey = JSON.stringify(regimeDiff);
   const regimeChanged = Object.keys(regimeDiff).length > 0;
-  const [regime, setRegime] = useState<{ key: string; lines: string[]; error: string | null } | null>(null);
-  useEffect(() => {
-    if (!regimeChanged) { setRegime(null); return; }
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      orgApi.previewPaymentSettings(regimeDiff)
-        .then((answer) => { if (!cancelled) setRegime({ key: regimeKey, lines: regimeImpactLines(answer.regime_impact), error: null }); })
-        .catch((cause) => { if (!cancelled) setRegime({ key: regimeKey, lines: [], error: cause instanceof Error ? cause.message : "Не удалось проверить последствия" }); });
-    }, 400);
-    return () => { cancelled = true; clearTimeout(timer); };
-    // `regimeDiff` is a new object on every render; its key stands for the content.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [regimeChanged, regimeKey]);
+  // Money-1 B3: «Сохранить» of a change of the mode opens the window that says, per student, what it does (the dry run is asked inside it)
+  const [regimeOpen, setRegimeOpen] = useState(false);
+  const saveSection = () => { if (regimeChanged) setRegimeOpen(true); else void draft.save("payments"); };
+  const confirmRegime = () => { void draft.save("payments").then((ok) => { if (ok) setRegimeOpen(false); }); };
   const patch = (next: Partial<PaymentSettings>) => draft.patch("payments", next);
   const choose = (key: PaymentModel) => patch(paymentModelPatch(key));
 
@@ -344,10 +339,11 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
       title="Оплаты"
       description={PAYMENTS_SECTION_DESCRIPTION}
       icon={Wallet}
-      onSave={() => void draft.save("payments")}
+      onSave={saveSection}
       saving={state.saving}
       saved={state.saved}
     >
+      <RegimeChangeDialog open={regimeOpen} changes={regimeDiff} saving={state.saving} error={state.error} onConfirm={confirmRegime} onClose={() => setRegimeOpen(false)} />
       <AccountingStartLine
         loaded={loaded.accounting_start_date ?? null}
         value={form.accounting_start_date ?? null}
@@ -388,14 +384,6 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         </div>
         {/* the warning is for the moment of a CHANGE (unsaved): it says when the new mode starts and whom it touches */}
         {regimeChanged && <p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">{REGIME_HINT}</p>}
-        {regimeChanged && regime && regime.key === regimeKey && regime.error && (
-          <p role="alert" className="mt-1 text-xs font-medium text-rose-700">{regime.error}</p>
-        )}
-        {regimeChanged && regime && regime.key === regimeKey && regime.lines.length > 0 && (
-          <ul role="status" className="mt-1 space-y-0.5 text-xs font-medium text-amber-800" data-testid="regime-impact">
-            {regime.lines.map((line) => <li key={line}>{line}</li>)}
-          </ul>
-        )}
       </fieldset>
 
       {model === "fixed_day" && (
@@ -446,7 +434,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         />
       )}
 
-      {model === "lessons" ? <PackageCancelHint /> : <CentreCancelSetting value={form.centre_cancel_recalc} onChange={(next) => patch({ centre_cancel_recalc: next })} />}
+      {model === "lessons" ? <PackageCancelHint /> : <CentreCancelSetting value={form.centre_cancel_recalc} serverHint={loaded.recalc_hint} onChange={(next) => patch({ centre_cancel_recalc: next })} />}
 
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>
@@ -464,6 +452,8 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form.admin_can_manage ? "translate-x-5" : ""}`} />
         </button>
       </div>
+
+      <PaymentsHistory />
 
       {state.error && (
         <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{state.error}</p>

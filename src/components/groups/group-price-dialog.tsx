@@ -26,9 +26,10 @@ import {
   type PriceImpact,
 } from "@/lib/group-price";
 import { formatMoneyInput } from "@/lib/payments";
+import { tidyMoneyText } from "@/lib/money-format";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { logicaError, type LogicaError } from "@/lib/payments-logica";
-import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_FORM } from "@/components/money/dialog-footer";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import { PriceBlockedBanner, PriceImpactMoneyBlock } from "@/components/payments/price-impact";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
@@ -175,7 +176,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       description={`${groupName} · ${priceColumnLabel(label)}`}
       onClose={onClose}
       busy={saving}
-      maxWidthClassName={MONEY_WINDOW_FORM}
+      maxWidthClassName={MONEY_WINDOW_TABLE}
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Сохранить" submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >
@@ -246,6 +247,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
             ) : shownImpact ? (
               <>
                 <p>{impactStudentsText(shownImpact)}.</p>
+                {shownImpact.first_price && <p className="text-slate-700" data-testid="first-price-note">{tidyMoneyText(shownImpact.first_price.text)}</p>}
                 <PriceImpactMoneyBlock money={shownImpact.money} />
                 {stale && (
                   <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">

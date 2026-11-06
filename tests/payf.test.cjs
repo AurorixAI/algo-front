@@ -69,7 +69,7 @@ test("1. the forecast is on the list, the group tab and the student's block, and
 test("4. ONE dictionary of the names: settings, hints and the statement read the same words", () => {
   assert.deepEqual(P.PAYMENT_MODELS.map((m) => [m.key, m.title]), [
     ["payment_date", "Свой месяц у каждого ученика"], ["fixed_day", "Общий месяц для всех"], ["lessons", "Пакет уроков"]]);
-  assert.equal(P.PAYMENT_MODELS[0].hint, "Месяц считается с первого занятия ученика: 05.10 → 04.11");
+  assert.equal(P.PAYMENT_MODELS[0].hint, "Месяц считается с даты «Оплата с» — по умолчанию это первое занятие ученика в группе: 05.10 → 04.11");
   assert.equal(P.PAYMENT_MODELS[1].hint, "У всех один период, например с 1-го по последнее число; первый неполный месяц — по урокам");
   assert.match(P.PAYMENT_MODELS[2].hint, /отменённые уроки не списываются/);
   assert.equal(P.paymentModelTitle("fixed_day"), "Общий месяц для всех");
@@ -93,7 +93,7 @@ test("3. the setting «Уроки, отменённые центром» belongs
   const settings = read("src/lib/payf-settings.ts");
   assert.match(settings, /Уроки, отменённые центром, при помесячной оплате/);
   assert.match(settings, /label: "Не пересчитывать"/);
-  assert.match(settings, /label: "Вычитать из следующей оплаты"/);
+  assert.match(settings, /label: "Уменьшать долг сразу"/);
   assert.match(read("src/app/owner/settings/page.tsx"), /model === "lessons" \? <PackageCancelHint \/> : <CentreCancelSetting/);
 });
 
@@ -288,7 +288,7 @@ test("the small components render their words", () => {
   const setting = html(React.createElement(CentreCancelSetting, { value: false, onChange() {} }));
   assert.match(setting, /Уроки, отменённые центром, при помесячной оплате/);
   assert.match(setting, /Не пересчитывать/);
-  assert.match(setting, /Вычитать из следующей оплаты/);
+  assert.match(setting, /Уменьшать долг сразу/);
   assert.equal((setting.match(/checked=""/g) || []).length, 1);
 
   const { DayOffWarning } = require(path.join(root, "src/components/schedule/day-off-warning.tsx"));

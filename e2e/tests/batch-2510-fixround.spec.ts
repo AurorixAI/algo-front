@@ -252,7 +252,7 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expect(section.getByTestId("accounting-start-editor")).toHaveCount(0);
   await expect(section.getByRole("radio", { name: /Свой месяц|Общий месяц|Пакет уроков/ })).toHaveCount(3);
   // the cards carry ONE short line each
-  await expect(section.getByText("Месяц считается с первого занятия ученика")).toBeVisible();
+  await expect(section.getByText("Месяц считается с даты «Оплата с» — по умолчанию это первое занятие ученика в группе: 05.10 → 04.11")).toBeVisible();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
   const gap = async () => (await section.getByRole("radio", { name: /Свой месяц/ }).boundingBox())!.y - (await line.boundingBox())!.y;   // the page may scroll; what stands between the line and the cards must not change
   const before = await gap();

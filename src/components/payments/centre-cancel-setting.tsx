@@ -2,12 +2,13 @@
 
 import { CENTRE_CANCEL_OPTIONS, CENTRE_CANCEL_TITLE, PACKAGE_CANCEL_HINT_TEXT, PACKAGE_CANCEL_HINT_TITLE } from "@/lib/payf-settings";
 import { Radio } from "@/components/ui/radio";
+import { tidyMoneyText } from "@/lib/money-format";
 
 /**
- * PAY-F, part 3: «Уроки, отменённые центром, при помесячной оплате» - do not recalculate (as before) or deduct the lesson from the next payment.
+ * PAY-F, part 3: «Уроки, отменённые центром, при помесячной оплате» - do not recalculate (as before) or lower the debt at once (Money-1 B8).
  * Shown for the two monthly ways to count only (a package never charges a cancelled lesson).  A change acts for the lessons dated from the day it is saved.
  */
-export function CentreCancelSetting({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) {
+export function CentreCancelSetting({ value, onChange, serverHint }: { value: boolean; onChange: (next: boolean) => void; /** The sentence of the server for the option that deducts at once (`recalc_hint`). */ serverHint?: string | null }) {
   return (
     <fieldset className="space-y-2 rounded-xl bg-slate-50 px-4 py-3" data-testid="centre-cancel-setting">
       <legend className="text-sm font-semibold text-slate-900">{CENTRE_CANCEL_TITLE}</legend>
@@ -20,7 +21,7 @@ export function CentreCancelSetting({ value, onChange }: { value: boolean; onCha
             <Radio name="payments-centre-cancel" checked={value === option.value} onChange={() => onChange(option.value)} className="mt-0.5" />
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
-              <span className="block text-xs text-slate-500">{option.hint}</span>
+              <span className="block text-xs text-slate-500">{option.value && serverHint ? tidyMoneyText(serverHint) : option.hint}</span>
             </span>
           </label>
         ))}

@@ -1,9 +1,12 @@
 /** PAY-F: the words of the setting «Уроки, отменённые центром, при помесячной оплате» (the screen is `components/payments/centre-cancel-setting.tsx`). */
 export const CENTRE_CANCEL_TITLE = "Уроки, отменённые центром, при помесячной оплате";
 
+/** Money-1 B8: the hint of the second option is the SERVER's (`recalc_hint` of `GET /org/settings/payments`); this is the same sentence for an answer that has none.  The deduction is NOT «из следующей оплаты». */
+export const RECALC_HINT_FALLBACK = "Урок, отменённый центром, уменьшит долг ученика сразу — на стоимость одного занятия периода; если отменены все уроки периода, перерасчёт вернёт всю цену. Прошлые отмены не пересчитываются";
+
 export const CENTRE_CANCEL_OPTIONS: ReadonlyArray<{ value: boolean; label: string; hint: string }> = [
   { value: false, label: "Не пересчитывать", hint: "Отменённый центром урок не меняет оплату месяца (как раньше)." },
-  { value: true, label: "Вычитать из следующей оплаты", hint: "Урок, отменённый «по вине центра», вычтут из следующей оплаты ученика. Праздники и выходные не пересчитываются. Действует для уроков с дня включения." },
+  { value: true, label: "Уменьшать долг сразу", hint: RECALC_HINT_FALLBACK },
 ];
 
 /** A package never charges a cancelled lesson, so «Уроки, отменённые центром» is not a setting there: one quiet hint takes its place. */
@@ -19,7 +22,7 @@ export const HELP_LABEL = "Подробнее";
 
 /** The three ways to count a payment: ONE line each (the long hint of `PAYMENT_MODELS` is the «?» of the card). */
 export const PAYMENT_MODEL_SHORT_HINT: Record<"payment_date" | "fixed_day" | "lessons", string> = {
-  payment_date: "Месяц считается с первого занятия ученика",
+  payment_date: "Месяц считается с даты «Оплата с» — по умолчанию это первое занятие ученика в группе: 05.10 → 04.11",
   fixed_day: "У всех один период, например с 1-го числа",
   lessons: "Оплата закрывает N проведённых уроков",
 };

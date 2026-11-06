@@ -38,7 +38,7 @@ import {
 import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
-import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -368,6 +368,7 @@ export function AssignOverrideDialog({
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}
+      maxWidthClassName={MONEY_WINDOW_TABLE}
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Сохранить" submitFor="membership-price-form" busy={busy} onCancel={onClose} testId="membership-price-save" />}
     >
