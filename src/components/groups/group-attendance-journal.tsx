@@ -1194,7 +1194,7 @@ export function GroupAttendanceJournal({
     }
     // Money-1 A6: nobody is «Был» / «Опоздал» - the finish makes the lesson held and PAID to the teacher: an explicit yes first, then the same finish carries it
     if (nobodyCame !== null) {
-      if (!(await askConfirm(nobodyCameQuestion(nobodyCame)))) return "stopped";
+      if (!(await askConfirm(nobodyCameQuestion(nobodyCame, { date: lesson.date, startTime: lesson.start_time ?? lesson.startTime, endTime: lesson.endTime, groupName })))) return "stopped";
       return finishLesson(lesson, acknowledgeLiveExam, true);
     }
     if (!finished) return "stopped";

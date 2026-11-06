@@ -73,20 +73,18 @@ test("UX pack №18: «Сохранить с уроками без отметк�
   assert.equal(q.title, "Сохранить с уроками без отметки?");
   assert.equal(q.confirmLabel, "Сохранить и закрыть месяц");
   assert.equal(q.cancelLabel, "Отмена");
-  const lines = q.message.split("\n");
-  assert.equal(lines[0], "2 урока без отметки не попадут в зарплату:");
-  assert.ok(lines.includes("12.10 · 7-А Алгебра"));
-  assert.ok(lines.includes("14.10 · 9-Б Геометрия · урок не завершён"));
-  assert.ok(lines.includes("Ещё 3 урока вы подтвердили раньше."));
-  assert.equal(lines[lines.length - 1], "После сохранения месяц закроется.");
+  // re-audit С10: the sentence, the LIST (rows: the date on the left, the group, a quiet tail), the journal link, the last line
+  assert.equal(q.message, "2 урока без отметки не попадут в зарплату:");
+  assert.deepEqual(q.items, [{ label: "пн, 12 октября", text: "7-А Алгебра" }, { label: "ср, 14 октября", text: "9-Б Геометрия", note: "урок не завершён" }]);
+  assert.equal(q.footnote, "Ещё 3 урока без отметки вы уже решили не включать в зарплату.\nПосле сохранения месяц закроется.");
   assert.deepEqual(q.link, { label: "Открыть журнал", href: "/owner/groups/g1?tab=attendance&month=2026-10&lesson=l1&date=2026-10-12" }, "the journal of the first lesson");
-  assert.doesNotMatch(q.message, /Сохранить всё равно|ведомост/);
+  assert.doesNotMatch(`${q.message}${q.footnote}`, /Сохранить всё равно|ведомост|подтвердили раньше/);
   // one lesson: the singular; nothing confirmed before - no such line
   const first = OL.openLessonsQuestion(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 1, items: [refusal.detail.items[0]] } }));
-  assert.equal(first.message.split("\n")[0], "1 урок без отметки не попадёт в зарплату:");
-  assert.doesNotMatch(first.message, /подтвердили раньше/);
+  assert.equal(first.message, "1 урок без отметки не попадёт в зарплату:");
+  assert.equal(first.footnote, "После сохранения месяц закроется.", "nothing was decided before - no such line");
   const five = OL.openLessonsQuestion({ kind: "list", count: 5, items: [] });
-  assert.equal(five.message.split("\n")[0], "5 уроков без отметки не попадут в зарплату.", "no list: a full stop, no link");
+  assert.equal(five.message, "5 уроков без отметки не попадут в зарплату.", "no list: a full stop, no link");
   assert.equal(five.link, undefined);
   const unknown = OL.openLessonsQuestion({ kind: "unknown" });
   assert.equal(unknown.title, "Не удалось проверить уроки без отметки");
@@ -95,9 +93,9 @@ test("UX pack №18: «Сохранить с уроками без отметк�
   assert.equal(OL.openLessonsQuestion({ kind: "none" }), null);
   // a long list is capped, the rest is counted
   const many = Array.from({ length: 12 }, (_, i) => ({ lessonDate: `2026-10-${String(i + 1).padStart(2, "0")}`, groupId: "g", lessonId: `l${i}`, kind: "missed" }));
-  const capped = OL.openLessonsQuestion({ kind: "list", count: 12, items: many }).message.split("\n");
-  assert.equal(capped.filter((line) => /^\d\d\.10$/.test(line)).length, 8);
-  assert.ok(capped.includes("и ещё 4"));
+  const capped = OL.openLessonsQuestion({ kind: "list", count: 12, items: many }).items;
+  assert.equal(capped.filter((row) => row.label).length, 8);
+  assert.ok(capped.some((row) => row.text === "и ещё 4"));
 });
 
 test("m3: the save AND the re-save ask what the server asks - `false` first; the 409 is shown (its list); only «Сохранить и закрыть месяц» sends the same request again with `true`", async () => {
@@ -120,7 +118,7 @@ test("m3: the save AND the re-save ask what the server asks - `false` first; the
   assert.deepEqual(yes.phases, [true, false], "the screen stops saying «Сохраняем…» while the window is open");
   assert.equal(yes.asked.length, 1);
   assert.match(yes.asked[0].message, /^1 урок без отметки не попадёт в зарплату:/);
-  assert.match(yes.asked[0].message, /12\.10 · 7-А$/m);
+  assert.deepEqual(yes.asked[0].items.map((row) => `${row.label} · ${row.text}`), ["пн, 12 октября · 7-А"]);
   const no = await run(false);
   assert.deepEqual(no.sent, [false], "«Отмена»: nothing is sent again");
   assert.deepEqual(no.outcome, { cancelled: true });
@@ -328,9 +326,7 @@ test("R3 item 10: the body of a save carries `confirm_open_lessons`; the 409 OPE
   const q = OL.openLessonsQuestion(gate);
   assert.equal(q.title, "Сохранить с уроками без отметки?");
   assert.equal(q.confirmLabel, "Сохранить и закрыть месяц");
-  const lines = q.message.split("\n");
-  assert.ok(lines.includes("12.10 · 7-А Алгебра"), "the group name is the server's `groupName`");
-  assert.ok(lines.includes("14.10 · 9-Б Геометрия · урок не завершён"));
+  assert.deepEqual(q.items.map((row) => [row.label, row.text, row.note ?? null]), [["пн, 12 октября", "7-А Алгебра", null], ["ср, 14 октября", "9-Б Геометрия", "урок не завершён"]], "the group name is the server's `groupName`");
   // a refusal without a list still asks (the count is the server's)
   assert.equal(OL.gateOfConfirmRefusal({ code: "OPEN_LESSONS_CONFIRM_REQUIRED", detail: { count: 3 } }).count, 3);
   assert.equal(OL.openLessonItemLine({ lessonDate: "2026-10-12", groupId: "g", lessonId: "l", kind: "missed", groupName: "  " }, new Map()), "12.10 · Посещаемость не отмечена");

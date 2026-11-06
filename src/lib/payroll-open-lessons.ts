@@ -5,8 +5,8 @@
  *
  * Pure: no React, no network.
  */
-import { formatDateRu } from "./business-time";
-import type { ConfirmRequest } from "./confirm-dialog";
+import { formatDateRu, formatWeekdayDate } from "./business-time";
+import type { ConfirmItem, ConfirmRequest } from "./confirm-dialog";
 import { journalHref, OPEN_LESSON_IN_PROGRESS_LABEL, OPEN_LESSON_MISSED_LABEL } from "./open-lessons";
 import { pluralRu } from "./plural";
 import type { OpenLessonItem } from "./payroll";
@@ -71,10 +71,17 @@ export const OPEN_LESSONS_TITLE = "Сохранить с уроками без �
 export const OPEN_LESSONS_JOURNAL_LABEL = "Открыть журнал";
 const CLOSES_MONTH = "После сохранения месяц закроется.";
 
-/** «14.10 · 8-Б» - a lesson of the list of the question (UX pack №18); a lesson that was started and not finished says so. */
+/** A lesson of the list of the question as a ROW (re-audit С10): the date on the left («12.10»), the group, a quiet tail for a lesson that was started and not finished. */
+export function openLessonQuestionItem(item: OpenLessonItem): ConfirmItem {
+  const day = formatWeekdayDate(item.lessonDate);        // «пн, 12 октября»: the date of a lesson in a row is written ONE way (re-audit С14)
+  const group = (item.groupName ?? "").trim();
+  return { label: day, text: group || "Урок без группы", ...(item.kind === "in_progress" ? { note: "урок не завершён" } : {}) };
+}
+
+/** «14.10 · 8-Б · урок не завершён» - the same row as one line (a toast, a log). */
 export function openLessonQuestionLine(item: OpenLessonItem): string {
-  const day = formatDateRu(item.lessonDate).slice(0, 5);
-  return [day, (item.groupName ?? "").trim(), item.kind === "in_progress" ? "урок не завершён" : ""].filter(Boolean).join(" · ");
+  const row = openLessonQuestionItem(item);
+  return [row.label, row.text, row.note].filter(Boolean).join(" · ");
 }
 
 /** Where the lesson is marked: the journal of its group at the day (the first lesson of the list); null without a group. */
@@ -96,23 +103,22 @@ export function openLessonsQuestion(gate: OpenLessonsGate): ConfirmRequest | nul
       cancelLabel: OPEN_LESSONS_BACK_LABEL,
     };
   }
-  const shown = gate.items.slice(0, OPEN_LESSONS_LIST_LIMIT).map((item) => openLessonQuestionLine(item));
+  const shown = gate.items.slice(0, OPEN_LESSONS_LIST_LIMIT).map((item) => openLessonQuestionItem(item));
   const rest = gate.count - shown.length;
-  const lines = rest > 0 && shown.length > 0 ? [...shown, `и ещё ${rest}`] : shown;
-  const head = `${gate.count} ${pluralRu(gate.count, "урок без отметки не попадёт", "урока без отметки не попадут", "уроков без отметки не попадут")} в зарплату${lines.length > 0 ? ":" : "."}`;
+  const rows: ConfirmItem[] = rest > 0 && shown.length > 0 ? [...shown, { text: `и ещё ${rest}` }] : shown;
+  const head = `${gate.count} ${pluralRu(gate.count, "урок без отметки не попадёт", "урока без отметки не попадут", "уроков без отметки не попадут")} в зарплату${rows.length > 0 ? ":" : "."}`;
   const confirmed = gate.alreadyConfirmed ?? 0;
   const href = openLessonJournalHref(gate.items[0]);
   return {
     title: OPEN_LESSONS_TITLE,
-    message: [
-      head,
-      ...lines,
-      ...(confirmed > 0 ? ["", `Ещё ${confirmed} ${pluralRu(confirmed, "урок", "урока", "уроков")} вы подтвердили раньше.`] : []),
-      "",
+    message: head,
+    items: rows,
+    ...(href ? { link: { label: OPEN_LESSONS_JOURNAL_LABEL, href } } : {}),
+    footnote: [
+      ...(confirmed > 0 ? [`Ещё ${confirmed} ${pluralRu(confirmed, "урок", "урока", "уроков")} без отметки вы уже решили не включать в зарплату.`] : []),
       CLOSES_MONTH,
     ].join("\n"),
     confirmLabel: OPEN_LESSONS_SAVE_LABEL,
     cancelLabel: OPEN_LESSONS_BACK_LABEL,
-    ...(href ? { link: { label: OPEN_LESSONS_JOURNAL_LABEL, href } } : {}),
   };
 }

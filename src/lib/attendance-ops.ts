@@ -3,7 +3,7 @@
  * the version of a lesson record (optimistic lock), the conflict of two editors, a live exam at the finish,
  * an empty roster, a lesson older than 7 days.  Pure: no React, no network.
  */
-import { addIsoDays, formatUtcNaiveAsBusinessTime } from "./business-time";
+import { addIsoDays, formatLessonWhen, formatUtcNaiveAsBusinessTime } from "./business-time";
 import {
   LESSON_TOO_OLD_HINT,
   LESSON_TOO_OLD_TEXT,
@@ -169,18 +169,21 @@ export const NOBODY_CAME_TEXT = "Никто не пришёл. Если заве
 /** Our words for the question when the answer of the server has none (R3 n6: the sentence of the server is the question when it came). */
 export const NOBODY_CAME_FALLBACK_QUESTION = "Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя.";
 /** The other road, said once under the sentence of the money (UX pack №21). */
-export const NOBODY_CAME_OTHER_ROAD = "Если урока не было — вернитесь и нажмите «Урока не было».";
+export const NOBODY_CAME_OTHER_ROAD = "Если урока не было — вернитесь и нажмите «Урока\u00A0не\u00A0было».";
 
 /**
  * The question before a finish where nobody came (UX pack №21): the title says it («Никто не пришёл?»), the text does NOT repeat it - the sentence of the SERVER about the money (`message` of the 409
  * without its first words «Никто не пришёл.»; ours stands in only when the answer has none) and the other road, «Урока не было».  Buttons: «Завершить урок» / «Отмена».
  */
-export function nobodyCameQuestion(serverText?: string | null): ConfirmRequest {
+export function nobodyCameQuestion(serverText?: string | null, lesson?: { date: string | null | undefined; startTime?: string | null; endTime?: string | null; groupName?: string | null }): ConfirmRequest {
   const said = (serverText ?? "").trim().replace(/^Никто не пришёл\.?\s*/i, "").replace(/^./, (c) => c.toUpperCase());
   const money = said ? (/[.!?]$/.test(said) ? said : `${said}.`) : NOBODY_CAME_FALLBACK_QUESTION;
+  // re-audit С13: the window names the lesson it ends (group · day · time); the two sentences are two paragraphs
+  const when = lesson ? formatLessonWhen(lesson) : "";
   return {
     title: "Никто не пришёл?",
-    message: /Урока не было/.test(money) ? money : `${money}\n${NOBODY_CAME_OTHER_ROAD}`,
+    ...(when ? { subtitle: when } : {}),
+    message: /Урока не было/.test(money) ? money : `${money}\n\n${NOBODY_CAME_OTHER_ROAD}`,
     confirmLabel: FINISH_LESSON_ACTION,
     cancelLabel: "Отмена",
   };

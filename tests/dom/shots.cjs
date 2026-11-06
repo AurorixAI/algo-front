@@ -187,6 +187,9 @@ const SHOTS = [
       currentPreview = shot.preview ?? null;
       currentExtra = shot.extra ?? null;
       const { page, errors } = await openPage(browser, shot.entry, server, { width, height });
+      // a window is opened with the MOUSE: the opener is a real button that took focus from a click, so the script focus of the window is not the keyboard's and draws no ring (re-audit В1)
+      await page.evaluate(() => { const opener = document.createElement("button"); opener.id = "__opener"; opener.textContent = "."; opener.style.cssText = "position:fixed;left:0;top:0;width:4px;height:4px;padding:0;border:0;opacity:0"; document.body.appendChild(opener); });
+      await page.click("#__opener", { force: true });
       if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
       if (shot.media) await page.emulateMedia({ media: shot.media });
       if (shot.search) await page.evaluate((search) => { window.__search = search; }, shot.search);

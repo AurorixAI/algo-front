@@ -6,10 +6,23 @@
  * Pure (no React, no window), so node:test drives it.  Questions asked while another is open wait their turn.
  */
 
+/** A row of the list of a question: «12.10 · 7-А Алгебра · урок не завершён» - the date on the left, the name, a quiet tail (re-audit С10). */
+export interface ConfirmItem {
+  label?: string;
+  text: string;
+  note?: string;
+}
+
 export interface ConfirmRequest {
   title: string;
+  /** A line under the title: WHAT is asked about («7-А Алгебра · вт, 3 ноября · 16:00–17:00»), so the person sees which lesson it is. */
+  subtitle?: string;
   /** One or two sentences: what will happen. */
   message?: string;
+  /** A list under the sentence (the lessons the question is about): rows, not lines of a paragraph. */
+  items?: ConfirmItem[];
+  /** The last line, after the list and the link («После сохранения месяц закроется.»). */
+  footnote?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   /** `danger` (red button) for something that cannot be undone; default `primary`. */

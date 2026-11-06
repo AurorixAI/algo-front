@@ -272,10 +272,10 @@ test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says
   assert.match(failure.text, /оплачен преподавателю|войдёт в зарплату/);
   assert.equal(OPS.isNobodyCame, undefined, "dead code is gone: the kind of the failure is `nobody_came`");
   // UX pack №21: the title says «Никто не пришёл?», the text does not repeat it: the sentence of the SERVER about the money (when it came) + the other road
-  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя").message, "Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя.\n" + OPS.NOBODY_CAME_OTHER_ROAD);
-  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Слова сервера.").message, "Слова сервера.\n" + OPS.NOBODY_CAME_OTHER_ROAD);
-  assert.equal(OPS.nobodyCameQuestion("  ").message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n" + OPS.NOBODY_CAME_OTHER_ROAD);
-  assert.equal(OPS.nobodyCameQuestion().message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя").message, "Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя.\n\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Слова сервера.").message, "Слова сервера.\n\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion("  ").message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n\n" + OPS.NOBODY_CAME_OTHER_ROAD);
+  assert.equal(OPS.nobodyCameQuestion().message, OPS.NOBODY_CAME_FALLBACK_QUESTION + "\n\n" + OPS.NOBODY_CAME_OTHER_ROAD);
   assert.equal(OPS.nobodyCameQuestion("Никто не пришёл. Урок войдёт в зарплату. Если урока не было, нажмите «Урока не было»").message, "Урок войдёт в зарплату. Если урока не было, нажмите «Урока не было».", "the server already names the other road - it is not said twice");
   const q = OPS.nobodyCameQuestion();
   assert.equal(q.title, "Никто не пришёл?");
@@ -286,7 +286,7 @@ test("nobody came: 409 NOBODY_CAME is its own kind of refusal; the question says
   assert.match(journal, /if \(failure\.kind === "nobody_came"\) \{ nobodyCame = failure\.text; return false; \}/);
   // R3 #8: the FIRST request already says `confirmNobodyCame: false`; only the second one, after the yes, says true
   assert.match(journal, /status: "completed",[\s\S]{0,400}?\n\s*confirmNobodyCame,/);
-  assert.match(journal, /if \(nobodyCame !== null\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(nobodyCame\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
+  assert.match(journal, /if \(nobodyCame !== null\) \{\s*if \(!\(await askConfirm\(nobodyCameQuestion\(nobodyCame, \{[^}]*\}\)\)\)\) return "stopped";\s*return finishLesson\(lesson, acknowledgeLiveExam, true\);/);
   const panel = read("src/lib/use-teacher-lesson-panel.ts");
   assert.match(panel, /if \(failure\.kind === "nobody_came"\) askNobody = failure\.text;/);
   assert.match(panel, /if \(askNobody !== null && \(await askConfirm\(nobodyCameQuestion\(askNobody\)\)\)\) await handleFinishLesson\(acknowledgeLiveExam, marks, true\);/);

@@ -78,7 +78,7 @@ w.mountShot = (name: string, user: Record<string, unknown> = { role: "owner", or
     }
     case "nobodyCame": {
       root.render(<ConfirmHost />);
-      setTimeout(() => { void askConfirm(nobodyCameQuestion(NOBODY_CAME_TEXT)); }, 50);
+      setTimeout(() => { void askConfirm(nobodyCameQuestion(NOBODY_CAME_TEXT, { date: "2026-11-03", startTime: "16:00", endTime: "17:00", groupName: "7-А Алгебра" })); }, 50);
       break;
     }
     case "sheetReopened": {

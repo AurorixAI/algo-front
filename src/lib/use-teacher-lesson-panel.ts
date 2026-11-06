@@ -625,7 +625,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     } finally {
       writes.end(target.key);
     }
-    if (askNobody !== null && (await askConfirm(nobodyCameQuestion(askNobody)))) await handleFinishLesson(acknowledgeLiveExam, marks, true);
+    if (askNobody !== null && (await askConfirm(nobodyCameQuestion(askNobody, { date: target.lessonDate, startTime: activeLesson.startTime, endTime: activeLesson.endTime, groupName: activeLesson.groupName })))) await handleFinishLesson(acknowledgeLiveExam, marks, true);
   };
 
   const handleCancelLesson = async () => {

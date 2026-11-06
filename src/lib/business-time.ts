@@ -248,6 +248,24 @@ export function formatWeekdayDate(isoDate: string | null | undefined): string {
   return formatIsoDateLabel(isoDate ?? "", { weekday: "short", day: "numeric", month: "long" });
 }
 
+const clock = (time: string | null | undefined): string => /^(\d{1,2}):(\d{2})/.exec(typeof time === "string" ? time : "")?.slice(1, 3).map((part, index) => (index === 0 ? part.padStart(2, "0") : part)).join(":") ?? "";
+
+/**
+ * Re-audit С14: ONE way to write WHEN a lesson is in the heading of a window or a row - «вт, 3 ноября · 11:00–12:00» (the end only when it is known; the group in front when it is given:
+ * «7-А Алгебра · вт, 3 ноября · 11:00–12:00»).  A record in a table keeps the number form (`formatRecordWhen`).  No «окт», «ноя».
+ */
+export function formatLessonWhen(input: { date: string | null | undefined; startTime?: string | null; endTime?: string | null; groupName?: string | null }): string {
+  const start = clock(input.startTime);
+  const end = clock(input.endTime);
+  const time = start ? (end ? `${start}–${end}` : start) : "";
+  return [(input.groupName ?? "").trim(), formatWeekdayDate(input.date), time].filter(Boolean).join(" · ");
+}
+
+/** «03.11.2026 · 10:00» - a record (a saved sum, a history line); the date alone when there is no time. */
+export function formatRecordWhen(isoDate: string | null | undefined, time?: string | null): string {
+  return [formatDateRu(isoDate), clock(time)].filter(Boolean).join(" · ");
+}
+
 /** YYYY-MM-DD -> ДД.ММ; "" when it is not a real date. */
 export function formatDayMonthRu(isoDate: string | null | undefined): string {
   return formatDateRu(isoDate).slice(0, 5);
