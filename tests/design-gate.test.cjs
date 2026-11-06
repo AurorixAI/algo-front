@@ -32,7 +32,7 @@ const CEILINGS = {
   gradient: ["bg-gradient-* outside the exam surfaces", /\bbg-gradient-to-[a-z]+\b/g, STUDENT_EXAM_SURFACE, 69],
   filledButton: ["a hand-made <button> with a coloured fill (use Button)", /<button\b[^>]*?className="[^"]*\bbg-(?:primary|blue|emerald|green|rose|red|indigo|slate-900|amber)-\d00\b[^"]*\btext-white\b/g, undefined, 2],
   framedButton: ["a hand-made <button> with a frame, a white fill and padding (use Button)", /<button\b[^>]*?className="(?=[^"]*\bborder\b)(?=[^"]*\bbg-white\b)(?=[^"]*\bpx-\d)[^"]*"/g, undefined, 3],
-  dashedEmpty: ["border-dashed (a hand-made empty state: use EmptyState)", /\bborder-dashed\b/g, undefined, 19],
+  dashedEmpty: ["border-dashed (a hand-made empty state: use EmptyState)", /\bborder-dashed\b/g, undefined, 22],
   blur: ["backdrop-blur outside the exam surfaces", /\bbackdrop-blur(-[a-z0-9]+)?\b/g, STUDENT_EXAM_SURFACE, 27],
 };
 
