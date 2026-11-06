@@ -252,7 +252,7 @@ test("A: the row of money - the lesson, who held it, how many came; no amount; t
   const plain = text(html);
   assert.match(plain, /Дополнительные уроки ждут решения · 2/);
   assert.doesNotMatch(plain, /Дополнительный урок — оплатить преподавателю\?/, "the question is in the window, not in every row");
-  assert.match(plain, /7-А · чт, 5 ноября · 16:00–17:00/);
+  assert.match(plain, /7-А · чт, 5 ноября · 16:00⁠–⁠17:00/);
   assert.match(plain, /преподаватель: Рахимов Т\. · пришли 3 из 10/);
   assert.equal((plain.match(/Просит включить в зарплату/g) || []).length, 1);
   assert.match(plain, /Просит включить в зарплату: Каримова Д\./);
@@ -413,7 +413,7 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
 });
 
 test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
-  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт, 5 ноября · 16:00–17:00");
+  assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт, 5 ноября · 16:00⁠–⁠17:00");
   assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "преподаватель: Рахимов Т. · пришли 0 из 8");
   assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · пришёл 1 из 2");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);

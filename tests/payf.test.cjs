@@ -24,7 +24,7 @@ const F = require(path.join(root, "src/lib/payf.ts"));
 const P = require(path.join(root, "src/lib/payments.ts"));
 const L = require(path.join(root, "src/lib/payments-ledger.ts"));
 const S = require(path.join(root, "src/lib/settings-sections.ts"));
-const plain = (text) => text.replace(/[  ]/g, " ");
+const plain = (text) => text.replace(/\u2060/g, "").replace(/[\u00a0\u202f]/g, " ");
 
 const PACKAGE = { status: "active", period_mode: "lessons", lessons_total: 12, lessons_left: 12, paid_until: null, paid_through_forecast: "2026-10-30" };
 
@@ -218,7 +218,7 @@ test("2. the words: the span, the line of the journal, the warning of a new less
   assert.match(F.dayOffLine({ id: "d", dateFrom: "2026-10-21", dateTo: "2026-10-21", reason: "Хайит", createdAt: null, createdByName: null, voidedAt: "x", active: false }), /отменён$/);
   assert.equal(F.dayOffWarning({ reason: "Хайит" }), "Это выходной день центра («Хайит»). Урок всё равно можно добавить.");
   assert.equal(F.dayOffWarning(null), null);
-  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }), "ср, 21 октября · 10:00–11:00 · Группа 5 — У урока идёт экзамен");
+  assert.equal(plain(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" })), "ср, 21 октября · 10:00–11:00 · Группа 5 — У урока идёт экзамен");
   assert.equal(F.dayOffSummary({ text: "Будут отменены 4 урока в 4 группах: Группа 1, Группа 2, Группа 3, Группа 4" }), "Будут отменены 4 урока в 4 группах");
   assert.equal(F.dayOffSummary({ text: "Уроков для отмены нет" }), "Уроков для отмены нет");
 });
@@ -338,7 +338,7 @@ test("2. the dry run of a day off asks for the dates only; the dialog's lists an
   const list = renderToStaticMarkup(React.createElement(DayOffLessonList, { title: "Не будут отменены", tone: "warn", testId: "x", lessons: [{ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }] }));
   assert.doesNotMatch(list, /tabindex|overflow-y-auto/, "W1 round 2: no hidden scrolling inside the window");
   assert.match(list, /aria-label="Не будут отменены"/);
-  assert.match(list, /ср, 21 октября · 10:00(–11:00)? · Группа 5 — У урока идёт экзамен/);
+  assert.match(list.replace(/\u2060/g, "").replace(/\u00a0/g, " "), /ср, 21 октября · 10:00(–11:00)? · Группа 5 — У урока идёт экзамен/);          // the date and the time are held together by non-breaking spaces
 });
 
 test("4. the names are the frozen contract with the server: PAYMENT_MODELS = tests/fixtures/payf-mode-names.json (a copy of auth's mode_names.json)", () => {

@@ -10,7 +10,7 @@
  * LESSONS 16 / 17 (no role by default), 45 (a teacher sees neither amounts nor decisions), 46 (every code of the server has words here, a test
  * for each), 48 (one line of a lesson for every list).
  */
-import { formatBusinessDate, formatIsoDateLabel, formatWeekdayDate, monthYearLabelRu } from "./business-time";
+import { formatBusinessDate, formatIsoDateLabel, formatLessonWhen, formatWeekdayDate, monthYearLabelRu } from "./business-time";
 import { genitiveShortName } from "./name-case";
 import { monthLabel } from "./ru-calendar";
 import { pluralRu } from "./plural";
@@ -389,7 +389,7 @@ export function shortDay(isoDate: string): string {
 
 /** «Геометрия 8 · ср, 4 ноября · 10:00–11:00» - the lesson of a row and of the title line of a window (§1: dates of headings and rows are «ср, 4 ноября»). */
 export function decisionLessonLine(item: Pick<OneOffDecisionItem, "groupName" | "lessonDate" | "startTime" | "endTime">): string {
-  return `${item.groupName} · ${formatWeekdayDate(item.lessonDate)} · ${item.startTime}–${item.endTime}`;
+  return formatLessonWhen({ date: item.lessonDate, startTime: item.startTime, endTime: item.endTime, groupName: item.groupName });
 }
 
 /** «пришёл 1 из 10» / «пришли 2 из 3»: the verb agrees with the number that follows it (21 - «пришёл», 12 - «пришли»). */

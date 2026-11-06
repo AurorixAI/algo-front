@@ -257,8 +257,10 @@ const clock = (time: string | null | undefined): string => /^(\d{1,2}):(\d{2})/.
 export function formatLessonWhen(input: { date: string | null | undefined; startTime?: string | null; endTime?: string | null; groupName?: string | null }): string {
   const start = clock(input.startTime);
   const end = clock(input.endTime);
-  const time = start ? (end ? `${start}–${end}` : start) : "";
-  return [(input.groupName ?? "").trim(), formatWeekdayDate(input.date), time].filter(Boolean).join(" · ");
+  const time = start ? (end ? `${start}\u2060–\u2060${end}` : start) : "";
+  // the date and the time never come apart on a narrow line («10:00–» / «11:00»): the spaces inside «ср, 4 ноября · 10:00–11:00» are non-breaking, the word joiner holds the dash to its numbers
+  const when = [formatWeekdayDate(input.date), time].filter(Boolean).join(" · ").replace(/ /g, "\u00a0");
+  return [(input.groupName ?? "").trim(), when].filter(Boolean).join(" · ");
 }
 
 /** «03.11.2026 · 10:00» - a record (a saved sum, a history line); the date alone when there is no time. */

@@ -216,10 +216,11 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       >
         {dialog && (
           <div className="space-y-3 text-sm text-slate-700">
-            <dl data-testid="one-off-decision-facts" className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-1">
+            {/* from 640 px: label and value in two columns; narrower: the label is a small muted caption OVER its value (the value gets the whole width) */}
+            <dl data-testid="one-off-decision-facts" className="space-y-2 sm:grid sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-1 sm:space-y-0">
               {decisionFacts(dialog.item, dialog.decision).map((fact) => (
-                <div key={fact.key} className="contents" data-testid={`decision-fact-${fact.key}`}>
-                  <dt className="text-slate-500">{fact.label}</dt>
+                <div key={fact.key} className="sm:contents" data-testid={`decision-fact-${fact.key}`}>
+                  <dt className="text-xs text-slate-500 sm:text-sm">{fact.label}</dt>
                   <dd className="min-w-0 break-words text-slate-800">{fact.value}</dd>
                 </div>
               ))}

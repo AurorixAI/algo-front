@@ -44,11 +44,21 @@ for (const width of [1280, 1024, 375]) {
     const { page } = await openWindow(width, [SHEET()]);
     const dialog = '[role="dialog"]';
     assert.equal(plain(await page.textContent(`${dialog} h2`)), "Включить урок в зарплату Эргашева К.?");
-    assert.ok(plain(await page.innerText(dialog)).includes("Геометрия 8 (пн/чт) · ср, 4 ноября · 10:00–11:00"));
+    assert.ok(plain(await page.innerText(dialog)).replace(/\u2060/g, "").includes("Геометрия 8 (пн/чт) · ср, 4 ноября · 10:00–11:00"));
     const facts = (await page.locator('[data-testid^="decision-fact-"]').allInnerTexts()).map(plain);
     assert.deepEqual(facts, ["Пришли 2 из 3", "Для учеников бесплатно — урок не списывается и не оплачивается", "В зарплату за всех 3 учеников, включая отметку «Не был»", "Отменить можно, пока ноябрь не закрыт"]);
-    const labelWidths = await page.evaluate(() => [...document.querySelectorAll('[data-testid^="decision-fact-"] dt')].map((el) => Math.round(el.getBoundingClientRect().width)));
-    assert.equal(new Set(labelWidths).size, 1, `the labels are of one width: ${labelWidths}`);
+    const boxes = await page.evaluate(() => [...document.querySelectorAll('[data-testid^="decision-fact-"]')].map((row) => { const dt = row.querySelector("dt").getBoundingClientRect(); const dd = row.querySelector("dd").getBoundingClientRect(); return { dtW: Math.round(dt.width), dtBottom: Math.round(dt.bottom), ddTop: Math.round(dd.top), ddLeft: Math.round(dd.left), dtLeft: Math.round(dt.left), ddW: Math.round(dd.width), dlW: Math.round(row.parentElement.getBoundingClientRect().width), ddH: Math.round(dd.height) }; }));
+    if (width < 640) {
+      // a phone: the label is a caption over the value; the value has the whole width and is not torn into 3-4 lines
+      for (const box of boxes) { assert.ok(box.ddTop >= box.dtBottom - 1 && box.ddLeft === box.dtLeft, `the label is over the value: ${JSON.stringify(box)}`); assert.ok(box.ddW >= box.dlW - 2, `the value has the width of the block: ${JSON.stringify(box)}`); }
+      assert.ok(boxes.every((box) => box.ddH <= 40), `the values take at most two lines: ${JSON.stringify(boxes)}`);
+    } else {
+      assert.equal(new Set(boxes.map((box) => box.dtW)).size, 1, `the labels are of one width: ${JSON.stringify(boxes)}`);
+      for (const box of boxes) assert.ok(box.ddLeft > box.dtLeft, "the value stands beside its label");
+    }
+    // the date and the time of the subtitle are not torn: ONE line box for «ср, 4 ноября · 10:00–11:00» (the group name may wrap before it)
+    const torn = await page.evaluate(() => { const walker = document.createTreeWalker(document.querySelector('[role="dialog"]'), NodeFilter.SHOW_TEXT); for (let n = walker.nextNode(); n; n = walker.nextNode()) { if (!n.textContent.includes("10:00")) continue; const text = n.textContent; const at = text.indexOf("ср,"); const range = document.createRange(); range.setStart(n, at); range.setEnd(n, text.indexOf("11:00") + 5); return range.getClientRects().length > 0 ? new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size : -1; } return -2; });
+    assert.equal(torn, 1, "«ср, 4 ноября · 10:00–11:00» stays on one line");
     const block = plain(await page.innerText('[data-testid="money-effects"]'));
     assert.match(block, /^Что изменится Зарплата Эргашева К\. за ноябрь Было 120 834 сум Станет \+45 000 сум 165 834 сум Уже выплачено 150 000 сум Останется выплатить 15 834 сум$/);
     // the numbers stand on the right edge of the block, in one column

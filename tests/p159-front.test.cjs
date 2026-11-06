@@ -55,7 +55,7 @@ test("Ч1: an admin without the right sees ONE row «N урока ждут ре�
   assert.doesNotMatch(html, /Включить в зарплату<\/button>/);
   // the row opened (the same row component, no buttons for him)
   const row = text(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })));
-  assert.match(row, /7-А · чт, 5 ноября · 16:00–17:00/);
+  assert.match(row, /7-А · чт, 5 ноября · 16:00⁠–⁠17:00/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })), /<button/, "not a single button");
   assert.match(O.DECISIONS_GROUP_HINT_VIEW, /Решение по зарплате принимает владелец или администратор с доступом к деньгам/);
   // with the right the same rows have both buttons and the old hint
