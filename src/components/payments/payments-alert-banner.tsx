@@ -108,7 +108,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
                 type="button"
                 onClick={() => { writeDismissedAt(copy.count); setDismissedAt(copy.count); }}
                 aria-label="Скрыть напоминание"
-                title="Скрыть до следующего сеанса или пока ждущих не станет больше"
+                title="Скрыть до следующего сеанса или пока должников не станет больше"
                 className="rounded-lg p-3 text-slate-500 transition-colors hover:bg-slate-100 sm:p-2 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
               >
                 <X className="h-4 w-4" aria-hidden />

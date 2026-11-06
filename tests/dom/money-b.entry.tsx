@@ -8,6 +8,7 @@ import { RegimeChangeDialog } from "@/components/settings/regime-change-dialog";
 import { PaymentsHistory } from "@/components/settings/payments-history";
 import { PaymentsPage } from "@/components/payments/payments-page";
 import { PaymentsAlertBanner } from "@/components/payments/payments-alert-banner";
+import { GroupDetailView } from "@/components/groups/group-detail-view";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -43,6 +44,10 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "banner":
       root.render(<div className="mx-auto max-w-3xl p-4"><PaymentsAlertBanner paymentsBasePath="/owner/payments" /></div>);
+      break;
+    case "groupHeader":
+      w.__params = { id: "g1" };
+      root.render(<GroupDetailView workspace="owner" />);
       break;
     case "till":
       root.render(<PaymentDialog open kind="create" membership={{ membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" } as never} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);

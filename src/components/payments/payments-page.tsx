@@ -340,7 +340,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                   role="tab"
                   aria-selected={bucket === key}
                   onClick={() => switchBucket(key)}
-                  className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                  className={`min-h-10 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all sm:min-h-0 ${
                     bucket === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -579,11 +579,11 @@ function PaymentRow({
               aria-label={`Выписка: ${row.student_name}`}
               title="Выписка"
               data-testid="payment-row-statement"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 xl:h-8 xl:w-8"
             >
               <FileText className="h-4 w-4" aria-hidden="true" />
             </Link>
-            <RowMenu items={menu} label={`Действия: ${row.student_name}`} />
+            <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 xl:h-8 xl:w-8" />
           </div>
     </li>
   );
@@ -594,7 +594,7 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
     <button
       type="button"
       onClick={onPay}
-      className="flex-1 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:flex-none"
+      className="min-h-10 flex-1 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:min-h-0 xl:flex-none"
     >
       {PAY_ACTION_LABEL}
     </button>

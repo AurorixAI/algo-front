@@ -264,6 +264,12 @@ test("Б7: «Ждём оплату» is a calm tab next to «Должники»;
     assert.ok(!/Петров/.test(await page.textContent("body")), "the waiting student is not among the debtors");
     assert.equal(plain(await page.textContent('[data-testid="position-debt"]')).replace(/\s+/g, " ").includes("600 000 сум"), true, "the red card is the debtors' debt only");
     assert.equal(plain(await page.textContent('[data-testid="position-waiting"]')), "Ждём оплату: 300 000 сум · 1 ученик");
+    if (width === 375) {
+      // R3 №13: the buttons of a row are ≥ 40 px on a phone
+      const heights = await page.evaluate(() => ["button:has(+ *), li button", "a[data-testid=payment-row-statement]"].flatMap((sel) => [...document.querySelectorAll(sel)].filter((el) => el.offsetParent).map((el) => [el.textContent.trim().slice(0, 14) || el.getAttribute("aria-label") || sel, Math.round(el.getBoundingClientRect().height)])));
+      const small = heights.filter(([, h]) => h < 40);
+      assert.deepEqual(small, [], `touch targets under 40 px: ${JSON.stringify(small)}`);
+    }
     await probe(page, "body", `debtors ${width}`);
     if (width === 1280) await page.screenshot({ path: path.join(SHOTS, "04-payments-debtors-1280.png") });
     // the router of the test does not move the address: the waiting tab is opened by its own address, as a link does
@@ -294,6 +300,9 @@ test("Б7: the red banner counts the debtors only - not those who wait", async (
   assert.match(text, /^1 ученик с долгом — 600 000 сум/);
   assert.ok(!/900 000|2 ученика|ждём/i.test(text), text);
   assert.ok(!/из них просрочено/.test(text) || /просрочено: 1/.test(text));
+  await page.waitForTimeout(700);      // the banner opens with an animation: the picture is taken after it (R3 №14)
+  assert.ok((await page.locator('[data-testid="payments-alert-banner"]').boundingBox()).height > 40);
+  assert.match(await page.getAttribute('button[aria-label="Скрыть напоминание"]', "title"), /пока должников не станет больше/);
   await page.screenshot({ path: path.join(SHOTS, "06-banner-1280.png") });
   await page.close();
   // only waiting students: no banner at all
@@ -394,5 +403,31 @@ test("R3 №22: no flash of «Укажите дату» before the default of th
   await page.waitForSelector('[data-testid="pay-from"]');
   assert.equal(await page.locator('[data-testid="enrol-why"]').count(), 0);
   assert.equal(await page.locator('button:has-text("Зачислить")').first().isDisabled(), false);
+  await page.close();
+});
+
+test("R3 №6/DOM: the header of a group - the red chip «Долг» for the debtors and the GREY «Ждём оплату: M сум · N ученик» chip that leads to the waiting filter; both from the same split of the list", async () => {
+  const GROUP = { id: "g1", name: "7-А Алгебра", status: "active", class_level: 7, teacher_id: "t1", teacher_name: "Каримова К.", max_students: 30, student_count: 2, students: [], price_current: { amount: 300000 }, lesson_type: "group", schedule: [] };
+  const server = (request) => {
+    if (request.path === "/auth/org/groups/g1") return { json: GROUP };
+    if (request.path === "/auth/org/payments/summary") return { json: X.SUMMARY };
+    if (request.path === "/auth/org/payments/status") {
+      const tab = /bucket=([a-z]+)/.exec(request.query)[1];
+      const items = tab === "waiting" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
+      return { json: { items, total: items.length } };
+    }
+    return null;
+  };
+  const { page } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 900 });
+  await page.evaluate(() => window.mount("groupHeader", { role: "owner", org_role: "owner" }, { refresh: true }));
+  await page.waitForSelector('[data-testid="group-waiting-chip"]', { timeout: 8000 });
+  assert.equal(plain(await page.textContent('[data-testid="group-waiting-chip"]')), "Ждём оплату: 300 000 сум · 1 ученик");
+  assert.match(plain(await page.textContent('[data-testid="group-debt-chip"]')), /^Долг 600 000 сум · 1 ученик$/);
+  const colorOf = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).color, sel);
+  assert.equal(await colorOf('[data-testid="group-waiting-chip"]'), "rgb(71, 85, 105)", "slate-600, not red");
+  assert.equal(await colorOf('[data-testid="group-debt-chip"]'), "rgb(190, 18, 60)", "rose-700");
+  assert.match(await page.getAttribute('[data-testid="group-waiting-chip"]', "href"), /tab=payments&filter=waiting/);
+  assert.match(await page.getAttribute('[data-testid="group-debt-chip"]', "href"), /tab=payments&filter=debt/);
+  await page.screenshot({ path: path.join(SHOTS, "08-group-header-chips-1280.png") });
   await page.close();
 });
