@@ -56,7 +56,7 @@ export function ConfirmHost() {
           <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50 px-3.5" data-testid="confirm-items">
             {shown.items.map((item, index) => (
               <li key={`${item.label ?? ""}|${item.text}|${index}`} className="flex flex-wrap items-baseline gap-x-3 py-2 text-slate-800">
-                {item.label && <span className="w-36 shrink-0 font-medium text-slate-900">{item.label}</span>}
+                {item.label && <span className="w-full shrink-0 font-medium text-slate-900 sm:w-36">{item.label}</span>}
                 <span className="min-w-0 flex-1">{tidyMoneyText(item.text)}</span>
                 {item.note && <span className="text-xs text-slate-500">{item.note}</span>}
               </li>
