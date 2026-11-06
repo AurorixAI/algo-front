@@ -156,6 +156,7 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
       <StatCard label="Долг" id="position" testId="card-debt">
         <p className={`${ACCENT} ${debt.none ? "text-slate-600" : ACCENT_DEBT}`}>{debt.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{debt.caption}</p>
+        {debt.waiting && <p className="mt-0.5 text-sm text-slate-600" data-testid="debt-waiting">{debt.waiting}</p>}
         {!debt.none && (
           <Link href={debtorsHref(paymentsBase)} data-testid="debtors-link" className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40">
             Должники

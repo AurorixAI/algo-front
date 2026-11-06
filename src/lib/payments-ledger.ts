@@ -107,8 +107,10 @@ export function rowBalance(row: Pick<MembershipPaymentRow, "debt" | "advance"> |
   return { debt: Math.max(0, sum(row?.debt)), advance: Math.max(0, sum(row?.advance)) };
 }
 
-export function balanceView(row: Pick<MembershipPaymentRow, "debt" | "advance"> | null | undefined): BalanceView {
+export function balanceView(row: (Pick<MembershipPaymentRow, "debt" | "advance"> & Partial<Pick<MembershipPaymentRow, "tab">>) | null | undefined): BalanceView {
   const { debt, advance } = rowBalance(row);
+  // Money-1 B7: the debt of a student who only waits is the same number, in a calm colour
+  if (debt > 0 && row?.tab === "waiting") return { kind: "debt", amount: debt, text: debtLabel(debt), className: "text-slate-600" };
   if (debt > 0) return { kind: "debt", amount: debt, text: debtLabel(debt), className: BALANCE_TEXT_CLASS.debt };
   if (advance > 0) return { kind: "advance", amount: advance, text: advanceLabel(advance), className: BALANCE_TEXT_CLASS.advance };
   return { kind: "none", amount: 0, text: "", className: BALANCE_TEXT_CLASS.none };
@@ -361,7 +363,14 @@ export interface PreviewView {
   /** The D8 price-rise sentences. */
   priceAhead: string[];
   warnings: string[];
+  /** Money-1 B9: the same sum to the same student within 24 hours - the server's sentence (a warning, never a ban). */
+  repeated: string | null;
 }
+
+/** Money-1 B9: `code` of the warning «Такая же оплата внесена 5 минут назад — Иванов А.». */
+export const PAYMENT_REPEATED_CODE = "payment_repeated";
+/** The question after the server's sentence: the person decides, nothing is forbidden. */
+export const PAYMENT_REPEATED_QUESTION = "Внести ещё одну?";
 
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;
@@ -386,7 +395,8 @@ export function previewView(preview: PaymentPreview | null | undefined): Preview
       text: balanceAfterText(debtAfter, advanceAfter),
     },
     priceAhead: ahead,
-    warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead").map((warning) => warning.message),
+    warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE).map((warning) => warning.message),
+    repeated: preview.warnings.find((warning) => warning.code === PAYMENT_REPEATED_CODE)?.message ?? null,
   };
 }
 

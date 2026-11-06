@@ -1772,8 +1772,9 @@ export const orgApi = {
 
   // ── Payments (owner; admin only when the owner enabled it) ─────────────
   getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
-  getPaymentsStatus: (q: { bucket: PaymentBucket | "all" | "debt"; groupId?: string; teacherId?: string; search?: string; limit?: number; offset?: number }) => {
-    const params = new URLSearchParams({ bucket: q.bucket });
+  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; limit?: number; offset?: number }) => {
+    // Money-1 B7: the tab «Должники» is the server's `debtors` (the real debtors); «Ждём оплату» is `waiting`
+    const params = new URLSearchParams({ bucket: q.bucket === "debt" ? "debtors" : q.bucket });
     if (q.groupId) params.set("group_id", q.groupId);
     if (q.teacherId) params.set("teacher_id", q.teacherId);
     if (q.search) params.set("search", q.search);

@@ -23,7 +23,7 @@ export type PeriodMode = "calendar" | "lessons";
 export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
 /** The tabs of «Оплаты» by money: «Должники» (debt), «Скоро платить», «Оплачено» (owner 21.10; «Без оплат» is gone: its rows are debtors «Ещё не платил»). */
-export type PaymentBucket = "debt" | "expiring" | "active" | "paused";
+export type PaymentBucket = "debt" | "waiting" | "expiring" | "active" | "paused";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
 export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
@@ -111,6 +111,23 @@ export interface PaymentsSummary {
   students_paused?: number;
   students_with_advance?: number;
   price_missing?: number;
+  /** Money-1 B7: the debt split by ONE definition - the debtors (the red banner, the card) and «Ждём оплату» (calm, apart); the old fields above keep the old meaning (the waiting ones inside). */
+  debt_split?: DebtSplit;
+}
+
+export interface DebtSplit {
+  debtors: number;
+  debtors_memberships: number;
+  debtors_debt_total: number;
+  waiting_students: number;
+  waiting_memberships: number;
+  waiting_debt_total: number;
+  all_debt_total: number;
+  all_students_with_debt: number;
+  expired: number;
+  due: number;
+  students_expired: number;
+  students_due: number;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -305,6 +322,10 @@ export interface MembershipPaymentRow {
   /** The tab the row is on (null: on none, e.g. a free student) and why it is a debtor. */
   bucket?: PaymentBucket | null;
   debt_reason?: "overdue" | "partial" | "never_paid" | null;
+  /** Money-1 B7: the NEW tab of the row (one definition of a debtor): `debtors` / `waiting` for a debt; `waiting_until` / `waiting_reason` («Ждём оплату до 07.11») only for a student who waits. */
+  tab?: "debtors" | "waiting" | "expiring" | "active" | "paused" | null;
+  waiting_until?: string | null;
+  waiting_reason?: string | null;
   /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
   paused?: PausedRange | null;
   /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
@@ -728,6 +749,7 @@ export { pluralRu };
 
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "debt", label: "Должники" },
+  { key: "waiting", label: "Ждём оплату" },
   { key: "expiring", label: "Скоро платить" },
   { key: "active", label: "Без долга" },
 ];
@@ -774,9 +796,12 @@ export function paymentsListQueryString(state: PaymentsListState): string {
 }
 
 /** The tabs on screen: the three of the owner, and «На паузе» when it has somebody or is the open one. */
-export function visibleBuckets(summary: { buckets?: { paused?: number | null } | null; paused?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
+export function visibleBuckets(summary: { buckets?: { paused?: number | null; waiting?: number | null } | null; paused?: number | null; students_waiting?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
   const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);
-  return paused > 0 || open === "paused" ? [...PAYMENT_BUCKETS, PAUSED_BUCKET] : PAYMENT_BUCKETS;
+  // Money-1 B7: «Ждём оплату» stands next to «Должники» while somebody waits (or while it is the open tab)
+  const waiting = Number(summary?.students_waiting ?? summary?.buckets?.waiting ?? 0);
+  const base = PAYMENT_BUCKETS.filter((bucket) => bucket.key !== "waiting" || waiting > 0 || open === "waiting");
+  return paused > 0 || open === "paused" ? [...base, PAUSED_BUCKET] : base;
 }
 
 /**
@@ -791,7 +816,8 @@ export function debtorsCount(summary: { debtors?: number | null; students_with_d
 /** The number on a tab - every tab has one; null while the summary is not known. */
 export function bucketCount(
   summary: {
-    buckets?: { debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
+    buckets?: { debt?: number | null; waiting?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
+    students_waiting?: number | null;
     debtors?: number | null; students_with_debt?: number | null; students_paused?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
   } | null,
   key: PaymentBucket,
@@ -802,10 +828,11 @@ export function bucketCount(
     const students = debtorsCount(summary);
     if (students !== null) return students;
   }
+  if (key === "waiting" && typeof summary?.students_waiting === "number") return summary.students_waiting;
   if (key === "paused" && typeof summary?.students_paused === "number") return summary.students_paused;
   const own = summary?.buckets?.[key];
   if (typeof own === "number" && Number.isFinite(own)) return own;
-  const value = key === "debt" ? null : summary?.[key as "expiring" | "active" | "paused"];
+  const value = key === "debt" || key === "waiting" ? null : summary?.[key as "expiring" | "active" | "paused"];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
@@ -813,7 +840,8 @@ export function bucketCount(
  * The reason line of a debtor's row: the server's (`reason`: «Просрочено на 12 дней» / «Не доплачено за октябрь: 150 000» / «Ещё не
  * платил»), else read from the row: overdue days, never paid, or the debt.
  */
-export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason">): string {
+export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>): string {
+  if (row.tab === "waiting" && row.waiting_reason) return row.waiting_reason;
   if (row.reason) return row.reason;
   if (row.status === "expired" && row.days_overdue) return `Просрочено на ${daysLabel(row.days_overdue)}`;
   if (!row.last_payment && (row.status === "none" || row.status === "expired")) return "Ещё не платил";
@@ -825,7 +853,7 @@ export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_
  * What the row of a debtor says under its chip.  When the chip already says «Ещё не платил…» the reason line must not repeat it: it
  * is the overdue days when they are known, else nothing (the amount is the balance line under it).  A line equal to the chip is dropped.
  */
-export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason">, chipLabel: string): string {
+export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>, chipLabel: string): string {
   let reason = debtReasonText(row);
   if (reason.startsWith(NEVER_PAID) && chipLabel.startsWith(NEVER_PAID)) {
     reason = row.status === "expired" && row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "";
@@ -846,7 +874,7 @@ export function bucketTabLabel(label: string, count: number | null): string {
 
 // ── The tab counts of a narrowed list (a group / a teacher filter) ─────────
 
-export interface TabCounts { debt: number; expiring: number; active: number; paused: number }
+export interface TabCounts { debt: number; waiting: number; expiring: number; active: number; paused: number }
 
 /** The most debtors read in one answer to count distinct students; a longer list falls back to the number of memberships. */
 export const DEBTORS_SAMPLE = 500;
@@ -861,20 +889,23 @@ export async function filteredTabCounts(
   fetchPage: (query: { bucket: PaymentBucket; limit: number; offset: number }) => Promise<{ total?: number | null; items?: Array<{ student_id?: string | null }> | null }>,
 ): Promise<TabCounts> {
   const total = (page: { total?: number | null }) => Math.max(0, Math.floor(Number(page?.total) || 0));
-  const [debtPage, expiring, active, paused] = await Promise.all([
+  const [debtPage, waitingPage, expiring, active, paused] = await Promise.all([
     fetchPage({ bucket: "debt", limit: DEBTORS_SAMPLE, offset: 0 }),
+    fetchPage({ bucket: "waiting", limit: DEBTORS_SAMPLE, offset: 0 }),
     fetchPage({ bucket: "expiring", limit: 1, offset: 0 }),
     fetchPage({ bucket: "active", limit: 1, offset: 0 }),
     fetchPage({ bucket: "paused", limit: 1, offset: 0 }),
   ]);
   const items = debtPage?.items ?? [];
   const debt = items.length > 0 && items.length === total(debtPage) ? new Set(items.map((item) => item.student_id)).size : total(debtPage);
-  return { debt, expiring: total(expiring), active: total(active), paused: total(paused) };
+  const waitItems = waitingPage?.items ?? [];
+  const waiting = waitItems.length > 0 && waitItems.length === total(waitingPage) ? new Set(waitItems.map((item) => item.student_id)).size : total(waitingPage);
+  return { debt, waiting, expiring: total(expiring), active: total(active), paused: total(paused) };
 }
 
 /** The `summary` the tab bar reads when the list is narrowed: the filtered counts (null while they are on their way: no number rather than the centre's). */
 export function narrowedTabSummary(counts: TabCounts | null) {
-  return counts ? { buckets: counts, debtors: counts.debt, students_with_debt: counts.debt, expiring: counts.expiring, active: counts.active, paused: counts.paused, students_paused: counts.paused } : null;
+  return counts ? { buckets: counts, debtors: counts.debt, students_with_debt: counts.debt, students_waiting: counts.waiting, expiring: counts.expiring, active: counts.active, paused: counts.paused, students_paused: counts.paused } : null;
 }
 
 // ── Status wording ─────────────────────────────────────────────────────────
@@ -926,14 +957,22 @@ export function statusLabel(
  *  - no debt: the date status as before - «Оплачено» (grey) / «Осталось 5 дней» / «Сегодня последний день» (amber) / «Без оплат» / «Бесплатно».
  */
 export type MoneyChipRow = Parameters<typeof statusLabel>[0]
-  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason" | "past_debt">>
+  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason" | "past_debt" | "tab" | "waiting_until">>
   & { status: PaymentStatus };
+
+export const WAITING_CHIP = "Ждём оплату";
+/** The row of a student who only waits for the payment of a period that has just begun (the server's `tab`). */
+export function isWaitingRow(row: { tab?: string | null; debt?: number | null } | null | undefined): boolean {
+  return row?.tab === "waiting" && (row.debt ?? 0) > 0;
+}
 
 const NEVER_PAID = "Ещё не платил";
 const NEVER_PAID_OVERDUE = "Ещё не платил · просрочено";
 
 export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone } {
   if (row.status === "paused") return { label: statusLabel(row), tone: statusTone(row.status) };
+  // Money-1 B7: a student who only waits is not a debtor - a calm grey chip, never the red «Просрочено»
+  if (isWaitingRow(row)) return { label: WAITING_CHIP, tone: "muted" };
   if ((row.debt ?? 0) > 0) {
     if (row.status === "expired" || row.debt_reason === "overdue") return { label: statusLabel({ ...row, status: "expired" }), tone: "danger" };
     const neverPaid = row.debt_reason === "never_paid" || (!row.last_payment && (row.status === "none" || row.status === "ends_today" || row.status === "expiring"));
@@ -960,6 +999,7 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
   const debt = row.debt ?? 0;
   const until = row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) ? row.paid_until : null;
   if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
+  if (isWaitingRow(row)) return { label: `${WAITING_CHIP} · ${formatMoney(debt)}`, tone: "muted", title: null };
   if (debt > 0) {
     if (base.label === NEVER_PAID_OVERDUE) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: NEVER_PAID };
     if (base.tone === "danger") return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
@@ -1476,6 +1516,8 @@ export interface PositionCard {
   amount: string;
   /** Under it: «33 ученика с долгом» / «5 учеников оплатили вперёд»; "" while the server has not told the count. */
   sub: string;
+  /** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - apart from the debt, calm; "" when nobody waits. */
+  waiting?: string;
   tone: "debt" | "advance" | "none";
 }
 
@@ -1483,12 +1525,22 @@ export interface PositionCard {
  * «Долг учеников» (big, red) with «33 ученика с долгом» and «Аванс» (big, green) with «N учеников оплатили вперёд».  The debtors count is
  * `debtorsCount`, the very number of the «Должники» tab.
  */
+/** «Ждём оплату: 300 000 сум · 2 ученика»; "" when nobody waits.  The debt of the cards is the debtors' only (the red number); this line is the rest, named. */
+export function waitingLine(amount: number | null | undefined, students: number | null | undefined): string {
+  const sumValue = Math.max(0, Math.round(Number(amount) || 0));
+  if (sumValue <= 0) return "";
+  const n = Math.max(0, Math.floor(Number(students) || 0));
+  return `Ждём оплату: ${formatMoney(sumValue)}${n > 0 ? ` · ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}` : ""}`;
+}
+
 export function positionCards(summary: {
   debt_total?: number | null;
   advance_total?: number | null;
   debtors?: number | null;
   students_with_debt?: number | null;
   students_with_advance?: number | null;
+  debt_waiting_total?: number | null;
+  students_waiting?: number | null;
 } | null | undefined): PositionCard[] {
   const debt = Math.max(0, Math.round(Number(summary?.debt_total) || 0));
   const advance = Math.max(0, Math.round(Number(summary?.advance_total) || 0));
@@ -1500,6 +1552,7 @@ export function positionCards(summary: {
       label: "Долг",
       amount: formatMoney(debt),
       sub: debtors === null ? "" : `${debtors} ${pluralRu(debtors, "ученик с долгом", "ученика с долгом", "учеников с долгом")}`,
+      waiting: waitingLine(summary?.debt_waiting_total, summary?.students_waiting),
       tone: debt > 0 ? "debt" : "none",
     },
     {

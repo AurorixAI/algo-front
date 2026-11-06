@@ -58,7 +58,8 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
         )}
       </div>
       <Cell label="Долг" col="debt" align="right" className="order-5 md:order-none">
-        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : nothingCharged ? <span className="text-slate-500">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
+        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.waitingDebt > 0 ? null : nothingCharged ? <span className="text-slate-500">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
+        {row.waitingDebt > 0 && <span className="block text-xs font-normal text-slate-600" data-testid="collection-waiting">ждём оплату {formatMoney(row.waitingDebt)}</span>}
       </Cell>
       <Cell label="Должников" col="debtors" align="center" className={`order-6 md:order-none ${row.debtors > 0 ? "font-medium text-slate-700" : ""}`} title={debtorsHint?.title}>
         {row.debtors > 0 ? row.debtors : MUTED_ZERO}

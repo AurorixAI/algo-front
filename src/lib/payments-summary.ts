@@ -35,7 +35,10 @@ interface PaymentsSummaryState {
   /** Owner 21.10: the count of the «Должники» tab (= the card «Долг учеников»), students who paid ahead, memberships without a price; null until the server sends them. */
   debtors: number | null;
   /** The rows of each tab (memberships); null from an older server. */
-  buckets: { debt: number; expiring: number; active: number; paused: number } | null;
+  buckets: { debt: number; waiting: number; expiring: number; active: number; paused: number } | null;
+  /** Money-1 B7: students / sum of «Ждём оплату» (apart from the debtors; 0 from an older server). */
+  studentsWaiting: number;
+  debtWaitingTotal: number;
   paused: number;
   studentsPaused: number | null;
   studentsWithAdvance: number | null;
@@ -77,7 +80,9 @@ const EMPTY = {
   advanceTotal: 0,
   studentsWithDebt: 0,
   debtors: null as number | null,
-  buckets: null as { debt: number; expiring: number; active: number; paused: number } | null,
+  buckets: null as { debt: number; waiting: number; expiring: number; active: number; paused: number } | null,
+  studentsWaiting: 0,
+  debtWaitingTotal: 0,
   paused: 0,
   studentsPaused: null as number | null,
   studentsWithAdvance: null as number | null,
@@ -126,13 +131,15 @@ export function useMoneyDenied(): boolean {
 /** Fields of the state that come from one summary answer. */
 export function summaryToState(summary: Partial<PaymentsSummary> | null | undefined) {
   const lessons = Number(summary?.lessons_per_payment);
+  // Money-1 B7: ONE definition of a debtor.  The red banner, the cards and the badge read the split (the waiting ones are out); an older server has none - the old numbers, nobody waits.
+  const split = summary?.debt_split ?? null;
   return {
     available: true,
     loaded: true,
-    due: count(summary?.due),
-    expired: Math.min(count(summary?.expired), count(summary?.due)),
-    studentsDue: optionalCount(summary?.students_due),
-    studentsExpired: optionalCount(summary?.students_expired),
+    due: count(split ? split.due : summary?.due),
+    expired: Math.min(count(split ? split.expired : summary?.expired), count(split ? split.due : summary?.due)),
+    studentsDue: optionalCount(split ? split.students_due : summary?.students_due),
+    studentsExpired: optionalCount(split ? split.students_expired : summary?.students_expired),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
     // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.
@@ -141,12 +148,14 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
     accountingStart: typeof summary?.accounting_start_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(summary.accounting_start_date) ? summary.accounting_start_date : null,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,
-    debtTotal: count(summary?.debt_total),
+    debtTotal: count(split ? split.debtors_debt_total : summary?.debt_total),
+    studentsWaiting: count(split?.waiting_students),
+    debtWaitingTotal: count(split?.waiting_debt_total),
     advanceTotal: count(summary?.advance_total),
-    studentsWithDebt: count(summary?.students_with_debt),
-    debtors: optionalCount(summary?.debtors) ?? optionalCount(summary?.students_with_debt),
+    studentsWithDebt: count(split ? split.debtors : summary?.students_with_debt),
+    debtors: split ? count(split.debtors) : optionalCount(summary?.debtors) ?? optionalCount(summary?.students_with_debt),
     buckets: summary?.buckets
-      ? { debt: count(summary.buckets.debt), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
+      ? { debt: count(split ? split.debtors_memberships : summary.buckets.debt), waiting: count(split?.waiting_memberships), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
       : null,
     paused: count(summary?.paused),
     studentsPaused: optionalCount(summary?.students_paused),

@@ -9,7 +9,7 @@
  * No React and no network here, so node:test loads this file.
  */
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-calendar";
-import { formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
+import { formatDateRu, formatMoney, isIsoDate, pluralRu, waitingLine } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
 import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, monthYearLabelRu, shiftDateByMonth } from "./business-time";
@@ -73,6 +73,9 @@ export interface CollectionRow {
   debt: number;
   students: number;
   students_with_debt: number;
+  /** Money-1 B7: of `debt` / `students_with_debt`, those who only «ждём оплату» (0 from an older server). */
+  debt_waiting: number;
+  students_waiting: number;
   pct: number | null;
 }
 
@@ -94,6 +97,11 @@ export interface IncomePosition {
   students_with_debt: number;
   memberships_with_advance: number;
   students_with_advance: number;
+  /** Money-1 B7: the debt by ONE definition - the debtors' and «ждём оплату» apart (`debt_total` is their sum, the old number). `null` from an older server. */
+  debtors_debt_total: number | null;
+  debt_waiting_total: number;
+  students_debtors: number | null;
+  students_waiting: number;
 }
 
 export interface IncomeCheck { code: string; left: number; right: number; diff: number }
@@ -234,6 +242,7 @@ function collectionRow(raw: Partial<CollectionRow> | null | undefined): Collecti
     group_id: raw?.group_id ?? null, group_name: raw?.group_name ?? null, teacher_id: raw?.teacher_id ?? null, teacher_name: raw?.teacher_name ?? null,
     charged: sum(raw?.charged), paid: sum(raw?.paid), forgiven: sum(raw?.forgiven), debt: sum(raw?.debt),
     students: sum(raw?.students), students_with_debt: sum(raw?.students_with_debt),
+    debt_waiting: sum(raw?.debt_waiting), students_waiting: sum(raw?.students_waiting),
     pct: raw?.pct === null || raw?.pct === undefined ? null : sum(raw.pct),
   };
 }
@@ -268,6 +277,10 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
       debt_total: sum(position.debt_total), past_debt_total: sum(position.past_debt_total), advance_total: sum(position.advance_total),
       memberships_with_debt: sum(position.memberships_with_debt), students_with_debt: sum(position.students_with_debt),
       memberships_with_advance: sum(position.memberships_with_advance), students_with_advance: sum(position.students_with_advance),
+      debtors_debt_total: typeof position.debtors_debt_total === "number" ? sum(position.debtors_debt_total) : null,
+      debt_waiting_total: sum(position.debt_waiting_total),
+      students_debtors: typeof position.students_debtors === "number" ? sum(position.students_debtors) : null,
+      students_waiting: sum(position.students_waiting),
     },
     checks: arr<IncomeCheck>(raw?.checks).map((check) => ({ code: text(check.code), left: sum(check.left), right: sum(check.right), diff: sum(check.diff) })),
     ok: raw?.ok !== false,
@@ -570,14 +583,21 @@ export interface PositionCard {
   amount: string;
   /** «3 ученика». */
   caption: string;
+  /** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - the rest of the debt, named, calm. */
+  waiting?: string;
   none: boolean;
 }
 
 const studentsText = (count: number): string => `${count} ${pluralRu(count, "ученик", "ученика", "учеников")}`;
 
 export function debtCard(overview: IncomeOverview): PositionCard {
-  const { debt_total: debt, students_with_debt: students } = overview.position;
-  return debt > 0 ? { amount: formatMoney(debt), caption: studentsText(students), none: false } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
+  const p = overview.position;
+  // Money-1 B7: the red number is the DEBTORS' debt; the ones who only wait are named under it (never silently added)
+  const debt = p.debtors_debt_total ?? p.debt_total;
+  const students = p.students_debtors ?? p.students_with_debt;
+  const waiting = waitingLine(p.debt_waiting_total, p.students_waiting);
+  if (debt > 0) return { amount: formatMoney(debt), caption: studentsText(students), waiting, none: false };
+  return waiting ? { amount: "Долгов нет", caption: "Никто не просрочил", waiting, none: true } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
 }
 
 export function advanceCard(overview: IncomeOverview): PositionCard {
@@ -1049,6 +1069,9 @@ export interface CollectionRowView {
   paid: number;
   debt: number;
   debtors: number;
+  /** Money-1 B7: of the debt of the month, the part of «ждём оплату» (not in `debt`). */
+  waitingDebt: number;
+  waitingStudents: number;
   /** 0–100 or null (nothing charged). */
   pct: number | null;
   pctText: string;
@@ -1062,10 +1085,11 @@ function collectionView(row: CollectionRow, index: number): CollectionRowView {
     groupId: row.group_id,
     title: row.group_name || "Без группы",
     teacher: row.teacher_name,
-    charged: row.charged, paid: row.paid, debt: row.debt, debtors: row.students_with_debt,
+    charged: row.charged, paid: row.paid, debt: Math.max(0, row.debt - row.debt_waiting), debtors: Math.max(0, row.students_with_debt - row.students_waiting),
+    waitingDebt: row.debt_waiting, waitingStudents: row.students_waiting,
     pct: row.pct === null ? null : Math.max(0, Math.min(100, row.pct)),
     pctText: row.pct === null ? "" : `${row.pct}%`,
-    debtorsText: row.students_with_debt > 0 ? `${row.students_with_debt} ${pluralRu(row.students_with_debt, "ученик", "ученика", "учеников")} с долгом за месяц` : "долгов за месяц нет",
+    debtorsText: row.students_with_debt - row.students_waiting > 0 ? `${row.students_with_debt - row.students_waiting} ${pluralRu(row.students_with_debt - row.students_waiting, "ученик", "ученика", "учеников")} с долгом за месяц` : "долгов за месяц нет",
   };
 }
 
@@ -1088,6 +1112,7 @@ export function collectionRows(collection: MonthCollection | null | undefined): 
  */
 export function collectionDebtNote(collection: MonthCollection | null | undefined, debtToday: number | null | undefined): string | null {
   if (!collection || debtToday === null || debtToday === undefined) return null;
+  // `debtToday` is the whole debt of the position (debtors + «ждём оплату»), the month's `debt` of the server too: the same footing
   const month = collection.total.debt;
   if (month === debtToday) return null;
   const name = (collection.month_label || "").trim().split(/\s+/)[0].toLowerCase();

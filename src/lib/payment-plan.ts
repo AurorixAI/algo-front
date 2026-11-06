@@ -183,6 +183,7 @@ export interface PlanView {
   lessons: string | null;
   priceAhead: string[];
   warnings: string[];
+  repeated: string | null;
 }
 
 /**
@@ -313,7 +314,7 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
   }
 
   if (rows.length === 1 && !allocations.length) rows.unshift({ key: "headline", label: base.headline, amount: null, tone: "plain" });
-  return { sentence: sentences.join(" "), rows, lines, lessons: base.lessons, priceAhead: base.priceAhead, warnings: base.warnings };
+  return { sentence: sentences.join(" "), rows, lines, lessons: base.lessons, priceAhead: base.priceAhead, warnings: base.warnings, repeated: base.repeated };
 }
 
 // ── Method: required, remembered, without «Другое» ─────────────────────────

@@ -56,6 +56,8 @@ export interface MoneyEffects {
   dryRun: boolean;
   /** R3 #7: the server could not work the numbers out (the action itself is done / allowed): «последствия не удалось посчитать», not an error. */
   unavailable: boolean;
+  /** Money-1 B8: a confirmed excuse of a monthly student gives the right to make the lesson up - no money moves; the server's sentence («Ученик может отработать пропущенный урок …»). */
+  makeup: string | null;
 }
 
 const num = (value: unknown): number | null => {
@@ -94,7 +96,7 @@ export function normalizeMoneyEffects(raw: unknown): MoneyEffects | null {
       driftAfter: num(item.driftAfter),
       balanceAfter: num(item.balanceAfter),
     }));
-  return { students, payroll, text: tidyMoneyText(str(source.text)) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true };
+  return { students, payroll, text: tidyMoneyText(str(source.text)) ?? "", dryRun: source.dryRun === true, unavailable: source.unavailable === true, makeup: tidyMoneyText(str((source.makeup as { text?: unknown } | null | undefined)?.text)) ?? null };
 }
 
 /** The block of an answer: `moneyEffects` (lessons) or `money_effects` (payments, rates, excuses) - one reader for both spellings. */
@@ -106,7 +108,7 @@ export function moneyEffectsOf(answer: unknown): MoneyEffects | null {
 
 /** The action moves nothing: no pack and no saved sheet is touched (and the server did work the numbers out). */
 export function effectsEmpty(effects: MoneyEffects | null | undefined): boolean {
-  return !effects || (effects.students.length === 0 && effects.payroll.length === 0 && !effects.unavailable);
+  return !effects || (effects.students.length === 0 && effects.payroll.length === 0 && !effects.unavailable && !effects.makeup);
 }
 
 /** R3 #7: the numbers of the action could not be worked out; the action itself is not refused (or was done). */
@@ -300,6 +302,7 @@ export function effectLines(effects: MoneyEffects | null | undefined, options: {
   const done = options.done === true;
   const lines: EffectLine[] = effects.students.map((student) => ({ key: `student:${student.studentId}`, text: studentEffectText(student, done), tone: "plain" }));
   lines.push(...payrollGroups(effects.payroll, done, options.today ?? formatBusinessDate(), options.withPaid === true));
+  if (effects.makeup) lines.push({ key: "makeup", text: effects.makeup, tone: "plain" });
   if (effects.unavailable) lines.push({ key: "unavailable", text: `${EFFECTS_UNAVAILABLE_TEXT}. ${done ? EFFECTS_UNAVAILABLE_DONE_HINT : EFFECTS_UNAVAILABLE_HINT}`, tone: "warn" });
   if (lines.length === 0 && effects.text) lines.push({ key: "text", text: effects.text, tone: "plain" });
   return lines;

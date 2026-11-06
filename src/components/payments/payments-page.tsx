@@ -8,6 +8,7 @@ import { orgApi } from "@/lib/api";
 import {
   bucketCount,
   bucketTabLabel,
+  isWaitingRow,
   filteredTabCounts,
   narrowedTabSummary,
   type TabCounts,
@@ -70,6 +71,7 @@ const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_128px_
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
+  waiting: "Сейчас никого не ждём: у всех новых периодов оплата уже есть или срок прошёл",
   expiring: "Скоро платить пока никому",
   active: "Учеников без долга пока нет",
   paused: "Сейчас никто не на паузе",
@@ -90,6 +92,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   // no right to money (the profile says so, or the summary was refused): the page asks the server for nothing - no 403 in the console
   const noRight = useMoneyDenied();
   const debtors = usePaymentsSummary((state) => state.debtors);
+  const studentsWaiting = usePaymentsSummary((state) => state.studentsWaiting);
+  const debtWaitingTotal = usePaymentsSummary((state) => state.debtWaitingTotal);
   const buckets = usePaymentsSummary((state) => state.buckets);
   const pausedCount = usePaymentsSummary((state) => state.paused);
   const studentsPaused = usePaymentsSummary((state) => state.studentsPaused);
@@ -271,8 +275,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = narrowed ? narrowedTabSummary(narrowedCounts) : summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
-  const cards = positionCards({ debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
+  const summaryForTabs = narrowed ? narrowedTabSummary(narrowedCounts) : summaryLoaded ? { buckets, debtors, students_waiting: studentsWaiting, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
+  const cards = positionCards({ debt_waiting_total: debtWaitingTotal, students_waiting: studentsWaiting, debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 
   return (
@@ -315,6 +319,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
               <p className="text-sm text-slate-500">{card.label}</p>
               <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "debt" ? "text-rose-700" : card.tone === "advance" ? "text-emerald-700" : "text-slate-500"}`}>{card.amount}</p>
               {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
+              {card.waiting && <p className="mt-0.5 text-sm text-slate-600" data-testid="position-waiting">{card.waiting}</p>}
             </Link>
           ))}
         </section>
@@ -491,7 +496,8 @@ function PaymentRow({
   const router = useRouter();
   const chip = moneyChip(row);
   const detail = statusDetail(row);
-  const reason = bucket === "debt" ? debtReasonLine(row, chip.label) : "";
+  const waiting = isWaitingRow(row);
+  const reason = bucket === "debt" || bucket === "waiting" ? debtReasonLine(row, chip.label) : "";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
   const tag = priceSourceTag(price);
@@ -547,7 +553,7 @@ function PaymentRow({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-left">
             <Chip tone={moneyChipTone(chip.tone)}>{chip.label}</Chip>
-            {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
+            {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
             {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />
           </div>
