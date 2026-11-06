@@ -420,7 +420,7 @@ test("D-3: nothing paid, all paid, covered by the advance of the earlier months 
   assert.equal(times(carry, 30000), 1, "the advance of the earlier months is named once, with its sum");
   assert.ok(carry.includes("Осталось выплатить 70 000 сум"), "with an advance taken off the payable sum is not the card's: the chip says it");
   assert.equal(times(carry, 100000), 0);
-  assert.ok(carry.includes("к выплате меньше на эту сумму"));
+  assert.ok(carry.includes("«К выплате» уменьшена на эту сумму"));
 });
 
 // ── D-2 (walk of 05.11): the card of an OPEN month ─────────────────────────────────────────────────

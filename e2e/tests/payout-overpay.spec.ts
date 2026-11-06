@@ -10,7 +10,7 @@ import { moneyPattern, toast } from "../support/ui";
 /**
  * Wave B / P4, MN-32: «Выплата зарплаты сверх остатка» on the real stack.  The rule (server, `payroll_payouts.state_of`, Money-1 R3 #20):
  *   - an OPEN month (not saved after its end) is paid by what is accrued NOW and hands NO advance on (`advance_out = 0`): its sheet says «Месяц открыт: начислено сейчас N, выплачено M…»;
- *   - an advance is carried («Аванс прошлого месяца») only out of a CLOSED month - a sheet saved after the end of the month.
+ *   - an advance is carried («Выплачено больше в прошлом месяце») only out of a CLOSED month - a sheet saved after the end of the month.
  *
  * Test 1 - the current month, open.  One teacher, one paying student, rate 50 %: the sheet is 25 000. The owner marks a payout of 40 000:
  *   - the SERVER refuses (409, `OVERPAY_CONFIRM_REQUIRED`) and the window asks «Выплата больше начисленного сейчас на 15 000 сум — записать как аванс?» with the hint of an open month;
@@ -18,7 +18,7 @@ import { moneyPattern, toast } from "../support/ui";
  *   - «Отмена» returns to the form (the amount is still there);
  *   - «Записать выплату вперёд» writes it: the sheet says what the server says of an open month, the history holds the payout, the month row says «вперёд 15 000»;
  *   - the overpay of an OPEN month is NOT carried into the next month (`carry_in = 0`).
- * Test 2 - a CLOSED past month: the overpay is carried; the current month says «Аванс прошлого месяца», «К выплате» is smaller by it, the exact rest needs no question, the Excel file has the line,
+ * Test 2 - a CLOSED past month: the overpay is carried; the current month says «Выплачено больше в прошлом месяце», «К выплате» is smaller by it, the exact rest needs no question, the Excel file has the line,
  *   cancelling the advance payout takes the carry away at once.  Self-contained: its own teacher, its own sheets (seeded after the end of the past month).
  * Screenshots: desktop 1280 and phone 375 -> WBP4_SHOTS.
  */
@@ -133,10 +133,10 @@ test("an OPEN month: a payout above what is accrued - the window asks, «Отм�
   await page.goto(`/owner/payroll/${nextSheetId}`);
   await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(100000)}\\s*сум`));   // the sum is the card's (the block says only what is left)
   await expect(page.getByTestId("sheet-payout").getByTestId("payout-advance")).toHaveCount(0);
-  await expect(page.getByTestId("sheet-payout")).not.toContainText("Аванс прошлого месяца");
+  await expect(page.getByTestId("sheet-payout")).not.toContainText("Выплачено больше в прошлом месяце");
 });
 
-test("a CLOSED past month: the advance is carried - the current month says «Аванс прошлого месяца», «К выплате» is smaller by it, the exact rest needs no question, the Excel file has the line, cancelling the advance takes it away @mobile", async ({ signIn }, info) => {
+test("a CLOSED past month: the advance is carried - the current month says «Выплачено больше в прошлом месяце», «К выплате» is smaller by it, the exact rest needs no question, the Excel file has the line, cancelling the advance takes it away @mobile", async ({ signIn }, info) => {
   const project = info.project.name;
   const now = businessNow().date;                                            // YYYY-MM-DD
   const [year, monthNumber] = now.split("-").map(Number);
@@ -172,8 +172,8 @@ test("a CLOSED past month: the advance is carried - the current month says «А�
   const block = page.getByTestId("sheet-payout");
   await expect(page.getByTestId("payroll-total")).toContainText(new RegExp(`${moneyPattern(100000)}\\s*сум`));             // the card: the sheet
   await expect(block).toContainText(new RegExp(`Осталось выплатить\\s*${moneyPattern(85000)}\\s*сум`));                  // the chip: what is payable after the advance
-  await expect(block).toContainText(new RegExp(`Аванс прошлого месяца:\\s*${moneyPattern(15000)}\\s*сум`));
-  await expect(block.getByTestId("payout-advance")).toContainText("к выплате меньше на эту сумму");
+  await expect(block).toContainText(new RegExp(`Выплачено больше в прошлом месяце:\\s*${moneyPattern(15000)}\\s*сум`));
+  await expect(block.getByTestId("payout-advance")).toContainText("«К выплате» уменьшена на эту сумму");
   await shot(page, project, "07-current-month-with-advance");
   const state = (await org.owner.api.get(`/auth/org/payroll/sheets/${sheetId}`)).payout;
   expect([state.carry_in, state.carry_used, state.target, state.balance]).toEqual([15000, 15000, 85000, 85000]);

@@ -428,7 +428,7 @@ export function advanceLines(state: PayoutState | null | undefined): string[] {
   const lines: string[] = [];
   if (state.carry_used > 0) {
     const whole = state.state === "settled" && state.paid === 0;
-    lines.push(`Аванс прошлого месяца: ${formatMoney(state.carry_used)} — зачтён${whole ? " целиком" : ", к выплате меньше на эту сумму"}`);
+    lines.push(`Выплачено больше в прошлом месяце: ${formatMoney(state.carry_used)} — вычтено${whole ? " целиком" : ", «К выплате» уменьшена на эту сумму"}`);   // словарь §1 (как в Excel сервера)
   }
   if (state.basis === "fresh") {
     if (state.state === "overpaid") lines.push(PAYOUT_ADVANCE_HINT_OPEN);
