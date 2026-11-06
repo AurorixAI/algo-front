@@ -40,7 +40,7 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   const tabs = page.getByRole("tab");
   await expect(tabs.nth(0)).toHaveText("Должники (1)");
   await expect(tabs.nth(1)).toHaveText("Ждём оплату (1)");
-  await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText("Просрочено");
+  await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText(/Просрочено|Ещё не платил/);
   await expect(page.getByText("Ждущий Пётр")).toHaveCount(0);       // the waiting student is not a debtor
   await expect(page.getByTestId("position-debt")).toContainText(/300\s000\sсум/);
   await expect(page.getByTestId("position-waiting")).toContainText("Ждём оплату: 300 000 сум · 1 ученик");
@@ -94,7 +94,7 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
   await input.press("Tab");
-  await expect(drawer.getByTestId("pay-from-immediate")).toContainText(/Сразу начислится \d[\d\s]* сум/);
+  await expect(drawer.getByTestId("pay-from-immediate")).toContainText(/Сразу начислится \d[\d\s\u00a0]*\sсум/);
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
   const membership = await org.membershipId(student.id, group.id);

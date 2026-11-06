@@ -48,7 +48,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   // --- the running period is not touched: the whole price of the period is due, the amount starts as that
   const expectedAmount = fee;
 
-  await page.goto("/owner/payments");
+  await page.goto("/owner/payments?bucket=waiting");   // Money-1 B7: the period began today - «Ждём оплату»
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум`));

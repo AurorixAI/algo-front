@@ -162,9 +162,8 @@ test("the header of the group: the price chip and «Цена группы…» i
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы задана")).toBeVisible();
   await expect(page.getByTestId("group-price-chip")).toContainText(new RegExp(moneyPattern(500000)));
-  // the student has not paid: the debt of the group is a chip, a link to the filtered tab
-  await expect(page.getByTestId("group-debt-chip")).toContainText(/Долг/);
-  await page.getByTestId("group-debt-chip").click();
-  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=debt`));
+  // Money-1 B7: the student joined today and has not paid - he only «ждём оплату», not a debtor: the chip «Долг» of the group is for debtors, the tab keeps his row
+  await expect(page.getByTestId("group-debt-chip")).toHaveCount(0);
+  await page.goto(`/owner/groups/${group.id}?tab=payments`);
   await expect(page.getByTestId("group-payments-tab")).toBeVisible();
 });

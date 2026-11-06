@@ -25,7 +25,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Платёжкин Анвар", exact: true }) });
 
   // --- the group has no price: nobody is owed yet, the list says so above itself and leads to «Цены групп»
-  await page.goto("/owner/payments");
+  await page.goto("/owner/payments?bucket=waiting");   // Money-1 B7: a student whose period began today is «Ждём оплату», not a debtor yet
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(page.getByText("У 1 ученика не задана цена")).toBeVisible();
   await expect(page.getByRole("link", { name: "Задать", exact: true })).toHaveAttribute("href", /\/owner\/payments\/prices$/);
@@ -37,7 +37,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText(money(450000)); // «Цена в месяц»
-  await expect(row()).toContainText("Ещё не платил");
+  await expect(row()).toContainText(/Ждём оплату до \d\d\.\d\d/);
   await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(450000)}`));
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
@@ -139,7 +139,7 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   const group = await org.createGroup({ name: "Группа О2", teacherId: teacher.userId });
   await org.addStudent(group, "Мадина", "Телефонова");
   const page = await signIn(org.owner);
-  await page.goto("/owner/payments");
+  await page.goto("/owner/payments?bucket=waiting");
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(page.getByText(/не задана цена/)).toBeVisible(); // the group has no price yet: the warning above the list, no row
   await expectNoHorizontalScroll(page);
@@ -147,7 +147,7 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   await page.reload();
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
-  await expect(row).toContainText("Ещё не платил");
+  await expect(row).toContainText(/Ждём оплату до \d\d\.\d\d/);
   await expect(row.getByRole("textbox")).toHaveCount(0);
   await expect(row.getByRole("button", { name: "Внести оплату" })).toBeVisible();
   await expectNoHorizontalScroll(page);
