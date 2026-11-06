@@ -29,7 +29,7 @@ async function openMonth(width, server = monthServer()) {
 }
 const small = (page, scope = "body") => page.evaluate(touchTargets, scope);
 
-test("Д6: «Требует действия · N» is ONE line at 1280 (nowrap)", async () => {
+test("Д6: «Требует действия» is ONE line at 1280 (nowrap)", async () => {
   const { page } = await openMonth(1280);
   // the real layout has the sidebar (240 px) and the padding of the content: the harness has neither
   await page.evaluate(() => { document.body.style.paddingLeft = "240px"; });
@@ -65,3 +65,16 @@ test("Д4 / Д8 / Д12: the journal says «Не состоялся» once, the c
   assert.match(window.slice(0, 1800), /<ConfirmFooter[\s\S]*primary="Сохранить исправление"[\s\S]*testId="correction-submit"/, "Д12");
   assert.doesNotMatch(window.slice(0, 1200), />Назад<\/button>/, "Д12: no «Назад»");
 });
+
+for (const width of [1280, 1024, 375]) {
+  test(`§5.3-1 ${width}: the chip says «Требует действия» with no counter, on ONE line`, async () => {
+    const { page } = await openMonth(width);
+    const chips = await page.evaluate(() => [...document.querySelectorAll('[data-testid="status-todo"]')].map((el) => ({ text: el.textContent.trim(), h: el.getBoundingClientRect().height })));
+    assert.ok(chips.length >= 1);
+    for (const chip of chips) { assert.equal(chip.text, "Требует действия"); assert.ok(chip.h <= 44, JSON.stringify(chips)); }
+    const { layoutProbe } = require("./helpers/layout-probe.cjs");
+    const probe = await page.evaluate(layoutProbe, "body");
+    assert.deepEqual(probe.bad, [], JSON.stringify(probe.bad));
+    await page.close();
+  });
+}

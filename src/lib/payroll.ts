@@ -1109,7 +1109,7 @@ export const undecidedLessonsItem = (n: number): string => `${n} ${pluralRu(n, [
 /**
  * What of a teacher's month NEEDS AN ACTION (UX pack §5.2-бис): an unfinished lesson, an excuse that waits, a missing price, an additional lesson nobody decided - and the saved salary that CHANGED
  * («Зарплата изменилась на −45 000 сум — сохраните новую сумму»).  Each item is a link to where it is done.  «N учеников не оплатили часть уроков» is a note, not an action: it stays on the sheet.
- * The row does not print them under the name any more: they are the items of its ONE status chip («Требует действия · N», `rowStatus`) and the block «Что нужно сделать» of the sheet.
+ * The row does not print them under the name any more: they are the items of its ONE status chip («Требует действия», `rowStatus`) and the block «Что нужно сделать» of the sheet.
  */
 export function teacherAttention(teacher: Pick<PayrollMonthTeacher, "warnings" | "undecided_lessons"> & { sheet?: Pick<PayrollMonthSheetRef, "id" | "stale"> | null; payout?: Pick<NonNullable<PayrollMonthTeacher["payout"]>, "changed_by" | "fresh_total"> | null }): WarningView[] {
   const views = warningViews(teacher.warnings).filter((view) => view.key !== "unpaid");
@@ -1160,7 +1160,7 @@ export function changedItem(teacher: { sheet?: Pick<PayrollMonthSheetRef, "id" |
 const statusChangedHint = (): string => "Сохранённая зарплата не меняется сама: откройте её и сохраните новую сумму — появится новая версия.";
 
 /**
- * The ONE status chip of a row (UX pack §5.2-бис), by priority: 1. «Требует действия · N» (amber; its items open on hover, tap or focus); 2. «Не рассчитано»; 3. «Сохранено 05.11».
+ * The ONE status chip of a row (UX pack §5.2-бис), by priority: 1. «Требует действия» (amber, no counter: the items are in the list that opens); its items open on hover, tap or focus); 2. «Не рассчитано»; 3. «Сохранено 05.11».
  * `items` are the action items of the first kind (a changed salary is one of them).
  */
 export interface RowStatusView {
@@ -1171,7 +1171,7 @@ export interface RowStatusView {
 
 export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout" | "warnings" | "undecided_lessons">): RowStatusView {
   const items = teacherAttention(teacher);
-  if (items.length > 0) return { tone: "todo", label: `Требует действия · ${items.length}`, items };
+  if (items.length > 0) return { tone: "todo", label: "Требует действия", items };
   const base = sheetStatus(teacher.sheet);
   return { tone: base.tone === "none" ? "none" : "saved", label: base.label, items: [] };
 }

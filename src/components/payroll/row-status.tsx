@@ -11,7 +11,7 @@ import { useFloatingPlacement } from "@/lib/use-floating-placement";
 import { StatusChip } from "./sheet-controls";
 
 /**
- * The ONE status chip of a row of the month list (UX pack §5.2-бис).  «Сохранено 05.11» and «Не рассчитано» are plain chips; «Требует действия · N» is amber and OPENS the list of its items - on hover,
+ * The ONE status chip of a row of the month list (UX pack §5.2-бис).  «Сохранено 05.11» and «Не рассчитано» are plain chips; «Требует действия» is amber and OPENS the list of its items - on hover,
  * on a tap / a click and on focus (the tested state machine of the project, `reduceReveal`, as the hint) - every item a link to where it is done (the changed salary among them: «Зарплата изменилась на
  * −45 000 сум — сохраните новую сумму»).  The list is drawn in a layer of the page (a portal, placed by `useFloatingPlacement`), so the rounded table around the rows never cuts it; Escape and a press
  * outside close it.  The mouse may travel from the chip to the list: leaving waits a moment.

@@ -63,7 +63,7 @@ test("the tiles are the sums of the rows - for any month (LESSONS 104)", () => {
 test("the status of the row is ONE chip (see ux-month-row.test.cjs for the priority); the second small line only when the month differs (running: no «Месяц открыт»)", () => {
   const CL = require(path.join(root, "src/lib/closed-period.ts"));
   const WARN = { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 };
-  assert.equal(R.rowStatus({ ...KAMOL, warnings: { ...WARN, open_lessons: 1 }, undecided_lessons: 1 }).label, "Требует действия · 3", "an unfinished lesson, an additional lesson, the changed salary: ONE chip");
+  assert.equal(R.rowStatus({ ...KAMOL, warnings: { ...WARN, open_lessons: 1 }, undecided_lessons: 1 }).label, "Требует действия", "an unfinished lesson, an additional lesson, the changed salary: ONE chip");
   assert.equal(R.rowStatus({ ...LOLA, warnings: WARN, undecided_lessons: 0 }).label, "Не рассчитано");
   assert.equal(R.rowStatus({ ...SABINA, warnings: WARN, undecided_lessons: 0 }).tone, "saved");
   const open = CL.periodView({ state: "open", closedOn: null, reopened: null });

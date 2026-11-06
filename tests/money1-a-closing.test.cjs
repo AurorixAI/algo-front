@@ -111,7 +111,7 @@ test("С19: the number in the chip «Требует действия · N» is t
   const chip = P.rowStatus(teacher);
   const block = P.sheetTodoItems({ counts: warnings, undecidedLessons: 1, changed: P.changedItem(teacher) });
   assert.equal(chip.items.length, block.length);
-  assert.match(chip.label, new RegExp(`· ${block.length}$`));
+  assert.equal(chip.label, "Требует действия", "no counter in the chip (owner 06.11)");
   assert.deepEqual(chip.items.map((item) => item.key), block.map((item) => item.key), "the same items in the same order");
 });
 

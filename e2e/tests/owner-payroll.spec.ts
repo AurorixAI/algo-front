@@ -142,8 +142,8 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await preview.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Ведомость сохранена · версия 1")).toBeVisible();
   const row = page.getByRole("listitem").filter({ hasText: "Групповой" });
-  // UX pack §5.2-бис: ONE chip by priority - the excuse of this teacher still waits, so «Требует действия · 1» stands before «Сохранено дд.мм» (the saved date is checked on the card below)
-  await expect(row).toContainText("Требует действия · 1");
+  // UX pack §5.2-бис: ONE chip by priority - the excuse of this teacher still waits, so «Требует действия» stands before «Сохранено дд.мм» (the saved date is checked on the card below)
+  await expect(row).toContainText("Требует действия");
   await expect(row).not.toContainText("Не рассчитано");
   await expect(row).toContainText(`${groupedDigits(t1Total)} сум`);
   await expect(page.getByTestId("payroll-month-summary")).toContainText(`${groupedDigits(t1Total)} сум`);

@@ -55,7 +55,7 @@ test("ONE chip by priority: «Требует действия · N» (amber) / �
   const { page } = await openMonth(1280);
   const chips = [];
   for (const index of [0, 1, 2]) chips.push(plain(await page.locator("ul > li").nth(index).locator('[data-testid="status-todo"], [class*="rounded-2xl"][class*="border"]').first().textContent()));
-  assert.deepEqual(chips, ["Требует действия · 3", "Требует действия · 1", "Сохранено 05.11"]);
+  assert.deepEqual(chips, ["Требует действия", "Требует действия", "Сохранено 05.11"]);
   assert.equal(await page.locator('[data-testid="status-todo"]').count(), 2);
   assert.ok(!/Изменилась/.test(plain(await page.textContent("ul"))), "the change is not a chip of its own");
   await page.close();

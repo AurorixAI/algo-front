@@ -421,7 +421,7 @@ test("the sheet block and the month row draw the payout", () => {
   const teacher = { teacher_id: "t", teacher_name: "Каримова", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: { id: "s1", revision: 1, total_amount: 475000, stale: true, updated_at: null }, warnings: {}, payout: due };
   const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.ok(row.includes("выплачено ✓"), "the column «Остаток» of the row says it (UX pack §5.2)");
-  assert.ok(plain(row).includes("Требует действия · 1"), "the month row names the change after the saving - ONCE, as an item of the ONE status chip (UX pack §5.2-бис)");
+  assert.ok(plain(row).includes("Требует действия"), "the month row names the change after the saving - ONCE, as an item of the ONE status chip (UX pack §5.2-бис)");
   assert.ok(!plain(row).includes("изменилось на"), "not a second time under the payout");
   const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.match(rowHtml, /data-testid="teacher-rest"/, "the payout is the columns «Выплачено» and «Остаток» of the row (UX pack §5.2): no chip of its own");
