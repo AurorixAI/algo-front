@@ -54,9 +54,9 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
           <p className="text-xs text-slate-500">{DECIDED_HINT}</p>
         </div>
         <div className="flex items-center gap-1" role="group" aria-label="Месяц">
-          <button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
+          <button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 sm:h-8 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
           <span data-testid="decided-month" className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{monthTitle(month)}</span>
-          <button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
+          <button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 sm:h-8 sm:w-8 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
         </div>
       </header>
       {loading ? (
