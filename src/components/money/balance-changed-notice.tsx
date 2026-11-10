@@ -21,17 +21,13 @@ export function BalanceChangedNotice({ message, fresh, emptyText, onContinue, on
   note?: string | null;
 }) {
   const nothingLeft = fresh <= 0;
+  // the sentence has the whole width, the button stands UNDER it (not beside it: a narrow column squeezed the sentence into four lines)
   return (
-    <Notice
-      variant="warning"
-      compact
-      testId="balance-changed"
-      title={message}
-      action={nothingLeft
-        ? <Button type="button" variant="secondary" size="sm" onClick={onClose} data-testid="balance-changed-close">Закрыть</Button>
-        : <Button type="button" variant="secondary" size="sm" onClick={onContinue} data-testid="balance-changed-continue">Продолжить с {formatMoney(fresh)}</Button>}
-    >
-      {nothingLeft ? emptyText : note || null}
+    <Notice variant="warning" compact testId="balance-changed" title={message}>
+      {nothingLeft ? <p>{emptyText}</p> : note ? <p>{note}</p> : null}
+      <Button type="button" variant="secondary" size="sm" className="mt-2 w-full" onClick={nothingLeft ? onClose : onContinue} data-testid={nothingLeft ? "balance-changed-close" : "balance-changed-continue"}>
+        {nothingLeft ? "Закрыть" : `Продолжить с ${formatMoney(fresh)}`}
+      </Button>
     </Notice>
   );
 }

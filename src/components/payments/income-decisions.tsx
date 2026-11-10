@@ -18,7 +18,7 @@ import { Select } from "@/components/ui/select";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { IncomeError } from "./income-parts";
 
-const GRID = "xl:grid-cols-[7.5rem_9.5rem_minmax(0,1fr)_9rem_9.5rem_9rem_1.5rem]";
+const GRID = "xl:grid-cols-[6rem_9rem_minmax(0,1fr)_10.5rem_10.5rem_7.5rem_1.5rem]";
 
 /**
  * «Решения» of «Поступлений» (Money-1 V2): who cancelled or corrected a payment, forgave a debt or gave an advance back - one line each: when · what · whom · the sum · the debt before → after · who.
@@ -145,8 +145,8 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
         <span className="col-start-2 row-start-1 text-right text-xs tabular-nums text-slate-500 xl:col-start-auto xl:row-start-auto xl:text-left xl:text-sm" data-testid="decision-when">{decisionWhen(row.at)}</span>
         <span className="col-start-1 row-start-1 min-w-0 xl:col-start-auto xl:row-start-auto"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></span>
         <span className="col-span-2 row-start-2 min-w-0 break-words text-sm font-medium text-slate-900 xl:col-span-1 xl:row-start-auto" >{who}</span>
-        <span className="col-start-1 row-start-3 text-sm font-medium tabular-nums text-slate-800 xl:col-start-auto xl:row-start-auto xl:text-right" data-testid="decision-amount">{decisionAmountText(row)}</span>
-        <span className="col-start-1 row-start-4 text-xs tabular-nums text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-right xl:text-sm" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span>
+        <span className="col-start-1 row-start-3 whitespace-nowrap text-sm font-medium tabular-nums text-slate-800 xl:col-start-auto xl:row-start-auto xl:text-right" data-testid="decision-amount">{decisionAmountText(row)}</span>
+        <span className="col-start-1 row-start-4 whitespace-nowrap text-xs tabular-nums text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-right xl:text-sm" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span>
         <span className="col-start-1 row-start-5 min-w-0 break-words text-xs text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-sm">{row.actor_name ?? "—"}</span>
         <ChevronDown aria-hidden className={`col-start-2 row-start-3 h-4 w-4 self-center justify-self-end text-slate-500 transition-transform xl:col-start-auto xl:row-start-auto xl:justify-self-auto ${open ? "rotate-180" : ""}`} />
       </button>

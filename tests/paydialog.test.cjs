@@ -427,7 +427,7 @@ test("the dialog layout: amount first, chips under it, then the plan, then metho
   assert.match(read("src/components/payments/payment-dialog.tsx"), /plan\.rows\.map/);   // UX pack §5.1: the plan is a table of rows (the sentence stays for a screen reader)
   // method: its OWN full-width row, all five on one line from sm up; a phone: 3 + 2 of equal width (never a lone orphan); the date is the next row
   const methodRow = dialog.slice(dialog.indexOf('testId="payment-methods"'), dialog.indexOf("Дата оплаты"));
-  assert.match(methodRow, /className="grid-cols-3 sm:grid-cols-5"/);
+  assert.match(methodRow, /className=\{methods\.length === 6 \? "grid-cols-3" : "grid-cols-3 sm:grid-cols-5"\}/);
   assert.match(read("src/components/ui/radio.tsx"), /\bw-full\b[^"]*\btext-center\b/, "equal-width buttons (the shared SegmentedControl)");
   assert.doesNotMatch(methodRow, /flex-wrap/);
   assert.doesNotMatch(dialog, /sm:grid-cols-\[minmax\(0,1fr\)_10rem\]/, "the date no longer shares the row with the methods");

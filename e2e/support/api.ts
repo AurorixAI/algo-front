@@ -339,6 +339,7 @@ export class Org {
     return this.owner.api.post(`/auth/org/memberships/${membership}/payments`, {
       amount,
       paid_on: businessNow().date,
+      method: "cash",   // Money-1 V: the server asks for the method of every payment
       ...extra,
     });
   }

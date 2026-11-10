@@ -54,7 +54,10 @@ export function RefundDialog({
   const patch = (next: Partial<RefundFormValues>) => { if (!change) setError(null); setLowered(null); setValues((previous) => ({ ...previous, ...next })); };
   const refundAmount = parseMoneyInput(values.amount);
   // the sum changed under the window: the person goes on with the new one first («Продолжить с …»)
-  const blocker = row ? validateRefund(values, refundable) ?? (change ? "Сумма изменилась — нажмите «Продолжить»" : null) : null;
+  // while the notice stands, the window shows the FRESH sum at once (the warning below says the same: no second hint in the footer)
+  const shown = change ? change.fresh : refundable;
+  const problem = row ? validateRefund(values, refundable) : null;
+  const blocker = problem ?? (change ? "" : null);
   const failure = payError(error);
 
   const continueWith = (next: number) => {
@@ -97,12 +100,12 @@ export function RefundDialog({
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
         // UX pack №22 / rule 3: the main button names the action and the sum; off - with the line «почему»
-        <ConfirmFooter primary={`${REFUND_ACTION_LABEL}${refundAmount !== null && refundAmount > 0 ? ` ${formatMoney(refundAmount)}` : ""}`} submitFor="refund-form" busy={busy} disabled={blocker !== null} why={blocker} whyId="refund-why" onCancel={onClose} testId="refund-submit" />
+        <ConfirmFooter primary={`${REFUND_ACTION_LABEL}${refundAmount !== null && refundAmount > 0 ? ` ${formatMoney(refundAmount)}` : ""}`} submitFor="refund-form" busy={busy} disabled={blocker !== null} why={problem} whyId="refund-why" onCancel={onClose} testId="refund-submit" />
       )}
     >
       <form id="refund-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">
-          Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">{formatMoney(refundable)}</span>
+          Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">{formatMoney(shown)}</span>
         </p>
 
         <div>
@@ -120,13 +123,13 @@ export function RefundDialog({
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
           </div>
-          <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{lowered ?? refundPreviewText(values, refundable)}</p>
+          <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{lowered ?? refundPreviewText(values, shown)}</p>
         </div>
 
         <div>
           <span id="refund-method-label" className={LABEL}>Способ возврата</span>
           {/* re-audit С7: the same control as the payment and the payout; nothing is chosen for the person */}
-          <SegmentedControl ariaLabelledBy="refund-method-label" testId="refund-methods" value={values.method} onChange={(next) => patch({ method: next })} options={METHODS.map((method) => ({ value: method.key, label: method.label }))} className={METHODS.length >= 5 ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"} buttonClassName="max-sm:min-h-11" />
+          <SegmentedControl ariaLabelledBy="refund-method-label" testId="refund-methods" value={values.method} onChange={(next) => patch({ method: next })} options={METHODS.map((method) => ({ value: method.key, label: method.label }))} className={METHODS.length === 6 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} buttonClassName="max-sm:min-h-11" />
         </div>
 
         <ReasonField

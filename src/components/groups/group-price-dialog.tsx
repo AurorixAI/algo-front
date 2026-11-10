@@ -216,7 +216,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       busy={saving}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={`Сохранить цену${check.request ? ` ${formatMoney(check.request.amount)}` : ""}`} submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : unusualText !== null && !confirmed && !blockedNow ? "Подтвердите цену: «Да, цена верная»" : reasonProblem ? reasonProblem : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
+      footer={<ConfirmFooter primary={`Сохранить цену${check.request ? ` ${formatMoney(check.request.amount)}` : ""}`} submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : unusualText !== null && !confirmed && !blockedNow ? null : reasonProblem ? reasonProblem : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >
       <form id="group-price-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-3.5 pb-2" noValidate>
         <div>

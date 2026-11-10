@@ -387,7 +387,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               value={values.method}
               onChange={(key) => patch({ method: key })}
               options={methods.map((method) => ({ value: method.key, label: method.label }))}
-              className="grid-cols-3 sm:grid-cols-5"
+              className={methods.length === 6 ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-5"}
               buttonClassName="max-sm:min-h-11"
             />
           </div>

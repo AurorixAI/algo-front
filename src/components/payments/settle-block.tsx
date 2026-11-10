@@ -164,7 +164,7 @@ function MembershipSettle({
           {choice.action === "refund" && (
             <div className="pl-6" role="radiogroup" aria-label="Как вернули деньги">
               <span className="mb-1 block text-xs font-semibold text-slate-600">Как вернули</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {METHODS.map((method) => (
                   <button
                     key={method.key}
@@ -173,7 +173,7 @@ function MembershipSettle({
                     aria-checked={choice.method === method.key}
                     disabled={disabled}
                     onClick={() => onChoice({ method: method.key })}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${choice.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                    className={`min-h-10 rounded-lg border px-2.5 py-1.5 text-center text-xs font-semibold transition-colors ${choice.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                   >
                     {method.label}
                   </button>

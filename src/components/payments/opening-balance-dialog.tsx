@@ -152,7 +152,7 @@ export function OpeningBalanceDialog({
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={removing ? "Убрать остаток" : "Сохранить"} tone={removing ? "danger" : "primary"} submitFor="opening-form" busy={busy} disabled={Boolean(problem) || unchanged || (empty && !opening) || (needsTick && !understood)} why={problem ? String(problem) : unchanged ? "Измените остаток, чтобы сохранить" : needsTick && !understood ? "Отметьте: «Понятно, покрытие изменится»" : "Заполните остаток"} whyId="opening-why" onCancel={onClose} testId="opening-save" />}
+      footer={<ConfirmFooter primary={removing ? "Убрать остаток" : "Сохранить"} tone={removing ? "danger" : "primary"} submitFor="opening-form" busy={busy} disabled={Boolean(problem) || unchanged || (empty && !opening) || (needsTick && !understood)} why={problem ? String(problem) : unchanged ? "Измените остаток, чтобы сохранить" : needsTick && !understood ? null : "Заполните остаток"} whyId="opening-why" onCancel={onClose} testId="opening-save" />}
     >
       <form id="opening-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <OpeningBalanceFields

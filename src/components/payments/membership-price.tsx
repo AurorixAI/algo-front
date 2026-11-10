@@ -395,7 +395,7 @@ export function AssignOverrideDialog({
       busy={busy}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={`Сохранить цену${formCheck.request?.amount ? ` ${formatMoney(formCheck.request.amount)}` : ""}`} submitFor="membership-price-form" busy={busy} disabled={unusualText !== null && !confirmed && !whatIf.blocked} why={unusualText !== null && !confirmed ? "Подтвердите цену: «Да, цена верная»" : null} whyId="membership-price-why" onCancel={onClose} testId="membership-price-save" />}
+      footer={<ConfirmFooter primary={`Сохранить цену${formCheck.request?.amount ? ` ${formatMoney(formCheck.request.amount)}` : ""}`} submitFor="membership-price-form" busy={busy} disabled={unusualText !== null && !confirmed && !whatIf.blocked} why={null} whyId="membership-price-why" onCancel={onClose} testId="membership-price-save" />}
     >
       <form id="membership-price-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">

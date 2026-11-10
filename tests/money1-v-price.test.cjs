@@ -36,7 +36,6 @@ test("unusual price: the server's question and «Да, цена верная»; 
   const save = page.locator('button[form="group-price-form"]');
   assert.equal(plain(await save.textContent()), "Сохранить цену 3 000 000 сум");
   assert.equal(await save.isDisabled(), true);
-  assert.match(plain(await page.textContent('[data-testid="group-price-why"]')), /Да, цена верная/);
   await page.check('[data-testid="price-unusual-ok"]');
   assert.equal(await save.isDisabled(), false);
   await save.click();

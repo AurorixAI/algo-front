@@ -89,7 +89,8 @@ export function WriteoffDialog({
     onClose();
   };
 
-  const preview = writeoffPreviewText(values, debt);
+  const debtShown = change ? change.fresh : debt;
+  const preview = writeoffPreviewText(values, debtShown);
 
   return (
     <Modal
@@ -99,11 +100,11 @@ export function WriteoffDialog({
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={`${WRITEOFF_ACTION_LABEL}${(() => { const sum = writeoffAmount(values, debt); return sum !== null && sum > 0 ? ` ${formatMoney(sum)}` : ""; })()}`} submitFor="writeoff-form" busy={busy} disabled={change !== null} why={change ? "Долг изменился — нажмите «Продолжить»" : null} whyId="writeoff-why" onCancel={onClose} testId="writeoff-submit" />}
+      footer={<ConfirmFooter primary={`${WRITEOFF_ACTION_LABEL}${(() => { const sum = writeoffAmount(values, debtShown); return sum !== null && sum > 0 ? ` ${formatMoney(sum)}` : ""; })()}`} submitFor="writeoff-form" busy={busy} disabled={change !== null} why={null} whyId="writeoff-why" onCancel={onClose} testId="writeoff-submit" />}
     >
       <form id="writeoff-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">
-          Долг: <span className="font-semibold tabular-nums text-rose-700" data-testid="writeoff-debt">{formatMoney(debt)}</span>
+          Долг: <span className="font-semibold tabular-nums text-rose-700" data-testid="writeoff-debt">{formatMoney(change ? change.fresh : debt)}</span>
         </p>
 
         <fieldset className="space-y-2">

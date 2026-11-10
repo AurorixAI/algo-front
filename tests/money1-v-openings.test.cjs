@@ -40,7 +40,6 @@ test("single window: the warning and the box; «Сохранить» waits for t
     assert.match(plain(await page.textContent('[data-testid="opening-over-payments"]')), /У ученика уже есть оплаты на 600 000 сум — покрытие станет до 20\.01\s?Понятно, покрытие изменится/);
     const save = page.locator('[data-testid="opening-save"]');
     assert.equal(await save.isDisabled(), true);
-    assert.match(plain(await page.textContent('[data-testid="opening-why"]')), /Понятно, покрытие изменится/);
     await page.check('[data-testid="opening-over-payments-ok"]');
     assert.equal(await save.isDisabled(), false);
     await save.click();
