@@ -303,17 +303,17 @@ test("table headers and captions of the attendance screens are ordinary case, ne
   assert.match(chrome, /TABLE_HEAD_CELL = "min-w-0 text-\[13px\] font-semibold text-slate-500"/);
 });
 
-test("«Подтвердить» and «Отклонить» sit side by side in every waiting row, both through the dialog; the menu keeps only rare actions", () => {
+test("a waiting row holds ONE button «Подтвердить» and «⋯»; «Отклонить…» (danger) is the FIRST item of the menu; both go through the dialog", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  const confirmAt = page.indexOf('onClick={() => openDialog(item, "confirmed", "none")}\n                            variant="primary"');
-  const rejectAt = page.indexOf('onClick={() => openDialog(item, "rejected", "optional")}\n                            variant="secondary"');
+  const confirmAt = page.search(/onClick=\{\(\) => openDialog\(item, "confirmed", "none"\)\}\s+variant="primary"/);
   const menuAt = page.indexOf("<RowMenu items={menuFor(item)}");
-  assert.ok(confirmAt > 0 && rejectAt > confirmAt && menuAt > rejectAt, "Подтвердить, then Отклонить, then «⋯» in one row");
+  assert.ok(confirmAt > 0 && menuAt > confirmAt, "Подтвердить, then «⋯» in one row");
   assert.match(page, /aria-label=\{`Подтвердить: \$\{item\.student\.full_name\}`\}/);
-  assert.match(page, /aria-label=\{`Отклонить: \$\{item\.student\.full_name\}`\}/);
-  assert.equal((page.match(/disabled=\{busy\}\s+aria-label=\{`(Подтвердить|Отклонить)/g) || []).length, 3, "a row that is being decided blocks its buttons (the two of a waiting row and the «Подтвердить» of a rejected one)");
-  // the menu of a waiting row: note, certificate - no second «Отклонить», no navigation (IA audit F6: the journal and the card are links of the row)
-  assert.match(page, /if \(item\.status === "pending"\) return \[confirmWithNote, attach\];/);
+  assert.doesNotMatch(page, /aria-label=\{`Отклонить: /, "no «Отклонить» button in the row");
+  assert.equal((page.match(/disabled=\{busy\}\s+aria-label=\{`Подтвердить/g) || []).length, 2, "a row that is being decided blocks its «Подтвердить» (a waiting one and a rejected one)");
+  // the menu of a waiting row: «Отклонить…» first (danger), the note, the certificate - no navigation (IA audit F6: the journal and the card are links of the row)
+  assert.match(page, /const reject: RowMenuItem = \{ key: "reject", label: "Отклонить…", icon: XCircle, danger: true/);
+  assert.match(page, /if \(item\.status === "pending"\) return \[reject, confirmWithNote, attach\];/);
   // a decision that is already made can still be changed from the menu
   assert.match(page, /if \(item\.status === "confirmed"\) return \[reject, reset, attach\];/);
   assert.match(page, /return \[confirmWithNote, reset, attach\];/);

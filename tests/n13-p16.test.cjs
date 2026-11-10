@@ -136,7 +136,8 @@ test("«Пропуски»: «Подтвердить» (primary) and «Откл�
   // owner decision 20.10: both decisions sit side by side in every waiting row; the filled one is the main action, the outlined one is calm (not red: it is reversible)
   // design system, wave 1: no green button (green is a state) - the filled one is the PRIMARY Button, the calm one a SECONDARY Button
   assert.match(page, /onClick=\{\(\) => openDialog\(item, "confirmed", "none"\)\}\s+variant="primary" size="sm"/);
-  assert.match(page, /onClick=\{\(\) => openDialog\(item, "rejected", "optional"\)\}\s+variant="secondary" size="sm"/);
+  // owner 10.11: «Отклонить» left the row - it is the first item of «⋯» (danger)
+  assert.doesNotMatch(page, /onClick=\{\(\) => openDialog\(item, "rejected", "optional"\)\}\s+variant="secondary"/);
   assert.doesNotMatch(page, /bg-emerald-600/, "no green fill on a button");
   assert.doesNotMatch(page, /Примечание \(необязательно\)|aria-label="Примечание к решению"/);
   assert.doesNotMatch(page, /Снять фото|capture=|Camera/);

@@ -6,7 +6,7 @@ import { deadlineWords, dm, settledBox, toast } from "../support/ui";
 /**
  * Owner: «Посещаемость» -> «Пропуски» -> «Ожидают»: an excuse the teacher marked is waiting, with the
  * deadline by which it must be confirmed, in words («Осталось 24 дня», the date small under it; UX-1 B);
- * «Подтвердить» and «Отклонить» sit side by side in the row and both ask for confirmation in a dialog (N13 P4 #103),
+ * «Подтвердить» sits in the row, «Отклонить…» is the first item of «⋯»; both ask for confirmation in a dialog (N13 P4 #103),
  * and the confirmed excuse leaves the pending list.
  *
  * Deadline rule (owner decision 15.10; the oracle below is written from that rule, not from the API):
@@ -56,14 +56,11 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   // no abbreviations in the column
   await expect(item("Оплативший Анвар")).not.toContainText("дн.");
 
-  // both decisions are visible in the row, side by side (owner decision 20.10): «Подтвердить» left of «Отклонить»
+  // the row holds ONE button, «Подтвердить»; «Отклонить…» is the first item of «⋯» (owner 10.11)
   // (the page can still be settling: the payments notice slides in above the list)
   await settledBox(item("Оплативший Анвар"));
-  const confirmBox = await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).boundingBox();
-  const rejectBox = await item("Оплативший Анвар").getByRole("button", { name: "Отклонить" }).boundingBox();
-  expect(confirmBox && rejectBox, "both buttons are on the screen").toBeTruthy();
-  expect(rejectBox!.x, "«Отклонить» is to the right of «Подтвердить»").toBeGreaterThan(confirmBox!.x);
-  expect(Math.abs(rejectBox!.y - confirmBox!.y), "...on the same line").toBeLessThan(2);
+  await expect(item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" })).toBeVisible();
+  await expect(item("Оплативший Анвар").getByRole("button", { name: "Отклонить" }), "no «Отклонить» button in the row").toHaveCount(0);
   await expect(item("Оплативший Анвар")).toContainText("Болел, справка");
   await expect(item("Оплативший Анвар")).toContainText(`${group.name}`);
 
@@ -98,7 +95,8 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await expect(item("Безоплатная Мадина")).toHaveCount(1);
 
   // «Отклонить» of the other row asks first too (the same dialog, an optional reason); «Отмена» sends nothing
-  await item("Безоплатная Мадина").getByRole("button", { name: "Отклонить" }).click();
+  await item("Безоплатная Мадина").getByRole("button", { name: "Действия: Безоплатная Мадина" }).click();
+  await page.getByRole("menuitem", { name: "Отклонить…" }).click();
   const rejectDialog = page.getByRole("dialog", { name: "Отклонить пропуск?" });
   await expect(rejectDialog).toBeVisible();
   await expect(rejectDialog).toContainText("Безоплатная Мадина");
