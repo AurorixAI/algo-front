@@ -1,0 +1,162 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { orgApi } from "@/lib/api";
+import { basesOfPayments, studentHref } from "@/lib/ia-links";
+import {
+  DECISION_KINDS, DECISIONS_EMPTY_TEXT, DECISIONS_FILTERED_EMPTY_TEXT, DECISIONS_PAGE_SIZE, decisionAmountText, decisionDebtText, decisionsSinceText, decisionTone, decisionWhen,
+  type DecisionRow, type DecisionsPage,
+} from "@/lib/payments-decisions";
+import { incomeErrorText, type JournalAuthor, type Period } from "@/lib/payments-income-v2";
+import { createRequestSequence } from "@/lib/request-sequence";
+import { Button } from "@/components/ui/button";
+import { StatusChip } from "@/components/ui/chip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Select } from "@/components/ui/select";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { IncomeError } from "./income-parts";
+
+const GRID = "xl:grid-cols-[7.5rem_9.5rem_minmax(0,1fr)_9rem_9.5rem_9rem_1.5rem]";
+
+/**
+ * «Решения» of «Поступлений» (Money-1 V2): who cancelled or corrected a payment, forgave a debt or gave an advance back - one line each: when · what · whom · the sum · the debt before → after · who.
+ * The reason and the receipt are INSIDE the row (it opens); nothing is cut silently - the full text is in the opened row.  The period is the page's; the filters are «Вид» and «Кто».
+ */
+export function IncomeDecisions({ period, authors, paymentsBase, studentProfileBasePath }: { period: Period; authors: JournalAuthor[]; paymentsBase: string; studentProfileBasePath: string }) {
+  const [kind, setKind] = useState("");
+  const [actor, setActor] = useState("");
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<DecisionsPage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ text: string; denied: boolean } | null>(null);
+  const [opened, setOpened] = useState<string | null>(null);
+  const requests = useRef(createRequestSequence());
+
+  // another period is another set: the narrowing and the page start again
+  useEffect(() => { setPage(1); setOpened(null); }, [period.from, period.to]);
+
+  const load = useCallback(async () => {
+    const token = requests.current.next();
+    setLoading(true);
+    setError(null);
+    try {
+      const answer = await orgApi.getPaymentDecisions({ from: period.from, to: period.to, kind, actor, page, size: DECISIONS_PAGE_SIZE });
+      if (!requests.current.isCurrent(token)) return;
+      setData(answer);
+    } catch (cause) {
+      if (!requests.current.isCurrent(token)) return;
+      setData(null);
+      setError(incomeErrorText(cause));
+    } finally {
+      if (requests.current.isCurrent(token)) setLoading(false);
+    }
+  }, [period.from, period.to, kind, actor, page]);
+
+  useEffect(() => {
+    void load();
+    return () => { requests.current.next(); };
+  }, [load]);
+
+  const narrowed = kind !== "" || actor !== "";
+  const since = decisionsSinceText(data?.since);
+  const bases = basesOfPayments(paymentsBase);
+
+  return (
+    <section aria-label="Денежные решения" className="space-y-3" data-testid="income-decisions">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <Select
+          ariaLabel="Вид решения"
+          testId="decisions-kind"
+          value={kind}
+          onChange={(event) => { setKind(event.target.value); setPage(1); }}
+          options={DECISION_KINDS}
+          className="w-full sm:w-auto sm:min-w-[14rem]"
+          buttonClassName="h-10 bg-white px-3.5 py-0 font-medium text-slate-700 shadow-none hover:bg-slate-50"
+        />
+        {authors.length > 1 && (
+          <Select
+            ariaLabel="Кто принял решение"
+            testId="decisions-actor"
+            value={actor}
+            onChange={(event) => { setActor(event.target.value); setPage(1); }}
+            options={[{ value: "", label: "Кто: все" }, ...authors.map((author) => ({ value: author.user_id, label: author.name || "Без имени" }))]}
+            className="w-full sm:w-auto sm:min-w-[14rem]"
+            buttonClassName="h-10 bg-white px-3.5 py-0 font-medium text-slate-700 shadow-none hover:bg-slate-50"
+          />
+        )}
+        {since && <p className="text-sm text-slate-600 sm:ml-auto" data-testid="decisions-since">{since}</p>}
+      </div>
+
+      <div className={`transition-opacity ${loading && data ? "opacity-60" : ""}`} aria-busy={loading}>
+        {error ? (
+          <IncomeError message={error.text} denied={error.denied} onRetry={error.denied ? undefined : () => void load()} />
+        ) : !data ? (
+          <SkeletonRows count={5} label="Загружаем решения…" testId="decisions-skeleton" />
+        ) : data.rows.length === 0 ? (
+          <EmptyState
+            testId="decisions-empty"
+            variant={narrowed ? "filtered" : "card"}
+            title={narrowed ? DECISIONS_FILTERED_EMPTY_TEXT : DECISIONS_EMPTY_TEXT}
+            action={narrowed ? <Button variant="secondary" size="sm" onClick={() => { setKind(""); setActor(""); setPage(1); }}>Сбросить</Button> : undefined}
+          />
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="decisions-list">
+            <div role="presentation" className={`hidden gap-x-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500 xl:grid ${GRID}`}>
+              <span>Когда</span><span>Что</span><span>Ученик · группа</span><span className="text-right">Сумма</span><span className="text-right">Долг</span><span>Кто</span><span />
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {data.rows.map((row) => (
+                <DecisionLine key={row.id} row={row} open={opened === row.id} onToggle={() => setOpened(opened === row.id ? null : row.id)} studentLink={row.student_id ? studentHref(bases.students || studentProfileBasePath, row.student_id, "payments") : null} />
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {data && data.rows.length > 0 && (
+        <nav aria-label="Страницы решений" className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500" data-testid="decisions-paging">
+          <span>Решений: {data.total}</span>
+          {data.pages > 1 && (
+            <span className="inline-flex items-center gap-1">
+              <Button type="button" onClick={() => setPage(page - 1)} disabled={page <= 1 || loading} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
+              <span className="min-w-[5.5rem] text-center tabular-nums">{data.page} из {data.pages}</span>
+              <Button type="button" onClick={() => setPage(page + 1)} disabled={page >= data.pages || loading} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
+            </span>
+          )}
+        </nav>
+      )}
+    </section>
+  );
+}
+
+function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; open: boolean; onToggle: () => void; studentLink: string | null }) {
+  const who = [row.student_name, row.group_name].filter(Boolean).join(" · ");
+  const debt = decisionDebtText(row);
+  return (
+    <li data-testid="decision-row">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 max-xl:min-h-12 xl:items-center ${GRID}`}
+      >
+        <span className="col-start-2 row-start-1 text-right text-xs tabular-nums text-slate-500 xl:col-start-auto xl:row-start-auto xl:text-left xl:text-sm" data-testid="decision-when">{decisionWhen(row.at)}</span>
+        <span className="col-start-1 row-start-1 min-w-0 xl:col-start-auto xl:row-start-auto"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></span>
+        <span className="col-span-2 row-start-2 min-w-0 break-words text-sm font-medium text-slate-900 xl:col-span-1 xl:row-start-auto" >{who}</span>
+        <span className="col-start-1 row-start-3 text-sm font-medium tabular-nums text-slate-800 xl:col-start-auto xl:row-start-auto xl:text-right" data-testid="decision-amount">{decisionAmountText(row)}</span>
+        <span className="col-start-1 row-start-4 text-xs tabular-nums text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-right xl:text-sm" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span>
+        <span className="col-start-1 row-start-5 min-w-0 break-words text-xs text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-sm">{row.actor_name ?? "—"}</span>
+        <ChevronDown aria-hidden className={`col-start-2 row-start-3 h-4 w-4 self-center justify-self-end text-slate-500 transition-transform xl:col-start-auto xl:row-start-auto xl:justify-self-auto ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
+          <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
+          {row.receipt_no !== null && <p>Квитанция № {row.receipt_no}</p>}
+          {studentLink && <Link href={studentLink} className="inline-flex min-h-10 items-center font-medium text-primary-700 hover:underline">Оплаты ученика</Link>}
+        </div>
+      )}
+    </li>
+  );
+}

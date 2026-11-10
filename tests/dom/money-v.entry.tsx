@@ -8,6 +8,10 @@ import { WriteoffDialog } from "@/components/payments/writeoff-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
 import { ReceiptView } from "@/components/payments/receipt-view";
 import { RefundReceiptView } from "@/components/payments/refund-receipt-view";
+import { IncomeDecisions } from "@/components/payments/income-decisions";
+import { IncomePage } from "@/components/payments/income-page";
+import { JournalSection } from "@/components/payments/income-journal";
+import { periodOf } from "@/lib/payments-income-v2";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -60,6 +64,20 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       w.__params = { id: props.id ?? "r1" };
       w.print = () => log("print");
       root.render(<RefundReceiptView paymentsHref="/owner/payments" />);
+      break;
+    case "decisions":
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><IncomeDecisions period={periodOf("month", "2026-11-10")} authors={props.authors ?? []} paymentsBase="/owner/payments" studentProfileBasePath="/owner/students" /></div>);
+      break;
+    case "incomePage":
+      w.__search = props.search ?? "";
+      root.render(<IncomePage paymentsHref="/owner/payments" studentProfileBasePath="/owner/students" />);
+      break;
+    case "journal":
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><JournalSection
+        journal={props.journal} loading={false} error={null} onRetry={() => log("retry")} search="" onSearch={() => {}} createdBy="" onCreatedBy={() => {}} authors={[]}
+        focusLabel={null} onClearFocus={() => {}} empty={{ kind: "month", focusLabel: null, narrowed: false, year: "2026" }} onResetNarrowing={() => {}} onPage={() => {}}
+        onExport={() => log("export")} exporting={false} activeId={null} onOpen={() => {}} showVoided={props.showVoided} onToggleVoided={() => log("toggle")}
+        withReplaced={props.withReplaced} onToggleReplaced={() => log("replaced")} /></div>);
       break;
     default:
       break;

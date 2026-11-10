@@ -114,8 +114,8 @@ test("an empty period: the journal is ONE quiet line (no search, no Excel); with
   assert.ok(html(React.createElement(J.JournalSection, { ...base, error: "Не удалось загрузить", empty: { kind: "day", focusLabel: null, narrowed: false } })).includes('role="alert"'));
   // the page drops the «Оплаты» heading as well, so nothing but the line is left
   const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /quietJournal = !journal\.error && journalIsQuiet\(journal\.data, \{ narrowed, focusLabel/);
-  assert.match(page, /\) : quietJournal \? null : \(\s*<h2/);
+  // Money-1 V2: the tabs «Оплаты / Решения / Группы» are always there, so the page has no heading «Оплаты» of its own any more
+  assert.doesNotMatch(page, /<h2 className="text-sm font-semibold text-slate-800">Оплаты<\/h2>/);
 });
 
 // ── 3. the chart on a phone ────────────────────────────────────────────────────────────────────

@@ -269,7 +269,7 @@ test("the journal asks for live payments by default (status=active); the toggle 
   const page = read("src/components/payments/income-page.tsx");
   assert.match(page, /const \[showVoided, setShowVoided\] = useState\(false\)/);
   assert.match(page, /withVoided: showVoided/);
-  assert.match(page, /orgApi\.exportPaymentsJournal\(exportQuery\(query\)/);
+  assert.match(page, /orgApi\.exportPaymentsJournal\(exportQuery\(query, withReplaced\)/);
   assert.match(page, /onToggleVoided=\{\(\) => \{ setShowVoided\(\(on\) => !on\); setPage\(1\); \}\}/);
 });
 

@@ -42,6 +42,7 @@ import {
   type JournalExtras,
   type JournalRange,
   type JournalRow,
+  type IncomeTab,
   type Period,
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
@@ -49,6 +50,7 @@ import { useMoneyDenied } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useToast } from "@/components/ui/toast";
 import { CollectionTable } from "./income-collection";
+import { IncomeDecisions } from "./income-decisions";
 import { JournalDrawer, JournalSection } from "./income-journal";
 import { IncomeError, IncomeOverviewView, IncomeSkeleton } from "./income-parts";
 import { DateInput } from "@/components/ui/date-input";
@@ -56,7 +58,7 @@ import { Button } from "@/components/ui/button";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
-type Tab = "journal" | "groups";
+type Tab = IncomeTab;
 
 interface Loaded<T> {
   data: T | null;
@@ -124,6 +126,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const [kind, setKind] = useState<FlowKind | "">("");
   const [kindUnsupported, setKindUnsupported] = useState(false);
   const [showVoided, setShowVoided] = useState(false);
+  const [withReplaced, setWithReplaced] = useState(false);
   const [page, setPage] = useState(1);
   const [journal, setJournal] = useState<Loaded<PaymentsJournal>>(idle);
   const journalRequests = useRef(createRequestSequence());
@@ -173,7 +176,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   // ── tabs, the drawer, the chart ──
   const [requestedTab, setTab] = useState<Tab>(initial.tab);
   const collection = overview.data?.collection ?? null;
-  const tab: Tab = requestedTab === "groups" && collection ? "groups" : "journal";
+  const tab: Tab = requestedTab === "groups" && collection ? "groups" : requestedTab === "decisions" ? "decisions" : "journal";
   // IA audit F34: the period and the tab are written to the address
   const currentQuery = searchParams?.toString() ?? "";
   useEffect(() => {
@@ -249,7 +252,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const download = async () => {
     setExporting(true);
     try {
-      const file = await orgApi.exportPaymentsJournal(exportQuery(query), `Оплаты ${query.from}–${query.to}.xlsx`);
+      const file = await orgApi.exportPaymentsJournal(exportQuery(query, withReplaced), `Оплаты ${query.from}–${query.to}.xlsx`);
       saveBlobAs(file.blob, file.filename);
     } catch (cause) {
       showToast(exportErrorText(cause), "error");
@@ -259,7 +262,6 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   };
 
   const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || kind !== "";
-  const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
   const methodName = filters.method ? methodChipLabel(filters.method, overview.data?.by_method) : null;
@@ -308,9 +310,9 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
           </div>
 
           <div ref={journalRef} tabIndex={-1} className="scroll-mt-4 space-y-3 outline-none">
-            {collection ? (
-              <div role="tablist" aria-label="Оплаты и группы" className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
-                {([["journal", "Оплаты"], ["groups", "Группы — собираемость"]] as Array<[Tab, string]>).map(([key, label]) => (
+            {(
+              <div role="tablist" aria-label="Оплаты, решения и группы" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+                {([["journal", "Оплаты"], ["decisions", "Решения"], ...(collection ? [["groups", "Группы — собираемость"]] : [])] as Array<[Tab, string]>).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
@@ -323,10 +325,10 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                   </button>
                 ))}
               </div>
-            ) : quietJournal ? null : (
-              <h2 className="text-sm font-semibold text-slate-800">Оплаты</h2>
             )}
-            {tab === "groups" && collection ? (
+            {tab === "decisions" ? (
+              <IncomeDecisions period={period} authors={journal.data?.authors ?? []} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} />
+            ) : tab === "groups" && collection ? (
               <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data?.position.debt_total ?? null} caption={collectionCaption(period, today)} />
             ) : (
               <JournalSection
@@ -348,6 +350,8 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                 onClearAll={clearAll}
                 showVoided={showVoided}
                 onToggleVoided={() => { setShowVoided((on) => !on); setPage(1); }}
+                withReplaced={withReplaced}
+                onToggleReplaced={() => setWithReplaced((on) => !on)}
                 empty={{ kind: period.kind, focusLabel: focus?.label ?? null, narrowed, year: today.slice(0, 4) }}
                 onResetNarrowing={() => { setSearch(""); setDebouncedSearch(""); setCreatedBy(""); setKind(""); setPage(1); setFilters(NO_FILTERS); }}
                 onPage={setPage}

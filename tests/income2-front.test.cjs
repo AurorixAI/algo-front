@@ -769,9 +769,9 @@ test("the page: «Поступления» v2 has the period bar, one table at a
   assert.match(page, /orgApi\.exportPaymentsJournal\(/);
   assert.doesNotMatch(all, /getReceiptsReport|getReceiptItems|getBalances|MoneyTable|По преподавателям|По дням"|DrillPanel/);
   // one table at a time: the journal or the groups, switched by tabs; the groups only in month mode (the server sends `collection`)
-  assert.match(page, /role="tablist" aria-label="Оплаты и группы"/);
+  assert.match(page, /role="tablist" aria-label="Оплаты, решения и группы"/);   // Money-1 V2: the tab «Решения»
   assert.match(page, /tab === "groups" && collection \? \(\s*<CollectionTable/);
-  assert.match(page, /requestedTab === "groups" && collection \? "groups" : "journal"/);
+  assert.match(page, /requestedTab === "groups" && collection \? "groups" : requestedTab === "decisions" \? "decisions" : "journal"/);
   // the drawer is the shared Modal as a side sheet / bottom sheet
   assert.match(read("src/components/payments/income-journal.tsx"), /placement="sheet"/);
   // the chart scrolls inside its own box

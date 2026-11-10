@@ -15,6 +15,7 @@ import {
   journalPaging,
   journalRowView,
   journalSpansYears,
+  cancelledHereText,
   journalTotalsText,
   listedRows,
   showVoidedLabel,
@@ -25,6 +26,7 @@ import {
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
 import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { IncomeError } from "./income-parts";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -235,6 +237,9 @@ export interface JournalSectionProps {
   /** The toggle «Показать отменённые (N)»: off = only live payments (a corrected payment is always one row, its changes under it). */
   showVoided?: boolean;
   onToggleVoided?: () => void;
+  /** Money-1 V2: «С заменёнными версиями исправленных оплат» next to «Скачать Excel» (off by default; only the file). */
+  withReplaced?: boolean;
+  onToggleReplaced?: () => void;
   empty: EmptyContext;
   onResetNarrowing: () => void;
   onPage: (page: number) => void;
@@ -292,15 +297,23 @@ export function JournalSection(props: JournalSectionProps) {
               buttonClassName="h-10 bg-white px-3.5 py-0 font-medium text-slate-700 shadow-none hover:bg-slate-50"
             />
           )}
-          <Button
-            type="button"
-            onClick={props.onExport}
-            disabled={props.exporting || !journal || journal.total === 0}
-            variant="secondary" size="md" className="w-full sm:w-auto"
-          >
-            {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-500" aria-hidden />}
-            Скачать Excel
-          </Button>
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            {props.onToggleReplaced && (
+              <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700 max-sm:order-2" data-testid="journal-with-replaced">
+                <Checkbox checked={Boolean(props.withReplaced)} onChange={props.onToggleReplaced} />
+                С заменёнными версиями исправленных оплат
+              </label>
+            )}
+            <Button
+              type="button"
+              onClick={props.onExport}
+              disabled={props.exporting || !journal || journal.total === 0}
+              variant="secondary" size="md" className="w-full sm:w-auto"
+            >
+              {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-500" aria-hidden />}
+              Скачать Excel
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -346,6 +359,10 @@ export function JournalSection(props: JournalSectionProps) {
           <JournalList rows={journal.rows} withYear={withYear} activeId={props.activeId} onOpen={props.onOpen} history={journal.history} />
         )}
       </div>
+
+      {journal && cancelledHereText(journal.totals) && (
+        <p className="text-sm text-slate-600" data-testid="journal-cancelled-here">{cancelledHereText(journal.totals)}</p>
+      )}
 
       {journal && paging && listedRows(journal.rows).length > 0 && (
         <nav aria-label="Страницы журнала" className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500" data-testid="journal-paging">

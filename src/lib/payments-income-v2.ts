@@ -12,7 +12,7 @@ import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-cal
 import { formatDateRu, formatMoney, isIsoDate, pluralRu, waitingLine } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
-import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, monthYearLabelRu, shiftDateByMonth } from "./business-time";
+import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, formatUtcNaiveAsBusinessDate, monthYearLabelRu, shiftDateByMonth } from "./business-time";
 
 // ── Contract (income2_contract.json) ───────────────────────────────────────
 
@@ -184,6 +184,8 @@ export interface JournalRow {
   void_reason: string | null;
   voided_at: string | null;
   voided_by_name: string | null;
+  /** Money-1 V2: "paid" - a payment of the period; "cancelled_here" - paid in an EARLIER period and CANCELLED in this one (only with `cancelled_in_period`): grey, not in the totals. */
+  view?: "paid" | "cancelled_here";
   /** The correction this payment made (INC-16; absent on an older server): why, who and when the earlier payment was replaced by this one. */
   replaces_reason?: string | null;
   corrected_by_name?: string | null;
@@ -194,7 +196,7 @@ export interface JournalRow {
 
 export interface JournalAuthor { user_id: string; name: string | null; count: number }
 /** `count` / `sum` are the live payments; `voided_count` the cancelled AND corrected ones of the same set, `replaced_count` the corrected part of them (INC-16: absent on an older server = 0); `kind_sum` only with `kind`. */
-export interface JournalTotals { count: number; sum: number; voided_count: number; replaced_count?: number; kind_sum?: number | null }
+export interface JournalTotals { count: number; sum: number; voided_count: number; replaced_count?: number; kind_sum?: number | null; /** Money-1 V2: the payments of earlier periods cancelled in this one - NOT in `count` / `sum`. */ cancelled_here_count?: number; cancelled_here_sum?: number }
 
 export interface PaymentsJournal {
   as_of: string;
@@ -300,6 +302,7 @@ function journalRow(raw: JournalRow): JournalRow {
     refunded: sum(raw.refunded), transferred: sum(raw.transferred), status,
     replaces_receipt_no: raw.replaces_receipt_no ?? null, replaces_amount: raw.replaces_amount ?? null, replaced_by_receipt_no: raw.replaced_by_receipt_no ?? null,
     void_reason: nullableText(raw.void_reason), voided_at: nullableText(raw.voided_at), voided_by_name: nullableText(raw.voided_by_name),
+    view: raw.view === "cancelled_here" ? "cancelled_here" : "paid",
     replaces_reason: nullableText(raw.replaces_reason), corrected_by_name: nullableText(raw.corrected_by_name), corrected_at: nullableText(raw.corrected_at),
     replaces_method_label: nullableText(raw.replaces_method_label),
   };
@@ -310,7 +313,7 @@ export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
   return {
     as_of: text(raw?.as_of), from: text(raw?.from), to: text(raw?.to),
     page: Math.max(1, sum(raw?.page)), size: Math.max(1, sum(raw?.size) || JOURNAL_PAGE_SIZE), total: sum(raw?.total), pages: Math.max(1, sum(raw?.pages)),
-    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count), replaced_count: sum(totals.replaced_count), kind_sum: totals.kind_sum === null || totals.kind_sum === undefined ? null : sum(totals.kind_sum) },
+    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count), replaced_count: sum(totals.replaced_count), cancelled_here_count: sum(totals.cancelled_here_count), cancelled_here_sum: sum(totals.cancelled_here_sum), kind_sum: totals.kind_sum === null || totals.kind_sum === undefined ? null : sum(totals.kind_sum) },
     rows: arr<JournalRow>(raw?.rows).map(journalRow),
     authors: arr<JournalAuthor>(raw?.authors).map((author) => ({ user_id: text(author.user_id), name: nullableText(author.name), count: sum(author.count) })),
   };
@@ -417,6 +420,10 @@ export interface JournalQuery {
   status?: "all" | "active" | "voided";
   /** INC-16: the journal narrowed to the payments that went to this part of «Куда ушли деньги» (old_debt / current / forward / advance). */
   kind?: FlowKind;
+  /** Money-1 V2: also the payments of earlier periods cancelled IN this one (rows `view=cancelled_here`, not in the totals). */
+  cancelled_in_period?: boolean;
+  /** Money-1 V2 (the file only): the replaced versions of the corrected payments, status «Исправлена». */
+  with_replaced?: boolean;
 }
 
 /** `kind` — a part of the strip chosen by a click; `withVoided` — the toggle «Показать отменённые» (off = `status=active`; on = `status=all`, which is what the Excel asks; the screen itself always lists `status=active`, see `loadJournalPage`). */
@@ -425,6 +432,7 @@ export const NO_JOURNAL_EXTRAS: JournalExtras = { q: "", createdBy: "" };
 
 export function journalQuery(period: Period, range: JournalRange | null, filters: IncomeFilters, extras: JournalExtras, page = 1, size = JOURNAL_PAGE_SIZE): JournalQuery {
   const query: JournalQuery = { from: range?.from ?? period.from, to: range?.to ?? period.to, page, size, status: extras.withVoided ? "all" : "active" };
+  if (extras.withVoided) query.cancelled_in_period = true;   // Money-1 V2: «Показать отменённые» also brings the payments of earlier months cancelled in this one
   if (filters.method) query.method = filters.method;
   if (extras.kind) query.kind = extras.kind;
   if (extras.createdBy) query.created_by = extras.createdBy;
@@ -433,9 +441,9 @@ export function journalQuery(period: Period, range: JournalRange | null, filters
 }
 
 /** The file has every row of the filtered set: the page and the size are the screen's, not the file's. */
-export function exportQuery(query: JournalQuery): Omit<JournalQuery, "page" | "size"> {
+export function exportQuery(query: JournalQuery, withReplaced = false): Omit<JournalQuery, "page" | "size"> {
   const { page: _page, size: _size, ...rest } = query;
-  return rest;
+  return withReplaced ? { ...rest, with_replaced: true } : rest;
 }
 
 // ── The four cards ─────────────────────────────────────────────────────────
@@ -1150,7 +1158,12 @@ export function collectionTotalDebtorsHint(collection: MonthCollection | null | 
 // ── The journal ────────────────────────────────────────────────────────────
 
 /** «отменена» for a cancelled payment, «заменена на № 11» for the old record a correction replaced (the live one says «исправлена»). */
-export function statusTag(row: Pick<JournalRow, "status" | "replaced_by_receipt_no">): string | null {
+export function statusTag(row: Pick<JournalRow, "status" | "replaced_by_receipt_no"> & Partial<Pick<JournalRow, "view" | "paid_on" | "voided_at">>): string | null {
+  // Money-1 V2: a payment of an earlier period cancelled in this one: «Оплата 05.10 (отменена 12.11)»
+  if (row.status === "voided" && row.view === "cancelled_here" && row.paid_on && row.voided_at) {
+    const cancelled = formatUtcNaiveAsBusinessDate(row.voided_at).slice(0, 5);
+    return `Оплата ${formatDateRu(row.paid_on).slice(0, 5)} (отменена ${cancelled})`;
+  }
   if (row.status === "voided") return "отменена";
   if (row.status === "replaced") return row.replaced_by_receipt_no ? `заменена на № ${row.replaced_by_receipt_no}` : "заменена";
   return null;
@@ -1701,21 +1714,30 @@ export const DEBTORS_GROUP_NOTE = "Показаны все долги групп
  * собираемость»): a reload, a link and «Назад» from a payment keep the period and the tab.  This month and the journal are the defaults and
  * are not written.
  */
-export function incomeQueryString(period: Period, tab: "journal" | "groups", today: string): string {
+export type IncomeTab = "journal" | "groups" | "decisions";
+
+export function incomeQueryString(period: Period, tab: IncomeTab, today: string): string {
   const params = new URLSearchParams();
   if (period.kind === "custom") { params.set("from", period.from); params.set("to", period.to); }
   else if (period.kind === "month" && period.from !== monthStart(today)) params.set("month", period.from.slice(0, 7));
-  if (tab === "groups") params.set("tab", "groups");
+  if (tab === "groups" || tab === "decisions") params.set("tab", tab);
   const text = params.toString();
   return text ? `?${text}` : "?";
 }
 
-export function parseIncomeQuery(params: { get(name: string): string | null } | null | undefined, today: string): { period: Period; tab: "journal" | "groups" } {
-  const tab = params?.get("tab") === "groups" ? "groups" : "journal";
+export function parseIncomeQuery(params: { get(name: string): string | null } | null | undefined, today: string): { period: Period; tab: IncomeTab } {
+  const raw = params?.get("tab");
+  const tab: IncomeTab = raw === "groups" ? "groups" : raw === "decisions" ? "decisions" : "journal";
   const from = params?.get("from") ?? "";
   const to = params?.get("to") ?? "";
   if (isIsoDate(from) && isIsoDate(to) && to >= from) return { period: { kind: "custom", from, to }, tab };
   const month = params?.get("month") ?? "";
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { period: periodOf("month", `${month}-01`), tab };
   return { period: periodOf("month", today), tab };
+}
+
+/** Money-1 V2 (rule 113): the sum under the table is explained on the same screen - «Отменено в этом периоде из прошлых: 2 · 800 000 сум»; empty when there are none. */
+export function cancelledHereText(totals: Pick<JournalTotals, "cancelled_here_count" | "cancelled_here_sum"> | null | undefined): string {
+  const count = sum(totals?.cancelled_here_count);
+  return count > 0 ? `Отменено в этом периоде из прошлых: ${count} · ${formatMoney(sum(totals?.cancelled_here_sum))}` : "";
 }

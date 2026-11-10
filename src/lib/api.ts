@@ -1,3 +1,4 @@
+import { normalizeDecisions, type DecisionsPage, type DecisionsQuery } from "./payments-decisions";
 import { saveBlobAs } from "./download";
 import { encodePathId } from "./encode-id";
 import { errorMessageOf, parseErrorBody, readErrorBody } from "./error-body";
@@ -1894,6 +1895,15 @@ export const orgApi = {
     params.set("format", "xlsx");
     return fetchFile(`/auth/org/payments/journal/export?${params.toString()}`, fallbackName, "Не удалось скачать Excel");
   },
+  /** Money-1 V2: «Денежные решения» of a period (cancels, corrections, forgiveness, refunds), paged by the server. */
+  getPaymentDecisions: (q: DecisionsQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ from: q.from, to: q.to });
+    if (q.kind) params.set("kind", q.kind);
+    if (q.actor) params.set("actor", q.actor);
+    if (q.page) params.set("page", String(q.page));
+    if (q.size) params.set("size", String(q.size));
+    return api<DecisionsPage>(`/auth/org/payments/decisions?${params.toString()}`, { signal }).then(normalizeDecisions);
+  },
   getPaymentReceipt: (paymentId: string) =>
     !paymentId || paymentId === "undefined" || paymentId === "null"
       ? Promise.reject(Object.assign(new Error("Квитанция не найдена"), { status: 404 }))      // never ask the server for the receipt of «undefined»
@@ -2174,6 +2184,8 @@ function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number;
     const value = q[key];
     if (value) params.set(key, value);
   }
+  if (q.cancelled_in_period) params.set("cancelled_in_period", "true");
+  if (q.with_replaced) params.set("with_replaced", "true");
   return params;
 }
 
