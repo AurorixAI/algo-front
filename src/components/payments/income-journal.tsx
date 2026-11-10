@@ -339,7 +339,7 @@ export function JournalSection(props: JournalSectionProps) {
               onClick={props.onToggleVoided}
               aria-pressed={showVoided}
               data-testid="journal-voided-toggle"
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${showVoided ? "border-primary-200 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-sm max-sm:min-h-10 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${showVoided ? "border-primary-200 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
             >
               {showVoided && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
               {journal ? showVoidedLabel(journal.totals) : null}

@@ -61,9 +61,9 @@ export function WriteoffDialog({
     setFresh(next);
     setError(null);
     const typed = parseMoneyInput(values.amount);
-    if (!values.all && typed !== null && typed > next) {
+    if (!values.all && typed !== next) {
       setValues((previous) => ({ ...previous, amount: formatMoneyInput(next) }));
-      setLowered(`Сумма уменьшена до ${formatMoney(next)}`);
+      setLowered(typed !== null && typed < next ? `Сумма изменена на ${formatMoney(next)}` : `Сумма уменьшена до ${formatMoney(next)}`);
     }
   };
 

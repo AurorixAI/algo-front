@@ -255,3 +255,37 @@ test("cancel of a payment: ALREADY_VOIDED is told with the author; two presses a
   assert.match(plain(await page.textContent('[data-testid="already-voided"]')), /Оплата уже отменена · Иванова Д\./);
   await page.close();
 });
+
+// ── walk of stage Д1: «Продолжить с N» puts N into the field, up as well as down ─────────────────────
+
+test("refund: the debt GREW (250 000 -> 300 000): «Продолжить с 300 000» puts 300 000 into the field and the button names it", async () => {
+  const row = { ...ROW, refundable: 250000 };
+  let n = 0;
+  const run = await open(browser, "money-v.entry.tsx", "refund", { props: { row }, server: (request) => (request.method === "POST" ? (++n === 1 ? conflict("BALANCE_CHANGED", "Сумма к возврату изменилась: было 250 000 сум, сейчас 300 000 сум", { refundable: 300000, advance: 300000 }) : done) : null) });
+  const { page, calls } = run;
+  await page.waitForSelector("#refund-form");
+  await fillRefund(page);
+  assert.equal(plain(await page.inputValue("#refund-amount")), "250 000");
+  await page.click('[data-testid="refund-submit"]');
+  await page.click('[data-testid="balance-changed-continue"]');
+  assert.equal(plain(await page.inputValue("#refund-amount")), "300 000");
+  assert.match(plain(await page.textContent('[data-testid="refund-submit"]')), /^Вернуть аванс 300 000 сум$/);
+  await page.click('[data-testid="refund-submit"]');
+  await page.waitForFunction(() => window.__log.includes("close"));
+  assert.deepEqual(calls.filter((call) => call.method === "POST").map((call) => [call.body.amount, call.body.expected_refundable]), [[250000, 250000], [300000, 300000]]);
+  await page.close();
+});
+
+test("forgiveness «Часть долга»: the debt changed - the field takes the new sum, the button names it", async () => {
+  let n = 0;
+  const { page } = await open(browser, "money-v.entry.tsx", "writeoff", { server: (request) => (request.method === "POST" ? (++n === 1 ? conflict("BALANCE_CHANGED", "Долг изменился: было 350 000 сум, сейчас 400 000 сум", { debt: 400000, advance: 0 }) : { json: { writeoff: { id: "w1", amount: 400000 }, debt_before: 400000, debt_after: 0, row: ROW } }) : null) });
+  await page.waitForSelector("#writeoff-form");
+  await page.click("text=Часть долга");
+  await page.fill('input[aria-label="Сумма прощения"]', "350 000");
+  await page.fill("#writeoff-reason", "болезнь");
+  await page.click('[data-testid="writeoff-submit"]');
+  await page.click('[data-testid="balance-changed-continue"]');
+  assert.equal(plain(await page.inputValue('input[aria-label="Сумма прощения"]')), "400 000");
+  assert.match(plain(await page.textContent('[data-testid="writeoff-submit"]')), /^Простить долг 400 000 сум$/);
+  await page.close();
+});

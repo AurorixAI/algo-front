@@ -63,10 +63,11 @@ export function RefundDialog({
   const continueWith = (next: number) => {
     setFresh(next);
     setError(null);
+    // «Продолжить с N» puts N into the field - up or down (walk of stage, Д1): the button promised that sum
     const typed = parseMoneyInput(values.amount);
-    if (typed !== null && typed > next) {
+    if (typed !== next) {
       setValues((previous) => ({ ...previous, amount: formatMoneyInput(next) }));
-      setLowered(`Сумма уменьшена до ${formatMoney(next)}`);
+      setLowered(typed !== null && typed < next ? `Сумма изменена на ${formatMoney(next)}` : `Сумма уменьшена до ${formatMoney(next)}`);
     }
   };
 

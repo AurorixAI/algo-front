@@ -931,13 +931,17 @@ export function reviewSentence(preview: OpeningBatchPreview): string {
   return `${review.headline}${review.parts.length ? `: ${review.parts.join(" · ")}` : ""} · ${review.effect}`;
 }
 
+/** Money-1 V4: the warning that has to be ticked («Понятно, покрытие изменится») before the batch is saved - a warning, not an error. */
+export const OPENING_OVER_PAYMENTS_CODE = "OPENING_OVER_PAYMENTS";
+export const OPENING_OVER_PAYMENTS_OK = "Понятно, покрытие изменится";
+
 /** The soft warnings of a preview that deserve a line (the need for a reason has its own field). */
-export function previewWarnings(preview: OpeningBatchPreview): Array<{ id: string; student: string; text: string }> {
-  const lines: Array<{ id: string; student: string; text: string }> = [];
+export function previewWarnings(preview: OpeningBatchPreview): Array<{ id: string; student: string; text: string; code: string }> {
+  const lines: Array<{ id: string; student: string; text: string; code: string }> = [];
   for (const item of preview.items) {
     for (const warning of item.warnings) {
       if (warning.code === "HAS_MONEY" || warning.code === "CLEARS_EXISTING") continue;
-      lines.push({ id: item.membership_id, student: item.student_name ?? "Ученик", text: warning.message });
+      lines.push({ id: item.membership_id, student: item.student_name ?? "Ученик", text: warning.message, code: warning.code });
     }
   }
   return lines;

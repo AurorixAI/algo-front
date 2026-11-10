@@ -251,7 +251,7 @@ export function FlowLine({ overview, kind = "", onPickKind, notice = null, onJum
                     data-testid="flow-legend-row"
                     data-kind={partKind}
                     onClick={() => onPickKind?.(partKind)}
-                    className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${kind === partKind ? "bg-slate-100" : ""} ${dim ? "opacity-60" : ""}`}
+                    className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-slate-700 transition-colors max-sm:min-h-10 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${kind === partKind ? "bg-slate-100" : ""} ${dim ? "opacity-60" : ""}`}
                   >
                     {body}
                   </button>

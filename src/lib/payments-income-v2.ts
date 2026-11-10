@@ -12,7 +12,7 @@ import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-cal
 import { formatDateRu, formatMoney, isIsoDate, pluralRu, waitingLine } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
-import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, formatUtcNaiveAsBusinessDate, monthYearLabelRu, shiftDateByMonth } from "./business-time";
+import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, formatUtcNaiveAsBusinessDate, monthYearLabelRu, shiftDateByMonth, utcNaiveToBusinessIsoDate } from "./business-time";
 
 // ── Contract (income2_contract.json) ───────────────────────────────────────
 
@@ -1176,7 +1176,9 @@ export function isCorrection(row: Pick<JournalRow, "status" | "replaces_receipt_
 
 /** «20.10» from an ISO date or date-time; null when there is no usable date. */
 function shortDate(value: string | null | undefined, withYear = false): string | null {
-  return (withYear ? formatDateRu(value) : formatDayMonthRu(value)) || null;
+  // a timestamp of the server is naive UTC: its day is the day on the clock of Tashkent (01:50 on 11.11 is 20:50 UTC of 10.11 - walk Д2); a plain day stays as it is
+  const day = utcNaiveToBusinessIsoDate(value) || value;
+  return (withYear ? formatDateRu(day) : formatDayMonthRu(day)) || null;
 }
 
 /** The drawer of a corrected payment: «Было 350 000 сум → стало 300 000 сум · исправил Нодира 15.10 · причина: опечатка».  Each part only when the server sent it. */

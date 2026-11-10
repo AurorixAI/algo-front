@@ -16,6 +16,10 @@ import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
 import { AssignOverrideDialog } from "@/components/payments/membership-price";
 import { OpeningBalanceDialog } from "@/components/payments/opening-balance-dialog";
 import { TransferPreviewBlock } from "@/components/groups/transfer-preview-block";
+import { OpeningsReviewDialog } from "@/components/payments/openings-dialogs";
+import { normalizePreview } from "@/lib/openings";
+import { FlowLine } from "@/components/payments/income-parts";
+import { normalizeOverview } from "@/lib/payments-income-v2";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -94,6 +98,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "transferBlock":
       root.render(<div className="mx-auto max-w-[520px] p-4"><TransferPreviewBlock className="" preview={props.preview} onRetry={() => log("retry")} names={props.names ? new Map(Object.entries(props.names)) : undefined} /></div>);
+      break;
+    case "openingsReview":
+      root.render(<OpeningsReviewDialog state={{ phase: "ready", preview: normalizePreview(props.preview), error: null, notice: null, reasonForced: false }} reason="" onReason={() => {}} onSave={() => log("save")} onClose={() => log("close")} onDropErrors={() => {}} />);
+      break;
+    case "flowLine":
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><FlowLine overview={normalizeOverview(props.overview)} onPickKind={() => log("pick")} /></div>);
       break;
     default:
       break;

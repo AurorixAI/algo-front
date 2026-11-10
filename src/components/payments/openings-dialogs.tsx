@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, CalendarCheck, CheckCircle2, Eraser, Loader2, X } from "lucide-react";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Button } from "@/components/ui/button";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
+import { Notice } from "@/components/ui/notice";
+import { Checkbox } from "@/components/ui/checkbox";
+import { tidyMoneyText } from "@/lib/money-format";
 import {
   atStudentsWord,
   reasonHint,
@@ -19,6 +22,8 @@ import {
   excelRowText,
   noDebtDay,
   previewErrors,
+  OPENING_OVER_PAYMENTS_CODE,
+  OPENING_OVER_PAYMENTS_OK,
   previewWarnings,
   quickDates,
   reasonNeeded,
@@ -133,9 +138,20 @@ export function OpeningsReviewDialog({
   const errorIds = preview ? errorRowIds(preview) : [];
   const names = new Map((preview?.items ?? []).map((item) => [item.membership_id, item.student_name ?? "Ученик"] as const));
   const warnings = preview ? previewWarnings(preview) : [];
+  // Money-1 V4 (walk Д4): a coverage that changes over payments is a WARNING with its own tick on the row, not an error and not a reason
+  const [understood, setUnderstood] = useState<Record<string, boolean>>({});
+  useEffect(() => { setUnderstood({}); }, [preview]);
+  const overRows = warnings.filter((warning) => warning.code === OPENING_OVER_PAYMENTS_CODE);
+  const unticked = overRows.filter((warning) => !understood[warning.id]).length;
   const needReason = Boolean(preview && reasonNeeded(preview)) || Boolean(state?.reasonForced);
   const problem = needReason ? reasonProblem(reason) : null;
-  const saveable = Boolean(preview) && canSave(preview, reason) && !saving && (!state?.reasonForced || problem === null);
+  const saveable = Boolean(preview) && canSave(preview, reason) && !saving && (!state?.reasonForced || problem === null) && unticked === 0;
+  // the line over the off button says the REAL reason it is off (errors / the tick / the reason), never the wrong one
+  const why = saveable ? null
+    : errorIds.length > 0 ? "Исправьте строки с ошибками или уберите их"
+    : unticked > 0 ? `Отметьте «${OPENING_OVER_PAYMENTS_OK}» у ${unticked === 1 ? "строки" : "каждой строки"}`
+    : needReason && problem ? problem
+    : "Исправьте строки с ошибками или уберите их";
   const goodCount = preview ? preview.summary.changed : 0;
 
   const dropErrors = errorIds.length > 0 && goodCount > 0 ? <Button variant="ghost" onClick={onDropErrors} disabled={saving} data-testid="openings-review-drop-errors" className="max-md:min-h-11">Без этих строк</Button> : null;
@@ -147,7 +163,7 @@ export function OpeningsReviewDialog({
       busy={saving}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={goodCount > 0 ? `Сохранить ${goodCount}` : "Сохранить"} onPrimary={onSave} busy={saving} disabled={!saveable} why={saveable ? null : "Исправьте строки с ошибками или уберите их"} whyId="openings-review-why" onCancel={onClose} cancelLabel={errorIds.length > 0 ? "Вернуться к таблице" : "Отмена"} testId="openings-review-save" extra={dropErrors} />}
+      footer={<ConfirmFooter primary={goodCount > 0 ? `Сохранить ${goodCount}` : "Сохранить"} onPrimary={onSave} busy={saving} disabled={!saveable} why={why} whyId="openings-review-why" onCancel={onClose} cancelLabel={errorIds.length > 0 ? "Вернуться к таблице" : "Отмена"} testId="openings-review-save" extra={dropErrors} />}
     >
       <div className="space-y-3.5 pb-1" data-testid="openings-review">
         {state?.phase === "loading" && (
@@ -184,10 +200,22 @@ export function OpeningsReviewDialog({
                 </ul>
               </div>
             )}
-            {warnings.length > 0 && (
+            {warnings.some((warning) => warning.code !== OPENING_OVER_PAYMENTS_CODE) && (
               <ul className="space-y-0.5 text-sm text-amber-800" data-testid="openings-review-warnings">
-                {warnings.slice(0, 5).map((warning, index) => <li key={`${warning.id}-${index}`}><span className="font-medium">{warning.student}</span>: {warning.text}</li>)}
-                {warnings.length > 5 && <li>… и ещё {warnings.length - 5}</li>}
+                {warnings.filter((warning) => warning.code !== OPENING_OVER_PAYMENTS_CODE).slice(0, 5).map((warning, index) => <li key={`${warning.id}-${index}`}><span className="font-medium">{warning.student}</span>: {warning.text}</li>)}
+              </ul>
+            )}
+            {overRows.length > 0 && (
+              <ul className="space-y-2" data-testid="openings-over-payments">
+                {overRows.map((warning) => (
+                  <li key={warning.id} className="space-y-1">
+                    <Notice variant="warning" compact><span className="font-medium">{warning.student}</span>: {tidyMoneyText(warning.text)}</Notice>
+                    <label className="flex min-h-10 items-center gap-2 text-sm text-slate-800">
+                      <Checkbox checked={Boolean(understood[warning.id])} onChange={(event) => setUnderstood((previous) => ({ ...previous, [warning.id]: event.target.checked }))} data-testid="openings-over-payments-ok" />
+                      {OPENING_OVER_PAYMENTS_OK}
+                    </label>
+                  </li>
+                ))}
               </ul>
             )}
             {needReason && (

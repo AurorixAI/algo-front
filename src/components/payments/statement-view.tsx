@@ -86,7 +86,7 @@ const TOTAL_TONE = {
 export const CORRECT_PAYMENT_LABEL = "Исправить оплату";
 export const VOID_PAYMENT_LABEL = "Отменить оплату";
 
-const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium";
+const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium max-sm:min-h-10";
 
 /**
  * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Стоимость | Оплачено | Остаток.
@@ -347,7 +347,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
             >
               Все месяцы
             </button>
-            <label className="ml-auto flex items-center gap-2 py-1.5 text-sm text-slate-700">
+            <label className="ml-auto flex items-center gap-2 py-1.5 text-sm text-slate-700 max-sm:min-h-10">
               <Checkbox checked={withVoided} onChange={(event) => setWithVoided(event.target.checked)} />
               Показать отменённые
             </label>

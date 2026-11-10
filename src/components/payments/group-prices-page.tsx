@@ -313,7 +313,7 @@ function PriceRow({
           <span className="text-right xl:block">
             <span className="block tabular-nums text-slate-800" data-testid="group-price-scheduled">{scheduled}</span>
             {item.scheduled_count > 1 && <span className="block text-xs text-slate-500">и ещё {item.scheduled_count - 1}</span>}
-            <button type="button" onClick={onCancel} className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">Отменить</button>
+            <button type="button" onClick={onCancel} className="inline-flex items-center text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline max-sm:min-h-10 max-sm:px-2">Отменить</button>
           </span>
         ) : (
           <span className="text-slate-500">—</span>

@@ -28,7 +28,7 @@ const server = (warnings) => (request) => {
 
 test("the batch review keeps OPENING_OVER_PAYMENTS in the warnings", () => {
   const preview = { items: [{ membership_id: "m1", student_name: "Иванов", warnings: [{ code: "HAS_MONEY", message: "x" }, WARNING] }] };
-  assert.deepEqual(O.previewWarnings(preview), [{ id: "m1", student: "Иванов", text: WARNING.message }]);
+  assert.deepEqual(O.previewWarnings(preview), [{ id: "m1", student: "Иванов", text: WARNING.message, code: "OPENING_OVER_PAYMENTS" }]);
 });
 
 test("single window: the warning and the box; «Сохранить» waits for the tick; without a warning there is no box", async () => {
@@ -56,4 +56,26 @@ test("single window: the warning and the box; «Сохранить» waits for t
     assert.equal(await page.locator('[data-testid="opening-over-payments"]').count(), 0);
     await page.close();
   }
+});
+
+// ── walk of stage Д4: the page of the openings - a warning is ticked on its row, the button says the REAL reason it is off ─────────────
+
+test("batch review: OPENING_OVER_PAYMENTS has a tick on the row; «Сохранить» is off with THAT line, not «Исправьте строки с ошибками»; ticked - on", async () => {
+  const raw = JSON.parse(fs.readFileSync(path.join(root, "tests", "fixtures", "openings", "O04_preview_ok.json"), "utf8"));
+  raw.items[0].warnings = [WARNING];
+  const { page } = await open(browser, "money-v.entry.tsx", "openingsReview", { props: { preview: raw } });
+  await page.waitForSelector('[data-testid="openings-over-payments"]');
+  assert.match(plain(await page.textContent('[data-testid="openings-over-payments"]')), /У ученика уже есть оплаты на 600 000 сум — покрытие станет до 20\.01\s?Понятно, покрытие изменится/);
+  assert.doesNotMatch(plain(await page.locator('[data-testid="openings-review-warnings"]').allTextContents().then((t) => t.join(" "))), /покрытие станет до/, "not repeated in the plain list of warnings");
+  const save = page.locator('[data-testid="openings-review-save"]');
+  assert.equal(await save.isDisabled(), true);
+  const why = plain(await page.textContent('[data-testid="openings-review-why"]'));
+  assert.match(why, /Отметьте «Понятно, покрытие изменится»/);
+  assert.doesNotMatch(why, /Исправьте строки/);
+  assert.equal(await page.locator("#openings-reason").count(), 0, "no reason is asked for a warning");
+  await page.check('[data-testid="openings-over-payments-ok"]');
+  assert.equal(await save.isDisabled(), false);
+  await save.click();
+  await page.waitForFunction(() => window.__log.includes("save"));
+  await page.close();
 });
