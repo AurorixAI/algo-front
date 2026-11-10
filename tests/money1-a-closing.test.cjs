@@ -63,15 +63,18 @@ test("the reason: the field says «обязательно» where the server ask
   assert.match(markup, /border-red-500/);
 });
 
-test("the reason: the windows use the field - cancel of a payment / of a forgiveness / of a refund and the forgiveness itself: required; refund and replace: optional (as the server)", () => {
+test("the reason: the windows use the field - cancel of a payment / of a forgiveness / of a refund and the forgiveness itself: required; the refund and the correction of a payment: required too (Money-1 V)", () => {
   for (const file of ["components/payments/record-void-modal.tsx", "components/payments/writeoff-dialog.tsx"]) {
     const text = src(file);
     const at = text.indexOf("<ReasonField");
     const element = text.slice(at, text.indexOf("/>", at));
     assert.match(element, /\srequired\s/, `${file}: the reason is required (a bare \`required\`, not required={false})`);
   }
-  assert.match(src("components/payments/refund-dialog.tsx"), /Причина <span[^>]*>\(необязательно\)/);
-  assert.match(src("components/payments/payment-dialog.tsx"), /Причина исправления <span[^>]*>\(необязательно\)/);
+  for (const file of ["components/payments/refund-dialog.tsx", "components/payments/payment-dialog.tsx"]) {
+    const text = src(file);
+    const at = text.indexOf("<ReasonField");
+    assert.match(text.slice(at, text.indexOf("/>", at)), /\srequired\s/, `${file}: the reason is required`);
+  }
   assert.match(src("components/schedule/day-off-dialog.tsx"), /Причина <span[^>]*>\(обязательно\)/);
 });
 
@@ -189,7 +192,7 @@ test("Н3 Н4 Н5 Н8 Н10 Н11 Н13: the small texts", () => {
   assert.deepEqual(read("src/components/payroll/payroll-month-page.tsx").match(/labels: \[[^\]]*\]/)[0].includes("Выплачено, сум"), true);
   assert.match(src("components/attendance/cancellation-kind-field.tsx"), /grid grid-cols-1 gap-2">/);
   assert.match(src("components/payments/refund-dialog.tsx"), /Возврат можно отменить\./);
-  assert.match(src("components/payments/refund-dialog.tsx"), /Можно вернуть: <span className="font-semibold tabular-nums text-slate-900">/);
+  assert.match(src("components/payments/refund-dialog.tsx"), /Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">/);
   assert.match(src("components/groups/assign-group-modal.tsx"), /pt-2 pb-4 overflow-y-auto/);
   assert.match(src("components/payments/money-access-denied.tsx"), /h-10 w-10/);
 });

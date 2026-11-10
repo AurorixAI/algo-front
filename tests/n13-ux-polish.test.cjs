@@ -175,9 +175,10 @@ test("payments notice: the overdue chip appears only for payments that have ende
   assert.equal(bannerDismissed(13, 9), true, "fewer people: still hidden");
   assert.equal(bannerDismissed(13, 14), false, "the count grew: it comes back");
   const { summaryToState } = require(path.join(root, "src/lib/payments-summary.ts"));
-  assert.equal(summaryToState({ due: 13, expired: 5, ends_today: 8 }).expired, 5);
-  assert.equal(summaryToState({ due: 3, expired: 9 }).expired, 3, "never more overdue than due");
-  assert.equal(summaryToState({ due: 3 }).expired, 0, "an older server without the field");
+  const sp = (due, expired) => ({ debt_split: { due, expired } });   // Money-1 V (а): the split alone
+  assert.equal(summaryToState({ ...sp(13, 5), ends_today: 8 }).expired, 5);
+  assert.equal(summaryToState(sp(3, 9)).expired, 3, "never more overdue than due");
+  assert.equal(summaryToState(sp(3, undefined)).expired, 0, "an older server without the field");
 });
 
 test("payments notice: a calm light surface, rose only in the chip, one line on desktop, sessionStorage in try/catch", () => {

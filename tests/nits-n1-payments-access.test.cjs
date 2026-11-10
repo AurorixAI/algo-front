@@ -16,7 +16,7 @@ const { usePaymentsSummary, paymentsAccessFromProfile } = require(path.join(root
 const { useAuthStore } = require(path.join(root, "src/lib/store.ts"));
 
 const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
-const SUMMARY = { due: 4, expired: 1, active: 9, period_mode: "calendar" };
+const SUMMARY = { debt_split: { debtors: 0, debtors_memberships: 0, debtors_debt_total: 0, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 0, all_students_with_debt: 0, due: 4, expired: 1, students_due: 0, students_expired: 0 }, active: 9, period_mode: "calendar" };
 const profile = (extra = {}) => ({ id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", role: "admin", org_role: "admin", ...extra });
 const signIn = (extra) => useAuthStore.setState({ user: profile(extra), isAuthenticated: true });
 

@@ -15,6 +15,8 @@ const TODAY = "2026-10-14";
 /** Normal spaces instead of the non-breaking ones: what the user reads. */
 const plain = (text) => text.replace(/ /g, " ");
 
+const split = (due, expired = 0, extra = {}) => ({ debt_split: { debtors: 0, debtors_memberships: 0, debtors_debt_total: 0, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 0, all_students_with_debt: 0, due, expired, students_due: 0, students_expired: 0, ...extra } });
+
 test("formatMoney groups thousands and adds «сум» with non-breaking spaces", () => {
   assert.equal(plain(rules.formatMoney(450000)), "450 000 сум");
   assert.equal(rules.formatMoney(450000), "450 000 сум");
@@ -141,7 +143,7 @@ test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter"
   assert.equal(rules.parseBucket("<script>"), "debt");
   const summary = { debtors: 4, expiring: 3, active: 120 };
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(summary, b.key)), [4, 3, 120]);
-  assert.equal(rules.bucketCount({ students_with_debt: 9, expiring: 0, active: 0 }, "debt"), 9); // an answer without `debtors`
+  assert.equal(rules.bucketCount({ students_with_debt: 9, expiring: 0, active: 0 }, "debt"), null); // Money-1 V (а): the old field is not read
   assert.equal(rules.bucketCount({ debtors: 0, expiring: 0, active: 0 }, "expiring"), 0);
   assert.equal(rules.bucketCount(null, "debt"), null);
   assert.equal(rules.bucketCount({ debtors: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
@@ -185,7 +187,7 @@ test("summary store: 200 makes payments available and counts due; one request", 
   const usePaymentsSummary = store();
   usePaymentsSummary.getState().reset();
   await withFetch(() => reply(200, {
-    as_of: TODAY, due: 5, ends_today: 2, expired: 3, expiring: 4, none: 6, active: 20, free: 2, tracked_total: 35, period_mode: "lessons",
+    as_of: TODAY, ...split(5, 3), ends_today: 2, expiring: 4, none: 6, active: 20, free: 2, tracked_total: 35, period_mode: "lessons",
   }), async (calls) => {
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
@@ -238,7 +240,7 @@ test("summary store: a recheck that succeeds (the owner enabled the right) lifts
   const usePaymentsSummary = store();
   usePaymentsSummary.getState().reset();
   let status = 403;
-  await withFetch(() => (status === 403 ? reply(403, {}) : reply(200, { due: 1, period_mode: "calendar" })), async (calls) => {
+  await withFetch(() => (status === 403 ? reply(403, {}) : reply(200, { ...split(1), period_mode: "calendar" })), async (calls) => {
     await usePaymentsSummary.getState().refresh(true);
     assert.equal(usePaymentsSummary.getState().available, false);
     status = 200;
@@ -264,7 +266,7 @@ test("summary store: a network error or 5xx keeps the last state and warns once"
   console.warn = (...args) => warnings.push(args.join(" "));
   try {
     usePaymentsSummary.getState().reset();
-    await withFetch(() => reply(200, { due: 3, period_mode: "lessons" }), async () => {
+    await withFetch(() => reply(200, { ...split(3), period_mode: "lessons" }), async () => {
       await usePaymentsSummary.getState().refresh(true);
     });
     await withFetch(() => { throw new TypeError("network"); }, async () => {
@@ -280,7 +282,7 @@ test("summary store: a network error or 5xx keeps the last state and warns once"
     assert.equal(state.periodMode, "lessons");
     assert.equal(warnings.length, 1, "warned once, not on every refresh");
     // and the next good answer is taken
-    await withFetch(() => reply(200, { due: 0, period_mode: "calendar" }), async () => {
+    await withFetch(() => reply(200, { ...split(0), period_mode: "calendar" }), async () => {
       await usePaymentsSummary.getState().refresh(true);
     });
     assert.equal(usePaymentsSummary.getState().due, 0);
@@ -295,7 +297,7 @@ test("summary store: a forced refresh during a request queues exactly one more",
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   let served = 0;
-  await withFetch(async () => { const n = ++served; if (n === 1) await gate; return reply(200, { due: n, period_mode: "calendar" }); }, async (calls) => {
+  await withFetch(async () => { const n = ++served; if (n === 1) await gate; return reply(200, { ...split(n), period_mode: "calendar" }); }, async (calls) => {
     const first = usePaymentsSummary.getState().refresh(true);
     usePaymentsSummary.getState().refresh(true);
     usePaymentsSummary.getState().refresh(true);
@@ -313,7 +315,7 @@ test("summary store: an answer that arrives after reset (logout) is dropped", as
   usePaymentsSummary.getState().reset();
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
-  await withFetch(async () => { await gate; return reply(200, { due: 9, period_mode: "calendar" }); }, async () => {
+  await withFetch(async () => { await gate; return reply(200, { ...split(9), period_mode: "calendar" }); }, async () => {
     const pending = usePaymentsSummary.getState().refresh(true);
     usePaymentsSummary.getState().reset();
     release();

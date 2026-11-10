@@ -377,16 +377,17 @@ test("payments notice: an older server (no student counts) falls back to the mem
 
 test("payments summary: the student counts reach the store; a missing or bad count stays null", () => {
   const { summaryToState } = lib("payments-summary.ts");
-  const full = summaryToState({ due: 7, expired: 3, students_due: 5, students_expired: 2 });
+  const sp = (split) => ({ debt_split: split });   // Money-1 V (а): the counts come from the split alone
+  const full = summaryToState(sp({ due: 7, expired: 3, students_due: 5, students_expired: 2 }));
   assert.equal(full.studentsDue, 5);
   assert.equal(full.studentsExpired, 2);
   assert.equal(full.due, 7, "memberships stay what the menu counter and the tabs count");
-  const old = summaryToState({ due: 7, expired: 3 });
+  const old = summaryToState(sp({ due: 7, expired: 3 }));
   assert.equal(old.studentsDue, null);
   assert.equal(old.studentsExpired, null);
-  assert.equal(summaryToState({ due: 7, students_due: "x", students_expired: -1 }).studentsDue, null);
-  assert.equal(summaryToState({ due: 7, students_due: null }).studentsDue, null);
-  assert.equal(summaryToState({ due: 7, students_due: 0, students_expired: 0 }).studentsDue, 0, "zero is an answer");
+  assert.equal(summaryToState(sp({ due: 7, students_due: "x", students_expired: -1 })).studentsDue, null);
+  assert.equal(summaryToState(sp({ due: 7, students_due: null })).studentsDue, null);
+  assert.equal(summaryToState(sp({ due: 7, students_due: 0, students_expired: 0 })).studentsDue, 0, "zero is an answer");
 });
 
 test("payments notice: one compact row on a phone, 14 px wrapping sentence without an ellipsis, desktop row as before", () => {

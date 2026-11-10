@@ -572,7 +572,7 @@ test("statement page: no old words are left on the money screens", () => {
 // ── the page «Оплаты» (owner 21.10) ──────────────────────────────────────────────────────────
 
 test("payments page: two cards before the tabs; the card count is the «Должники» tab count", () => {
-  const summary = { debt_total: 1250000, advance_total: 340000, debtors: 33, students_with_debt: 33, students_with_advance: 5, expiring: 4, active: 120 };
+  const summary = { debtors_debt_total: 1250000, advance_total: 340000, debtors: 33, students_with_advance: 5, expiring: 4, active: 120 };
   const cards = P.positionCards(summary);
   assert.deepEqual(cards.map((card) => [card.label, plain(card.amount), card.sub, card.tone]), [
     ["Долг", "1 250 000 сум", "33 ученика с долгом", "debt"],
@@ -583,14 +583,14 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(debtTab, "Должники (33)");
   assert.equal(P.debtorsCount(summary), 33);
   assert.ok(cards[0].sub.startsWith(`${P.bucketCount(summary, "debt")} `));
-  // an answer without `debtors` falls back to the students with a debt on both
-  const old = { debt_total: 70000, advance_total: 0, students_with_debt: 2 };
-  assert.equal(P.positionCards(old)[0].sub, "2 ученика с долгом");
-  assert.equal(P.bucketCount(old, "debt"), 2);
-  assert.equal(P.positionCards({ debt_total: 0, advance_total: 0, debtors: 0 })[0].tone, "none");
+  // Money-1 V (а): an answer without `debtors` has no count (the old `students_with_debt` is not read)
+  const old = { debtors_debt_total: 70000, advance_total: 0, students_with_debt: 2 };
+  assert.equal(P.positionCards(old)[0].sub, "");
+  assert.equal(P.bucketCount(old, "debt"), null);
+  assert.equal(P.positionCards({ debtors_debt_total: 0, advance_total: 0, debtors: 0 })[0].tone, "none");
   assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
   // the reason line of a debtor
-  assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
+  assert.match(P.debtReasonText({ reason: "ИЗ СТАРОГО ПОЛЯ", status: "active", debt: 150000 }), /^Долг 150\s000\sсум$/, "Money-1 V (а): row.reason is not read");
   assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
   assert.equal(P.debtReasonText({ status: "none", last_payment: null, debt: 0 }), "Ещё не платил");
   // the chip already says «Ещё не платил…»: the line under it never repeats it (owner 22.10)
@@ -600,8 +600,8 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.debtReasonLine(never, chipNever.label), "", "only the amount line (the balance) stays");
   assert.equal(P.debtReasonLine({ ...never, past_debt: 0 }, P.moneyChip({ ...never, past_debt: 0 }).label), "", "the plain chip «Ещё не платил» too");
   assert.equal(P.debtReasonLine({ ...never, reason: undefined, status: "expired", days_overdue: 12 }, "Ещё не платил · просрочено"), "Просрочено на 12 дней", "the overdue days when known");
-  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000, reason: "Не доплачено за октябрь: 150 000" }, "Не доплачено"), "Не доплачено за октябрь: 150 000", "other reasons are kept");
-  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5, reason: "Не доплачено" }, "Не доплачено"), "", "a line equal to the chip is dropped");
+  assert.match(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000 }, "Не доплачено"), /^Долг 150\s000\sсум$/, "other reasons are built from the row");
+  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5 }, `Долг ${P.formatMoney(5)}`), "", "a line equal to the chip is dropped");
   assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /reason !== chip\.label/);
   assert.equal(P.priceMissingText(3), "У 3 учеников не задана цена");
   assert.equal(P.priceMissingText(0), null);
@@ -651,11 +651,11 @@ test("B1: the payroll sheet line-not-found text; the edit form no longer promise
 });
 
 test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
-  const summary = named("A30_");
+  const summary = { ...named("A30_"), debtors: named("A30_").debtors ?? named("A30_").students_with_debt, debtors_debt_total: named("A30_").debt_total };
   assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Без долга (4)"]);
   assert.equal(P.bucketCount(summary, "paused"), 1);
   // owner: the badge counts STUDENTS, like the card, even when a student owes in two groups (4 rows, 3 students)
-  const twoGroups = { ...summary, debtors: 3, students_with_debt: 3, buckets: { ...summary.buckets, debt: 4, paused: 2 }, students_paused: 1 };
+  const twoGroups = { ...summary, debtors: 3, debtors_debt_total: summary.debt_total, buckets: { ...summary.buckets, debt: 4, paused: 2 }, students_paused: 1 };
   assert.equal(P.bucketCount(twoGroups, "debt"), 3);
   assert.equal(P.positionCards(twoGroups)[0].sub.split(" ")[0], String(P.bucketCount(twoGroups, "debt"))); // card == tab badge
   assert.equal(P.bucketCount(twoGroups, "paused"), 1);
@@ -668,7 +668,7 @@ test("payment tabs: the rows of each tab come from `buckets`, a tab «На па�
   assert.equal(P.positionCards(summary)[1].sub, "1 ученик оплатил вперёд");
   assert.equal(P.priceMissingText(summary.price_missing), "У 1 ученика не задана цена");
   const row = named("A29_");
-  assert.equal(P.debtReasonText(row), "Ещё не платил");
+  assert.equal(P.debtReasonText(row), "Просрочено на 21 день", "Money-1 V (а): the line is built from the fields of the row, not from the old `reason`");
   assert.equal(row.bucket, "debt");
   const opening = L.buildStatementItems(L.normalizeStatement(named("A31_")), null);
   assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);

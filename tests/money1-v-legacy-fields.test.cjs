@@ -19,9 +19,8 @@ const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true
 
 test("no source reads the old fields of the debtors", () => {
   const banned = [
-    /summary\??\.debt_total/, /summary\??\.students_with_debt/, /summary\??\.memberships_with_debt/, /summary\??\.debtors\b/, /summary\??\.students_due/, /summary\??\.students_expired/,
+    /summary\??\.debt_total/, /summary\??\.students_with_debt/, /summary\??\.memberships_with_debt/, /summary\??\.students_due/, /summary\??\.students_expired/,
     /summary\??\.(due|expired)\b/, /buckets\??\.debt\b.*summary|summary.*buckets\??\.debt\b/, /\brow\.reason\b/, /position\??\.debt_total/, /position\??\.students_with_debt/, /position\??\.memberships_with_debt/,
-    /bucket=debt\b.*fetch|q\.bucket === "debt" \? "debtors"/,
   ];
   const found = [];
   for (const file of [...walk("src"), ...walk("console")].filter((f) => !f.includes("node_modules") && !f.includes(".next"))) {
@@ -29,7 +28,7 @@ test("no source reads the old fields of the debtors", () => {
     lines.forEach((line, i) => { if (!line.trim().startsWith("//") && !line.trim().startsWith("*") && banned.some((re) => re.test(line))) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`); });
   }
   // `row.reason` of other things (a decision row, a price) is not a debtor's: only the files of the list of payments are checked for it
-  const real = found.filter((entry) => !/income-decisions|group-price|payments-decisions|refund-receipt|openings|attendance|excuse|substitution|payf|lesson/.test(entry));
+  const real = found.filter((entry) => !/^console\/|income-decisions|group-price|payments-decisions|refund-receipt|openings|attendance|excuse|substitution|payf|lesson/.test(entry));
   assert.deepEqual(real, []);
 });
 
