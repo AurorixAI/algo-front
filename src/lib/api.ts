@@ -139,6 +139,7 @@ import {
 } from "./payroll-logica";
 import { loadAllPages, type PagedResponse } from "./diagnostics-list";
 import { withTimeLimit } from "./request-limit";
+import { normalizeMyMonth, normalizeMyMonths } from "./my-payroll";
 
 import type {
   ArchiveGroupBody,
@@ -1951,6 +1952,10 @@ export const orgApi = {
   /** Money-1 A1: «Переоткрыть месяц» (the money right; a reason; `sheet_revision` of the sheet the screen saw - R3 #11; a repeat answers `changed: false`). */
   reopenPayrollPeriod: (month: string, body: { teacher_id: string; reason: string; sheet_revision: number }) =>
     api<ReopenResult>(`/auth/org/payroll-periods/${encodePathId(month)}/reopen`, { method: "POST", body }),
+  /** Money-1 V8: «Моя зарплата» of a teacher - one month (`YYYY-MM`); only the teacher, only his own (403 for everybody else, 422 for a month that has not come). */
+  getMyPayroll: (month: string) => api<unknown>(`/auth/org/me/payroll?month=${encodeURIComponent(month)}`).then(normalizeMyMonth),
+  /** Money-1 V8: the current month and the last 12 with a sheet or lessons, newest first; null: the answer was not a list. */
+  getMyPayrollMonths: () => api<unknown>("/auth/org/me/payroll/months").then(normalizeMyMonths),
   /** Every rate ever set for the teacher, newest first. */
   getPayrollRateHistory: (teacherId: string) =>
     api<PayrollRateHistoryItem[]>(`/auth/org/payroll/rates/${encodePathId(teacherId)}/history`),

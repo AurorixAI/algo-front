@@ -104,7 +104,7 @@ function IncludeCell({
             className="print:hidden"
           />
           <span className="text-xs text-slate-500 print:hidden">{INCLUDE_LABEL}</span>
-          <Hint text={INCLUDE_HINT} className="inline-flex max-sm:hidden print:hidden">
+          <Hint text={INCLUDE_HINT} className="inline-flex items-center justify-center print:hidden max-sm:-my-2.5 max-sm:min-h-10 max-sm:min-w-10">
             <HelpCircle className="h-3.5 w-3.5 text-slate-500" aria-label={`Что значит «${INCLUDE_LABEL}»`} />
           </Hint>
         </>
@@ -233,7 +233,7 @@ export function PayrollSheetTable({
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem] max-sm:min-w-[5.5rem]"} bg-slate-50`}>Ученик</th>
                     <th scope="col" aria-label={priceColumn} className={`${HEAD} text-right max-sm:hidden`}>
-                      <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
+                      <Hint text={PRICE_HEADER_HINT} className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center">{priceColumn}</Hint>
                     </th>
                     {showDates && block.columns.map((column) => (
                       <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[10px]">
@@ -241,10 +241,10 @@ export function PayrollSheetTable({
                       </th>
                     ))}
                     <th scope="col" aria-label="Засчитано" className={`${HEAD} text-center`}>
-                      <Hint text={COUNTED_HEADER_HINT}>Засчитано</Hint>
+                      <Hint text={COUNTED_HEADER_HINT} className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center">Засчитано</Hint>
                     </th>
                     <th scope="col" aria-label="Без оплаты" className={`${HEAD} text-center`}>
-                      <Hint text={UNPAID_HEADER_HINT}>Без оплаты</Hint>
+                      <Hint text={UNPAID_HEADER_HINT} className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center">Без оплаты</Hint>
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>Заработано</th>
                   </tr>
@@ -287,7 +287,7 @@ export function PayrollSheetTable({
                               title={cell.tone === "unpaid" || cell.tone === "unpaid_included" ? undefined : `${line.student_name}, ${formatDayMonthRu(column.date)}: ${cell.title}`}
                             >
                               {cell.tone === "unpaid" || cell.tone === "unpaid_included" ? (
-                                <Hint text={cell.tone === "unpaid" ? UNPAID_MARK_HINT : UNPAID_INCLUDED_MARK_HINT} className="inline-block">
+                                <Hint text={cell.tone === "unpaid" ? UNPAID_MARK_HINT : UNPAID_INCLUDED_MARK_HINT} className="inline-block max-sm:inline-flex max-sm:min-h-10 max-sm:min-w-10 max-sm:items-center max-sm:justify-center">
                                   <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
                                     {cell.label}
                                     <span className="sr-only">{`${formatDayMonthRu(column.date)}: ${cell.title}`}</span>

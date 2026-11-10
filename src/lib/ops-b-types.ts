@@ -208,6 +208,13 @@ export interface RemovalLesson {
   lessonId: string;
 }
 
+/** Money-1 V7 (ЗП-11): the months of the last 12 in which the teacher held lessons and his salary is not saved / not paid in full - months and the server's words, no sums (an administrator may remove a member). */
+export interface RemovalPayroll {
+  unsaved_months?: string[];
+  unpaid_months?: string[];
+  text?: string;
+}
+
 export interface RemovalImpact {
   memberId: string;
   userId?: string;
@@ -220,6 +227,8 @@ export interface RemovalImpact {
   missedLessons?: { count?: number };
   /** LOGIC-B2: waiting «Не смогу провести» requests of this member: they are closed with the removal. */
   pendingSubstitutionRequests?: { count?: number };
+  /** Money-1 V7: the keys stay as the server sends them (snake_case). */
+  payroll?: RemovalPayroll;
 }
 
 export interface HandoverAssignment {

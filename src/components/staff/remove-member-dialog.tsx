@@ -25,6 +25,7 @@ import {
   handoverConflictLines,
   handoverTargets,
   impactFromRefusal,
+  payrollNoteMonths,
   inProgressText,
   missedLessonsText,
   removeConfirmText,
@@ -35,6 +36,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import Link from "next/link";
+import { useAuthStore } from "@/lib/store";
+import { monthNameRu } from "@/lib/payroll";
 
 export type MemberAction = { kind: "remove" } | { kind: "role"; role: string };
 
@@ -213,6 +218,33 @@ export function RemoveMemberDialog({
  * What else the removal / the change of a role does, in a quiet block: the future substitutions that are taken off, the missed lessons the administrator will sort out, the waiting requests that are closed.
  * Warnings only - none of them blocks.  Nothing when there is none.
  */
+/**
+ * Money-1 V7 (ЗП-11): the words of the server about the salary of the teacher («Зарплата за октябрь не сохранена. Зарплата за сентябрь не выплачена») - ONE warning, as it came, no sums (an administrator
+ * may remove a member too).  It does not block the removal.  The owner gets a link per month to the page «Зарплата»; the administrator has no such page, so he gets the words only.
+ */
+export function PayrollRemovalNote({ impact }: { impact: RemovalImpact | null }) {
+  const user = useAuthStore((state) => state.user);
+  const text = (impact?.payroll?.text ?? "").trim();
+  if (!text) return null;
+  const months = user?.org_role === "owner" || user?.role === "owner" ? payrollNoteMonths(impact?.payroll) : [];
+  return (
+    <Notice variant="warning" compact testId="removal-payroll">
+      <p>{text}</p>
+      {months.length > 0 && (
+        <ul className="mt-1 flex flex-wrap gap-x-4">
+          {months.map((month) => (
+            <li key={month}>
+              <Link href={`/owner/payroll?month=${month}`} data-testid="removal-payroll-link" className="inline-flex min-h-[40px] items-center font-medium underline underline-offset-2">
+                Открыть зарплату за {monthNameRu(month).toLowerCase()}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Notice>
+  );
+}
+
 export function ImpactNotes({ impact }: { impact: RemovalImpact | null }) {
   const futureCount = impact?.futureSubstitutions?.count ?? 0;
   const missedCount = impact?.missedLessons?.count ?? 0;
@@ -235,6 +267,7 @@ export function RoleToAdminNotes({ impact }: { impact: RemovalImpact | null }) {
   return (
     <>
       {(impact?.groups ?? []).length > 0 && <p className="text-xs leading-5 text-slate-600" data-testid="role-to-admin-note">{ROLE_TO_ADMIN_NOTE}</p>}
+      <PayrollRemovalNote impact={impact} />
       <ImpactNotes impact={impact} />
     </>
   );
@@ -378,11 +411,12 @@ export function RemovalDialogBody({
               </div>
             )}
 
+            <PayrollRemovalNote impact={impact} />
             <ImpactNotes impact={impact} />
           </>
         )}
 
-        {impact && plainConfirm && <ImpactNotes impact={impact} />}
+        {impact && plainConfirm && <><PayrollRemovalNote impact={impact} /><ImpactNotes impact={impact} /></>}
 
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </div>

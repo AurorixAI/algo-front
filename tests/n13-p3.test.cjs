@@ -606,11 +606,13 @@ test("the menu item «Зарплата» is the owner's alone; the pages sit und
   assert.match(ownerNav, /href: "\/owner\/payroll", label: "Зарплата"/);
   assert.match(ownerNav, /\.\.\.\(rawRole === "owner"/);
   assert.doesNotMatch(adminNav, /payroll|Зарплата/);
-  assert.doesNotMatch(teacherNav, /payroll|Зарплата/);
+  // Money-1 V8: a teacher has «Моя зарплата» - his OWN numbers (/teacher/payroll); the owner's payroll (sheets, rates) is not in his menu
+  assert.doesNotMatch(teacherNav, /owner\/payroll|label: "Зарплата"/);
+  assert.match(teacherNav, /href: "\/teacher\/payroll", label: "Моя зарплата"/);
   assert.match(read("src/app/owner/layout.tsx"), /allowedRoles=\{\["owner"\]\}/);
-  for (const role of ["admin", "teacher"]) {
-    assert.equal(fs.existsSync(path.join(root, "src/app", role, "payroll")), false, `no payroll route under /${role}`);
-  }
+  assert.equal(fs.existsSync(path.join(root, "src/app", "admin", "payroll")), false, "no payroll route under /admin");
+  assert.equal(fs.existsSync(path.join(root, "src/app/teacher/payroll/[sheetId]")), false, "a teacher has no sheets: only «Моя зарплата»");
+  assert.ok(fs.existsSync(path.join(root, "src/app/teacher/payroll/page.tsx")));
   assert.ok(fs.existsSync(path.join(root, "src/app/owner/payroll/page.tsx")));
   assert.ok(fs.existsSync(path.join(root, "src/app/owner/payroll/[sheetId]/page.tsx")));
   // the second line behind the layout: a non-owner who gets there sees «Недостаточно прав», nothing is requested
