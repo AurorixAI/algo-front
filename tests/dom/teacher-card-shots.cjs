@@ -26,9 +26,10 @@ const server = (request) => {
   if (method === "GET" && p === "/exams") return { json: { items: [EXAM("e1", "Контрольная: квадратные уравнения", "draft"), EXAM("e2", "Диагностика 7 класс", "lobby", { access_code: "K9M3" }), EXAM("e3", "Итоговая за четверть", "closed", { sessions_count: 9 })], total: 3, page: 1, size: 50, has_more: false } };
   return null;
 };
-const MISSED = { actionType: "missed", groupId: "g9", groupName: "Индивидуально: Азизов", classLevel: 9, lessonId: "l9", lessonDate: "2026-11-04", subject: "Алгебра", startTime: "16:00", endTime: "17:00", room: null, format: "offline", topic: null, markedCount: 0, rosterCount: 0, remainingCount: 0, teacherId: "t1", teacherName: "Каримова К." };
+const MISSED = { actionType: "missed", groupId: "g9", groupName: "Индивидуально: Азизов", classLevel: 9, lessonId: "l9", lessonDate: "2026-11-09", subject: "Алгебра", startTime: "16:00", endTime: "17:00", room: null, format: "offline", topic: null, markedCount: 0, rosterCount: 0, remainingCount: 0, teacherId: "t1", teacherName: "Каримова К." };
 const server2 = (request) => {
   if (request.method === "GET" && request.path === "/auth/org/attendance/open-actions") return { json: [MISSED] };
+  if (request.method === "GET" && request.path === "/auth/org/teacher/dashboard/summary") { const base = server(request); return { json: { ...base.json, openAttendanceActions: [MISSED] } }; }
   return server(request);
 };
 const SIZES = [[1280, 900], [1024, 800], [375, 812]];

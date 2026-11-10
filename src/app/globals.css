@@ -36,6 +36,12 @@ body {
 
 /* The scrollbar of the body of a window (Modal and the side sheet): thin, no grey gutter, a rounded thumb of the muted tone at 30 %, and 4 px away from the rounded edge of the card (release review 06.11, the owner).
    It is not hidden: with a mouse a person has to see that the window scrolls. */
+/* A row of summary cards: 4 in a row only where every card has >= 260 px (the width of the ROW, not of the screen: the sidebar takes 240 px), 2 x 2 below, one column on a phone */
+.kpi-row { container-type: inline-size; }
+.kpi-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@container (min-width: 540px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1100px) { .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
 .scroll-soft {
   scrollbar-width: thin;
   scrollbar-color: rgb(106 102 94 / 0.3) transparent;

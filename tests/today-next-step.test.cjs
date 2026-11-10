@@ -76,9 +76,11 @@ test("the card text is ONE line with the full value in title; the tone of an ove
     assert.match(text, /title=\{(view|nextStepText)\.description\}[^>]*truncate|truncate[^>]*title=\{(view|nextStepText)\.description\}/, `${file}: one line, the full text in title`);
   }
   const schedule = fs.readFileSync(path.join(__dirname, "..", "src/app/teacher/schedule/page.tsx"), "utf8");
-  assert.match(schedule, /nextStepText\.tone === "rose" \? "border-warning-200 bg-warning-50\/70/, "overdue = warning on «Расписание»");
-  assert.doesNotMatch(schedule, /nextStepText\.tone === "rose" \? "border-danger/);
-  assert.match(CARD.ICON_TONE.rose, /warning/, "overdue = warning on «Главная»");
+  assert.match(schedule, /NEXT_STEP_SURFACE\[nextStepText\.tone\]\.surface/, "«Расписание» takes the look of the card from the ONE map");
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "src/components/teacher/next-action-card.tsx"), "utf8"), /NEXT_STEP_SURFACE\[view\.tone\]\.surface/, "«Главная» takes it from the same map");
+  for (const tone of ["rose", "amber"]) assert.match(CARD.NEXT_STEP_SURFACE[tone].surface, /warning/, `${tone} = warning (yellow), never danger`);
+  assert.doesNotMatch(JSON.stringify(CARD.NEXT_STEP_SURFACE), /danger|rose-/);
+  assert.match(CARD.ICON_TONE.rose, /warning/, "overdue = warning on both");
   const iconName = (step) => CARD.nextStepIcon(step).displayName || CARD.nextStepIcon(step).render?.displayName;
   const lucide = require("lucide-react");
   assert.equal(CARD.nextStepIcon({ kind: "action", action: openOf(SERVER_MISSED) }), lucide.AlertCircle, "a missed lesson: «!»");
