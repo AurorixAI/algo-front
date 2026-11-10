@@ -151,3 +151,26 @@ test("the choice: pinned captions «Часы» / «Минуты», a «:» betwe
     await page.close();
   }
 });
+
+test("the window of a ONE-OFF lesson: nothing is switched off silently - the first try to save says «Укажите время начала», «Укажите время окончания» and «Выберите, как оплатить урок преподавателю», the focus goes to the first empty field; no false «прошедшее время»", async () => {
+  const { page } = await openPage(browser, "ds.entry.tsx", () => null, { width: 1280, height: 900 });
+  await page.evaluate(() => window.mount("addLesson", { role: "teacher", org_role: "teacher" }, {}));
+  await page.waitForSelector('button:has-text("Разовое занятие")');
+  await page.click('button:has-text("Разовое занятие")');
+  await page.click('button:has-text("Дополнительный урок")');
+  await page.fill("#weekly-add-data-zanyatiya", "31.12.2030");
+  const save = page.locator('button:has-text("Сохранить урок")');
+  assert.equal(await save.isDisabled(), false, "the button is on before the first try");
+  await save.click();
+  await page.waitForSelector('[data-testid="weekly-add-end-required"]');
+  const dialog = page.getByRole("dialog").first();
+  const text = await dialog.innerText();
+  assert.match(text, /Укажите время начала/);
+  assert.match(text, /Укажите время окончания/);
+  assert.match(text, /Выберите, как оплатить урок преподавателю/);
+  assert.doesNotMatch(text, /прошедшее время/);
+  assert.equal(await save.isDisabled(), false, "still on after the try");
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => document.activeElement && (document.activeElement.name || document.activeElement.id)), "weekly-add-money", "the focus is on the first empty field in the order of the screen (the payment is above the time)");
+  await page.close();
+});

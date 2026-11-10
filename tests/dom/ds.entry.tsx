@@ -17,6 +17,7 @@ import TeacherSchedule from "@/app/teacher/schedule/page";
 import TeacherExams from "@/app/teacher/exams/page";
 import OwnerDashboard from "@/app/owner/dashboard/page";
 import { TimeInput } from "@/components/ui/time-input";
+import { AddLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { ExcusesPage } from "@/components/attendance/excuses-page";
 import { LessonSlotFields, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
 
@@ -113,6 +114,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "gallery": root.render(<Gallery />); break;
     case "excuses": page(<ExcusesPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
     case "timePicker": root.render(<TimeDemo initial={props.initial ?? ""} inModal={props.inModal !== false} />); break;
+    case "addLesson": root.render(<AddLessonDialog open group={{ id: "g1", name: "7-А Алгебра" }} teacherAssigned role="manager" siblings={[]} onClose={() => {}} onAdded={() => {}} />); break;
     case "ownerDashboard": page(<OwnerDashboard />); break;
     case "groups": page(<GroupsListView workspace="owner" />); break;
     case "payments": page(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;

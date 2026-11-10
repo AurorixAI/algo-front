@@ -233,7 +233,7 @@ export const MAKEUP_LOADING_TEXT = "Ищем отменённые уроки…"
 export const MAKEUP_LOAD_ERROR_TEXT = "Не удалось загрузить отменённые уроки. Повторите попытку.";
 export const MAKEUP_EMPTY_FALLBACK = "Нет отменённых уроков, которые можно отработать";
 export const PURPOSE_REQUIRED_TEXT = "Выберите, что это за урок: отработка или дополнительный";
-export const MONEY_REQUIRED_TEXT = "Выберите, включать ли урок в зарплату преподавателя";
+export const MONEY_REQUIRED_TEXT = "Выберите, как оплатить урок преподавателю";
 export const MAKEUP_TARGET_REQUIRED_TEXT = "Выберите отменённый урок, который отрабатывается";
 export const NO_ONE_OFF_RIGHT_TEXT = "Добавить разовое занятие может преподаватель группы, администратор или владелец";
 

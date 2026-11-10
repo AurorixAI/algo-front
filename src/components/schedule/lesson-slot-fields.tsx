@@ -75,7 +75,7 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
       )}
 
       {byDay && perDay?.times ? (
-        <DayTimeRows idPrefix={idPrefix} days={perDay.days} shared={value} times={perDay.times} onTimes={perDay.onTimes} disabled={disabled} invalidDays={perDay.invalidDays} />
+        <DayTimeRows idPrefix={idPrefix} days={perDay.days} shared={value} times={perDay.times} onTimes={perDay.onTimes} disabled={disabled} invalidDays={perDay.invalidDays} showRequired={showRequired} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -85,8 +85,8 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
           </div>
           <div>
             <label htmlFor={`${idPrefix}-okonchanie`} className="block text-xs font-semibold text-slate-700 mb-1">Окончание</label>
-            <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid || (showRequired && !value.endTime)} aria-describedby={showRequired && value.startTime && !value.endTime ? `${idPrefix}-okonchanie-required` : undefined} className={SLOT_FIELD_CLASS} />
-            {showRequired && value.startTime && !value.endTime && <p id={`${idPrefix}-okonchanie-required`} role="alert" data-testid={`${idPrefix}-end-required`} className="mt-1 text-xs font-medium text-danger-700">{END_REQUIRED_TEXT}</p>}
+            <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid || (showRequired && !value.endTime)} aria-describedby={showRequired && !value.endTime ? `${idPrefix}-okonchanie-required` : undefined} className={SLOT_FIELD_CLASS} />
+            {showRequired && !value.endTime && <p id={`${idPrefix}-okonchanie-required`} role="alert" data-testid={`${idPrefix}-end-required`} className="mt-1 text-xs font-medium text-danger-700">{END_REQUIRED_TEXT}</p>}
           </div>
         </div>
       )}
@@ -153,7 +153,7 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
 }
 
 /** «Разное время по дням»: one row «Пн · начало · окончание» per chosen day (a column of rows, one under another on a phone as well). */
-function DayTimeRows({ idPrefix, days, shared, times, onTimes, disabled, invalidDays = [] }: {
+function DayTimeRows({ idPrefix, days, shared, times, onTimes, disabled, invalidDays = [], showRequired = false }: {
   idPrefix: string;
   days: readonly number[];
   shared: TimeRange;
@@ -161,6 +161,7 @@ function DayTimeRows({ idPrefix, days, shared, times, onTimes, disabled, invalid
   onTimes: (times: DayTimes) => void;
   disabled: boolean;
   invalidDays?: readonly number[];
+  showRequired?: boolean;
 }) {
   return (
     <div role="group" aria-label="Время по дням" className="space-y-2" data-testid={`${idPrefix}-day-times`}>
@@ -173,18 +174,20 @@ function DayTimeRows({ idPrefix, days, shared, times, onTimes, disabled, invalid
           onChange={(time) => onTimes({ ...times, [day]: time })}
           disabled={disabled}
           invalid={invalidDays.includes(day)}
+          showRequired={showRequired}
         />
       ))}
     </div>
   );
 }
 
-function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid }: {
-  idPrefix: string; day: number; time: TimeRange; onChange: (time: TimeRange) => void; disabled: boolean; invalid: boolean;
+function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid, showRequired = false }: {
+  idPrefix: string; day: number; time: TimeRange; onChange: (time: TimeRange) => void; disabled: boolean; invalid: boolean; showRequired?: boolean;
 }) {
   // the same behaviour as the single pair: the end follows the start (+90 min) until an end is typed
   const endTyped = useRef(false);
   const name = DAYS.find((item) => item.id === day)?.name ?? dayShort(day);
+  const missing = !showRequired ? null : !time.startTime && !time.endTime ? "укажите время начала и окончания" : !time.startTime ? "укажите время начала" : !time.endTime ? "укажите время окончания" : null;
   return (
     <div className="grid grid-cols-[2rem_1fr_1fr] items-center gap-2" data-testid={`${idPrefix}-day-time-${day}`}>
       <span className="text-xs font-bold text-slate-700" aria-hidden>{dayShort(day)}</span>
@@ -195,6 +198,7 @@ function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid }: {
         onChange={(startTime) => { const next = startTimePatch(time, startTime, endTyped.current); if (next) onChange({ ...time, ...next }); }}
         required
         disabled={disabled}
+        invalid={showRequired && !time.startTime}
         className={SLOT_FIELD_CLASS}
       />
       <TimeInput
@@ -204,9 +208,10 @@ function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid }: {
         onChange={(endTime) => { endTyped.current = isEndTyped(endTime); onChange({ ...time, endTime }); }}
         required
         disabled={disabled}
-        invalid={invalid}
+        invalid={invalid || (showRequired && !time.endTime)}
         className={SLOT_FIELD_CLASS}
       />
+      {missing && <p role="alert" data-testid={`${idPrefix}-day-required-${day}`} className="col-span-3 text-xs font-medium text-danger-700">{name}: {missing}</p>}
     </div>
   );
 }
