@@ -6,7 +6,7 @@ import { orgApi } from "@/lib/api";
 import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
 import {
-  EXTRA_FREE_FOR_STUDENTS, MAKEUP_LOADING_TEXT, MAKEUP_LOAD_ERROR_TEXT, MAKEUP_MONEY_NOTE, MAKEUP_TARGET_LABEL, MAKEUP_TARGET_PLACEHOLDER, MONEY_QUESTION,
+  EXTRA_FREE_FOR_STUDENTS, MAKEUP_LOADING_TEXT, MAKEUP_LOAD_ERROR_TEXT, MAKEUP_MONEY_NOTE, MAKEUP_TARGET_LABEL, MONEY_REQUIRED_TEXT, MAKEUP_TARGET_PLACEHOLDER, MONEY_QUESTION,
   PURPOSE_CHOICES, PURPOSE_QUESTION, candidateKey, candidateOptionLabel, makeupUnavailableText, moneyChoicesFor,
   type MakeupCandidate, type MakeupCandidates, type OneOffChoice, type OneOffRole,
 } from "@/lib/one-off";
@@ -121,7 +121,7 @@ export function OneOffPurposeFields({ idPrefix, role, choice, onChoice, makeup, 
     <>
       <fieldset>
         <legend id={`${idPrefix}-purpose-label`} className="mb-1.5 block text-xs font-semibold text-slate-700">{PURPOSE_QUESTION}</legend>
-        <div role="radiogroup" aria-labelledby={`${idPrefix}-purpose-label`} aria-invalid={invalid || undefined} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div role="radiogroup" aria-labelledby={`${idPrefix}-purpose-label`} aria-invalid={(invalid && choice.purpose === null) || undefined} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {card("makeup", PURPOSE_CHOICES[0].title, PURPOSE_CHOICES[0].hint, makeupOff, makeupHint)}
           {card("extra", PURPOSE_CHOICES[1].title, PURPOSE_CHOICES[1].hint, false, null)}
         </div>
@@ -178,7 +178,7 @@ export function OneOffPurposeFields({ idPrefix, role, choice, onChoice, makeup, 
               </label>
             ))}
           </div>
-          {invalid && !choice.money && <p role="alert" className="mt-1 text-[11px] font-semibold leading-4 text-rose-600">Выберите оплату преподавателю</p>}
+          {invalid && !choice.money && <p role="alert" className="mt-1 text-[11px] font-semibold leading-4 text-rose-600">{MONEY_REQUIRED_TEXT}</p>}
           <p data-testid={`${idPrefix}-extra-free`} className="mt-2 flex items-start gap-1.5 text-[11px] leading-4 text-slate-500">
             <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /> <span>{EXTRA_FREE_FOR_STUDENTS}</span>
           </p>

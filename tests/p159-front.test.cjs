@@ -85,7 +85,7 @@ test("Ч4: an admin without the right gets the radio of a teacher («Попро�
   assert.deepEqual(O.moneyChoicesFor(noRight).map((c) => [c.value, c.label]), [["wait", "Попросить включить в зарплату"], ["none", "Не включать в зарплату"]]);
   assert.deepEqual(O.emptyChoice(noRight), { purpose: null, money: "wait", target: "" });
   assert.deepEqual(O.choicePayload({ purpose: "extra", money: "wait", target: "" }), { purpose: "extra", money: "wait" });
-  assert.equal(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, noRight, null), "Выберите, включать ли урок в зарплату преподавателя", "paid is not offered: the form refuses it before the server does");
+  assert.equal(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, noRight, null), "Выберите, как оплатить урок преподавателю", "paid is not offered: the form refuses it before the server does");
   const withRight = O.oneOffRoleOf({ org_role: "admin", payments_access: true });
   assert.equal(withRight, "manager");
   assert.deepEqual(O.moneyChoicesFor(withRight).map((c) => c.value), ["none", "paid"]);

@@ -105,3 +105,28 @@ test("the owner's panel shows a skeleton until the centre is known - no made-up 
   assert.doesNotMatch(text, /org\?\.name \|\| "Моя организация"|org\?\.status/, "no fallback values");
   assert.doesNotMatch(text, /bg-slate-900|backdrop-blur|bg-white\/5|text-white/, "a light card of the system");
 });
+
+test("a ONE-OFF lesson of today with NO time: not «прошедшее время» (that rule works only on a filled time); the fields say «Укажите время …»", () => {
+  const F = require(src("lib/lesson-slot-form.ts"));
+  assert.equal(F.pastTimeProblem("", 14 * 60 + 53), null);
+  const plan = F.pastDayPlan({ scope: "one_off", times: [{ day: 0, startTime: "", endTime: "" }], validFrom: "", date: "2026-11-10", today: "2026-11-10", todayDay: 2, nowMinutes: 14 * 60 + 53 });
+  assert.equal(plan.pastOneOff, null);
+  assert.ok(F.pastDayPlan({ scope: "one_off", times: [{ day: 0, startTime: "09:00", endTime: "10:00" }], validFrom: "", date: "2026-11-10", today: "2026-11-10", todayDay: 2, nowMinutes: 14 * 60 + 53 }).pastOneOff, "a filled past time is still refused");
+  assert.equal(F.timeRangeProblem("", ""), F.START_REQUIRED_TEXT);
+});
+
+test("namesakes: EVERY namesake shows the same kind of detail; the same phone and the same day give an ID to both (the public ID is given at the enrolment: while one has none, the minute of adding tells them apart)", () => {
+  const a = { id: "u-1", full_name: "Ученик 2 Б-тест", student_phone: "+998901112233", created_at: "2026-11-06T13:26:00", display_id: "DS-011" };
+  const b = { id: "u-2", full_name: "Ученик 2 Б-тест", student_phone: "+998901112233", created_at: "2026-11-06T13:27:00" };
+  assert.equal(namesakeDetail(a, [a, b]), "добавлен 06.11.2026 13:26");
+  assert.equal(namesakeDetail(b, [a, b]), "добавлен 06.11.2026 13:27");
+  const b2 = { ...b, display_id: "DS-012" };
+  assert.equal(namesakeDetail(a, [a, b2]), "ID DS-011");
+  assert.equal(namesakeDetail(b2, [a, b2]), "ID DS-012");
+  const c = { ...b, student_phone: "+998901115544" };
+  assert.match(namesakeDetail(a, [a, c]), /^тел\./);
+  assert.match(namesakeDetail(c, [a, c]), /^тел\./);
+  const d = { ...b, created_at: "2026-11-08T10:00:00" };
+  assert.equal(namesakeDetail(a, [a, d]), "добавлен 06.11.2026");
+  assert.equal(namesakeDetail(d, [a, d]), "добавлен 08.11.2026");
+});

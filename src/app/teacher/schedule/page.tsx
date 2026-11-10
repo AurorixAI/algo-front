@@ -29,6 +29,7 @@ import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
 import { refusalText } from "@/lib/weekly-lessons";
+import { focusFirstInvalid } from "@/lib/focus-invalid";
 import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, groupsBaseOf, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
 import { occurrenceChips } from "@/lib/substitutions";
@@ -488,7 +489,7 @@ export default function TeacherSchedulePage() {
     e.preventDefault();
     if (savingLesson) return; // a repeated click or Enter while the first save is on its way
     setAddTouched(true);
-    if (addTimeProblem) return; // the time is required: the field says «Укажите время начала / окончания»
+    if (addTimeProblem) { focusFirstInvalid(); return; } // the time is required: the field says «Укажите время начала / окончания»
     if (
       newLessonScope === "one_off"
       && (newLessonDate < formatBusinessDate() || newLessonDate < weekPeriod.start || newLessonDate > weekPeriod.end)
@@ -500,18 +501,21 @@ export default function TeacherSchedulePage() {
       const problem = validFromError(newValidFrom, formatBusinessDate());
       if (problem) {
         setScheduleError(problem);
+        focusFirstInvalid();
         return;
       }
     }
     if (newLessonScope === "recurring" && newDays.length === 0) {
       setScheduleError(DAY_REQUIRED_TEXT);
+      focusFirstInvalid();
       return;
     }
     if (newLessonScope === "one_off") {
       setAddTouched(true);
       const problem = choiceProblem(newChoice, oneOffRole, candidatesOf(newMakeup.state));
       if (problem) {
-        setScheduleError(problem);
+        if (oneOffRole === null) setScheduleError(problem); // the choice says what is missing at its own field
+        focusFirstInvalid();
         return;
       }
     }
@@ -1653,7 +1657,7 @@ export default function TeacherSchedulePage() {
         footerClassName={MODAL_ACTIONS_FOOTER_CLASS}
         footer={<ModalActions primary={savingLesson ? "Сохраняем…" : "Сохранить урок"} submitFor="schedule-add-lesson-form" disabled={!!addConflict || !!addPastTimeConflict || savingLesson} busy={savingLesson} onCancel={() => setIsAddModalOpen(false)} />}
       >
-        <form id="schedule-add-lesson-form" onSubmit={handleAddLesson} className="space-y-4 pb-2">
+        <form id="schedule-add-lesson-form" onSubmit={handleAddLesson} noValidate className="space-y-4 pb-2">
           {/* Conflict warning banner */}
           {addConflict && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { orgApi, type LessonEvent, type RecurringLessonEndImpact } from "@/lib/api";
+import { focusFirstInvalid } from "@/lib/focus-invalid";
 import { MAKEUP_DAYS, NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, oneOffAddedText, type OneOffChoice, type OneOffRole } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
 import { Modal } from "@/components/ui/modal";
@@ -149,9 +150,9 @@ export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, 
     event.preventDefault();
     if (busy || sending.current) return;
     setTouched(true);
-    if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); return; }
-    if (blocking) return;
-    if (oneOffBlock) { setError(oneOffBlock); return; }
+    if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); focusFirstInvalid(); return; }
+    if (blocking) { focusFirstInvalid(); return; }
+    if (oneOffBlock) { if (!teacherAssigned || role === null) setError(oneOffBlock); focusFirstInvalid(); return; } // the choice says what is missing at its own field
     sending.current = true;
     setBusy(true);
     setError(null);
@@ -311,6 +312,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   const [day, setDay] = useState<number | null>(Number(lesson.dayOfWeek));
   const [value, setValue] = useState<SlotFormValue>(fieldsOf(lesson));
   const [effectiveFrom, setEffectiveFrom] = useState(initialFrom);
+  const [fromTouched, setFromTouched] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
@@ -386,6 +388,8 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy || sending.current) return;
+    setFromTouched(true);
+    if (!effectiveFrom) { focusFirstInvalid(); return; } // the field says «Укажите дату…»
     if (!day) { setError(DAY_REQUIRED_TEXT); return; }
     if (timeProblem) { setError(timeProblem); return; }
     if (!mainSaved && !hasChanges) { setError("Измените хотя бы один параметр расписания."); return; }
@@ -452,7 +456,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
         <ModalActions
           primary="Изменить расписание"
           submitFor="weekly-lesson-edit-form"
-          disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem) || Boolean(exams && !releaseExams)}
+          disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || Boolean(timeProblem) || Boolean(exams && !releaseExams)}
           busy={busy}
           onCancel={onClose}
           extra={!hasChanges && !mainSaved ? <p className="text-xs text-slate-600 sm:text-right">Измените хотя бы один параметр расписания.</p> : undefined}
@@ -471,7 +475,8 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="sched-edit-izmeneniya-deystvuyut-s" className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
-            <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={effectiveFrom} min={nextBusinessDate()} onChange={(next) => { setEffectiveFrom(next); setError(null); setExams(null); setReleaseExams(false); }} required disabled={busy || mainSaved} className={SLOT_FIELD_CLASS} />
+            <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={effectiveFrom} min={nextBusinessDate()} onChange={(next) => { setEffectiveFrom(next); setError(null); setExams(null); setReleaseExams(false); }} required invalid={fromTouched && !effectiveFrom} disabled={busy || mainSaved} className={SLOT_FIELD_CLASS} />
+            {fromTouched && !effectiveFrom && <p role="alert" data-testid="weekly-edit-from-required" className="mt-1 text-xs font-medium text-danger-700">Укажите, с какой даты действуют изменения</p>}
           </div>
           <div className="flex items-end">
             <p className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-[11px] leading-relaxed text-primary-800">Уроки до этой даты сохраняют прежнее время и посещаемость.</p>

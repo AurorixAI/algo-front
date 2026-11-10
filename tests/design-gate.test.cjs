@@ -132,3 +132,26 @@ test("warm neutrals: the text pairs of the tokens keep 4.5:1 (primary / secondar
   // the page background of the CSS follows the token
   assert.match(fs.readFileSync(path.join(SRC, "styles", "tokens.css"), "utf8"), /--color-bg: #f7f7f5;/);
 });
+
+// No native browser tooltip («Please fill out this field.») anywhere: every <form> is noValidate, the checks and the words are ours.
+test("gate: every <form> is noValidate (the browser's own English hints are never shown) - ceiling 0", () => {
+  const roots = [SRC, path.join(__dirname, "..", "console", "src")];
+  const bad = [];
+  const scan = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { scan(full); continue; }
+      if (!/\.tsx$/.test(entry.name)) continue;
+      const text = fs.readFileSync(full, "utf8");
+      for (const m of text.matchAll(/<form\b/g)) {
+        if (/^\s*(\*|\/\/|\{\/\*)/.test(text.slice(text.lastIndexOf("\n", m.index) + 1, m.index))) continue; // a comment, not a form
+        let i = m.index + 5, depth = 0;
+        for (; i < text.length; i++) { const c = text[i]; if (c === "{") depth++; else if (c === "}") depth--; else if (c === ">" && depth === 0) break; }
+        if (!text.slice(m.index, i).includes("noValidate")) bad.push(`${path.relative(path.join(__dirname, ".."), full)}:${text.slice(0, m.index).split("\n").length}`);
+      }
+    }
+  };
+  roots.forEach(scan);
+  assert.deepEqual(bad, [], "add noValidate and say what is missing at the field, in Russian");
+});
