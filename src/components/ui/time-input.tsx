@@ -49,8 +49,8 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
   const [column, setColumn] = useState<0 | 1>(0);
   /** The time when the choice was opened: Esc brings it back. */
   const openedWith = useRef("");
-  /** Until this moment (ms) a scroll event is the program's own, not the person's. */
-  const programmaticUntil = useRef(0);
+  /** The program's own glide of a column: while the column has not reached `target` (and `until` has not passed) its scroll events are the program's, not the person's. */
+  const programmatic = useRef<{ hours: { target: number; until: number } | null; minutes: { target: number; until: number } | null }>({ hours: null, minutes: null });
   /** The columns a person is scrolling right now (waiting for the scroll to stop). */
   const scrolling = useRef({ hours: false, minutes: false });
   const settleTimers = useRef<{ hours?: number; minutes?: number }>({});
@@ -136,8 +136,10 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
   const centerRow = (name: "hours" | "minutes", index: number, smooth: boolean) => {
     const list = listOf(name);
     if (!list) return;
-    programmaticUntil.current = Date.now() + (smooth ? 500 : 120);
-    list.scrollTo({ top: index * rowHeight(list), behavior: smooth ? "smooth" : "auto" });
+    const target = index * rowHeight(list);
+    // a long smooth glide (23 -> 00) may take a second on a slow machine: it is the program's until it ARRIVES, not for a fixed time
+    programmatic.current[name] = { target, until: Date.now() + (smooth ? 3000 : 400) };
+    list.scrollTo({ top: target, behavior: smooth ? "smooth" : "auto" });
   };
   const indexOfHour = (hour: string) => Math.max(0, TIME_HOURS.indexOf(hour || TIME_PICKER_EMPTY_HOUR));
   const indexOfMinute = (minute: string) => {
@@ -175,7 +177,14 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
   const settleRef = useRef(settle);
   settleRef.current = settle;
   const onColumnScroll = (name: "hours" | "minutes") => {
-    if (Date.now() < programmaticUntil.current) return; // our own glide, not a person
+    const own = programmatic.current[name];
+    if (own) {
+      const list = listOf(name);
+      const arrived = !list || Math.abs(list.scrollTop - own.target) <= 1;
+      if (arrived || Date.now() > own.until) programmatic.current[name] = null;
+      if (arrived) return;          // the program's own glide has arrived
+      if (Date.now() <= own.until) return; // ... or is still on its way
+    }
     scrolling.current[name] = true;
     window.clearTimeout(settleTimers.current[name]);
     settleTimers.current[name] = window.setTimeout(() => settleRef.current(name), 120);
@@ -193,7 +202,7 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     return () => panel.removeEventListener("scrollend", onEnd, true);
   }, [open, place]);
   // a person takes over: the program's glide is off at once
-  const takeOver = () => { programmaticUntil.current = 0; };
+  const takeOver = () => { programmatic.current = { hours: null, minutes: null }; };
 
   // a click outside closes it (a click on the field or on the clock is the field's own business)
   useEffect(() => {

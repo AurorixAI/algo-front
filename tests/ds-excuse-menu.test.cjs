@@ -29,8 +29,8 @@ for (const [width, height] of [[1280, 900], [375, 812]]) {
     const { page } = await openPage(browser, "ds.entry.tsx", server, { width, height });
     await page.clock.setFixedTime(new Date("2026-11-10T10:00:00+05:00"));
     await page.evaluate(() => window.mount("excuses", { role: "owner", org_role: "owner" }, {}));
-    await page.waitForSelector("li");
-    await page.waitForTimeout(500);
+    await page.waitForFunction((count) => document.querySelectorAll("li").length >= count, ROWS.length, { timeout: 10000, polling: "raf" });
+    await page.waitForFunction(() => !document.querySelector('[role="progressbar"], .animate-pulse'), null, { timeout: 10000, polling: "raf" });
     const row = page.locator("li").first();
     assert.equal(await row.getByRole("button", { name: /^Отклонить/ }).count(), 0, "no «Отклонить» button in the row");
     assert.equal(await row.getByRole("button", { name: /^Подтвердить/ }).count(), 1, "«Подтвердить» stays");
