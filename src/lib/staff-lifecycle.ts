@@ -93,7 +93,14 @@ export function impactFromRefusal(error: unknown, memberId: string): RemovalImpa
     futureSubstitutions: source.futureSubstitutions ?? { count: 0 },
     missedLessons: source.missedLessons ?? { count: 0 },
     pendingSubstitutionRequests: source.pendingSubstitutionRequests ?? { count: 0 },
+    payroll: source.payroll,
   };
+}
+
+/** The months the payroll block of a removal names (not saved first, then not paid), once each, oldest first: `["2026-09", "2026-10"]`. */
+export function payrollNoteMonths(payroll: RemovalImpact["payroll"] | null | undefined): string[] {
+  const all = [...(payroll?.unsaved_months ?? []), ...(payroll?.unpaid_months ?? [])].filter((month) => /^\d{4}-\d{2}$/.test(month));
+  return Array.from(new Set(all)).sort();
 }
 
 export interface HandoverChoice {
