@@ -60,6 +60,7 @@ import type {
   PaymentWarning,
   PreviewQuery,
   ReceiptOut,
+  RefundReceiptOut,
   RefundCreate,
   RefundCreated,
   RefundVoided,
@@ -1897,6 +1898,13 @@ export const orgApi = {
     !paymentId || paymentId === "undefined" || paymentId === "null"
       ? Promise.reject(Object.assign(new Error("Квитанция не найдена"), { status: 404 }))      // never ask the server for the receipt of «undefined»
       : api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt`),
+  /** Money-1 V5: a PRINT of the receipt: the first one is the original, every next is a «копия»; the same sheet with `is_copy`, `issued_at` and `state_on_issue`.  Called before `window.print()`. */
+  printPaymentReceipt: (paymentId: string) => api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt/print`, { method: "POST" }),
+  /** Money-1 V6: the sheet «Квитанция о возврате В-n». */
+  getRefundReceipt: (refundId: string) =>
+    !refundId || refundId === "undefined" || refundId === "null"
+      ? Promise.reject(Object.assign(new Error("Квитанция не найдена"), { status: 404 }))
+      : api<RefundReceiptOut>(`/auth/org/refunds/${encodePathId(refundId)}/receipt`),
   uploadPaymentFile: (paymentId: string, file: Blob, filename: string) =>
     uploadMultipart<PaymentFileOut>(
       `/auth/org/payments/${encodePathId(paymentId)}/files`,

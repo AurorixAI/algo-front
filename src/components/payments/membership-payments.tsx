@@ -47,7 +47,7 @@ interface MembershipPaymentsProps {
   joinedAt?: string | null;
   /** The server accepted a change: the parent replaces the row it holds. */
   onRowChange: (row: MembershipPaymentRow) => void;
-  onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
+  onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[], link?: { label: string; href: string }) => void;
 }
 
 /**
@@ -90,6 +90,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
       joinedAt={joinedAt}
       onRowChange={(next) => changed(next)}
       onNotify={onNotify}
+      paymentsBasePath={paymentsBasePath}
     />
   );
 

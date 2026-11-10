@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, Loader2, Printer, Wallet } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
 import {
   formatDateRu,
   formatMoney,
@@ -17,6 +17,9 @@ import {
   receiptReplacedNote,
   receiptReplacesNote,
   receiptTitle,
+  RECEIPT_COPY_STAMP,
+  RECEIPT_DISCLAIMER,
+  RECEIPT_PRINT_FAILED,
   RECEIPT_VOID_STAMP,
   type ReceiptOut,
 } from "@/lib/payments";
@@ -28,6 +31,8 @@ import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "
 import { createRequestSequence } from "@/lib/request-sequence";
 import { RecalcNote } from "./recalc-note";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import { SheetAmount, SheetCopyStamp, SheetDisclaimer, SheetHead, SheetPaper, SheetRow, SheetSignature, SheetTitleRow, SheetVoidStamp } from "./receipt-sheet";
 
 /**
  * The printed sheet.  The page chrome (menu, header strip, buttons) has `print:hidden`; the sheet is
@@ -40,81 +45,47 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   const place = [receipt.org_city, receipt.org_phone].filter(Boolean).join(" · ");
   // From the snapshot taken at the moment of payment: what the money covered then (a later correction does not rewrite it).
   const facts = receiptFacts(receipt);
+  const issued = receipt.issued_at ? `Выдана ${formatUtcNaiveAsBusinessDateTime(receipt.issued_at).replace(" ", " · ")}` : null;
+  const stampLine = receipt.void_note ? receipt.void_reason || "причина не указана" : `${receipt.void_reason || "причина не указана"}${receipt.voided_at ? ` · ${formatUtcNaiveAsBusinessDate(receipt.voided_at)}` : ""}`;
 
   return (
-    <article
-      aria-label={receiptTitle(receipt.receipt_no)}
-      className="relative mx-auto w-full max-w-[148mm] overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm sm:p-8 print:break-inside-avoid print:rounded-none print:border-slate-400 print:p-6 print:shadow-none"
-    >
-      <header className="border-b border-slate-200 pb-4">
-        <p className="break-words text-lg font-bold leading-snug">{receipt.org_name}</p>
-        {place && <p className="mt-0.5 break-words text-xs text-slate-500">{place}</p>}
-      </header>
-
-      <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h1 className="text-xl font-bold tracking-tight">{receiptTitle(receipt.receipt_no)}</h1>
-        <p className="text-sm text-slate-600">от {formatDateRu(receipt.paid_on)}</p>
-      </div>
+    <SheetPaper label={receiptTitle(receipt.receipt_no)}>
+      {receipt.is_copy && <SheetCopyStamp text={RECEIPT_COPY_STAMP} />}
+      <SheetHead orgName={receipt.org_name} place={place} reserveRight={Boolean(receipt.is_copy)} />
+      <SheetTitleRow title={receiptTitle(receipt.receipt_no)} date={`от ${formatDateRu(receipt.paid_on)}`} issued={issued} />
 
       {(replacedNote || replacesNote) && (
         <p className="mt-1 text-xs font-medium text-slate-500">
           {[replacesNote, replacedNote].filter(Boolean).map((note) => (note as string).replace(/^./, (c) => c.toUpperCase())).join(" · ")}
         </p>
       )}
+      {voided && receipt.void_note && <p className="mt-1 text-xs font-semibold text-rose-700 print:text-slate-900" data-testid="receipt-void-note">{receipt.void_note}</p>}
 
       <dl className="mt-5 space-y-3 text-sm">
-        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-          <dt className="text-slate-500">Ученик</dt>
-          <dd className="break-words font-semibold">
-            {receipt.student_name}
-            {receipt.display_id && <span className="ml-1.5 whitespace-nowrap font-mono text-xs font-medium text-slate-500">ID {receipt.display_id}</span>}
-          </dd>
-        </div>
-        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-          <dt className="text-slate-500">Группа</dt>
-          <dd className="break-words font-medium">{receipt.group_name}</dd>
-        </div>
+        <SheetRow label="Ученик" strong>
+          {receipt.student_name}
+          {receipt.display_id && <span className="ml-1.5 whitespace-nowrap font-mono text-xs font-medium text-slate-500">ID {receipt.display_id}</span>}
+        </SheetRow>
+        <SheetRow label="Группа">{receipt.group_name}</SheetRow>
         {facts.legacy ? (
-          <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-            <dt className="text-slate-500">{receipt.lessons_count ? "Пакет" : "Период"}</dt>
-            <dd className="font-medium">
-              {paymentPeriodLabel(receipt)}
-              {receipt.partial_period && (
-                <span className="ml-2 inline-flex rounded-md border border-amber-300 bg-amber-50 px-1.5 py-px align-middle text-[11px] font-semibold text-amber-800 print:border-slate-400 print:bg-transparent print:text-slate-700">
-                  {PARTIAL_PERIOD_TAG}
-                </span>
-              )}
-            </dd>
-          </div>
+          <SheetRow label={receipt.lessons_count ? "Пакет" : "Период"}>
+            {paymentPeriodLabel(receipt)}
+            {receipt.partial_period && (
+              <span className="ml-2 inline-flex rounded-md border border-amber-300 bg-amber-50 px-1.5 py-px align-middle text-[11px] font-semibold text-amber-800 print:border-slate-400 print:bg-transparent print:text-slate-700">
+                {PARTIAL_PERIOD_TAG}
+              </span>
+            )}
+          </SheetRow>
         ) : (
           <>
-            {facts.method && (
-              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-                <dt className="text-slate-500">Способ оплаты</dt>
-                <dd className="font-medium">{facts.method}</dd>
-              </div>
-            )}
-            {facts.paidUntil && (
-              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-                <dt className="text-slate-500">Оплачено до</dt>
-                <dd className="font-medium">{facts.paidUntil.replace(/^Оплачено до: /, "")}</dd>
-              </div>
-            )}
+            {facts.method && <SheetRow label="Способ оплаты">{facts.method}</SheetRow>}
+            {facts.paidUntil && <SheetRow label="Оплачено до">{facts.paidUntil.replace(/^Оплачено до: /, "")}</SheetRow>}
           </>
         )}
-        {receipt.note && (
-          <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-            <dt className="text-slate-500">Комментарий</dt>
-            <dd className="break-words">{receipt.note}</dd>
-          </div>
-        )}
+        {receipt.note && <SheetRow label="Комментарий"><span className="font-normal">{receipt.note}</span></SheetRow>}
       </dl>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 print:bg-transparent">
-        <p className="text-xs text-slate-500">Сумма</p>
-        <p className="text-2xl font-bold tabular-nums">{formatMoney(receipt.amount)}</p>
-        {receipt.amount_words && <p className="mt-0.5 text-sm text-slate-700">{receipt.amount_words}</p>}
-      </div>
+      <SheetAmount label="Сумма" amount={formatMoney(receipt.amount)} words={receipt.amount_words} />
 
       {!facts.legacy && (facts.lines.length > 0 || facts.after) && (
         <section aria-label="Куда пошли деньги" className="mt-4 text-sm">
@@ -142,30 +113,19 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
         </section>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-x-8 gap-y-6 text-sm sm:grid-cols-2">
-        <div>
-          <p className="text-xs text-slate-500">Принял</p>
-          <p className="mt-0.5 break-words font-medium">{receipt.accepted_by_name || "—"}</p>
-        </div>
-        <div>
-          <div className="h-8 border-b border-slate-400" aria-hidden />
-          <p className="mt-1 text-xs text-slate-500">Подпись</p>
-        </div>
-      </div>
-
-      {voided && (
-        <div
-          role="note"
-          className="pointer-events-none absolute right-4 top-24 max-w-[75%] -rotate-6 rounded-lg border-4 border-rose-600/80 bg-white/70 px-4 py-2 text-center text-rose-700 print:border-slate-800 print:text-slate-900"
-        >
-          <p className="text-xl font-extrabold tracking-wider sm:text-2xl">{RECEIPT_VOID_STAMP}</p>
-          <p className="mt-0.5 break-words text-xs font-semibold">
-            {receipt.void_reason || "причина не указана"}
-            {receipt.voided_at ? ` · ${formatUtcNaiveAsBusinessDate(receipt.voided_at)}` : ""}
-          </p>
-        </div>
+      {/* Money-1 V5: the account of the student ON THE DAY the sheet is issued - the server's own sentence; the numbers above are the day of the payment */}
+      {receipt.state_on_issue?.text && (
+        <section aria-label="Состояние на дату выдачи" className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm print:border-slate-400" data-testid="receipt-state-on-issue">
+          <h2 className="text-xs text-slate-500">Состояние на дату выдачи</h2>
+          <p className="mt-0.5 font-medium text-slate-800">{receipt.state_on_issue.text}</p>
+        </section>
       )}
-    </article>
+
+      <SheetSignature label="Принял" name={receipt.accepted_by_name || ""} signature="Подпись" />
+
+      {voided && <SheetVoidStamp title={RECEIPT_VOID_STAMP} line={stampLine} />}
+      <SheetDisclaimer text={receipt.disclaimer || RECEIPT_DISCLAIMER} />
+    </SheetPaper>
   );
 }
 
@@ -192,6 +152,29 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
   const [failure, setFailure] = useState<{ message: string; retry: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const requests = useRef(createRequestSequence());
+  const printing = useRef(false);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printError, setPrintError] = useState(false);
+
+  // Money-1 V5: a PRINT is written first (the first is the original, every next one a «копия»), then the sheet is drawn with that state and printed.  The button is busy until the print window is closed;
+  // a failed write prints nothing (the counter of copies is the control).
+  const print = async () => {
+    if (printing.current || !receipt) return;
+    printing.current = true;
+    setPrintBusy(true);
+    setPrintError(false);
+    try {
+      const printed = await orgApi.printPaymentReceipt(paymentId);
+      setReceipt(printed ?? receipt);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      window.print();
+    } catch {
+      setPrintError(true);
+    } finally {
+      printing.current = false;
+      setPrintBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     const token = requests.current.next();
@@ -267,14 +250,18 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
         {receipt && (
           <Button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => void print()}
+            loading={printBusy}
             variant="primary" size="md"
+            data-testid="receipt-print"
           >
             <Printer className="h-4 w-4" />
             Печать / Сохранить PDF
           </Button>
         )}
       </div>
+
+      {printError && <Notice variant="error" testId="receipt-print-error" className="print:hidden">{RECEIPT_PRINT_FAILED}</Notice>}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500 print:hidden">

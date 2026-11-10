@@ -36,6 +36,8 @@ import {
   type PaymentOut,
   type PaymentSaveResult,
   type PeriodMode,
+  refundDoneText,
+  refundReceiptHref,
 } from "@/lib/payments";
 import { studentToast } from "@/lib/money-effects";
 import {
@@ -475,7 +477,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         row={refundRow}
         studentName={refundRow?.student_name ?? ""}
         onClose={() => setRefundRow(null)}
-        onDone={(result) => { const note = studentToast([`Возвращено ${formatMoney(result.refund.amount)}`]); showToast("Аванс возвращён", note.tone, note.details); afterChange(); }}
+        onDone={(result) => { const note = studentToast([`Возвращено ${formatMoney(result.refund.amount)}`]); showToast(refundDoneText(result.refund.receipt_no), note.tone, note.details, { label: "Квитанция", href: refundReceiptHref(paymentsBase, result.refund.id) }); afterChange(); }}
         onDuplicate={() => { showToast("Этот возврат уже внесён", "success"); afterChange(); }}
       />
 

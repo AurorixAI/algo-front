@@ -6,6 +6,8 @@ import { PaymentVoidModal } from "@/components/payments/payment-void-modal";
 import { RecordVoidModal } from "@/components/payments/record-void-modal";
 import { WriteoffDialog } from "@/components/payments/writeoff-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
+import { ReceiptView } from "@/components/payments/receipt-view";
+import { RefundReceiptView } from "@/components/payments/refund-receipt-view";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -48,6 +50,16 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "replace":
       root.render(<PaymentDialog open kind="replace" membership={props.membership ?? MEMBERSHIP} payment={props.payment ?? { id: "p1", amount: 400000, paid_on: "2026-11-05", method: "cash", note: null }} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} onStale={() => log("stale")} />);
+      break;
+    case "receiptPage":
+      w.__params = { id: props.id ?? "p1" };
+      w.print = () => log("print");
+      root.render(<ReceiptView paymentsHref="/owner/payments" />);
+      break;
+    case "refundReceiptPage":
+      w.__params = { id: props.id ?? "r1" };
+      w.print = () => log("print");
+      root.render(<RefundReceiptView paymentsHref="/owner/payments" />);
       break;
     default:
       break;

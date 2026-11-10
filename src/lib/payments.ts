@@ -273,6 +273,66 @@ export interface ReceiptOut {
   replaces_receipt_no?: number | null;
   /** The amount of the payment this one replaces («Исправление оплаты № 17 (было 450 000 сум)»). */
   replaces_amount?: number | null;
+  /** Money-1 V5: the moment the receipt is issued (naive UTC), the account of the student ON THAT DAY, «копия» for every print after the first, the note of a cancelled payment, the line «не фискальный чек». */
+  issued_at?: string | null;
+  state_on_issue?: ReceiptState | null;
+  is_copy?: boolean;
+  print_count?: number;
+  void_note?: string | null;
+  disclaimer?: string | null;
+}
+
+/** «На 07.11.2026: долг 100 000 сум, оплачено до 14.11» - the server's own sentence (`text`) and the numbers behind it. */
+export interface ReceiptState {
+  as_of: string;
+  debt: number;
+  advance: number;
+  paid_until: string | null;
+  text: string;
+}
+
+/** `GET /auth/org/refunds/{id}/receipt` (Money-1 V6): the sheet «Квитанция о возврате В-n».  No print counter and no «копия»: the number is enough (the receiver signs on paper). */
+export interface RefundReceiptOut {
+  refund_id: string;
+  receipt_no: number | null;
+  /** «В-12»; null for a refund older than the numbers. */
+  receipt_label: string | null;
+  org_name: string;
+  org_city?: string | null;
+  org_phone?: string | null;
+  student_name: string;
+  display_id?: string | null;
+  group_name: string;
+  amount: number;
+  amount_words: string;
+  method: PayMethod;
+  method_label: string;
+  reason?: string | null;
+  note?: string | null;
+  effective_on: string;
+  created_at?: string | null;
+  accepted_by_name?: string | null;
+  voided_at?: string | null;
+  voided_by_name?: string | null;
+  void_reason?: string | null;
+  void_note?: string | null;
+  disclaimer: string;
+  signature_line: string;
+}
+
+/** `/owner/payments` + refund id -> `/owner/payments/refund-receipt/<id>`. */
+export function refundReceiptHref(paymentsBasePath: string, refundId: string): string {
+  return `${paymentsBasePath.replace(/\/+$/, "")}/refund-receipt/${encodeURIComponent(refundId)}`;
+}
+
+/** «Квитанция о возврате В-12» / «Квитанция о возврате» (a refund older than the numbers has no number). */
+export function refundReceiptTitle(label: string | null | undefined): string {
+  return label ? `Квитанция о возврате ${label}` : "Квитанция о возврате";
+}
+
+/** The toast after a refund: «Аванс возвращён · В-12» (the number is the paper the person can print next). */
+export function refundDoneText(receiptNo: number | null | undefined): string {
+  return receiptNo ? `Аванс возвращён · В-${receiptNo}` : "Аванс возвращён";
 }
 
 export interface MembershipPaymentRow {
@@ -1238,7 +1298,12 @@ export function canAttachFile(payment: Pick<PaymentOut, "carried_from" | "voided
   return !isCarryOver(payment) && !payment.voided_at;
 }
 
-export const RECEIPT_VOID_STAMP = "АННУЛИРОВАНА";
+/** The stamp of a cancelled payment: the word of the dictionary («Оплата отменена»), not «аннулирована» (LESSONS 109). */
+export const RECEIPT_VOID_STAMP = "ОПЛАТА ОТМЕНЕНА";
+export const RECEIPT_DISCLAIMER = "Не является фискальным чеком";
+export const RECEIPT_COPY_STAMP = "КОПИЯ";
+export const REFUND_VOID_STAMP = "ВОЗВРАТ ОТМЕНЁН";
+export const RECEIPT_PRINT_FAILED = "Не удалось записать печать. Повторите";
 
 /** «Квитанция № 123». */
 export function receiptTitle(receiptNo: number): string {

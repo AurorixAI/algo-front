@@ -264,7 +264,7 @@ test("receipt pages exist for the owner and the administrator and share one comp
   assert.match(view, /window\.print\(\)/);
   assert.match(view, /Печать \/ Сохранить PDF/);
   assert.match(view, /RECEIPT_VOID_STAMP/);
-  assert.match(view, /max-w-\[148mm\]/); // A5 width; centred on A4
+  assert.match(read("src/components/payments/receipt-sheet.tsx"), /max-w-\[148mm\]/); // A5 width; centred on A4 (Money-1 V: the paper is shared with the refund receipt)
   assert.match(view, /@page \{ margin: 12mm; \}/);
   // 403 / 404 / 409 are told in words
   assert.match(view, /receiptErrorText\(status/);
@@ -285,7 +285,7 @@ test("print hides the app chrome of both workspaces", () => {
 
 test("receipt wording: title, replaced / replaces notes, errors", () => {
   assert.equal(P.receiptTitle(123), "Квитанция № 123");
-  assert.equal(P.RECEIPT_VOID_STAMP, "АННУЛИРОВАНА");
+  assert.equal(P.RECEIPT_VOID_STAMP, "ОПЛАТА ОТМЕНЕНА");   // Money-1 V5: the word of the dictionary
   assert.equal(P.receiptReplacedNote({ replaced_by_receipt_no: 124 }), "заменена квитанцией № 124");
   assert.equal(P.receiptReplacedNote({ replaced_by_receipt_no: null }), null);
   assert.equal(P.receiptReplacesNote({ replaces_receipt_no: 120 }), "Исправление оплаты № 120");
@@ -326,9 +326,9 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
     "15.10.2026 — 31.10.2026", "неполный месяц", "250 000 сум", "Двести пятьдесят тысяч сум", "Принял", "Арслан Владелец", "Подпись"]) {
     assert.ok(live.includes(part), part);
   }
-  assert.doesNotMatch(live, /АННУЛИРОВАНА|заменена|заменяет/i);
+  assert.doesNotMatch(live, /ОПЛАТА ОТМЕНЕНА|заменена|заменяет/i);
   const voided = text({ ...base, voided_at: "2026-10-16T05:00:00", void_reason: "Ошибка в сумме", replaced_by_receipt_no: 13, replaces_receipt_no: 11, partial_period: false, lessons_count: 8 });
-  assert.ok(voided.includes("АННУЛИРОВАНА"));
+  assert.ok(voided.includes("ОПЛАТА ОТМЕНЕНА"));
   assert.ok(voided.includes("Ошибка в сумме"));
   assert.ok(voided.includes("Заменена квитанцией № 13"));
   assert.ok(voided.includes("Исправление оплаты № 11"));

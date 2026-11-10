@@ -13,6 +13,7 @@ import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
   receiptHref,
+  refundReceiptHref,
   type StatementOut,
 } from "@/lib/payments";
 import { studentToast } from "@/lib/money-effects";
@@ -251,6 +252,11 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
     }
     if (entry.type === "refund" && item.details.refund_id) {
       const id = item.details.refund_id;
+      // Money-1 V6: the sheet «Квитанция о возврате В-n» (a refund older than the numbers has one without a number)
+      items.push({
+        key: "receipt", label: "Квитанция", icon: Receipt,
+        onSelect: () => { markReceiptNavigation(id); router.push(refundReceiptHref(paymentsBase, id)); },
+      });
       items.push({
         key: "void", label: "Отменить возврат", icon: XCircle, danger: true,
         onSelect: () => setVoidRecord({

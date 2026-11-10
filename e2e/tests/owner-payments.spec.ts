@@ -133,7 +133,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   expect(afterVoid[0].void_reason).toBe("Ошибочно внесена сумма");
   await page.goto(`/owner/payments/receipt/${payment.id}`);
   const stamped = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
-  await expect(stamped.getByRole("note")).toContainText("АННУЛИРОВАНА");
+  await expect(stamped.getByRole("note")).toContainText("ОПЛАТА ОТМЕНЕНА");
   await expect(stamped.getByRole("note")).toContainText("Ошибочно внесена сумма");
 
   // the student has no live payment again: he is not under «Оплачено» any more

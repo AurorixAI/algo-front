@@ -203,6 +203,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
       label={`Действия по оплате: ${view.name}`}
       onRowChange={(next, kind) => changed(next, kind === "price")}
       onNotify={showToast}
+      paymentsBasePath={paymentsBasePath}
     />
   );
 
