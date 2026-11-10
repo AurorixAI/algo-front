@@ -590,7 +590,7 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.positionCards({ debtors_debt_total: 0, advance_total: 0, debtors: 0 })[0].tone, "none");
   assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
   // the reason line of a debtor
-  assert.match(P.debtReasonText({ reason: "ИЗ СТАРОГО ПОЛЯ", status: "active", debt: 150000 }), /^Долг 150\s000\sсум$/, "Money-1 V (а): row.reason is not read");
+  assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
   assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
   assert.equal(P.debtReasonText({ status: "none", last_payment: null, debt: 0 }), "Ещё не платил");
   // the chip already says «Ещё не платил…»: the line under it never repeats it (owner 22.10)
@@ -600,8 +600,8 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.debtReasonLine(never, chipNever.label), "", "only the amount line (the balance) stays");
   assert.equal(P.debtReasonLine({ ...never, past_debt: 0 }, P.moneyChip({ ...never, past_debt: 0 }).label), "", "the plain chip «Ещё не платил» too");
   assert.equal(P.debtReasonLine({ ...never, reason: undefined, status: "expired", days_overdue: 12 }, "Ещё не платил · просрочено"), "Просрочено на 12 дней", "the overdue days when known");
-  assert.match(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000 }, "Не доплачено"), /^Долг 150\s000\sсум$/, "other reasons are built from the row");
-  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5 }, `Долг ${P.formatMoney(5)}`), "", "a line equal to the chip is dropped");
+  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000, reason: "Не доплачено за октябрь: 150 000" }, "Не доплачено"), "Не доплачено за октябрь: 150 000", "other reasons are kept");
+  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5, reason: "Не доплачено" }, "Не доплачено"), "", "a line equal to the chip is dropped");
   assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /reason !== chip\.label/);
   assert.equal(P.priceMissingText(3), "У 3 учеников не задана цена");
   assert.equal(P.priceMissingText(0), null);
@@ -668,7 +668,7 @@ test("payment tabs: the rows of each tab come from `buckets`, a tab «На па�
   assert.equal(P.positionCards(summary)[1].sub, "1 ученик оплатил вперёд");
   assert.equal(P.priceMissingText(summary.price_missing), "У 1 ученика не задана цена");
   const row = named("A29_");
-  assert.equal(P.debtReasonText(row), "Просрочено на 21 день", "Money-1 V (а): the line is built from the fields of the row, not from the old `reason`");
+  assert.equal(P.debtReasonText(row), "Ещё не платил");
   assert.equal(row.bucket, "debt");
   const opening = L.buildStatementItems(L.normalizeStatement(named("A31_")), null);
   assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);

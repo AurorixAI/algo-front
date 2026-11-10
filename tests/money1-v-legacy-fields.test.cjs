@@ -1,5 +1,5 @@
 // «Деньги-1 / В» (а): the front no longer reads the OLD fields of the debtors (the server removes them in its last commit): `summary.debt_total / students_with_debt / debtors / memberships_with_debt /
-// due / expired / students_due / students_expired / buckets.debt`, `row.reason`, `position.debt_total / students_with_debt`, `collection.*.debt`.  One definition of a debtor: `debt_split`, `debtors_debt`.
+// due / expired / students_due / students_expired / buckets.debt`, `position.debt_total / students_with_debt`, `collection.*.debt`.  One definition of a debtor: `debt_split`, `debtors_debt`.
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
@@ -20,14 +20,13 @@ const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true
 test("no source reads the old fields of the debtors", () => {
   const banned = [
     /summary\??\.debt_total/, /summary\??\.students_with_debt/, /summary\??\.memberships_with_debt/, /summary\??\.students_due/, /summary\??\.students_expired/,
-    /summary\??\.(due|expired)\b/, /buckets\??\.debt\b.*summary|summary.*buckets\??\.debt\b/, /\brow\.reason\b/, /position\??\.debt_total/, /position\??\.students_with_debt/, /position\??\.memberships_with_debt/,
+    /summary\??\.(due|expired)\b/, /buckets\??\.debt\b.*summary|summary.*buckets\??\.debt\b/, /position\??\.debt_total/, /position\??\.students_with_debt/, /position\??\.memberships_with_debt/,
   ];
   const found = [];
   for (const file of [...walk("src"), ...walk("console")].filter((f) => !f.includes("node_modules") && !f.includes(".next"))) {
     const lines = fs.readFileSync(path.join(root, file), "utf8").split("\n");
     lines.forEach((line, i) => { if (!line.trim().startsWith("//") && !line.trim().startsWith("*") && banned.some((re) => re.test(line))) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`); });
   }
-  // `row.reason` of other things (a decision row, a price) is not a debtor's: only the files of the list of payments are checked for it
   const real = found.filter((entry) => !/^console\/|income-decisions|group-price|payments-decisions|refund-receipt|openings|attendance|excuse|substitution|payf|lesson/.test(entry));
   assert.deepEqual(real, []);
 });
@@ -43,10 +42,9 @@ test("the summary is read from the split alone: the same numbers with and withou
   assert.deepEqual([none.debtTotal, none.debtors, none.due, none.studentsWithDebt], [0, 0, 0, 0]);
 });
 
-test("the reason line of a debtor does not use row.reason; the type has no such field", () => {
-  assert.equal(P.debtReasonText({ status: "expired", debt: 100000, days_overdue: 3, last_payment: { paid_on: "2026-10-01" }, reason: "ИЗ СТАРОГО ПОЛЯ" }), "Просрочено на 3 дня");
+test("the reason line of a debtor keeps the server's `reason` - the MONTH of the debt lives only there (rule 113)", () => {
+  assert.equal(P.debtReasonText({ status: "active", debt: 150000, last_payment: { paid_on: "2026-10-01" }, reason: "Не доплачено за октябрь: 150 000" }), "Не доплачено за октябрь: 150 000");
   assert.equal(P.debtReasonText({ status: "none", debt: 100000, days_overdue: 0, last_payment: null }), "Ещё не платил");
-  assert.doesNotMatch(read("src/lib/payments.ts"), /why the row is among the debtors, in the server's words/);
 });
 
 test("the debt of the position is debtors + waiting; the collection reads debtors_debt; the card needs no old field", () => {

@@ -364,6 +364,8 @@ export interface MembershipPaymentRow {
   /** How much of the advance may be given back. */
   refundable?: number;
   writeoff_allowed?: boolean;
+  /** Owner 21.10: why the row is among the debtors, in the server's words («Не доплачено за октябрь: 150 000») - the MONTH of the debt lives only here (rule 113: the sum is explained on the screen). */
+  reason?: string | null;
   /** The tab the row is on (null: on none, e.g. a free student) and why it is a debtor. */
   bucket?: PaymentBucket | null;
   debt_reason?: "overdue" | "partial" | "never_paid" | null;
@@ -901,8 +903,9 @@ export function bucketCount(
 /**
  * The reason line of a debtor's row (Money-1 V (а): the server's `reason` is gone), read from the row: «Ждём оплату …» for the waiting tab, overdue days, never paid, or the debt.
  */
-export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>): string {
+export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>): string {
   if (row.tab === "waiting" && row.waiting_reason) return row.waiting_reason;
+  if (row.reason) return row.reason;
   if (row.status === "expired" && row.days_overdue) return `Просрочено на ${daysLabel(row.days_overdue)}`;
   if (!row.last_payment && (row.status === "none" || row.status === "expired")) return "Ещё не платил";
   if ((row.debt ?? 0) > 0) return `Долг ${formatMoney(row.debt)}`;
@@ -913,7 +916,7 @@ export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_
  * What the row of a debtor says under its chip.  When the chip already says «Ещё не платил…» the reason line must not repeat it: it
  * is the overdue days when they are known, else nothing (the amount is the balance line under it).  A line equal to the chip is dropped.
  */
-export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>, chipLabel: string): string {
+export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>, chipLabel: string): string {
   let reason = debtReasonText(row);
   if (reason.startsWith(NEVER_PAID) && chipLabel.startsWith(NEVER_PAID)) {
     reason = row.status === "expired" && row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "";

@@ -110,7 +110,7 @@ test("Б7: the tab «Ждём оплату» stands next to «Должники»
   assert.deepEqual(keys({ students_waiting: 0 }, "waiting"), ["debt", "waiting", "expiring", "active"]);
   assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "waiting"), 2);
   assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "debt"), 7);
-  const row = { status: "expired", debt: 300000, days_overdue: 1, debt_reason: "overdue", tab: "waiting", waiting_reason: "Ждём оплату до 07.11" };
+  const row = { status: "expired", debt: 300000, days_overdue: 1, debt_reason: "overdue", tab: "waiting", waiting_reason: "Ждём оплату до 07.11", reason: "Просрочено на 1 день" };
   assert.deepEqual(P.moneyChip(row), { label: "Ждём оплату до 07.11", tone: "muted" });
   assert.deepEqual(P.moneyChip({ ...row, waiting_reason: null }), { label: "Ждём оплату", tone: "muted" });
   assert.equal(P.debtReasonText(row), "Ждём оплату до 07.11");

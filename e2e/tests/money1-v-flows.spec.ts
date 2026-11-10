@@ -96,7 +96,9 @@ test("price x3: the question of the server, «Да, цена верная» befo
   const { group } = await world("Цена", 300000);
   const page = await signIn(org.owner);
   await page.goto(`/owner/payments/prices?group=${group.id}`);
-  await page.getByRole("button", { name: /Изменить цену|Задать цену/ }).first().click();
+  // the page lists EVERY group: the button is the one of the row of this group (the first button is another group's)
+  const row = page.getByText(`Группа Цена`, { exact: true }).locator("xpath=ancestor::*[.//button[contains(., 'цену')]][1]");
+  await row.getByRole("button", { name: /Изменить цену|Задать цену/ }).click();
   const dialog = page.getByRole("dialog", { name: /цену/i });
   await dialog.getByLabel("Цена в месяц").fill("900000");
   await expect(dialog.getByTestId("price-unusual")).toContainText("Вы уверены");
