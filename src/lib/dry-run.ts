@@ -65,3 +65,39 @@ export function carriedRows(message: string): string[] {
   const parts = message.split(/;\s+/).map((part) => part.trim()).filter(Boolean);
   return parts.length > 0 ? parts : [message];
 }
+
+export interface ClosingPriceLine {
+  /** The student of a bulk transfer; absent for a single one. */
+  studentId?: string;
+  /** The sentence of the server as it came («У ученика индивидуальная цена 300 000 сум в группе «Алгебра 7»: в новой группе она не действует — будет цена группы 400 000 сум»). */
+  text: string;
+}
+
+/**
+ * Money-1 V: an individual price does not follow the student into the new group - the dry run of the transfer says so in `closing_prices[].text` (a single transfer: at the top; a bulk one:
+ * `students[].closing_prices`).  One line per price in the server's own words (the price is never worked out here); a bulk transfer puts the name before the line when `names` knows it.
+ * A role without the right to money gets no such field: no lines, the transfer goes on.
+ */
+export function closingPricesOf(answer: unknown, names?: ReadonlyMap<string, string> | null): ClosingPriceLine[] {
+  const source = (answer ?? {}) as { closing_prices?: unknown; students?: unknown };
+  const lines: ClosingPriceLine[] = [];
+  const take = (raw: unknown, studentId?: string) => {
+    if (!Array.isArray(raw)) return;
+    for (const item of raw) {
+      const text = typeof (item as { text?: unknown } | null)?.text === "string" ? ((item as { text: string }).text).trim() : "";
+      if (!text) continue;
+      const name = studentId ? names?.get(studentId) : undefined;
+      lines.push({ ...(studentId ? { studentId } : {}), text: tidyMoneyText(name ? `${name}: ${text}` : text) });
+    }
+  };
+  take(source.closing_prices);
+  if (Array.isArray(source.students)) {
+    for (const student of source.students as Array<{ student_id?: unknown; closing_prices?: unknown } | null>) {
+      take(student?.closing_prices, typeof student?.student_id === "string" ? student.student_id : undefined);
+    }
+  }
+  return lines;
+}
+
+/** How many lines of the warnings stand open before «и ещё N». */
+export const CLOSING_PRICES_SHOWN = 5;

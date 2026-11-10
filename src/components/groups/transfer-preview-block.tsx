@@ -2,7 +2,9 @@
 
 import { EFFECTS_LOADING_TEXT, EFFECTS_TITLE, effectsFailureText, EFFECTS_RETRY_LABEL } from "@/lib/money-effects";
 import type { EffectsPreview } from "@/lib/money-preview";
-import { CARRIED_NONE_TEXT, carriedOf, carriedRows } from "@/lib/dry-run";
+import { CARRIED_NONE_TEXT, carriedOf, carriedRows, CLOSING_PRICES_SHOWN, closingPricesOf } from "@/lib/dry-run";
+import { useState } from "react";
+import { Notice } from "@/components/ui/notice";
 import { tidyMoneyText } from "@/lib/money-format";
 import { Button } from "@/components/ui/button";
 
@@ -40,6 +42,7 @@ export function TransferPreviewBlock({ preview, onRetry, names, className = "mx-
     );
   }
   const carried = carriedOf(preview.answer, names);
+  const closing = closingPricesOf(preview.answer, names);
   return (
     <section aria-label={EFFECTS_TITLE} data-testid="transfer-preview" data-state="ready" className={shell}>
       <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
@@ -50,6 +53,20 @@ export function TransferPreviewBlock({ preview, onRetry, names, className = "mx-
           {carried.flatMap((line, index) => carriedRows(line.message).map((row, part) => <li key={`${line.code}-${index}-${part}`} className="text-sm text-slate-800">{tidyMoneyText(row)}</li>))}
         </ul>
       )}
+      {closing.length > 0 && <ClosingPrices lines={closing} />}
     </section>
+  );
+}
+
+/** Money-1 V: one amber line per individual price that does not follow the student; more than five - «и ещё N» that opens the rest.  A warning, not a fork: nothing to tick. */
+function ClosingPrices({ lines }: { lines: Array<{ text: string }> }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? lines : lines.slice(0, CLOSING_PRICES_SHOWN);
+  const rest = lines.length - shown.length;
+  return (
+    <div className="mt-2 space-y-1.5" data-testid="transfer-closing-prices">
+      {shown.map((line, index) => <Notice key={`${index}-${line.text}`} variant="warning" compact testId="transfer-closing-price">{line.text}</Notice>)}
+      {rest > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setAll(true)} data-testid="transfer-closing-more">и ещё {rest}</Button>}
+    </div>
   );
 }

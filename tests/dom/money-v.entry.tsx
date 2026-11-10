@@ -15,6 +15,7 @@ import { periodOf } from "@/lib/payments-income-v2";
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
 import { AssignOverrideDialog } from "@/components/payments/membership-price";
 import { OpeningBalanceDialog } from "@/components/payments/opening-balance-dialog";
+import { TransferPreviewBlock } from "@/components/groups/transfer-preview-block";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -90,6 +91,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "opening":
       root.render(<OpeningBalanceDialog open membershipId="m1" studentName="Иванов Иван" groupName="7-А Алгебра" opening={null} enrolDate="2026-09-01" accountingStart="2026-09-01" onClose={() => log("close")} onSaved={() => log("saved")} />);
+      break;
+    case "transferBlock":
+      root.render(<div className="mx-auto max-w-[520px] p-4"><TransferPreviewBlock className="" preview={props.preview} onRetry={() => log("retry")} names={props.names ? new Map(Object.entries(props.names)) : undefined} /></div>);
       break;
     default:
       break;
