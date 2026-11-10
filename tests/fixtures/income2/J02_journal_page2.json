@@ -11,11 +11,14 @@
     "sum": 3450000,
     "voided_count": 2,
     "replaced_count": 1,
+    "cancelled_here_count": 0,
+    "cancelled_here_sum": 0,
     "kind_sum": null
   },
   "rows": [
     {
       "id": "payment:a2-oct12",
+      "view": "paid",
       "receipt_no": 8,
       "paid_on": "2026-10-12",
       "paid_time": "08:45",
@@ -34,7 +37,7 @@
       "created_by_id": "user:admin",
       "created_by_name": "Нодира Саидова",
       "note": null,
-      "allocation_text": "за сентябрь — 200 000 сум",
+      "allocation_text": "за сентябрь — 200 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-09-01",
@@ -44,7 +47,7 @@
           "days": 12,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 01.09–30.09",
+          "label": "Погашен долг за 01.09–30.09",
           "price": 500000,
           "segment_remaining_after": 0
         }
@@ -67,12 +70,14 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null
     },
     {
       "id": "payment:a3-oct7",
+      "view": "paid",
       "receipt_no": 7,
       "paid_on": "2026-10-07",
       "paid_time": "15:25",
@@ -91,7 +96,7 @@
       "created_by_id": "user:owner",
       "created_by_name": "Азиз Хакимов",
       "note": null,
-      "allocation_text": "за сентябрь — 500 000 сум · за октябрь — 500 000 сум · аванс — 150 000 сум · возвращено — 100 000 сум",
+      "allocation_text": "за сентябрь — 500 000 сум · за октябрь — 500 000 сум · аванс — 150 000 сум · возвращено — 100 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-09-01",
@@ -101,7 +106,7 @@
           "days": 30,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 01.09–30.09",
+          "label": "Погашен долг за 01.09–30.09",
           "price": 500000,
           "segment_remaining_after": 0
         },
@@ -148,7 +153,7 @@
         },
         {
           "kind": "refunded",
-          "label": "возвращено",
+          "label": "возвращено из этих денег",
           "amount": 100000
         }
       ],
@@ -163,12 +168,14 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null
     },
     {
       "id": "payment:a1-oct5",
+      "view": "paid",
       "receipt_no": 6,
       "paid_on": "2026-10-05",
       "paid_time": "14:05",
@@ -187,7 +194,7 @@
       "created_by_id": "user:admin",
       "created_by_name": "Нодира Саидова",
       "note": null,
-      "allocation_text": "за октябрь — 500 000 сум",
+      "allocation_text": "за октябрь — 500 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-10-01",
@@ -220,12 +227,14 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null
     },
     {
       "id": "payment:b1-oct2",
+      "view": "paid",
       "receipt_no": 5,
       "paid_on": "2026-10-02",
       "paid_time": "09:15",
@@ -244,7 +253,7 @@
       "created_by_id": "user:owner",
       "created_by_name": "Азиз Хакимов",
       "note": null,
-      "allocation_text": "за сентябрь — 300 000 сум · за октябрь — 300 000 сум · аванс — 300 000 сум",
+      "allocation_text": "за сентябрь — 300 000 сум · за октябрь — 300 000 сум · аванс — 300 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-09-01",
@@ -254,7 +263,7 @@
           "days": 30,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 01.09–30.09",
+          "label": "Погашен долг за 01.09–30.09",
           "price": 300000,
           "segment_remaining_after": 0
         },
@@ -311,6 +320,7 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null

@@ -11,11 +11,14 @@
     "sum": 2150000,
     "voided_count": 0,
     "replaced_count": 0,
+    "cancelled_here_count": 0,
+    "cancelled_here_sum": 0,
     "kind_sum": 450000
   },
   "rows": [
     {
       "id": "payment:a3-oct7",
+      "view": "paid",
       "receipt_no": 7,
       "paid_on": "2026-10-07",
       "paid_time": "15:25",
@@ -34,7 +37,7 @@
       "created_by_id": "user:owner",
       "created_by_name": "Азиз Хакимов",
       "note": null,
-      "allocation_text": "за сентябрь — 500 000 сум · за октябрь — 500 000 сум · аванс — 150 000 сум · возвращено — 100 000 сум",
+      "allocation_text": "за сентябрь — 500 000 сум · за октябрь — 500 000 сум · аванс — 150 000 сум · возвращено — 100 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-09-01",
@@ -44,7 +47,7 @@
           "days": 30,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 01.09–30.09",
+          "label": "Погашен долг за 01.09–30.09",
           "price": 500000,
           "segment_remaining_after": 0
         },
@@ -91,7 +94,7 @@
         },
         {
           "kind": "refunded",
-          "label": "возвращено",
+          "label": "возвращено из этих денег",
           "amount": 100000
         }
       ],
@@ -106,12 +109,14 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null
     },
     {
       "id": "payment:b1-oct2",
+      "view": "paid",
       "receipt_no": 5,
       "paid_on": "2026-10-02",
       "paid_time": "09:15",
@@ -130,7 +135,7 @@
       "created_by_id": "user:owner",
       "created_by_name": "Азиз Хакимов",
       "note": null,
-      "allocation_text": "за сентябрь — 300 000 сум · за октябрь — 300 000 сум · аванс — 300 000 сум",
+      "allocation_text": "за сентябрь — 300 000 сум · за октябрь — 300 000 сум · аванс — 300 000 сум",
       "allocations": [
         {
           "segment_id": "seg:0:2026-09-01",
@@ -140,7 +145,7 @@
           "days": 30,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 01.09–30.09",
+          "label": "Погашен долг за 01.09–30.09",
           "price": 300000,
           "segment_remaining_after": 0
         },
@@ -197,6 +202,7 @@
       "corrected_by_name": null,
       "corrected_at": null,
       "replaced_by_receipt_no": null,
+      "history": [],
       "void_reason": null,
       "voided_at": null,
       "voided_by_name": null

@@ -94,6 +94,16 @@
             "title": "Debt",
             "type": "integer"
           },
+          "debt_waiting": {
+            "default": 0,
+            "title": "Debt Waiting",
+            "type": "integer"
+          },
+          "debtors_debt": {
+            "default": 0,
+            "title": "Debtors Debt",
+            "type": "integer"
+          },
           "forgiven": {
             "default": 0,
             "title": "Forgiven",
@@ -142,6 +152,11 @@
             "title": "Students",
             "type": "integer"
           },
+          "students_waiting": {
+            "default": 0,
+            "title": "Students Waiting",
+            "type": "integer"
+          },
           "students_with_debt": {
             "default": 0,
             "title": "Students With Debt",
@@ -179,8 +194,11 @@
           "paid",
           "forgiven",
           "debt",
+          "debtors_debt",
           "students",
           "students_with_debt",
+          "debt_waiting",
+          "students_waiting",
           "pct"
         ],
         "title": "CollectionRow",
@@ -264,6 +282,7 @@
           "code": {
             "enum": [
               "received_eq_strip",
+              "refunded_eq_rows",
               "received_eq_methods",
               "received_eq_series",
               "received_eq_journal",
@@ -485,6 +504,27 @@
           "previous_period": {
             "$ref": "#/components/schemas/IncomePeriod"
           },
+          "refunded_from_earlier": {
+            "default": 0,
+            "title": "Refunded From Earlier",
+            "type": "integer"
+          },
+          "refunded_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded Text"
+          },
+          "refunded_total": {
+            "default": 0,
+            "title": "Refunded Total",
+            "type": "integer"
+          },
           "series": {
             "items": {
               "$ref": "#/components/schemas/IncomeDay"
@@ -526,6 +566,9 @@
           "delta_direction",
           "delta_text",
           "summary_text",
+          "refunded_total",
+          "refunded_from_earlier",
+          "refunded_text",
           "by_method",
           "strip",
           "series",
@@ -600,6 +643,16 @@
             "title": "Debt Total",
             "type": "integer"
           },
+          "debt_waiting_total": {
+            "default": 0,
+            "title": "Debt Waiting Total",
+            "type": "integer"
+          },
+          "debtors_debt_total": {
+            "default": 0,
+            "title": "Debtors Debt Total",
+            "type": "integer"
+          },
           "memberships_with_advance": {
             "default": 0,
             "title": "Memberships With Advance",
@@ -613,6 +666,16 @@
           "past_debt_total": {
             "default": 0,
             "title": "Past Debt Total",
+            "type": "integer"
+          },
+          "students_debtors": {
+            "default": 0,
+            "title": "Students Debtors",
+            "type": "integer"
+          },
+          "students_waiting": {
+            "default": 0,
+            "title": "Students Waiting",
             "type": "integer"
           },
           "students_with_advance": {
@@ -633,6 +696,10 @@
           "memberships_with_debt",
           "students_with_debt",
           "memberships_with_advance",
+          "debtors_debt_total",
+          "debt_waiting_total",
+          "students_debtors",
+          "students_waiting",
           "students_with_advance"
         ],
         "title": "IncomePosition",
@@ -777,6 +844,73 @@
         "title": "JournalAuthor",
         "type": "object"
       },
+      "JournalHistoryItem": {
+        "description": "One earlier version of a corrected payment (the payment that was replaced), for the «Подробности» of the screen and of the file.",
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "method_label": {
+            "title": "Method Label",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "receipt_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt No"
+          },
+          "replaced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced At"
+          },
+          "replaced_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Name"
+          }
+        },
+        "required": [
+          "receipt_no",
+          "amount",
+          "method_label",
+          "replaced_at",
+          "replaced_by_name",
+          "reason"
+        ],
+        "title": "JournalHistoryItem",
+        "type": "object"
+      },
       "JournalRow": {
         "properties": {
           "allocation_text": {
@@ -885,6 +1019,13 @@
           "group_name": {
             "title": "Group Name",
             "type": "string"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/JournalHistoryItem"
+            },
+            "title": "History",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -1070,6 +1211,11 @@
             "title": "Transferred",
             "type": "integer"
           },
+          "view": {
+            "default": "paid",
+            "title": "View",
+            "type": "string"
+          },
           "void_reason": {
             "anyOf": [
               {
@@ -1106,6 +1252,7 @@
         },
         "required": [
           "id",
+          "view",
           "receipt_no",
           "paid_on",
           "paid_time",
@@ -1138,6 +1285,7 @@
           "corrected_by_name",
           "corrected_at",
           "replaced_by_receipt_no",
+          "history",
           "void_reason",
           "voided_at",
           "voided_by_name"
@@ -1148,6 +1296,16 @@
       "JournalTotals": {
         "description": "Of the ACTIVE payments of the filtered set; ``sum`` equals the period's «Поступило» for the same filters (with ``kind``: of the rows that have the kind, whole amounts).",
         "properties": {
+          "cancelled_here_count": {
+            "default": 0,
+            "title": "Cancelled Here Count",
+            "type": "integer"
+          },
+          "cancelled_here_sum": {
+            "default": 0,
+            "title": "Cancelled Here Sum",
+            "type": "integer"
+          },
           "count": {
             "default": 0,
             "title": "Count",
@@ -1185,6 +1343,8 @@
           "sum",
           "voided_count",
           "replaced_count",
+          "cancelled_here_count",
+          "cancelled_here_sum",
           "kind_sum"
         ],
         "title": "JournalTotals",
@@ -1552,7 +1712,7 @@
     },
     "/org/payments/journal": {
       "get": {
-        "description": "Журнал оплат периода: новые сверху, отменённые и исправленные видны (status), итог = сумма действующих оплат набора.",
+        "description": "Журнал оплат периода: новые сверху, отменённые и исправленные видны (status: all | active | voided = отменённые и исправленные | cancelled = только отменённые | replaced = только исправленные), итог = сумма действующих оплат набора.",
         "parameters": [
           {
             "in": "query",
@@ -1692,10 +1852,24 @@
               "enum": [
                 "all",
                 "active",
-                "voided"
+                "voided",
+                "cancelled",
+                "replaced"
               ],
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "description": "Money-1 V2: также оплаты прошлых периодов, ОТМЕНЁННЫЕ в этом (строки view=cancelled_here; в count / sum не входят)",
+            "in": "query",
+            "name": "cancelled_in_period",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Money-1 V2: также оплаты прошлых периодов, ОТМЕНЁННЫЕ в этом (строки view=cancelled_here; в count / sum не входят)",
+              "title": "Cancelled In Period",
+              "type": "boolean"
             }
           },
           {
@@ -1787,7 +1961,7 @@
     },
     "/org/payments/journal/export": {
       "get": {
-        "description": "Журнал оплат файлом (xlsx / csv) с теми же фильтрами; ячейка, начинающаяся с = + - @, формулой не становится.",
+        "description": "Журнал оплат файлом (xlsx / csv) с теми же фильтрами; ячейка, начинающаяся с = + - @, формулой не становится. Исправленные (заменённые) оплаты в файл не попадают никогда: их история — в «Подробности» исправленной оплаты; status=replaced даёт пустой файл.",
         "parameters": [
           {
             "in": "query",
@@ -1916,10 +2090,36 @@
               "enum": [
                 "all",
                 "active",
-                "voided"
+                "voided",
+                "cancelled",
+                "replaced"
               ],
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "description": "Money-1 V2: также оплаты прошлых периодов, ОТМЕНЁННЫЕ в этом (строки view=cancelled_here; в count / sum не входят)",
+            "in": "query",
+            "name": "cancelled_in_period",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Money-1 V2: также оплаты прошлых периодов, ОТМЕНЁННЫЕ в этом (строки view=cancelled_here; в count / sum не входят)",
+              "title": "Cancelled In Period",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Money-1 V2 (только файл): заменённые версии исправленных оплат тоже строками (статус «Исправлена»)",
+            "in": "query",
+            "name": "with_replaced",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Money-1 V2 (только файл): заменённые версии исправленных оплат тоже строками (статус «Исправлена»)",
+              "title": "With Replaced",
+              "type": "boolean"
             }
           },
           {

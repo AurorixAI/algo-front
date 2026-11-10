@@ -48,7 +48,10 @@
   "delta_pct": null,
   "delta_direction": null,
   "delta_text": null,
-  "summary_text": "Сегодня пришло 250 000 сум.",
+  "summary_text": "Сегодня пришло 250 000 сум.",
+  "refunded_total": 100000,
+  "refunded_from_earlier": 100000,
+  "refunded_text": "Всего возвращено за период: 100 000 сум (из них 100 000 — из денег прошлых периодов)",
   "by_method": [
     {
       "method": "cash",
@@ -80,12 +83,12 @@
     },
     {
       "kind": "refunded",
-      "label": "возвращено",
+      "label": "возвращено из этих денег",
       "amount": 0
     },
     {
       "kind": "transferred",
-      "label": "перенесено в другую группу",
+      "label": "деньги перешли в другую группу",
       "amount": 0
     }
   ],
@@ -104,7 +107,7 @@
     "cash_refunded": 100000,
     "expected": 150000,
     "payments_count": 2,
-    "text": "Наличные в кассе за сегодня: 150 000 сум (принято 250 000 сум, возвращено 100 000 сум)",
+    "text": "Наличные в кассе за сегодня: 150 000 сум (принято 250 000 сум, возвращено 100 000 сум)",
     "scope": "centre",
     "filtered_view": false,
     "scope_text": null
@@ -117,15 +120,23 @@
     "memberships_with_debt": 3,
     "students_with_debt": 3,
     "memberships_with_advance": 2,
-    "students_with_advance": 2,
     "debtors_debt_total": 500000,
-    "students_debtors": 3
+    "debt_waiting_total": 0,
+    "students_debtors": 3,
+    "students_waiting": 0,
+    "students_with_advance": 2
   },
   "checks": [
     {
       "code": "received_eq_strip",
       "left": 250000,
       "right": 250000,
+      "diff": 0
+    },
+    {
+      "code": "refunded_eq_rows",
+      "left": 100000,
+      "right": 100000,
       "diff": 0
     },
     {

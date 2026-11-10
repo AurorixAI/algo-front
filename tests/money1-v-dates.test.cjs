@@ -75,3 +75,27 @@ test("«Моя зарплата» asks the routes of the server - /auth/org/me/p
   assert.match(api, /"\/auth\/org\/me\/payroll\/months"/);
   assert.doesNotMatch(api, /payroll\/my\b/);
 });
+
+// ── walk of stage Д3: the sentence of the server under the strip «Куда ушли деньги» ─────────────────────
+
+test("the strip: the server's `refunded_text` stands under it as ONE muted line, as it came; without it - no line; the row says «возвращено из этих денег» (the server's label)", async () => {
+  const overview = JSON.parse(fs.readFileSync(path.join(root, "tests", "fixtures", "income2", "I01_income_month_october.json"), "utf8"));
+  const withText = { ...overview, refunded_total: 140000, refunded_from_earlier: 50000, refunded_text: "Всего возвращено за период: 140\u00a0000 сум (из них 50\u00a0000 — из денег прошлых периодов)" };
+  {
+    const { page } = await open(browser, "money-v.entry.tsx", "flowLine", { props: { overview: withText } });
+    await page.waitForSelector('[data-testid="flow-refunded-text"]');
+    assert.equal(plain(await page.textContent('[data-testid="flow-refunded-text"]')), "Всего возвращено за период: 140 000 сум (из них 50 000 — из денег прошлых периодов)");
+    assert.equal(await page.locator('[data-testid="flow-refunded-text"]').count(), 1);
+    assert.match(plain(await page.textContent('[data-testid="income-flow"]')), /возвращено из этих денег/);
+    await page.close();
+  }
+  {
+    const { page } = await open(browser, "money-v.entry.tsx", "flowLine", { props: { overview: { ...overview, refunded_text: null } } });
+    await page.waitForSelector('[data-testid="income-flow"]');
+    assert.equal(await page.locator('[data-testid="flow-refunded-text"]').count(), 0);
+    await page.close();
+  }
+  const normalized = V.normalizeOverview({ ...withText });
+  assert.deepEqual([normalized.refunded_total, normalized.refunded_from_earlier, normalized.refunded_text === withText.refunded_text], [140000, 50000, true]);
+  assert.deepEqual([V.normalizeOverview({}).refunded_total, V.normalizeOverview({}).refunded_text], [0, null]);
+});

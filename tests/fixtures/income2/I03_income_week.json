@@ -48,7 +48,10 @@
   "delta_pct": -69,
   "delta_direction": "down",
   "delta_text": "69% к прошлой неделе",
-  "summary_text": "За неделю 12–18 октября пришло 550 000 сум — на 69% меньше, чем за предыдущую неделю.",
+  "summary_text": "За неделю 12–18 октября пришло 550 000 сум — на 69% меньше, чем за предыдущую неделю.",
+  "refunded_total": 0,
+  "refunded_from_earlier": 0,
+  "refunded_text": null,
   "by_method": [
     {
       "method": "card",
@@ -86,12 +89,12 @@
     },
     {
       "kind": "refunded",
-      "label": "возвращено",
+      "label": "возвращено из этих денег",
       "amount": 0
     },
     {
       "kind": "transferred",
-      "label": "перенесено в другую группу",
+      "label": "деньги перешли в другую группу",
       "amount": 0
     }
   ],
@@ -142,15 +145,23 @@
     "memberships_with_debt": 3,
     "students_with_debt": 3,
     "memberships_with_advance": 2,
-    "students_with_advance": 2,
     "debtors_debt_total": 500000,
-    "students_debtors": 3
+    "debt_waiting_total": 0,
+    "students_debtors": 3,
+    "students_waiting": 0,
+    "students_with_advance": 2
   },
   "checks": [
     {
       "code": "received_eq_strip",
       "left": 550000,
       "right": 550000,
+      "diff": 0
+    },
+    {
+      "code": "refunded_eq_rows",
+      "left": 0,
+      "right": 0,
       "diff": 0
     },
     {

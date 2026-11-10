@@ -1,5 +1,6 @@
 "use client";
 
+import { tidyMoneyText } from "@/lib/money-format";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, Check, Wallet } from "lucide-react";
@@ -262,6 +263,7 @@ export function FlowLine({ overview, kind = "", onPickKind, notice = null, onJum
         </>
       )}
       {insight && <p className="mt-2 text-sm text-slate-700" data-testid="flow-insight">{insight}</p>}
+      {overview.refunded_text && <p className="mt-1.5 text-xs text-slate-500" data-testid="flow-refunded-text">{tidyMoneyText(overview.refunded_text)}</p>}
       {forgiven && <p className="mt-1.5 text-xs text-slate-500">{forgiven}</p>}
       {!check.ok && (
         <ul className="mt-2 space-y-0.5 text-xs">

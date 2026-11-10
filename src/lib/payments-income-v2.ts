@@ -122,6 +122,10 @@ export interface IncomeOverview {
   summary_text: string;
   /** The parts of «Куда ушли деньги» with the server's kinds and labels (absent on an older server: the fixed fields of `current` are used). */
   strip?: IncomeFlowItem[] | null;
+  /** Money-1 V (walk Д3): what was given back in the period, whatever money it came from; `refunded_text` is the server's one sentence («Всего возвращено за период: 140 000 сум (из них 50 000 — из денег прошлых периодов)»), shown as it came. */
+  refunded_total?: number;
+  refunded_from_earlier?: number;
+  refunded_text?: string | null;
   by_method: IncomeMethodRow[];
   series: IncomeDay[];
   series_by: "day" | "month";
@@ -268,6 +272,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     by_method: arr<IncomeMethodRow>(raw?.by_method).map((item) => ({ method: text(item.method), label: text(item.label), amount: sum(item.amount), count: sum(item.count) })),
     series: arr<IncomeDay>(raw?.series).map((item) => ({ bucket: text(item.bucket), received: sum(item.received), count: sum(item.count) })),
     series_by: raw?.series_by === "month" ? "month" : "day",
+    refunded_total: sum(raw?.refunded_total), refunded_from_earlier: Math.max(0, sum(raw?.refunded_from_earlier)), refunded_text: nullableText(raw?.refunded_text),
     cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true, scope_text: nullableText(cash.scope_text) } : null,
     collection: collection ? {
       month: text(collection.month), month_label: text(collection.month_label), from: text(collection.from), to: text(collection.to), text: text(collection.text),
@@ -651,7 +656,7 @@ const LEGACY_FLOW: Array<{ key: string; field: keyof IncomeTotals; label: string
   { key: "to_past_debt", field: "to_past_debt", label: "на старые долги" },
   { key: "to_current", field: "to_current", label: "на текущие периоды" },
   { key: "to_advance", field: "to_advance", label: "в аванс" },
-  { key: "refunded", field: "refunded_from_received", label: "возвращено" },
+  { key: "refunded", field: "refunded_from_received", label: "возвращено из этих денег" },
   { key: "transferred", field: "transferred", label: "переведено в другие группы" },
 ];
 
@@ -792,6 +797,7 @@ export function journalScrollOptions(input: { journalTop: number; scrollY: numbe
 
 export const CHECK_LABEL: Record<string, string> = {
   received_eq_strip: "Поступило = куда ушли деньги",
+  refunded_eq_rows: "Возвращено = сумма возвратов",
   received_eq_methods: "Поступило = сумма по способам оплаты",
   received_eq_series: "Поступило = сумма по дням",
   received_eq_journal: "Поступило = сумма журнала оплат",

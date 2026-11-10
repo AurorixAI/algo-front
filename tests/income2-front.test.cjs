@@ -237,7 +237,7 @@ test("the line «Куда ушли деньги»: only the non-zero parts, shar
 test("«Сходится»: the server's checks, and a gap is said in money when they do not add up", () => {
   assert.deepEqual([V.checkView(overview("I01_income_month_october")).ok, V.checkView(overview("I01_income_month_october")).text], [true, "Сходится"]);
   const o = overview("I01_income_month_october");
-  const broken = { ...o, ok: false, checks: o.checks.map((c, i) => (i === 1 ? { ...c, right: c.right - 500, diff: 500 } : c)) };
+  const broken = { ...o, ok: false, checks: o.checks.map((c) => (c.code === "received_eq_methods" ? { ...c, right: c.right - 500, diff: 500 } : c)) };
   const view = V.checkView(broken);
   assert.equal(plain(view.text), "Не сходится: расхождение 500 сум");
   assert.deepEqual(view.lines.filter((l) => !l.ok).map((l) => l.label), ["Поступило = сумма по способам оплаты"]);
