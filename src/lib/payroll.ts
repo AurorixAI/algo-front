@@ -1641,6 +1641,8 @@ export interface PayrollRatesPutBody {
   valid_from: string;
   percents: Record<string, string>;
   note?: string;
+  /** Money-1 V7: `true` - the owner answered the question of `RATE_UNUSUAL` (a rate of 0 or in times) «да, верная». */
+  confirm_unusual?: boolean;
 }
 
 export interface PayrollRateHistoryItem {
@@ -1813,6 +1815,15 @@ export interface PayrollErrorLike {
 
 export function isRevisionConflict(error: PayrollErrorLike | null | undefined): boolean {
   return error?.code === "SHEET_REVISION_CONFLICT";
+}
+
+/**
+ * 409 `RATE_UNUSUAL` (Money-1 V7): a rate of 0 or in times more / less than the one in force - «Вы уверены: ставка «Групповые» 0 % (сейчас 45 %)?».  The RULE lives on the server (LESSONS 104): the front asks only
+ * after this answer and shows the server's own `message`.  null when the error is another one.
+ */
+export function rateUnusualQuestion(error: PayrollErrorLike | null | undefined): string | null {
+  if (error?.code !== "RATE_UNUSUAL") return null;
+  return (typeof error.message === "string" && error.message.trim()) || "Вы уверены, что ставка верная?";
 }
 
 /** The teacher has no rate for a kind of lessons of the sheet: «Не задана ставка преподавателя: укажите её в «Сотрудниках»». */

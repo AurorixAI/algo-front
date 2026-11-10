@@ -181,6 +181,8 @@ export function Sidebar() {
     { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
     { href: "/teacher/exams", label: "Экзамены", icon: FileText },
     { href: "/teacher/groups", label: "Мои группы", shortLabel: "Группы", icon: Users },
+    // Money-1 V8: what the teacher earned and what is owed to him (his own numbers only; the bar of a phone keeps its four sections, this one is in «Ещё»)
+    { href: "/teacher/payroll", label: "Моя зарплата", icon: Banknote },
   ];
 
   const navItems = rawRole === "owner" ? ownerNav : role === "admin" ? adminNav : teacherNav;

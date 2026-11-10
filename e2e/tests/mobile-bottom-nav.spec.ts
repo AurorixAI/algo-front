@@ -8,7 +8,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
  * skip themselves on the desktop project (the rail is the menu there; permissions.spec.ts covers it).
  *   owner:   Панель, Группы, Ученики, Оплаты | Ещё: Посещаемость, Зарплата, Сотрудники
  *   admin:   Диагностика, Ученики, Группы + Посещения (= Посещаемость; without the payments right) | Ещё: Экзамены
- *   teacher: Дашборд, Расписание, Экзамены, Группы | Ещё: Создать экзамен
+ *   teacher: Дашборд, Расписание, Экзамены, Группы | Ещё: Моя зарплата, Создать экзамен
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -91,6 +91,7 @@ test("@mobile teacher: all four sections in the bar; «Ещё» has the quick «
   await bar.getByRole("button", { name: /^Ещё/ }).click();
   const sheet = page.getByRole("dialog", { name: "Ещё" });
   await expect(sheet.getByRole("link", { name: "Создать экзамен" })).toBeVisible();
+  await expect(sheet.getByRole("link", { name: /^Моя зарплата/ })).toBeVisible();   // Money-1 V8: his own numbers, one tap from the sheet
   await expect(sheet.getByRole("button", { name: "Выйти из системы" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expectNoHorizontalScroll(page);

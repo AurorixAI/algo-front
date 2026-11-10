@@ -89,3 +89,47 @@ test("«Рассчитать всех» with only advance rows has nothing to do
   assert.equal(gate.text, null);
   assert.equal(R.calculationGate([advanceRow(), sheeted("a", 1, 0, 1)]).text, R.ALL_SAVED_TEXT);
 });
+
+// ── «Моя зарплата»: the normalizer and the words ──────────────────────────────────────────────
+
+const MY = lib("my-payroll.ts");
+const rawMonth = (extra = {}) => ({ month: "2026-11", month_label: "2026-11", state: "open_preliminary", preliminary: true, lessons_counted: 18, total: 2450000, paid: 1000000, balance: 1450000, carry_in: 0, text: "Предварительно: сумма может измениться до сохранения зарплаты", updated_at: null, ...extra });
+
+test("«Моя зарплата»: the normalizer keeps the numbers of the owner as they are, a sum without a value is null (never 0), a broken month is dropped, the title is the word of the month", () => {
+  const month = MY.normalizeMyMonth(rawMonth({ price: 400000, debt: 5, students: ["Иванов"], total: null }));
+  assert.equal(month.title, "Ноябрь 2026");
+  assert.equal(month.total, null);
+  assert.deepEqual(Object.keys(month).sort(), ["balance", "carryIn", "lessonsCounted", "month", "paid", "preliminary", "state", "text", "title", "total", "updatedAt"]);   // no price, no debt, no student can reach the screen
+  assert.equal(MY.normalizeMyMonth({ month: "ноябрь" }), null);
+  assert.equal(MY.normalizeMyMonth(rawMonth({ state: "weird" })).state, "not_saved");
+  assert.equal(MY.normalizeMyMonths({ items: "x" }), null);
+  const list = MY.normalizeMyMonths({ items: [rawMonth({ month: "2026-09" }), rawMonth(), rawMonth({ month: "2026-10" }), rawMonth({ month: "2026-10" }), { month: "bad" }] });
+  assert.deepEqual(list.map((item) => item.month), ["2026-11", "2026-10", "2026-09"]);
+});
+
+test("«Моя зарплата»: the advance in the words of the lead; the sums carry a non-breaking space; paid forward and what is left have the words of the dictionary", () => {
+  const month = MY.normalizeMyMonth(rawMonth({ carry_in: 200000 }));
+  assert.equal(env.plain(MY.carryText(month)), "Получено авансом раньше: 200 000 сум — вычитается из суммы этого месяца");
+  assert.match(MY.carryText(month), /\d{3} \d{3} сум/);
+  assert.equal(MY.carryText({ carryIn: 0 }), null);
+  assert.equal(env.plain(MY.balanceView(300000).value), "300 000 сум");
+  assert.equal(MY.balanceView(300000).label, "К выплате");
+  assert.equal(MY.balanceView(-50000).label, "Выплачено вперёд");
+  assert.equal(MY.balanceView(0).label, "Остаток");
+  assert.equal(MY.lessonsText(1) + "|" + MY.lessonsText(2) + "|" + MY.lessonsText(5), "1 урок|2 урока|5 уроков");
+  assert.equal(MY.myMonthChip(month).label, "Предварительно");
+  assert.notEqual(MY.myMonthChip(month).tone, "warn");   // a state is a fact, not a task for the teacher
+  assert.equal(MY.myMonthParam("2027-01", "2026-11-10"), "2026-11");
+  assert.equal(MY.myMonthParam("2026-09", "2026-11-10"), "2026-09");
+  assert.equal(MY.myMonthParam(null, "2026-11-10"), "2026-11");
+});
+
+test("«Моя зарплата»: the menu of a teacher has the item, the phone keeps its four sections and puts it into «Ещё»", () => {
+  const sidebar = env.read("src/components/layout/sidebar.tsx");
+  assert.match(sidebar, /href: "\/teacher\/payroll", label: "Моя зарплата"/);
+  const { splitBottomNav, BOTTOM_NAV_PRIORITY } = lib("bottom-nav.ts");
+  const items = ["/teacher/dashboard", "/teacher/schedule", "/teacher/exams", "/teacher/groups", "/teacher/payroll"].map((href) => ({ href }));
+  const { bar, more } = splitBottomNav(items, BOTTOM_NAV_PRIORITY.teacher);
+  assert.equal(bar.length, 4);
+  assert.deepEqual(more.map((item) => item.href), ["/teacher/payroll"]);
+});
