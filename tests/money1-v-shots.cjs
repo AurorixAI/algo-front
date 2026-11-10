@@ -3,7 +3,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { start, conflict, ROW, open } = require("./helpers/money1-v.cjs");
 
-const OUT = process.argv[2] || path.join(__dirname, "..", "..", "..", "artifacts", "analysis", "money1_v_front_screens", "f1");
+const OUT = process.argv[2] || path.join(__dirname, "..", "..", "artifacts", "analysis", "money1_v_front_screens", "f1");
 fs.mkdirSync(OUT, { recursive: true });
 const NB = " ";
 
