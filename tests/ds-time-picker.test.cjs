@@ -91,10 +91,10 @@ test("on a phone the choice stays inside the screen and every row is at least 40
   await page.close();
 });
 
-test("a NEW lesson has no prepared time: the fields are empty with «чч:мм»; the first try to save says «Укажите время начала» at the field, then «Укажите время окончания»", async () => {
+test("a NEW lesson has no prepared time: the fields are empty with «Укажите время»; the first try to save says «Укажите время начала» at the field, then «Укажите время окончания»", async () => {
   const { page } = await open(1280, 900);
   assert.equal(await page.inputValue("#demo-nachalo"), "");
-  assert.equal(await page.getAttribute("#demo-nachalo", "placeholder"), "чч:мм");
+  assert.equal(await page.getAttribute("#demo-nachalo", "placeholder"), "Укажите время");
   assert.equal(await page.locator('[data-testid="demo-start-required"]').count(), 0, "nothing is red before the first try");
   await page.click('button:has-text("Сохранить")');
   await page.waitForSelector('[data-testid="demo-start-required"]');
@@ -122,6 +122,32 @@ test("the scrollbar of a window: only the body between the header and the footer
     assert.equal(m.marginRight, "4px", "the bar is 4 px away from the edge of the card");
     assert.ok(m.scrolls && !m.cardScrolls, `${width}: the body scrolls, the card does not`);
     assert.ok(m.bottom <= m.vh && m.right <= m.vw, `${width}: inside the screen`);
+    await page.close();
+  }
+});
+
+test("the choice: pinned captions «Часы» / «Минуты», a «:» between the columns, ONE band - the hour and the minutes of the value stand on one line; an empty field proposes 09 : 00 but shows nothing in the field; at 375 the same", async () => {
+  for (const width of [1280, 375]) {
+    const { page } = await open(width, 812);
+    await page.click('#demo-time ~ [data-testid="time-picker-open"]');
+    await page.waitForSelector('[data-testid="time-picker"]');
+    await page.waitForTimeout(150);
+    const m = await page.evaluate(() => {
+      const panel = document.querySelector('[data-testid="time-picker"]');
+      const rect = (el) => el.getBoundingClientRect();
+      const h = panel.querySelector('[data-column="hours"] [data-key="09"]'), mi = panel.querySelector('[data-column="minutes"] [data-key="00"]');
+      const colon = [...panel.querySelectorAll("div")].find((d) => d.textContent === ":" && d.children.length === 0);
+      const hs = rect(h), ms = rect(mi), cs = rect(colon), ps = rect(panel);
+      const caps = [...panel.querySelectorAll("span")].map((s) => s.textContent).filter(Boolean);
+      return { dy: Math.abs((hs.top + hs.height / 2) - (ms.top + ms.height / 2)), cy: Math.abs((cs.top + cs.height / 2) - (hs.top + hs.height / 2)), cx: Math.abs((cs.left + cs.width / 2) - (hs.right + ms.left) / 2), caps, inside: ps.left >= 0 && ps.right <= innerWidth, value: document.querySelector("#demo-time").value, chosen: panel.querySelectorAll("[data-selected]").length };
+    });
+    assert.ok(m.dy <= 1, `09 and 00 on one line (${width}): ${m.dy}`);
+    assert.ok(m.cy <= 1, `the colon is on that line (${width}): ${m.cy}`);
+    assert.ok(m.cx <= 2, `the colon is between the columns (${width}): ${m.cx}`);
+    assert.deepEqual(m.caps, ["Часы", "Минуты"]);
+    assert.ok(m.inside);
+    assert.equal(m.value, "", "nothing in the field until a choice");
+    assert.equal(m.chosen, 0);
     await page.close();
   }
 });

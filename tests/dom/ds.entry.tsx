@@ -99,7 +99,6 @@ function TimeDemo({ initial = "", inModal = true }: { initial?: string; inModal?
         <div className="space-y-3">
           <LessonSlotFields idPrefix="demo" value={slot} onChange={(patch) => setSlot((c) => ({ ...c, ...patch }))} showRequired={touched} />
           {body}
-          {Array.from({ length: 8 }, (_, i) => <p key={i} className="text-sm text-slate-600">Строка прокрутки {i + 1}: окно длиннее экрана, чтобы тело окна листалось.</p>)}
         </div>
       </Modal>
     </>

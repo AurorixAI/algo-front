@@ -26,7 +26,7 @@ const SHOTS = [
   fs.mkdirSync(out, { recursive: true });
   const browser = await launch();
   for (const shot of SHOTS) {
-    for (const [width, height] of [[1280, 640], [375, 700]]) {
+    for (const [width, height] of (shot.name.startsWith("E-") ? [[1280, 560], [375, 600]] : [[1280, 640], [375, 700]])) {
       const { page } = await openPage(browser, "ds.entry.tsx", shot.server ?? (() => null), { width, height });
       if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
       await page.evaluate(([name]) => window.mount(name, { role: "owner", org_role: "owner" }, {}), [shot.mount]);
