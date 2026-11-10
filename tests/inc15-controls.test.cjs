@@ -187,7 +187,7 @@ test("DateInput / TimeInput render a text field with the project's look: дд.м
   const time = html(React.createElement(TimeInput, { id: "t", value: "15:00:00", onChange() {} }));
   assert.match(time, /<input[^>]*type="text"/);
   assert.match(time, /value="15:00"/);
-  assert.match(time, /placeholder="15:00"/);
+  assert.match(time, /placeholder="чч:мм"/);
   assert.match(time, /maxLength="5"/);
 });
 

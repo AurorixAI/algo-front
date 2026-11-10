@@ -34,6 +34,28 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
+/* The scrollbar of the body of a window (Modal and the side sheet): thin, no grey gutter, a rounded thumb of the muted tone at 30 %, and 4 px away from the rounded edge of the card (release review 06.11, the owner).
+   It is not hidden: with a mouse a person has to see that the window scrolls. */
+.scroll-soft {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(106 102 94 / 0.3) transparent;
+  margin-right: 4px;
+}
+.scroll-soft::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-soft::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-soft::-webkit-scrollbar-thumb {
+  background-color: rgb(106 102 94 / 0.3);
+  border-radius: 9999px;
+}
+.scroll-soft::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(106 102 94 / 0.5);
+}
+
 /* The wrapper of a centred dialog: 12 px (16 px from `sm`) of air around the card, never less than the window's safe area
    (notch, rounded corners, home indicator). */
 .pad-safe {

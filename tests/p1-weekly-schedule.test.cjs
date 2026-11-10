@@ -48,9 +48,11 @@ test("the end of a lesson follows its start by 90 minutes; a half-typed start ch
   assert.equal(F.endTimeAfter("1"), "");
 });
 
-test("the suggested time is after the latest lesson of the day, else 10:00-11:30", () => {
-  assert.deepEqual(F.suggestedTimes([]), { startTime: "10:00", endTime: "11:30" });
-  assert.deepEqual(F.suggestedTimes([{ endTime: "11:30" }, { endTime: "13:00" }]), { startTime: "13:00", endTime: "14:30" });
+test("a NEW lesson has no prepared time and the time is required (the owner, 06.11)", () => {
+  assert.equal(F.suggestedTimes, undefined, "a NEW lesson has no prepared time (the owner, 06.11): the fields are empty");
+  assert.equal(F.timeRangeProblem("", ""), "Укажите время начала");
+  assert.equal(F.timeRangeProblem("10:00", ""), "Укажите время окончания");
+  assert.ok(F.isTimeRequiredText("Укажите время начала") && !F.isTimeRequiredText("Окончание должно быть позже начала"));
 });
 
 test("a clash is a real overlap on the same day, never the lesson itself", () => {
@@ -335,7 +337,8 @@ test("wiring: the teacher's schedule uses the shared scope switch, fields and di
   assert.match(page, /if \(savingLesson\) return;/);
   assert.match(page, /savingLesson \? "Сохраняем…" : "Сохранить урок"/);
   // the suggested times follow the first chosen day until the times are typed
-  assert.match(page, /if \(!isAddModalOpen \|\| timesEdited\) return;/);
+  assert.doesNotMatch(page, /suggestedTimes|if \(!isAddModalOpen \|\| timesEdited\) return;/, "no prepared time for a new lesson: the fields start empty");
+  assert.match(page, /showRequired=\{addTouched\}/, "a missing time is said at its field");
   assert.doesNotMatch(page, /orgApi\.reviseRecurringLesson|orgApi\.endRecurringLesson|getRecurringLessonEndImpact|orgApi\.createLesson/);
   assert.ok(fs.readFileSync(path.join(root, "src/app/teacher/schedule/page.tsx"), "utf8").split("\n").length < 3400, "the teacher page must not grow back (was 4046 lines)");
 });

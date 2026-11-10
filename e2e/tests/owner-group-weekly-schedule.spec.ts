@@ -252,6 +252,11 @@ test("validation: no day says «Выберите день»; the end before the 
   await expect(dialog.getByRole("alert").filter({ hasText: "Выберите день недели" })).toBeVisible();
 
   await dialog.getByRole("button", { name: chipName(weekdayOf(tomorrow())), exact: true }).click();
+  // a NEW lesson has no prepared time (the owner, 06.11): the fields are empty, the first try to save says it at the field
+  await expect(dialog.getByLabel("Начало")).toHaveValue("");
+  await expect(dialog.getByLabel("Окончание")).toHaveValue("");
+  await dialog.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(dialog.getByTestId("weekly-add-start-required")).toHaveText("Укажите время начала");
   await fillTime(dialog.getByLabel("Начало"), "15:00");
   await expect(dialog.getByLabel("Окончание")).toHaveValue("16:30");
   // an empty date of a one-off lesson asks for a date, it does not call it a past one

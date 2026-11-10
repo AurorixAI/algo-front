@@ -44,9 +44,9 @@ export function modalLayout(input: ModalLayoutInput = {}): ModalLayout {
   return {
     card: sheet
       // A bottom sheet on a phone (rounded top, at most 88% of the screen), the right drawer from md up.
-      ? `bg-white shadow-pop w-full max-h-[88vh] supports-[height:100dvh]:max-h-[88dvh] rounded-t-modal md:rounded-none md:h-full md:max-h-none ${width} pointer-events-auto flex flex-col outline-none pb-[env(safe-area-inset-bottom)] md:pt-[env(safe-area-inset-top)] md:pr-[env(safe-area-inset-right)]`
+      ? `bg-white shadow-pop w-full max-h-[88vh] supports-[height:100dvh]:max-h-[88dvh] rounded-t-modal overflow-hidden md:rounded-none md:h-full md:max-h-none ${width} pointer-events-auto flex flex-col outline-none pb-[env(safe-area-inset-bottom)] md:pt-[env(safe-area-inset-top)] md:pr-[env(safe-area-inset-right)]`
       : side
-      ? `bg-white shadow-pop w-full ${width} h-full pointer-events-auto flex flex-col outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]`
+      ? `bg-white shadow-pop w-full ${width} h-full overflow-hidden pointer-events-auto flex flex-col outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]`
       : `bg-white rounded-modal shadow-pop border border-slate-100 w-full ${width} max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none`,
     header: side
       ? "flex items-start justify-between gap-3 p-5 border-b border-slate-100 shrink-0"

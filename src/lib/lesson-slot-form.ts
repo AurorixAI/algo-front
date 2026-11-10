@@ -80,7 +80,12 @@ export const NO_TEACHER_SCHEDULE_HINT = "Назначьте преподават
 
 export const END_BEFORE_START_TEXT = "Окончание должно быть позже начала";
 export const DAY_REQUIRED_TEXT = "Выберите день недели";
-export const TIME_REQUIRED_TEXT = "Укажите время начала и окончания";
+export const START_REQUIRED_TEXT = "Укажите время начала";
+export const END_REQUIRED_TEXT = "Укажите время окончания";
+/** Kept for the callers that only need to know that a time is missing: the start is asked first. */
+export const TIME_REQUIRED_TEXT = START_REQUIRED_TEXT;
+/** A missing time is not a «wrong» time: the form says it at the field after the first try to save, and the button stays on. */
+export const isTimeRequiredText = (text: string | null | undefined): boolean => Boolean(text) && /Укажите время (начала|окончания)$/.test(text as string);
 
 /** First calendar date on which a regular schedule change may take effect (tomorrow, or Monday after Sunday). */
 export function nextBusinessDate(): string {
@@ -96,13 +101,7 @@ export function endTimeAfter(start: string, minutes = 90): string {
   return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Default time of a new lesson of a day: after the latest lesson already there, else 10:00–11:30. */
-export function suggestedTimes(dayLessons: Array<{ endTime: string }>): { startTime: string; endTime: string } {
-  if (dayLessons.length === 0) return { startTime: "10:00", endTime: "11:30" };
-  const latest = [...dayLessons].sort((a, b) => b.endTime.localeCompare(a.endTime))[0].endTime;
-  const [h, m] = latest.split(":").map(Number);
-  return { startTime: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`, endTime: endTimeAfter(latest) };
-}
+// A NEW lesson has no prepared time (release review 06.11, the owner): the fields are empty, the hint is «чч:мм», the time is required.
 
 /** The lesson of the same day that overlaps the given time (not the lesson `excludeId` itself). */
 export function overlappingLesson<T extends { id: string; dayOfWeek: number; startTime: string; endTime: string }>(
@@ -214,7 +213,8 @@ export function pastDayPlan(o: {
 
 /** null when the times are fine; else the sentence under the fields (empty, or the end is not after the start). */
 export function timeRangeProblem(startTime: string, endTime: string): string | null {
-  if (!startTime || !endTime) return TIME_REQUIRED_TEXT;
+  if (!startTime) return START_REQUIRED_TEXT;
+  if (!endTime) return END_REQUIRED_TEXT;
   if (endTime <= startTime) return END_BEFORE_START_TEXT;
   return null;
 }

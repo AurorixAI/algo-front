@@ -180,7 +180,7 @@ test("pending queue: a row that moved between two reads is not shown twice; an e
 
 test("the «Ожидают» tab reads the whole queue; decided tabs keep paging", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  assert.match(page, /if \(tab === "pending"\) \{[\s\S]*loadAllPending<AttendanceExcuseItem>/);
+  assert.match(page, /if \(tab === "pending"\) \{[\s\S]*loadPendingAcrossPeriods<AttendanceExcuseItem>/);
   assert.match(page, /limit: PAGE_SIZE, offset: page \* PAGE_SIZE/);
   assert.match(page, /!pendingTab && total > PAGE_SIZE/, "no pager over a queue that is already whole");
   assert.match(page, /sortExcusesByUrgency\(items, businessToday\)/);
@@ -516,7 +516,7 @@ test("Modal overrides: the width replaces the default, bodyClassName REPLACES th
   const modal = read("src/components/ui/modal.tsx");
   assert.match(modal, /modalLayout\(\{ placement, size, maxWidthClassName, bodyClassName, footerClassName \}\)/);
   assert.equal((modal.match(/className=\{layout\.card\}/g) || []).length, 2);
-  assert.match(modal, /className=\{layout\.body\}/);
+  assert.match(modal, /className=\{`\$\{layout\.body\} scroll-soft`\}/, "the body of EVERY window is the thin soft scroll (release review 06.11)");
   assert.match(modal, /className=\{layout\.footer\}/);
   assert.doesNotMatch(modal, /maxWidthClassName = "/, "the default lives in modal-layout.ts");
 });

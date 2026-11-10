@@ -810,7 +810,8 @@ export interface AttendanceExcuseItem {
   attendance_id: string;
   lesson_date: string; // YYYY-MM-DD
   lesson_key: string;
-  group: { id: string; name: string };
+  /** `archived`: the group is in the archive (the excuse still waits for a decision); absent on an older server. */
+  group: { id: string; name: string; archived?: boolean };
   teacher: { id: string; name: string } | null;
   student: { id: string; full_name: string; display_id: string | null; phone?: string | null };
   reason: string;

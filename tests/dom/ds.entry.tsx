@@ -16,6 +16,9 @@ import TeacherDashboard from "@/app/teacher/dashboard/page";
 import TeacherSchedule from "@/app/teacher/schedule/page";
 import TeacherExams from "@/app/teacher/exams/page";
 import OwnerDashboard from "@/app/owner/dashboard/page";
+import { TimeInput } from "@/components/ui/time-input";
+import { ExcusesPage } from "@/components/attendance/excuses-page";
+import { LessonSlotFields, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
 
 (window as any).__ready = true;
 const w = window as any;
@@ -79,12 +82,38 @@ function Gallery() {
   );
 }
 
+function TimeDemo({ initial = "", inModal = true }: { initial?: string; inModal?: boolean }) {
+  const [value, setValue] = React.useState(initial);
+  const [slot, setSlot] = React.useState<SlotFormValue>({ startTime: "", endTime: "", format: "offline", room: "", topic: "", color: "blue" } as SlotFormValue);
+  const [touched, setTouched] = React.useState(false);
+  const body = (
+    <div className="space-y-3 p-4">
+      <label htmlFor="demo-time" className="block text-xs font-semibold text-slate-700">Время</label>
+      <TimeInput id="demo-time" value={value} onChange={setValue} />
+      <p data-testid="demo-value">{value}</p>
+    </div>
+  );
+  return inModal ? (
+    <>
+      <Modal open title="Изменить занятие" onClose={() => (window as any).__log?.push("close")} footer={<ModalActions primary="Сохранить" onPrimary={() => setTouched(true)} onCancel={() => (window as any).__log?.push("cancel")} />}>
+        <div className="space-y-3">
+          <LessonSlotFields idPrefix="demo" value={slot} onChange={(patch) => setSlot((c) => ({ ...c, ...patch }))} showRequired={touched} />
+          {body}
+          {Array.from({ length: 8 }, (_, i) => <p key={i} className="text-sm text-slate-600">Строка прокрутки {i + 1}: окно длиннее экрана, чтобы тело окна листалось.</p>)}
+        </div>
+      </Modal>
+    </>
+  ) : body;
+}
+
 w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
   useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true, org: props.org ?? null } as never);
   const root = createRoot(document.getElementById("root")!);
   const page = (node: React.ReactNode) => root.render(<div className="min-h-screen bg-background p-4 md:p-8"><div className="mx-auto max-w-[1400px]">{node}</div></div>);
   switch (name) {
     case "gallery": root.render(<Gallery />); break;
+    case "excuses": page(<ExcusesPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
+    case "timePicker": root.render(<TimeDemo initial={props.initial ?? ""} inModal={props.inModal !== false} />); break;
     case "ownerDashboard": page(<OwnerDashboard />); break;
     case "groups": page(<GroupsListView workspace="owner" />); break;
     case "payments": page(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;

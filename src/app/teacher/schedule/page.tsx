@@ -38,7 +38,7 @@ import { useToast } from "@/components/ui/toast";
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote } from "@/components/schedule/lesson-slot-fields";
 import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
-import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
+import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, isTimeRequiredText, overlappingLesson, pastDayPlan, reconcileDayTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
 import { Button } from "@/components/ui/button";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
@@ -233,7 +233,7 @@ export default function TeacherSchedulePage() {
   const [savingLesson, setSavingLesson] = useState(false);
   /** The times were typed by the user: the suggested times of the first chosen day no longer follow the days. */
   const [timesEdited, setTimesEdited] = useState(false);
-  const [newStartTime, setNewStartTime] = useState("10:00");
+  const [newStartTime, setNewStartTime] = useState("");
   const [newEndTime, setNewEndTime] = useState("11:30");
   /** «Разное время по дням»: the time of each chosen day; null = one time for all days. */
   const [newDayTimes, setNewDayTimes] = useState<DayTimes | null>(null);
@@ -398,7 +398,9 @@ export default function TeacherSchedulePage() {
     today: formatBusinessDate(), todayDay: todayDayOfWeek, nowMinutes: businessTimeMinutes(),
   }), [addTimes, newLessonDate, newLessonScope, newValidFrom, todayDayOfWeek]);
   const addTimeProblem = addTimeProblems[0]?.text ?? null;
-  const addPastTimeConflict = addTimeProblem ?? addPastPlan.pastOneOff;
+  // a MISSING time is said at its field after the first try to save (the button stays on); a wrong time blocks at once
+  const addTimeBlocking = isTimeRequiredText(addTimeProblem) ? null : addTimeProblem;
+  const addPastTimeConflict = addTimeBlocking ?? addPastPlan.pastOneOff;
   const addShifted = addPastTimeConflict ? null : addPastPlan.shifted;
 
   const filteredWeekLessons = useMemo(() => {
@@ -485,6 +487,8 @@ export default function TeacherSchedulePage() {
   const handleAddLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (savingLesson) return; // a repeated click or Enter while the first save is on its way
+    setAddTouched(true);
+    if (addTimeProblem) return; // the time is required: the field says «Укажите время начала / окончания»
     if (
       newLessonScope === "one_off"
       && (newLessonDate < formatBusinessDate() || newLessonDate < weekPeriod.start || newLessonDate > weekPeriod.end)
@@ -576,9 +580,9 @@ export default function TeacherSchedulePage() {
     setNewLessonScope("one_off");
     setNewLessonDate(businessWeekdayDate(day, weekOffset));
 
-    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
-    setNewStartTime(times.startTime);
-    setNewEndTime(times.endTime);
+    // a NEW lesson has no prepared time (the owner): the fields are empty and the time is required
+    setNewStartTime("");
+    setNewEndTime("");
 
     if (groups.length > 0) {
       setNewGroupId(groups[0].id);
@@ -593,16 +597,6 @@ export default function TeacherSchedulePage() {
     setSavingLesson(false);
     setIsAddModalOpen(true);
   };
-
-  // The suggested times follow the first chosen weekday (or the date of a one-off lesson) until the user types times of his own.
-  useEffect(() => {
-    if (!isAddModalOpen || timesEdited) return;
-    const day = newLessonScope === "recurring" ? newDays[0] : isoDateDayOfWeek(newLessonDate);
-    if (!day) return;
-    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
-    setNewStartTime(times.startTime);
-    setNewEndTime(times.endTime);
-  }, [isAddModalOpen, timesEdited, newLessonScope, newDays, newLessonDate, lessons]);
 
   // Changing / stopping a weekly lesson is the shared dialogs' job; the page only reloads the canonical schedule afterwards.
   // The weekly lesson as it stands on the day the change starts from (an occurrence that was moved carries the time of the move).
@@ -1726,7 +1720,8 @@ export default function TeacherSchedulePage() {
             idPrefix="sched-add"
             value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
             disabled={savingLesson}
-            endInvalid={addTimeProblem !== null}
+            endInvalid={addTimeBlocking !== null}
+            showRequired={addTouched}
             perDay={newLessonScope === "recurring" ? {
               days: newDays,
               times: newDayTimes,

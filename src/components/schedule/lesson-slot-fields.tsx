@@ -10,7 +10,7 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { DayOffWarning } from "./day-off-warning";
 import { ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, validFromBounds } from "@/lib/schedule-slots";
 import {
-  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, dayShort, isEndTyped, seedDayTimes, shiftedDayNote, startTimePatch, timeOfDay, toggleDay,
+  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, END_REQUIRED_TEXT, START_REQUIRED_TEXT, FORMAT_OPTIONS, LESSON_COLORS, dayShort, isEndTyped, seedDayTimes, shiftedDayNote, startTimePatch, timeOfDay, toggleDay,
   type DayTimes, type LessonColor, type LessonFormat, type TimeRange,
 } from "@/lib/lesson-slot-form";
 
@@ -32,13 +32,15 @@ export interface SlotFormValue {
  * расписание» always had, now also the owner's and the administrator's (group page).  `idPrefix` keeps the ids of the fields
  * (`<prefix>-nachalo`, `-okonchanie`, `-format`, `-auditoriya`, `-tema-zanyatiya`, `-color-label`).  A new start time moves the end 90 minutes after it.
  */
-export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, endInvalid = false, perDay }: {
+export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, endInvalid = false, showRequired = false, perDay }: {
   idPrefix: string;
   value: SlotFormValue;
   onChange: (patch: Partial<SlotFormValue>) => void;
   /** Rendered between the topic and the colour (the edit dialog's «Причина изменения»). */
   disabled?: boolean;
   endInvalid?: boolean;
+  /** After the first try to save: a time that is missing says so at its field («Укажите время начала»). */
+  showRequired?: boolean;
   /**
    * «Разное время по дням» - only for the add form of a weekly lesson (the other forms pass nothing).  The toggle is shown for two days or
    * more; switched on, each chosen day has its own row of times in place of the single pair.  `times` null = one time for all days.
@@ -78,11 +80,13 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor={`${idPrefix}-nachalo`} className="block text-xs font-semibold text-slate-700 mb-1">Начало</label>
-            <TimeInput id={`${idPrefix}-nachalo`} value={value.startTime} onChange={setStart} required disabled={disabled} className={SLOT_FIELD_CLASS} />
+            <TimeInput id={`${idPrefix}-nachalo`} value={value.startTime} onChange={setStart} required disabled={disabled} invalid={showRequired && !value.startTime} aria-describedby={showRequired && !value.startTime ? `${idPrefix}-nachalo-required` : undefined} className={SLOT_FIELD_CLASS} />
+            {showRequired && !value.startTime && <p id={`${idPrefix}-nachalo-required`} role="alert" data-testid={`${idPrefix}-start-required`} className="mt-1 text-xs font-medium text-danger-700">{START_REQUIRED_TEXT}</p>}
           </div>
           <div>
             <label htmlFor={`${idPrefix}-okonchanie`} className="block text-xs font-semibold text-slate-700 mb-1">Окончание</label>
-            <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid} className={SLOT_FIELD_CLASS} />
+            <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid || (showRequired && !value.endTime)} aria-describedby={showRequired && value.startTime && !value.endTime ? `${idPrefix}-okonchanie-required` : undefined} className={SLOT_FIELD_CLASS} />
+            {showRequired && value.startTime && !value.endTime && <p id={`${idPrefix}-okonchanie-required`} role="alert" data-testid={`${idPrefix}-end-required`} className="mt-1 text-xs font-medium text-danger-700">{END_REQUIRED_TEXT}</p>}
           </div>
         </div>
       )}

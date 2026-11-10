@@ -14,7 +14,7 @@ import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
 import { laterChangeNote, removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, type ExamsToConfirm } from "@/lib/weekly-lessons";
 import {
-  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, canVaryTimes, dayList, dayShort, dayTimeProblem, dayTimesOf, nextBusinessDate, overlappingLesson, pastDayPlan,
+  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, canVaryTimes, dayList, dayShort, dayTimeProblem, dayTimesOf, isTimeRequiredText, nextBusinessDate, overlappingLesson, pastDayPlan,
   reconcileDayTimes, timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type DayTimes, type WeeklyLesson,
 } from "@/lib/lesson-slot-form";
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
@@ -24,7 +24,8 @@ import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 const DATE_REQUIRED_TEXT = "Выберите дату";
 const ONE_OFF_NO_TEACHER_TEXT = "У группы нет преподавателя: разовый урок добавить нельзя. Выберите преподавателя в карточке группы.";
 
-const DEFAULT_VALUE: SlotFormValue = { startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" };
+// a NEW lesson has no prepared time: the fields are empty, the time is required
+const DEFAULT_VALUE: SlotFormValue = { startTime: "", endTime: "", format: "offline", room: "", topic: "", color: "blue" };
 
 export type { WeeklyLesson };
 
@@ -139,7 +140,10 @@ export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, 
     : !date ? DATE_REQUIRED_TEXT : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
   // a make-up is made from today to 60 days ahead (the rule of a move); an additional lesson has no such limit
   const dateMax = scope === "one_off" && choice.purpose === "makeup" ? addIsoDays(today, MAKEUP_DAYS) : undefined;
+  // a missing time is said at its field after the first try to save: the button stays on, it is not a reason of its own
+  const timeProblemsShown = timeProblems.filter((item) => !isTimeRequiredText(item.text));
   const blocking = timeProblem || pastOneOff || dateProblem || overlaps.length > 0;
+  const blockingButton = timeProblemsShown.length > 0 || pastOneOff || dateProblem || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -188,7 +192,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, 
       description={`Урок группы «${group.name}»`}
       onClose={onClose}
       busy={busy}
-      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={"Сохранить урок"} submitFor="lesson-add-form" disabled={busy || Boolean(blocking)} busy={busy} onCancel={onClose} />}
+      footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary={"Сохранить урок"} submitFor="lesson-add-form" disabled={busy || Boolean(blockingButton)} busy={busy} onCancel={onClose} />}
     >
       <form id="lesson-add-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
         {!teacherAssigned && (
@@ -232,12 +236,13 @@ export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, 
           value={value}
           onChange={patch}
           disabled={busy}
-          endInvalid={Boolean(timeProblem)}
+          endInvalid={timeProblemsShown.length > 0}
+          showRequired={touched}
           perDay={scope === "recurring" ? { days, times: dayTimes, onTimes: setDayTimes, invalidDays: timeProblems.map((item) => item.day) } : undefined}
         />
 
         {overlaps.map((item) => item.lesson && <OverlapNote key={item.day} lesson={item.lesson} day={byDay ? item.day : undefined} />)}
-        {timeProblems.map((item) => <Problem key={item.day}>{item.text}</Problem>)}
+        {timeProblemsShown.map((item) => <Problem key={item.day}>{item.text}</Problem>)}
         {pastOneOff && <Problem>{pastOneOff}</Problem>}
         {shifted && <ShiftedDayNote shifted={shifted} />}
         {dateProblem && <Problem>{dateProblem}</Problem>}

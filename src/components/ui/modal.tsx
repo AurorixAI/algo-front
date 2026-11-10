@@ -196,7 +196,7 @@ export function Modal({
   );
 
   // re-audit Н12: a body that scrolls says so - a soft grey edge appears at the bottom (and the top) only while there is more to scroll (not coloured; the white covers it at the end of the scroll)
-  const body = <div className={layout.body} style={SCROLL_EDGE} data-modal-part="body">{children}</div>;
+  const body = <div className={`${layout.body} scroll-soft`} style={SCROLL_EDGE} data-modal-part="body">{children}</div>;
 
   const footerRow = footer && <div className={layout.footer} data-modal-part="footer">{footer}</div>;
 

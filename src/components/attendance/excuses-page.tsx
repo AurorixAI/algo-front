@@ -25,7 +25,7 @@ import {
 import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
-import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
+import { applyItemChange, loadPendingAcrossPeriods } from "@/lib/excuses-pending";
 import { excuseChange } from "@/lib/excuse-conflict";
 import { afterDecision, createOncePer, createQueueGuard, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, type QueueGuard } from "@/lib/queue-guard";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
@@ -53,6 +53,7 @@ import {
   monthRangeOf,
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { Tag } from "@/components/ui/chip";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
 import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance/table-chrome";
@@ -235,6 +236,8 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
   /** The waiting queue is longer than the screen holds (the newest lessons are not shown). */
   const [hiddenPending, setHiddenPending] = useState(0);
   const [pendingTotal, setPendingTotal] = useState(0);
+  // the number of the badge of the menu and of the tab are ONE number: the queue of every period (the decided tabs do not read the queue, they show the badge's)
+  const badgePending = useExcuseBadge((state) => state.pending);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -319,7 +322,8 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
       } as const;
       if (tab === "pending") {
         // The waiting queue is read whole (the urgency order needs all of it); decided tabs are paged below.
-        const queue = await loadAllPending<AttendanceExcuseItem>((limit, offset) => orgApi.listAttendanceExcuses({ ...query, limit, offset }));
+        // the queue is NOT a month: every pending excuse of every period, by urgency (the month switch belongs to the decided tabs)
+        const queue = await loadPendingAcrossPeriods<AttendanceExcuseItem>(formatBusinessDate(), (window, limit, offset) => orgApi.listAttendanceExcuses({ ...query, dateFrom: window.from, dateTo: window.to, limit, offset }));
         if (!guard.accepts(token)) return;
         setLoadError(null);
         setItems(queue.items);
@@ -339,7 +343,6 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
       setLoadError(null);
       setItems(data.items || []);
       setTotal(data.total ?? 0);
-      setPendingTotal(data.pending_total ?? 0);
     } catch (error) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -609,7 +612,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "pending", label: `Ожидают (${pendingTotal})` },
+    { key: "pending", label: `Ожидают (${tab === "pending" ? pendingTotal : badgePending})` },
     { key: "confirmed", label: "Подтверждено" },
     { key: "rejected", label: "Отклонено" },
   ];
@@ -644,27 +647,29 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {tab !== "pending" && (
           <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => { setMonth((m) => shiftMonthKey(m, -1)); resetPaging(); }}
-              aria-label="Предыдущий месяц"
-              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="min-w-[132px] px-2 text-center text-sm font-semibold text-slate-800" aria-live="polite">
-              {monthLabelRu(month)}
+              <button
+                type="button"
+                onClick={() => { setMonth((m) => shiftMonthKey(m, -1)); resetPaging(); }}
+                aria-label="Предыдущий месяц"
+                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="min-w-[132px] px-2 text-center text-sm font-semibold text-slate-800" aria-live="polite">
+                {monthLabelRu(month)}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setMonth((m) => shiftMonthKey(m, 1)); resetPaging(); }}
+                aria-label="Следующий месяц"
+                className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => { setMonth((m) => shiftMonthKey(m, 1)); resetPaging(); }}
-              aria-label="Следующий месяц"
-              className="inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          )}
           <CascadingFilter
             teachers={teachers}
             groups={groups}
@@ -722,6 +727,8 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                       <p className="break-words text-xs text-slate-500 xl:truncate" title={item.group.name}>
                         {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
                       </p>
+                      {/* an excuse of an archived group still has to be decided: it is shown, with the mark (the server sends `group.archived`) */}
+                      {item.group.archived && <Tag testId="excuse-group-archived" className="mt-0.5">группа в архиве</Tag>}
                     </div>
 
                     {/* Урок */}

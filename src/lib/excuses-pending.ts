@@ -1,3 +1,4 @@
+import { addIsoDays } from "./business-time";
 /**
  * All the pending excuses of the period, not one page of them.
  *
@@ -129,4 +130,51 @@ export function applyItemChange<T extends { id: string; status: string }>(
     total: Math.max(0, state.total - 1),
     pendingTotal: Math.max(0, state.pendingTotal + pendingShift),
   };
+}
+
+// ── the queue is a queue, not a month (release review 06.11, the owner: the badge said «1», «Ожидают (0)» was empty) ─────────────────────────────────
+
+/** The API takes at most 93 days at once and, without dates, the CURRENT month: the whole queue is read window by window. */
+export const PENDING_WINDOW_DAYS = 90;
+/** How far back the queue is read: a year and a week (older pending excuses are for the server to bring in one answer). */
+export const PENDING_LOOKBACK_DAYS = 372;
+
+export interface PendingWindow {
+  from: string;
+  to: string;
+}
+
+/** Windows of `PENDING_WINDOW_DAYS` that cover [today - lookback, the end of next month], newest first; `today` is `YYYY-MM-DD`. */
+export function pendingWindows(today: string, lookbackDays = PENDING_LOOKBACK_DAYS, windowDays = PENDING_WINDOW_DAYS): PendingWindow[] {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  // the first day of the month after next, minus one day: the last day of NEXT month (lessons are marked ahead too)
+  const afterNext = `${month + 2 > 12 ? year + 1 : year}-${String(((month + 1) % 12) + 1).padStart(2, "0")}-01`;
+  const end = addIsoDays(afterNext, -1);
+  const start = addIsoDays(today, -lookbackDays);
+  const out: PendingWindow[] = [];
+  for (let to = end; to >= start; to = addIsoDays(to, -windowDays)) {
+    const from = addIsoDays(to, -(windowDays - 1));
+    out.push({ from: from < start ? start : from, to });
+  }
+  return out;
+}
+
+/**
+ * ALL the pending excuses of every period: each window is read whole (`loadAllPending`) and the rows are put together; a row is never twice.  `pendingTotal` is the number of rows, so the tab «Ожидают (N)» and its list agree.
+ */
+export async function loadPendingAcrossPeriods<T extends { id: string }>(
+  today: string,
+  readPage: (window: PendingWindow, limit: number, offset: number) => Promise<ExcusePage<T>>,
+  options: { cap?: number; pageLimit?: number } = {},
+): Promise<AllPending<T>> {
+  const parts = await Promise.all(pendingWindows(today).map((window) => loadAllPending<T>((limit, offset) => readPage(window, limit, offset), options)));
+  const seen = new Set<string>();
+  const items: T[] = [];
+  let hidden = 0;
+  for (const part of parts) {
+    hidden += part.hidden;
+    for (const item of part.items) if (!seen.has(item.id)) { seen.add(item.id); items.push(item); }
+  }
+  return { items, total: items.length + hidden, pendingTotal: items.length + hidden, hidden };
 }
