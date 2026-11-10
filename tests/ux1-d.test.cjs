@@ -225,12 +225,12 @@ test("bottom bar, admin: Диагностика, Ученики, Группы, �
   assert.deepEqual(hrefsAfterSplit(noPayments.more), ["/admin/exams", "/admin/teachers", "/admin/substitutions"]);
 });
 
-test("bottom bar, teacher: all four sections fit, in the order of the menu; «Ещё» has the profile and the quick action", () => {
+test("bottom bar, teacher: four sections in the order of the menu; «Моя зарплата» (Money-1 V, the fifth item) and the profile and the quick action ride on «Ещё»", () => {
   const { splitBottomNav, BOTTOM_NAV_PRIORITY } = lib("bottom-nav.ts");
   const { bar, more } = splitBottomNav(items(MENU.teacher), BOTTOM_NAV_PRIORITY.teacher);
-  assert.deepEqual(hrefsAfterSplit(bar), MENU.teacher);
+  assert.deepEqual(hrefsAfterSplit(bar), MENU.teacher.filter((href) => href !== "/teacher/payroll"));
   assert.equal(bar.length, 4);
-  assert.deepEqual(more, []);
+  assert.deepEqual(hrefsAfterSplit(more), ["/teacher/payroll"]);
   assert.match(sidebarSource, /quickAction=\{isTeacher \? \{ href: "\/teacher\/exams\/new", label: "Создать экзамен", icon: Plus \} : undefined\}/);
 });
 

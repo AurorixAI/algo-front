@@ -773,7 +773,7 @@ test("no money for a teacher: the teacher screens never touch a price", () => {
 test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<RowStatus status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} name=\{teacher\.teacher_name \?\? ""\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<RowStatus status=\{status\} hint=\{advance \? advanceHint\(.*\) : statusHint\(teacher\.sheet\)\} name=\{teacher\.teacher_name \?\? ""\} \/>/);   // Money-1 V: the row of an advance has its own hint
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary totals=\{totals\} month=\{month\} open=\{monthOpen\} \/>/);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);

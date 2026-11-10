@@ -160,7 +160,7 @@ function PastRow({ month, onChoose }: { month: MyMonth; onChoose: () => void }) 
           <span className="block text-xs leading-5 text-slate-600">{listLine(month)}</span>
           {state && <span className="block text-xs leading-5 text-slate-600">{state}</span>}
         </span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
       </button>
     </li>
   );

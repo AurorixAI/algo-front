@@ -38,6 +38,7 @@ test("#102: the word «предварительн…» stays only where it means
     "src/app/admin/students/new/page.tsx",        // «Предварительная оценка уровня (со слов)» in the student questionnaire
     "src/app/teacher/exams/[id]/report/page.tsx", // fallback summary of an EXAM report, not a diagnostic
     "src/components/payroll/month-status.tsx",    // «расчёт предварительный» of an unfinished month (the line over the payroll)
+    "src/lib/my-payroll.ts",                      // «Предварительно» - the chip of the CURRENT month of «Моя зарплата» (the month is still going: the same meaning as the line over the payroll)
     "src/lib/payroll.ts",                         // the text of that line (`monthStatusText`)
   ]);
   for (const f of sources) {

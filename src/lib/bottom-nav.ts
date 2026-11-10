@@ -22,7 +22,7 @@ export const BOTTOM_NAV_SLOTS = 4;
 export const BOTTOM_NAV_PRIORITY: Record<"owner" | "admin" | "teacher", readonly string[]> = {
   owner: ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/payments", "/owner/attendance", "/owner/substitutions", "/owner/payroll", "/owner/teachers"],
   admin: ["/admin/students", "/admin/groups", "/admin/payments", "/admin/diagnostics", "/admin/attendance", "/admin/substitutions", "/admin/exams", "/admin/teachers"],
-  teacher: ["/teacher/dashboard", "/teacher/schedule", "/teacher/groups", "/teacher/exams"],
+  teacher: ["/teacher/dashboard", "/teacher/schedule", "/teacher/groups", "/teacher/exams", "/teacher/payroll"],
 };
 
 /** Split a role's menu: the items for the bar (in menu order) and the rest for «Ещё» (in menu order). */

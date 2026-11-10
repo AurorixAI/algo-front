@@ -661,14 +661,14 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
   return (
     <div className={`mt-3 grid gap-2 text-sm tabular-nums xl:contents ${advance ? "grid-cols-1" : "grid-cols-3"}`}>
       {/* an advance row has no salary and no payout to show: a card keeps only «Остаток», the table keeps its cells (dashes) */}
-      <div className={`min-w-0 xl:text-right ${advance ? "max-xl:hidden" : ""}`} data-testid="teacher-sum">
+      <div className={`min-w-0 xl:text-right${advance ? " max-xl:hidden" : ""}`} data-testid="teacher-sum">
         <span className={label}>{SALARY_COLUMN}</span>
         {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
         {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
         {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
         {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
       </div>
-      <div className={`min-w-0 xl:text-right ${advance ? "max-xl:hidden" : ""}`} data-testid="teacher-paid">
+      <div className={`min-w-0 xl:text-right${advance ? " max-xl:hidden" : ""}`} data-testid="teacher-paid">
         <span className={label}>Выплачено</span>
         {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
       </div>

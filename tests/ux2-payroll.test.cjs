@@ -465,7 +465,9 @@ test("«Сотрудники»: the rate line, «Изменить ставку»
   assert.match(dialog, /RATE_FIRST_NOTE/);
   assert.match(page, /searchParams\?\.get\("month"\)/);
   assert.match(page, /month=\{monthParam\}/);
-  assert.match(dialog, /orgApi\.putPayrollRates\(item\.teacher_id, ratePutBody\(validFrom, checked, current\)\)/);
+  // Money-1 V: the body is the same; after a 409 RATE_UNUSUAL and the owner's «Да, ставка верная» the repeat carries confirm_unusual
+  assert.match(dialog, /const body = ratePutBody\(validFrom, checked, current\);/);
+  assert.match(dialog, /orgApi\.putPayrollRates\(item\.teacher_id, unusual === null \? body : \{ \.\.\.body, confirm_unusual: true \}\)/);
   assert.match(dialog, /orgApi\.getPayrollRateHistory\(item\.teacher_id\)/);
   assert.match(dialog, /busy=\{saving\} disabled=\{checked\.changed === 0\}/);
 });
