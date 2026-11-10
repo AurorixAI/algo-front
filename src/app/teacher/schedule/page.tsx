@@ -20,7 +20,7 @@ import { Calendar as CalendarIcon, Clock, Plus, MapPin, Video, ChevronLeft, Chev
 import { pluralRu } from "@/lib/payments";
 import { DAYS, classCountLabel, completedLessonsProgressLabel, getLessonTimeStatus } from "@/lib/schedule-time";
 import { Modal, useScrollLock } from "@/components/ui/modal";
-import { ICON_TONE, nextStepIcon, nextStepView } from "@/components/teacher/next-action-card";
+import { ICON_TONE, NEXT_STEP_SURFACE, nextStepIcon, nextStepView } from "@/components/teacher/next-action-card";
 import { todayAgenda } from "@/lib/teacher-agenda";
 import { openTodayActions, orderedTodayActions, scheduledTodayActions, todayNextStep } from "@/lib/today-actions";
 import { lessonActionTarget } from "@/lib/lesson-actions";
@@ -825,10 +825,7 @@ export default function TeacherSchedulePage() {
     later: null,
   }), [todayActions, todayAgendaView, openActionsKnown, businessDate]);
   const nextStepText = nextStepView(nextStep as never);
-  const nextActionTone = nextStepText.tone === "rose" ? "border-warning-200 bg-warning-50/70 hover:bg-warning-50 text-warning-900"
-    : nextStepText.tone === "emerald" ? "border-slate-200 bg-white hover:bg-slate-50 text-slate-800"
-    : nextStepText.tone === "amber" ? "border-warning-200 bg-warning-50/70 hover:bg-warning-50 text-warning-900"
-    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-800";
+  const nextActionTone = `${NEXT_STEP_SURFACE[nextStepText.tone].surface} ${NEXT_STEP_SURFACE[nextStepText.tone].hover} ${NEXT_STEP_SURFACE[nextStepText.tone].text}`;
   const openNextStep = () => {
     if (nextStep.kind === "action") {
       const target = lessonActionTarget(nextStep.action as never);
@@ -955,7 +952,8 @@ export default function TeacherSchedulePage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="kpi-row">
+      <div className="kpi-grid">
         <button
           type="button"
           onClick={() => setIsWeekPlanOpen(true)}
@@ -1038,6 +1036,7 @@ export default function TeacherSchedulePage() {
             data-testid="schedule-next-step"
             aria-label={nextStep.kind === "action" ? `Ближайшее действие: ${nextStep.action.lesson.groupName}, ${nextStep.action.lesson.startTime}` : nextStep.kind === "upcoming" ? `Ближайший урок: ${nextStep.entry.lesson.groupName}, ${nextStep.entry.lesson.startTime}` : undefined}
             data-step={nextStep.kind}
+            data-tone={nextStepText.tone}
             className={`flex items-start gap-4 rounded-card border p-4 text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:p-5 ${nextActionTone}`}
           >
             <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-control ${ICON_TONE[nextStepText.tone]}`}>
@@ -1045,14 +1044,16 @@ export default function TeacherSchedulePage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold opacity-75">Ближайшее действие</p>
-                {(nextStep.kind === "action" || nextStep.kind === "upcoming") && <ArrowRight className="h-4 w-4 shrink-0 opacity-70" />}
+                <p className="min-w-0 truncate text-xs font-semibold opacity-75">Ближайшее действие</p>
+                {(nextStep.kind === "action" || nextStep.kind === "upcoming") && <ArrowRight data-testid="schedule-next-step-arrow" className="h-4 w-4 shrink-0 opacity-70" />}
               </div>
-              <p className="mt-1 break-words text-sm font-bold leading-5">{nextStepText.title}</p>
-              <p title={nextStepText.description} className="mt-1.5 truncate text-xs font-semibold leading-5 opacity-80" data-testid="schedule-next-step-description">{nextStepText.description}</p>
+              {/* wraps by WORDS only (never in the middle of a word); two lines when it does not fit */}
+              <p data-testid="schedule-next-step-title" className="mt-1 text-sm font-bold leading-5 [overflow-wrap:normal] [word-break:normal]">{nextStepText.title}</p>
+              <p title={nextStepText.description} className="mt-1.5 block truncate whitespace-nowrap text-xs font-semibold leading-5 opacity-80" data-testid="schedule-next-step-description">{nextStepText.description}</p>
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* Modern View Mode Switcher Bar */}

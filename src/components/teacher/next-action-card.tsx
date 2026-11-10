@@ -39,6 +39,15 @@ export const ICON_TONE: Record<Tone, string> = {
   primary: "bg-primary-100 text-primary-700",
 };
 
+/** The look of the card by the tone of the step: ONE map for «Главная» and «Расписание» (a task that needs action is a WARNING - yellow - on both; red is for errors and debts). */
+export const NEXT_STEP_SURFACE: Record<Tone, { surface: string; hover: string; text: string; circle: string }> = {
+  rose: { surface: "border-warning-200 bg-warning-50/70", hover: "hover:bg-warning-50", text: "text-warning-900", circle: "bg-warning-100/60" },
+  amber: { surface: "border-warning-200 bg-warning-50/70", hover: "hover:bg-warning-50", text: "text-warning-900", circle: "bg-warning-100/60" },
+  emerald: { surface: "border-slate-200 bg-white", hover: "hover:bg-slate-50", text: "text-slate-800", circle: "bg-primary-50/80" },
+  slate: { surface: "border-slate-200 bg-white", hover: "hover:bg-slate-50", text: "text-slate-800", circle: "bg-primary-50/80" },
+  primary: { surface: "border-slate-200 bg-white", hover: "hover:bg-slate-50", text: "text-slate-800", circle: "bg-primary-50/80" },
+};
+
 const examLine = (exam: CardExam) => `${exam.title}${exam.group_name ? ` · ${exam.group_name}` : ""}`;
 
 /** The words of the card for the step `pickNextStep` chose. */
@@ -98,8 +107,8 @@ export function NextActionCard<A extends CardAction, L extends AgendaLessonLike>
   const more = step.kind === "upcoming" ? moreTodayText(step.more) : null;
   const Icon = nextStepIcon(step);
   return (
-    <div data-testid="next-action-card" data-step={step.kind} className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary-50/80" />
+    <div data-testid="next-action-card" data-step={step.kind} data-tone={view.tone} className={`relative overflow-hidden rounded-3xl border p-4 shadow-sm sm:p-6 ${NEXT_STEP_SURFACE[view.tone].surface}`}>
+      <div className={`absolute -right-16 -top-16 h-40 w-40 rounded-full ${NEXT_STEP_SURFACE[view.tone].circle}`} />
       <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${ICON_TONE[view.tone]}`}>
