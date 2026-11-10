@@ -281,7 +281,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   // Every tab carries its number; none is shown while the summary is not known yet.
   const summaryForTabs = narrowed ? narrowedTabSummary(narrowedCounts) : summaryLoaded ? { buckets, debtors, students_waiting: studentsWaiting, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
-  const cards = positionCards({ debt_waiting_total: debtWaitingTotal, students_waiting: studentsWaiting, debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
+  const cards = positionCards({ debt_waiting_total: debtWaitingTotal, students_waiting: studentsWaiting, debtors_debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 
   return (

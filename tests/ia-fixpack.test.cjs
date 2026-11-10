@@ -449,7 +449,7 @@ test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of
   assert.match(page, /id="payments-list"/);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Аванс" id="advance"/);
   assert.match(read("src/components/payments/income-page.tsx"), /window\.location\.hash === "#advance"/);
-  const cards = PAY.positionCards({ debt_total: 500000, advance_total: 0, debtors: 2 });
+  const cards = PAY.positionCards({ debtors_debt_total: 500000, advance_total: 0, debtors: 2 });
   assert.deepEqual(cards.map((card) => card.label), ["Долг", "Аванс"]);
 });
 

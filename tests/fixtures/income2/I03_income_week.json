@@ -142,7 +142,9 @@
     "memberships_with_debt": 3,
     "students_with_debt": 3,
     "memberships_with_advance": 2,
-    "students_with_advance": 2
+    "students_with_advance": 2,
+    "debtors_debt_total": 500000,
+    "students_debtors": 3
   },
   "checks": [
     {

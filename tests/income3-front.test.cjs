@@ -364,10 +364,10 @@ test("debt numbers: «Долг» header, and one quiet line under the total when
   const { React, text, html } = parts();
   const C = require(path.join(root, "src/components/payments/income-collection.tsx"));
   const o = overview("I01_income_month_october");
-  const total = o.collection.total.debt;
+  const total = o.collection.total.debtors_debt + o.collection.total.debt_waiting;
   assert.equal(V.collectionDebtNote(o.collection, total), null, "the same number: nothing is said");
   assert.equal(V.collectionDebtNote(o.collection, null), null);
-  const note = V.collectionDebtNote({ ...o.collection, month_label: "октябрь 2026", total: { ...o.collection.total, debt: 1800000 } }, 1950000);
+  const note = V.collectionDebtNote({ ...o.collection, month_label: "октябрь 2026", total: { ...o.collection.total, debtors_debt: 1800000, debt_waiting: 0 } }, 1950000);
   assert.equal(plain(note), "Долг за октябрь — 1 800 000 сум. Всего долг на сегодня — 1 950 000 сум (с прошлыми месяцами).");
   const el = (debtToday) => React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", debtToday });
   assert.match(html(el(total + 150000)), /data-testid="collection-debt-note"/);
@@ -376,7 +376,7 @@ test("debt numbers: «Долг» header, and one quiet line under the total when
   assert.ok(text(el(total)).includes("Долг") && !text(el(total)).includes("Долг за месяц"), "the column is «Долг»");
   const src = read("src/components/payments/income-collection.tsx");
   assert.match(src, /<span data-col="debt" className="text-right">Долг<\/span>/);
-  assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data\?\.position\.debt_total \?\? null\}/);
+  assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data \? overview\.data\.position\.debtors_debt_total \+ overview\.data\.position\.debt_waiting_total : null\}/);
 });
 
 test("I07: «Журнал оплат пуст» is the normal secondary grey (slate-600 ≥ 4.5:1), not slate-400", () => {

@@ -55,7 +55,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
   useEffect(() => setDismissedAt(readDismissedAt()), []);
 
   // The same numbers as the cards of «Оплаты»: the debtors, their debt, and how many of them are overdue.
-  const copy = debtBannerCopy({ debtors: debtorsCount({ debtors, students_with_debt: studentsWithDebt }), debtTotal, overdue: studentsExpired });
+  const copy = debtBannerCopy({ debtors: debtorsCount({ debtors }), debtTotal, overdue: studentsExpired });
   // UX pack №25: only «Главная», «Ученики» and the pages of «Оплаты» (not its list: the cards are in front of the user there)
   const visible = available && copy.count > 0 && bannerShownOn(pathname, paymentsBasePath) && !bannerDismissed(dismissedAt, copy.count);
 

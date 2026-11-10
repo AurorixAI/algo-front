@@ -653,7 +653,7 @@ test("the dead code of the period form is gone", () => {
 
 test("the summary store keeps the debt and the advance of the center", () => {
   const { summaryToState } = require(path.join(root, "src/lib/payments-summary.ts"));
-  const state = summaryToState({ as_of: "2026-10-21", due: 3, expired: 1, expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar", debt_total: 70000, advance_total: 21000, students_with_debt: 1 });
+  const state = summaryToState({ as_of: "2026-10-21", due: 3, expired: 1, expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar", advance_total: 21000, debt_split: { debtors: 1, debtors_memberships: 1, debtors_debt_total: 70000, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 70000, all_students_with_debt: 1, expired: 1, due: 3, students_expired: 1, students_due: 3 } });
   assert.deepEqual([state.debtTotal, state.advanceTotal, state.studentsWithDebt], [70000, 21000, 1]);
   const old = summaryToState({ as_of: "2026-10-21", due: 3, expired: 1, expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar" });
   assert.deepEqual([old.debtTotal, old.advanceTotal, old.studentsWithDebt], [0, 0, 0]);

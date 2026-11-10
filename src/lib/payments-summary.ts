@@ -131,15 +131,16 @@ export function useMoneyDenied(): boolean {
 /** Fields of the state that come from one summary answer. */
 export function summaryToState(summary: Partial<PaymentsSummary> | null | undefined) {
   const lessons = Number(summary?.lessons_per_payment);
-  // Money-1 B7: ONE definition of a debtor.  The red banner, the cards and the badge read the split (the waiting ones are out); an older server has none - the old numbers, nobody waits.
+  // Money-1 B7 / V (а): ONE definition of a debtor.  The red banner, the cards and the badge read ONLY the split (the waiting ones are out); the old fields of the server (`debt_total`, `students_with_debt`,
+  // `due`, `expired`, `buckets.debt`, …) are not read any more - without the split every such number is 0 (a server that does not send it has no debt to show).
   const split = summary?.debt_split ?? null;
   return {
     available: true,
     loaded: true,
-    due: count(split ? split.due : summary?.due),
-    expired: Math.min(count(split ? split.expired : summary?.expired), count(split ? split.due : summary?.due)),
-    studentsDue: optionalCount(split ? split.students_due : summary?.students_due),
-    studentsExpired: optionalCount(split ? split.students_expired : summary?.students_expired),
+    due: count(split?.due),
+    expired: Math.min(count(split?.expired), count(split?.due)),
+    studentsDue: optionalCount(split?.students_due),
+    studentsExpired: optionalCount(split?.students_expired),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
     // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.
@@ -148,14 +149,14 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
     accountingStart: typeof summary?.accounting_start_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(summary.accounting_start_date) ? summary.accounting_start_date : null,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,
-    debtTotal: count(split ? split.debtors_debt_total : summary?.debt_total),
+    debtTotal: count(split?.debtors_debt_total),
     studentsWaiting: count(split?.waiting_students),
     debtWaitingTotal: count(split?.waiting_debt_total),
     advanceTotal: count(summary?.advance_total),
-    studentsWithDebt: count(split ? split.debtors : summary?.students_with_debt),
-    debtors: split ? count(split.debtors) : optionalCount(summary?.debtors) ?? optionalCount(summary?.students_with_debt),
+    studentsWithDebt: count(split?.debtors),
+    debtors: count(split?.debtors),
     buckets: summary?.buckets
-      ? { debt: count(split ? split.debtors_memberships : summary.buckets.debt), waiting: count(split?.waiting_memberships), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
+      ? { debt: count(split?.debtors_memberships), waiting: count(split?.waiting_memberships), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
       : null,
     paused: count(summary?.paused),
     studentsPaused: optionalCount(summary?.students_paused),

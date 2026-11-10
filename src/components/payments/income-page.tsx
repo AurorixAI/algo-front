@@ -329,7 +329,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
             {tab === "decisions" ? (
               <IncomeDecisions period={period} authors={journal.data?.authors ?? []} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} />
             ) : tab === "groups" && collection ? (
-              <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data?.position.debt_total ?? null} caption={collectionCaption(period, today)} />
+              <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data ? overview.data.position.debtors_debt_total + overview.data.position.debt_waiting_total : null} caption={collectionCaption(period, today)} />
             ) : (
               <JournalSection
                 journal={journal.data}

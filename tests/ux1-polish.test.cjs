@@ -187,12 +187,12 @@ test("payments banner on a phone: the whole sentence, 14 px, wraps, no ellipsis;
 test("the badge of «Оплаты» counts the debtors - the number of the banner and of the card «Долг учеников» (owner 22.10)", () => {
   const { debtBannerCopy } = lib("payments-banner.ts");
   const { debtorsCount } = lib("payments.ts");
-  assert.equal(debtorsCount({ debtors: 33, students_with_debt: 30 }), 33);
-  assert.equal(debtorsCount({ students_with_debt: 4 }), 4, "an older server");
+  assert.equal(debtorsCount({ debtors: 33 }), 33);
+  assert.equal(debtorsCount({ students_with_debt: 4 }), null, "Money-1 V (а): the old field is not read"); 
   assert.equal(debtorsCount({}), null);
   assert.equal(debtBannerCopy({ debtors: debtorsCount({ debtors: 33 }), debtTotal: 1, overdue: 19 }).count, 33, "banner and badge say one number");
   const sidebar = read("src/components/layout/sidebar.tsx");
-  assert.match(sidebar, /debtorsCount\(\{ debtors: state\.debtors, students_with_debt: state\.studentsWithDebt \}\)/);
+  assert.match(sidebar, /debtorsCount\(\{ debtors: state\.debtors \}\)/);
   assert.doesNotMatch(sidebar, /waitingPeopleCount/);
   assert.equal((sidebar.match(/badge: paymentsDue, badgeLabel: "Должники"/g) || []).length, 2, "owner and administrator");
   // the «Должники» tab of the payments page and the card «Долг учеников» read the one count (owner 21.10)

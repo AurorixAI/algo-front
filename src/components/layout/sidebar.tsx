@@ -134,7 +134,7 @@ export function Sidebar() {
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
   const paymentsKnown = usePaymentsSummary((state) => state.loaded);
   // One number for the owner everywhere: the badge, the banner and the card «Долг учеников» count the DEBTORS (students with a debt).
-  const paymentsDue = usePaymentsSummary((state) => debtorsCount({ debtors: state.debtors, students_with_debt: state.studentsWithDebt }) ?? 0);
+  const paymentsDue = usePaymentsSummary((state) => debtorsCount({ debtors: state.debtors }) ?? 0);
   // The owner always has access, so the item is there from the first paint (no jump when the
   // summary arrives); an administrator sees it once the server confirms the access.
   const showPayments = rawRole === "owner" || (role === "admin" && paymentsAvailable);

@@ -79,8 +79,8 @@ test("Б3: the window of the mode - a student with a package in progress waits f
 
 test("Б7: the banner, the cards and the badge count the DEBTORS (debt_split); the waiting ones are apart and named", () => {
   const state = S.summaryToState({
-    due: 5, expired: 3, students_due: 5, students_expired: 3, debt_total: 900000, students_with_debt: 2, debtors: 2, memberships_with_debt: 2,
-    buckets: { debt: 2, expiring: 0, active: 1, paused: 0 },
+    expiring: 0,
+    buckets: { expiring: 0, active: 1, paused: 0 },
     debt_split: { debtors: 1, debtors_memberships: 1, debtors_debt_total: 600000, waiting_students: 1, waiting_memberships: 1, waiting_debt_total: 300000, all_debt_total: 900000, all_students_with_debt: 2, expired: 0, due: 1, students_expired: 0, students_due: 1 },
   });
   assert.equal(state.debtTotal, 600000);
@@ -93,12 +93,13 @@ test("Б7: the banner, the cards and the badge count the DEBTORS (debt_split); t
   const copy = B.debtBannerCopy({ debtors: state.debtors, debtTotal: state.debtTotal, overdue: state.studentsExpired });
   assert.equal(N(copy.text), "1 ученик с долгом — 600 000 сум");
   assert.equal(copy.chip, null);
-  const cards = P.positionCards({ debt_total: state.debtTotal, debtors: state.debtors, debt_waiting_total: state.debtWaitingTotal, students_waiting: state.studentsWaiting });
+  const cards = P.positionCards({ debtors_debt_total: state.debtTotal, debtors: state.debtors, debt_waiting_total: state.debtWaitingTotal, students_waiting: state.studentsWaiting });
   assert.equal(N(cards[0].amount), "600 000 сум");
   assert.equal(N(cards[0].waiting), "Ждём оплату: 300 000 сум · 1 ученик");
-  // an older server (no split): the old numbers, nobody waits
+  // Money-1 V (а): an answer without the split does not fall back to the old fields (the server drops them): no debt, nobody waits
   const old = S.summaryToState({ due: 2, expired: 1, debt_total: 500000, students_with_debt: 2, debtors: 2 });
-  assert.equal(old.debtTotal, 500000);
+  assert.equal(old.debtTotal, 0);
+  assert.equal(old.debtors, 0);
   assert.equal(old.studentsWaiting, 0);
 });
 
@@ -109,7 +110,7 @@ test("Б7: the tab «Ждём оплату» stands next to «Должники»
   assert.deepEqual(keys({ students_waiting: 0 }, "waiting"), ["debt", "waiting", "expiring", "active"]);
   assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "waiting"), 2);
   assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "debt"), 7);
-  const row = { status: "expired", debt: 300000, days_overdue: 1, debt_reason: "overdue", tab: "waiting", waiting_reason: "Ждём оплату до 07.11", reason: "Просрочено на 1 день" };
+  const row = { status: "expired", debt: 300000, days_overdue: 1, debt_reason: "overdue", tab: "waiting", waiting_reason: "Ждём оплату до 07.11" };
   assert.deepEqual(P.moneyChip(row), { label: "Ждём оплату до 07.11", tone: "muted" });
   assert.deepEqual(P.moneyChip({ ...row, waiting_reason: null }), { label: "Ждём оплату", tone: "muted" });
   assert.equal(P.debtReasonText(row), "Ждём оплату до 07.11");
