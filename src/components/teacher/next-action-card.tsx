@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Radio } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Play, Radio } from "lucide-react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { formatCountdown, moreTodayText, startsInText, type AgendaLessonLike, type NextStep } from "@/lib/teacher-agenda";
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,9 @@ export interface CardExam {
 
 type Tone = "rose" | "amber" | "emerald" | "slate" | "primary";
 
-const ICON_TONE: Record<Tone, string> = {
-  rose: "bg-rose-100 text-rose-700",
+export const ICON_TONE: Record<Tone, string> = {
+  // `rose` is the rank «overdue»; it is SHOWN as a warning (red is for errors and debts)
+  rose: "bg-warning-100 text-warning-700",
   amber: "bg-amber-100 text-amber-700",
   emerald: "bg-emerald-100 text-emerald-700",
   slate: "bg-slate-100 text-slate-600",
@@ -64,6 +65,15 @@ export function nextStepView<A extends CardAction, L extends AgendaLessonLike>(s
   }
 }
 
+/** The sign of the step by its MEANING: a missed lesson «!», a lesson to start «play», a journal to finish a clipboard, the next lesson a clock, an exam a signal, a failure «!», all done a tick. */
+export function nextStepIcon<A extends CardAction, L extends AgendaLessonLike>(step: NextStep<A, L, CardExam>) {
+  if (step.kind === "action") {
+    const missed = step.action.actionType === "missed" || (step.action.tone === "rose" && step.action.actionType !== "in_progress");
+    return missed ? AlertCircle : step.action.tone === "emerald" ? Play : ClipboardCheck;
+  }
+  return step.kind === "exam_attention" ? ClipboardCheck : step.kind === "upcoming" ? Clock : step.kind === "exam_active" ? Radio : step.kind === "failed" ? AlertCircle : CheckCircle2;
+}
+
 /** «Следующий: чт, 29.10, 14:00 · Группа» under «На сегодня всё закрыто»; null for any other step. */
 export function laterLine<A extends CardAction, L extends AgendaLessonLike>(step: NextStep<A, L, CardExam>): string | null {
   return step.kind === "closed" && step.later
@@ -86,11 +96,7 @@ export function NextActionCard<A extends CardAction, L extends AgendaLessonLike>
   const view = nextStepView(step);
   const later = laterLine(step);
   const more = step.kind === "upcoming" ? moreTodayText(step.more) : null;
-  const Icon = step.kind === "action" || step.kind === "exam_attention" ? ClipboardCheck
-    : step.kind === "upcoming" ? Clock
-    : step.kind === "exam_active" ? Radio
-    : step.kind === "failed" ? AlertCircle
-    : CheckCircle2;
+  const Icon = nextStepIcon(step);
   return (
     <div data-testid="next-action-card" data-step={step.kind} className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary-50/80" />
@@ -102,7 +108,7 @@ export function NextActionCard<A extends CardAction, L extends AgendaLessonLike>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500">Ближайшее действие</p>
             <h2 data-testid="next-action-title" className="mt-1 text-xl font-bold text-slate-900">{view.title}</h2>
-            <p data-testid="next-action-description" className="mt-1 text-sm leading-6 text-slate-600">{view.description}</p>
+            <p data-testid="next-action-description" title={view.description} className="mt-1 truncate text-sm leading-6 text-slate-600">{view.description}</p>
             {hint && <p data-testid="today-pending-hint-card" className="mt-1 text-sm font-medium text-amber-800">{hint}</p>}
             {later && <p data-testid="next-lesson-later" className="mt-1 text-sm font-medium text-slate-700">{later}</p>}
             {more && <Link data-testid="more-today" href="/teacher/schedule" className="mt-1 inline-block text-sm font-semibold text-primary-700 hover:text-primary-800">{more}</Link>}

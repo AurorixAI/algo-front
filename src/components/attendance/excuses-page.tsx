@@ -79,11 +79,11 @@ const PAGE_SIZE = 50;
 /**
  * Columns of the wide layout (cards below `xl`: the sidebar takes 240 px from a tablet up, so a
  * five-column row only fits from 1280 px). Pending tabs show the deadline, decided ones the decision;
- * the last column of a pending row holds «Подтвердить», «Отклонить» and «⋯» side by side.
+ * the last column of a pending row holds «Подтвердить» and «⋯» side by side («Отклонить…» is the first item of the menu).
  * The header and every row use the same template, the same horizontal padding and the same gap, so a
  * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_208px_240px]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_208px_176px]";
 const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_minmax(0,1.2fr)_40px]";
 
 /** Ученик and Причина (free text) left, Урок and Срок / Решение centred, the actions right (see table-chrome). */
@@ -603,11 +603,11 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
     const confirmWithNote: RowMenuItem = { key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: () => openDialog(item, "confirmed", "required") };
     const reset: RowMenuItem = { key: "reset", label: "Сбросить решение", icon: Undo2, onSelect: () => void resetDecision(item) };
 
-    // IA audit F6 / d4: the menu has at most three items - the decision with a note, the certificate, the reset.  «Подтвердить» and
-    // «Отклонить» are buttons of the row; the journal and the card of the student are links of the row, not menu items.
+    // The row of a waiting excuse holds ONE button, «Подтвердить»; «Отклонить…» (danger) is the first item of «⋯», then the decision with a note and the certificate.
+    // The journal and the card of the student are links of the row, not menu items.
     // Money-1 A4 (I-6): a decision moves the pack of the student and the pay of the teacher - an administrator without the money right keeps the certificate only.
     if (!moneyRight) return [attach];
-    if (item.status === "pending") return [confirmWithNote, attach];
+    if (item.status === "pending") return [reject, confirmWithNote, attach];
     if (item.status === "confirmed") return [reject, reset, attach];
     return [confirmWithNote, reset, attach];
   };
@@ -792,27 +792,16 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                     {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
                     <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab || tab === "rejected" ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
                       {pendingTab && moneyRight && (
-                        <>
-                          <Button
-                            type="button"
-                            disabled={busy}
-                            aria-label={`Подтвердить: ${item.student.full_name}`}
-                            onClick={() => openDialog(item, "confirmed", "none")}
-                            variant="primary" size="sm" className="flex-1 xl:flex-none"
-                          >
-                            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                            Подтвердить
-                          </Button>
-                          <Button
-                            type="button"
-                            disabled={busy}
-                            aria-label={`Отклонить: ${item.student.full_name}`}
-                            onClick={() => openDialog(item, "rejected", "optional")}
-                            variant="secondary" size="sm" className="flex-1 xl:flex-none"
-                          >
-                            Отклонить
-                          </Button>
-                        </>
+                        <Button
+                          type="button"
+                          disabled={busy}
+                          aria-label={`Подтвердить: ${item.student.full_name}`}
+                          onClick={() => openDialog(item, "confirmed", "none")}
+                          variant="primary" size="sm" className="flex-1 xl:flex-none"
+                        >
+                          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          Подтвердить
+                        </Button>
                       )}
                       {tab === "rejected" && moneyRight && (
                         <Button

@@ -19,6 +19,7 @@ const server = (r) => {
 const SHOTS = [
   { name: "G-excuses-pending-queue", mount: "excuses", server, wait: "li", time: "2026-11-10T10:00:00+05:00" },
   { name: "D-time-picker-open", mount: "timePicker", act: async (page) => { await page.click('#demo-time ~ [data-testid="time-picker-open"]'); await page.waitForSelector('[data-testid="time-picker"]'); await page.waitForTimeout(200); } },
+  { name: "D-time-scrolled-hours", mount: "timePicker", act: async (page) => { await page.click('#demo-time ~ [data-testid="time-picker-open"]'); await page.waitForSelector('[data-testid="time-picker"]'); await page.waitForTimeout(300); const b = await page.locator('[data-column="hours"]').boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.wheel(0, 200); await page.waitForTimeout(700); const m = await page.locator('[data-column="minutes"]').boundingBox(); await page.mouse.move(m.x + m.width / 2, m.y + m.height / 2); await page.mouse.wheel(0, 130); await page.waitForTimeout(700); } },
   { name: "D-time-empty-error", mount: "timePicker", act: async (page) => { await page.click('button:has-text("Сохранить")'); await page.waitForSelector('[data-testid="demo-start-required"]'); await page.waitForTimeout(200); } },
   { name: "E-window-scroll", mount: "timePicker", act: async (page) => { await page.evaluate(() => { const b = document.querySelector('[data-modal-part="body"]'); b.scrollTop = 60; }); await page.waitForTimeout(200); } },
 ];

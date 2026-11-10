@@ -20,7 +20,7 @@ import { Calendar as CalendarIcon, Clock, Plus, MapPin, Video, ChevronLeft, Chev
 import { pluralRu } from "@/lib/payments";
 import { DAYS, classCountLabel, completedLessonsProgressLabel, getLessonTimeStatus } from "@/lib/schedule-time";
 import { Modal, useScrollLock } from "@/components/ui/modal";
-import { nextStepView } from "@/components/teacher/next-action-card";
+import { ICON_TONE, nextStepIcon, nextStepView } from "@/components/teacher/next-action-card";
 import { todayAgenda } from "@/lib/teacher-agenda";
 import { openTodayActions, orderedTodayActions, scheduledTodayActions, todayNextStep } from "@/lib/today-actions";
 import { lessonActionTarget } from "@/lib/lesson-actions";
@@ -825,7 +825,7 @@ export default function TeacherSchedulePage() {
     later: null,
   }), [todayActions, todayAgendaView, openActionsKnown, businessDate]);
   const nextStepText = nextStepView(nextStep as never);
-  const nextActionTone = nextStepText.tone === "rose" ? "border-danger-200 bg-danger-50/70 hover:bg-danger-50 text-danger-700"
+  const nextActionTone = nextStepText.tone === "rose" ? "border-warning-200 bg-warning-50/70 hover:bg-warning-50 text-warning-900"
     : nextStepText.tone === "emerald" ? "border-slate-200 bg-white hover:bg-slate-50 text-slate-800"
     : nextStepText.tone === "amber" ? "border-warning-200 bg-warning-50/70 hover:bg-warning-50 text-warning-900"
     : "border-slate-200 bg-white hover:bg-slate-50 text-slate-800";
@@ -960,7 +960,7 @@ export default function TeacherSchedulePage() {
           type="button"
           onClick={() => setIsWeekPlanOpen(true)}
           aria-label="Открыть подробный план недели"
-          className="group min-h-[128px] rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5"
+          className="group flex items-start rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5"
         >
           <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
@@ -979,7 +979,7 @@ export default function TeacherSchedulePage() {
           </div>
         </button>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card min-h-[128px] flex items-start gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <Clock className="w-6 h-6" />
           </div>
@@ -995,7 +995,7 @@ export default function TeacherSchedulePage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card min-h-[128px] flex items-start gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-card flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <CheckCheck className="w-6 h-6" />
           </div>
@@ -1014,7 +1014,7 @@ export default function TeacherSchedulePage() {
         {(nextStep.kind === "closed" || nextStep.kind === "failed") && activeExamAction ? (
           <Link
             href={`/teacher/exams/${activeExamAction.exam_id}`}
-            className="rounded-2xl p-4 sm:p-5 border border-primary-200 bg-primary-50/60 shadow-card min-h-[128px] flex items-start gap-4 text-left transition-colors hover:bg-primary-50"
+            className="rounded-2xl p-4 sm:p-5 border border-primary-200 bg-primary-50/60 shadow-card flex items-start gap-4 text-left transition-colors hover:bg-primary-50"
           >
             <div className="w-12 h-12 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
               <Radio className="w-6 h-6" />
@@ -1038,10 +1038,10 @@ export default function TeacherSchedulePage() {
             data-testid="schedule-next-step"
             aria-label={nextStep.kind === "action" ? `Ближайшее действие: ${nextStep.action.lesson.groupName}, ${nextStep.action.lesson.startTime}` : nextStep.kind === "upcoming" ? `Ближайший урок: ${nextStep.entry.lesson.groupName}, ${nextStep.entry.lesson.startTime}` : undefined}
             data-step={nextStep.kind}
-            className={`flex min-h-[128px] items-start gap-4 rounded-card border p-4 text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:p-5 ${nextActionTone}`}
+            className={`flex items-start gap-4 rounded-card border p-4 text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:p-5 ${nextActionTone}`}
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-slate-100 text-slate-600">
-              {nextStep.kind === "closed" ? <CheckCircle2 className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-control ${ICON_TONE[nextStepText.tone]}`}>
+              {(() => { const StepIcon = nextStepIcon(nextStep as never); return <StepIcon className="h-6 w-6" />; })()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
@@ -1049,7 +1049,7 @@ export default function TeacherSchedulePage() {
                 {(nextStep.kind === "action" || nextStep.kind === "upcoming") && <ArrowRight className="h-4 w-4 shrink-0 opacity-70" />}
               </div>
               <p className="mt-1 break-words text-sm font-bold leading-5">{nextStepText.title}</p>
-              <p className="mt-1.5 text-xs font-semibold leading-5 opacity-80">{nextStepText.description}</p>
+              <p title={nextStepText.description} className="mt-1.5 truncate text-xs font-semibold leading-5 opacity-80" data-testid="schedule-next-step-description">{nextStepText.description}</p>
             </div>
           </div>
         )}

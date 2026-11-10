@@ -14,6 +14,7 @@ export interface TodayActionBase<L> {
   description: string;
   cardLabel?: string;
   cardDescription?: string;
+  /** `rose` is the RANK «overdue» (it sorts first), SHOWN as a warning (yellow): red is for errors and debts only. */
   tone: "rose" | "amber" | "emerald";
   actionType?: "in_progress" | "missed";
   badge?: string;
@@ -33,9 +34,10 @@ export function scheduledTodayActions<L extends AgendaLessonLike & { groupName: 
       return [{
         lesson: entry.lesson,
         label: "Разберите урок",
-        cardLabel: `Разберите урок: ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
+        cardLabel: "Разобрать пропущенный урок",
         description: `${entry.lesson.groupName} · ${entry.lesson.startTime} — ${entry.lesson.endTime} · состоялся ли он`,
-        cardDescription: "Урок закончился, а журнал не начат. Отметьте урок или укажите, что его не было.",
+        // ONE line: the date and the lesson (the explanation «урок не был начат…» lives on the screen the arrow leads to)
+        cardDescription: `${formatIsoDateLabel(input.today, { weekday: "short", day: "numeric", month: "short" })} · ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
         badge: "Посещаемость не отмечена",
         tone: "rose",
       }];
@@ -91,15 +93,15 @@ export function openTodayActions<L extends AgendaLessonLike>(input: {
         // attendance rules belong in the lesson detail, not in its headline.
         cardLabel: hasNoRoster ? "Требует действия" : undefined,
         cardDescription: hasNoRoster
-          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })}`
+          ? `${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${action.groupName}`
           : undefined,
         label: isMissed
           ? "Разобрать пропущенный урок"
           : hasNoRoster ? "Завершите урок без отметок"
             : action.remainingCount > 0 ? "Завершите посещаемость" : "Завершите урок",
         description: isMissed
-          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · урок не был начат. Укажите, состоялся ли он.`
-          : `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${progress}`,
+          ? `${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${action.groupName}`
+          : `${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${action.groupName} · ${progress}`,
         tone: isMissed || isHistorical ? "rose" : "amber",
         markedCount: action.markedCount,
         rosterCount: action.rosterCount,

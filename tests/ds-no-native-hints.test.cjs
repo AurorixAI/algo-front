@@ -42,7 +42,7 @@ test("teacher: empty time + «Сохранить урок» → «Укажите
   assert.match(text, /Укажите время окончания/);
   const hints = await page.evaluate(() => [...document.querySelectorAll("#schedule-add-lesson-form input")].map((el) => el.validationMessage).filter((m) => m && !/[А-Яа-я]/.test(m)));
   assert.deepEqual(hints, [], "no English validity message of the browser on any field");
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => document.activeElement && document.activeElement.id === "sched-add-nachalo", null, { timeout: 10000, polling: "raf" });
   assert.equal(await page.evaluate(() => document.activeElement && (document.activeElement.id || document.activeElement.outerHTML.slice(0, 200))), "sched-add-nachalo", "the focus is on the first empty time field");
   await page.close();
 });
