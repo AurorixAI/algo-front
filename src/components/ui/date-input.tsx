@@ -86,8 +86,9 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
 
   // A native form (required, Enter) refuses a half-typed or out-of-range date, like <input type="date"> did.
   useEffect(() => {
-    inputRef.current?.setCustomValidity(problem);
-  }, [problem]);
+    // an empty REQUIRED field says it in Russian too (never the browser's own «Please fill out this field.»)
+    inputRef.current?.setCustomValidity(problem || (required && text === "" ? "Укажите дату" : ""));
+  }, [problem, required, text]);
 
   const commit = (nextText: string, final: boolean) => {
     setText(nextText);

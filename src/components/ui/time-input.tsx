@@ -58,8 +58,9 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
 
   // A native form (required, Enter) refuses a half-typed time, like <input type="time"> did.
   useEffect(() => {
-    inputRef.current?.setCustomValidity(problem);
-  }, [problem]);
+    // an empty REQUIRED field says it in Russian too (never the browser's own «Please fill out this field.»)
+    inputRef.current?.setCustomValidity(problem || (required && text === "" ? "Укажите время" : ""));
+  }, [problem, required, text]);
 
   const commit = (nextText: string, final: boolean) => {
     setText(nextText);
