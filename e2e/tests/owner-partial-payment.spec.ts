@@ -17,6 +17,9 @@ test.beforeAll(async () => {
   await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
+// the period of a payment is named «за ноябрь» when it is a whole calendar month and «за 06.10–05.11» otherwise: which one depends on the day the spec runs (rule 106) - both are right
+const MONTHS_NOMINATIVE = "(?:январь|февраль|март|апрель|май|июнь|июль|август|сентябрь|октябрь|ноябрь|декабрь)";
+
 test("partial payment: debtors row -> statement shows the allocation and «осталось» -> the rest closes the debt @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Платёжный");
   const group = await org.createGroup({ name: "Группа ЧО", teacherId: teacher.userId });
@@ -45,7 +48,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
   await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   const payment = page.getByTestId("statement-row-payment");
-  await expect(payment).toContainText(new RegExp(`за \\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d — ${moneyPattern(200000)} \\(осталось ${moneyPattern(300000)}\\)`));
+  await expect(payment).toContainText(new RegExp(`за (?:\\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d|${MONTHS_NOMINATIVE}) — ${moneyPattern(200000)} \\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-month")).not.toContainText("стоимость"); // the month row is only the name (owner 23.10): the figures are in the columns
   await expect(page.getByText(new RegExp(`Долг ${moneyPattern(300000)}`)).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
