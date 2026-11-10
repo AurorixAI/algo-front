@@ -25,7 +25,7 @@ import {
 import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
-import { applyItemChange, loadPendingAcrossPeriods } from "@/lib/excuses-pending";
+import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
 import { excuseChange } from "@/lib/excuse-conflict";
 import { afterDecision, createOncePer, createQueueGuard, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, type QueueGuard } from "@/lib/queue-guard";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
@@ -322,8 +322,10 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
       } as const;
       if (tab === "pending") {
         // The waiting queue is read whole (the urgency order needs all of it); decided tabs are paged below.
-        // the queue is NOT a month: every pending excuse of every period, by urgency (the month switch belongs to the decided tabs)
-        const queue = await loadPendingAcrossPeriods<AttendanceExcuseItem>(formatBusinessDate(), (window, limit, offset) => orgApi.listAttendanceExcuses({ ...query, dateFrom: window.from, dateTo: window.to, limit, offset }));
+        // the queue is NOT a month: ONE request WITHOUT dates (the server gives every pending excuse of every period, archived groups included, by deadline, then lesson date, then id);
+        // the pages are read whole, the order of the server is kept (the urgency sort below is stable: equal deadlines stay in the server's order)
+        const { dateFrom: _from, dateTo: _to, ...undated } = query;
+        const queue = await loadAllPending<AttendanceExcuseItem>((limit, offset) => orgApi.listAttendanceExcuses({ ...undated, limit, offset }));
         if (!guard.accepts(token)) return;
         setLoadError(null);
         setItems(queue.items);

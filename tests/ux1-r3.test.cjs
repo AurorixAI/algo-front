@@ -180,7 +180,7 @@ test("pending queue: a row that moved between two reads is not shown twice; an e
 
 test("the «Ожидают» tab reads the whole queue; decided tabs keep paging", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  assert.match(page, /if \(tab === "pending"\) \{[\s\S]*loadPendingAcrossPeriods<AttendanceExcuseItem>/);
+  assert.match(page, /if \(tab === "pending"\) \{[\s\S]*loadAllPending<AttendanceExcuseItem>/);
   assert.match(page, /limit: PAGE_SIZE, offset: page \* PAGE_SIZE/);
   assert.match(page, /!pendingTab && total > PAGE_SIZE/, "no pager over a queue that is already whole");
   assert.match(page, /sortExcusesByUrgency\(items, businessToday\)/);

@@ -22,7 +22,7 @@ const tailOf = (s: NamesakeInput): string => {
   const digits = String(s.student_phone ?? s.phone ?? "").replace(/\D/g, "");
   return digits.length >= 4 ? digits.slice(-4) : "";
 };
-const dayOf = (s: NamesakeInput): string => (s.joined_at ?? s.created_at ?? "").slice(0, 10);
+const dayOf = (s: NamesakeInput): string => (s.created_at ?? s.joined_at ?? "").slice(0, 10);
 const allDistinct = (values: string[]): boolean => values.every(Boolean) && new Set(values).size === values.length;
 
 /**

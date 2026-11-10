@@ -59,6 +59,13 @@ test("the rounding line exists for a part of a month and says 1 000 сум", () 
   assert.match(text, /parts\.some\(\(part\) => !part\.whole\) && <p data-testid="pay-from-rounding-note"/, "only where a month is not whole");
 });
 
+test("namesakes: the day added is `created_at` of the answer (the first), `joined_at` only when there is none", () => {
+  const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234", created_at: "2026-10-12T05:00:00", joined_at: "2026-11-01T05:00:00" };
+  const b = { id: "2", full_name: "Иванов Иван", student_phone: "+998907771234", created_at: "2026-11-03T05:00:00" };
+  assert.equal(namesakeDetail(a, [a, b]), "добавлен 12.10.2026");
+  assert.equal(namesakeDetail(b, [a, b]), "добавлен 03.11.2026");
+});
+
 test("namesakes with the SAME end of the phone are told apart by the day added, then by the ID (the detail really tells them apart)", () => {
   const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234", joined_at: "2026-10-12T05:00:00", display_id: "AL15-001" };
   const b = { id: "2", full_name: "Иванов Иван", student_phone: "+998907771234", joined_at: "2026-11-03T05:00:00", display_id: "AL15-002" };
