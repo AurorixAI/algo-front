@@ -20,6 +20,9 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
+import { Notice } from "@/components/ui/notice";
+import { Checkbox } from "@/components/ui/checkbox";
+import { tidyMoneyText } from "@/lib/money-format";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { OpeningBalanceFields } from "./opening-balance-fields";
 
@@ -57,6 +60,9 @@ export function OpeningBalanceDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [impact, setImpact] = useState<ImpactMoney | null>(null);
+  /** Money-1 V4: the dry run's `OPENING_OVER_PAYMENTS` (the server's sentence) and the tick «Понятно, покрытие изменится» (for this form only). */
+  const [overPayments, setOverPayments] = useState<string | null>(null);
+  const [understoodKey, setUnderstoodKey] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const sequence = useRef(createRequestSequence());
 
@@ -68,6 +74,8 @@ export function OpeningBalanceDialog({
     setBusy(false);
     setError(null);
     setImpact(null);
+    setOverPayments(null);
+    setUnderstoodKey(null);
     let cancelled = false;
     if (opening) {
       orgApi.getOpeningBalance(membershipId)
@@ -91,16 +99,18 @@ export function OpeningBalanceDialog({
     const token = sequence.current.next();
     if (problem || (empty && !opening) || unchanged) {
       setImpact(null);
+      setOverPayments(null);
       setChecking(false);
       return () => { sequence.current.next(); };
     }
     setChecking(true);
     const timer = setTimeout(() => {
       orgApi.putOpeningBalance(membershipId, buildOpeningPut({ ...values, reason: "" }), { dryRun: true })
-        .then((result) => { if (sequence.current.isCurrent(token)) { setImpact(result.impact); setChecking(false); } })
+        .then((result) => { if (sequence.current.isCurrent(token)) { setImpact(result.impact); setOverPayments((result.warnings ?? []).find((warning) => warning.code === "OPENING_OVER_PAYMENTS")?.message ?? null); setChecking(false); } })
         .catch((cause) => {
           if (!sequence.current.isCurrent(token)) return;
           setImpact(null);
+          setOverPayments(null);
           setChecking(false);
           // A refusal of the dry run (range, a transfer) is the answer the owner needs now.
           const failure = logicaError(cause);
@@ -131,6 +141,8 @@ export function OpeningBalanceDialog({
   };
 
   const lines = openingImpactLines(impact);
+  const needsTick = overPayments !== null && !checking && !problem;
+  const understood = understoodKey === key;
 
   return (
     <Modal
@@ -140,7 +152,7 @@ export function OpeningBalanceDialog({
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={removing ? "Убрать остаток" : "Сохранить"} tone={removing ? "danger" : "primary"} submitFor="opening-form" busy={busy} disabled={Boolean(problem) || unchanged || (empty && !opening)} why={problem ? String(problem) : unchanged ? "Измените остаток, чтобы сохранить" : "Заполните остаток"} whyId="opening-why" onCancel={onClose} testId="opening-save" />}
+      footer={<ConfirmFooter primary={removing ? "Убрать остаток" : "Сохранить"} tone={removing ? "danger" : "primary"} submitFor="opening-form" busy={busy} disabled={Boolean(problem) || unchanged || (empty && !opening) || (needsTick && !understood)} why={problem ? String(problem) : unchanged ? "Измените остаток, чтобы сохранить" : needsTick && !understood ? "Отметьте: «Понятно, покрытие изменится»" : "Заполните остаток"} whyId="opening-why" onCancel={onClose} testId="opening-save" />}
     >
       <form id="opening-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <OpeningBalanceFields
@@ -170,6 +182,16 @@ export function OpeningBalanceDialog({
           <div aria-live="polite" className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700" data-testid="opening-impact">
             <p className="font-semibold text-slate-800">Что изменится</p>
             {checking ? <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p> : lines.map((line) => <p key={line}>{line}</p>)}
+          </div>
+        )}
+
+        {needsTick && (
+          <div className="space-y-2" data-testid="opening-over-payments">
+            <Notice variant="warning" compact>{tidyMoneyText(overPayments)}</Notice>
+            <label className="flex min-h-10 items-center gap-2 text-sm text-slate-800">
+              <Checkbox checked={understood} onChange={(event) => setUnderstoodKey(event.target.checked ? key : null)} data-testid="opening-over-payments-ok" />
+              Понятно, покрытие изменится
+            </label>
           </div>
         )}
 

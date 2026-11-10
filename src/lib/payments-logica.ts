@@ -158,6 +158,8 @@ export interface OpeningSaved {
   impact: ImpactMoney | null;
   dry_run: boolean;
   row: MembershipPaymentRow | null;
+  /** Money-1 V4: `OPENING_OVER_PAYMENTS` - «У ученика уже есть оплаты на 600 000 сум — покрытие станет до 20.01» (the server's words). */
+  warnings?: Array<{ code: string; message: string }>;
 }
 
 export interface OpeningFormValues {

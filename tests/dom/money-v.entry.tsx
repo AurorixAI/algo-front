@@ -14,6 +14,7 @@ import { JournalSection } from "@/components/payments/income-journal";
 import { periodOf } from "@/lib/payments-income-v2";
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
 import { AssignOverrideDialog } from "@/components/payments/membership-price";
+import { OpeningBalanceDialog } from "@/components/payments/opening-balance-dialog";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -86,6 +87,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "assignOverride":
       root.render(<AssignOverrideDialog open row={{ ...ROW, price: { amount: 300000, source: "group", group_amount: 300000 } } as never} studentName="Иванов Иван" label="Цена в месяц" onClose={() => log("close")} onConflict={() => log("conflict")} onSaved={() => log("saved")} />);
+      break;
+    case "opening":
+      root.render(<OpeningBalanceDialog open membershipId="m1" studentName="Иванов Иван" groupName="7-А Алгебра" opening={null} enrolDate="2026-09-01" accountingStart="2026-09-01" onClose={() => log("close")} onSaved={() => log("saved")} />);
       break;
     default:
       break;
