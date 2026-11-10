@@ -36,5 +36,9 @@ export function namesakeDetail(student: NamesakeInput, all: NamesakeInput[]): st
   if (group.length < 2) return null;
   if (allDistinct(group.map(tailOf))) { const tail = tailOf(student); return `тел. …${tail.slice(0, 2)} ${tail.slice(2)}`; }
   if (allDistinct(group.map(dayOf))) return `добавлен ${formatDateRu(dayOf(student))}`;
+  // the public ID is given at the enrolment: while one of the namesakes has none, the ID cannot tell them apart - the minute of adding does
+  if (group.every((other) => other.display_id)) return `ID ${student.display_id}`;
+  const stamp = (x: NamesakeInput) => (x.created_at ?? x.joined_at ?? "").slice(0, 16);
+  if (allDistinct(group.map(stamp))) return `добавлен ${formatDateRu(dayOf(student))} ${stamp(student).slice(11)}`;
   return student.display_id ? `ID ${student.display_id}` : null;
 }

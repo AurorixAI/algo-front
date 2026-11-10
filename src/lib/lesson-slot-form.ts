@@ -120,7 +120,9 @@ export function overlappingLesson<T extends { id: string; dayOfWeek: number; sta
 
 /** The sentence when a lesson would start in the past of today (the day is today and the start time has gone), else null. */
 export function pastTimeProblem(startTime: string, nowMinutes: number): string | null {
-  const [h, m] = (startTime || "00:00").split(":").map(Number);
+  // no time yet: that is «Укажите время», not «прошедшее время»
+  if (!/^\d{2}:\d{2}/.test(startTime || "")) return null;
+  const [h, m] = startTime.split(":").map(Number);
   if ((h || 0) * 60 + (m || 0) >= nowMinutes) return null;
   const now = `${String(Math.floor(nowMinutes / 60)).padStart(2, "0")}:${String(nowMinutes % 60).padStart(2, "0")}`;
   return `Нельзя назначить урок на прошедшее время сегодняшнего дня (текущее время: ${now})`;
