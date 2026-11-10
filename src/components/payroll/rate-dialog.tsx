@@ -13,6 +13,7 @@ import {
   hasAnyRate,
   lessonTypeLabel,
   payrollErrorText,
+  rateUnusualQuestion,
   percentInputText,
   rateHistoryView,
   rateDialogTypes,
@@ -26,6 +27,7 @@ import {
 import { teacherFullName } from "@/lib/person-name";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
+import { Notice } from "@/components/ui/notice";
 
 const FORM_ID = "payroll-rate-form";
 
@@ -58,6 +60,8 @@ export function TeacherRateDialog({
   const [attempted, setAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The question of the server about a rate of 0 / in times (`RATE_UNUSUAL`): the window stays, the one button becomes the answer «Да, ставка верная». */
+  const [unusual, setUnusual] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<PayrollRateHistoryItem[] | "failed" | null>(null);
 
@@ -69,6 +73,7 @@ export function TeacherRateDialog({
     setAttempted(false);
     setSaving(false);
     setError(null);
+    setUnusual(null);
     setHistoryOpen(false);
     setHistory(null);
     // the fields are reset only when another teacher is opened
@@ -97,10 +102,13 @@ export function TeacherRateDialog({
     setSaving(true);
     setError(null);
     try {
-      const saved = await orgApi.putPayrollRates(item.teacher_id, ratePutBody(validFrom, checked, current));
+      const body = ratePutBody(validFrom, checked, current);
+      const saved = await orgApi.putPayrollRates(item.teacher_id, unusual === null ? body : { ...body, confirm_unusual: true });
       onSaved(saved);
     } catch (cause) {
-      setError(payrollErrorText(cause as PayrollErrorLike));
+      const question = rateUnusualQuestion(cause as PayrollErrorLike);
+      if (question) setUnusual(question);   // asked once more for the next kind of lessons, if the server finds another unusual one
+      else { setUnusual(null); setError(payrollErrorText(cause as PayrollErrorLike)); }
       setSaving(false);
     }
   };
@@ -114,7 +122,7 @@ export function TeacherRateDialog({
       busy={saving}
       size="md"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary="Сохранить" submitFor={FORM_ID} busy={saving} disabled={checked.changed === 0} why="Измените ставку, чтобы сохранить" whyId="rate-why" onCancel={onClose} testId="rate-save" />}
+      footer={<ConfirmFooter primary={unusual === null ? "Сохранить" : "Да, ставка верная"} submitFor={FORM_ID} busy={saving} disabled={checked.changed === 0} why="Измените ставку, чтобы сохранить" whyId="rate-why" onCancel={onClose} testId="rate-save" />}
     >
       <form id={FORM_ID} onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-5" noValidate>
         <p className="text-sm text-slate-600">Какую часть оплаты ученика за урок получает преподаватель.</p>
@@ -136,7 +144,7 @@ export function TeacherRateDialog({
                     placeholder="—"
                     aria-invalid={Boolean(shown)}
                     aria-describedby={shown ? `${id}-error` : undefined}
-                    onChange={(event) => { setError(null); setTexts((previous) => ({ ...previous, [type]: sanitizePercentTyping(event.target.value) })); }}
+                    onChange={(event) => { setError(null); setUnusual(null); setTexts((previous) => ({ ...previous, [type]: sanitizePercentTyping(event.target.value) })); }}
                     className={`w-24 rounded-lg border bg-white px-3 py-2 text-right text-sm tabular-nums outline-none focus:ring-2 ${
                       shown ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
                     }`}
@@ -154,7 +162,7 @@ export function TeacherRateDialog({
           <Select
             id="payroll-rate-from"
             value={validFrom}
-            onChange={(event) => setValidFrom(event.target.value)}
+            onChange={(event) => { setUnusual(null); setValidFrom(event.target.value); }}
             options={months.map((option) => ({ value: option.value, label: option.label }))}
             className="sm:w-64"
             buttonClassName="bg-white py-2"
@@ -163,6 +171,7 @@ export function TeacherRateDialog({
           {firstRate && validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_FIRST_NOTE}</p>}
         </div>
 
+        {unusual !== null && <Notice variant="warning" compact testId="rate-unusual">{unusual}</Notice>}
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </form>
 
