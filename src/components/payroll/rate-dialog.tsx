@@ -19,11 +19,11 @@ import {
   rateMonthOptions,
   ratePutBody,
   sanitizePercentTyping,
-  teacherLabel,
   type PayrollErrorLike,
   type PayrollRateHistoryItem,
   type PayrollRateItem,
 } from "@/lib/payroll";
+import { teacherFullName } from "@/lib/person-name";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
 
@@ -88,7 +88,7 @@ export function TeacherRateDialog({
 
   const checked = checkRateForm(types, texts, current);
   const firstRate = !hasAnyRate(item);
-  const name = teacherLabel(item.teacher_name);
+  const name = teacherFullName(item);
 
   const submit = async () => {
     if (saving) return;

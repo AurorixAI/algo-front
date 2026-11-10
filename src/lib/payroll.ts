@@ -374,6 +374,9 @@ export interface PayrollSheet {
   month_open: boolean;
   teacher_id: string;
   teacher_name: string | null;
+  /** Money-1 Н7: the parts of the name next to the ready one (`lib/person-name.ts`). */
+  teacher_first_name?: string | null;
+  teacher_last_name?: string | null;
   revision: number | null;
   /** Percent by lesson type. */
   percents: Record<string, string>;
@@ -437,6 +440,8 @@ export interface PayrollMonthWarnings {
 export interface PayrollMonthTeacher {
   teacher_id: string;
   teacher_name: string | null;
+  teacher_first_name?: string | null;
+  teacher_last_name?: string | null;
   /** Completed lessons the teacher held in the month. */
   lessons_count: number;
   lesson_types: PayrollTypeSuggestion[];
@@ -449,6 +454,11 @@ export interface PayrollMonthTeacher {
   undecided_lessons?: number;
   /** LOGIC-A decision 6: the payout state of the saved sheet; null without a sheet. */
   payout?: PayoutState | null;
+  /** Money-1 V7: no lessons and no sheet in the month, but an ADVANCE of the earlier months (`carry_in`, сум) is carried on. */
+  advance_only?: boolean;
+  carry_in?: number;
+  /** false: the teacher was removed from the centre. */
+  member_active?: boolean;
 }
 
 export interface PayrollMonthOverview {
@@ -1170,7 +1180,19 @@ export interface RowStatusView {
   items: WarningView[];
 }
 
-export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout" | "warnings" | "undecided_lessons">): RowStatusView {
+/** Money-1 V7: the row of a teacher with no lessons and no sheet in the month whose ADVANCE of the earlier months is carried on (often a removed one). */
+export type AdvanceFields = Pick<PayrollMonthTeacher, "advance_only" | "carry_in" | "member_active">;
+export const isAdvanceRow = (teacher: Pick<PayrollMonthTeacher, "advance_only">): boolean => teacher.advance_only === true;
+export const ADVANCE_LABEL = "Аванс";
+export const ADVANCE_META = "Уроков в месяце нет · аванс прошлых месяцев";
+export const REMOVED_TAG = "Удалён из центра";
+/** The place of the button: a row of an advance has no sheet to calculate or open. */
+export const NO_SHEET_TEXT = "Ведомости нет";
+export const advanceHint = (carry: number): string =>
+  `Выплачено вперёд ${formatMoney(carry)}. Покроется начислениями в следующих месяцах или останется как долг преподавателя`;
+
+export function rowStatus(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout" | "warnings" | "undecided_lessons"> & Pick<PayrollMonthTeacher, "advance_only">): RowStatusView {
+  if (isAdvanceRow(teacher)) return { tone: "none", label: ADVANCE_LABEL, items: [] };   // an advance is a fact, not a task: never in «Требует действия»
   const items = teacherAttention(teacher);
   if (items.length > 0) return { tone: "todo", label: "Требует действия", items };
   const base = sheetStatus(teacher.sheet);
@@ -1231,15 +1253,15 @@ export const SALARY_COLUMN = "Зарплата";
  * The teachers «Рассчитать всех» computes: those WITHOUT a saved sheet for the month.  A bulk action never gives a saved sheet
  * a new version (a clean one needs none; a changed one is recalculated from its own card).
  */
-export function calculationScope<T extends Pick<PayrollMonthTeacher, "sheet">>(teachers: ReadonlyArray<T>): T[] {
-  return teachers.filter((teacher) => !teacher.sheet);
+export function calculationScope<T extends Pick<PayrollMonthTeacher, "sheet"> & Partial<Pick<PayrollMonthTeacher, "advance_only">>>(teachers: ReadonlyArray<T>): T[] {
+  return teachers.filter((teacher) => !teacher.sheet && teacher.advance_only !== true);   // an advance row has no lessons to calculate
 }
 
 /**
  * «Рассчитать всех» works on the teachers with no saved sheet and waits until each of them has a rate (the count of those left
  * is said, nothing red).  When every teacher already has a saved sheet it is off and says so.
  */
-export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "missing_rates" | "sheet">>): CalculationGate {
+export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "missing_rates" | "sheet"> & Partial<Pick<PayrollMonthTeacher, "advance_only">>>): CalculationGate {
   const scope = calculationScope(teachers);
   const total = scope.length;
   const missing = scope.filter((teacher) => (teacher.missing_rates ?? []).length > 0).length;
@@ -1248,7 +1270,7 @@ export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher
     ready: total > 0 && missing === 0,
     missing,
     total,
-    text: missing > 0 ? `Не задана ставка у ${missing} ${people}` : teachers.length > 0 && total === 0 ? ALL_SAVED_TEXT : null,
+    text: missing > 0 ? `Не задана ставка у ${missing} ${people}` : teachers.some((teacher) => teacher.advance_only !== true) && total === 0 ? ALL_SAVED_TEXT : null,
   };
 }
 
@@ -1274,7 +1296,9 @@ export interface TeacherMonthNumbers {
 }
 
 /** The numbers of a row of the list - the ONE place both the row and the tiles of the summary read them (LESSONS 104). */
-export function teacherMonthNumbers(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout">): TeacherMonthNumbers {
+export function teacherMonthNumbers(teacher: Pick<PayrollMonthTeacher, "sheet" | "payout"> & Partial<AdvanceFields>): TeacherMonthNumbers {
+  // «вперёд 50 000»: the advance of the earlier months, carried on into a month with no lessons (the tile «Выплачено вперёд» adds it up with the rest)
+  if (!teacher.sheet && teacher.advance_only === true) return { salary: null, caption: null, was: null, paid: null, rest: { kind: "ahead", amount: Math.max(0, Math.round(Number(teacher.carry_in) || 0)) } };
   if (!teacher.sheet) return { salary: null, caption: null, was: null, paid: null, rest: { kind: "none", amount: 0 } };
   const sum = teacherMonthSum(teacher);
   const payout = teacher.payout;
@@ -1309,7 +1333,7 @@ export interface MonthTotals {
  * The four tiles over the list (UX pack §5.2): «Начислено на сегодня» (a finished month: «К выплате за октябрь») · «Выплачено» · «Осталось выплатить» · «Выплачено вперёд» (a finished month: «Выплачено больше»; only
  * when there is such a sum).  Every number is the sum of the SAME numbers the rows show (`teacherMonthNumbers`), so the tiles and the table can never disagree.
  */
-export function monthTotals(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet" | "payout">>, monthOpen: boolean): MonthTotals {
+export function monthTotals(month: string, teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "sheet" | "payout"> & Partial<AdvanceFields>>, monthOpen: boolean): MonthTotals {
   const rows = teachers.map(teacherMonthNumbers);
   const total = (pick: (row: TeacherMonthNumbers) => number) => rows.reduce((all, row) => all + pick(row), 0);
   const over = total((row) => (row.rest.kind === "ahead" || row.rest.kind === "more" ? row.rest.amount : 0));
@@ -1320,7 +1344,7 @@ export function monthTotals(month: string, teachers: ReadonlyArray<Pick<PayrollM
     { key: "left", label: "Осталось выплатить", value: total((row) => (row.rest.kind === "left" ? row.rest.amount : 0)), ...(over > 0 ? { note: "без учёта выплаченного вперёд" } : {}) },
   ];
   if (over > 0) tiles.push({ key: "ahead", label: monthOpen ? "Выплачено вперёд" : "Выплачено больше", value: over });
-  return { tiles, saved: `сохранено ${teachers.filter((teacher) => teacher.sheet).length} из ${teachers.length}`, running: monthOpen };
+  return { tiles, saved: `сохранено ${teachers.filter((teacher) => teacher.sheet).length} из ${teachers.filter((teacher) => !isAdvanceRow(teacher)).length}`, running: monthOpen };
 }
 
 /**
@@ -1596,6 +1620,8 @@ export interface PayrollRateNext {
 export interface PayrollRateItem {
   teacher_id: string;
   teacher_name: string | null;
+  teacher_first_name?: string | null;
+  teacher_last_name?: string | null;
   /** The kinds of lessons the teacher teaches: a rate is set for each of them. */
   lesson_types: LessonType[];
   /** Type -> the rate in force in the month asked for; null: none yet. */

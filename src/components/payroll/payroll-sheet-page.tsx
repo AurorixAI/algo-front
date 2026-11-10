@@ -29,7 +29,6 @@ import {
   sheetNoFeeHref,
   sheetTodoItems,
   sheetTotal,
-  teacherLabel,
   versionLabel,
   type PayrollDiff,
   type PayrollMonthWarnings,
@@ -39,6 +38,7 @@ import {
   type RatesNow,
   type SheetEdits,
 } from "@/lib/payroll";
+import { teacherFullName } from "@/lib/person-name";
 import { CLOSE_MONTH_DONE, CLOSE_MONTH_LABEL, periodOf, periodView, reopenToast, type PayrollPeriodItem } from "@/lib/closed-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
@@ -82,7 +82,7 @@ export function PayrollSheetPage({ sheetId }: { sheetId: string }) {
 
 /** A teacher the server could not name still has a heading. */
 function named(sheet: PayrollSheet): PayrollSheet {
-  return { ...sheet, teacher_name: teacherLabel(sheet.teacher_name) };
+  return { ...sheet, teacher_name: teacherFullName(sheet) };
 }
 
 function PayrollSheetContent({ sheetId }: { sheetId: string }) {
