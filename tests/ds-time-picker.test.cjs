@@ -305,7 +305,13 @@ test("375: a TOUCH scroll (a swipe gesture) moves the column and lands on an ite
   assert.ok(sizes.inside, "the choice is inside the screen");
   const box = await page.locator('[data-column="hours"]').boundingBox();
   const client = await page.context().newCDPSession(page);
-  await client.send("Input.synthesizeScrollGesture", { x: box.x + box.width / 2, y: box.y + box.height / 2, yDistance: -sizes.row * 4, gestureSourceType: "touch", speed: 600 });
+  // a real finger: touch events by the protocol (touchStart, steps of touchMove, touchEnd).  `synthesizeScrollGesture` with "touch" does nothing in headless Chromium on Linux (CI), these events work on both.
+  await client.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  const x = box.x + box.width / 2;
+  let y = box.y + box.height / 2;
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let step = 0; step < 8; step += 1) { y -= sizes.row / 2; await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] }); }
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await settled(page, "hours", { not: "09" });
   const state = await bandState(page, "hours");
   assert.ok(state.d <= 0.5, `centred to ${state.d}px`);
