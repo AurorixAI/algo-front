@@ -4,8 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type RefundCreated } from "@/lib/payments";
-import { buildRefundPayload, METHODS, payError, refundPreviewText, validateRefund, type RefundFormValues } from "@/lib/payments-ledger";
+import { balanceChangeOf, buildRefundPayload, METHODS, payError, refundPreviewText, validateRefund, type RefundFormValues } from "@/lib/payments-ledger";
+import { useDialogAction } from "@/lib/use-dialog-action";
+import { useDialogKey } from "@/lib/use-dialog-key";
+import { BalanceChangedNotice } from "@/components/money/balance-changed-notice";
+import { DialogError } from "@/components/money/dialog-error";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
 import { Modal } from "@/components/ui/modal";
 import { SegmentedControl } from "@/components/ui/radio";
 
@@ -15,48 +20,71 @@ const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 export const REFUND_ACTION_LABEL = "Вернуть аванс";
 
 /**
- * «Вернуть аванс» (the student leaves): a record of a refund up to the part of the advance that can be given back.
- * The payments stay; the statement shows the refund.
+ * «Вернуть аванс» (the student leaves): a record of a refund up to the part of the advance that can be given back.  The payments stay; the statement shows the refund.
+ * Money-1 V: the reason and the method are the person's (no default, no «other»); the window sends the sum it SHOWED (`expected_refundable`) and one `Idempotency-Key` for the whole opening;
+ * a 409 `BALANCE_CHANGED` says «было … сейчас …» and goes on with the new number; a `DUPLICATE_REFUND` is a success.
  */
 export function RefundDialog({
-  row, studentName, onClose, onDone,
+  row, studentName, onClose, onDone, onDuplicate,
 }: {
   row: MembershipPaymentRow | null;
   studentName: string;
   onClose: () => void;
   onDone: (result: RefundCreated) => void;
+  /** The same intention was already written (the same key): the window closes, the caller reads the data again. */
+  onDuplicate?: () => void;
 }) {
-  const refundable = Math.max(0, Math.round(row?.refundable ?? 0));
+  const [fresh, setFresh] = useState<number | null>(null);
+  const refundable = fresh ?? Math.max(0, Math.round(row?.refundable ?? 0));
   const today = useMemo(() => formatBusinessDate(), [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [values, setValues] = useState<RefundFormValues>({ amount: "", method: null, reason: "" });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+  const [lowered, setLowered] = useState<string | null>(null);
+  const { busy, error, setError, closed, run } = useDialogAction(row?.membership_id ?? null);
+  const key = useDialogKey(row?.membership_id ?? null);
 
   useEffect(() => {
+    setFresh(null);
     setValues({ amount: formatMoneyInput(Math.max(0, Math.round(row?.refundable ?? 0))), method: null, reason: "" });
-    setBusy(false);
-    setError(null);
+    setTouched(false);
+    setLowered(null);
   }, [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const patch = (next: Partial<RefundFormValues>) => { setError(null); setValues((previous) => ({ ...previous, ...next })); };
+  const change = balanceChangeOf(error, "refundable");
+  const patch = (next: Partial<RefundFormValues>) => { if (!change) setError(null); setLowered(null); setValues((previous) => ({ ...previous, ...next })); };
   const refundAmount = parseMoneyInput(values.amount);
-  const blocker = row ? validateRefund(values, refundable) : null;
+  // the sum changed under the window: the person goes on with the new one first («Продолжить с …»)
+  const blocker = row ? validateRefund(values, refundable) ?? (change ? "Сумма изменилась — нажмите «Продолжить»" : null) : null;
+  const failure = payError(error);
+
+  const continueWith = (next: number) => {
+    setFresh(next);
+    setError(null);
+    const typed = parseMoneyInput(values.amount);
+    if (typed !== null && typed > next) {
+      setValues((previous) => ({ ...previous, amount: formatMoneyInput(next) }));
+      setLowered(`Сумма уменьшена до ${formatMoney(next)}`);
+    }
+  };
 
   const submit = async () => {
-    if (!row || busy) return;
-    const problem = validateRefund(values, refundable);
-    if (problem) { setError(problem); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await orgApi.createRefund(row.membership_id, buildRefundPayload(values, today));
-      onDone(result);
-      onClose();
-    } catch (cause) {
-      setError(payError(cause, "Не удалось оформить возврат").message);
-    } finally {
-      setBusy(false);
-    }
+    if (!row) return;
+    setTouched(true);
+    if (validateRefund(values, refundable)) return;
+    let created: RefundCreated | null = null;
+    let duplicate = false;
+    const ok = await run(async () => {
+      try {
+        created = await orgApi.createRefund(row.membership_id, buildRefundPayload(values, today, refundable), key());
+      } catch (cause) {
+        if (payError(cause).kind === "duplicate_refund") { duplicate = true; return; }
+        throw cause;
+      }
+    });
+    if (!ok) return;
+    if (created) onDone(created);
+    else if (duplicate) onDuplicate?.();
+    onClose();
   };
 
   return (
@@ -74,7 +102,7 @@ export function RefundDialog({
     >
       <form id="refund-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">
-          Можно вернуть: <span className="font-semibold tabular-nums text-slate-900">{formatMoney(refundable)}</span>
+          Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">{formatMoney(refundable)}</span>
         </p>
 
         <div>
@@ -87,33 +115,36 @@ export function RefundDialog({
               inputMode="numeric"
               autoComplete="off"
               autoFocus
+              disabled={busy}
               className={`${FIELD} pr-12`}
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500">сум</span>
           </div>
-          <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{refundPreviewText(values, refundable)}</p>
+          <p aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">{lowered ?? refundPreviewText(values, refundable)}</p>
         </div>
 
         <div>
           <span id="refund-method-label" className={LABEL}>Способ возврата</span>
-          {/* re-audit С7: the same control as the payment and the payout */}
-          <SegmentedControl ariaLabelledBy="refund-method-label" testId="refund-methods" value={values.method} onChange={(key) => patch({ method: key })} options={METHODS.map((method) => ({ value: method.key, label: method.label }))} className={METHODS.length >= 5 ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"} />
+          {/* re-audit С7: the same control as the payment and the payout; nothing is chosen for the person */}
+          <SegmentedControl ariaLabelledBy="refund-method-label" testId="refund-methods" value={values.method} onChange={(next) => patch({ method: next })} options={METHODS.map((method) => ({ value: method.key, label: method.label }))} className={METHODS.length >= 5 ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"} buttonClassName="max-sm:min-h-11" />
         </div>
 
-        <div>
-          <label htmlFor="refund-reason" className={LABEL}>Причина <span className="font-normal text-slate-500">(необязательно)</span></label>
-          <input
-            id="refund-reason"
-            value={values.reason}
-            onChange={(event) => patch({ reason: event.target.value })}
-            maxLength={REASON_MAX}
-            placeholder="Например: ученик ушёл"
-            className={FIELD}
-          />
-          <p className="mt-1 text-xs text-slate-500">Оплаты остаются в истории, в выписке появится запись о возврате. Возврат можно отменить.</p>
-        </div>
+        <ReasonField
+          id="refund-reason"
+          value={values.reason}
+          onChange={(next) => patch({ reason: next })}
+          required
+          error={failure.kind === "reason_required" ? failure.message : reasonFieldError(values.reason, touched)}
+          onBlur={() => setTouched(values.reason.length > 0)}
+          maxLength={REASON_MAX}
+          rows={2}
+          placeholder="Например: ученик ушёл"
+          hint="Оплаты остаются в истории, в выписке появится запись о возврате. Возврат можно отменить."
+        />
 
-        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+        {change
+          ? <BalanceChangedNotice message={change.message} fresh={change.fresh} emptyText="Возвращать нечего" onContinue={() => continueWith(change.fresh)} onClose={onClose} />
+          : failure.kind !== "reason_required" && <DialogError error={error} closed={closed} text={(cause) => payError(cause, "Не удалось оформить возврат").message} onReopened={() => setError(null)} />}
       </form>
     </Modal>
   );

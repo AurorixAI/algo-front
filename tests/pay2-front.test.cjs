@@ -319,11 +319,15 @@ test("write-off: an amount up to the debt (or all of it) and a reason; refund: u
   const writeoff = fixture("e6_writeoff_40000");
   assert.equal(writeoff.debt_before - writeoff.debt_after, writeoff.writeoff.amount);
 
-  assert.equal(L.validateRefund({ amount: "344 000", method: "cash", reason: "" }, 344000), null);
-  assert.equal(L.validateRefund({ amount: "344 000", method: null, reason: "" }, 344000), "Выберите способ возврата");
-  assert.equal(plain(L.validateRefund({ amount: "344 001", method: "cash", reason: "" }, 344000)), "Вернуть можно не больше 344 000 сум");
-  assert.equal(L.validateRefund({ amount: "1", method: "cash", reason: "" }, 0), "Возвращать нечего");
+  assert.equal(L.validateRefund({ amount: "344 000", method: "cash", reason: "ушёл" }, 344000), null);
+  assert.equal(L.validateRefund({ amount: "344 000", method: "cash", reason: "" }, 344000), "Укажите причину (не короче 3 символов)", "Money-1 V6: the reason is required");
+  assert.equal(L.validateRefund({ amount: "344 000", method: null, reason: "ушёл" }, 344000), "Выберите способ возврата");
+  assert.equal(plain(L.validateRefund({ amount: "344 001", method: "cash", reason: "ушёл" }, 344000)), "Вернуть можно не больше 344 000 сум");
+  assert.equal(L.validateRefund({ amount: "1", method: "cash", reason: "ушёл" }, 0), "Возвращать нечего");
   assert.deepEqual(L.buildRefundPayload({ amount: "344 000", method: "cash", reason: " ученик ушёл " }, "2026-10-25"), { amount: 344000, method: "cash", reason: "ученик ушёл", effective_on: "2026-10-25" });
+  assert.deepEqual(L.buildRefundPayload({ amount: "344 000", method: "cash", reason: "ушёл" }, "2026-10-25", 344000), { amount: 344000, method: "cash", reason: "ушёл", effective_on: "2026-10-25", expected_refundable: 344000 });
+  assert.throws(() => L.buildRefundPayload({ amount: "344 000", method: null, reason: "ушёл" }), /method/, "«other» is never sent for the person");
+  assert.deepEqual(L.buildWriteoffPayload({ amount: "", all: true, reason: "болезнь" }, undefined, 100000), { reason: "болезнь", all: true, expected_debt: 100000 });
   assert.equal(plain(L.refundPreviewText({ amount: "100 000", method: null, reason: "" }, 344000)), "Останется аванс 244 000 сум");
   const refund = fixture("e7_refund_344000");
   assert.equal(refund.advance_before - refund.advance_after, refund.refund.amount);
@@ -586,7 +590,7 @@ test("the dialog: amount first, due block, live calculation from the server, an 
   assert.match(dialog, /create: "Оплата от ученика",/); // UX pack §5.1-бис: the window says whose money it is
   assert.match(dialog, /usePaymentPreview\(\{/);
   assert.match(dialog, /orgApi\.createPayment\(membership\.membership_id, body, idempotencyKey\.current\)/);
-  assert.match(dialog, /orgApi\.replacePayment\(payment\.id, \{ \.\.\.body, \.\.\.\(reason \? \{ reason \} : \{\}\) \}, idempotencyKey\.current\)/);
+  assert.match(dialog, /orgApi\.replacePayment\(payment\.id, \{ \.\.\.body, reason \}, idempotencyKey\.current\)/);
   assert.match(dialog, /replace_payment_id: payment\.id/);
   assert.match(dialog, /failure\.kind === "duplicate"/); // a repeated send is not an error: the payment is there
   assert.match(dialog, /planView\(fresh\)/); // the words come from the server's allocations

@@ -225,7 +225,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
       if (statement?.membership.is_active) {
         items.push({
           key: "correct", label: CORRECT_PAYMENT_LABEL, icon: Pencil,
-          onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined }),
+          onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined, files: cheques.fileListOf(id) }),
         });
       }
       items.push({
@@ -243,7 +243,9 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.credit)}`,
           explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
           action: "Отменить прощение",
-          run: async (reason) => { const result = await orgApi.voidWriteoff(id, reason); const note = studentToast(); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
+          // Money-1 V1: the debt the person SAW is checked by the server (a change in between is «Долг изменился: было …, сейчас …»)
+          expected: statement?.summary.debt, expectedKind: "debt", emptyText: "Долга больше нет", onStale: changed,
+          run: async (reason, expected) => { const result = await orgApi.voidWriteoff(id, reason, expected); const note = studentToast(); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
         }),
       });
     }
@@ -257,7 +259,8 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           description: `${formatDateRu(item.date)} · ${formatMoney(item.outflow)}`,
           explain: "Деньги снова считаются у центра: сумма вернётся в аванс ученика. Запись останется в выписке серым с этой причиной.",
           action: "Отменить возврат",
-          run: async (reason) => { const result = await orgApi.voidRefund(id, reason); const note = studentToast(); showToast("Возврат отменён", note.tone, note.details); changed(); },
+          expected: statement?.summary.advance, expectedKind: "advance", emptyText: "Аванса больше нет", onStale: changed,
+          run: async (reason, expected) => { const result = await orgApi.voidRefund(id, reason, expected); const note = studentToast(); showToast("Возврат отменён", note.tone, note.details); changed(); },
         }),
       });
     }
@@ -356,12 +359,14 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         onClose={() => setCorrect(null)}
         onSaved={(result) => { const note = studentToast(); showToast("Оплата исправлена", note.tone, note.details); changed(); void cheques.reload(); }}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
+        onStale={() => { changed(); void cheques.reload(); }}
       />
       <PaymentVoidModal
         payment={voidPayment}
         studentName={m?.student_name}
         onClose={() => setVoidPayment(null)}
         onVoided={(result) => { const note = studentToast(); showToast("Оплата отменена", note.tone, note.details); changed(); void cheques.reload(); }}
+        onStale={() => { changed(); void cheques.reload(); }}
       />
       <RecordVoidModal target={voidRecord} onClose={() => setVoidRecord(null)} />
       <PaymentDialog

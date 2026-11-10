@@ -1842,18 +1842,24 @@ export const orgApi = {
       .then(normalizePreview);
   },
   /** Writes off a part of the debt (or all of it) with a reason; the owner and the administrator. */
-  createWriteoff: (membershipId: string, data: WriteoffCreate) =>
-    api<WriteoffCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`, { method: "POST", body: data })
+  createWriteoff: (membershipId: string, data: WriteoffCreate, idempotencyKey?: string) =>
+    api<WriteoffCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`, {
+      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    })
       .then((result) => ({ ...result, row: normalizeRow(result.row) })),
-  voidWriteoff: (writeoffId: string, reason: string) =>
-    api<WriteoffVoided>(`/auth/org/writeoffs/${encodePathId(writeoffId)}/void`, { method: "POST", body: { reason } })
+  /** `expectedDebt`: the debt the person SAW (Money-1 V1); another one now -> 409 `BALANCE_CHANGED`. */
+  voidWriteoff: (writeoffId: string, reason: string, expectedDebt?: number) =>
+    api<WriteoffVoided>(`/auth/org/writeoffs/${encodePathId(writeoffId)}/void`, { method: "POST", body: expectedDebt === undefined ? { reason } : { reason, expected_debt: expectedDebt } })
       .then((result) => ({ ...result, row: normalizeRow(result.row) })),
   /** Gives an advance back (a record of a refund, the payment stays). */
-  createRefund: (membershipId: string, data: RefundCreate) =>
-    api<RefundCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/refunds`, { method: "POST", body: data })
+  createRefund: (membershipId: string, data: RefundCreate, idempotencyKey?: string) =>
+    api<RefundCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/refunds`, {
+      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    })
       .then((result) => ({ ...result, row: normalizeRow(result.row) })),
-  voidRefund: (refundId: string, reason: string) =>
-    api<RefundVoided>(`/auth/org/refunds/${encodePathId(refundId)}/void`, { method: "POST", body: { reason } })
+  /** `expectedAdvance`: the advance the person SAW (Money-1 V1); another one now -> 409 `BALANCE_CHANGED`. */
+  voidRefund: (refundId: string, reason: string, expectedAdvance?: number) =>
+    api<RefundVoided>(`/auth/org/refunds/${encodePathId(refundId)}/void`, { method: "POST", body: expectedAdvance === undefined ? { reason } : { reason, expected_advance: expectedAdvance } })
       .then((result) => ({ ...result, row: normalizeRow(result.row) })),
   /** The account of a student in a group: charges, payments, write-offs, refunds with the running balance. */
   getStatement: (membershipId: string, q: StatementQuery = {}) => {

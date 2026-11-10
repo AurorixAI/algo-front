@@ -80,7 +80,7 @@ test("№18: «Сохранить с уроками без отметки?» - t
   await page.close();
 });
 
-test("№22: «Вернуть аванс 344 000 сум», «Способ возврата»; off with the line «почему» until the method is chosen", async () => {
+test("№22: «Вернуть аванс 344 000 сум», «Способ возврата»; off with the line «почему» until the method and the reason are given", async () => {
   const { page } = await openPage(browser, "money.entry.tsx", () => null, { width: 1280, height: 900 });
   await page.evaluate(() => window.mount("refund"));
   await page.waitForSelector("#refund-amount");
@@ -90,6 +90,9 @@ test("№22: «Вернуть аванс 344 000 сум», «Способ воз
   assert.equal(plain(await page.textContent('[data-testid="refund-why"]')), "Выберите способ возврата");
   assert.equal(plain(await page.textContent("#refund-method-label")), "Способ возврата");
   await page.click('[role="radio"]:has-text("Наличные")');
+  assert.equal(await submit.isDisabled(), true, "Money-1 V: the reason is required too");
+  assert.match(plain(await page.textContent('[data-testid="refund-why"]')), /Укажите причину/);
+  await page.fill("#refund-reason", "ученик ушёл");
   assert.equal(await submit.isDisabled(), false);
   await page.fill("#refund-amount", "100 000");
   assert.equal(plain(await submit.textContent()), "Вернуть аванс 100 000 сум");

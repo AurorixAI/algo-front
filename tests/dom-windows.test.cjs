@@ -78,6 +78,7 @@ test("refund: one request once the method and the amount make it, no dry run", a
   await page.waitForTimeout(400);
   assert.equal(calls.length, 0, "nothing is asked before the press");
   await page.click('[role="radiogroup"] >> text=Наличные');
+  await page.fill("#refund-reason", "ученик ушёл");
   await page.click('button[form="refund-form"]');
   await page.waitForFunction(() => window.__log.includes("done"));
   assert.equal(calls.length, 1);

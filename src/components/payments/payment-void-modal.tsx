@@ -14,7 +14,7 @@ import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 export type VoidablePayment = Pick<PaymentOut, "id" | "paid_on" | "amount"> & Partial<Pick<PaymentOut, "carried_from">>;
 
 /** «Отменить оплату?»: the words and the calls of the cancel of a payment, for the one cancel dialog of money. */
-export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void): VoidTarget {
+export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void, onStale?: () => void): VoidTarget {
   return {
     key: payment.id,
     title: "Отменить оплату?",
@@ -27,17 +27,20 @@ export function paymentVoidTarget(payment: VoidablePayment, studentName: string 
     ],
     action: "Отменить оплату",
     failure: "Не удалось отменить оплату",
+    onStale,
     run: async (reason) => { onVoided(await orgApi.voidPayment(payment.id, reason)); },
   };
 }
 
 /** «Отменить оплату»: a reason of 3..500 characters is required; the record stays in the history, grey.  The window is the one of the cancels of money. */
-export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: {
+export function PaymentVoidModal({ payment, studentName, onClose, onVoided, onStale }: {
   /** The payment to cancel; null keeps the dialog closed. */
   payment: VoidablePayment | null;
   studentName?: string;
   onClose: () => void;
   onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void;
+  /** «Оплата уже отменена · кем, когда» -> «Понятно»: the page reads its data again. */
+  onStale?: () => void;
 }) {
-  return <RecordVoidModal target={payment ? paymentVoidTarget(payment, studentName, onVoided) : null} onClose={onClose} />;
+  return <RecordVoidModal target={payment ? paymentVoidTarget(payment, studentName, onVoided, onStale) : null} onClose={onClose} />;
 }

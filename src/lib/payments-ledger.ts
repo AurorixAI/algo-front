@@ -5,6 +5,7 @@
  * The sentences that describe a calculation (`summary_text`, the label of an allocation, `balance_text`, `days_text`)
  * are written by the server and shown as they come; this file only arranges them.  Pure: no React, no network.
  */
+import { formatUtcNaiveAsBusinessDateTime } from "./business-time";
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE } from "./ru-calendar";
 import { formatMoneyInput } from "./money-format";
 import {
@@ -209,7 +210,7 @@ export function previewAmount(text: string | null | undefined): number | null {
   return amount !== null && amount >= 1 && amount <= MAX_MONEY ? amount : null;
 }
 
-export function validatePaymentForm(values: PaymentFormValues, today: string): string | null {
+export function validatePaymentForm(values: PaymentFormValues, today: string, reasonRequired = false): string | null {
   const amountProblem = validateAmount(values.amount);
   if (amountProblem) return amountProblem;
   if (!isIsoDate(values.paidOn)) return "Укажите дату оплаты";
@@ -217,16 +218,18 @@ export function validatePaymentForm(values: PaymentFormValues, today: string): s
   if (values.paidOn < subtractYears(today, PAYMENT_MAX_AGE_YEARS)) return "Дата оплаты старше 3 лет";
   if (!values.method) return "Выберите способ оплаты";
   if (values.note.trim().length > NOTE_MAX) return `Комментарий не длиннее ${NOTE_MAX} символов`;
+  if (reasonRequired) return validateReason(values.reason);
   if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
   return null;
 }
 
 /** Request body of a payment: money, date, method, note.  Call only after `validatePaymentForm` returned null. */
 export function buildPaymentPayload(values: PaymentFormValues): PaymentCreate {
+  if (!values.method) throw new Error("A payment needs a method");   // Money-1 V5: «other» is never sent for the person
   const payload: PaymentCreate = {
     amount: parseMoneyInput(values.amount) ?? 0,
     paid_on: values.paidOn,
-    method: values.method ?? "other",
+    method: values.method,
   };
   const note = values.note.trim();
   if (note) payload.note = note;
@@ -485,6 +488,14 @@ export type PayErrorKind =
   | "void_breaks_refund"
   | "already_voided"
   | "student_archived"
+  /** Money-1 V1: the sum the person saw is not the sum now (409, with the fresh numbers). */
+  | "balance_changed"
+  /** Money-1 V1: the same `Idempotency-Key` again - the write is already there (409 with its id): a success, not an error. */
+  | "duplicate_writeoff"
+  | "duplicate_refund"
+  /** Money-1 V3 / V4: a price or a rate in times: the person is asked once more (409). */
+  | "price_unusual"
+  | "rate_unusual"
   | "other";
 
 export interface PayError {
@@ -494,6 +505,12 @@ export interface PayError {
   paymentId: string | null;
   debt: number | null;
   refundable: number | null;
+  advance: number | null;
+  refundId: string | null;
+  writeoffId: string | null;
+  /** `ALREADY_VOIDED`: when and by whom the record was cancelled. */
+  voidedAt: string | null;
+  voidedByName: string | null;
 }
 
 const ERROR_KIND: Record<string, PayErrorKind> = {
@@ -507,6 +524,11 @@ const ERROR_KIND: Record<string, PayErrorKind> = {
   VOID_BREAKS_REFUND: "void_breaks_refund",
   ALREADY_VOIDED: "already_voided",
   STUDENT_ARCHIVED: "student_archived",
+  BALANCE_CHANGED: "balance_changed",
+  DUPLICATE_WRITEOFF: "duplicate_writeoff",
+  DUPLICATE_REFUND: "duplicate_refund",
+  PRICE_UNUSUAL: "price_unusual",
+  RATE_UNUSUAL: "rate_unusual",
 };
 
 /** The error of a payments call (an `ApiError` carries `code`, `message` and the whole `detail`) in one shape. */
@@ -521,7 +543,30 @@ export function payError(error: unknown, fallback = "Не удалось вып�
     paymentId: detail?.payment_id ?? null,
     debt: detail?.debt ?? null,
     refundable: detail?.refundable ?? null,
+    advance: detail?.advance ?? null,
+    refundId: detail?.refund_id ?? null,
+    writeoffId: detail?.writeoff_id ?? null,
+    voidedAt: detail?.voided_at ?? null,
+    voidedByName: detail?.voided_by_name ?? null,
   };
+}
+
+/** What a 409 `BALANCE_CHANGED` tells: the sentence of the server («Долг изменился: было …, сейчас …») and the number the window continues with (`field` of the body: debt / refundable / advance). */
+export interface BalanceChange { message: string; fresh: number; }
+export function balanceChangeOf(error: unknown, field: "debt" | "refundable" | "advance"): BalanceChange | null {
+  const info = payError(error);
+  if (info.kind !== "balance_changed") return null;
+  const fresh = info[field];
+  return typeof fresh === "number" ? { message: info.message, fresh } : null;
+}
+
+/** «Оплата уже отменена · Иванова Д., 05.11 14:20»: the sentence of the server and who cancelled it, for an `ALREADY_VOIDED` (null when it is another failure). */
+export function alreadyVoidedText(error: unknown): string | null {
+  const info = payError(error);
+  if (info.kind !== "already_voided") return null;
+  const when = info.voidedAt ? formatUtcNaiveAsBusinessDateTime(info.voidedAt) : "";
+  const who = [info.voidedByName, when].filter(Boolean).join(", ");
+  return who ? `${info.message} · ${who}` : info.message;
 }
 
 // ── Write-off ──────────────────────────────────────────────────────────────
@@ -548,11 +593,12 @@ export function validateWriteoff(values: WriteoffFormValues, debt: number): stri
   return validateReason(values.reason);
 }
 
-export function buildWriteoffPayload(values: WriteoffFormValues, today?: string): WriteoffCreate {
+export function buildWriteoffPayload(values: WriteoffFormValues, today?: string, expectedDebt?: number): WriteoffCreate {
   const body: WriteoffCreate = { reason: values.reason.trim() };
   if (values.all) body.all = true;
   else body.amount = parseMoneyInput(values.amount) ?? 0;
   if (today) body.effective_on = today;
+  if (expectedDebt !== undefined) body.expected_debt = expectedDebt;
   return body;
 }
 
@@ -578,15 +624,15 @@ export function validateRefund(values: RefundFormValues, refundable: number): st
   if (amount < 1) return "Сумма должна быть больше нуля";
   if (amount > refundable) return `Вернуть можно не больше ${formatMoney(refundable)}`;
   if (!values.method) return "Выберите способ возврата";
-  if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
-  return null;
+  return validateReason(values.reason);
 }
 
-export function buildRefundPayload(values: RefundFormValues, today?: string): RefundCreate {
-  const body: RefundCreate = { amount: parseMoneyInput(values.amount) ?? 0, method: values.method ?? "other" };
-  const reason = values.reason.trim();
-  if (reason) body.reason = reason;
+/** The body of a refund: the method and the reason are the person's (a refund without them is not sent); `expectedRefundable` is the sum the window SHOWED (Money-1 V1). */
+export function buildRefundPayload(values: RefundFormValues, today?: string, expectedRefundable?: number): RefundCreate {
+  if (!values.method) throw new Error("A refund needs a method");
+  const body: RefundCreate = { amount: parseMoneyInput(values.amount) ?? 0, method: values.method, reason: values.reason.trim() };
   if (today) body.effective_on = today;
+  if (expectedRefundable !== undefined) body.expected_refundable = expectedRefundable;
   return body;
 }
 

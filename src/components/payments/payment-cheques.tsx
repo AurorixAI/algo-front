@@ -204,5 +204,7 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
     </>
   );
 
-  return { menuItem, filesOf, dialogs, reload };
+  /** The files of a payment as the list read them (the window «Исправить оплату» says that the photo moves with it). */
+  const fileListOf = (paymentId: string | null | undefined) => (paymentId ? payments[paymentId]?.files ?? [] : []);
+  return { menuItem, filesOf, fileListOf, dialogs, reload };
 }

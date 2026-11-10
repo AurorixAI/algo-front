@@ -317,7 +317,7 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
   return { sentence: sentences.join(" "), rows, lines, lessons: base.lessons, priceAhead: base.priceAhead, warnings: base.warnings, repeated: base.repeated };
 }
 
-// ── Method: required, remembered, without «Другое» ─────────────────────────
+// ── Method: required (no default, nothing remembered), without «Другое» ─────────────────────────
 
 /** The methods a NEW payment can be entered with: the till «по способам» must reconcile, so «Другое» is not offered. */
 export const PAYMENT_METHODS = METHODS.filter((method) => method.key !== "other");
@@ -325,37 +325,6 @@ export const PAYMENT_METHODS = METHODS.filter((method) => method.key !== "other"
 /** The picker: the same list; «Другое» only when the payment being corrected was entered with it (it could not be saved otherwise). */
 export function methodChoices(current: EnterableMethod | null | undefined): Array<{ key: EnterableMethod; label: string }> {
   return current === "other" ? METHODS : PAYMENT_METHODS;
-}
-
-export const LAST_METHOD_KEY = "algo.payments.lastMethod";
-
-type StorageLike = Pick<Storage, "getItem" | "setItem">;
-
-function browserStorage(): StorageLike | null {
-  try {
-    return typeof window !== "undefined" ? window.localStorage : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The last method this browser used, or null (no storage, a blocked one, or a value that is not in the picker). */
-export function readLastMethod(storage: Pick<Storage, "getItem"> | null = browserStorage()): EnterableMethod | null {
-  try {
-    const value = storage?.getItem(LAST_METHOD_KEY);
-    return PAYMENT_METHODS.find((method) => method.key === value)?.key ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function rememberMethod(method: EnterableMethod | null | undefined, storage: Pick<Storage, "setItem"> | null = browserStorage()): void {
-  if (!method || !PAYMENT_METHODS.some((item) => item.key === method)) return;
-  try {
-    storage?.setItem(LAST_METHOD_KEY, method);
-  } catch {
-    /* a private window or a full disk: the choice is simply not remembered */
-  }
 }
 
 // ── The button ─────────────────────────────────────────────────────────────
@@ -367,6 +336,8 @@ export function payButtonLabel(kind: "create" | "replace", amount: number | null
 }
 
 /** The sentence over the fields of a correction (UX pack №13): what the history says now, once, before the fields. */
+/** Money-1 V5: the cheque photo of the corrected payment goes to the new one (the server copies the files). */
+export const REPLACE_FILES_NOTE = "Фото чека перенесётся в исправленную оплату";
 export const REPLACE_HISTORY_NOTE = "Прежняя запись будет отменена и останется в истории серым. Оплаты ученика в группе пересчитаются.";
 
 /**
@@ -388,8 +359,8 @@ export function replaceChangeLine(
 }
 
 /** Why the button is off (shown right above it); null = the form can be sent. */
-export function payBlocker(values: PaymentFormValues, today: string, leftProblem: string | null): string | null {
-  const problem = validatePaymentForm(values, today);
+export function payBlocker(values: PaymentFormValues, today: string, leftProblem: string | null, kind: "create" | "replace" = "create"): string | null {
+  const problem = validatePaymentForm(values, today, kind === "replace");
   if (problem === "Укажите сумму") return "Введите сумму";
   return problem ?? leftProblem;
 }

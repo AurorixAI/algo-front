@@ -508,6 +508,8 @@ export interface WriteoffCreate {
   all?: boolean;
   reason: string;
   effective_on?: string;
+  /** Money-1 V1: the debt the person SAW; another one now -> 409 `BALANCE_CHANGED`. */
+  expected_debt?: number;
 }
 
 export interface WriteoffCreated {
@@ -540,14 +542,19 @@ export interface RefundOut {
   voided_by: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  /** Money-1 V6: the number of the receipt of the refund («В-n»); null for a refund older than the numbers. */
+  receipt_no?: number | null;
 }
 
 export interface RefundCreate {
   amount: number;
   method: Exclude<PayMethod, "unknown">;
-  reason?: string;
+  /** Money-1 V6: mandatory (3..500). */
+  reason: string;
   note?: string;
   effective_on?: string;
+  /** Money-1 V1: the sum to return the person SAW; another one now -> 409 `BALANCE_CHANGED`. */
+  expected_refundable?: number;
 }
 
 export interface RefundCreated {
@@ -571,6 +578,12 @@ export interface PayErrorDetail {
   debt: number | null;
   refundable: number | null;
   payment_id: string | null;
+  /** Money-1 V1: the fresh numbers of a 409 `BALANCE_CHANGED`, the id of the record a `DUPLICATE_*` answers with, who and when cancelled an `ALREADY_VOIDED` one. */
+  advance?: number | null;
+  refund_id?: string | null;
+  writeoff_id?: string | null;
+  voided_at?: string | null;
+  voided_by_name?: string | null;
 }
 
 // ── Statement (GET …/statement) ────────────────────────────────────────────

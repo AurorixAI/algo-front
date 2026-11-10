@@ -20,6 +20,7 @@ import {
 import {
   buildPaymentPayload,
   dueView,
+  alreadyVoidedText,
   payError,
   paymentFormFrom,
   previewAmount,
@@ -30,6 +31,8 @@ import {
   warningsAfterSave,
   type PaymentFormValues,
 } from "@/lib/payments-ledger";
+import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
+import { Notice } from "@/components/ui/notice";
 import { PaymentRepeatedNote } from "./payment-repeated-note";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
@@ -40,14 +43,13 @@ import {
   payButtonLabel,
   planView,
   PLAN_EMPTY_HINT,
+  REPLACE_FILES_NOTE,
   REPLACE_HISTORY_NOTE,
   replaceChangeLine,
   PLAN_LOADING_TEXT,
   QUICK_AMOUNTS_LABEL,
   quickAmounts,
   debtNowLine,
-  readLastMethod,
-  rememberMethod,
   type PlanView,
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
@@ -64,7 +66,7 @@ import { RecalcNote } from "./recalc-note";
 export type PaymentFormKind = "create" | "replace";
 
 /** What a correction starts from (the statement knows no more than this about a payment). */
-export type EditablePayment = Pick<PaymentOut, "id" | "amount" | "paid_on" | "note"> & Partial<Pick<PaymentOut, "method">>;
+export type EditablePayment = Pick<PaymentOut, "id" | "amount" | "paid_on" | "note"> & Partial<Pick<PaymentOut, "method" | "files">>;
 
 /** What the dialog needs to know about the membership it pays for. */
 export interface PaymentFormMembership {
@@ -88,6 +90,8 @@ interface PaymentDialogProps {
   onSaved: (result: PaymentSaveResult) => void;
   /** The server already has this payment (a repeated send): the caller refreshes and tells so. */
   onDuplicate?: (notice: DuplicateNotice) => void;
+  /** Money-1 V: `ALREADY_VOIDED` - somebody cancelled or corrected the payment first; the window said who and when, the caller reads its data again. */
+  onStale?: () => void;
 }
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -108,16 +112,20 @@ function emptyValues(): PaymentFormValues {
  * due («Погасить долг · 592 000 сум», «Долг + октябрь · 1 142 000 сум»); below, ONE block «Что изменится» (UX pack L3) says in the
  * future tense where the money will go (nothing is saved yet): «Долг ученика» - one plain sentence, then a quiet line per period - and, when the pay of the teachers moves, «Зарплата за …».  The
  * numbers are the server's live calculation (`payments/preview`); `lib/payment-plan.ts` only words them.  The method is
- * required (the till by method must reconcile) and the last one used in this browser is preselected.
+ * required (the till by method must reconcile) and NOTHING is preselected (Money-1 V5).
  */
-export function PaymentDialog({ open, kind, membership, payment, groupsBasePath, onClose, onSaved, onDuplicate }: PaymentDialogProps) {
+export function PaymentDialog({ open, kind, membership, payment, groupsBasePath, onClose, onSaved, onDuplicate, onStale }: PaymentDialogProps) {
   // The business date at the moment the dialog opens (Tashkent, never the browser's zone).
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [values, setValues] = useState<PaymentFormValues>(emptyValues);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);   // a ref holds a double press at once (LESSONS 27/104), `busy` only paints
   const [error, setError] = useState<string | null>(null);
+  const [touchedReason, setTouchedReason] = useState(false);
+  const [voidedNote, setVoidedNote] = useState<string | null>(null);
+  const [reasonServerError, setReasonServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ warnings: PaymentWarning[]; details: string[] } | null>(null);
   const [commentOpen, setCommentOpen] = useState(false);
   const amountTouched = useRef(false);
@@ -131,13 +139,17 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     if (!open || !membership) { setReady(false); return; }
     const start = kind === "replace" && payment
       ? paymentFormFrom(payment)
-      : { amount: "", paidOn: today, method: readLastMethod(), note: "", reason: "" };
+      : { amount: "", paidOn: today, method: null, note: "", reason: "" };
     setValues(start);
     setCommentOpen(start.note.trim().length > 0);
     amountTouched.current = kind === "replace";
     idempotencyKey.current = newIdempotencyKey(); firstSend.current = null;
     setBusy(false);
+    sending.current = false;
     setError(null);
+    setTouchedReason(false);
+    setVoidedNote(null);
+    setReasonServerError(null);
     setSaved(null);
     setReady(true);
     // The dialog restarts only when it is opened for another membership or payment.
@@ -186,11 +198,12 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const chips = kind === "create" ? quickAmounts(latest, { leftOnly }) : [];
   const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
-  const blocker = payBlocker(values, today, leftProblem);
+  const blocker = payBlocker(values, today, leftProblem, kind);
   const methods = methodChoices(kind === "replace" && payment ? paymentFormFrom(payment).method : null);
 
   const patch = (next: Partial<PaymentFormValues>) => {
     setError(null);
+    setReasonServerError(null);
     setValues((previous) => ({ ...previous, ...next }));
   };
   const setAmount = (amount: number) => {
@@ -199,9 +212,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   };
 
   const submit = async () => {
-    if (busy || saved) return;
-    const problem = validatePaymentForm(values, today) ?? leftProblem;
-    if (problem) { setError(problem); return; }
+    if (sending.current || saved) return;
+    const problem = validatePaymentForm(values, today, kind === "replace") ?? leftProblem;
+    if (problem) { if (kind === "replace" && reasonFieldError(values.reason, true)) setTouchedReason(true); else setError(problem); return; }
+    sending.current = true;
     setBusy(true);
     setError(null);
     let signature = "";
@@ -211,9 +225,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       signature = JSON.stringify([body, reason]);
       rememberFirstSend(firstSend, signature, body.amount);
       const result = kind === "replace" && payment
-        ? await orgApi.replacePayment(payment.id, { ...body, ...(reason ? { reason } : {}) }, idempotencyKey.current)
+        ? await orgApi.replacePayment(payment.id, { ...body, reason }, idempotencyKey.current)
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);
-      rememberMethod(values.method);
       onSaved(result);
       const after = warningsAfterSave(result.warnings);
       if (after.length > 0) setSaved({ warnings: after, details: savedPaymentDetails(result.allocation) });
@@ -224,10 +237,16 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         // The first send did arrive: nothing is entered twice; a CHANGED body is told what was recorded (R3)
         onDuplicate?.(duplicateNotice(firstSend.current, signature, formatMoney, PAYMENT_WORDS));
         onClose();
+      } else if (failure.kind === "reason_required") {
+        setReasonServerError(failure.message);
+      } else if (failure.kind === "already_voided") {
+        // somebody cancelled or corrected it first: said with who and when; the page reads its data again
+        setVoidedNote(alreadyVoidedText(cause) ?? failure.message);
       } else {
         setError(failure.message);
       }
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -241,7 +260,9 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       busy={busy}
       size="md"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={saved ? (
+      footer={voidedNote !== null ? (
+        <ConfirmFooter primary={null} cancelLabel="Понятно" onCancel={() => { onStale?.(); onClose(); }} />
+      ) : saved ? (
         <ConfirmFooter primary="Готово" onPrimary={onClose} testId="payment-done" />
       ) : (
         <ConfirmFooter
@@ -367,6 +388,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               onChange={(key) => patch({ method: key })}
               options={methods.map((method) => ({ value: method.key, label: method.label }))}
               className="grid-cols-3 sm:grid-cols-5"
+              buttonClassName="max-sm:min-h-11"
             />
           </div>
           <div className="sm:w-44">
@@ -406,25 +428,26 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           )}
 
           {kind === "replace" && (
-            <div>
-              <label htmlFor="payment-reason" className={LABEL}>Причина исправления <span className="font-normal text-slate-500">(необязательно)</span></label>
-              <input
-                id="payment-reason"
-                value={values.reason}
-                onChange={(event) => patch({ reason: event.target.value })}
-                maxLength={REASON_MAX}
-                placeholder="Исправлено"
-                className={FIELD}
-              />
-            </div>
+            <ReasonField
+              id="payment-reason"
+              label="Причина исправления"
+              value={values.reason}
+              onChange={(next) => patch({ reason: next })}
+              required
+              error={reasonServerError ?? reasonFieldError(values.reason, touchedReason)}
+              onBlur={() => setTouchedReason(values.reason.length > 0)}
+              maxLength={REASON_MAX}
+              rows={2}
+              placeholder="Например: ошибся в сумме"
+            />
           )}
+
+          {voidedNote !== null && <Notice variant="info" compact testId="already-voided">{voidedNote}</Notice>}
 
           {leftProblem && !error && amountNow !== null && (
             <p role="alert" className="text-xs font-medium text-rose-700">{leftProblem}</p>
           )}
-          {error && (
-            <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>
-          )}
+          {error && <Notice variant="error" compact>{error}</Notice>}
         </form>
       )}
     </Modal>
@@ -441,6 +464,7 @@ export function ReplaceHead({ payment, values }: { payment: EditablePayment; val
         <span className="font-semibold tabular-nums"><span aria-hidden="true" className="font-normal text-slate-500">→</span> {line.becomes}</span>
       </p>
       <p className="text-xs text-slate-600" data-testid="payment-replace-note">{REPLACE_HISTORY_NOTE}</p>
+      {(payment.files?.length ?? 0) > 0 && <p className="text-xs text-slate-600" data-testid="payment-replace-files">{REPLACE_FILES_NOTE}</p>}
     </div>
   );
 }

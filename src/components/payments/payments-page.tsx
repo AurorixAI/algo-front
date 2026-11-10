@@ -455,24 +455,28 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         onClose={() => setForm(null)}
         onSaved={onSaved}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); afterChange(); }}
+        onStale={afterChange}
       />
       <PaymentVoidModal
         payment={voidTarget?.payment ?? null}
         studentName={voidTarget?.studentName}
         onClose={() => setVoidTarget(null)}
         onVoided={(result) => { const note = studentToast(); showToast("Оплата отменена", note.tone, note.details); afterChange(); }}
+        onStale={afterChange}
       />
       <WriteoffDialog
         row={writeoffRow}
         studentName={writeoffRow?.student_name ?? ""}
         onClose={() => setWriteoffRow(null)}
         onDone={(result) => { const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); showToast("Долг прощён", note.tone, note.details); afterChange(); }}
+        onDuplicate={() => { showToast("Это прощение уже внесено", "success"); afterChange(); }}
       />
       <RefundDialog
         row={refundRow}
         studentName={refundRow?.student_name ?? ""}
         onClose={() => setRefundRow(null)}
         onDone={(result) => { const note = studentToast([`Возвращено ${formatMoney(result.refund.amount)}`]); showToast("Аванс возвращён", note.tone, note.details); afterChange(); }}
+        onDuplicate={() => { showToast("Этот возврат уже внесён", "success"); afterChange(); }}
       />
 
       {toastNode}

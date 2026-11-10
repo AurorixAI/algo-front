@@ -56,12 +56,14 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
         studentName={studentName}
         onClose={close}
         onDone={(result) => { onRowChange(result.row, "writeoff"); const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); onNotify("Долг прощён", note.tone, note.details); }}
+        onDuplicate={() => { onNotify("Это прощение уже внесено", "success"); void usePaymentsSummary.getState().refresh(true); }}
       />
       <RefundDialog
         row={open === "refund" ? row : null}
         studentName={studentName}
         onClose={close}
         onDone={(result) => { onRowChange(result.row, "refund"); const note = studentToast([`Возвращено ${formatMoney(result.refund.amount)}`]); onNotify("Аванс возвращён", note.tone, note.details); }}
+        onDuplicate={() => { onNotify("Этот возврат уже внесён", "success"); void usePaymentsSummary.getState().refresh(true); }}
       />
       <IndividualPriceDialog
         open={open === "price"}

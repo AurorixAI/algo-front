@@ -367,29 +367,13 @@ test("the picker has Наличные, Карта, Перевод, Click, Payme 
   assert.doesNotMatch(dialog, /\bMETHODS\b/);
 });
 
-test("the last method of this browser is preselected; a broken storage, junk or «Другое» preselects nothing", () => {
-  const memory = new Map();
-  const storage = { getItem: (key) => (memory.has(key) ? memory.get(key) : null), setItem: (key, value) => { memory.set(key, value); } };
-  assert.equal(X.readLastMethod(storage), null); // never used: nothing is chosen
-  X.rememberMethod("payme", storage);
-  assert.equal(X.readLastMethod(storage), "payme");
-  X.rememberMethod("other", storage); // not in the picker: not remembered
-  X.rememberMethod(null, storage);
-  assert.equal(X.readLastMethod(storage), "payme");
-  memory.set(X.LAST_METHOD_KEY, "bitcoin");
-  assert.equal(X.readLastMethod(storage), null);
-  memory.set(X.LAST_METHOD_KEY, "other");
-  assert.equal(X.readLastMethod(storage), null);
-  const broken = { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("denied"); } };
-  assert.equal(X.readLastMethod(broken), null);
-  assert.doesNotThrow(() => X.rememberMethod("cash", broken));
-  assert.equal(X.readLastMethod(null), null);
-  assert.doesNotThrow(() => X.rememberMethod("cash", null));
-  // under node there is no window: the defaults do not throw
-  assert.equal(X.readLastMethod(), null);
+test("Money-1 V: no method is preselected (no «как в прошлый раз»), nothing is remembered", () => {
+  assert.equal(X.readLastMethod, undefined);
+  assert.equal(X.rememberMethod, undefined);
+  assert.equal(X.LAST_METHOD_KEY, undefined);
   const dialog = read("src/components/payments/payment-dialog.tsx");
-  assert.match(dialog, /method: readLastMethod\(\)/);
-  assert.match(dialog, /rememberMethod\(values\.method\)/);
+  assert.doesNotMatch(dialog, /readLastMethod|rememberMethod|lastMethod/);
+  assert.match(dialog, /method: null, note: "", reason: ""/);
 });
 
 // ── the button, the future tense, the layout ───────────────────────────────────────────────────────────────────────

@@ -1,0 +1,55 @@
+// «Деньги-1 / В» (the money of the students) in a real DOM: the REAL components, the server answered by the test through `route`.
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { PaymentDialog } from "@/components/payments/payment-dialog";
+import { PaymentVoidModal } from "@/components/payments/payment-void-modal";
+import { RecordVoidModal } from "@/components/payments/record-void-modal";
+import { WriteoffDialog } from "@/components/payments/writeoff-dialog";
+import { RefundDialog } from "@/components/payments/refund-dialog";
+import { orgApi } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
+
+const w = window as any;
+w.__log = [] as string[];
+const log = (text: string) => w.__log.push(text);
+
+const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, refundable: 344000 };
+const MEMBERSHIP = { membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" };
+
+w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
+  useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true });
+  const root = createRoot(document.getElementById("root")!);
+  switch (name) {
+    case "refund":
+      root.render(<RefundDialog row={(props.row ?? ROW) as never} studentName="Иванов Иван" onClose={() => log("close")} onDone={(result) => log(`done:${result.refund.receipt_no ?? ""}`)} onDuplicate={() => log("duplicate")} />);
+      break;
+    case "writeoff":
+      root.render(<WriteoffDialog row={(props.row ?? ROW) as never} studentName="Иванов Иван" onClose={() => log("close")} onDone={() => log("done")} onDuplicate={() => log("duplicate")} />);
+      break;
+    case "voidWriteoff":
+      root.render(<RecordVoidModal onClose={() => log("close")} target={{
+        key: "w1", title: "Отменить прощение долга?", description: "05.11 · 40 000 сум", action: "Отменить прощение", explain: "Прощённая сумма снова станет долгом.",
+        expected: 100000, expectedKind: "debt", emptyText: "Долга больше нет", onStale: () => log("stale"),
+        run: async (reason, expected) => { await orgApi.voidWriteoff("w1", reason, expected); log("voided"); },
+      }} />);
+      break;
+    case "voidRefund":
+      root.render(<RecordVoidModal onClose={() => log("close")} target={{
+        key: "r1", title: "Отменить возврат?", description: "05.11 · 100 000 сум", action: "Отменить возврат",
+        expected: 0, expectedKind: "advance", emptyText: "Аванса больше нет", onStale: () => log("stale"),
+        run: async (reason, expected) => { await orgApi.voidRefund("r1", reason, expected); log("voided"); },
+      }} />);
+      break;
+    case "voidPayment":
+      root.render(<PaymentVoidModal payment={{ id: "p1", paid_on: "2026-11-05", amount: 300000 }} studentName="Иванов Иван" onClose={() => log("close")} onVoided={() => log("voided")} onStale={() => log("stale")} />);
+      break;
+    case "till":
+      root.render(<PaymentDialog open kind="create" membership={props.membership ?? MEMBERSHIP} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
+      break;
+    case "replace":
+      root.render(<PaymentDialog open kind="replace" membership={props.membership ?? MEMBERSHIP} payment={props.payment ?? { id: "p1", amount: 400000, paid_on: "2026-11-05", method: "cash", note: null }} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} onStale={() => log("stale")} />);
+      break;
+    default:
+      break;
+  }
+};
