@@ -60,7 +60,7 @@ export function GroupStatsPanel({ stats }: GroupStatsPanelProps) {
               initial={{ width: 0 }}
               animate={{ width: `${diagPct}%` }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-400"
+              className="h-full rounded-full bg-primary-500"
             />
           </div>
           {stats.undiagnosed_count > 0 && (

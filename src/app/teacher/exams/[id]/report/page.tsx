@@ -377,7 +377,7 @@ export default function ExamReportPage() {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-500/20">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-500 text-white shadow-md shadow-violet-500/20">
                 <FileBarChart2 className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1 space-y-1">
@@ -578,7 +578,7 @@ export default function ExamReportPage() {
         {activeTab === "diagnosis" && (
           <div className="space-y-6">
             {/* Основополагающий блок: Общий уровень и динамика класса */}
-            <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/80 via-white to-white p-6 sm:p-8 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-6 sm:p-8 shadow-sm">
               <div className="text-center mb-3.5 space-y-1">
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200/80 px-3 py-0.5 text-xs font-semibold text-slate-600">
                   Аналитическое резюме
@@ -618,7 +618,7 @@ export default function ExamReportPage() {
                   {structured.strengths!.map((item, idx) => (
                     <div
                       key={idx}
-                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-emerald-50/40 via-white to-white p-5 transition-all hover:border-emerald-300/80 hover:shadow-card relative overflow-hidden"
+                      className="rounded-xl border border-slate-200/70 bg-emerald-50/40 p-5 transition-all hover:border-emerald-300/80 hover:shadow-card relative overflow-hidden"
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
@@ -669,7 +669,7 @@ export default function ExamReportPage() {
                   {structured.critical_gaps!.map((item, idx) => (
                     <div
                       key={idx}
-                      className="rounded-xl border border-slate-200/70 bg-gradient-to-br from-rose-50/40 via-white to-white p-5 transition-all hover:border-rose-300/80 hover:shadow-card relative overflow-hidden"
+                      className="rounded-xl border border-slate-200/70 bg-rose-50/40 p-5 transition-all hover:border-rose-300/80 hover:shadow-card relative overflow-hidden"
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white">
@@ -769,7 +769,7 @@ export default function ExamReportPage() {
 
                     {/* Анализ ошибки и совет преподавателю */}
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 to-white p-4">
+                      <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-4">
                         <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                           <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                           Суть ошибки и когнитивная ловушка
@@ -783,7 +783,7 @@ export default function ExamReportPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/60 to-white p-4">
+                      <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/60 p-4">
                         <p className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
                           <Lightbulb className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                           Методический совет преподавателю
@@ -881,7 +881,7 @@ export default function ExamReportPage() {
 
                   <div className="mt-4 space-y-3">
                     {structured.lesson_plan.board_tasks.map((bTask, bIdx) => (
-                      <div key={bIdx} className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/40 via-white to-white p-4">
+                      <div key={bIdx} className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
                         <p className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
                           <BookOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                           {bTask.title}

@@ -43,7 +43,7 @@ export const LEVEL_TONES: Record<LevelTone, LevelToneClasses> = {
     ping: "bg-rose-400",
     ring: "text-rose-600",
     track: "#ffe4e6",
-    cardBg: "bg-gradient-to-r from-rose-50/90 via-slate-50/40 to-white",
+    cardBg: "bg-rose-50",
     cardBorder: "border-rose-200/80 shadow-rose-100/50",
   },
   orange: {
@@ -54,7 +54,7 @@ export const LEVEL_TONES: Record<LevelTone, LevelToneClasses> = {
     ping: "bg-orange-400",
     ring: "text-orange-500",
     track: "#ffedd5",
-    cardBg: "bg-gradient-to-r from-orange-50/90 via-slate-50/50 to-white",
+    cardBg: "bg-orange-50",
     cardBorder: "border-orange-200/80 shadow-orange-100/50",
   },
   amber: {
@@ -65,7 +65,7 @@ export const LEVEL_TONES: Record<LevelTone, LevelToneClasses> = {
     ping: "bg-amber-400",
     ring: "text-amber-500",
     track: "#fef3c7",
-    cardBg: "bg-gradient-to-r from-amber-50/90 via-slate-50/50 to-white",
+    cardBg: "bg-amber-50",
     cardBorder: "border-amber-200/80 shadow-amber-100/50",
   },
   emerald: {
@@ -76,7 +76,7 @@ export const LEVEL_TONES: Record<LevelTone, LevelToneClasses> = {
     ping: "bg-emerald-400",
     ring: "text-emerald-500",
     track: "#dcfce7",
-    cardBg: "bg-gradient-to-r from-emerald-50/90 via-slate-50/50 to-white",
+    cardBg: "bg-emerald-50",
     cardBorder: "border-emerald-200/80 shadow-emerald-100/50",
   },
   violet: {
@@ -87,7 +87,7 @@ export const LEVEL_TONES: Record<LevelTone, LevelToneClasses> = {
     ping: "bg-violet-400",
     ring: "text-violet-600",
     track: "#ede9fe",
-    cardBg: "bg-gradient-to-r from-violet-50/90 via-slate-50/50 to-white",
+    cardBg: "bg-violet-50",
     cardBorder: "border-violet-200/80 shadow-violet-100/50",
   },
 };
@@ -115,7 +115,7 @@ export const NEUTRAL_TONE: LevelToneClasses = {
   ping: "bg-slate-300",
   ring: "text-slate-400",
   track: "#e2e8f0",
-  cardBg: "bg-gradient-to-r from-slate-50 via-white to-white",
+  cardBg: "bg-slate-50",
   cardBorder: "border-slate-200/80",
 };
 

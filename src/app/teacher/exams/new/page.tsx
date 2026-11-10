@@ -1067,7 +1067,7 @@ export default function NewExamPage() {
                           onClick={() => !isUnavailable && setConfig({ ...config, mode: mode.id as ExamMode })}
                           className={`relative h-full min-h-[210px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 flex flex-col group ${isUnavailable ? "cursor-not-allowed opacity-65" : ""} ${
                             isSelected
-                              ? "border-primary-500 bg-gradient-to-b from-primary-50/60 via-white to-white ring-2 ring-primary-500/20 shadow-md shadow-primary-500/10"
+                              ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/20 shadow-md shadow-primary-500/10"
                               : "border-slate-200/80 hover:border-slate-300 bg-white/80 hover:bg-white"
                           }`}
                         >
@@ -1105,7 +1105,7 @@ export default function NewExamPage() {
                   </div>
 
                   {/* Premium Summary Card */}
-                  <div className="mt-8 max-w-4xl mx-auto rounded-3xl bg-gradient-to-br from-white via-slate-50/60 to-primary-50/20 border border-slate-200/90 shadow-lg shadow-slate-900/5 overflow-hidden transition-all">
+                  <div className="mt-8 max-w-4xl mx-auto rounded-3xl bg-white border border-slate-200/90 shadow-lg shadow-slate-900/5 overflow-hidden transition-all">
                     {/* Header */}
                     <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-sm">
                       <div className="flex items-center gap-2.5">
@@ -1132,7 +1132,7 @@ export default function NewExamPage() {
                       {/* Top Meta Bar (Title, Group, Class, Type) */}
                       <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
+                          <div className="w-12 h-12 rounded-2xl bg-primary-500 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
                             <FileText className="w-6 h-6" />
                           </div>
                           <div className="min-w-0">

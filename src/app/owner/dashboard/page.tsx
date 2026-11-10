@@ -20,6 +20,7 @@ import { orgTypeLabel } from "@/lib/org-type";
 import { formatMoney } from "@/lib/payments";
 import { debtorsHref } from "@/lib/payments-income-v2";
 import { dashboardKpiHref, dashboardTiles } from "@/lib/owner-dashboard-links";
+import { SkeletonLine } from "@/components/ui/skeleton";
 
 interface OrgStats {
   total_students: number;
@@ -106,14 +107,14 @@ export default function OwnerDashboard() {
   // IA audit F27: a KPI that has a screen behind it is a link to it.  «Пройдено диагностик» and θ have none for the owner (diagnostics are the
   // administrator's, owner decision 22.10); the money and the attention tiles below lead to the debtors and to the attendance.
   const statCards: Array<{ label: string; href?: string; value: string | number; icon: any; color: string; bg: string; iconColor: string }> = [
-    { label: "Всего учеников", href: dashboardKpiHref("students"), value: stats?.total_students || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
-    { label: "Сотрудников", href: dashboardKpiHref("staff"), value: stats?.total_members || 0, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
+    { label: "Всего учеников", href: dashboardKpiHref("students"), value: stats?.total_students || 0, icon: Users, color: "bg-blue-500", bg: "bg-blue-50", iconColor: "text-blue-600" },
+    { label: "Сотрудников", href: dashboardKpiHref("staff"), value: stats?.total_members || 0, icon: Shield, color: "bg-violet-500", bg: "bg-violet-50", iconColor: "text-violet-600" },
+    { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "bg-amber-400", bg: "bg-amber-50", iconColor: "text-amber-600" },
     {
       label: "Средний уровень (θ)",
       value: globalTheta === null ? "—" : globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2),
       icon: Activity,
-      color: !globalAtRisk ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500",
+      color: !globalAtRisk ? "bg-emerald-400" : "bg-rose-400",
       bg: !globalAtRisk ? "bg-emerald-50" : "bg-rose-50",
       iconColor: !globalAtRisk ? "text-emerald-600" : "text-rose-600"
     },
@@ -137,49 +138,52 @@ export default function OwnerDashboard() {
             transition={{ delay: 0.1 }}
             className="text-slate-500 mt-1.5 flex items-center gap-2 text-sm font-medium"
           >
-            <Calendar className="w-4 h-4 text-slate-400" />
+            <Calendar className="h-4 w-4 text-slate-500" />
             {formatBusinessDateLabel({ weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </motion.p>
         </div>
       </div>
 
-      {/* Unified Premium Hero Block */}
+      {/* The centre and its KPIs: one light card of the system (no dark glass block) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[2rem] bg-slate-900 shadow-2xl shadow-slate-900/10 border border-slate-800"
+        className="relative overflow-hidden rounded-card border border-slate-200 bg-white shadow-card"
       >
-        {/* Decorative Glowing Orbs */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary-500/20 rounded-full blur-[120px] -translate-y-1/3 translate-x-1/3 mix-blend-screen pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/3 mix-blend-screen pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+        <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-8 md:gap-8">
 
-        <div className="relative z-10 p-8 md:p-10 flex flex-col gap-8 md:gap-10">
-          
-          {/* Org Info Section */}
+          {/* Org Info Section: until the centre is known the card shows a skeleton - never a made-up name, status or type */}
           <div className="flex flex-col md:flex-row items-start justify-between gap-6">
+            {!org ? (
+              <div className="w-full max-w-2xl space-y-3" role="status" aria-label="Загружаем данные центра" data-testid="org-skeleton">
+                <SkeletonLine className="h-6 w-32" />
+                <SkeletonLine className="h-9 w-2/3" />
+                <SkeletonLine className="h-7 w-1/3" />
+              </div>
+            ) : (
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 backdrop-blur-md mb-5 shadow-inner">
-                <span className={`w-2 h-2 rounded-full ${org?.status === "active" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                <span className="text-xs font-semibold text-white/90">
-                  {org?.status === "active" ? "Система активна" : "Ожидание"}
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className={`w-2 h-2 rounded-full ${org.status === "active" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span className="text-xs font-semibold text-slate-700">
+                  {org.status === "active" ? "Система активна" : "Ожидание"}
                 </span>
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-4 drop-shadow-sm">
-                {org?.name || "Моя организация"}
+              <h2 className="mb-3 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                {org.name}
               </h2>
-              <div className="flex flex-wrap items-center gap-3 text-slate-300 text-sm font-medium">
-                {org?.city && (
-                  <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
-                    <MapPin className="w-4 h-4 text-slate-400" /> {org.city}
+              <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
+                {org.city && (
+                  <span className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                    <MapPin className="w-4 h-4 text-slate-500" /> {org.city}
                   </span>
                 )}
-                <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
-                  <Building className="w-4 h-4 text-slate-400" /> 
-                  {orgTypeLabel(org?.org_type)}
+                <span className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                  <Building className="w-4 h-4 text-slate-500" />
+                  {orgTypeLabel(org.org_type)}
                 </span>
               </div>
             </div>
+            )}
           </div>
 
           {/* Integrated KPIs Grid (Glassmorphism) */}
@@ -188,17 +192,17 @@ export default function OwnerDashboard() {
               const body = (
                 <>
                   <div className="flex justify-between items-start mb-3">
-                    <div className={`w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5`}>
-                      <card.icon className={`w-5 h-5 text-slate-200 group-hover:text-white transition-colors`} />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                      <card.icon className="h-5 w-5 text-slate-600 transition-colors group-hover:text-slate-900" />
                     </div>
                   </div>
                   <div>
-                    <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
-                    <p className="text-sm font-medium text-slate-500 mt-1">{card.label}</p>
+                    <p className="text-3xl font-semibold tracking-tight tabular-nums text-slate-900">{card.value}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-600">{card.label}</p>
                   </div>
                 </>
               );
-              const frame = "group relative block bg-white/5 hover:bg-white/10 rounded-2xl p-5 border border-white/10 backdrop-blur-md transition-all duration-300 overflow-hidden";
+              const frame = "group relative block overflow-hidden rounded-card border border-slate-200 bg-slate-50 p-5 transition-colors hover:bg-slate-100";
               return (
                 <motion.div
                   key={card.label}
@@ -207,7 +211,7 @@ export default function OwnerDashboard() {
                   transition={{ delay: 0.1 + i * 0.05 }}
                 >
                   {card.href ? (
-                    <Link href={card.href} data-testid="dashboard-kpi-link" className={`${frame} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60`}>{body}</Link>
+                    <Link href={card.href} data-testid="dashboard-kpi-link" className={`${frame} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}>{body}</Link>
                   ) : (
                     <div className={frame}>{body}</div>
                   )}
@@ -220,12 +224,12 @@ export default function OwnerDashboard() {
           {tiles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="dashboard-tiles">
               {tiles.map((tile) => (
-                <Link key={tile.key} href={tile.href} data-testid={`dashboard-tile-${tile.key}`} className="group flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md transition-all duration-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+                <Link key={tile.key} href={tile.href} data-testid={`dashboard-tile-${tile.key}`} className="group flex items-center justify-between gap-4 rounded-card border border-slate-200 bg-slate-50 p-5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                   <div className="min-w-0">
-                    <p className={`text-2xl font-semibold tracking-tight ${tile.tone === "alert" ? "text-rose-300" : "text-white"}`}>{tile.value}</p>
-                    <p className="mt-1 text-sm font-medium text-slate-500">{tile.label}</p>
+                    <p className={`text-2xl font-semibold tracking-tight ${tile.tone === "alert" ? "text-danger-700" : "text-slate-900"}`}>{tile.value}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-600">{tile.label}</p>
                   </div>
-                  <span className="shrink-0 text-sm font-semibold text-slate-300 group-hover:text-white" aria-hidden>→</span>
+                  <span className="shrink-0 text-sm font-semibold text-slate-500 group-hover:text-slate-900" aria-hidden>→</span>
                 </Link>
               ))}
             </div>

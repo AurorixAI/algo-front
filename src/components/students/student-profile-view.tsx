@@ -426,12 +426,12 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
 
       {/* ── Hero Profile Card ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-8">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-primary-50/40 to-indigo-50/20 rounded-full blur-3xl -z-0 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-primary-50/40 rounded-full blur-3xl -z-0 pointer-events-none" />
 
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 sm:gap-5">
             {/* Avatar */}
-            <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-primary-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
               {(student.first_name || student.full_name).charAt(0)}
             </div>
 

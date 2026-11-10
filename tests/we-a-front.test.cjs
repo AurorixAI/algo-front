@@ -582,10 +582,10 @@ test("exams of the teacher: the tab / counter holding draft AND variants_ready i
   assert.match(group, /label: DRAFT_TAB_LABEL/);
   for (const [name, source] of [["list", list], ["group", group]]) assert.doesNotMatch(source, /"Черновики"/, name);
   // draft is grey in the list (no amber on `draft`), and the group tab takes the tone from the registry for BOTH statuses
-  assert.match(list, /draft: \{[^}]*from-slate-50[^}]*text-slate-600/s);
+  assert.match(list, /draft: \{[^}]*bg-slate-50[^}]*text-slate-600/s);
   assert.match(group, /ex\.status === "variants_ready" \|\| ex\.status === "draft"\s*\?\s*`border \$\{CHIP_TONE_CLASS\[examStatusView\(ex\.status\)\.tone\]\}`/);
   // mutation: the old amber `draft` / the old tab name are seen by the same checks
-  assert.doesNotMatch(list.replace(/(draft: \{[^}]*?)from-slate-50 to-slate-100/s, "$1from-amber-50 to-orange-50"), /draft: \{[^}]*from-slate-50[^}]*text-slate-600/s);
+  assert.doesNotMatch(list.replace(/(draft: \{[^}]*?)bg-slate-50/s, "$1bg-amber-50"), /draft: \{[^}]*bg-slate-50[^}]*text-slate-600/s);
   assert.doesNotMatch(list.replace(/DRAFT_TAB_LABEL/g, '"Черновики"'), /DRAFT_TAB_LABEL/);
   assert.match(list.replace(/DRAFT_TAB_LABEL/g, '"Черновики"'), /"Черновики"/);
 });

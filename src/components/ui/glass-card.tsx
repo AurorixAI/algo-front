@@ -20,7 +20,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
       subtle:
         "bg-white/70 backdrop-blur-lg border border-white/40 shadow-[0_4px_16px_rgba(0,0,0,0.04)]",
       panel:
-        "bg-gradient-to-b from-white to-white/90 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)]",
+        "bg-white backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)]",
     };
 
     return (

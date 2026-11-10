@@ -114,7 +114,7 @@ export function ConfirmEmailPage({ token }: { token: string }) {
             </div>
             <h2 className="mt-4 text-xl font-bold text-slate-900">Адрес подтверждён</h2>
             <p className="mt-2 text-sm text-slate-600">Теперь входите с новой почтой и прежним паролем.</p>
-            <Link href="/login" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25">
+            <Link href="/login" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25">
               Войти <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>

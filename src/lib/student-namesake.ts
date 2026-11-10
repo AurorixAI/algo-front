@@ -18,12 +18,23 @@ export interface NamesakeInput {
 
 const nameOf = (s: NamesakeInput) => (s.full_name || `${s.last_name ?? ""} ${s.first_name ?? ""}`).trim().toLowerCase().replace(/\s+/g, " ");
 
+const tailOf = (s: NamesakeInput): string => {
+  const digits = String(s.student_phone ?? s.phone ?? "").replace(/\D/g, "");
+  return digits.length >= 4 ? digits.slice(-4) : "";
+};
+const dayOf = (s: NamesakeInput): string => (s.joined_at ?? s.created_at ?? "").slice(0, 10);
+const allDistinct = (values: string[]): boolean => values.every(Boolean) && new Set(values).size === values.length;
+
+/**
+ * The detail must really TELL the namesakes apart, in this order: the end of the phone if the ends of ALL of them differ; else the day each was added if those differ; else the ID.
+ * (Two students with the same name and phones that end in the same four digits are told apart by the day, then by the ID.)
+ */
 export function namesakeDetail(student: NamesakeInput, all: NamesakeInput[]): string | null {
   const name = nameOf(student);
-  if (!name || all.filter((other) => nameOf(other) === name).length < 2) return null;
-  const digits = String(student.student_phone ?? student.phone ?? "").replace(/\D/g, "");
-  if (digits.length >= 4) return `тел. …${digits.slice(-4, -2)} ${digits.slice(-2)}`;
-  const added = student.joined_at ?? student.created_at;
-  if (added) return `добавлен ${formatDateRu(added.slice(0, 10))}`;
+  if (!name) return null;
+  const group = all.filter((other) => nameOf(other) === name);
+  if (group.length < 2) return null;
+  if (allDistinct(group.map(tailOf))) { const tail = tailOf(student); return `тел. …${tail.slice(0, 2)} ${tail.slice(2)}`; }
+  if (allDistinct(group.map(dayOf))) return `добавлен ${formatDateRu(dayOf(student))}`;
   return student.display_id ? `ID ${student.display_id}` : null;
 }

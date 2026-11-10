@@ -60,6 +60,9 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
   });
 }
 
+/** Under the block, only when a month is not whole: the server rounds a part of a month to 1 000 sum. */
+export const IMMEDIATE_ROUNDING_NOTE = "Неполный месяц округляется до 1\u00a0000\u00a0сум";
+
 /** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({

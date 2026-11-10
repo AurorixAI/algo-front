@@ -93,7 +93,7 @@ export function EnrolPriceToggle({
         role="switch"
         aria-checked={enabled}
         onClick={() => onEnabled(!enabled)}
-        className={`inline-flex min-h-10 items-center gap-2 text-xs font-semibold transition-colors ${enabled ? "text-primary-700" : "text-slate-500 hover:text-slate-800"}`}
+        className={`flex min-h-10 w-full items-center gap-2 text-left text-xs font-semibold transition-colors ${enabled ? "text-primary-700" : "text-slate-600 hover:text-slate-800"}`}
       >
         <span className={`relative inline-block h-4 w-7 shrink-0 rounded-full transition-colors ${enabled ? "bg-primary-600" : "bg-slate-300"}`} aria-hidden="true">
           <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${enabled ? "left-3.5" : "left-0.5"}`} />

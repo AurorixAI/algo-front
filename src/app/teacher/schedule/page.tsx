@@ -1501,7 +1501,7 @@ export default function TeacherSchedulePage() {
                                 Урок не начат
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-card group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-600 text-white shadow-card group-hover:bg-emerald-700 transition-all">
                                 <Play className="w-3 h-3 fill-white" />
                                 Начать урок
                               </span>

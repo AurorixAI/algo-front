@@ -252,7 +252,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
             className="fixed inset-x-0 bottom-0 z-[110] flex max-h-[85vh] supports-[height:100dvh]:max-h-[85dvh] flex-col rounded-t-3xl border-t border-slate-100 bg-white pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] shadow-2xl outline-none md:hidden print:hidden"
           >
             <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-4">
-              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 text-sm font-bold uppercase text-white">
+              <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-600 text-sm font-bold uppercase text-white">
                 {profile.initial}
               </span>
               <div className="min-w-0 flex-1">

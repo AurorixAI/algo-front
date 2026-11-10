@@ -31,7 +31,7 @@ export type DiagnosticActionTone = "primary" | "neutral" | "solid";
 const ACTION_TONE: Record<DiagnosticActionTone, string> = {
   primary: "bg-primary-50 text-primary-700 hover:bg-primary-100",
   neutral: "bg-slate-100 text-slate-700 hover:bg-slate-200",
-  solid: "bg-gradient-to-r from-primary-600 to-indigo-600 font-semibold text-white shadow-sm shadow-primary-600/20 hover:from-primary-700 hover:to-indigo-700",
+  solid: "bg-primary-600 font-semibold text-white shadow-sm shadow-primary-600/20 hover:bg-primary-700",
 };
 
 /** className of an action link / button: same height and width everywhere, only the tone differs. */

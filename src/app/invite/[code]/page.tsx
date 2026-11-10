@@ -115,7 +115,7 @@ export default function InviteAcceptPage() {
       <div className="w-full max-w-md relative z-10">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
+            <div className="w-14 h-14 rounded-2xl bg-primary-500 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
               <span className="text-3xl font-bold">∫</span>
             </div>
             <h1 className="text-4xl font-bold text-slate-900">ALGO</h1>

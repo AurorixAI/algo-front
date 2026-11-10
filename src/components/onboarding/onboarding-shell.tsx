@@ -18,7 +18,7 @@ export function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
   return (
     <Link href="/" className="inline-flex items-center gap-3" aria-label="ALGO — на главную">
       <div
-        className={`${size === "lg" ? "w-12 h-12 rounded-2xl" : "w-10 h-10 rounded-xl"} bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30`}
+        className={`${size === "lg" ? "w-12 h-12 rounded-2xl" : "w-10 h-10 rounded-xl"} bg-primary-500 flex items-center justify-center text-white shadow-lg shadow-primary-500/30`}
       >
         <span className={`${size === "lg" ? "text-2xl" : "text-xl"} font-bold`}>∫</span>
       </div>

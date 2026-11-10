@@ -580,7 +580,7 @@ export default function ExamDraftPage() {
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 18 }}
-              className="w-11 h-11 mx-auto rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-md shadow-emerald-500/20"
+              className="w-11 h-11 mx-auto rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20"
             >
               <Sparkles className="w-5 h-5" />
             </motion.div>
@@ -604,7 +604,7 @@ export default function ExamDraftPage() {
             </div>
 
             {/* QR Code Container */}
-            <div className="p-3.5 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-sm max-w-[210px] mx-auto flex flex-col items-center">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/90 shadow-sm max-w-[210px] mx-auto flex flex-col items-center">
               <div className="p-2 bg-white rounded-xl shadow-card border border-slate-100">
                 <QRCode
                   value={getExamUrl(publishResult.access_code)}

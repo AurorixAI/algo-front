@@ -76,7 +76,7 @@ export default function LoginPage() {
           className="text-center mb-8"
         >
           <Link href="/" className="inline-flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
+            <div className="w-12 h-12 rounded-2xl bg-primary-500 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
               <span className="text-2xl font-bold">∫</span>
             </div>
             <h1 className="text-3xl font-bold text-slate-900">ALGO</h1>

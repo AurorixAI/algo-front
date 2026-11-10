@@ -49,9 +49,9 @@ type Member = OrgMemberRow;
 type Invitation = InvitationRow;
 
 const roleConfig: Record<string, { label: string; pluralLabel: string; color: string; badge: string; icon: React.ElementType }> = {
-  owner: { label: "Владелец", pluralLabel: "Владелец", color: "from-violet-500 to-purple-600", badge: "bg-violet-50 text-violet-700 border-violet-100", icon: ShieldCheck },
-  admin: { label: "Администратор", pluralLabel: "Администраторы", color: "from-blue-500 to-indigo-600", badge: "bg-blue-50 text-blue-700 border-blue-100", icon: Shield },
-  teacher: { label: "Преподаватель", pluralLabel: "Преподаватели", color: "from-emerald-400 to-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
+  owner: { label: "Владелец", pluralLabel: "Владелец", color: "bg-violet-500", badge: "bg-violet-50 text-violet-700 border-violet-100", icon: ShieldCheck },
+  admin: { label: "Администратор", pluralLabel: "Администраторы", color: "bg-blue-500", badge: "bg-blue-50 text-blue-700 border-blue-100", icon: Shield },
+  teacher: { label: "Преподаватель", pluralLabel: "Преподаватели", color: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
 };
 
 export default function OwnerTeachersPage() {
@@ -353,7 +353,7 @@ function OwnerTeachersContent() {
                           className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-slate-50/50 transition-colors gap-4"
                         >
                           <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${rConfig.color} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
+                            <div className={`w-12 h-12 rounded-2xl ${rConfig.color} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
                               {(m.first_name || m.email || "?")[0].toUpperCase()}
                             </div>
                             <div>

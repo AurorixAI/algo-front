@@ -59,21 +59,21 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
   draft: {                                            // grey, as the registry's «neutral» for every role
     label: examStatusView("draft").label,
     icon: <AlertCircle className="w-3 h-3" />,
-    gradient: "from-slate-50 to-slate-100",
+    gradient: "bg-slate-50",
     text: "text-slate-600",
     dot: "bg-slate-400",
   },
   variants_ready: {                                   // the variants are made: «Готов к назначению» for every role (lib/status-registry.ts), blue as the registry's «info»
     label: examStatusView("variants_ready").label,
     icon: <Clock className="w-3 h-3" />,
-    gradient: "from-blue-50 to-sky-50",
+    gradient: "bg-blue-50",
     text: "text-blue-700",
     dot: "bg-blue-400",
   },
   lobby: {
     label: "Лобби открыто",
     icon: <Radio className="w-3 h-3" />,
-    gradient: "from-indigo-50 to-violet-50",
+    gradient: "bg-indigo-50",
     text: "text-indigo-700",
     dot: "bg-indigo-500",
   },
@@ -81,42 +81,42 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
   lobby_scheduled: {
     label: "Запланирован",
     icon: <Clock className="w-3 h-3" />,
-    gradient: "from-sky-50 to-blue-50",
+    gradient: "bg-sky-50",
     text: "text-sky-700",
     dot: "bg-sky-400",
   },
   lobby_passed: {
     label: "Занятие прошло",
     icon: <AlertCircle className="w-3 h-3" />,
-    gradient: "from-amber-50 to-orange-50",
+    gradient: "bg-amber-50",
     text: "text-amber-700",
     dot: "bg-amber-400",
   },
   active: {
     label: "Идёт экзамен",
     icon: <CheckCircle className="w-3 h-3" />,
-    gradient: "from-emerald-50 to-green-50",
+    gradient: "bg-emerald-50",
     text: "text-emerald-700",
     dot: "bg-emerald-400",
   },
   print_ready: {
     label: "Комплект готов",
     icon: <FileText className="w-3 h-3" />,
-    gradient: "from-violet-50 to-indigo-50",
+    gradient: "bg-violet-50",
     text: "text-violet-700",
     dot: "bg-violet-500",
   },
   closed: {
     label: "Завершён",
     icon: <XCircle className="w-3 h-3" />,
-    gradient: "from-slate-50 to-slate-100",
+    gradient: "bg-slate-50",
     text: "text-slate-500",
     dot: "bg-slate-400",
   },
   archived: {
     label: "В архиве",
     icon: <Archive className="w-3 h-3" />,
-    gradient: "from-slate-100 to-slate-200",
+    gradient: "bg-slate-100",
     text: "text-slate-500",
     dot: "bg-slate-400",
   },
@@ -125,7 +125,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
 function StatusBadge({ status, label }: { status: string; label?: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gradient-to-r ${cfg.gradient} ${cfg.text} border border-white/80 shadow-sm`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cfg.gradient} ${cfg.text} border border-white/80 shadow-sm`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} flex-shrink-0`} />
       {label ?? cfg.label}
     </span>
@@ -718,7 +718,7 @@ export default function TeacherExamsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-violet-600 flex items-center justify-center shadow-md shadow-primary-500/30">
+            <div className="w-10 h-10 rounded-xl bg-primary-500 flex items-center justify-center shadow-md shadow-primary-500/30">
               <BookOpen className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Библиотека экзаменов</h1>
@@ -729,7 +729,7 @@ export default function TeacherExamsPage() {
         </div>
         <Link
           href="/teacher/exams/new"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 text-white rounded-xl font-semibold shadow-md shadow-primary-600/25 hover:shadow-lg transition-all self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold shadow-md shadow-primary-600/25 hover:shadow-lg transition-all self-start md:self-auto"
         >
           <Plus className="w-4 h-4" />
           Создать экзамен
@@ -819,9 +819,9 @@ export default function TeacherExamsPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-12 text-center border border-slate-200/80"
+          className="bg-slate-50 rounded-2xl p-12 text-center border border-slate-200/80"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-50 to-violet-50 border border-primary-100 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center mx-auto mb-4">
             <BookOpen className="w-7 h-7 text-primary-400" />
           </div>
           <p className="text-slate-700 font-semibold text-base">
@@ -839,7 +839,7 @@ export default function TeacherExamsPage() {
           {!searchQuery && statusTab !== "archived" && (
             <Link
               href="/teacher/exams/new"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-600 to-violet-600 text-white rounded-xl font-semibold shadow-md shadow-primary-600/25 hover:shadow-lg transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-semibold shadow-md shadow-primary-600/25 hover:shadow-lg transition-all"
             >
               <Plus className="w-4 h-4" />
               Создать первый экзамен

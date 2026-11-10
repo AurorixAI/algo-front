@@ -42,7 +42,7 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
     >
       
       <div className="relative z-10 flex items-start justify-between mb-6">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-50 to-indigo-50 flex items-center justify-center text-primary-600 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm shadow-primary-100/50">
+        <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm shadow-primary-100/50">
           <BookOpen className="w-7 h-7" />
         </div>
         

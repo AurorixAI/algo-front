@@ -131,7 +131,7 @@ export function SetPasswordPage({ token }: { token: string }) {
               <Link
                 href="/forgot-password"
                 data-testid="request-new-link"
-                className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25"
+                className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25"
               >
                 Запросить новую ссылку
               </Link>
@@ -227,7 +227,7 @@ export function SetPasswordPage({ token }: { token: string }) {
             <p className="mt-2 text-sm text-slate-600">Теперь войдите с вашей почтой и новым паролем.</p>
             <Link
               href="/login"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25"
             >
               Войти <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>

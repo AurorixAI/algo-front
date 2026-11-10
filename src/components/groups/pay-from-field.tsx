@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { PAY_FROM_LABEL, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, IMMEDIATE_ROUNDING_NOTE, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 
 export const PAY_FROM_FAILED_TEXT = "Не удалось посчитать, сколько начислится сразу";
@@ -94,6 +94,7 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
 function ImmediateBlock({ amount, parts, text }: { amount: number; parts: ImmediatePart[]; text: string }) {
   if (parts.length === 0) return <p className="font-medium">{text}</p>;
   return (
+    <>
     <div data-testid="pay-from-immediate-block" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">Сразу начислится</p>
@@ -108,5 +109,8 @@ function ImmediateBlock({ amount, parts, text }: { amount: number; parts: Immedi
         ))}
       </ul>
     </div>
+    {/* rule 113: «3 урока из 9» of 400 000 is 133 333, the screen says 133 000 - one small line says why (only where a month is not whole) */}
+    {parts.some((part) => !part.whole) && <p data-testid="pay-from-rounding-note" className="mt-1.5 text-xs text-slate-600">{IMMEDIATE_ROUNDING_NOTE}</p>}
+    </>
   );
 }

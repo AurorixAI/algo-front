@@ -166,7 +166,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                     className="flex items-center gap-3 group/student hover:opacity-80 transition-opacity"
                     title="Открыть профиль ученика"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50 group-hover/student:scale-105 transition-transform">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50 group-hover/student:scale-105 transition-transform">
                       {(s.first_name?.[0] || "?").toUpperCase()}
                     </div>
                     <span className="text-sm font-medium text-slate-700 group-hover/student:text-primary-600 transition-colors truncate">

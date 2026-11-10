@@ -15,6 +15,7 @@ import { TouchDensity } from "@/components/ui/touch-density";
 import TeacherDashboard from "@/app/teacher/dashboard/page";
 import TeacherSchedule from "@/app/teacher/schedule/page";
 import TeacherExams from "@/app/teacher/exams/page";
+import OwnerDashboard from "@/app/owner/dashboard/page";
 
 (window as any).__ready = true;
 const w = window as any;
@@ -78,12 +79,13 @@ function Gallery() {
   );
 }
 
-w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }) => {
-  useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true });
+w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
+  useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true, org: props.org ?? null } as never);
   const root = createRoot(document.getElementById("root")!);
   const page = (node: React.ReactNode) => root.render(<div className="min-h-screen bg-background p-4 md:p-8"><div className="mx-auto max-w-[1400px]">{node}</div></div>);
   switch (name) {
     case "gallery": root.render(<Gallery />); break;
+    case "ownerDashboard": page(<OwnerDashboard />); break;
     case "groups": page(<GroupsListView workspace="owner" />); break;
     case "payments": page(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
     case "teacherDashboard": page(<><TouchDensity /><TeacherDashboard /></>); break;

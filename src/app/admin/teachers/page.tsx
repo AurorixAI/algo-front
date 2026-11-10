@@ -50,7 +50,7 @@ export default function AdminStaffPage() {
           {rows.map((member) => (
             <div key={member.member_id} className="flex items-center justify-between gap-4 p-5 sm:p-6">
               <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-lg font-bold text-white shadow-sm">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400 text-lg font-bold text-white shadow-sm">
                   {(member.first_name || member.email || "?")[0].toUpperCase()}
                 </div>
                 <div className="min-w-0">

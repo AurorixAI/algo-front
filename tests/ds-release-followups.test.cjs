@@ -53,19 +53,48 @@ test("the server sends the month in lower case («ноябрь»): the caption o
   assert.match(nb(payFrom.immediatePartLines(lower)[0]), /^Октябрь, с 27\.10/);
 });
 
-test("namesakes get a telling detail: the end of the phone, else the day added, else the ID; a unique name gets nothing", () => {
+test("the rounding line exists for a part of a month and says 1 000 сум", () => {
+  assert.equal(nb(payFrom.IMMEDIATE_ROUNDING_NOTE), "Неполный месяц округляется до 1 000 сум");
+  const text = fs.readFileSync(src("components/groups/pay-from-field.tsx"), "utf8");
+  assert.match(text, /parts\.some\(\(part\) => !part\.whole\) && <p data-testid="pay-from-rounding-note"/, "only where a month is not whole");
+});
+
+test("namesakes with the SAME end of the phone are told apart by the day added, then by the ID (the detail really tells them apart)", () => {
+  const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234", joined_at: "2026-10-12T05:00:00", display_id: "AL15-001" };
+  const b = { id: "2", full_name: "Иванов Иван", student_phone: "+998907771234", joined_at: "2026-11-03T05:00:00", display_id: "AL15-002" };
+  assert.equal(namesakeDetail(a, [a, b]), "добавлен 12.10.2026");
+  assert.equal(namesakeDetail(b, [a, b]), "добавлен 03.11.2026");
+  const c = { ...b, joined_at: "2026-10-12T09:00:00" };
+  assert.equal(namesakeDetail(a, [a, c]), "ID AL15-001", "same phone end and same day: the ID");
+  assert.equal(namesakeDetail(c, [a, c]), "ID AL15-002");
+  const d = { id: "4", full_name: "Иванов Иван", student_phone: "+998905559900" };
+  assert.equal(namesakeDetail(a, [a, d]), "тел. …12 34", "different ends: the phone");
+  assert.equal(namesakeDetail(d, [a, d]), "тел. …99 00");
+});
+
+test("namesakes get a telling detail: the end of the phone when the ends differ; a unique name gets nothing; without a phone the day, without a day the ID", () => {
   const a = { id: "1", full_name: "Иванов Иван", student_phone: "+998901231234" };
-  const b = { id: "2", full_name: "Иванов  Иван", student_phone: null, joined_at: "2026-10-12T05:00:00" };
-  const c = { id: "3", full_name: "Иванов Иван", display_id: "AL15-007" };
+  const b = { id: "2", full_name: "Иванов  Иван", student_phone: "+998907775599" };
   const d = { id: "4", full_name: "Петров Пётр" };
-  const all = [a, b, c, d];
-  assert.equal(namesakeDetail(a, all), "тел. …12 34");
-  assert.equal(namesakeDetail(b, all), "добавлен 12.10.2026");
-  assert.equal(namesakeDetail(c, all), "ID AL15-007");
-  assert.equal(namesakeDetail(d, all), null);
+  assert.equal(namesakeDetail(a, [a, b, d]), "тел. …12 34");
+  assert.equal(namesakeDetail(b, [a, b, d]), "тел. …55 99");
+  assert.equal(namesakeDetail(d, [a, b, d]), null);
+  const x = { id: "5", full_name: "Сидоров Сидор", joined_at: "2026-10-12T05:00:00" };
+  const y = { id: "6", full_name: "Сидоров Сидор", joined_at: "2026-11-03T05:00:00" };
+  assert.equal(namesakeDetail(x, [x, y]), "добавлен 12.10.2026");
+  const z = { id: "7", full_name: "Орлов Олег", display_id: "AL15-007" };
+  const w = { id: "8", full_name: "Орлов Олег", display_id: "AL15-008" };
+  assert.equal(namesakeDetail(z, [z, w]), "ID AL15-007");
 });
 
 test("a NEW student gets no sentence about the previous group (only a real transfer does)", () => {
   const text = fs.readFileSync(src("components/groups/add-student-drawer.tsx"), "utf8");
   assert.match(text, /mode === "transfer" && transfers\.length === 0 \? null : enrolPriceHint/);
+});
+
+test("the owner's panel shows a skeleton until the centre is known - no made-up name, status or type; no dark glass block", () => {
+  const text = fs.readFileSync(src("app/owner/dashboard/page.tsx"), "utf8");
+  assert.match(text, /!org \? \(\s*<div[^>]*data-testid="org-skeleton"/);
+  assert.doesNotMatch(text, /org\?\.name \|\| "Моя организация"|org\?\.status/, "no fallback values");
+  assert.doesNotMatch(text, /bg-slate-900|backdrop-blur|bg-white\/5|text-white/, "a light card of the system");
 });

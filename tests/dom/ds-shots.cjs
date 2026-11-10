@@ -25,7 +25,14 @@ const server = (request) => {
   return null;
 };
 const SIZES = [[1280, 900], [1024, 800], [375, 812]];
+const OWNER_SERVER = (r) => {
+  if (r.path === "/auth/org/stats") return { json: { total_students: 124, total_groups: 12, total_members: 9, active_diagnostics: 3, completed_diagnostics: 40, new_students: 5 } };
+  if (r.path === "/auth/org/groups/overview") return { json: { groups: [], avg_theta: null } };
+  return null;
+};
 const SHOTS = [
+  { name: "owner-dashboard-org-loading", mount: "ownerDashboard", props: {}, server: OWNER_SERVER },
+  { name: "owner-dashboard", mount: "ownerDashboard", props: { org: { id: "o1", name: "ALGO Math Center", city: "Ташкент", org_type: "center", status: "active" } }, server: OWNER_SERVER },
   { name: "gallery", mount: "gallery" },
   { name: "gallery-question", mount: "gallery", act: async (page) => { await page.click("#open-question"); await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(500); }, probe: '[role="dialog"]' },
   { name: "gallery-form", mount: "gallery", act: async (page) => { await page.click("#open-form"); await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(500); }, probe: '[role="dialog"]' },
@@ -46,11 +53,11 @@ const SHOTS = [
   const only = process.env.SHOTS ? process.env.SHOTS.split(",") : null;
   for (const shot of SHOTS.filter((item) => !only || only.some((prefix) => item.name.startsWith(prefix)))) {
     for (const [width, height] of shot.sizes ?? SIZES) {
-      const { page, errors, calls } = await openPage(browser, "ds.entry.tsx", server, { width, height });
+      const { page, errors, calls } = await openPage(browser, "ds.entry.tsx", shot.server ?? server, { width, height });
       await page.evaluate(() => { const opener = document.createElement("button"); opener.id = "__opener"; opener.textContent = "."; opener.style.cssText = "position:fixed;left:0;top:0;width:4px;height:4px;padding:0;border:0;opacity:0"; document.body.appendChild(opener); });
       await page.click("#__opener", { force: true });
       await page.clock.setFixedTime(new Date("2026-11-05T10:00:00+05:00"));
-      await page.evaluate(([name, user]) => window.mount(name, user), [shot.mount, shot.user ?? { role: "owner", org_role: "owner" }]);
+      await page.evaluate(([name, user, props]) => window.mount(name, user, props), [shot.mount, shot.user ?? { role: "owner", org_role: "owner" }, shot.props ?? {}]);
       try { if (shot.act) await shot.act(page); else await page.waitForTimeout(500); } catch (error) { report.push(`${shot.name} ${width}: ACT FAILED ${String(error).split("\n")[0]}`); }
       const layout = await page.evaluate(layoutProbe, shot.probe ?? "body");
       const small = await page.evaluate(touchTargets, shot.probe ?? "body");

@@ -647,7 +647,7 @@ export default function DiagnosticReportPage() {
             className={`flex max-w-full items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow ${
               assignedNotification || invite.student_status === "active"
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-emerald-600/10"
-                : "bg-gradient-to-r from-primary-600 to-indigo-600 text-white hover:opacity-90 shadow-primary-600/20"
+                : "bg-primary-600 text-white hover:opacity-90 shadow-primary-600/20"
             }`}
           >
             {assignedNotification ? (
@@ -673,7 +673,7 @@ export default function DiagnosticReportPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
             transition={{ type: "spring", duration: 0.4 }}
-            className="p-3 sm:p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50/50 border-2 border-emerald-500/30 rounded-2xl shadow-sm flex items-center justify-between gap-4"
+            className="p-3 sm:p-3.5 bg-emerald-50 border-2 border-emerald-500/30 rounded-2xl shadow-sm flex items-center justify-between gap-4"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm shadow-emerald-500/30">
@@ -965,7 +965,7 @@ export default function DiagnosticReportPage() {
               <motion.div variants={fade} className="bg-white rounded-[28px] border border-slate-200/80 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.32)] overflow-hidden">
 
                 {/* ── Journal Header: the pager wraps under the title when the row is too narrow ── */}
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-100 bg-slate-50">
                   <div className="flex items-center gap-2.5 flex-1 min-w-0 basis-40">
                     <div className="w-10 h-10 rounded-2xl bg-rose-50 ring-1 ring-rose-100 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-rose-500" />
@@ -1630,7 +1630,7 @@ export default function DiagnosticReportPage() {
                 {/* ── Vertical Timeline Journey ── */}
                 <div className="relative pl-6 sm:pl-10 space-y-6 sm:space-y-8 py-2">
                   {/* Vertical Spine Line */}
-                  <div className="absolute left-[23px] sm:left-[39px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-primary-400 via-slate-300 to-emerald-400" />
+                  <div className="absolute left-[23px] sm:left-[39px] top-6 bottom-6 w-0.5 bg-primary-400" />
 
                   {rj.action_plan.map((item, idx) => {
                     const isFirst = item.priority === 1 || idx === 0;

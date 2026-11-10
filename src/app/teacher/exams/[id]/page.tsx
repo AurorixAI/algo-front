@@ -1254,7 +1254,7 @@ export default function ExamHubPage() {
       {activeTab === "lobby" && (
         isPrintDelivery ? (
           <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-6 md:p-8 shadow-card">
+            <div className="relative overflow-hidden rounded-3xl border border-violet-200/80 bg-violet-50 p-6 md:p-8 shadow-card">
               <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-violet-200/30 blur-2xl pointer-events-none" />
               <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-4 max-w-2xl">
@@ -1385,7 +1385,7 @@ export default function ExamHubPage() {
         ) : (
         <div className="space-y-6">
           {!exam.group_id && (
-            <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-card">
+            <div className="p-4 bg-amber-50 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-card">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5" />
@@ -1675,7 +1675,7 @@ export default function ExamHubPage() {
                   className={cn(
                     "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer",
                     selectedVariant === v.variant_number
-                      ? "bg-gradient-to-r from-primary-600 to-indigo-600 text-white shadow-sm shadow-primary-500/25"
+                      ? "bg-primary-600 text-white shadow-sm shadow-primary-500/25"
                       : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
                   )}
                 >
@@ -1941,7 +1941,7 @@ export default function ExamHubPage() {
           <GlassCard variant="panel" className="p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3.5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-700 shadow-inner">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 text-violet-700 shadow-inner">
                   <FileBarChart2 className="h-5 w-5" />
                 </div>
                 <div>
@@ -2012,7 +2012,7 @@ export default function ExamHubPage() {
 
             {/* ── State: generating (Horizontal Stepper) ── */}
             {reportStep > 0 && (
-              <div className="mt-4 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50/70 via-indigo-50/40 to-white p-4">
+              <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50/70 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-violet-900">Формирование отчёта…</span>
                   <span className="text-xs font-bold text-violet-700">Шаг {reportStep} из 3</span>
@@ -2022,7 +2022,7 @@ export default function ExamHubPage() {
                 <div className="relative flex items-center justify-between pt-1">
                   <div className="absolute left-6 right-6 top-4 -z-0 h-0.5 bg-violet-100">
                     <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-indigo-600 transition-all duration-500"
+                      className="h-full bg-violet-500 transition-all duration-500"
                       style={{ width: reportStep === 1 ? "15%" : reportStep === 2 ? "60%" : "100%" }}
                     />
                   </div>

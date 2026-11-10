@@ -277,7 +277,7 @@ export function Sidebar() {
           href={homeForSidebar(rawRole, role)}
           className="flex items-center gap-3 overflow-hidden group flex-1 min-w-0"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-700 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm shadow-primary-600/25 group-hover:scale-105 transition-transform">
+          <div className="w-9 h-9 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm shadow-primary-600/25 group-hover:scale-105 transition-transform">
             ∫
           </div>
           <div
@@ -541,7 +541,7 @@ export function Sidebar() {
             profileOpen ? "bg-slate-100" : "hover:bg-slate-50"
           )}
         >
-          <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-card uppercase">
+          <div className="relative w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-card uppercase">
             {user?.first_name?.[0] || user?.full_name?.[0] || role[0]}
             {supportUnread > 0 && <span aria-hidden="true" data-testid="support-unread-dot" className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />}
           </div>

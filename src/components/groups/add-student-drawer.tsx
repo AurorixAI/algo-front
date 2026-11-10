@@ -1,6 +1,5 @@
 "use client";
 
-import { TAP_ZONE } from "@/lib/tap-zone";
 import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
 import { useState, useEffect, useCallback } from "react";
@@ -451,7 +450,7 @@ export function AddStudentDrawer({
               role="switch"
               aria-checked={allClasses}
               onClick={() => setAllClasses((value) => !value)}
-              className={`${TAP_ZONE} inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-500 hover:text-slate-600"}`}
+              className={`inline-flex items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors max-sm:min-h-10 ${allClasses ? "text-primary-700" : "text-slate-600 hover:text-slate-800"}`}
             >
               {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
               Все классы

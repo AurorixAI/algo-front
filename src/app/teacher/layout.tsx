@@ -14,7 +14,7 @@ export default function TeacherLayout({
   return (
     <AuthGuard allowedRoles={["teacher"]} forbiddenPath="/">
       <TouchDensity />
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary-50/30">
+      <div className="min-h-screen bg-background">
         <Sidebar />
         <main className={`min-w-0 ${collapsed ? "md:ml-[calc(68px+env(safe-area-inset-left))]" : "md:ml-[calc(240px+env(safe-area-inset-left))]"} p-4 md:p-8 max-md:pl-[max(1rem,env(safe-area-inset-left))] max-md:pr-[max(1rem,env(safe-area-inset-right))] ${BOTTOM_NAV_CLEARANCE} transition-all duration-300`}>{children}</main>
       </div>

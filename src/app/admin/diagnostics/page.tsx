@@ -229,10 +229,10 @@ export default function AdminDiagnosticsPage() {
       {/* Stats cards */}
       <div data-testid="diagnostic-kpi-grid" className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         {[
-          { label: "Всего", value: counts.all, icon: Brain, color: "text-blue-500", bg: "bg-blue-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)]", chartGlow: "from-blue-500 to-cyan-500", chart: [40, 70, 45, 90, 65, 85] },
-          { label: "Ожидают старта", value: counts.awaiting_start, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]", chartGlow: "from-amber-500 to-orange-500", chart: [20, 40, 35, 60, 80, 100] },
-          { label: "Проходят", value: counts.in_progress, icon: Sparkles, color: "text-purple-500", bg: "bg-purple-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]", chartGlow: "from-purple-500 to-pink-500", chart: [60, 50, 40, 30, 20, 10] },
-          { label: "Ждут распределения", value: counts.completed, icon: Check, color: "text-emerald-500", bg: "bg-emerald-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]", chartGlow: "from-emerald-500 to-teal-500", chart: [30, 50, 80, 60, 90, 100] },
+          { label: "Всего", value: counts.all, icon: Brain, color: "text-blue-500", bg: "bg-blue-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)]", chartGlow: "bg-blue-500", chart: [40, 70, 45, 90, 65, 85] },
+          { label: "Ожидают старта", value: counts.awaiting_start, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]", chartGlow: "bg-amber-500", chart: [20, 40, 35, 60, 80, 100] },
+          { label: "Проходят", value: counts.in_progress, icon: Sparkles, color: "text-purple-500", bg: "bg-purple-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]", chartGlow: "bg-purple-500", chart: [60, 50, 40, 30, 20, 10] },
+          { label: "Ждут распределения", value: counts.completed, icon: Check, color: "text-emerald-500", bg: "bg-emerald-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]", chartGlow: "bg-emerald-500", chart: [30, 50, 80, 60, 90, 100] },
         ].map((stat) => (
           <button
             key={stat.label}
@@ -275,7 +275,7 @@ export default function AdminDiagnosticsPage() {
                       initial={{ height: "10%" }}
                       animate={{ height: `${h}%` }}
                       transition={{ duration: 0.4, delay: j * 0.05, ease: "easeOut" }}
-                      className={`w-1 rounded-t-sm bg-gradient-to-t ${stat.chartGlow}`} 
+                      className={`w-1 rounded-t-sm ${stat.chartGlow}`} 
                     />
                   ))}
                 </div>
@@ -438,8 +438,8 @@ export default function AdminDiagnosticsPage() {
                       className={
                         "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 hover:opacity-80 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 " +
                         (isCompleted
-                          ? "bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700"
-                          : "bg-gradient-to-br from-primary-100 to-primary-200 text-primary-700")
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-primary-100 text-primary-700")
                       }
                       title="Открыть профиль ученика"
                       aria-label={`Карточка ученика: ${inv.student_name}`}
@@ -451,8 +451,8 @@ export default function AdminDiagnosticsPage() {
                       className={
                         "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 " +
                         (isCompleted
-                          ? "bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700"
-                          : "bg-gradient-to-br from-primary-100 to-primary-200 text-primary-700")
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-primary-100 text-primary-700")
                       }
                     >
                       {inv.student_name.charAt(0).toUpperCase()}

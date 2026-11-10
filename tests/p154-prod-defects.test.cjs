@@ -45,7 +45,7 @@ test("B1: one function says all six types the server allows; an unknown or empty
 });
 
 test("B1: the owner's panel uses the function, no raw org_type is rendered anywhere in src", () => {
-  assert.match(read("src/app/owner/dashboard/page.tsx"), /\{orgTypeLabel\(org\?\.org_type\)\}/);
+  assert.match(read("src/app/owner/dashboard/page.tsx"), /\{orgTypeLabel\(org\.org_type\)\}/);
   const offenders = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
