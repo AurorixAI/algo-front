@@ -84,7 +84,7 @@ function saveRequests(page: Page): Request[] {
 
 /** Opens the panel of the lesson of `group`: the card of the day (dashboard: not the link of the action centre; schedule: the card of the day). */
 async function openLesson(page: Page, screen: "dashboard" | "schedule", group: GroupInfo) {
-  const card = screen === "dashboard" ? page.locator("p.truncate", { hasText: group.name }).first() : page.getByText(group.name, { exact: true }).first();
+  const card = screen === "dashboard" ? page.locator("p.truncate:not([data-testid])", { hasText: group.name }).first() : page.getByText(group.name, { exact: true }).first();
   await card.click();
 }
 
@@ -292,7 +292,7 @@ test("a double press of «Начать урок» is one request @mobile", async
   });
   await page.goto("/teacher/dashboard");
   await page.getByText(group.name, { exact: false }).first().waitFor();
-  await page.locator("p.truncate", { hasText: group.name }).first().click();
+  await page.locator("p.truncate:not([data-testid])", { hasText: group.name }).first().click();
   const start = page.getByRole("button", { name: "Начать урок", exact: true });
   await start.dblclick();
   await expect(page.getByRole("heading", { name: /Отметка посещаемости \(0 из 1\)/ })).toBeVisible();

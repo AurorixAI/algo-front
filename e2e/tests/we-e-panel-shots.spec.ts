@@ -24,7 +24,7 @@ for (const screen of ["dashboard", "schedule"] as const) {
       if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/${process.env.E2E_SHOTS_LABEL ?? "shot"}-${screen}-${state}-${width}.png` });
     };
     await page.goto(`/teacher/${screen}`);
-    const card = screen === "dashboard" ? page.locator("p.truncate", { hasText: group.name }).first() : page.getByText(group.name, { exact: true }).first();
+    const card = screen === "dashboard" ? page.locator("p.truncate:not([data-testid])", { hasText: group.name }).first() : page.getByText(group.name, { exact: true }).first();
     await card.click();
     await expect(page.getByText("Состав группы (2 ученика)")).toBeVisible();
     await shot("ready");
