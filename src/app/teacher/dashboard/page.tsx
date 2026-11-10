@@ -1174,8 +1174,6 @@ export default function TeacherDashboardPage() {
                 </div>
                 <div className="max-h-[60vh] space-y-3 overflow-y-auto px-6 py-5 sm:px-7">
                   {lessonActions.map((action) => {
-                    const isMissed = action.actionType === "missed" || action.tone === "rose";
-                    const isHistorical = (action.lesson.occurrenceDate || businessDate) < businessDate;
                     return (
                       <button
                         key={`${action.lesson.occurrenceDate || businessDate}_${action.lesson.groupId}_${action.lesson.id}`}
@@ -1184,12 +1182,10 @@ export default function TeacherDashboardPage() {
                           setIsActionCenterOpen(false);
                           openLessonAction(action);
                         }}
-                        className={`w-full rounded-2xl border p-4 text-left transition-all hover:shadow-sm ${
-                          isMissed || isHistorical ? "border-rose-200 bg-rose-50/45 hover:border-rose-300" : "border-amber-200 bg-amber-50/45 hover:border-amber-300"
-                        }`}
+                        className="w-full rounded-2xl border border-warning-200 bg-warning-50/60 p-4 text-left transition-all hover:border-warning-300 hover:shadow-sm"
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning-100 text-warning-700`}>
                             <ClipboardCheck className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">
@@ -1200,7 +1196,7 @@ export default function TeacherDashboardPage() {
                                   {formatIsoDateLabel(action.lesson.occurrenceDate || businessDate, { weekday: "long", day: "numeric", month: "long" })} · {action.lesson.startTime} — {action.lesson.endTime}
                                 </p>
                               </div>
-                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold bg-warning-100 text-warning-800`}>
                                 {action.actionType ? openLessonBadge(action.actionType) : action.badge ?? "Пора начать"}
                               </span>
                             </div>

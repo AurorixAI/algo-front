@@ -6,6 +6,10 @@ const test = require("node:test");
 const ts = require("typescript");
 const opts = { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true };
 require.extensions[".ts"] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, "utf8"), { compilerOptions: opts }).outputText, f);
+require.extensions[".tsx"] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, "utf8"), { compilerOptions: opts }).outputText, f);
+const Module = require("node:module");
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, ...rest) { return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest); };
 const src = (p) => path.join(__dirname, "..", "src", p);
 const A = require(src("lib/teacher-agenda.ts"));
 const T = require(src("lib/today-actions.ts"));
@@ -50,4 +54,35 @@ test("both screens call the one function: «Главная» and «Распис�
     assert.match(text, /openTodayActions\(/, file);
   }
   assert.doesNotMatch(fs.readFileSync(src("app/teacher/schedule/page.tsx"), "utf8"), /На сегодня всё<\/p>|Нет уроков, требующих действия/, "the schedule no longer has its own «всё закрыто»");
+});
+
+// Owner 10.11: the card «Ближайшее действие» overflowed to 4 lines, was red, with sparkles.
+const CARD = require(src("components/teacher/next-action-card.tsx"));
+const SERVER_MISSED = { actionType: "missed", lessonId: "l1", lessonDate: "2026-11-04", groupName: "Индивидуально: Азизов", rosterCount: 0, markedCount: 0, remainingCount: 0 };
+const openOf = (action) => T.openTodayActions({ actions: [action], today: "2026-11-10", toLesson: () => ({ id: "l1", groupName: action.groupName, startTime: "10:00", endTime: "11:00", occurrenceDate: action.lessonDate }), isLocked: () => false })[0];
+
+test("a missed lesson on the card: the title «Разобрать пропущенный урок», ONE line «Ср, 4 нояб. · Индивидуально: Азизов», no explanation (it is on the screen the arrow opens)", () => {
+  const view = CARD.nextStepView({ kind: "action", action: openOf(SERVER_MISSED) });
+  assert.equal(view.title, "Разобрать пропущенный урок");
+  assert.match(view.description, /^[А-Яа-я]{2}, 4 нояб\.? · Индивидуально: Азизов$/);
+  assert.doesNotMatch(view.description, /не был начат|Укажите|\n/);
+  assert.ok(view.description.length < 60);
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "src/components/teacher/lesson-panel.tsx"), "utf8"), /Урок не был начат/, "the explanation is where the arrow leads");
+});
+
+test("the card text is ONE line with the full value in title; the tone of an overdue lesson is a WARNING (yellow), never red; the sign is by meaning", () => {
+  for (const file of ["src/components/teacher/next-action-card.tsx", "src/app/teacher/schedule/page.tsx"]) {
+    const text = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    assert.match(text, /title=\{(view|nextStepText)\.description\}[^>]*truncate|truncate[^>]*title=\{(view|nextStepText)\.description\}/, `${file}: one line, the full text in title`);
+  }
+  const schedule = fs.readFileSync(path.join(__dirname, "..", "src/app/teacher/schedule/page.tsx"), "utf8");
+  assert.match(schedule, /nextStepText\.tone === "rose" \? "border-warning-200 bg-warning-50\/70/, "overdue = warning on «Расписание»");
+  assert.doesNotMatch(schedule, /nextStepText\.tone === "rose" \? "border-danger/);
+  assert.match(CARD.ICON_TONE.rose, /warning/, "overdue = warning on «Главная»");
+  const iconName = (step) => CARD.nextStepIcon(step).displayName || CARD.nextStepIcon(step).render?.displayName;
+  const lucide = require("lucide-react");
+  assert.equal(CARD.nextStepIcon({ kind: "action", action: openOf(SERVER_MISSED) }), lucide.AlertCircle, "a missed lesson: «!»");
+  assert.equal(CARD.nextStepIcon({ kind: "action", action: { lesson: {}, tone: "emerald", label: "Начните урок", description: "" } }), lucide.Play, "a lesson to start: play");
+  assert.equal(CARD.nextStepIcon({ kind: "closed", later: null }), lucide.CheckCircle2, "nothing to do: a tick");
+  void iconName;
 });

@@ -234,7 +234,7 @@ test("#158 r2 (1): today's lesson that is over and never started is the FIRST ta
   assert.equal(day.remaining, 1, "a missed lesson is a task, not «осталось»");
   const page = read("src/lib/today-actions.ts");     // the rule lives in ONE place now: «Главная» and «Расписание» both call it
   assert.match(page, /entry\.phase === "missed"/);
-  assert.match(page, /cardLabel: `Разберите урок: \$\{entry\.lesson\.groupName\} · \$\{entry\.lesson\.startTime\}`/);
+  assert.match(page, /cardLabel: "Разобрать пропущенный урок"/);
   assert.match(page, /state\.|input\.openActions\.some\(\(action\) => action\.lessonId === entry\.lesson\.id && action\.lessonDate === input\.today\)/, "no second card for the lesson the server returned");
   // the red task goes before a lesson in progress and a lesson to start, whatever the time
   const missed = { lesson: over, tone: "rose", label: "Разберите урок" };
