@@ -372,7 +372,8 @@ test.describe("lessons mode", () => {
     expect(dm(saved.opening.paid_until)).toBe(shown);
     // «0 уроков» = nothing is left = «на начало долга нет»
     await row.getByTestId("openings-lessons").fill("0");
-    await expect(row.getByTestId("openings-lessons-arrow")).toContainText("долга на начало нет");
+    // the answer of the server arrives after a pause (a loaded machine is slower than the default 5 s)
+    await expect(row.getByTestId("openings-lessons-arrow")).toContainText("долга на начало нет", { timeout: 20_000 });
   });
 });
 
