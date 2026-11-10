@@ -388,7 +388,7 @@ function PayrollMonthContent() {
 
       <div className="min-w-0 print:hidden">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Зарплата</h1>
-        <p className="text-sm text-slate-600" data-testid="payroll-page-subtitle">{monthSubtitle(month, overview ? teachers.length : null)}</p>
+        <p className="text-sm text-slate-600" data-testid="payroll-page-subtitle">{monthSubtitle(month, overview ? teachers.filter((teacher) => !isAdvanceRow(teacher)).length : null)}</p>
       </div>
 
       <div className="space-y-2 print:hidden">

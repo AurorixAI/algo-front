@@ -95,10 +95,16 @@ export const PRELIMINARY_NOW = "на сегодня";
 /** «31 урок» */
 export const lessonsText = (count: number): string => `${count} ${pluralRu(count, ["урок", "урока", "уроков"])}`;
 
-/** «Получено авансом раньше: 200 000 сум — вычитается из суммы этого месяца» (the words of the lead, 10.11); null without an advance. */
-export function carryText(month: Pick<MyMonth, "carryIn">): string | null {
-  return month.carryIn > 0 ? `Получено авансом раньше: ${formatMoney(month.carryIn)} — вычитается из суммы этого месяца` : null;
+/**
+ * The line «Аванс прошлых месяцев — −200 000 сум» of the breakdown (LESSONS 113): what the advance took off THIS month.  It is not recalculated - it is what the server's own numbers leave between the
+ * salary, the payouts and the rest (`total - paid - balance`), so the lines always add up to the rest the server named.  null without an advance.
+ */
+export function advanceTaken(month: Pick<MyMonth, "carryIn" | "total" | "paid" | "balance">): number | null {
+  if (month.carryIn <= 0 || month.total === null) return null;
+  const taken = month.total - month.paid - month.balance;
+  return taken > 0 ? taken : null;
 }
+export const ADVANCE_LINE = "Аванс прошлых месяцев";
 
 /** The chip of the month: a state is a fact, not a task for the teacher - never amber. */
 export function myMonthChip(month: Pick<MyMonth, "state" | "preliminary">): { label: string; tone: ChipTone } {
@@ -119,7 +125,10 @@ export const hasNumbers = (month: Pick<MyMonth, "total">): boolean => month.tota
 
 /** The line under the numbers: the caution of a month that is going on, or the reason there are no numbers - the server's own words.  A saved month says everything with its numbers. */
 export function stateLine(month: Pick<MyMonth, "state" | "text">): string | null {
-  return month.state === "saved" ? null : month.text || null;
+  if (month.state === "saved" || !month.text) return null;
+  // the chip already says «Предварительно»: the line does not repeat the word
+  const text = month.text.replace(/^Предварительно:\s*/, "");
+  return text.charAt(0).toLocaleUpperCase("ru-RU") + text.slice(1);
 }
 
 /** The one line of a month in the list: «31 урок · 4 100 000 сум» - or the server's words when there is no sum. */

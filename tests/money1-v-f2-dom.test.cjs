@@ -160,7 +160,7 @@ test("375: the hint «начислить» is there (no hover needed), a tap zon
 // ── «Моя зарплата» ──────────────────────────────────────────────────────────────────────
 
 const M = (month, extra = {}) => ({ month, month_label: month, state: "saved", preliminary: false, lessons_counted: 31, total: 4100000, paid: 4100000, balance: 0, carry_in: 0, text: "Выплачено полностью", updated_at: "2026-11-01T08:00:00", ...extra });
-const NOV = M("2026-11", { state: "open_preliminary", preliminary: true, lessons_counted: 18, total: 2450000, paid: 1000000, balance: 1450000, carry_in: 200000, text: "Предварительно: сумма может измениться до сохранения зарплаты", updated_at: null });
+const NOV = M("2026-11", { state: "open_preliminary", preliminary: true, lessons_counted: 18, total: 2450000, paid: 1000000, balance: 1250000, carry_in: 200000, text: "Предварительно: сумма может измениться до сохранения зарплаты", updated_at: null });
 const OCT = M("2026-10");
 const SEP = M("2026-09", { lessons_counted: 29, total: 3800000, paid: 3500000, balance: 300000, text: `К выплате 300${NB}000${NB}сум` });
 const AUG = M("2026-08", { state: "not_saved", lessons_counted: 0, total: null, paid: 0, balance: 0, text: "Зарплата за месяц ещё не сохранена" });
@@ -185,9 +185,13 @@ test("«Моя зарплата» 375: the card of the month (lessons, salary «
   assert.equal(plain(await page.getByTestId("my-lessons").innerText()), "Засчитано уроков 18");
   assert.equal(plain(await page.getByTestId("my-total").innerText()), `Зарплата · на сегодня 2${NB}450${NB}000${NB}сум`.replace(/ /g, " "));
   assert.equal(plain(await page.getByTestId("my-paid").innerText()), "Выплачено 1 000 000 сум");
-  assert.equal(plain(await page.getByTestId("my-rest").innerText()), "К выплате 1 450 000 сум");
-  assert.equal(plain(await page.getByTestId("my-carry").innerText()), "Получено авансом раньше: 200 000 сум — вычитается из суммы этого месяца");
-  assert.equal(plain(await page.getByTestId("my-state-line").innerText()), "Предварительно: сумма может измениться до сохранения зарплаты");
+  assert.equal(plain(await page.getByTestId("my-advance").innerText()), "Аванс прошлых месяцев −200 000 сум");
+  assert.equal(plain(await page.getByTestId("my-rest").innerText()), "К выплате 1 250 000 сум");
+  // the lines add up to the rest of the server (LESSONS 113): 2 450 000 − 200 000 − 1 000 000
+  const n = async (id) => { const t = await page.getByTestId(id).innerText(); const v = Number(t.replace(/\D/g, "")); return /[−-]/.test(t) ? -v : v; };
+  assert.equal((await n("my-total")) + (await n("my-advance")) - (await n("my-paid")), await n("my-rest"));
+  assert.equal(await page.getByTestId("my-carry").count(), 0);
+  assert.equal(plain(await page.getByTestId("my-state-line").innerText()), "Сумма может измениться до сохранения зарплаты");
   const rows = (await page.getByTestId("my-month-row").allInnerTexts()).map(plain);
   assert.deepEqual(rows, ["Октябрь 2026 31 урок · 4 100 000 сум Выплачено полностью", "Сентябрь 2026 29 уроков · 3 800 000 сум К выплате 300 000 сум", "Август 2026 Зарплата за месяц ещё не сохранена"]);
   const all = plain(await page.getByTestId("my-payroll").innerText());
@@ -206,7 +210,7 @@ test("«Моя зарплата»: a tap on a past month opens it (a saved one: 
   assert.equal(plain(await page.getByTestId("my-month-chip").innerText()), "Сохранена");
   assert.equal(plain(await page.getByTestId("my-rest").innerText()), "К выплате 300 000 сум");
   assert.equal(await page.getByTestId("my-state-line").count(), 0);
-  assert.equal(await page.getByTestId("my-carry").count(), 0);
+  assert.equal(await page.getByTestId("my-advance").count(), 0);
   await page.getByTestId("my-month-row").filter({ hasText: "Август" }).click();
   assert.equal(plain(await page.getByTestId("my-state-line").innerText()), "Зарплата за месяц ещё не сохранена");
   assert.equal(await page.getByTestId("my-total").count(), 0);

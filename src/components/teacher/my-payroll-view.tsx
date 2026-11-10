@@ -8,7 +8,7 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
 import {
   MY_PAYROLL_BACK, MY_PAYROLL_EMPTY_HINT, MY_PAYROLL_EMPTY_TITLE, MY_PAYROLL_LOAD_FAILED, MY_PAYROLL_NO_MONTH, MY_PAYROLL_PAST, MY_PAYROLL_TITLE, PRELIMINARY_NOW,
-  balanceView, carryText, hasNumbers, isEmptyList, listLine, listState, myMonthChip, myMonthParam, stateLine,
+  ADVANCE_LINE, advanceTaken, balanceView, hasNumbers, isEmptyList, listLine, listState, myMonthChip, myMonthParam, stateLine,
   type MyMonth,
 } from "@/lib/my-payroll";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ function MonthCard({ month }: { month: MyMonth }) {
   const numbers = hasNumbers(month);
   const rest = balanceView(month.balance);
   const note = stateLine(month);
-  const carry = carryText(month);
+  const taken = advanceTaken(month);
   return (
     <section aria-label={month.title} data-testid="my-month-card" data-state={month.state} className="rounded-card border border-slate-200 bg-white p-4 md:p-5">
       <div className="flex items-center justify-between gap-3">
@@ -140,11 +140,11 @@ function MonthCard({ month }: { month: MyMonth }) {
         <dl className="mt-2 divide-y divide-slate-100">
           <Line label="Засчитано уроков" value={String(month.lessonsCounted)} testId="my-lessons" />
           <Line label={month.preliminary ? `Зарплата · ${PRELIMINARY_NOW}` : "Зарплата"} value={formatMoney(month.total ?? 0)} testId="my-total" strong />
+          {taken !== null && <Line label={ADVANCE_LINE} value={`−${formatMoney(taken)}`} testId="my-advance" />}
           <Line label="Выплачено" value={formatMoney(month.paid)} testId="my-paid" />
           <Line label={rest.label} value={rest.value} testId="my-rest" strong />
         </dl>
       )}
-      {carry && <p data-testid="my-carry" className="mt-2 text-xs leading-5 text-slate-600">{carry}</p>}
       {note && <p data-testid="my-state-line" className="mt-3 text-sm leading-5 text-slate-600">{note}</p>}
     </section>
   );

@@ -108,10 +108,12 @@ test("«Моя зарплата»: the normalizer keeps the numbers of the owner
 });
 
 test("«Моя зарплата»: the advance in the words of the lead; the sums carry a non-breaking space; paid forward and what is left have the words of the dictionary", () => {
-  const month = MY.normalizeMyMonth(rawMonth({ carry_in: 200000 }));
-  assert.equal(env.plain(MY.carryText(month)), "Получено авансом раньше: 200 000 сум — вычитается из суммы этого месяца");
-  assert.match(MY.carryText(month), /\d{3} \d{3} сум/);
-  assert.equal(MY.carryText({ carryIn: 0 }), null);
+  const month = MY.normalizeMyMonth(rawMonth({ carry_in: 200000, balance: 1250000 }));   // the server: balance = total - carry - paid
+  assert.equal(MY.advanceTaken(month), 200000);
+  assert.equal(month.total - MY.advanceTaken(month) - month.paid, month.balance);   // the lines add up to the rest of the server
+  assert.equal(MY.advanceTaken(MY.normalizeMyMonth(rawMonth({ carry_in: 0 }))), null);
+  assert.equal(MY.advanceTaken(MY.normalizeMyMonth(rawMonth({ carry_in: 200000, total: null }))), null);
+  assert.equal(MY.stateLine(month), "Сумма может измениться до сохранения зарплаты");
   assert.equal(env.plain(MY.balanceView(300000).value), "300 000 сум");
   assert.equal(MY.balanceView(300000).label, "К выплате");
   assert.equal(MY.balanceView(-50000).label, "Выплачено вперёд");
@@ -132,4 +134,9 @@ test("«Моя зарплата»: the menu of a teacher has the item, the phone
   const { bar, more } = splitBottomNav(items, BOTTOM_NAV_PRIORITY.teacher);
   assert.equal(bar.length, 4);
   assert.deepEqual(more.map((item) => item.href), ["/teacher/payroll"]);
+});
+
+test("the subtitle of the list counts the teachers of the month, not the rows «только аванс» (it agrees with «сохранено N из M»)", () => {
+  const src = env.read("src/components/payroll/payroll-month-page.tsx");
+  assert.match(src, /monthSubtitle\(month, overview \? teachers\.filter\(\(teacher\) => !isAdvanceRow\(teacher\)\)\.length : null\)/);
 });
