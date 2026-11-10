@@ -655,19 +655,20 @@ function Unit() {
 }
 
 /** The three numbers of a row, one cell each: at 1280 the cells of the grid, below it a row of three with their captions (UX pack §5.2). */
-function RowNumbers({ numbers }: { numbers: TeacherMonthNumbers }) {
+function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers; advance?: boolean }) {
   const label = "mb-0.5 block text-xs font-normal text-slate-600 xl:hidden";
   const rest = numbers.rest;
   return (
-    <div className="mt-3 grid grid-cols-3 gap-2 text-sm tabular-nums xl:contents">
-      <div className="min-w-0 xl:text-right" data-testid="teacher-sum">
+    <div className={`mt-3 grid gap-2 text-sm tabular-nums xl:contents ${advance ? "grid-cols-1" : "grid-cols-3"}`}>
+      {/* an advance row has no salary and no payout to show: a card keeps only «Остаток», the table keeps its cells (dashes) */}
+      <div className={`min-w-0 xl:text-right ${advance ? "max-xl:hidden" : ""}`} data-testid="teacher-sum">
         <span className={label}>{SALARY_COLUMN}</span>
         {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
         {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
         {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
         {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
       </div>
-      <div className="min-w-0 xl:text-right" data-testid="teacher-paid">
+      <div className={`min-w-0 xl:text-right ${advance ? "max-xl:hidden" : ""}`} data-testid="teacher-paid">
         <span className={label}>Выплачено</span>
         {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
       </div>
@@ -731,7 +732,7 @@ export function TeacherRow({
         </p>
       </div>
 
-      <RowNumbers numbers={numbers} />
+      <RowNumbers numbers={numbers} advance={advance} />
 
       <div className="mt-3 min-w-0 space-y-1 xl:mt-0 xl:text-center">
         <RowStatus status={status} hint={advance ? advanceHint(Math.max(0, Math.round(Number(teacher.carry_in) || 0))) : statusHint(teacher.sheet)} name={teacher.teacher_name ?? ""} />
