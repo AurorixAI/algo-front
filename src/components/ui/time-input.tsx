@@ -31,7 +31,7 @@ export const TIME_PICKER_EMPTY_HOUR = "09";
 export const TIME_PICKER_EMPTY_MINUTE = "00";
 
 export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function TimeInput(
-  { value, onChange, className, wrapperClassName, invalid = false, disabled, required, onBlur, onKeyDown, placeholder = "чч:мм", ...rest },
+  { value, onChange, className, wrapperClassName, invalid = false, disabled, required, onBlur, onKeyDown, placeholder = "Укажите время", ...rest },
   forwardedRef,
 ) {
   const shown = normalizeTimeValue(value) || value;
@@ -101,8 +101,8 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
       if (!box) return;
       const width = 184;
       const room = { below: window.innerHeight - box.bottom - 8, above: box.top - 8 };
-      const height = Math.min(272, Math.max(room.below, room.above));
-      const top = room.below >= Math.min(272, room.above) ? box.bottom + 4 : Math.max(8, box.top - height - 4);
+      const height = Math.min(240, Math.max(room.below, room.above));
+      const top = room.below >= Math.min(240, room.above) ? box.bottom + 4 : Math.max(8, box.top - height - 4);
       const left = Math.min(Math.max(8, box.right - width), window.innerWidth - width - 8);
       setPlace({ top, left, maxHeight: height });
     };
@@ -112,20 +112,21 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
 
-  // the columns scroll to the current value (09:00 when empty) when the panel opens
+  // every column is scrolled so that its value (09 : 00 when empty) stands in the band in the middle: the hour and the minutes are ONE line
+  const centerRow = (column: "hours" | "minutes", key: string) => {
+    const list = panelRef.current?.querySelector<HTMLElement>(`[data-column="${column}"]`);
+    if (!list) return;
+    let option = list.querySelector<HTMLElement>(`[data-key="${key}"]`);
+    // a minute that is not a multiple of 5: the nearest step
+    if (!option && column === "minutes") option = list.querySelector<HTMLElement>(`[data-key="${String((Math.round(Number(key) / 5) * 5) % 60).padStart(2, "0")}"]`);
+    if (option) list.scrollTop = option.offsetTop - (list.clientHeight - option.offsetHeight) / 2;
+  };
   useEffect(() => {
     if (!open || !place) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const hour = currentHour || TIME_PICKER_EMPTY_HOUR;
-    const minute = currentMinute || TIME_PICKER_EMPTY_MINUTE;
-    for (const [column, key] of [["hours", hour], ["minutes", minute]] as const) {
-      const list = panel.querySelector<HTMLElement>(`[data-column="${column}"]`);
-      const option = list?.querySelector<HTMLElement>(`[data-key="${key}"]`) ?? (column === "minutes" ? list?.querySelector<HTMLElement>(`[data-key="${String(Math.round(Number(minute) / 5) * 5 % 60).padStart(2, "0")}"]`) : null);
-      if (list && option) list.scrollTop = option.offsetTop - (list.clientHeight - option.offsetHeight) / 2;
-    }
+    centerRow("hours", currentHour || TIME_PICKER_EMPTY_HOUR);
+    centerRow("minutes", currentMinute || TIME_PICKER_EMPTY_MINUTE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, place]);
+  }, [open, place, currentHour, currentMinute]);
 
   // a click outside closes it (a click on the field or on the clock is the field's own business)
   useEffect(() => {
@@ -139,15 +140,11 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     return () => document.removeEventListener("pointerdown", outside, true);
   }, [open]);
 
-  // keep the highlighted option of the keyboard on screen
+  // the option of the keyboard stands in the band
   useEffect(() => {
     if (!open) return;
-    const list = panelRef.current?.querySelector<HTMLElement>(`[data-column="${cursor.col === 0 ? "hours" : "minutes"}"]`);
-    const option = list?.children[cursor.row] as HTMLElement | undefined;
-    if (list && option) {
-      if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
-      else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
-    }
+    centerRow(cursor.col === 0 ? "hours" : "minutes", (cursor.col === 0 ? TIME_HOURS : TIME_MINUTES)[cursor.row]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cursor]);
 
   const onPickerKey = (event: React.KeyboardEvent<HTMLInputElement>): boolean => {
@@ -167,6 +164,7 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
 
   const option = (column: 0 | 1, key: string, row: number, selected: boolean) => {
     const highlighted = open && cursor.col === column && cursor.row === row;
+    const suggested = !selected && (column === 0 ? !currentHour && key === TIME_PICKER_EMPTY_HOUR : !currentMinute && key === TIME_PICKER_EMPTY_MINUTE);
     return (
       <button
         key={key}
@@ -183,8 +181,8 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
           else { pick(currentHour || TIME_PICKER_EMPTY_HOUR, key); closePicker(); }
         }}
         className={cn(
-          "flex h-8 w-full items-center justify-center rounded-lg text-sm tabular-nums transition-colors max-sm:h-10",
-          selected ? "bg-primary-600 font-semibold text-white" : highlighted ? "bg-primary-50 text-primary-800" : "text-slate-700 hover:bg-slate-100",
+          "relative z-10 flex h-[var(--row)] w-full snap-center items-center justify-center rounded-lg text-sm tabular-nums transition-colors",
+          selected ? "font-semibold text-primary-800" : highlighted || suggested ? "text-primary-700" : "text-slate-700 hover:bg-slate-100",
         )}
       >
         {key}
@@ -248,14 +246,24 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
           role="dialog"
           aria-label="Выбор времени"
           data-testid="time-picker"
-          style={{ position: "fixed", top: place.top, left: place.left, width: 184, maxHeight: place.maxHeight }}
-          className="z-[100030] flex gap-1 overflow-hidden rounded-card border border-slate-200 bg-white p-1.5 shadow-pop"
+          style={{ position: "fixed", top: place.top, left: place.left, width: 184 }}
+          className="z-[100030] overflow-hidden rounded-card border border-slate-200 bg-white p-1.5 shadow-pop [--row:2rem] max-sm:[--row:2.5rem]"
         >
-          <div role="listbox" aria-label="Часы" data-column="hours" className="relative max-h-[250px] min-w-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-0.5" style={{ maxHeight: place.maxHeight - 12 }}>
-            {TIME_HOURS.map((hour, row) => option(0, hour, row, hour === currentHour))}
+          <div aria-hidden className="grid grid-cols-[1fr_0.75rem_1fr] pb-1 text-xs font-medium text-slate-500">
+            <span className="text-center">Часы</span>
+            <span />
+            <span className="text-center">Минуты</span>
           </div>
-          <div role="listbox" aria-label="Минуты" data-column="minutes" className="relative max-h-[250px] min-w-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-0.5" style={{ maxHeight: place.maxHeight - 12 }}>
-            {TIME_MINUTES.map((minute, row) => option(1, minute, row, minute === currentMinute))}
+          <div className="relative flex">
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[calc(var(--row)*2)] h-[var(--row)] rounded-lg border border-primary-200 bg-primary-50" />
+            <div aria-hidden className="pointer-events-none absolute left-1/2 top-[calc(var(--row)*2)] z-10 flex h-[var(--row)] -translate-x-1/2 items-center text-sm font-semibold text-primary-800">:</div>
+            <div role="listbox" aria-label="Часы" data-column="hours" className="relative h-[calc(var(--row)*5)] min-w-0 flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain py-[calc(var(--row)*2)] scroll-soft">
+              {TIME_HOURS.map((hour, row) => option(0, hour, row, hour === currentHour))}
+            </div>
+            <div className="w-3 shrink-0" />
+            <div role="listbox" aria-label="Минуты" data-column="minutes" className="relative h-[calc(var(--row)*5)] min-w-0 flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain py-[calc(var(--row)*2)] scroll-soft">
+              {TIME_MINUTES.map((minute, row) => option(1, minute, row, minute === currentMinute))}
+            </div>
           </div>
         </div>,
         document.body,
