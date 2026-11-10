@@ -100,6 +100,8 @@ export interface LogicaError {
   fresh: FreshBalance[];
   debt: number | null;
   payoutId: string | null;
+  /** Money-1 V3: `PRICE_BACKDATE_WITH_PAYMENTS` - the window may offer «Исправляю опечатку в цене». */
+  canCorrect: boolean;
 }
 
 /** The refusal of a LOGIC-A call in one shape: the code, the server's words and the lists some codes carry. */
@@ -116,6 +118,7 @@ export function logicaError(error: unknown, fallback = "Не удалось вы
     fresh: arr<FreshBalance>(detail?.fresh).map((item) => ({ membership_id: String(item.membership_id), debt: num(item.debt), advance: num(item.advance), refundable: num(item.refundable) })),
     debt: detail?.debt === null || detail?.debt === undefined ? null : num(detail.debt),
     payoutId: (detail?.payout_id as string | null | undefined) ?? null,
+    canCorrect: detail?.can_correct === true,
   };
 }
 

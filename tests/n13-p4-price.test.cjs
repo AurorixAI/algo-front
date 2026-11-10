@@ -789,9 +789,9 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   const dialog = read("src/components/groups/group-price-dialog.tsx");
   // the question for the consequences is the dry run, with the sum and the day only
   assert.match(dialog, /orgApi\.setGroupPrice\(groupId, asked, \{ dryRun: true \}\)/);
-  assert.match(dialog, /const asked = \{ amount: check\.request\.amount, valid_from: check\.request\.valid_from \};/);
+  assert.match(dialog, /const asked = \{ amount: check\.request\.amount, valid_from: check\.request\.valid_from, \.\.\.\(correcting \? \{ correction: true \} : \{\}\) \};/);
   // the answer counts for the key it was asked for, and the button waits for it
-  assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking && !blockedNow;/);
+  assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking && !blockedNow && \(unusualText === null \|\| confirmed\) && reasonProblem === null;/);
   assert.match(dialog, /const canSave = ready && !noop;/);
   assert.match(dialog, /busy=\{saving\} disabled=\{!canSave\}/);
   assert.match(dialog, /if \(!check\.request \|\| !canSave \|\| saving\) return;/);

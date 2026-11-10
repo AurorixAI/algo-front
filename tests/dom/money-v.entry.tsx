@@ -12,6 +12,8 @@ import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { IncomePage } from "@/components/payments/income-page";
 import { JournalSection } from "@/components/payments/income-journal";
 import { periodOf } from "@/lib/payments-income-v2";
+import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
+import { AssignOverrideDialog } from "@/components/payments/membership-price";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -78,6 +80,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
         focusLabel={null} onClearFocus={() => {}} empty={{ kind: "month", focusLabel: null, narrowed: false, year: "2026" }} onResetNarrowing={() => {}} onPage={() => {}}
         onExport={() => log("export")} exporting={false} activeId={null} onOpen={() => {}} showVoided={props.showVoided} onToggleVoided={() => log("toggle")}
         withReplaced={props.withReplaced} onToggleReplaced={() => log("replaced")} /></div>);
+      break;
+    case "groupPrice":
+      root.render(<GroupPriceDialog open groupId="g1" groupName="Алгебра 7" label="Цена в месяц" current={{ amount: 300000, valid_from: "2026-09-01" } as never} history={props.history ?? []} onClose={() => log("close")} onSaved={() => log("saved")} onConflict={() => log("conflict")} />);
+      break;
+    case "assignOverride":
+      root.render(<AssignOverrideDialog open row={{ ...ROW, price: { amount: 300000, source: "group", group_amount: 300000 } } as never} studentName="Иванов Иван" label="Цена в месяц" onClose={() => log("close")} onConflict={() => log("conflict")} onSaved={() => log("saved")} />);
       break;
     default:
       break;

@@ -147,6 +147,33 @@ export interface PriceImpact {
   money?: PriceImpactMoney | null;
   /** Money-1 B2: only when this is the FIRST price of the group - the day it really acts from (the start of the running period of each student) and the server's sentence. */
   first_price?: FirstPriceImpact | null;
+  /** Money-1 V3: what the person should know BEFORE saving («Вы уверены: 3 000 000 сум? Сейчас 300 000 сум»). */
+  warnings?: PriceWarning[];
+  /** Money-1 V3: a typo corrected backdated: how many students with payments it releases. */
+  correction?: { students: number; reason: string | null } | null;
+}
+
+export interface PriceWarning { code: string; text: string }
+
+/** The question of an unusual price (more than twice, less than a half, zero) as the server worded it; null when the price is usual.  The front does not count the times itself (LESSONS 104). */
+export function unusualPriceText(impact: Pick<PriceImpact, "warnings"> | null | undefined): string | null {
+  const found = (impact?.warnings ?? []).find((warning) => warning?.code === "price_unusual" && warning.text);
+  return found ? found.text : null;
+}
+
+/** The reason of a correction of a typo in the price of a group: 3..200 characters (the server's own limits). */
+export const CORRECTION_REASON_MIN = 3;
+export const CORRECTION_REASON_MAX = 200;
+export function correctionReasonProblem(reason: string): string | null {
+  const length = reason.trim().length;
+  return length < CORRECTION_REASON_MIN || length > CORRECTION_REASON_MAX ? `Причина исправления: от ${CORRECTION_REASON_MIN} до ${CORRECTION_REASON_MAX} символов` : null;
+}
+
+/** «Исправление затронет 2 ученика, у которых есть оплаты» - from `impact.correction`; empty when nobody is released. */
+export function correctionImpactText(impact: Pick<PriceImpact, "correction"> | null | undefined): string {
+  const n = impact?.correction?.students ?? 0;
+  if (n <= 0) return "";
+  return `Исправление затронет ${n} ${pluralRu(n, "ученика", "учеников", "учеников")}, у которых есть оплаты`;
 }
 
 export interface FirstPriceImpact {
@@ -176,6 +203,11 @@ export interface GroupPriceRequest {
   amount: number;
   valid_from: string;
   note?: string;
+  /** Money-1 V3: the person answered «Да, цена верная» to the question of an unusual price. */
+  confirm_unusual?: boolean;
+  /** Money-1 V3: «Исправляю опечатку» - a price backdated although the students have payments (with the reason, 3..200). */
+  correction?: boolean;
+  correction_reason?: string;
 }
 
 export interface PriceOverrideRow {
@@ -216,6 +248,9 @@ export interface PriceOverrideRequest {
   amount: number | null;
   valid_from?: string;
   reason?: string;
+  confirm_unusual?: boolean;
+  correction?: boolean;
+  correction_reason?: string;
 }
 
 /** The individual price handed over together with an enrolment (`price_override` of the add / bulk requests). */

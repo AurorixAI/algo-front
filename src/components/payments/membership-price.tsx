@@ -1,7 +1,7 @@
 "use client";
 
 import { logicaError, type LogicaError } from "@/lib/payments-logica";
-import { PriceBlockedBanner, PriceImpactMoneyBlock } from "./price-impact";
+import { CorrectionSwitch, PriceBlockedBanner, PriceImpactMoneyBlock, UnusualPriceConfirm } from "./price-impact";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -13,6 +13,7 @@ import {
   checkReturnForm,
   formatPrice,
   groupPriceHref,
+  unusualPriceText,
   isCancelRefused,
   isPriceConflict,
   membershipPriceLine,
@@ -35,7 +36,8 @@ import {
   type PriceOverrideRequest,
   type PriceOverrideRow,
 } from "@/lib/group-price";
-import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
+import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
+import { Notice } from "@/components/ui/notice";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/components/money/dialog-footer";
@@ -322,12 +324,21 @@ export function AssignOverrideDialog({
   const [error, setError] = useState<string | null>(null);
   /** 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the day reaches a period that has money behind it. */
   const [blocked, setBlocked] = useState<LogicaError | null>(null);
+  /** Money-1 V3: «Да, цена верная» (the key of the request it was ticked for), a 409 `PRICE_UNUSUAL` of the write, «Исправляю опечатку» after a blocked backdated price. */
+  const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+  const [unusual409, setUnusual409] = useState<{ key: string; text: string } | null>(null);
+  const [offered, setOffered] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
 
   useEffect(() => {
     if (!open) return;
     setBlocked(null);
+    setConfirmedKey(null);
+    setUnusual409(null);
+    setOffered(false);
+    setCorrecting(false);
     setAmount("");
     setValidFrom(today);
     setReason("");
@@ -339,7 +350,15 @@ export function AssignOverrideDialog({
 
   const past = pastDateWarning(validFrom, today);
   const formCheck = checkOverrideForm({ amount, validFrom, reason }, today);
-  const whatIf = useOverrideImpact(open, row.membership_id, formCheck.request);
+  const dryRequest = formCheck.request ? { ...formCheck.request, ...(correcting ? { correction: true } : {}) } : null;
+  const whatIf = useOverrideImpact(open, row.membership_id, dryRequest);
+  const askKey = JSON.stringify(dryRequest);
+  const unusualText = unusualPriceText(whatIf.impact) ?? (unusual409 && unusual409.key === askKey ? unusual409.text : null);
+  const confirmed = confirmedKey === askKey;
+  const offerNow = offered || Boolean(whatIf.blocked?.canCorrect) || correcting;
+  // the offer stays after the first refusal, until the sum or the day is another one
+  useEffect(() => { if (whatIf.blocked?.canCorrect) setOffered(true); }, [whatIf.blocked]);
+  useEffect(() => { setOffered(false); }, [amount, validFrom]);
 
   const submit = async () => {
     if (busy) return;
@@ -349,12 +368,18 @@ export function AssignOverrideDialog({
     setError(null);
     setBlocked(null);
     try {
-      const result = await orgApi.setMembershipPrice(row.membership_id, check.request);
+      if (unusualText !== null && !confirmed) { setError("Подтвердите цену: «Да, цена верная»"); setBusy(false); return; }
+      const result = await orgApi.setMembershipPrice(row.membership_id, {
+        ...check.request,
+        ...(unusualText !== null && confirmed ? { confirm_unusual: true } : {}),
+        ...(correcting ? { correction: true, correction_reason: check.request.reason } : {}),
+      });
       onSaved(result.row, check.request.valid_from && check.request.valid_from > today ? sinceText(check.request.valid_from) : "");
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
-      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
+      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked(logicaError(cause)); if (logicaError(cause).canCorrect) setOffered(true); }
+      else if (logicaError(cause).code === "PRICE_UNUSUAL") { setUnusual409({ key: askKey, text: logicaError(cause).message }); setConfirmedKey(null); }
       else setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
     } finally {
       setBusy(false);
@@ -370,7 +395,7 @@ export function AssignOverrideDialog({
       busy={busy}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary="Сохранить" submitFor="membership-price-form" busy={busy} onCancel={onClose} testId="membership-price-save" />}
+      footer={<ConfirmFooter primary={`Сохранить цену${formCheck.request?.amount ? ` ${formatMoney(formCheck.request.amount)}` : ""}`} submitFor="membership-price-form" busy={busy} disabled={unusualText !== null && !confirmed && !whatIf.blocked} why={unusualText !== null && !confirmed ? "Подтвердите цену: «Да, цена верная»" : null} whyId="membership-price-why" onCancel={onClose} testId="membership-price-save" />}
     >
       <form id="membership-price-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
@@ -395,7 +420,9 @@ export function AssignOverrideDialog({
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
         {!blocked && <OverrideImpactBlock impact={whatIf.impact} blocked={whatIf.blocked} checking={whatIf.checking} />}
         {blocked && <PriceBlockedBanner error={blocked} />}
-        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+        {offerNow && <CorrectionSwitch on={correcting} onChange={(next) => { setCorrecting(next); setBlocked(null); setError(null); setConfirmedKey(null); }} />}
+        {unusualText !== null && !blocked && !whatIf.blocked && <UnusualPriceConfirm text={unusualText} checked={confirmed} onChange={(next) => setConfirmedKey(next ? askKey : null)} />}
+        {error && <Notice variant="error" compact>{error}</Notice>}
       </form>
     </Modal>
   );

@@ -6,6 +6,9 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
   checkGroupPriceForm,
+  correctionImpactText,
+  correctionReasonProblem,
+  unusualPriceText,
   futureDateNote,
   GROUP_PRICE_NOTE_MAX,
   groupPriceKey,
@@ -25,13 +28,14 @@ import {
   type GroupPriceRow,
   type PriceImpact,
 } from "@/lib/group-price";
-import { formatMoneyInput } from "@/lib/payments";
+import { formatMoney, formatMoneyInput } from "@/lib/payments";
 import { tidyMoneyText } from "@/lib/money-format";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { logicaError, type LogicaError } from "@/lib/payments-logica";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter, MONEY_WINDOW_TABLE } from "@/components/money/dialog-footer";
 import { Modal } from "@/components/ui/modal";
-import { PriceBlockedBanner, PriceImpactMoneyBlock } from "@/components/payments/price-impact";
+import { Notice } from "@/components/ui/notice";
+import { CorrectionSwitch, PriceBlockedBanner, PriceImpactMoneyBlock, UnusualPriceConfirm } from "@/components/payments/price-impact";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
 
@@ -72,6 +76,15 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
   const [checkError, setCheckError] = useState<string | null>(null);
   /** 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the day reaches a period somebody has paid for; the key of the answer says which sum and day. */
   const [blocked, setBlocked] = useState<{ key: string; error: LogicaError } | null>(null);
+  /** Money-1 V3: «Да, цена верная» - the key of the sum and day it was ticked for (another sum, another question). */
+  const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+  /** Money-1 V3: a 409 `PRICE_UNUSUAL` of the write (a race: the price changed meanwhile) asks the same question. */
+  const [unusual409, setUnusual409] = useState<{ key: string; text: string } | null>(null);
+  /** Money-1 V3: «Исправляю опечатку в цене» - offered after `PRICE_BACKDATE_WITH_PAYMENTS` with `can_correct` (the key of the sum and day it was offered for). */
+  const [offerKey, setOfferKey] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [reasonTouched, setReasonTouched] = useState(false);
   /** Bumped to ask again (retry, or after a conflict made the old answer stale). */
   const [nonce, setNonce] = useState(0);
   const sequence = useRef(createRequestSequence());
@@ -86,12 +99,20 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
     setImpact(null);
     setBlocked(null);
     setCheckError(null);
+    setConfirmedKey(null);
+    setUnusual409(null);
+    setOfferKey(null);
+    setCorrecting(false);
+    setCorrectionReason("");
+    setReasonTouched(false);
     // The dialog restarts when it is opened again (or for another group), not when the block refreshes behind it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, groupId]);
 
   const check = useMemo(() => checkGroupPriceForm({ amount, validFrom, note }, today), [amount, validFrom, note, today]);
-  const key = groupPriceKey(check.request);
+  const baseKey = groupPriceKey(check.request);
+  // the answer belongs to the sum, the day AND the way (a correction is another question to the server)
+  const key = correcting ? `${baseKey}|correction` : baseKey;
 
   // The consequences of exactly this sum and day.
   useEffect(() => {
@@ -102,7 +123,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       setCheckError(null);
       return () => { sequence.current.next(); };
     }
-    const asked = { amount: check.request.amount, valid_from: check.request.valid_from };
+    const asked = { amount: check.request.amount, valid_from: check.request.valid_from, ...(correcting ? { correction: true } : {}) };
     const askedKey = key;
     setChecking(true);
     setCheckError(null);
@@ -119,7 +140,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           setImpact(null);
           setChecking(false);
           const refusal = logicaError(cause);
-          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked({ key: askedKey, error: refusal }); return; }
+          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked({ key: askedKey, error: refusal }); if (refusal.canCorrect) setOfferKey(baseKey); return; }
           setBlocked(null);
           setCheckError(cause instanceof Error ? cause.message : "Не удалось проверить последствия");
         });
@@ -133,7 +154,13 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
   }, [open, groupId, key, nonce]);
 
   const blockedNow = blocked && blocked.key === key ? blocked.error : null;
-  const ready = Boolean(check.request) && impact !== null && impact.key === key && !checking && !blockedNow;
+  const shownImpactNow = impact && impact.key === key ? impact.data : null;
+  // Money-1 V3: the sum is unusual (more than twice, less than a half, zero) - the server words the question; the person ticks «Да, цена верная» before saving
+  const unusualText = unusualPriceText(shownImpactNow) ?? (unusual409 && unusual409.key === key ? unusual409.text : null);
+  const confirmed = confirmedKey === key;
+  const offered = offerKey === baseKey && baseKey !== "";
+  const reasonProblem = correcting ? correctionReasonProblem(correctionReason) : null;
+  const ready = Boolean(check.request) && impact !== null && impact.key === key && !checking && !blockedNow && (unusualText === null || confirmed) && reasonProblem === null;
   // The same sum and note on a day that already has them is no change: nothing to save
   const noop = isNoopPriceChange(history, check.request);
   const canSave = ready && !noop;
@@ -150,7 +177,11 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
     setSaving(true);
     setError(null);
     try {
-      const result = await orgApi.setGroupPrice(groupId, check.request);
+      const result = await orgApi.setGroupPrice(groupId, {
+        ...check.request,
+        ...(unusualText !== null && confirmed ? { confirm_unusual: true } : {}),
+        ...(correcting ? { correction: true, correction_reason: correctionReason.trim() } : {}),
+      });
       onSaved(result);
       onClose();
     } catch (cause) {
@@ -161,6 +192,13 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         setError(PRICE_CONFLICT_TEXT);
       } else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") {
         setBlocked({ key, error: logicaError(cause) });
+        if (logicaError(cause).canCorrect) setOfferKey(baseKey);
+      } else if (logicaError(cause).code === "PRICE_UNUSUAL") {
+        setUnusual409({ key, text: logicaError(cause).message });
+        setConfirmedKey(null);
+      } else if (logicaError(cause).code === "REASON_REQUIRED") {
+        setReasonTouched(true);
+        setError(logicaError(cause).message);
       } else {
         setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
       }
@@ -178,7 +216,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       busy={saving}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary="Сохранить" submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
+      footer={<ConfirmFooter primary={`Сохранить цену${check.request ? ` ${formatMoney(check.request.amount)}` : ""}`} submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : unusualText !== null && !confirmed && !blockedNow ? "Подтвердите цену: «Да, цена верная»" : reasonProblem ? reasonProblem : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >
       <form id="group-price-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-3.5 pb-2" noValidate>
         <div>
@@ -233,6 +271,16 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           </p>
         )}
 
+        {check.request && (offered || correcting) && (
+          <CorrectionSwitch
+            on={correcting}
+            onChange={(next) => { setCorrecting(next); setError(null); setConfirmedKey(null); }}
+            reason={correctionReason}
+            onReason={(next) => { setCorrectionReason(next); setError(null); }}
+            error={reasonTouched || correctionReason.length > 0 ? correctionReasonProblem(correctionReason) : null}
+          />
+        )}
+
         {check.request && (
           <div aria-live="polite" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700">
             <p className="font-semibold text-slate-800">Что изменится</p>
@@ -249,6 +297,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
               <>
                 <p>{impactStudentsText(shownImpact, { overridesListed: Boolean(shownImpact.money?.override_students?.length) })}.</p>
                 {shownImpact.first_price && <p className="text-slate-700" data-testid="first-price-note">{tidyMoneyText(shownImpact.first_price.text)}</p>}
+                {correctionImpactText(shownImpact) && <p data-testid="correction-impact">{correctionImpactText(shownImpact)}.</p>}
                 <PriceImpactMoneyBlock money={shownImpact.money} />
                 {stale && (
                   <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
@@ -267,12 +316,13 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
                 {!past && <p className="text-slate-500">{PAID_NEVER_CHANGE_TEXT}</p>}
               </>
             ) : null}
+            {unusualText !== null && !blockedNow && <UnusualPriceConfirm text={unusualText} checked={confirmed} onChange={(next) => setConfirmedKey(next ? key : null)} />}
             {future && <p className="text-slate-500">{future}</p>}
             {noop && <p className="font-medium text-slate-700">Такая цена с этой даты уже сохранена — менять нечего.</p>}
           </div>
         )}
 
-        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+        {error && <Notice variant="error" compact>{error}</Notice>}
       </form>
     </Modal>
   );
