@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Eraser, PiggyBank, Tag, Undo2 } from "lucide-react";
 import { studentToast } from "@/lib/money-effects";
-import { formatMoney, refundDoneText, refundReceiptHref, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
+import { formatMoney, refundDoneText, refundReceiptHref, writeoffDoneText, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { membershipActionKeys, membershipActionLabel, type MembershipActionKey } from "@/lib/membership-actions";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -57,7 +57,7 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
         row={open === "writeoff" ? row : null}
         studentName={studentName}
         onClose={close}
-        onDone={(result) => { onRowChange(result.row, "writeoff"); const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); onNotify("Долг прощён", note.tone, note.details); }}
+        onDone={(result) => { onRowChange(result.row, "writeoff"); const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); onNotify(writeoffDoneText(result), note.tone, note.details); }}
         onDuplicate={() => { onNotify("Это прощение уже внесено", "success"); void usePaymentsSummary.getState().refresh(true); }}
       />
       <RefundDialog

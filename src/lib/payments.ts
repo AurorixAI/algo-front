@@ -559,6 +559,8 @@ export interface WriteoffCreate {
 
 export interface WriteoffCreated {
   writeoff: WriteoffOut;
+  /** Money-1 V9: the period the forgiveness closes (`label` «06.10–05.11»); null - it closes nothing.  Only the student's period is shown, never the pay of the teacher. */
+  closes?: { from: string; to: string; label: string } | null;
   debt_before: number;
   debt_after: number;
   row: MembershipPaymentRow;
@@ -1635,4 +1637,10 @@ export function positionCards(summary: {
       tone: advance > 0 ? "advance" : "none",
     },
   ];
+}
+
+/** The toast after a forgiveness: «Прощён долг 300 000 сум за 06.10–05.11» (the period is the server's `closes.label`; without it - no period). */
+export function writeoffDoneText(result: Pick<WriteoffCreated, "writeoff" | "closes">): string {
+  const label = result.closes?.label?.trim();
+  return `Прощён долг ${formatMoney(result.writeoff.amount)}${label ? ` за ${label}` : ""}`;
 }

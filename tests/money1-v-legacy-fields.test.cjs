@@ -58,3 +58,10 @@ test("the debt of the position is debtors + waiting; the collection reads debtor
   assert.equal(V.collectionDebtNote(overview.collection, 600000 + 300000)?.includes("50"), true);
   assert.match(read("src/components/payments/income-page.tsx"), /position\.debtors_debt_total \+ overview\.data\.position\.debt_waiting_total/);
 });
+
+test("the toast after a forgiveness names the period of the server and nothing of the teacher", () => {
+  const text = (closes) => P.writeoffDoneText({ writeoff: { amount: 300000 }, closes }).replace(/ /g, " ");
+  assert.equal(text({ from: "2026-10-06", to: "2026-11-05", label: "06.10–05.11" }), "Прощён долг 300 000 сум за 06.10–05.11");
+  assert.equal(text(null), "Прощён долг 300 000 сум");
+  assert.doesNotMatch(text({ from: "a", to: "b", label: "06.10–05.11" }), /учител|зарплат/i);
+});

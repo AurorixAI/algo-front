@@ -37,6 +37,7 @@ import {
   type PaymentSaveResult,
   type PeriodMode,
   refundDoneText,
+  writeoffDoneText,
   refundReceiptHref,
 } from "@/lib/payments";
 import { studentToast } from "@/lib/money-effects";
@@ -470,7 +471,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         row={writeoffRow}
         studentName={writeoffRow?.student_name ?? ""}
         onClose={() => setWriteoffRow(null)}
-        onDone={(result) => { const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); showToast("Долг прощён", note.tone, note.details); afterChange(); }}
+        onDone={(result) => { const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); showToast(writeoffDoneText(result), note.tone, note.details); afterChange(); }}
         onDuplicate={() => { showToast("Это прощение уже внесено", "success"); afterChange(); }}
       />
       <RefundDialog
