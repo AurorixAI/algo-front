@@ -43,7 +43,8 @@ const slotsOf = (days, validFrom = "2026-10-26") => days.map((day) => ({ day, st
 
 test("the end of a lesson follows its start by 90 minutes; a half-typed start changes nothing", () => {
   assert.equal(F.endTimeAfter("10:00"), "11:30");
-  assert.equal(F.endTimeAfter("22:30"), "00:00");
+  assert.equal(F.endTimeAfter("22:29"), "23:59");
+  assert.equal(F.endTimeAfter("22:30"), "", "never past midnight: no automatic end (owner 11.11)");
   assert.equal(F.endTimeAfter(""), "");
   assert.equal(F.endTimeAfter("1"), "");
 });

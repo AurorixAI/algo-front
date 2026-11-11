@@ -47,6 +47,8 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
   const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   /** The column the arrow keys step: 0 hours, 1 minutes. */
   const [column, setColumn] = useState<0 | 1>(0);
+  /** The last input was the keyboard: the value of the active column gets a thin frame (a mouse hover never paints a block). */
+  const [usingKeys, setUsingKeys] = useState(false);
   /** The time when the choice was opened: Esc brings it back. */
   const openedWith = useRef("");
   /** The program's own glide of a column: while the column has not reached `target` (and `until` has not passed) its scroll events are the program's, not the person's. */
@@ -99,6 +101,7 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     openedWith.current = current;
     centred.current = false;
     setColumn(0);
+    setUsingKeys(false);
     setOpen(true);
   }, [disabled, current]);
   const closePicker = useCallback((returnFocus = true) => {
@@ -202,7 +205,7 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     return () => panel.removeEventListener("scrollend", onEnd, true);
   }, [open, place]);
   // a person takes over: the program's glide is off at once
-  const takeOver = () => { programmatic.current = { hours: null, minutes: null }; };
+  const takeOver = () => { programmatic.current = { hours: null, minutes: null }; setUsingKeys(false); };
 
   // a click outside closes it (a click on the field or on the clock is the field's own business)
   useEffect(() => {
@@ -227,6 +230,7 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
     }
   };
   const onPickerKey = (event: React.KeyboardEvent<HTMLInputElement>): boolean => {
+    if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) setUsingKeys(true);
     if (event.key === "Escape") { commit(openedWith.current, true); closePicker(); return true; }
     if (event.key === "Enter") { closePicker(); return true; }
     if (event.key === "ArrowDown") { step(1); return true; }
@@ -250,13 +254,16 @@ export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function T
         // the focus stays in the field: a mouse press must not take it
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
+          setUsingKeys(false);
           setColumn(col);
           if (col === 0) pick(key, currentMinute || TIME_PICKER_EMPTY_MINUTE);
           else { pick(currentHour || TIME_PICKER_EMPTY_HOUR, key); closePicker(); }
         }}
         className={cn(
-          "relative z-10 flex h-[var(--row)] w-full shrink-0 snap-center items-center justify-center rounded-lg text-sm tabular-nums transition-colors",
-          selected ? "font-semibold text-primary-800" : suggested ? "text-primary-700" : "text-slate-700 hover:bg-slate-100",
+          // the HOVER changes only the colour of the number (darker, a pointer): a grey block would compete with the band; the chosen one is the band alone
+          "relative z-10 flex h-[var(--row)] w-full shrink-0 cursor-pointer snap-center items-center justify-center rounded-lg text-sm tabular-nums transition-colors",
+          selected ? "font-semibold text-primary-800" : suggested ? "text-primary-700 hover:text-primary-900" : "text-slate-600 hover:text-slate-900",
+          usingKeys && col === column && (selected || suggested) && "ring-1 ring-inset ring-primary-500",
         )}
       >
         {key}

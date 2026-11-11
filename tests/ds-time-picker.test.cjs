@@ -319,3 +319,53 @@ test("375: a TOUCH scroll (a swipe gesture) moves the column and lands on an ite
   assert.equal((await page.inputValue("#demo-time")).slice(0, 2), state.key);
   await page.close();
 });
+
+test("hover on a number: only the colour (darker), no grey block, a pointer; the keyboard: a thin frame at the value of the active column", async () => {
+  const { page } = await open(1280, 900);
+  await openPicker(page);
+  const target = page.locator('[data-column="hours"] [data-key="11"]');
+  const before = await target.evaluate((el) => ({ color: getComputedStyle(el).color, bg: getComputedStyle(el).backgroundColor }));
+  await target.hover();
+  await page.waitForFunction((was) => getComputedStyle(document.querySelector('[data-column="hours"] [data-key="11"]')).color !== was, before.color, WAIT);
+  const after = await target.evaluate((el) => ({ color: getComputedStyle(el).color, bg: getComputedStyle(el).backgroundColor, cursor: getComputedStyle(el).cursor }));
+  assert.notEqual(after.color, before.color, "the number gets darker");
+  assert.match(after.bg, /rgba\(0, 0, 0, 0\)|transparent/, "no fill on hover");
+  assert.equal(after.cursor, "pointer");
+  assert.equal(await page.locator('[data-column="hours"] [data-selected], [data-column="hours"] [data-key="09"]').first().evaluate((el) => getComputedStyle(el).boxShadow), "none", "no frame before the keyboard");
+  await page.focus("#demo-time");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(() => { const el = document.querySelector('[data-column="hours"] [data-selected]'); return el && getComputedStyle(el).boxShadow !== "none"; }, null, WAIT);
+  assert.equal(await page.locator('[data-column="minutes"] [data-selected]').evaluate((el) => getComputedStyle(el).boxShadow), "none", "the frame is only in the active column");
+  await page.close();
+});
+
+test("a lesson never goes past midnight: the automatic end is NOT wrapped (23:00 + 90 min gives an empty end and the hint, never 00:30); a start with room still gets +90 min", async () => {
+  const ts = require("typescript");
+  require.extensions[".ts"] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, f);
+  const F = require(path.join(root, "src/lib/lesson-slot-form.ts"));
+  assert.equal(F.endTimeAfter("10:00"), "11:30");
+  assert.equal(F.endTimeAfter("22:29"), "23:59");
+  assert.equal(F.endTimeAfter("22:30"), "", "22:30 + 90 = 24:00: not expressible, left empty");
+  assert.equal(F.endTimeAfter("23:00"), "");
+  assert.equal(F.endOverflowsDay("23:00"), true);
+  assert.equal(F.endOverflowsDay("10:00"), false);
+  assert.equal(F.endOverflowsDay(""), false);
+  assert.deepEqual(F.startTimePatch({ startTime: "10:00" }, "23:00", false), { startTime: "23:00", endTime: "" }, "an old automatic end is cleared");
+  assert.deepEqual(F.startTimePatch({ startTime: "10:00" }, "23:00", true), { startTime: "23:00" }, "a typed end is never touched");
+  assert.equal(F.timeRangeProblem("23:00", "00:25"), F.END_BEFORE_START_TEXT);
+  assert.equal(F.END_BEFORE_START_TEXT, "Окончание должно быть позже начала — урок не может переходить на следующий день");
+  assert.equal(F.END_BEFORE_MIDNIGHT_HINT, "Урок должен закончиться до 24:00 — укажите окончание");
+  const { page } = await open(1280, 900);
+  await page.fill("#demo-nachalo", "");
+  await page.type("#demo-nachalo", "2300");
+  await page.keyboard.press("Tab");
+  await page.waitForSelector('[data-testid="demo-end-midnight-hint"]', { timeout: 10000 });
+  assert.equal(await page.inputValue("#demo-okonchanie"), "", "the end stays empty");
+  assert.equal((await page.textContent('[data-testid="demo-end-midnight-hint"]')).trim(), "Урок должен закончиться до 24:00 — укажите окончание");
+  await page.fill("#demo-nachalo", "");
+  await page.type("#demo-nachalo", "1000");
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(() => document.querySelector("#demo-okonchanie").value === "11:30", null, WAIT);
+  assert.equal(await page.locator('[data-testid="demo-end-midnight-hint"]').count(), 0, "no hint when the end fits");
+  await page.close();
+});

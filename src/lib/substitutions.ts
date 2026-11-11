@@ -794,7 +794,7 @@ export interface MoveForm {
 export function moveFormError(form: MoveForm, item: Pick<SubstitutionItem, "lesson">, today: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.newDate)) return "Укажите новую дату и время урока";
   if (!/^\d{1,2}:\d{2}$/.test(form.startTime) || !/^\d{1,2}:\d{2}$/.test(form.endTime)) return "Укажите новую дату и время урока";
-  if (lessonMinutes(form.startTime, form.endTime) === 0) return "Окончание должно быть позже начала";
+  if (lessonMinutes(form.startTime, form.endTime) === 0) return "Окончание должно быть позже начала — урок не может переходить на следующий день";
   if (form.newDate < today) return "Новое время урока уже прошло";
   if (form.newDate === item.lesson.date && form.startTime === item.lesson.startTime && form.endTime === item.lesson.endTime) return "Выберите другую дату или время";
   return reasonProblemFor(decisionReasonKind("reschedule"), form.reason);

@@ -78,7 +78,9 @@ export const LESSON_SUBJECT = "Математика";
 /** The group has no teacher: the weekly lesson is saved all the same, and appears in a teacher's schedule once somebody is assigned. */
 export const NO_TEACHER_SCHEDULE_HINT = "Назначьте преподавателя группе, чтобы уроки появились у него в расписании";
 
-export const END_BEFORE_START_TEXT = "Окончание должно быть позже начала";
+export const END_BEFORE_START_TEXT = "Окончание должно быть позже начала — урок не может переходить на следующий день";
+/** Under an empty end when «start + 90 min» would run past midnight: the lesson stays inside ONE day (the end is at most 24:00), the end is never wrapped to 00:25. */
+export const END_BEFORE_MIDNIGHT_HINT = "Урок должен закончиться до 24:00 — укажите окончание";
 export const DAY_REQUIRED_TEXT = "Выберите день недели";
 export const START_REQUIRED_TEXT = "Укажите время начала";
 export const END_REQUIRED_TEXT = "Укажите время окончания";
@@ -98,7 +100,14 @@ export function endTimeAfter(start: string, minutes = 90): string {
   if (!start || !start.includes(":")) return "";
   const [h, m] = start.split(":").map(Number);
   const total = (h || 0) * 60 + (m || 0) + minutes;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  // a lesson is within one day: past midnight there is NO automatic end (it is never wrapped to 00:25)
+  if (total >= 24 * 60) return "";
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** The start is a time, but «start + 90 min» is past midnight: the end is left empty and the hint says why. */
+export function endOverflowsDay(start: string, minutes = 90): boolean {
+  return /^\d{2}:\d{2}/.test(start || "") && endTimeAfter(start, minutes) === "";
 }
 
 // A NEW lesson has no prepared time (release review 06.11, the owner): the fields are empty, the hint is «чч:мм», the time is required.
@@ -343,7 +352,10 @@ export function roomWithPrefix(room: string): string {
 export function startTimePatch(current: { startTime: string }, startTime: string, endTyped: boolean): { startTime: string; endTime?: string } | null {
   if (startTime === current.startTime) return null;
   const endTime = endTimeAfter(startTime);
-  return endTime && !endTyped ? { startTime, endTime } : { startTime };
+  if (endTyped) return { startTime };
+  // an automatic end that would pass midnight is cleared (the old automatic end no longer fits the new start)
+  if (!endTime && endOverflowsDay(startTime)) return { startTime, endTime: "" };
+  return endTime ? { startTime, endTime } : { startTime };
 }
 
 /** An end that is not empty was typed (or pasted) by the user; an emptied one gives the start its say again. */

@@ -157,8 +157,8 @@ test("[2] «время уже прошло» works per day: only today's weekday
 });
 
 test("[2] validation per day: the end before the start names the weekday; the overlap check uses the time of each day", () => {
-  assert.equal(F.dayTimeProblem(3, { startTime: "10:00", endTime: "09:00" }, true), "Ср: Окончание должно быть позже начала");
-  assert.equal(F.dayTimeProblem(3, { startTime: "10:00", endTime: "09:00" }, false), "Окончание должно быть позже начала");
+  assert.equal(F.dayTimeProblem(3, { startTime: "10:00", endTime: "09:00" }, true), "Ср: Окончание должно быть позже начала — урок не может переходить на следующий день");
+  assert.equal(F.dayTimeProblem(3, { startTime: "10:00", endTime: "09:00" }, false), "Окончание должно быть позже начала — урок не может переходить на следующий день");
   assert.equal(F.dayTimeProblem(3, { startTime: "10:00", endTime: "11:00" }, true), null);
   const siblings = [
     { id: "a", dayOfWeek: 1, startTime: "10:00", endTime: "11:30" },

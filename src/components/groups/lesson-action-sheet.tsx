@@ -38,6 +38,7 @@ import { reasonProblemFor } from "@/lib/reason-rules";
 import { ChangeKindForm } from "./change-kind-form";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DateInput } from "@/components/ui/date-input";
+import { END_BEFORE_START_TEXT } from "@/lib/lesson-slot-form";
 import { TimeInput } from "@/components/ui/time-input";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
@@ -206,7 +207,8 @@ export function LessonActionSheet({
     if (mode === "reschedule") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { setError("Укажите новую дату урока"); return; }
       if (newDate < today) { setError("Новое время урока уже прошло"); return; }
-      if (!from || !to || to <= from) { setError("Укажите время как 15:00: начало и окончание, конец позже начала"); return; }
+      if (!from || !to) { setError("Укажите время как 15:00: начало и окончание"); return; }
+      if (to <= from) { setError(END_BEFORE_START_TEXT); return; }
       if (sameSlot) { setError("Выберите другую дату или время"); return; }
     }
     if (reasonProblem) { setError(reasonProblem); return; }

@@ -10,7 +10,7 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { DayOffWarning } from "./day-off-warning";
 import { ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, validFromBounds } from "@/lib/schedule-slots";
 import {
-  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, END_REQUIRED_TEXT, START_REQUIRED_TEXT, FORMAT_OPTIONS, LESSON_COLORS, dayShort, isEndTyped, seedDayTimes, shiftedDayNote, startTimePatch, timeOfDay, toggleDay,
+  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, END_BEFORE_MIDNIGHT_HINT, END_REQUIRED_TEXT, START_REQUIRED_TEXT, FORMAT_OPTIONS, LESSON_COLORS, dayShort, endOverflowsDay, isEndTyped, seedDayTimes, shiftedDayNote, startTimePatch, timeOfDay, toggleDay,
   type DayTimes, type LessonColor, type LessonFormat, type TimeRange,
 } from "@/lib/lesson-slot-form";
 
@@ -87,6 +87,7 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
             <label htmlFor={`${idPrefix}-okonchanie`} className="block text-xs font-semibold text-slate-700 mb-1">Окончание</label>
             <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid || (showRequired && !value.endTime)} aria-describedby={showRequired && !value.endTime ? `${idPrefix}-okonchanie-required` : undefined} className={SLOT_FIELD_CLASS} />
             {showRequired && !value.endTime && <p id={`${idPrefix}-okonchanie-required`} role="alert" data-testid={`${idPrefix}-end-required`} className="mt-1 text-xs font-medium text-danger-700">{END_REQUIRED_TEXT}</p>}
+            {!(showRequired && !value.endTime) && !value.endTime && endOverflowsDay(value.startTime) && <p data-testid={`${idPrefix}-end-midnight-hint`} className="mt-1 text-xs font-medium text-slate-600">{END_BEFORE_MIDNIGHT_HINT}</p>}
           </div>
         </div>
       )}
@@ -211,6 +212,7 @@ function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid, showRequ
         invalid={invalid || (showRequired && !time.endTime)}
         className={SLOT_FIELD_CLASS}
       />
+      {!missing && !time.endTime && endOverflowsDay(time.startTime) && <p data-testid={`${idPrefix}-day-midnight-hint-${day}`} className="col-span-3 text-xs font-medium text-slate-600">{name}: {END_BEFORE_MIDNIGHT_HINT.charAt(0).toLowerCase() + END_BEFORE_MIDNIGHT_HINT.slice(1)}</p>}
       {missing && <p role="alert" data-testid={`${idPrefix}-day-required-${day}`} className="col-span-3 text-xs font-medium text-danger-700">{name}: {missing}</p>}
     </div>
   );
