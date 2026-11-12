@@ -24,7 +24,7 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   await org.pay(stayer.id, 450000);
 
   const page = await signIn(org.owner);
-  const roster = () => page.getByRole("table").getByRole("row");
+  const roster = () => page.getByTestId("roster-table").getByRole("listitem");
   const paymentRow = (name: string) => page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
 
   // before: both are in the roster and under «Оплачено»

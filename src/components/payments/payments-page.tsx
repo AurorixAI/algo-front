@@ -58,6 +58,7 @@ import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
@@ -69,11 +70,18 @@ import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
-/** The «⋯» of a row: 40 px on a phone (R3 №13), compact from `xl`. */
-const ROW_MENU_TRIGGER = "flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 xl:h-8 xl:w-8";
+/** The «⋯» of a row: 40 px in a card (R3 №13), compact in the table. */
+const ROW_MENU_TRIGGER = "dt-ctl flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50";
 
-/** Column templates of the wide layout (cards below `xl`). */
-const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_128px_minmax(11.5rem,1.4fr)_132px_196px] xl:items-center xl:gap-x-6";
+/** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the price and the last payment are money, RIGHT; the action column is right. */
+const paymentColumns = (priceLabel: string): DataColumn[] => [
+  { key: "student", header: "Ученик", width: "minmax(0,1.5fr)" },
+  { key: "group", header: "Группа", width: "minmax(0,1.2fr)", cardLabel: "Группа" },
+  { key: "price", header: priceLabel, align: "end", width: "minmax(5.5rem,0.7fr)", cardLabel: priceLabel },
+  { key: "status", header: "Статус", width: "minmax(9.5rem,1.1fr)" },
+  { key: "last", header: "Последняя оплата", align: "end", width: "minmax(8.5rem,0.9fr)", cardLabel: "Последняя оплата" },
+  { key: "actions", header: "", align: "end", width: "188px", actions: true },
+];
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
@@ -403,34 +411,24 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       ) : items.length === 0 ? (
         <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
-        <section className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-          <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
-            <span>Ученик</span>
-            <span className="text-center">Группа</span>
-            <span>{priceLabelOf(periodMode)}</span>
-            <span>Статус</span>
-            <span className="text-center">Последняя оплата</span>
-            <span className="text-right"><span className="sr-only">Действия</span></span>
-          </div>
-          <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
-            {items.map((row) => (
-              <PaymentRow
-                key={row.membership_id}
-                row={row}
-                bucket={bucket}
-                periodMode={periodMode}
-                paymentsBase={paymentsBase}
-                studentProfileBasePath={studentProfileBasePath}
-                groupsBasePath={groupsBasePath}
-                onWriteoff={() => setWriteoffRow(row)}
-                onRefund={() => setRefundRow(row)}
-                onPay={() => setForm({ kind: "create", row, payment: null })}
-                onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
-                onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
+        <DataTable columns={paymentColumns(priceLabelOf(periodMode))} minWidth={880} gap="1rem" testId="payments-table">
+          {items.map((row) => (
+            <PaymentRow
+              key={row.membership_id}
+              row={row}
+              bucket={bucket}
+              periodMode={periodMode}
+              paymentsBase={paymentsBase}
+              studentProfileBasePath={studentProfileBasePath}
+              groupsBasePath={groupsBasePath}
+              onWriteoff={() => setWriteoffRow(row)}
+              onRefund={() => setRefundRow(row)}
+              onPay={() => setForm({ kind: "create", row, payment: null })}
+              onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
+              onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
               />
-            ))}
-          </ul>
-        </section>
+          ))}
+        </DataTable>
       )}
 
       {!loading && !loadError && total > PAGE_SIZE && (
@@ -527,75 +525,73 @@ function PaymentRow({
 
   const student = (
     <div className="min-w-0">
-      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center xl:truncate" title="Открыть карточку ученика">
+      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center" title="Открыть карточку ученика">
         {row.student_name}
       </Link>
-      <p className="truncate text-xs text-slate-500">
+      <p className="text-xs text-slate-500">
         {[row.display_id, row.class_level ? `${row.class_level} класс` : ""].filter(Boolean).join(" · ")}
       </p>
     </div>
   );
   const group = (
-    <div className="min-w-0 xl:text-center">
-      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center xl:truncate" title={row.group_name}>{row.group_name}</Link>
-      <p className="truncate text-xs text-slate-500">{row.teacher_name || "—"}</p>
+    <div className="min-w-0">
+      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center">
+        {row.group_name}
+      </Link>
+      <p className="text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
   );
 
   return (
-    <li className={`flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-5 xl:py-2.5 ${GRID_DEFAULT}`}>
-      {student}
-      {group}
-
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-left">
-            <span className="text-xs text-slate-500 xl:hidden">{priceLabelOf(periodMode)}</span>
-            {price.amount === null || price.amount === undefined ? (
-              <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
-                цена группы не задана
-              </Link>
-            ) : (
-              <span className="text-right xl:text-left">
-                <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
-                {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:flex xl:flex-col xl:items-start xl:text-left" data-testid="status-cell">
-            <Chip tone={moneyChipTone(chip.tone)} bleed="always">{chip.label}</Chip>
-            {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
-            {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
-            <BalanceNote row={row} className="w-full" />
-          </div>
-
-          {/* Последняя оплата: the amount reads like «Цена в месяц», the date is the quiet line under it (like «оплачено до») */}
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
-            <span className="shrink-0 text-xs text-slate-500 xl:hidden">Последняя оплата</span>
-            {last ? (
-              <span className="text-right tabular-nums xl:block xl:text-center" title={lastPaymentLabel(last)}>
-                <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
-                <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
-              </span>
-            ) : (
-              <span className="text-slate-500 xl:block xl:text-center" data-testid="last-payment-empty">—</span>
-            )}
-          </div>
-
-          <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
-            <PayButton row={row} onPay={onPay} />
-            <Link
-              href={statementHref(paymentsBase, row.membership_id)}
-              onClick={() => markReceiptNavigation(row.membership_id)}
-              aria-label={`Выписка: ${row.student_name}`}
-              title="Выписка"
-              data-testid="payment-row-statement"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 xl:h-8 xl:w-8"
-            >
-              <FileText className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />
-          </div>
-    </li>
+    <DataRow>
+      <DataCell col="student">{student}</DataCell>
+      <DataCell col="group">{group}</DataCell>
+      <DataCell col="price">
+        {price.amount === null || price.amount === undefined ? (
+          <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
+            цена группы не задана
+          </Link>
+        ) : (
+          <span>
+            <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
+            {tag && <span className="block text-xs text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
+          </span>
+        )}
+      </DataCell>
+      <DataCell col="status" testId="status-cell">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left sm:flex-col sm:items-start">
+          <Chip tone={moneyChipTone(chip.tone)} bleed="always">{chip.label}</Chip>
+          {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
+          {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
+          <BalanceNote row={row} className="w-full" />
+        </div>
+      </DataCell>
+      {/* Последняя оплата: money, RIGHT; the date is the quiet line under the amount */}
+      <DataCell col="last">
+        {last ? (
+          <span className="tabular-nums" title={lastPaymentLabel(last)}>
+            <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
+            <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
+          </span>
+        ) : (
+          <span className="text-slate-500" data-testid="last-payment-empty">—</span>
+        )}
+      </DataCell>
+      <DataCell col="actions">
+        <PayButton row={row} onPay={onPay} />
+        <Link
+          href={statementHref(paymentsBase, row.membership_id)}
+          onClick={() => markReceiptNavigation(row.membership_id)}
+          aria-label={`Выписка: ${row.student_name}`}
+          title="Выписка"
+          data-testid="payment-row-statement"
+          className="dt-ctl flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />
+      </DataCell>
+    </DataRow>
   );
 }
 
@@ -604,7 +600,7 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
     <Button
       type="button"
       onClick={onPay}
-      variant="secondary" size="sm" className="flex-1 xl:flex-none"
+      variant="secondary" size="sm" className="max-sm:flex-1"
     >
       {PAY_ACTION_LABEL}
     </Button>

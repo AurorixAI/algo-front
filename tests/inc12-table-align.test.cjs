@@ -59,32 +59,26 @@ test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned; the p
   assert.match(src, /<div className="flex items-center gap-2 lg:justify-end">/);
 });
 
-test("inc12-3: «Оплаты» list - «Последняя оплата» header and cell content (date / amount / «—») are centred", () => {
+test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплата» is money: the header and the amount / date / «—» are RIGHT, never centred", () => {
   const src = read("src/components/payments/payments-page.tsx");
-  assert.match(src, /<span className="text-center">Последняя оплата<\/span>/);
-  assert.match(src, /xl:block xl:text-center">\s*<span className="shrink-0 text-xs text-slate-500 xl:hidden">Последняя оплата<\/span>/);
-  assert.match(src, /<span className="text-right tabular-nums xl:block xl:text-center" title=\{lastPaymentLabel\(last\)\}>/);
-  assert.match(src, /<span className="text-slate-500 xl:block xl:text-center" data-testid="last-payment-empty">—<\/span>/);
-  // nothing else of the table moved
-  assert.match(src, /xl:grid-cols-\[minmax\(0,1\.2fr\)_minmax\(0,1fr\)_128px_minmax\(11\.5rem,1\.4fr\)_132px_196px\]/);      // 26.10: the status column has room for the chip and the bar
+  assert.match(src, /\{ key: "last", header: "Последняя оплата", align: "end"/);
+  assert.match(src, /<DataCell col="last">/);
+  assert.match(src, /data-testid="last-payment-empty">—<\/span>/);
+  assert.doesNotMatch(src, /xl:text-center/, "no accidental centring in the list");
+  // the names and the groups are wide, not cut (they wrap)
+  assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(0,1\.5fr\)" \}/);
+  assert.match(src, /\{ key: "group", header: "Группа", width: "minmax\(0,1\.2fr\)"/);
+  assert.doesNotMatch(src, /xl:truncate/);
 });
 
-test("inc12-4: journal «Оплаты» - Группа and Способ centred, Сумма a narrower fixed column to the left, right-aligned and tabular", () => {
+test("inc12-4 (wave 3): journal «Оплаты» - text columns LEFT, «Сумма» money RIGHT in its own fixed column", () => {
   const src = read("src/components/payments/income-journal.tsx");
-  const grid = const_(src, "ROW_GRID");
-  assert.equal(grid, "md:grid-cols-[6.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_11rem]");
-  const cols = grid.match(/\[(.*)\]/)[1].split("_");
-  assert.equal(cols.length, 5);
-  assert.equal(cols[0], "6.5rem", "«Дата · время» unchanged");
-  assert.equal(cols[1], "minmax(0,1.5fr)", "«Ученик» takes what Группа gave");
-  assert.equal(cols[2], "minmax(0,1fr)", "«Группа» is narrower than before (was 1.2fr)");
-  assert.match(cols[3], /^8rem$/, "«Сумма» is its own fixed column, narrower than the old 9rem so that it stands further left");
-  assert.match(cols[4], /^11rem$/, "«Способ» is wider (was 8.5rem): the extra width stands between the amount and the method");
-  assert.match(src, /<span className="text-center">Дата · время<\/span>\s*<span>Ученик<\/span>\s*<span className="text-center">Группа<\/span>\s*<span className="text-right">Сумма<\/span>\s*<span className="text-center">Способ<\/span>/);
-  // cells
-  assert.match(src, /md:col-start-3 md:row-start-1 md:text-center md:text-sm [^>]*>\{view\.group\}/);
-  assert.match(src, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 [^>]*>[\s\S]*?\{view\.amount\}/);
-  assert.match(src, /md:col-start-5 md:row-start-1 md:text-center md:text-sm [^>]*>\{view\.method\}/);
-  // the phone card is unchanged: the method is still right-aligned under the amount below md
-  assert.match(src, /col-start-2 row-start-2 text-right text-xs md:col-start-5/);
+  const cols = src.match(/const JOURNAL_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
+  assert.match(cols, /key: "when", header: "Дата · время", width: "7\.5rem"/);
+  assert.match(cols, /key: "student", header: "Ученик", width: "minmax\(0,1\.5fr\)"/);
+  assert.match(cols, /key: "group", header: "Группа", width: "minmax\(0,1fr\)"/);
+  assert.match(cols, /key: "amount", header: "Сумма", align: "end", width: "8\.5rem"/);
+  assert.match(cols, /key: "method", header: "Способ", width: "9rem"/);
+  assert.doesNotMatch(cols, /center/, "nothing is centred");
+  assert.match(src, /<DataCell col="amount"><span className=\{`whitespace-nowrap text-sm font-medium tracking-tight/);
 });

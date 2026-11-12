@@ -16,6 +16,7 @@ import { OneOffDecisionsBlock } from "@/components/substitutions/one-off-decisio
 import { PayrollSheetPage } from "@/components/payroll/payroll-sheet-page";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { useToast } from "@/components/ui/toast";
+import { DataTable } from "@/components/ui/data-table";
 import { MONTH_COLUMNS, PayrollMonthPage, TeacherRow } from "@/components/payroll/payroll-month-page";
 import { TableHeader } from "@/components/attendance/table-chrome";
 import { PayrollMonthSummary } from "@/components/payroll/month-status";
@@ -168,12 +169,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render((
         <div style={{ width: props.width ?? (window.innerWidth >= 1280 ? 1000 : window.innerWidth >= 1024 ? 740 : window.innerWidth - 32) }} className="mx-auto space-y-2 py-2">
           <PayrollMonthSummary totals={monthTotals("2026-11", teachers, props.open !== false)} month="2026-11" open={props.open !== false} />
-          <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-            <TableHeader show="xl" gridClass={MONTH_COLUMNS.grid} labels={MONTH_COLUMNS.labels} aligns={MONTH_COLUMNS.aligns} />
-            <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
-              {teachers.map((teacher) => <TeacherRow key={teacher.teacher_id} teacher={teacher} month="2026-11" period={monthPeriodView(periodView(teacher.__period), props.open !== false)} busy={false} onCalculate={() => {}} onOpen={() => {}} />)}
-            </ul>
-          </div>
+          <DataTable columns={MONTH_COLUMNS} minWidth={640} gap="0.75rem">
+            {teachers.map((teacher) => <TeacherRow key={teacher.teacher_id} teacher={teacher} month="2026-11" period={monthPeriodView(periodView(teacher.__period), props.open !== false)} busy={false} onCalculate={() => {}} onOpen={() => {}} />)}
+          </DataTable>
         </div>
       ));
       break;

@@ -21,7 +21,7 @@ import { orgTypeLabel } from "@/lib/org-type";
 import Link from "next/link";
 import { centreRequestRows } from "../lib/request-view";
 import { DetailSection, Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
-import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
+import { DataTable, Pagination, nextSort, type Column, type SortState } from "./console-table";
 import { ConfirmDialog } from "./dialogs";
 import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";

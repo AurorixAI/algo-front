@@ -1173,11 +1173,11 @@ export function balanceChipClass(kind: BalanceKind): string {
   return `${BALANCE_CHIP_BASE} ${BALANCE_CHIP_TONE[kind]}`;
 }
 
-/** Alignment of the columns on a desktop (owner 23.10: centre everywhere, only the operation stays left). */
+/** Alignment of the columns on a desktop (owner 05.11, design system wave 3: text and the date LEFT, money RIGHT over its digits - the digits of «400 000» and «+400 000» and «Долг 1 200 000» line up). */
 export const STATEMENT_ALIGN = {
-  date: "text-center",
+  date: "text-left",
   operation: "text-left",
-  money: "text-center tabular-nums",
+  money: "text-right tabular-nums",
 } as const;
 
 // ── Statement: which month it opens on ──────────────────────────────────────────────────────────────

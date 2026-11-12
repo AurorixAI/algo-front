@@ -69,7 +69,7 @@ test("corrected payment: the reason is required -> the line «Оплата ис�
   const row = page.getByTestId("decision-row").filter({ hasText: "Оплата исправлена" });
   await expect(row).toBeVisible();
   await expect(row).toContainText(new RegExp(`${moneyPattern(300000)} → ${moneyPattern(200000)}`));
-  await row.getByRole("button").click();
+  await row.click(); // the row itself is the button (it unfolds the details under it)
   await expect(page.getByTestId("decision-details")).toContainText("Ошибся в сумме");
   await expect(page.getByTestId("decisions-since")).toContainText("Журнал ведётся с");
 });

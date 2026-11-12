@@ -60,20 +60,19 @@ import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DataCell, DataRow, DataSpanRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
-/**
- * Date · operation · charged · paid · balance: a bank statement.  Date and money are centred, the operation is left.
- * The three money columns are a band: a thin divider on the left of each and a very light background, the same in the header,
- * the rows and the month rows.  No gap between the columns: every cell pads itself, so a divider runs the full height of a row.
- */
-const GRID = "md:grid md:grid-cols-[104px_minmax(0,1fr)_128px_128px_160px_48px] md:items-stretch";
-const CELL_DATE = "md:px-2 md:py-3";
-const CELL_OPERATION = "md:px-3 md:py-3";
-const CELL_MONEY = "md:border-l md:border-slate-100 md:bg-slate-50/60 md:px-3 md:py-3";
-/** The same band in the header and in the month rows (those rows are tinted, so the band is a little darker there). */
-const HEAD_MONEY = "md:border-l md:border-slate-100 md:bg-slate-100/70 md:px-3 md:py-2.5";
+/** Date · operation · charged · paid · balance: a bank statement.  Text and the date LEFT, the three money columns RIGHT (their headers too), the action column right. */
+const STATEMENT_COLUMNS: DataColumn[] = [
+  { key: "date", header: "Дата", width: "6.5rem" },
+  { key: "operation", header: "Операция", width: "minmax(0,1fr)" },
+  { key: "charged", header: "Стоимость", align: "end", width: "7.5rem", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", width: "7.5rem", cardLabel: "Оплачено" },
+  { key: "balance", header: "Остаток", align: "end", width: "8.5rem", cardLabel: "Остаток" },
+  { key: "menu", header: "", align: "end", width: "2.75rem", actions: true },
+];
 
 const TOTAL_TONE = {
   debt: "text-rose-700",
@@ -471,19 +470,9 @@ export function StatementTimeline({
       {!hasRows ? (
         <EmptyState icon={ScrollText} title="В выписке пока нет записей" hint="Стоимость появится, когда начнётся первый период, оплаты — после первой оплаты." />
       ) : (
-        <section aria-label="Записи счёта" className="md:overflow-hidden md:rounded-2xl md:border md:border-slate-200 md:bg-white">
-          <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 text-[13px] font-semibold text-slate-500 ${GRID}`}>
-            <span className={`${CELL_DATE} ${STATEMENT_ALIGN.date}`}>Дата</span>
-            <span className={`${CELL_OPERATION} ${STATEMENT_ALIGN.operation}`}>Операция</span>
-            <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Стоимость</span>
-            <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Оплачено</span>
-            <span className={`${HEAD_MONEY} ${STATEMENT_ALIGN.money}`}>Остаток</span>
-            <span className="sr-only">Действия</span>
-          </div>
-          <ol className="space-y-2.5 md:space-y-0 md:divide-y md:divide-slate-100">
-            {items.map((item, index) => <StatementItemRow key={`${item.kind}-${index}-${"seq" in item ? item.seq : ""}`} item={item} menuFor={menuFor} extraFor={extraFor} />)}
-          </ol>
-        </section>
+        <DataTable columns={STATEMENT_COLUMNS} minWidth={760} gap="0.75rem" align="start" ariaLabel="Записи счёта" testId="statement-table">
+          {items.map((item, index) => <StatementItemRow key={`${item.kind}-${index}-${"seq" in item ? item.seq : ""}`} item={item} menuFor={menuFor} extraFor={extraFor} />)}
+        </DataTable>
       )}
 
       {statement.upcoming.length > 0 && !month && (
@@ -550,47 +539,21 @@ export function BalanceChip({ balance }: { balance: { kind: StatementEntry["bala
   return <span data-testid="statement-balance-chip" data-tone={balance.kind} className={balanceChipClass(balance.kind)}>{balance.text}</span>;
 }
 
-/** The three money columns of a row that has no money (a month row, a note): the band keeps running. */
-function BandCells({ head = false }: { head?: boolean }) {
-  const cell = head ? HEAD_MONEY : CELL_MONEY;
-  return (
-    <>
-      <span className={`hidden ${cell}`} aria-hidden />
-      <span className={`hidden ${cell}`} aria-hidden />
-      <span className={`hidden ${cell}`} aria-hidden />
-    </>
-  );
-}
-
 function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; menuFor: (entry: StatementEntry) => RowMenuItem[]; extraFor?: (entry: StatementEntry) => ReactNode }) {
   if (item.kind === "month") {
     return (
       <>
-        <li className={`rounded-xl bg-slate-100 px-3.5 py-2 text-sm md:rounded-none md:bg-slate-50 md:p-0 ${GRID}`} data-testid="statement-month">
-          <span className="font-semibold text-slate-800 md:col-span-2 md:px-4 md:py-2">{item.title}</span>
-          <BandCells head />
-          <span className="hidden md:block" aria-hidden />
-        </li>
-        {item.empty && (
-          <li className={`px-1 py-1 text-sm text-slate-500 md:p-0 ${GRID}`} data-testid="statement-month-empty">
-            <span className="md:col-span-2 md:px-4 md:py-3">В этом месяце записей нет</span>
-            <BandCells />
-            <span className="hidden md:block" aria-hidden />
-          </li>
-        )}
+        <DataSpanRow testId="statement-month"><span className="font-semibold text-slate-800">{item.title}</span></DataSpanRow>
+        {item.empty && <DataSpanRow tone="note" testId="statement-month-empty"><span>В этом месяце записей нет</span></DataSpanRow>}
       </>
     );
   }
   if (item.kind === "carry") {
     // one quiet line: «С сентября перенесён аванс 508 000» (the amount in its tone); no date, no icon, nothing in the money columns
     return (
-      <li className={`px-1 text-sm text-slate-500 md:p-0 ${GRID}`} data-testid="statement-carry">
-        <span className="md:col-span-2 md:px-4 md:py-2">
-          {item.lead} <span className={`font-medium ${BALANCE_TEXT_CLASS[item.balance.kind]}`}>{item.amount}</span>
-        </span>
-        <BandCells />
-        <span className="hidden md:block" aria-hidden />
-      </li>
+      <DataSpanRow tone="note" testId="statement-carry">
+        {item.lead} <span className={`font-medium ${BALANCE_TEXT_CLASS[item.balance.kind]}`}>{item.amount}</span>
+      </DataSpanRow>
     );
   }
   return <StatementRowItem entry={item} menu={menuFor(item)} extra={extraFor?.(item) ?? null} />;
@@ -600,48 +563,35 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
   const paidText = statementPaidText(entry);
   const chargedText = statementChargedText(entry);
   return (
-    <li
-      className={`rounded-xl border border-slate-200 bg-white p-3.5 md:rounded-none md:border-0 md:bg-transparent md:p-0 ${GRID}`}
-      data-testid={`statement-row-${entry.type}`}
-    >
-      <p className={`text-xs tabular-nums text-slate-500 md:text-sm md:leading-6 md:text-slate-700 ${CELL_DATE} ${STATEMENT_ALIGN.date}`}>{formatDateRu(entry.date)}</p>
-
-      <div className={`mt-1 flex min-w-0 gap-2.5 md:mt-0 ${CELL_OPERATION} ${STATEMENT_ALIGN.operation}`}>
-        <StatementRowIcon entry={entry} />
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-medium leading-6 text-slate-900">{entry.title}</p>
-          {entry.sub && <p className="break-words text-xs text-slate-500">{entry.sub}</p>}
-          {entry.replaced && <p className="text-xs font-medium text-amber-800">{entry.replaced}</p>}
-          {entry.allocations.length > 0 && (
-            <ul aria-label="Куда пошли деньги" className="mt-1 space-y-px border-l-2 border-slate-100 pl-2.5 text-xs text-slate-600">
-              {entry.allocations.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}
-            </ul>
-          )}
-          {extra}
+    <DataRow testId={`statement-row-${entry.type}`}>
+      <DataCell col="date"><span className="text-sm tabular-nums text-slate-700">{formatDateRu(entry.date)}</span></DataCell>
+      <DataCell col="operation">
+        <div className="flex min-w-0 gap-2.5">
+          <StatementRowIcon entry={entry} />
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm font-medium leading-6 text-slate-900">{entry.title}</p>
+            {entry.sub && <p className="break-words text-xs text-slate-500">{entry.sub}</p>}
+            {entry.replaced && <p className="text-xs font-medium text-amber-800">{entry.replaced}</p>}
+            {entry.allocations.length > 0 && (
+              <ul aria-label="Куда пошли деньги" className="mt-1 space-y-px border-l-2 border-slate-100 pl-2.5 text-xs text-slate-600">
+                {entry.allocations.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}
+              </ul>
+            )}
+            {extra}
+          </div>
         </div>
-      </div>
-
-      <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block ${CELL_MONEY} ${STATEMENT_ALIGN.money} ${chargedText ? "flex" : "hidden md:block"}`} data-testid="statement-cell-charged">
-        <span className="text-xs text-slate-500 md:hidden">Стоимость</span>
-        <span className={`${STATEMENT_AMOUNT_CLASS} md:leading-6`}>{chargedText}</span>
-      </div>
-
-      <div className={`items-baseline justify-between gap-3 md:block ${CELL_MONEY} ${STATEMENT_ALIGN.money} ${paidText ? "flex" : "hidden md:block"}`} data-testid="statement-cell-paid">
-        <span className="text-xs text-slate-500 md:hidden">Оплачено</span>
-        <span className="text-sm tabular-nums md:block">
-          <span className={`${STATEMENT_PAID_CLASS} md:leading-6`}>{paidText}</span>
-          {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600 md:mx-auto md:ml-auto md:mt-0.5 md:block md:w-fit">{entry.tag}</span>}
+      </DataCell>
+      <DataCell col="charged" testId="statement-cell-charged" className={chargedText ? undefined : "dt-card-hidden"}><span className={STATEMENT_AMOUNT_CLASS}>{chargedText}</span></DataCell>
+      <DataCell col="paid" testId="statement-cell-paid" className={paidText ? undefined : "dt-card-hidden"}>
+        <span className="text-sm tabular-nums">
+          <span className={STATEMENT_PAID_CLASS}>{paidText}</span>
+          {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-xs font-semibold text-slate-600">{entry.tag}</span>}
         </span>
-      </div>
-
-      <div className={`flex items-center justify-between gap-3 md:items-start md:justify-center ${CELL_MONEY} ${STATEMENT_ALIGN.money}`} data-testid="statement-cell-balance">
-        <span className="text-xs text-slate-500 md:hidden">Остаток</span>
-        <BalanceChip balance={entry.balance} />
-      </div>
-
-      <div className="mt-1 flex justify-end md:mt-0 md:items-start md:px-1 md:py-2">
+      </DataCell>
+      <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
+      <DataCell col="menu">
         {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${entry.title}`} width={220} /> : <span className="hidden h-8 w-8 md:block" aria-hidden />}
-      </div>
-    </li>
+      </DataCell>
+    </DataRow>
   );
 }

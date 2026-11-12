@@ -688,8 +688,8 @@ test("the month list: a status chip with its explanation, warnings in one line w
   const partial = textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] }));
   assert.ok(partial.includes("Группа 50%") && partial.includes("Индив. — нет ставки") && partial.includes("Указать"));
   // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
-  // the three numbers are right-aligned in the table (UX pack §5.2), the status is centred, the button fills its cell (at least 40 px high)
-  assert.match(html, /xl:text-right" data-testid="teacher-sum"/);
+  // the three numbers are right-aligned in the table (wave 3: the columns are `align: "end"`), the status is left, the button fills its cell (at least 40 px high)
+  assert.match(html, /data-col="salary" data-align="end"[^>]*><span class="dt-label">[^<]*<\/span><div class="dt-value"><div data-testid="teacher-sum">/);
   assert.match(html, /data-size="md"[^>]*class="[^"]*min-h-control[^"]*w-full/, "the button is a Button md (40 px) and fills its cell");
   assert.doesNotMatch(html, /Действия: Иванов/);
   // an action that is running disables the buttons of the others

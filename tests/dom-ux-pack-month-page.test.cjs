@@ -41,8 +41,8 @@ test("the row is ONE height: the name and one quiet line (rates · lessons); no 
   const { page } = await openMonth(1280);
   assert.equal(await page.locator('[data-testid="teacher-attention"]').count(), 0, "the amber line under the name is gone");
   const kamol = page.locator("ul > li").nth(0);
-  const cell = kamol.locator("div").first();
-  assert.deepEqual((await cell.locator("> p").allTextContents()).map((text) => plain(text).replace(/\s*·\s*/g, " · ")), ["Камол Эргашев", "Группа 50% · Индив. 60% · 4 урока"]);
+  const cell = kamol.locator('[data-col="teacher"]');
+  assert.deepEqual((await cell.locator("p").allTextContents()).map((text) => plain(text).replace(/\s*·\s*/g, " · ")), ["Камол Эргашев", "Группа 50% · Индив. 60% · 4 урока"]);
   assert.match(plain(await kamol.locator('[data-testid="teacher-sum"]').innerText()), /^75 834 начислено сейчас было 120 834$/);
   assert.equal(plain(await kamol.locator('[data-testid="teacher-sum-was"]').textContent()), "было 120 834");
   assert.equal(plain(await kamol.locator('[data-testid="teacher-rest"]').innerText()), "вперёд 74 166");

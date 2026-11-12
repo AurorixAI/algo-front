@@ -15,7 +15,7 @@ import { fmtDateTime } from "../lib/format";
 import { MAX_PASSWORD, MIN_STAFF_PASSWORD, generatePassword, validateStaff, type StaffFormValues } from "../lib/forms";
 import type { Role, Staff } from "../lib/types";
 import { Notice, PageHeader, Panel, Pill } from "./bits";
-import { DataTable, type Column } from "./data-table";
+import { DataTable, type Column } from "./console-table";
 import { ConfirmDialog } from "./dialogs";
 import { HttpError } from "@/lib/http-json";
 

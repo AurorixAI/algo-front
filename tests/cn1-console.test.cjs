@@ -418,7 +418,7 @@ test("no native form controls in the console either: inputs, selects, textareas 
 });
 
 test("every state a list needs exists: loading skeleton, empty text, a load error with a retry, a busy guard on confirmations", () => {
-  const table = read("console/src/components/data-table.tsx");
+  const table = read("console/src/components/console-table.tsx");
   assert.match(table, /animate-pulse/);
   assert.match(table, /<EmptyState/);
   assert.match(table, /<LoadFailure/);

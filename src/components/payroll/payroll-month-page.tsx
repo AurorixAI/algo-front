@@ -69,7 +69,7 @@ import { askConfirm } from "@/lib/confirm-dialog";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
-import { TableHeader } from "@/components/attendance/table-chrome";
+import { DataCell, DataColumns, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
@@ -84,12 +84,14 @@ import { Button } from "@/components/ui/button";
  * The columns of the list (UX pack §5.2): Преподаватель | Зарплата, сум | Выплачено | Остаток | Статус | действие.  The identity on the left (under the name, quiet: the rates and the lessons), the three
  * numbers on the right, the status and the button centred.  A table from 1280; 1024 and a phone get cards in the same order.
  */
-export const MONTH_COLUMNS = {
-  grid: "xl:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,0.9fr)]",
-  labels: ["Преподаватель", `${SALARY_COLUMN}, сум`, "Выплачено, сум", "Остаток, сум", "Статус", ""],
-  aligns: ["left", "right", "right", "right", "center", "center"] as Array<"left" | "right" | "center">,
-};
-const GRID = `xl:grid ${MONTH_COLUMNS.grid} xl:items-start xl:gap-x-3`;
+export const MONTH_COLUMNS: DataColumn[] = [
+  { key: "teacher", header: "Преподаватель", width: "minmax(0,2fr)" },
+  { key: "salary", header: `${SALARY_COLUMN}, сум`, align: "end", width: "minmax(4.75rem,0.9fr)", cardLabel: SALARY_COLUMN },
+  { key: "paid", header: "Выплачено, сум", align: "end", width: "minmax(4.75rem,0.9fr)", cardLabel: "Выплачено" },
+  { key: "rest", header: "Остаток, сум", align: "end", width: "minmax(4.75rem,1fr)", cardLabel: "Остаток" },
+  { key: "status", header: "Статус", width: "minmax(8.5rem,1.3fr)" },
+  { key: "action", header: "", align: "end", width: "7.5rem", actions: true },
+];
 
 interface Preview {
   sheet: PayrollSheet;
@@ -488,27 +490,19 @@ function PayrollMonthContent() {
             В этом месяце нет завершённых уроков — считать зарплату не за что.
           </p>
         ) : (
-          <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-            <TableHeader
-              show="xl"
-              gridClass={MONTH_COLUMNS.grid}
-              labels={MONTH_COLUMNS.labels}
-              aligns={MONTH_COLUMNS.aligns}
-            />
-            <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
-              {teachers.map((teacher) => (
-                <TeacherRow
-                  key={teacher.teacher_id}
-                  teacher={teacher}
-                  month={month}
-                  period={monthPeriodView(periodView(periodOf(periods, teacher.teacher_id)), monthOpen)}
-                  busy={busy}
-                  onCalculate={() => void calculate([teacher.teacher_id])}
-                  onOpen={() => openSheet(teacher)}
-                />
-              ))}
-            </ul>
-          </div>
+          <DataTable columns={MONTH_COLUMNS} minWidth={640} gap="0.75rem" testId="month-list">
+            {teachers.map((teacher) => (
+              <TeacherRow
+                key={teacher.teacher_id}
+                teacher={teacher}
+                month={month}
+                period={monthPeriodView(periodView(periodOf(periods, teacher.teacher_id)), monthOpen)}
+                busy={busy}
+                onCalculate={() => void calculate([teacher.teacher_id])}
+                onOpen={() => openSheet(teacher)}
+              />
+            ))}
+          </DataTable>
         )}
       </section>
 
@@ -651,36 +645,38 @@ const plainSum = (value: number): string => formatMoney(value).replace(/[\s\u00a
 
 /** «Сум» after a number in a card (the table says it in the header of the column). */
 function Unit() {
-  return <span className="xl:hidden"> сум</span>;
+  return <span className="dt-unit"> сум</span>;
 }
 
-/** The three numbers of a row, one cell each: at 1280 the cells of the grid, below it a row of three with their captions (UX pack §5.2). */
+/** The three numbers of a row, one cell each (the `DataTable` puts them in its columns; a card gives each its caption). */
 function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers; advance?: boolean }) {
-  const label = "mb-0.5 block text-xs font-normal text-slate-600 xl:hidden";
   const rest = numbers.rest;
   return (
-    <div className={`mt-3 grid gap-2 text-sm tabular-nums xl:contents ${advance ? "grid-cols-1" : "grid-cols-3"}`}>
+    <>
       {/* an advance row has no salary and no payout to show: a card keeps only «Остаток», the table keeps its cells (dashes) */}
-      <div className={`min-w-0 xl:text-right${advance ? " max-xl:hidden" : ""}`} data-testid="teacher-sum">
-        <span className={label}>{SALARY_COLUMN}</span>
-        {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
-        {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
-        {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
-        {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
-      </div>
-      <div className={`min-w-0 xl:text-right${advance ? " max-xl:hidden" : ""}`} data-testid="teacher-paid">
-        <span className={label}>Выплачено</span>
-        {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
-      </div>
-      <div className="min-w-0 xl:text-right" data-testid="teacher-rest" data-kind={rest.kind}>
-        <span className={label}>Остаток</span>
-        {rest.kind === "left" && <span className="font-medium text-slate-900">{plainSum(rest.amount)}<Unit /></span>}
-        {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}<Unit /></span>}
-        {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}<Unit /></span>}
-        {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
-        {rest.kind === "none" && <span className="text-slate-500">—</span>}
-      </div>
-    </div>
+      <DataCell col="salary" className={advance ? "dt-card-hidden" : undefined}>
+        <div data-testid="teacher-sum">
+          {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
+          {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
+          {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
+          {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
+        </div>
+      </DataCell>
+      <DataCell col="paid" className={advance ? "dt-card-hidden" : undefined}>
+        <div data-testid="teacher-paid">
+          {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
+        </div>
+      </DataCell>
+      <DataCell col="rest">
+        <div data-testid="teacher-rest" data-kind={rest.kind}>
+          {rest.kind === "left" && <span className="font-medium text-slate-900">{plainSum(rest.amount)}<Unit /></span>}
+          {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}<Unit /></span>}
+          {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}<Unit /></span>}
+          {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
+          {rest.kind === "none" && <span className="text-slate-500">—</span>}
+        </div>
+      </DataCell>
+    </>
   );
 }
 
@@ -711,7 +707,9 @@ export function TeacherRow({
   const meta = advance ? [ADVANCE_META] : [...rate.lines, lessonsCountText(teacher.lessons_count)];
 
   return (
-    <li className={`min-w-0 rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-4 xl:py-4 ${GRID}`}>
+    <DataColumns columns={MONTH_COLUMNS} minWidth={640}>
+    <DataRow>
+      <DataCell col="teacher">
       <div className="min-w-0">
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 break-words text-sm font-semibold text-slate-900">
           <span className="min-w-0 break-words">{teacher.teacher_name}</span>
@@ -731,18 +729,21 @@ export function TeacherRow({
           )}
         </p>
       </div>
+      </DataCell>
 
       <RowNumbers numbers={numbers} advance={advance} />
 
-      <div className="mt-3 min-w-0 space-y-1 xl:mt-0 xl:text-center">
+      <DataCell col="status">
+      <div className="min-w-0 space-y-1">
         <RowStatus status={status} hint={advance ? advanceHint(Math.max(0, Math.round(Number(teacher.carry_in) || 0))) : statusHint(teacher.sheet)} name={teacher.teacher_name ?? ""} />
         {/* the state of the month, only when it differs from the month's: a small second line */}
         {period && (
           <p data-testid="period-chip" data-tone={period.tone} title={period.hint} className={`text-xs leading-4 ${period.tone === "reopened" ? "font-semibold text-amber-900" : period.tone === "closed" ? "font-medium text-slate-700" : "text-slate-600"}`}>{period.label}</p>
         )}
       </div>
+      </DataCell>
 
-      <div className="mt-3 flex min-h-[40px] items-center gap-1.5 xl:mt-0 xl:justify-center">
+      <DataCell col="action">
         {advance ? (
           <p data-testid="teacher-no-sheet" className="text-xs text-slate-600">{NO_SHEET_TEXT}</p>
         ) : (
@@ -752,12 +753,13 @@ export function TeacherRow({
             disabled={busy || blocked}
             title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
             aria-label={`${action.label}: ${teacher.teacher_name}`}
-            variant="secondary" size="md" className="w-full sm:max-w-[280px] xl:max-w-none"
+            variant="secondary" size="md" className="w-full"
           >
             {action.label}
           </Button>
         )}
-      </div>
-    </li>
+      </DataCell>
+    </DataRow>
+    </DataColumns>
   );
 }

@@ -375,7 +375,7 @@ test("debt numbers: «Долг» header, and one quiet line under the total when
   assert.ok(!html(el(total)).includes("collection-debt-note") && !html(el(undefined)).includes("collection-debt-note"));
   assert.ok(text(el(total)).includes("Долг") && !text(el(total)).includes("Долг за месяц"), "the column is «Долг»");
   const src = read("src/components/payments/income-collection.tsx");
-  assert.match(src, /<span data-col="debt" className="text-right">Долг<\/span>/);
+  assert.match(src, /key: "debt", header: "Долг", align: "end"/);
   assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data \? overview\.data\.position\.debtors_debt_total \+ overview\.data\.position\.debt_waiting_total : null\}/);
 });
 

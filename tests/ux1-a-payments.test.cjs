@@ -133,9 +133,11 @@ test("price line: «Цена 500 000 сум/мес · цена группы» / 
 
 test("the payments table: sentence-case headers, a tab bar that scrolls with a fade, one main button per row", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  const header = page.slice(page.indexOf("<div className={`hidden border-b border-slate-100 bg-slate-50"), page.indexOf("<ul className=\"space-y-2.5"));
-  assert.doesNotMatch(header, /uppercase|tracking-wider/);
-  assert.match(header, /text-\[13px\] font-semibold text-slate-500/);
+  // wave 3: the header is the DataTable's: sentence case, 12 px semibold (see ui/data-table.tsx, `.dt-head-cell`)
+  const css = read("src/app/globals.css");
+  const head = css.match(/\.dt-head-cell \{[^}]*\}/)[0];
+  assert.doesNotMatch(head, /uppercase|letter-spacing/);
+  assert.match(head, /font-size: 0\.75rem; font-weight: 600/);
   assert.match(page, /<ScrollHint focusable=\{false\} (?:data-allow-hscroll="" )?className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
   assert.match(page, /shrink-0 whitespace-nowrap/); // a label is never squeezed
   assert.match(page, /bucketTabLabel\(label, bucketCount\(summaryForTabs, key\)\)/);

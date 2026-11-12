@@ -18,7 +18,7 @@ import { SETTABLE_SUPPORT_STATUSES, SUPPORT_ROLES, SUPPORT_STATUSES, supportMail
 import { EMPTY_SUPPORT_FILTERS, PAGE_SIZE, hasFilters, supportQuery, type SupportFilters } from "../lib/queries";
 import type { SupportMail, SupportStatus, SupportTicket, SupportTicketCard } from "../lib/types";
 import { Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
-import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
+import { DataTable, Pagination, nextSort, type Column, type SortState } from "./console-table";
 import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";
 import { notifySupportChanged } from "./shell";

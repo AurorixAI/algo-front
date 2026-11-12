@@ -26,6 +26,7 @@ import {
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
 import { Select } from "@/components/ui/select";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { IncomeError } from "./income-parts";
 import { Button } from "@/components/ui/button";
@@ -36,8 +37,14 @@ const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm t
 
 // ── The rows ───────────────────────────────────────────────────────────────
 
-// Дата · Ученик · Группа (centred, narrower) · Сумма (its own fixed column, right-aligned, tabular) · Способ (centred, wide enough to leave room before the amount).
-const ROW_GRID = "md:grid-cols-[6.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_11rem]";
+// Дата · Ученик · Группа · Сумма (money: RIGHT, tabular) · Способ - all text columns are LEFT, no accidental centring.
+const JOURNAL_COLUMNS: DataColumn[] = [
+  { key: "when", header: "Дата · время", width: "7.5rem" },
+  { key: "student", header: "Ученик", width: "minmax(0,1.5fr)" },
+  { key: "group", header: "Группа", width: "minmax(0,1fr)", cardLabel: "Группа" },
+  { key: "amount", header: "Сумма", align: "end", width: "8.5rem", cardLabel: "Сумма" },
+  { key: "method", header: "Способ", width: "9rem", cardLabel: "Способ" },
+];
 
 /**
  * Compact rows: date · time | student | group | amount | method.  A cancelled payment is grey and says «отменена»; a corrected one says «исправлена» and shows its earlier versions as quiet lines under it.
@@ -45,56 +52,38 @@ const ROW_GRID = "md:grid-cols-[6.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_11rem]
  */
 export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: { rows: JournalRow[]; withYear: boolean; activeId: string | null; onOpen: (row: JournalRow) => void; history?: JournalRow[] }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="income-journal-list">
-      <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 md:grid md:gap-x-3 ${ROW_GRID}`}>
-        <span className="text-center">Дата · время</span>
-        <span>Ученик</span>
-        <span className="text-center">Группа</span>
-        <span className="text-right">Сумма</span>
-        <span className="text-center">Способ</span>
-      </div>
-      <ul className="divide-y divide-slate-100">
-        {/* a superseded record is never a row: its payment is one row with the current amount and the changes under it (INC-17) */}
-        {listedRows(rows).map((row) => {
-          const view = journalRowView(row, withYear, history);
-          return (
-            <li key={row.id}>
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                data-testid="journal-row"
-                data-status={row.status}
-                onClick={() => onOpen(row)}
-                className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 md:items-center md:py-2.5 ${ROW_GRID} ${activeId === row.id ? "bg-primary-50/60" : ""}`}
-              >
-                <span className={`col-start-1 row-start-3 self-center text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-500"}`}>
-                  {view.time ? `${view.date} · ${view.time}` : view.date}
+    <DataTable columns={JOURNAL_COLUMNS} minWidth={760} testId="income-journal-list">
+      {/* a superseded record is never a row: its payment is one row with the current amount and the changes under it (INC-17) */}
+      {listedRows(rows).map((row) => {
+        const view = journalRowView(row, withYear, history);
+        const quiet = view.muted ? "text-slate-500" : "text-slate-900";
+        return (
+          <DataRow key={row.id} onActivate={() => onOpen(row)} haspopup="dialog" testId="journal-row" data-status={row.status}>
+            <DataCell col="when">
+              <span className="text-sm tabular-nums text-slate-500">{view.time ? `${view.date} · ${view.time}` : view.date}</span>
+              {view.enteredAt && <span data-testid="journal-entered" className="block text-xs leading-tight text-slate-500">{view.enteredAt}</span>}
+            </DataCell>
+            <DataCell col="student">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <span className={`min-w-0 break-words text-sm font-medium ${quiet}`}>{view.student}</span>
+                {view.tag && <span data-testid="journal-tag" className="shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">{view.tag}</span>}
+                {/* «исправлена» sits where «отменена» does (next to the name), so the amount column stays one line */}
+                {view.correctedChip && <span data-testid="journal-corrected" title={view.correctedTitle ?? undefined} className="shrink-0 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800">{view.correctedChip}</span>}
+              </div>
+              {/* the changes of the payment, quiet: under the name */}
+              {view.subLines.length > 0 && (
+                <span data-testid="journal-sublines" className="mt-0.5 block space-y-0.5 text-xs leading-snug text-slate-500">
+                  {view.subLines.map((line) => <span key={line} data-testid="journal-subline" className="block break-words">{line}</span>)}
                 </span>
-                {view.enteredAt && <span data-testid="journal-entered" className="col-span-2 row-start-4 text-[11px] leading-tight text-slate-500 md:hidden">{view.enteredAt}</span>}
-                {/* A phone: the name has the whole first line and the chip sits under the amount (row 3); md and up: one line, the chip next to the name. */}
-                <span className={`contents text-sm font-medium md:col-start-2 md:flex md:min-w-0 md:items-center md:gap-2 ${view.muted ? "text-slate-500" : "text-slate-900"}`}>
-                  <span className="col-start-1 row-start-1 min-w-0 truncate">{view.student}</span>
-                  {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
-                  {/* «исправлена» sits where «отменена» does (next to the name; under the amount on a phone), so the amount column stays one line */}
-                  {view.correctedChip && <span data-testid="journal-corrected" title={view.correctedTitle ?? undefined} className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 md:justify-self-auto">{view.correctedChip}</span>}
-                </span>
-                <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.group}</span>
-                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-500 line-through" : "text-slate-800"}`}>
-                  <span className="whitespace-nowrap">{view.amount}</span>
-                </span>
-                <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.method}</span>
-                {/* the changes of the payment, quiet: under the main line (a phone: under the card, wrapping; md and up: under the name) */}
-                {view.subLines.length > 0 && (
-                  <span data-testid="journal-sublines" className="col-span-2 row-start-5 mt-0.5 block space-y-0.5 text-xs leading-snug text-slate-500 md:col-span-4 md:col-start-2 md:row-start-2 md:mt-0">
-                    {view.subLines.map((line) => <span key={line} data-testid="journal-subline" className="block break-words">{line}</span>)}
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+              )}
+            </DataCell>
+            <DataCell col="group"><span className={`break-words text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.group}</span></DataCell>
+            <DataCell col="amount"><span className={`whitespace-nowrap text-sm font-medium tracking-tight ${view.muted ? "text-slate-500 line-through" : "text-slate-800"}`}>{view.amount}</span></DataCell>
+            <DataCell col="method"><span className={`text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.method}</span></DataCell>
+          </DataRow>
+        );
+      })}
+    </DataTable>
   );
 }
 

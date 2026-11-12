@@ -437,7 +437,7 @@ test("softer numbers: semibold (not bold), tabular, tight; neutral slate-800, de
   assert.match(flow, /font-medium tabular-nums tracking-tight text-slate-800">1 000 000/);
   assert.doesNotMatch(flow, /font-semibold tabular-nums/);
   const list = html(React.createElement(J.JournalList, { rows: journal("J04_journal_voided_and_replaced").rows, withYear: false, activeId: null, onOpen: () => {} }));
-  assert.match(list, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4/);
+  assert.match(list, /class="dt-cell"[^>]*data-col="amount" data-align="end"[^>]*><span class="dt-label">Сумма<\/span><div class="dt-value"><span class="whitespace-nowrap text-sm font-medium tracking-tight/);
   assert.ok(!/text-sm font-semibold tabular-nums/.test(list));
   // contrast of the lighter colours on white: rose-600 and emerald-600 on 24 px (large) text
   const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
@@ -628,10 +628,10 @@ test("the journal on screen: compact rows, cancelled ones grey with «отмен
   assert.match(markup, /line-through/);
   assert.match(markup, /text-slate-500/);
   assert.match(markup, /aria-haspopup="dialog"/);
-  // money is right-aligned and the date centred in the table; one markup, the grid decides
-  assert.match(markup, /md:text-center/);
-  assert.match(markup, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4/);
-  assert.match(markup, /md:grid-cols-\[6\.5rem_/);
+  // money is RIGHT, text and the date LEFT (wave 3); one markup, the DataTable decides between a table and cards
+  assert.match(markup, /data-col="amount" data-align="end"/);
+  assert.ok(!/data-align="center"/.test(markup));
+  assert.match(markup, /--dt-cols:7\.5rem /);
 });
 
 test("the drawer body: amount, method, who entered it, where the money went, links to the receipt and the student", () => {
@@ -712,18 +712,15 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   const markup = plain(html(el));
   assert.match(markup, /data-testid="collection-caption"[^>]*>Октябрь 2026 · по группам/);
   // the headers: the six short words, each a single-line span
-  const head = /data-testid="collection-head">(.*?)<\/div>/s.exec(markup)[1];
+  const head = /data-testid="collection-head"[^>]*>(.*?)<\/div><ul/s.exec(markup)[1];
   const headText = text(React.createElement("div", { dangerouslySetInnerHTML: { __html: head } }));
   for (const word of ["Группа", "Стоимость", "Оплачено", "Собрано", "Долг", "Должников"]) assert.ok(headText.includes(word), word);
   assert.ok(!/за месяц|С долгом|\(преподаватель\)/.test(headText), headText);
-  assert.match(markup, /whitespace-nowrap/);
-  // money columns right, «Должников» centred, the header like its cells
-  for (const col of ["charged", "paid", "debt"]) assert.match(head, new RegExp(`data-col="${col}" class="text-right"`), `${col} header`);
-  assert.match(head, /data-col="debtors" class="text-center"/);
-  assert.match(head, /data-col="group">Группа<\/span>/);
-  for (const col of ["charged", "paid", "debt"]) assert.match(markup, new RegExp(`data-col="${col}" class="flex [^"]*md:text-right`), `${col} cells`);
-  assert.match(markup, /data-col="debtors" class="flex [^"]*md:text-center/);
-  assert.ok(!/data-col="debtors" class="flex [^"]*md:text-right/.test(markup));
+  // money columns and the count RIGHT (wave 3), the group LEFT; the header like its cells
+  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(head, new RegExp(`data-col="${col}" data-align="end"`), `${col} header`);
+  assert.match(head, /data-col="group" data-align="start">Группа<\/span>/);
+  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(markup, new RegExp(`class="dt-cell"[^>]*data-col="${col}" data-align="end"`), `${col} cells`);
+  assert.ok(!/data-align="center"/.test(markup), "nothing is centred");
   // the cell labels on a phone are the same short words
   const cards = text(el);
   assert.ok(!cards.includes("Стоимость за месяц") && !cards.includes("Долг за месяц") && !cards.includes("С долгом за месяц"));
@@ -733,7 +730,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   // the ⓘ is the shared Hint (hover, focus, a tap, Escape) with the same text for a screen reader; the header cell has it as a title too
   assert.match(markup, /data-testid="collection-cost-info"[^>]*><span[^>]*role="button"[^>]*aria-describedby=[^>]*>.*?<span class="sr-only">Что значит «Стоимость»<\/span>/);
   assert.ok((markup.match(/<span id="[^"]*" class="sr-only">Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца<\/span>/g) || []).length >= 1);
-  assert.match(markup, /data-col="charged" class="text-right">Стоимость /, "the bubble is the Hint's: no second native title");
+  assert.match(markup, /data-col="charged" data-align="end">Стоимость /, "the bubble is the Hint's: no second native title");
   assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
   assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
   // debt 0 → ✓ оплачено (emerald-700 for AA at small size, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
@@ -741,7 +738,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   const cleanMarkup = html(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" }));
   assert.equal((cleanMarkup.match(/data-testid="collection-paid"/g) || []).length, 2, "the row and the total follow the same rule");
   assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ оплачено<\/span>/);
-  assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="text-xs text-slate-500 md:hidden">Должников<\/span><span class="tabular-nums"><span class="text-slate-500">0<\/span>/);
+  assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="dt-label">Должников<\/span><div class="dt-value"><span class=""><span class="text-slate-500">0<\/span>/);
   assert.ok(!text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" })).includes(" нет"));
   // nothing charged: no «оплачено» for a debt that never existed
   const idle = { ...clean, groups: [{ ...clean.groups[0], charged: 0, paid: 0, pct: null }] };
@@ -846,10 +843,10 @@ test("INCOME-2 addendum: «Кто внёс» from two authors, the Excel limit, 
 
 test("phone polish (stage walk 22.10): the status chip leaves the name line and the total tooltip", () => {
   const journal = read("src/components/payments/income-journal.tsx");
-  // the name has the whole first line of a card; the chip goes to row 3 under the amount on a phone and stays beside the name from md
-  assert.match(journal, /col-start-1 row-start-1 min-w-0 truncate">\{view\.student\}/);
-  assert.match(journal, /data-testid="journal-tag" className="col-start-2 row-start-3 [^"]*whitespace-nowrap[^"]*md:justify-self-auto"/);
-  assert.match(journal, /contents text-sm font-medium md:col-start-2 md:flex/);
+  // (wave 3) the name is the title of a card and wraps, the chips wrap under it - the DataTable gives the phone the same rows as cards
+  assert.match(journal, /min-w-0 break-words text-sm font-medium \$\{quiet\}`\}>\{view\.student\}/);
+  assert.match(journal, /data-testid="journal-tag" className="shrink-0 whitespace-nowrap rounded-md/);
+  assert.match(journal, /flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /\{paymentsCountText\(row\.count\)\}/);
   // the total row says why its number is smaller than the sum of the rows
   const collection = read("src/components/payments/income-collection.tsx");

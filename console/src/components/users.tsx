@@ -16,7 +16,7 @@ import { EMPTY_USER_FILTERS, PAGE_SIZE, USER_SEARCH_MIN, canSearchUsers, hasFilt
 import { validateReason } from "../lib/forms";
 import type { LinkSent, PlatformUser } from "../lib/types";
 import { EmptyState, Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
-import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
+import { DataTable, Pagination, nextSort, type Column, type SortState } from "./console-table";
 import { ConfirmDialog } from "./dialogs";
 import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";

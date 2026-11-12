@@ -105,7 +105,7 @@ test("inc13-3: «Оплачено» is «+600 000» (a refund «−»), «Сто
   const markup = html(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }));
   assert.ok(plain(text(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }))).includes("+231 000"));
   // the payment's amount span has no green class
-  assert.match(markup, /text-sm font-medium tabular-nums text-slate-800 md:leading-6">\+231 000/);
+  assert.match(markup, /text-sm font-medium tabular-nums text-slate-800">\+231 000/);
   assert.doesNotMatch(markup, /text-emerald-700[^>]*>\+/);
   // empty money cells stay empty: no dash
   assert.doesNotMatch(markup, />[—–-]</);
@@ -143,32 +143,25 @@ test("inc13-4: balance chip: «Долг» rose, «Аванс» emerald, «0» sl
 
 // ── 5. alignment and the band ──────────────────────────────────────────────────────────────────
 
-test("inc13-5: date and the three money columns are centred with tabular digits, «Операция» left; the money band has dividers", () => {
-  assert.equal(L.STATEMENT_ALIGN.date, "text-center");
+test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three money columns are RIGHT with tabular digits (their headers too); one DataTable", () => {
+  assert.equal(L.STATEMENT_ALIGN.date, "text-left");
   assert.equal(L.STATEMENT_ALIGN.operation, "text-left");
-  assert.match(L.STATEMENT_ALIGN.money, /text-center/);
+  assert.match(L.STATEMENT_ALIGN.money, /text-right/);
   assert.match(L.STATEMENT_ALIGN.money, /tabular-nums/);
   const src = read("src/components/payments/statement-view.tsx");
-  // the header
-  for (const [word, align] of [["Дата", "date"], ["Операция", "operation"]]) assert.match(src, new RegExp(`STATEMENT_ALIGN\\.${align}\\}\`\\}>${word}</span>`), word);
-  for (const word of ["Стоимость", "Оплачено", "Остаток"]) assert.match(src, new RegExp(`HEAD_MONEY\\} \\$\\{STATEMENT_ALIGN\\.money\\}\`\\}>${word}</span>`), word);
-  // the band: a thin divider (slate-100) and a very light background; the same constant in header, rows and month rows
-  const band = src.match(/const CELL_MONEY = "([^"]*)"/)[1];
-  assert.match(band, /md:border-l md:border-slate-100/);
-  assert.match(band, /md:bg-slate-50\/60/);
-  assert.match(src.match(/const HEAD_MONEY = "([^"]*)"/)[1], /md:border-l md:border-slate-100/);
-  assert.match(src, /grid-cols-\[104px_minmax\(0,1fr\)_128px_128px_160px_48px\]/);
+  const cols = src.match(/const STATEMENT_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
+  assert.match(cols, /key: "date", header: "Дата", width: "6\.5rem"/);
+  assert.match(cols, /key: "operation", header: "Операция"/);
+  for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"], ["balance", "Остаток"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "end"`), word);
   const { React, html } = renderer();
   const markup = html(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }));
   for (const id of ["charged", "paid", "balance"]) {
-    const cells = markup.match(new RegExp(`class="[^"]*"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
+    const cells = markup.match(new RegExp(`<div class="dt-cell[^"]*"[^>]*data-align="end"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
     assert.ok(cells.length >= 4, id);
-    for (const cell of cells) assert.match(cell, /md:border-l md:border-slate-100[^"]*text-center tabular-nums/, id);
   }
-  // the date cells are centred too
-  assert.match(markup, /md:px-2 md:py-3 text-center">\d\d\.\d\d\.\d{4}/);
-  // month rows keep the band (empty money cells with the same divider)
-  assert.match(markup, /data-testid="statement-month"[\s\S]*?md:border-l md:border-slate-100/);
+  assert.match(markup, /data-col="date" data-align="start"[^>]*><div class="dt-value"><span class="text-sm tabular-nums text-slate-700">\d\d\.\d\d\.\d{4}/);
+  // a month row spans every column
+  assert.match(markup, /data-testid="statement-month"[^>]*><div class="dt-span-cell">/);
 });
 
 // ── 6. month rows: only the name; the carry line ───────────────────────────────────────────────
@@ -199,7 +192,8 @@ test("inc13-6: a month row is only «Октябрь 2026»; one month shows «С
   // the money columns stay empty on that line (no amounts, no icon, no date)
   const { html } = renderer();
   const line = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" })).match(/<li[^>]*data-testid="statement-carry".*?<\/li>/s)[0];
-  assert.match(line, /text-sm text-slate-500/);
+  assert.match(line, /dt-row-span/);
+  assert.match(line, /data-tone="note"/);
   assert.match(line, /text-rose-700[^>]*>долг 269 000/);
   assert.doesNotMatch(line, /<svg|statement-row-icon|\d\d\.\d\d\.\d{4}|statement-balance-chip/);
 });

@@ -13,7 +13,7 @@ import { TARGET_TYPES, targetTypeLabel } from "../lib/labels";
 import { EMPTY_AUDIT_FILTERS, auditQuery, hasFilters, type AuditFilters } from "../lib/queries";
 import type { AuditRow } from "../lib/types";
 import { Facts, PageHeader, Panel } from "./bits";
-import { DataTable, Pagination, type Column } from "./data-table";
+import { DataTable, Pagination, type Column } from "./console-table";
 import { Field, FilterBar, SearchField } from "./filters";
 
 export function AuditScreen() {

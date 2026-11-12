@@ -7,21 +7,20 @@ import { formatMoney } from "@/lib/payments";
 import { COLLECTION_COST_HINT, COLLECTION_COST_LINE, collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 
-const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr)_7rem_6.5rem] md:items-center md:gap-x-4";
+/** The columns: the group is text (left, wide); the cost, the paid sum and the debt are money (RIGHT); «Собрано» is a bar; the number of debtors is a count (RIGHT). */
+const COLLECTION_COLUMNS: DataColumn[] = [
+  { key: "group", header: "Группа", width: "minmax(0,1.6fr)" },
+  { key: "charged", header: <>Стоимость <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></>, align: "end", width: "7.5rem", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", width: "7.5rem", cardLabel: "Оплачено" },
+  { key: "pct", header: "Собрано", width: "minmax(0,1.3fr)" },
+  { key: "debt", header: "Долг", align: "end", width: "7.5rem", cardLabel: "Долг" },
+  { key: "debtors", header: "Должников", align: "end", width: "6rem", cardLabel: "Должников" },
+];
 
 /** The words of an empty cell: debt 0 is good news (a quiet green tick), no debtors is a muted 0 — never «нет». */
 export const PAID_TEXT = "оплачено";
-
-/** A cell of the row: its name on a phone (the card), only the figure from md (the table).  Money is right-aligned, «Должников» is centred. */
-function Cell({ label, col, align, className = "", title, children }: { label: string; col: string; align: "right" | "center"; className?: string; title?: string; children: React.ReactNode }) {
-  return (
-    <div title={title} data-col={col} className={`flex items-baseline justify-between gap-3 text-sm md:block ${align === "center" ? "md:text-center" : "md:text-right"} ${className}`}>
-      <span className="text-xs text-slate-500 md:hidden">{label}</span>
-      <span className="tabular-nums">{children}</span>
-    </div>
-  );
-}
 
 /** ⓘ: the shared `Hint` (hover, keyboard focus, a tap pins it open, Escape closes it; the bubble is portaled, so the table never clips it). */
 function InfoTip({ text, label, className = "" }: { text: string; label: string; className?: string }) {
@@ -42,30 +41,34 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
   const nothingCharged = row.charged === 0 && row.debt === 0;
   return (
     <>
-      <div className="order-1 min-w-0 md:order-none" data-col="group">
+      <DataCell col="group">
         <p className="break-words text-sm font-medium text-slate-800">{row.title}</p>
         {row.teacher && <p className="truncate text-xs text-slate-500">{row.teacher}</p>}
-      </div>
-      <Cell label="Стоимость" col="charged" align="right" className="order-3 mt-1 font-medium text-slate-700 md:order-none md:mt-0">{formatMoney(row.charged)}</Cell>
-      <Cell label="Оплачено" col="paid" align="right" className="order-4 font-medium text-slate-800 md:order-none">{formatMoney(row.paid)}</Cell>
-      <div className="order-2 mt-2 flex items-center gap-2.5 md:order-none md:mt-0" data-col="pct">
-        {row.pct !== null ? (
-          <>
-            <div className="min-w-0 flex-1"><ProgressBar pct={row.pct} label={`Собрано: ${row.title}`} /></div>
-            <span className="w-11 shrink-0 text-right text-sm font-medium tabular-nums text-slate-700">{row.pctText}</span>
-          </>
-        ) : (
-          <span className="text-xs text-slate-500">нет стоимости</span>
-        )}
-      </div>
-      <Cell label="Долг" col="debt" align="right" className="order-5 md:order-none">
+      </DataCell>
+      <DataCell col="charged"><span className="font-medium text-slate-700">{formatMoney(row.charged)}</span></DataCell>
+      <DataCell col="paid"><span className="font-medium text-slate-800">{formatMoney(row.paid)}</span></DataCell>
+      <DataCell col="pct">
+        <div className="flex items-center gap-2.5">
+          {row.pct !== null ? (
+            <>
+              <div className="min-w-0 flex-1"><ProgressBar pct={row.pct} label={`Собрано: ${row.title}`} /></div>
+              <span className="w-11 shrink-0 text-right text-sm font-medium tabular-nums text-slate-700">{row.pctText}</span>
+            </>
+          ) : (
+            <span className="text-xs text-slate-500">нет стоимости</span>
+          )}
+        </div>
+      </DataCell>
+      <DataCell col="debt">
         {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.waitingDebt > 0 ? null : nothingCharged ? <span className="text-slate-500">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
         {row.waitingDebt > 0 && <span className="block text-xs font-normal text-slate-600" data-testid="collection-waiting">ждём оплату {formatMoney(row.waitingDebt)}</span>}
-      </Cell>
-      <Cell label="Должников" col="debtors" align="center" className={`order-6 md:order-none ${row.debtors > 0 ? "font-medium text-slate-700" : ""}`} title={debtorsHint?.title}>
+      </DataCell>
+      <DataCell col="debtors" title={debtorsHint?.title}>
+        <span className={row.debtors > 0 ? "font-medium text-slate-700" : ""}>
         {row.debtors > 0 ? row.debtors : MUTED_ZERO}
         {debtorsHint?.marker && <span data-testid="collection-total-marker" aria-hidden className="ml-0.5 text-slate-500">*</span>}
-      </Cell>
+        </span>
+      </DataCell>
     </>
   );
 }
@@ -93,36 +96,19 @@ export function CollectionTable({ collection, paymentsBase, debtToday, caption }
           <p className="mt-0.5 text-xs leading-snug text-slate-500 md:hidden" data-testid="collection-cost-line">{COLLECTION_COST_LINE}</p>
         </div>
       )}
-      <div className="md:overflow-hidden md:rounded-2xl md:border md:border-slate-200 md:bg-white">
-        <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 [&>span]:whitespace-nowrap ${GRID}`} data-testid="collection-head">
-          <span data-col="group">Группа</span>
-          <span data-col="charged" className="text-right">Стоимость <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></span>
-          <span data-col="paid" className="text-right">Оплачено</span>
-          <span data-col="pct">Собрано</span>
-          <span data-col="debt" className="text-right">Долг</span>
-          <span data-col="debtors" className="text-center">Должников</span>
-        </div>
-        <ul className="flex flex-col gap-2.5 md:gap-0 md:divide-y md:divide-slate-100">
-          {rows.map((row) => (
-            <li key={row.key}>
-              <Link
-                href={debtorsHref(paymentsBase, { groupId: row.groupId })}
-                data-testid="collection-row"
-                aria-label={`${row.title}: открыть должников группы`}
-                className={`flex flex-col rounded-xl border border-slate-200 bg-white p-3.5 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 md:rounded-none md:border-0 md:px-4 md:py-3 ${GRID}`}
-              >
-                <RowBody row={row} />
-              </Link>
-            </li>
-          ))}
-        </ul>
+      <DataTable columns={COLLECTION_COLUMNS} minWidth={760} testId="collection-table" headTestId="collection-head">
+        {rows.map((row) => (
+          <DataRow key={row.key} href={debtorsHref(paymentsBase, { groupId: row.groupId })} testId="collection-row" ariaLabel={`${row.title}: открыть должников группы`}>
+            <RowBody row={row} />
+          </DataRow>
+        ))}
         {total && (
-          <div className={`mt-2.5 flex flex-col rounded-xl bg-slate-50 p-3.5 md:mt-0 md:rounded-none md:border-t md:border-slate-200 md:px-4 md:py-3 ${GRID}`} data-testid="collection-total">
+          <DataRow testId="collection-total" className="bg-slate-50">
             <RowBody row={total} debtorsHint={totalHint} />
-          </div>
+          </DataRow>
         )}
-        {debtNote && <p className="mt-2.5 px-1 text-xs leading-relaxed text-slate-600 md:mt-0 md:border-t md:border-slate-100 md:px-4 md:py-2.5" data-testid="collection-debt-note">{debtNote}</p>}
-      </div>
+      </DataTable>
+      {debtNote && <p className="mt-2.5 px-1 text-xs leading-relaxed text-slate-600" data-testid="collection-debt-note">{debtNote}</p>}
     </section>
   );
 }

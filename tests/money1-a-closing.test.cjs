@@ -189,7 +189,7 @@ test("Н3 Н4 Н5 Н8 Н10 Н11 Н13: the small texts", () => {
   assert.equal(F.DAY_OFF_NO_RIGHT_TEXT, "Назначает и отменяет владелец или администратор с доступом к деньгам. Список выходных виден вам, менять его нельзя.");
   assert.equal(lib("enrol-labels.ts").TRANSFER_NO_RIGHT_TEXT, "Переводить может владелец или администратор с доступом к деньгам.");
   assert.equal(P.monthSubtitle("2026-11", 3), "3 преподавателя");
-  assert.deepEqual(read("src/components/payroll/payroll-month-page.tsx").match(/labels: \[[^\]]*\]/)[0].includes("Выплачено, сум"), true);
+  assert.ok(read("src/components/payroll/payroll-month-page.tsx").includes('header: "Выплачено, сум"'));
   assert.match(src("components/attendance/cancellation-kind-field.tsx"), /grid grid-cols-1 gap-2">/);
   assert.match(src("components/payments/refund-dialog.tsx"), /Возврат можно отменить\./);
   assert.match(src("components/payments/refund-dialog.tsx"), /Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">/);

@@ -315,7 +315,8 @@ test("a live payment that corrected another one: the chip «исправлена
   assert.equal(V.journalRowView(row({ status: "replaced", replaced_by_receipt_no: 12 })).correctedChip, null, "the superseded row has its own grey tag");
   const list = html(React.createElement(J.JournalList, { rows: [row(CORRECTION), row({ id: "payment:other" })], withYear: false, activeId: null, onOpen() {} }));
   assert.equal((list.match(/data-testid="journal-corrected"/g) || []).length, 1);
-  assert.ok(list.indexOf("journal-corrected") < list.indexOf("tabular-nums tracking-tight md:col-start-4") + 400);
+  // the chip is in the cell of the student (next to the name), before the cell of the amount
+  assert.ok(list.indexOf("journal-corrected") < list.indexOf('class="dt-cell" data-col="amount"'));
 });
 
 test("the drawer of a correction: «Было 350 000 сум → стало 300 000 сум · исправил <имя> 15.10 · причина: …»; absent fields do not break it", () => {
@@ -378,9 +379,10 @@ test("the server's J06–J09 fixtures: kind answers have no hidden payments (no 
 
 test("the «исправлена» chip sits next to the name like «отменена», not above the amount (lead review 23.10)", () => {
   const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/components/payments/income-journal.tsx"), "utf8");
-  const amountCell = src.slice(src.indexOf("md:col-start-4"), src.indexOf("md:col-start-5"));
+  const amountCell = src.slice(src.indexOf('<DataCell col="amount">'), src.indexOf('<DataCell col="method">'));
   assert.ok(!/journal-corrected/.test(amountCell), "the corrected chip is not inside the amount cell");
-  assert.match(src, /data-testid="journal-corrected" title=\{view.correctedTitle \?\? undefined\} className="col-start-2 row-start-3/);
+  const studentCell = src.slice(src.indexOf('<DataCell col="student">'), src.indexOf('<DataCell col="group">'));
+  assert.match(studentCell, /data-testid="journal-corrected" title=\{view.correctedTitle \?\? undefined\}/, "it sits in the cell of the name");
 });
 
 test("the old record of a correction says «заменена на № N», the live one «исправлена» with «вместо квитанции № M» on hover (owner 23.10)", () => {

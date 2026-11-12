@@ -4,13 +4,13 @@ import { canManageMoney } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 import { useState } from "react";
 import { displayPhone } from "@/lib/phone";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, ArrowRightLeft } from "lucide-react";
+import { GraduationCap, Check, Copy, UserMinus, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { orgApi, StudentInGroup } from "@/lib/api";
 import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
@@ -77,45 +77,6 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
     return 0;
   });
 
-  const SortIcon = ({ col }: { col: SortKey }) =>
-    sortKey === col ? (
-      sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
-    ) : (
-      <ChevronUp className="w-3.5 h-3.5 opacity-0 group-hover/th:opacity-30" />
-    );
-
-  const Th = ({
-    col,
-    label,
-    className = "",
-    align = "text-left",
-  }: {
-    col: SortKey;
-    label: string;
-    className?: string;
-    align?: "text-left" | "text-center" | "text-right";
-  }) => (
-    <th
-      className={`group/th px-4 py-3.5 text-[13px] font-semibold text-slate-500 cursor-pointer select-none hover:text-slate-900 whitespace-nowrap align-middle ${align} ${className}`}
-      onClick={() => handleSort(col)}
-    >
-      <div
-        className={`flex items-center gap-1 ${
-          align === "text-center"
-            ? "justify-center"
-            : align === "text-right"
-            ? "justify-end"
-            : "justify-start"
-        }`}
-      >
-        {/* a centred label gets a spacer as wide as the arrow, so it stays exactly over its centred cells */}
-        {align === "text-center" && <span aria-hidden="true" className="w-3.5" />}
-        {label}
-        <SortIcon col={col} />
-      </div>
-    </th>
-  );
-
   if (students.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-slate-500">
@@ -126,120 +87,67 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
     );
   }
 
-  // `relative`: the sr-only «Действия» of the header is absolute and would otherwise leak out of the scroller
-  // (a page-wide horizontal scroll on a phone).
+  const columns: DataColumn[] = [
+    { key: "name", header: "Ученик", width: "minmax(0,1.7fr)", sortKey: "name" },
+    { key: "display_id", header: "ID ученика", width: "minmax(7.5rem,0.9fr)", cardLabel: "ID ученика", sortKey: "display_id" },
+    { key: "class_level", header: "Класс", width: "minmax(4.5rem,0.5fr)", cardLabel: "Класс", sortKey: "class_level" },
+    { key: "phone", header: "Телефон", width: "minmax(9rem,0.9fr)", cardLabel: "Телефон", sortKey: "phone" },
+    { key: "joined_at", header: "Дата зачисления", width: "minmax(7.5rem,0.8fr)", cardLabel: "Дата зачисления", sortKey: "joined_at" },
+    ...(removable ? [{ key: "actions", header: "", align: "end", width: "2.5rem", actions: true } as DataColumn] : []),
+  ];
+  const name = (s: StudentInGroup) => s.full_name || `${s.last_name} ${s.first_name}`;
   return (
-    <div className="relative overflow-x-auto">
-      <table className={`w-full text-left border-collapse table-fixed ${removable ? "min-w-[760px]" : ""}`}>
-        <colgroup>
-          <col className={removable ? "w-[34%]" : "w-[36%]"} />
-          <col className="w-[16%]" />
-          <col className="w-[10%]" />
-          <col className="w-[18%]" />
-          <col className={removable ? "w-[16%]" : "w-[20%]"} />
-          {removable && <col className="w-[6%]" />}
-        </colgroup>
-        <thead>
-          <tr className="bg-slate-50/80 border-b border-slate-100">
-            <Th col="name" label="Ученик" className="pl-6" />
-            <Th col="display_id" label="ID ученика" align="text-center" />
-            <Th col="class_level" label="Класс" align="text-center" />
-            <Th col="phone" label="Телефон" align="text-center" />
-            <Th col="joined_at" label="Дата зачисления" align="text-center" className={removable ? "" : "pr-6"} />
-            {removable && <th className="px-4 py-3.5 pr-6 text-right"><span className="sr-only">Действия</span></th>}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {sorted.map((s, i) => {
-            return (
-              <motion.tr
-                key={s.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: i * 0.02 }}
-                className="hover:bg-slate-50/70 transition-colors"
-              >
-                {/* Name */}
-                <td className="px-4 py-4 pl-6 align-middle">
-                  <Link
-                    href={`${basePath}/${s.id}`}
-                    className="flex items-center gap-3 group/student hover:opacity-80 transition-opacity"
-                    title="Открыть профиль ученика"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50 group-hover/student:scale-105 transition-transform">
-                      {(s.first_name?.[0] || "?").toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 group-hover/student:text-primary-600 transition-colors truncate">
-                      {s.full_name || `${s.last_name} ${s.first_name}`}
-                    </span>
-                    {pausedChipText(s) && (
-                      <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{pausedChipText(s)}</span>
-                    )}
-                  </Link>
-                </td>
-
-                {/* Display ID — публичный ID ученика (AL-001) */}
-                <td className="px-4 py-4 align-middle whitespace-nowrap text-center">
-                  {s.display_id ? (
-                    <button
-                      type="button"
-                      onClick={(e) => handleCopyId(s.display_id!, e)}
-                      className={`group/id inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
-                        copiedId === s.display_id
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-card"
-                          : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/60"
-                      }`}
-                      title="Нажмите, чтобы скопировать ID ученика"
-                    >
-                      {/* Fixed icon slot to avoid layout shift */}
-                      <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
-                        {copiedId === s.display_id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
-                        ) : (
-                          <Copy className="w-3 h-3 text-slate-500 group-hover/id:text-slate-600 transition-colors" />
-                        )}
-                      </span>
-                      <span>{s.display_id}</span>
-                    </button>
-                  ) : (
-                    <span className="text-xs text-slate-300 font-mono">—</span>
-                  )}
-                </td>
-
-                {/* Class */}
-                <td className="px-4 py-4 text-sm font-medium text-slate-700 align-middle whitespace-nowrap text-center">
-                  {s.class_level} класс
-                </td>
-
-                {/* Phone */}
-                <td className="px-4 py-4 text-xs font-medium text-slate-700 align-middle whitespace-nowrap text-center">
-                  {displayPhone(s.student_phone) || <span className="text-slate-300 font-mono">—</span>}
-                </td>
-
-                {/* Joined at */}
-                <td className={`px-4 py-4 ${removable ? "" : "pr-6"} text-xs text-slate-500 font-medium align-middle whitespace-nowrap text-center`}>
-                  {s.joined_at ? (
-                    formatUtcNaiveAsBusinessDate(s.joined_at, { day: "numeric", month: "short", year: "numeric" })
-                  ) : (
-                    <span className="text-slate-300 font-mono">—</span>
-                  )}
-                </td>
-
-                {removable && (
-                  <td className="px-4 py-4 pr-6 align-middle text-right">
-                    <RowMenu
-                      label={`Действия: ${s.full_name || `${s.last_name} ${s.first_name}`}`}
-                      items={menuKeys.map((key): RowMenuItem => key === "transfer"
-                        ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, disabled: !moneyRight, hint: moneyRight ? undefined : TRANSFER_NO_RIGHT_TEXT, onSelect: () => onTransfer?.(s) }
-                        : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
-                    />
-                  </td>
-                )}
-              </motion.tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="relative">
+      <DataTable columns={columns} minWidth={640} sort={{ key: sortKey, asc: sortAsc }} onSort={(key) => handleSort(key as SortKey)} testId="roster-table">
+        {sorted.map((s) => (
+          <DataRow key={s.id}>
+            <DataCell col="name">
+              <Link href={`${basePath}/${s.id}`} className="group/student flex min-w-0 items-center gap-3 hover:opacity-80 transition-opacity" title="Открыть профиль ученика">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary-200/50 bg-primary-100 text-xs font-bold text-primary-700">
+                  {(s.first_name?.[0] || "?").toUpperCase()}
+                </div>
+                <span className="min-w-0 break-words text-sm font-medium text-slate-700 transition-colors group-hover/student:text-primary-600">{name(s)}</span>
+                {pausedChipText(s) && <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{pausedChipText(s)}</span>}
+              </Link>
+            </DataCell>
+            {/* the public ID of the student (AL-001): copied by a click, never cut */}
+            <DataCell col="display_id">
+              {s.display_id ? (
+                <button
+                  type="button"
+                  onClick={(e) => handleCopyId(s.display_id!, e)}
+                  className={`group/id inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 font-mono text-xs font-medium transition-all duration-200 ${
+                    copiedId === s.display_id ? "border-emerald-300 bg-emerald-50 text-emerald-700 shadow-card" : "border-slate-200/60 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                  title="Нажмите, чтобы скопировать ID ученика"
+                >
+                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                    {copiedId === s.display_id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3 w-3 text-slate-500" />}
+                  </span>
+                  <span>{s.display_id}</span>
+                </button>
+              ) : <span className="font-mono text-xs text-slate-500">—</span>}
+            </DataCell>
+            <DataCell col="class_level"><span className="whitespace-nowrap text-sm font-medium text-slate-700">{s.class_level} класс</span></DataCell>
+            <DataCell col="phone"><span className="whitespace-nowrap text-xs font-medium text-slate-700">{displayPhone(s.student_phone) || <span className="font-mono text-slate-500">—</span>}</span></DataCell>
+            <DataCell col="joined_at">
+              <span className="whitespace-nowrap text-xs font-medium text-slate-500">
+                {s.joined_at ? formatUtcNaiveAsBusinessDate(s.joined_at, { day: "numeric", month: "short", year: "numeric" }) : <span className="font-mono">—</span>}
+              </span>
+            </DataCell>
+            {removable && (
+              <DataCell col="actions">
+                <RowMenu
+                  label={`Действия: ${name(s)}`}
+                  items={menuKeys.map((key): RowMenuItem => key === "transfer"
+                    ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, disabled: !moneyRight, hint: moneyRight ? undefined : TRANSFER_NO_RIGHT_TEXT, onSelect: () => onTransfer?.(s) }
+                    : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
+                />
+              </DataCell>
+            )}
+          </DataRow>
+        ))}
+      </DataTable>
       {groupId && onLeft && !isTeacher && (
         <LeaveStudentDialog
           open={leaveTarget !== null}

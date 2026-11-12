@@ -25,9 +25,9 @@ const STUDENT_EXAM_SURFACE = (file) => STUDENT_EXAM_SURFACE_RE.test(file);
 
 const CEILINGS = {
   // [name, regexp, skip, ceiling]
-  tinyText: ["text-[9px|10px|11px] (nothing under 12 px)", /text-\[(9|10|11)px\]/g, undefined, 232],
-  text13: ["text-[13px]", /text-\[13px\]/g, undefined, 43],
-  lightText: ["text-slate-300/400 as a text colour", /\btext-slate-(300|400)\b/g, undefined, 206],
+  tinyText: ["text-[9px|10px|11px] (nothing under 12 px)", /text-\[(9|10|11)px\]/g, undefined, 226],
+  text13: ["text-[13px]", /text-\[13px\]/g, undefined, 38],
+  lightText: ["text-slate-300/400 as a text colour", /\btext-slate-(300|400)\b/g, undefined, 203],
   hexClass: ["a hex colour inside a class", /\b(bg|text|border|ring|from|to|via|fill|stroke|shadow|outline|decoration|divide|placeholder|accent|caret)-\[#[0-9a-fA-F]{3,8}\]/g, undefined, 0],
   gradient: ["bg-gradient-* outside the exam surfaces", /\bbg-gradient-to-[a-z]+\b/g, STUDENT_EXAM_SURFACE, 0],
   filledButton: ["a hand-made <button> with a coloured fill (use Button)", /<button\b[^>]*?className="[^"]*\bbg-(?:primary|blue|emerald|green|rose|red|indigo|slate-900|amber)-\d00\b[^"]*\btext-white\b/g, undefined, 2],
@@ -154,4 +154,28 @@ test("gate: every <form> is noValidate (the browser's own English hints are neve
   };
   roots.forEach(scan);
   assert.deepEqual(bad, [], "add noValidate and say what is missing at the field, in Russian");
+});
+
+// Design system wave 3: every list of rows is a DataTable (ui/data-table.tsx).  A hand-made `<table>` or a hand-made header of a grid (`<TableHeader>`) outside it can only go DOWN.
+// The two MATRICES stay real tables (they are not lists: sticky columns, a column per lesson date, a print layout): the payroll sheet and the attendance journal of a group.
+const MATRIX_TABLES = new Set(["components/payroll/sheet-table.tsx", "components/groups/group-attendance-journal.tsx"]);
+test("gate: tables outside DataTable only go down (a <table> or a <TableHeader> that is not a matrix) - ceiling 8", () => {
+  const found = [];
+  for (const { file, text } of sources) {
+    if (MATRIX_TABLES.has(file) || file === "components/ui/data-table.tsx" || file === "components/attendance/table-chrome.tsx") continue;
+    const n = (text.match(/<table\b/g) || []).length + (text.match(/<TableHeader\b/g) || []).length;
+    if (n) found.push(`${file}: ${n}`);
+  }
+  const total = found.reduce((sum, line) => sum + Number(line.split(": ")[1]), 0);
+  assert.ok(total <= 8, `${total} tables outside DataTable (ceiling 8): ${found.join(", ")}`);
+  if (total < 8) assert.fail(`${total} found, below the ceiling 8 - lower the ceiling in tests/design-gate.test.cjs to ${total}`);
+});
+
+test("the screens of wave 3 are DataTables: Оплаты, Зарплата (list of the month), Состав группы, Пропуски, Поступления (Оплаты, Решения, Группы), выписка", () => {
+  for (const file of ["components/payments/payments-page.tsx", "components/payroll/payroll-month-page.tsx", "components/groups/group-student-table.tsx", "components/attendance/excuses-page.tsx",
+    "components/payments/income-journal.tsx", "components/payments/income-decisions.tsx", "components/payments/income-collection.tsx", "components/payments/statement-view.tsx"]) {
+    const text = sources.find((entry) => entry.file === file).text;
+    assert.match(text, /<DataTable\b/, file);
+    assert.doesNotMatch(text, /<table\b|<TableHeader\b/, file);
+  }
 });

@@ -14,11 +14,21 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Select } from "@/components/ui/select";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { IncomeError } from "./income-parts";
 
-const GRID = "xl:grid-cols-[6rem_9rem_minmax(0,1fr)_10.5rem_10.5rem_7.5rem_1.5rem]";
+/** The columns: when, what, whom - text (left); the sum and the debt - money (RIGHT); who decided - text; the arrow shows that the row opens. */
+const DECISION_COLUMNS: DataColumn[] = [
+  { key: "when", header: "Когда", width: "6.5rem" },
+  { key: "kind", header: "Что", width: "9rem" },
+  { key: "who", header: "Ученик · группа", width: "minmax(0,1.4fr)" },
+  { key: "amount", header: "Сумма", align: "end", width: "10.5rem", cardLabel: "Сумма" },
+  { key: "debt", header: "Долг", align: "end", width: "10.5rem", cardLabel: "Долг" },
+  { key: "actor", header: "Кто", width: "7.5rem", cardLabel: "Кто" },
+  { key: "open", header: "", align: "end", width: "1.5rem" },
+];
 
 /**
  * «Решения» of «Поступлений» (Money-1 V2): who cancelled or corrected a payment, forgave a debt or gave an advance back - one line each: when · what · whom · the sum · the debt before → after · who.
@@ -102,16 +112,11 @@ export function IncomeDecisions({ period, authors, paymentsBase, studentProfileB
             action={narrowed ? <Button variant="secondary" size="sm" onClick={() => { setKind(""); setActor(""); setPage(1); }}>Сбросить</Button> : undefined}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="decisions-list">
-            <div role="presentation" className={`hidden gap-x-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500 xl:grid ${GRID}`}>
-              <span>Когда</span><span>Что</span><span>Ученик · группа</span><span className="text-right">Сумма</span><span className="text-right">Долг</span><span>Кто</span><span />
-            </div>
-            <ul className="divide-y divide-slate-100">
-              {data.rows.map((row) => (
-                <DecisionLine key={row.id} row={row} open={opened === row.id} onToggle={() => setOpened(opened === row.id ? null : row.id)} studentLink={row.student_id ? studentHref(bases.students || studentProfileBasePath, row.student_id, "payments") : null} />
-              ))}
-            </ul>
-          </div>
+          <DataTable columns={DECISION_COLUMNS} minWidth={880} gap="0.75rem" testId="decisions-list">
+            {data.rows.map((row) => (
+              <DecisionLine key={row.id} row={row} open={opened === row.id} onToggle={() => setOpened(opened === row.id ? null : row.id)} studentLink={row.student_id ? studentHref(bases.students || studentProfileBasePath, row.student_id, "payments") : null} />
+            ))}
+          </DataTable>
         )}
       </div>
 
@@ -135,28 +140,25 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
   const who = [row.student_name, row.group_name].filter(Boolean).join(" · ");
   const debt = decisionDebtText(row);
   return (
-    <li data-testid="decision-row">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 max-xl:min-h-12 xl:items-center ${GRID}`}
-      >
-        <span className="col-start-2 row-start-1 text-right text-xs tabular-nums text-slate-500 xl:col-start-auto xl:row-start-auto xl:text-left xl:text-sm" data-testid="decision-when">{decisionWhen(row.at)}</span>
-        <span className="col-start-1 row-start-1 min-w-0 xl:col-start-auto xl:row-start-auto"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></span>
-        <span className="col-span-2 row-start-2 min-w-0 break-words text-sm font-medium text-slate-900 xl:col-span-1 xl:row-start-auto" >{who}</span>
-        <span className="col-start-1 row-start-3 whitespace-nowrap text-sm font-medium tabular-nums text-slate-800 xl:col-start-auto xl:row-start-auto xl:text-right" data-testid="decision-amount">{decisionAmountText(row)}</span>
-        <span className="col-start-1 row-start-4 whitespace-nowrap text-xs tabular-nums text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-right xl:text-sm" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span>
-        <span className="col-start-1 row-start-5 min-w-0 break-words text-xs text-slate-600 xl:col-start-auto xl:row-start-auto xl:text-sm">{row.actor_name ?? "—"}</span>
-        <ChevronDown aria-hidden className={`col-start-2 row-start-3 h-4 w-4 self-center justify-self-end text-slate-500 transition-transform xl:col-start-auto xl:row-start-auto xl:justify-self-auto ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
+    <DataRow
+      testId="decision-row"
+      onActivate={onToggle}
+      expanded={open}
+      detail={open && (
+        <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.receipt_no !== null && <p>Квитанция № {row.receipt_no}</p>}
           {studentLink && <Link href={studentLink} className="inline-flex min-h-10 items-center font-medium text-primary-700 hover:underline">Оплаты ученика</Link>}
         </div>
       )}
-    </li>
+    >
+      <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
+      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
+      <DataCell col="who"><span className="break-words text-sm font-medium text-slate-900">{who}</span></DataCell>
+      <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
+      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span></DataCell>
+      <DataCell col="actor"><span className="break-words text-sm text-slate-600">{row.actor_name ?? "—"}</span></DataCell>
+      <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>
+    </DataRow>
   );
 }

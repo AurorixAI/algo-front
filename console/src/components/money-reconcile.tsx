@@ -27,7 +27,7 @@ import {
 } from "../lib/money-reconcile";
 import type { MoneyFinding, MoneyReconcile, MoneyRun } from "../lib/types";
 import { EmptyState, Facts, LoadFailure, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
-import { DataTable, type Column } from "./data-table";
+import { DataTable, type Column } from "./console-table";
 import { Field, FilterBar } from "./filters";
 
 /**

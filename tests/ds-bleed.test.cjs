@@ -45,7 +45,7 @@ for (const bucket of ["debt", "waiting"]) {
         const left = ${textLeft};
         const cell = document.querySelector('[data-testid="status-cell"]');
         const chip = cell.querySelector("[data-bleed]");
-        const lines = [...cell.querySelectorAll(":scope > p")].map((p) => ({ text: p.textContent.trim().slice(0, 30), left: left(p) }));
+        const lines = [...cell.querySelectorAll(".dt-value > div > p")].map((p) => ({ text: p.textContent.trim().slice(0, 30), left: left(p) }));
         const header = [...document.querySelectorAll("span")].find((el) => el.textContent.trim() === "Статус" && el.children.length === 0);
         return { chip: left(chip), lines, header: header && header.offsetParent ? left(header) : null };
       })()`);

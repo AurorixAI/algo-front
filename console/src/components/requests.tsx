@@ -22,7 +22,7 @@ import type { ApproveBody, DemoRequest, DemoRequestCard, RequestStatus } from ".
 import { orgTypeLabel } from "@/lib/org-type";
 import { centreRows, EMAIL_IN_ALGO_TEXT, EMAIL_IN_ALGO_TITLE, localeRows, mailMarks, mailProblems, needRows, positionRows, sourceRows, timeRows } from "../lib/request-view";
 import { DetailSection, Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
-import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
+import { DataTable, Pagination, nextSort, type Column, type SortState } from "./console-table";
 import { ConfirmDialog } from "./dialogs";
 import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";

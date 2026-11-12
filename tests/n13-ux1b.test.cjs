@@ -212,7 +212,7 @@ test("the chip: small, neutral, with the tooltip; the date is in the DOM for a s
 test("the page and the journal show the mark only for decided excuses; the types are optional", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /const lateMark = pendingTab \? null : afterDeadlineMark\(item\);/);
-  assert.match(page, /\{lateMark && <div className="mt-1 flex xl:justify-center"><AfterDeadlineChip mark=\{lateMark\} \/><\/div>\}/);
+  assert.match(page, /\{lateMark && <div className="mt-1 flex"><AfterDeadlineChip mark=\{lateMark\} \/><\/div>\}/);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /afterDeadlineMark\(excuse\) && <div className="mt-1\.5 flex"><AfterDeadlineChip mark=\{afterDeadlineMark\(excuse\)!\} \/><\/div>/);
   assert.match(journal, /const late = withLate \? afterDeadlineMark\(excuse\) : null;\s*if \(late\) lines\.push\(late\.title\);/);
@@ -330,7 +330,7 @@ test("the waiting list is shown in urgency order and the column says it in words
   assert.match(page, /\{deadline\.headline\}/);
   assert.match(page, /<p className="mt-0\.5 text-xs text-slate-500">\{deadline\.sub\}<\/p>/);
   assert.doesNotMatch(page, /excuseDeadlineChip/);
-  assert.match(page, /pendingTab \? "Срок" : "Решение"/);
+  assert.match(page, /tab === "pending" \? \{ key: "deadline", header: "Срок"[^}]*\} : \{ key: "decision", header: "Решение"/);
 });
 
 test("the «Пропуски» list has no phone link (the phone lives in the student's card); telHref still dials only real numbers", () => {

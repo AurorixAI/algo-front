@@ -543,9 +543,9 @@ test("the statement draws E1 with the running balance after every row and the li
   // the order is the order of time
   const order = ["Период 15.09–14.10", "Оплата № 17", "Период 15.10–14.11", "Оплата № 18"].map((title) => body.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  // the columns: «Дата» and the money (Стоимость, Оплачено, Остаток) are centred, «Операция» left (see inc13-statement.test.cjs)
+  // the columns (wave 3): «Дата» and «Операция» are left, the money (Стоимость, Оплачено, Остаток) is right (see inc13-statement.test.cjs)
   const markup = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  assert.match(markup, /<span class="md:px-2 md:py-3 text-center">Дата<\/span><span class="md:px-3 md:py-3 text-left">Операция<\/span>/);
+  assert.match(markup, /<span class="dt-head-cell" data-col="date" data-align="start">Дата<\/span><span class="dt-head-cell" data-col="operation" data-align="start">Операция<\/span>/);
   // one month: a line about the balance carried in comes first
   const one = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" }));
   assert.ok(one.includes("С сентября перенесён долг 269 000") && one.includes("Долг 769 000") && !one.includes("Сентябрь 2026") && !one.includes("Оплата № 17"));
@@ -630,8 +630,8 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(statement, /orgApi\.voidRefund\(/);
   assert.match(statement, /Всё сходится/);
   // a bank statement: Дата | Операция | Стоимость | Оплачено | Остаток; alignment is pinned in inc13-statement.test.cjs
-  assert.match(statement, /<span className=\{`\$\{CELL_DATE\} \$\{STATEMENT_ALIGN\.date\}`\}>Дата<\/span>/);
-  assert.match(statement, />Стоимость<\/span>[\s\S]*>Оплачено<\/span>[\s\S]*>Остаток<\/span>/);
+  assert.match(statement, /key: "date", header: "Дата"/);
+  assert.match(statement, /header: "Стоимость"[\s\S]*header: "Оплачено"[\s\S]*header: "Остаток"/);
   // the month switcher: ‹ Октябрь 2026 › and the toggle «Все месяцы»; it opens on the current month (owner 23.10)
   assert.match(statement, /useState<StatementMonthChoice>\(\(\) => parseStatementMonth\(searchParams\?\.get\("month"\)\)\)/);
   assert.match(statement, />\s*Все месяцы\s*</);

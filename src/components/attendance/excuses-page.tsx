@@ -56,11 +56,12 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { Tag } from "@/components/ui/chip";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
-import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance/table-chrome";
+import { EmptyState } from "@/components/attendance/table-chrome";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { FileInput } from "@/components/ui/file-input";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
@@ -83,11 +84,13 @@ const PAGE_SIZE = 50;
  * The header and every row use the same template, the same horizontal padding and the same gap, so a
  * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_208px_176px]";
-const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_minmax(0,1.2fr)_40px]";
-
-/** Ученик and Причина (free text) left, Урок and Срок / Решение centred, the actions right (see table-chrome). */
-const EXCUSE_ALIGNS: CellAlign[] = ["left", "center", "left", "center", "right"];
+const excuseColumns = (tab: Tab, canDecide: boolean): DataColumn[] => [
+  { key: "student", header: "Ученик", width: "minmax(0,1.2fr)" },
+  { key: "lesson", header: "Урок", width: "minmax(7rem,0.7fr)" },
+  { key: "reason", header: "Причина", width: "minmax(0,2fr)" },
+  tab === "pending" ? { key: "deadline", header: "Срок", width: "minmax(8.5rem,0.8fr)" } : { key: "decision", header: "Решение", width: "minmax(0,1.2fr)" },
+  { key: "actions", header: "", align: "end", width: tab === "pending" ? "11rem" : tab === "rejected" && canDecide ? "11rem" : "2.75rem", actions: true },
+];
 
 type Tab = ExcuseReviewStatus;
 
@@ -619,8 +622,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
     { key: "rejected", label: "Отклонено" },
   ];
   const pendingTab = tab === "pending";
-  const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
-  // Waiting excuses: the deadline that has passed first, then the nearest - over the whole queue (see lib/excuses-pending.ts).
+    // Waiting excuses: the deadline that has passed first, then the nearest - over the whole queue (see lib/excuses-pending.ts).
   const rows = useMemo(
     () => (pendingTab ? sortExcusesByUrgency(items, businessToday) : items),
     [items, pendingTab, businessToday],
@@ -682,7 +684,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
       </div>
 
       {/* List */}
-      <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
+      <section>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
@@ -697,14 +699,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
         ) : items.length === 0 ? (
           <EmptyState icon={CheckCircle2} title={EMPTY_TEXT[tab]} hint={EMPTY_HINT[tab]} />
         ) : (
-          <>
-            <TableHeader
-              show="xl"
-              gridClass={cols}
-              labels={["Ученик", "Урок", "Причина", pendingTab ? "Срок" : "Решение", ""]}
-              aligns={EXCUSE_ALIGNS}
-            />
-            <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
+          <DataTable columns={excuseColumns(tab, moneyRight)} minWidth={880} testId="excuses-table" align="start">
               {rows.map((item) => {
                 const busy = busyIds.has(item.id);
                 const uploading = uploadingId === item.id;
@@ -713,91 +708,97 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                 const teacherShort = shortPersonName(item.teacher?.name) || "—";
                 const decisionDetail = excuseDecisionDetail(item, businessToday.slice(0, 4));
                 return (
-                  <li
-                    key={item.id}
-                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 ${cols}`}
-                  >
+                  <DataRow key={item.id}>
                     {/* Ученик: the name leads, id and group are secondary */}
-                    <div className={`min-w-0 ${pendingTab || tab === "rejected" ? "" : "pr-8 xl:pr-0"}`}>
-                      <Link
-                        href={`${studentProfileBasePath}/${item.student.id}`}
-                        className="block min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:line-clamp-2"
-                        title="Открыть карточку ученика"
-                      >
-                        {item.student.full_name}
-                      </Link>
-                      <p className="break-words text-xs text-slate-500 xl:truncate" title={item.group.name}>
-                        {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
-                      </p>
-                      {/* an excuse of an archived group still has to be decided: it is shown, with the mark (the server sends `group.archived`) */}
-                      {item.group.archived && <Tag testId="excuse-group-archived" className="mt-0.5">группа в архиве</Tag>}
-                    </div>
+                    <DataCell col="student">
+                      <div className="min-w-0">
+                        <Link
+                          href={`${studentProfileBasePath}/${item.student.id}`}
+                          className="block min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700"
+                          title="Открыть карточку ученика"
+                        >
+                          {item.student.full_name}
+                        </Link>
+                        <p className="break-words text-xs text-slate-500" title={item.group.name}>
+                          {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
+                        </p>
+                        {/* an excuse of an archived group still has to be decided: it is shown, with the mark (the server sends `group.archived`) */}
+                        {item.group.archived && <Tag testId="excuse-group-archived" className="mt-0.5">группа в архиве</Tag>}
+                      </div>
+                    </DataCell>
 
                     {/* Урок */}
-                    <div className="min-w-0 text-xs text-slate-500 xl:text-center xl:text-sm">
-                      <p className="xl:truncate xl:leading-5">
-                        <span className="font-medium text-slate-800">{lessonShortLabel(item.lesson_date)}</span>
-                        <span className="xl:hidden"> · {teacherShort}</span>
-                      </p>
-                      <p className="hidden truncate text-xs text-slate-500 xl:block" title={item.teacher?.name || undefined}>{teacherShort}</p>
-                      <Link href={excuseJournalHref(groupsBasePath, item)} data-testid="excuse-journal-link" className="text-xs font-semibold text-primary-700 hover:underline">Журнал</Link>
-                    </div>
-
-                    {/* Причина */}
-                    <div className="min-w-0">
-                      <ExpandableText text={item.reason} meta={reasonMeta(item)} />
-                      <p className="text-xs">
-                        {uploading ? (
-                          <span className="inline-flex items-center gap-1 text-slate-500"><Loader2 className="h-3 w-3 animate-spin" />загрузка…</span>
-                        ) : item.files.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => void openFile(item.id, item.files[0])}
-                            className="text-primary-700 hover:underline"
-                            title="Открыть справку"
-                          >
-                            {excuseFilesLabel(item.files)}
-                          </button>
-                        ) : (
-                          <span className="text-slate-500">{excuseFilesLabel(item.files)}</span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Срок / Решение: centred under its header, the chip too */}
-                    {pendingTab ? (
-                      <div className="min-w-0 xl:text-center">
-                        {deadline && (
-                          <>
-                            <div className="flex min-w-0 xl:-my-px xl:justify-center">
-                              <span className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[deadline.tone]}`} title={deadline.title}>
-                                {deadline.headline}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-xs text-slate-500">{deadline.sub}</p>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="min-w-0 xl:text-center">
-                        <p className="break-words text-xs text-slate-700 xl:text-sm xl:leading-5" title={formatDateTimeRu(item.reviewed_at) || undefined}>
-                          {excuseDecisionLabel(item) || "—"}
+                    <DataCell col="lesson">
+                      <div className="min-w-0 text-xs text-slate-500">
+                        <p className="text-sm leading-5">
+                          <span className="font-medium text-slate-800">{lessonShortLabel(item.lesson_date)}</span>
+                          <span className="dt-card-only"> · {teacherShort}</span>
                         </p>
-                        {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" center />}
-                        {lateMark && <div className="mt-1 flex xl:justify-center"><AfterDeadlineChip mark={lateMark} /></div>}
+                        <p className="dt-wide-only truncate text-xs text-slate-500" title={item.teacher?.name || undefined}>{teacherShort}</p>
+                        <Link href={excuseJournalHref(groupsBasePath, item)} data-testid="excuse-journal-link" className="text-xs font-semibold text-primary-700 hover:underline">Журнал</Link>
                       </div>
+                    </DataCell>
+
+                    {/* Причина: the widest column - the text is read, not cut */}
+                    <DataCell col="reason">
+                      <div className="min-w-0">
+                        <ExpandableText text={item.reason} meta={reasonMeta(item)} />
+                        <p className="text-xs">
+                          {uploading ? (
+                            <span className="inline-flex items-center gap-1 text-slate-500"><Loader2 className="h-3 w-3 animate-spin" />загрузка…</span>
+                          ) : item.files.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => void openFile(item.id, item.files[0])}
+                              className="text-primary-700 hover:underline"
+                              title="Открыть справку"
+                            >
+                              {excuseFilesLabel(item.files)}
+                            </button>
+                          ) : (
+                            <span className="text-slate-500">{excuseFilesLabel(item.files)}</span>
+                          )}
+                        </p>
+                      </div>
+                    </DataCell>
+
+                    {/* Срок / Решение */}
+                    {pendingTab ? (
+                      <DataCell col="deadline">
+                        <div className="min-w-0">
+                          {deadline && (
+                            <>
+                              <div className="flex min-w-0">
+                                <span className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[deadline.tone]}`} title={deadline.title}>
+                                  {deadline.headline}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-slate-500">{deadline.sub}</p>
+                            </>
+                          )}
+                        </div>
+                      </DataCell>
+                    ) : (
+                      <DataCell col="decision">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm leading-5 text-slate-700" title={formatDateTimeRu(item.reviewed_at) || undefined}>
+                            {excuseDecisionLabel(item) || "—"}
+                          </p>
+                          {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" />}
+                          {lateMark && <div className="mt-1 flex"><AfterDeadlineChip mark={lateMark} /></div>}
+                        </div>
+                      </DataCell>
                     )}
 
                     {/* Действия */}
-                    {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
-                    <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab || tab === "rejected" ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
+                    <DataCell col="actions">
                       {pendingTab && moneyRight && (
                         <Button
                           type="button"
                           disabled={busy}
                           aria-label={`Подтвердить: ${item.student.full_name}`}
                           onClick={() => openDialog(item, "confirmed", "none")}
-                          variant="primary" size="sm" className="flex-1 xl:flex-none"
+                          variant="primary" size="sm" className="max-sm:flex-1"
                         >
                           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           Подтвердить
@@ -809,18 +810,17 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                           disabled={busy}
                           aria-label={`Подтвердить: ${item.student.full_name}`}
                           onClick={() => openDialog(item, "confirmed", "none")}
-                          variant="secondary" size="sm" className="flex-1"
+                          variant="secondary" size="sm" className="max-sm:flex-1"
                         >
                           Подтвердить
                         </Button>
                       )}
                       <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />
-                    </div>
-                  </li>
+                    </DataCell>
+                  </DataRow>
                 );
               })}
-            </ul>
-          </>
+          </DataTable>
         )}
       </section>
 

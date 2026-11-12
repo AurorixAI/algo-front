@@ -19,6 +19,9 @@ import OwnerDashboard from "@/app/owner/dashboard/page";
 import { TimeInput } from "@/components/ui/time-input";
 import { AddLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { ExcusesPage } from "@/components/attendance/excuses-page";
+import { GroupStudentTable } from "@/components/groups/group-student-table";
+import { StatementTimeline } from "@/components/payments/statement-view";
+import { normalizeStatement } from "@/lib/payments-ledger";
 import { LessonSlotFields, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
 
 (window as any).__ready = true;
@@ -115,6 +118,8 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "excuses": page(<ExcusesPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
     case "timePicker": root.render(<TimeDemo initial={props.initial ?? ""} inModal={props.inModal !== false} />); break;
     case "addLesson": root.render(<AddLessonDialog open group={{ id: "g1", name: "7-А Алгебра" }} teacherAssigned role="manager" siblings={[]} onClose={() => {}} onAdded={() => {}} />); break;
+    case "roster": page(<GroupStudentTable students={props.students} studentBasePath="/owner/students" canRemove groupId="g1" onLeft={() => {}} onTransfer={() => {}} />); break;
+    case "statement": page(<StatementTimeline statement={normalizeStatement(props.statement)} menuFor={() => []} withVoided={false} />); break;
     case "ownerDashboard": page(<OwnerDashboard />); break;
     case "groups": page(<GroupsListView workspace="owner" />); break;
     case "payments": page(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;

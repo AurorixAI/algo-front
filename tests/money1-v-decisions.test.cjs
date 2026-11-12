@@ -37,7 +37,7 @@ test("a row is one line: when · what · whom · sum · debt before → after ·
   const height = await first.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(height < 64, `one line: ${height}`);
   assert.equal(await p.locator('[data-testid="decision-details"]').count(), 0);
-  await first.locator("button").click();
+  await first.click();
   assert.match(plain(await p.locator('[data-testid="decision-details"]').innerText()), /Причина: Ошибка в сумме, внесли два раза Квитанция № 21 Оплаты ученика/);
   assert.match(calls[0].query, /from=2026-11-01&to=2026-11-30&page=1&size=25/);
   await p.close();
@@ -76,7 +76,7 @@ for (const width of [1280, 1024, 375]) {
     const facts = await p.evaluate(layoutProbe, "body");
     assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
     assert.equal(facts.scroll, 0);
-    if (width < 1280) assert.ok((await p.locator('[data-testid="decision-row"] button').first().evaluate((el) => el.getBoundingClientRect().height)) >= 40);
+    if (width < 1280) assert.ok((await p.locator('[data-testid="decision-row"]').first().evaluate((el) => el.getBoundingClientRect().height)) >= 40);
     await p.close();
   });
 }
