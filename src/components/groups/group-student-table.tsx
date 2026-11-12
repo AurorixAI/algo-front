@@ -107,7 +107,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                   {(s.first_name?.[0] || "?").toUpperCase()}
                 </div>
                 <span className="min-w-0 break-words text-sm font-medium text-slate-700 transition-colors group-hover/student:text-primary-600">{name(s)}</span>
-                {pausedChipText(s) && <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{pausedChipText(s)}</span>}
+                {pausedChipText(s) && <span data-kind="chip" className="shrink-0 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{pausedChipText(s)}</span>}
               </Link>
             </DataCell>
             {/* the public ID of the student (AL-001): copied by a click, never cut */}

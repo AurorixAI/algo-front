@@ -88,7 +88,7 @@ const excuseColumns = (tab: Tab, canDecide: boolean): DataColumn[] => [
   { key: "student", header: "Ученик", width: "minmax(0,1.2fr)" },
   { key: "lesson", header: "Урок", width: "minmax(7rem,0.7fr)" },
   { key: "reason", header: "Причина", width: "minmax(0,2fr)" },
-  tab === "pending" ? { key: "deadline", header: "Срок", width: "minmax(8.5rem,0.8fr)" } : { key: "decision", header: "Решение", width: "minmax(0,1.2fr)" },
+  tab === "pending" ? { key: "deadline", header: "Срок", width: "minmax(11.5rem,0.8fr)" } : { key: "decision", header: "Решение", width: "minmax(0,1.2fr)" },
   { key: "actions", header: "", align: "end", width: tab === "pending" ? "11rem" : tab === "rejected" && canDecide ? "11rem" : "2.75rem", actions: true },
 ];
 
@@ -769,7 +769,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                           {deadline && (
                             <>
                               <div className="flex min-w-0">
-                                <span className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[deadline.tone]}`} title={deadline.title}>
+                                <span data-kind="chip" className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[deadline.tone]}`} title={deadline.title}>
                                   {deadline.headline}
                                 </span>
                               </div>

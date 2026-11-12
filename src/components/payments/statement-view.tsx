@@ -536,7 +536,7 @@ export function StatementRowIcon({ entry }: { entry: Pick<StatementEntry, "type"
 /** The balance as a chip: the tone says debt / advance / zero, every chip has the same height. */
 export function BalanceChip({ balance }: { balance: { kind: StatementEntry["balance"]["kind"]; text: string } }) {
   if (!balance.text) return null;
-  return <span data-testid="statement-balance-chip" data-tone={balance.kind} className={balanceChipClass(balance.kind)}>{balance.text}</span>;
+  return <span data-testid="statement-balance-chip" data-kind="chip" data-tone={balance.kind} className={balanceChipClass(balance.kind)}>{balance.text}</span>;
 }
 
 function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; menuFor: (entry: StatementEntry) => RowMenuItem[]; extraFor?: (entry: StatementEntry) => ReactNode }) {

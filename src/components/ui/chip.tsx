@@ -22,7 +22,7 @@ export function Chip({ tone = "neutral", size = "md", pill = false, bleed, title
 }) {
   const lean = bleed ? `${bleed === "xl" ? "xl:" : ""}${size === "sm" ? "-ml-[7px]" : size === "lg" ? "-ml-[13px]" : "-ml-[9px]"}` : "";
   return (
-    <span className={`${chipClass({ tone, size, pill })}${lean ? ` ${lean}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-bleed={bleed || undefined}>
+    <span className={`${chipClass({ tone, size, pill })}${lean ? ` ${lean}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="chip" data-bleed={bleed || undefined}>
       {children}
     </span>
   );

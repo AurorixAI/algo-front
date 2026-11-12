@@ -51,12 +51,12 @@ export function usePrintWithDates(): { printing: boolean; print: () => void } {
  */
 export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: string }) {
   const chip = (
-    <span className={`inline-flex max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS[status.tone]}`}>
-      <span className="min-w-0 break-words">{status.label}</span>
+    <span data-kind="status" className={`inline-flex items-center gap-1 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS[status.tone]}`}>
+      <span className="whitespace-nowrap">{status.label}</span>
       {hint && <HelpCircle className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />}
     </span>
   );
-  return hint ? <Hint text={hint} className="inline-flex max-w-full items-center max-sm:min-h-10">{chip}</Hint> : chip;
+  return hint ? <Hint text={hint} className="inline-flex items-center max-sm:min-h-10">{chip}</Hint> : chip;
 }
 
 /**

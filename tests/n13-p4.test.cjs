@@ -304,7 +304,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(tone.CHIP_BASE_CLASS, /rounded-tag border px-2 py-0\.5 text-left text-xs font-medium leading-4/);
   assert.match(excuses, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}/);
   assert.match(open, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[CHIP_TONE\[item\.actionType\]\]\}/);
-  assert.match(excuses, /<div className="flex min-w-0">\s*<span className=\{`\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}`\}/);
+  assert.match(excuses, /<div className="flex min-w-0">\s*<span (?:data-kind="chip" )?className=\{`\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}`\}/);
   assert.match(open, /<div className="flex min-w-0 lg:-my-px lg:justify-center">/);
   // the controls of a row are pulled onto the first line: 32 px buttons on a 20 px line
   assert.match(excuses, /<DataCell col="actions">/); // the controls of a row sit in the action cell (right, centred on the row)

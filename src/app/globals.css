@@ -54,7 +54,7 @@ body {
 .dt-label { flex-shrink: 0; font-size: 0.75rem; color: theme(colors.slate.500); }
 .dt-cell[data-actions="true"] { margin-top: 0.25rem; }
 .dt-cell[data-actions="true"] .dt-value { display: flex; align-items: center; justify-content: flex-end; gap: 0.375rem; width: 100%; }
-.dt-cell[data-align="end"] .dt-value { font-variant-numeric: tabular-nums; }
+.dt-cell[data-align="end"] .dt-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dt-li { list-style: none; min-width: 0; }
 .dt-row-action { transition: background-color 150ms; }
 .dt-row-action:hover { background: theme(colors.slate.50); }
@@ -62,6 +62,10 @@ body {
 .dt-row-span[data-tone="heading"] { background: theme(colors.slate.100); border-color: transparent; padding: 0.5rem 0.875rem; font-size: 0.875rem; }
 .dt-row-span[data-tone="note"] { border-color: transparent; background: transparent; padding: 0.25rem 0.25rem; font-size: 0.875rem; color: theme(colors.slate.500); }
 .dt-card-hidden { display: none; }
+/* a table of 880 that is still narrow (880-1119): the line under a sum keeps only «было …»; the full text is in its title */
+@container dt (min-width: 880px) and (max-width: 1119px) { .dt-cap-long { display: none; } }
+/* a button of a row in a narrow table is compact (less padding), still a button with its text */
+@container dt (min-width: 640px) and (max-width: 959px) { .dt-row .dt-btn-fit { padding-left: 0.625rem; padding-right: 0.625rem; } }
 .dt-wide-only { display: none; }
 .dt-ctl { width: 2.5rem; height: 2.5rem; }
 .dt-head-cell { min-width: 0; font-size: 0.75rem; font-weight: 600; line-height: 1rem; color: theme(colors.slate.600); }

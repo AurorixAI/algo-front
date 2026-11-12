@@ -7,6 +7,7 @@ import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Down
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
+import { tidyMoneyText } from "@/lib/money-format";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
@@ -86,11 +87,12 @@ import { Button } from "@/components/ui/button";
  */
 export const MONTH_COLUMNS: DataColumn[] = [
   { key: "teacher", header: "Преподаватель", width: "minmax(0,2fr)" },
-  { key: "salary", header: `${SALARY_COLUMN}, сум`, align: "end", width: "minmax(4.75rem,0.9fr)", cardLabel: SALARY_COLUMN },
-  { key: "paid", header: "Выплачено, сум", align: "end", width: "minmax(4.75rem,0.9fr)", cardLabel: "Выплачено" },
-  { key: "rest", header: "Остаток, сум", align: "end", width: "minmax(4.75rem,1fr)", cardLabel: "Остаток" },
-  { key: "status", header: "Статус", width: "minmax(8.5rem,1.3fr)" },
-  { key: "action", header: "", align: "end", width: "7.5rem", actions: true },
+  { key: "salary", header: `${SALARY_COLUMN}, сум`, align: "end", width: "minmax(5.5rem,1.2fr)", cardLabel: SALARY_COLUMN },
+  { key: "paid", header: "Выплачено, сум", align: "end", width: "minmax(4.75rem,0.8fr)", cardLabel: "Выплачено" },
+  { key: "rest", header: "Остаток, сум", align: "end", width: "minmax(6rem,0.9fr)", cardLabel: "Остаток" },
+  // the status takes what its LONGEST chip needs («Требует действия» + the chevron; «Сохранено 05.11» + the «?»), the rest goes to the name
+  { key: "status", header: "Статус", width: "9.75rem" },
+  { key: "action", header: "", align: "end", width: "6.75rem", actions: true },
 ];
 
 interface Preview {
@@ -490,7 +492,7 @@ function PayrollMonthContent() {
             В этом месяце нет завершённых уроков — считать зарплату не за что.
           </p>
         ) : (
-          <DataTable columns={MONTH_COLUMNS} minWidth={640} gap="0.75rem" testId="month-list">
+          <DataTable columns={MONTH_COLUMNS} minWidth={880} gap="0.75rem" testId="month-list">
             {teachers.map((teacher) => (
               <TeacherRow
                 key={teacher.teacher_id}
@@ -657,9 +659,13 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
       <DataCell col="salary" className={advance ? "dt-card-hidden" : undefined}>
         <div data-testid="teacher-sum">
           {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
-          {numbers.caption && <p data-testid="teacher-sum-caption" className="text-xs font-normal leading-4 text-slate-600">{numbers.caption}</p>}
-          {/* the change of the sum is told HERE, under the number («было 120 834»), not by a chip of its own (UX pack §5.2-бис) */}
-          {numbers.was !== null && <p data-testid="teacher-sum-was" className="text-xs font-normal leading-4 text-slate-600">было {plainSum(numbers.was)}</p>}
+          {/* ONE line under the sum: «начислено сейчас · было 120 834»; where it does not fit only «было 120 834» stays (`dt-cap-long` goes), the whole text is in `title` */}
+          {(numbers.caption || numbers.was !== null) && (
+            <p className="whitespace-nowrap text-xs font-normal leading-4 text-slate-600" title={[numbers.caption, numbers.was !== null ? `было ${plainSum(numbers.was)}` : null].filter(Boolean).join(" · ")}>
+              {numbers.caption && <span className={numbers.was !== null ? "dt-cap-long" : undefined}><span data-testid="teacher-sum-caption">{numbers.caption}</span>{numbers.was !== null && <span aria-hidden="true"> · </span>}</span>}
+              {numbers.was !== null && <span data-testid="teacher-sum-was">было&nbsp;{plainSum(numbers.was)}</span>}
+            </p>
+          )}
         </div>
       </DataCell>
       <DataCell col="paid" className={advance ? "dt-card-hidden" : undefined}>
@@ -670,8 +676,8 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
       <DataCell col="rest">
         <div data-testid="teacher-rest" data-kind={rest.kind}>
           {rest.kind === "left" && <span className="font-medium text-slate-900">{plainSum(rest.amount)}<Unit /></span>}
-          {rest.kind === "ahead" && <span className="text-slate-600">вперёд {plainSum(rest.amount)}<Unit /></span>}
-          {rest.kind === "more" && <span className="text-slate-600">больше на {plainSum(rest.amount)}<Unit /></span>}
+          {rest.kind === "ahead" && <span className="text-slate-600">вперёд&nbsp;{plainSum(rest.amount)}<Unit /></span>}
+          {rest.kind === "more" && <span className="text-slate-600">больше&nbsp;на&nbsp;{plainSum(rest.amount)}<Unit /></span>}
           {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
           {rest.kind === "none" && <span className="text-slate-500">—</span>}
         </div>
@@ -704,10 +710,11 @@ export function TeacherRow({
   const blocked = action.kind !== "open" && rateMissing;
   const run = action.kind === "open" ? onOpen : onCalculate;
   const advance = isAdvanceRow(teacher);
-  const meta = advance ? [ADVANCE_META] : [...rate.lines, lessonsCountText(teacher.lessons_count)];
+  const meta = advance ? [ADVANCE_META] : [...rate.lines, lessonsCountText(teacher.lessons_count), ...(rate.none ? ["ставка не задана"] : [])];
+  const metaLine = tidyMoneyText(meta.join(" · "));
 
   return (
-    <DataColumns columns={MONTH_COLUMNS} minWidth={640}>
+    <DataColumns columns={MONTH_COLUMNS} minWidth={880}>
     <DataRow>
       <DataCell col="teacher">
       <div className="min-w-0">
@@ -715,17 +722,11 @@ export function TeacherRow({
           <span className="min-w-0 break-words">{teacher.teacher_name}</span>
           {advance && teacher.member_active === false && <Tag testId="teacher-removed">{REMOVED_TAG}</Tag>}
         </p>
-        {/* the rates and the lessons: one quiet line («Группа 50% · Индив. 60% · 4 урока»); a piece never breaks in the middle */}
-        <p data-testid="teacher-rate" className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-xs text-slate-600">
-          {meta.map((piece, index) => (
-            <span key={piece} className="inline-flex items-baseline gap-x-1.5">
-              {index > 0 && <span aria-hidden="true">·</span>}
-              <span className={piece.includes("нет ставки") ? "break-words" : "whitespace-nowrap"}>{piece}</span>
-            </span>
-          ))}
-          {!advance && rate.none && <span className="text-slate-600">· ставка не задана</span>}
+        {/* the rates and the lessons: ONE quiet line («Группа 50% · Индив. 60% · 4 урока»), cut with an ellipsis where it does not fit (the whole text is in `title`); a «·» never starts a line */}
+        <p data-testid="teacher-rate" className="mt-0.5 flex min-w-0 items-baseline gap-x-1.5 text-xs text-slate-600">
+          <span className="min-w-0 truncate whitespace-nowrap" title={metaLine}>{metaLine}</span>
           {!advance && rate.missing && (
-            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
+            <Link href={teacherRateHref(teacher.teacher_id, month)} className="shrink-0 whitespace-nowrap font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
           )}
         </p>
       </div>
@@ -753,7 +754,7 @@ export function TeacherRow({
             disabled={busy || blocked}
             title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
             aria-label={`${action.label}: ${teacher.teacher_name}`}
-            variant="secondary" size="md" className="w-full"
+            variant="secondary" size="md" className="dt-btn-fit w-full"
           >
             {action.label}
           </Button>

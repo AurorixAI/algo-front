@@ -382,7 +382,7 @@ test("the «исправлена» chip sits next to the name like «отмен�
   const amountCell = src.slice(src.indexOf('<DataCell col="amount">'), src.indexOf('<DataCell col="method">'));
   assert.ok(!/journal-corrected/.test(amountCell), "the corrected chip is not inside the amount cell");
   const studentCell = src.slice(src.indexOf('<DataCell col="student">'), src.indexOf('<DataCell col="group">'));
-  assert.match(studentCell, /data-testid="journal-corrected" title=\{view.correctedTitle \?\? undefined\}/, "it sits in the cell of the name");
+  assert.match(studentCell, /data-testid="journal-corrected"[^>]*title=\{view.correctedTitle \?\? undefined\}/, "it sits in the cell of the name");
 });
 
 test("the old record of a correction says «заменена на № N», the live one «исправлена» with «вместо квитанции № M» on hover (owner 23.10)", () => {

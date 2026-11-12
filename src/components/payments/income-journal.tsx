@@ -68,7 +68,7 @@ export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: 
                 <span className={`min-w-0 break-words text-sm font-medium ${quiet}`}>{view.student}</span>
                 {view.tag && <span data-testid="journal-tag" className="shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">{view.tag}</span>}
                 {/* «исправлена» sits where «отменена» does (next to the name), so the amount column stays one line */}
-                {view.correctedChip && <span data-testid="journal-corrected" title={view.correctedTitle ?? undefined} className="shrink-0 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800">{view.correctedChip}</span>}
+                {view.correctedChip && <span data-testid="journal-corrected" data-kind="chip" title={view.correctedTitle ?? undefined} className="shrink-0 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800">{view.correctedChip}</span>}
               </div>
               {/* the changes of the payment, quiet: under the name */}
               {view.subLines.length > 0 && (

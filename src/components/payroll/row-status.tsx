@@ -54,13 +54,14 @@ function InlineTodo({ status, name }: { status: RowStatusView; name: string }) {
       <button
         type="button"
         data-testid="status-todo"
+        data-kind="status"
         aria-controls={panelId}
         aria-expanded={open}
         aria-label={`${status.label}: ${name}`}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
+        className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
+        <span className="whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
@@ -116,6 +117,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
         ref={triggerRef}
         type="button"
         data-testid="status-todo"
+        data-kind="status"
         aria-controls={panelId}
         aria-expanded={open}
         aria-label={`${status.label}: ${name}`}
@@ -127,9 +129,9 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
         onFocus={() => dispatch({ type: "focus" })}
         onBlur={() => dispatch({ type: "blur" })}
         onClick={() => dispatch({ type: "click", mousePins: true })}
-        className={`inline-flex min-h-[40px] max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
+        className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
       >
-        <span className="min-w-0 whitespace-nowrap text-left">{status.label}</span>
+        <span className="whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && typeof document !== "undefined" && createPortal(

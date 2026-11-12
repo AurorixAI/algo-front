@@ -596,7 +596,7 @@ test("F14: one <Chip> and one registry of statuses (exam, diagnostic, money) ins
   assert.match(T.chipClass({ tone: "danger", pill: true }), /rounded-full/);
   const { Chip } = require(path.join(root, "src/components/ui/chip.tsx"));
   const html = renderToStaticMarkup(React.createElement(Chip, { tone: "warn", testId: "c", title: "t" }, "Ожидает"));
-  assert.match(html, /<span class="[^"]*border-warning-200[^"]*" title="t" data-testid="c">Ожидает<\/span>/);
+  assert.match(html, /<span class="[^"]*border-warning-200[^"]*" title="t" data-testid="c"[^>]*>Ожидает<\/span>/);
   // exams: three copies became one
   assert.deepEqual(Object.keys(R.EXAM_STATUS), ["draft", "variants_ready", "lobby", "active", "closed", "archived"]);
   assert.equal(R.examStatusView("nonsense").label, "Черновик");

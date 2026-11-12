@@ -134,7 +134,7 @@ test("no checkboxes without an action: a row has one button by its status; «Р�
   // the API has no Excel of several chosen sheets (one sheet or the whole month): no such button
   assert.doesNotMatch(page, /Скачать Excel выбранных/);
   // wave 3: the table is a DataTable - the name and the status LEFT, the three money columns RIGHT, the action column has no title
-  assert.match(page, /<DataTable columns=\{MONTH_COLUMNS\} minWidth=\{640\}/);
+  assert.match(page, /<DataTable columns=\{MONTH_COLUMNS\} minWidth=\{880\}/);
   const cols = page.match(/export const MONTH_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
   for (const key of ["salary", "paid", "rest"]) assert.match(cols, new RegExp(`key: "${key}".*align: "end"`), key);
   assert.match(cols, /key: "action", header: "", align: "end"/);

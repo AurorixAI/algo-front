@@ -33,11 +33,11 @@ export const CHIP_SIZE_CLASS: Record<ChipSize, string> = {
 /** `border` + palette + size + shape: the ONE class string of a chip (the `<Chip>` component and any plain element that cannot be one). */
 export function chipClass(input: { tone?: ChipTone; size?: ChipSize; pill?: boolean } = {}): string {
   const { tone = "neutral", size = "md", pill = false } = input;
-  return `inline-block max-w-full ${pill ? "rounded-full" : "rounded-tag"} border ${CHIP_TONE_CLASS[tone]} ${CHIP_SIZE_CLASS[size]}`;
+  return `inline-block max-w-full whitespace-nowrap ${pill ? "rounded-full" : "rounded-tag"} border ${CHIP_TONE_CLASS[tone]} ${CHIP_SIZE_CLASS[size]}`;
 }
 
 /**
  * One size for every chip of the attendance tabs (deadline of an excuse, state of an open lesson):
  * same padding, radius and type; only the tone differs.  A long text wraps inside the column.
  */
-export const CHIP_BASE_CLASS = "inline-block max-w-full rounded-tag border px-2 py-0.5 text-left text-xs font-medium leading-4";
+export const CHIP_BASE_CLASS = "inline-block max-w-full whitespace-nowrap rounded-tag border px-2 py-0.5 text-left text-xs font-medium leading-4";

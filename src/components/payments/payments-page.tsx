@@ -78,7 +78,7 @@ const paymentColumns = (priceLabel: string): DataColumn[] => [
   { key: "student", header: "Ученик", width: "minmax(0,1.5fr)" },
   { key: "group", header: "Группа", width: "minmax(0,1.2fr)", cardLabel: "Группа" },
   { key: "price", header: priceLabel, align: "end", width: "minmax(5.5rem,0.7fr)", cardLabel: priceLabel },
-  { key: "status", header: "Статус", width: "minmax(9.5rem,1.1fr)" },
+  { key: "status", header: "Статус", width: "10.75rem" },
   { key: "last", header: "Последняя оплата", align: "end", width: "minmax(8.5rem,0.9fr)", cardLabel: "Последняя оплата" },
   { key: "actions", header: "", align: "end", width: "188px", actions: true },
 ];

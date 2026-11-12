@@ -78,7 +78,8 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
-for (const [width, table] of [[1280, true], [1024, true], [768, false], [375, false]]) {
+// the list of the month is a table from 880 px of ITSELF (the sidebar takes 240 px: a table from a 1184 px window); the rates and a sum with its caption need that room on ONE line
+for (const [width, table] of [[1280, true], [1200, true], [1024, false], [768, false], [375, false]]) {
   test(`${width}: «Зарплата», the list of the month is ${table ? "a TABLE" : "CARDS"} (a table from a width above a portrait tablet), the three sums are RIGHT`, async () => {
     const { page } = await openPage(browser, "money.entry.tsx", monthServer(), { width, height: 900 });
     await page.clock.setFixedTime(new Date("2026-11-05T10:00:00+05:00"));
@@ -91,6 +92,8 @@ for (const [width, table] of [[1280, true], [1024, true], [768, false], [375, fa
       assert.deepEqual(aligns, [["right", "right"], ["right", "right"], ["right", "right"]]);
       const cut = await page.evaluate(() => [...document.querySelectorAll('.dt-row [data-col="action"] button')].filter((b) => b.scrollWidth > b.clientWidth + 1).length);
       assert.equal(cut, 0, "the button label is not cut");
+      const rows = await page.evaluate(() => [...document.querySelectorAll(".dt-body > li")].map((li) => Math.round(li.getBoundingClientRect().height)));
+      assert.ok(rows.length >= 3 && Math.max(...rows) - Math.min(...rows) <= 8, `the rows of the table are of one height (±8 px): ${rows.join(", ")}`);
     } else {
       assert.ok(mode.labels >= 3, "a card names its numbers");
     }
@@ -126,4 +129,42 @@ for (const width of [1280, 375]) {
     assert.equal(facts.table, width > 768);
     await page.close();
   });
+}
+
+// ---- the same rules on EVERY screen of wave 3: a status chip is one line and its icon does not touch its text; money is one line; the line under a name is one line ----
+const { SHOTS } = require("./helpers/wave3-fixtures.cjs");
+const LINES = `(el) => { const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const tops = []; for (let node = walker.nextNode(); node; node = walker.nextNode()) { if (!node.textContent.trim()) continue; const range = document.createRange(); range.selectNodeContents(node); for (const rect of range.getClientRects()) if (rect.height > 0 && rect.width > 0) tops.push(Math.round(rect.top)); } tops.sort((a, b) => a - b); let lines = tops.length ? 1 : 0; for (let i = 1; i < tops.length; i++) if (tops[i] - tops[i - 1] > 4) lines++; return lines; }`;
+const PROBE = `(() => {
+  const lines = ${LINES};
+  const textBox = (el) => { const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let box = null; for (let node = walker.nextNode(); node; node = walker.nextNode()) { if (!node.textContent.trim()) continue; const range = document.createRange(); range.selectNodeContents(node); const r = range.getBoundingClientRect(); box = box ? { left: Math.min(box.left, r.left), right: Math.max(box.right, r.right), top: Math.min(box.top, r.top), bottom: Math.max(box.bottom, r.bottom) } : { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; } return box; };
+  const bad = [];
+  const chips = [...document.querySelectorAll('[data-kind="status"], [data-kind="chip"], [data-kind="tag"], [data-testid="status-todo"]')].filter((el) => el.offsetParent !== null);
+  for (const chip of chips) {
+    const label = chip.textContent.trim().slice(0, 30), box = chip.getBoundingClientRect(), text = textBox(chip);
+    if (lines(chip) > 1) bad.push("chip wraps: " + label);
+    if (text && (text.left < box.left - 0.5 || text.right > box.right + 0.5)) bad.push("chip text leaves its frame: " + label);
+    for (const icon of chip.querySelectorAll("svg")) { const r = icon.getBoundingClientRect(); if (text && r.width && r.left < text.right - 0.5 && r.right > text.left + 0.5 && r.top < text.bottom && r.bottom > text.top) bad.push("icon over the text: " + label); }
+  }
+  const money = [...document.querySelectorAll('.dt-row .dt-cell[data-align="end"]:not([data-actions])')].filter((el) => el.offsetParent !== null);
+  for (const cell of money) for (const el of cell.querySelectorAll(".dt-value *")) { if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue; if (el.offsetParent === null) continue; if (lines(el) > 1) bad.push("money wraps: " + el.textContent.trim().slice(0, 40)); }
+  const rates = [...document.querySelectorAll('[data-testid="teacher-rate"]')].filter((el) => el.offsetParent !== null);
+  for (const el of rates) if (el.getBoundingClientRect().height > 20) bad.push("the line under the name wraps: " + el.textContent.trim().slice(0, 40));
+  return { bad, chips: chips.length, money: money.length, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+})()`;
+
+for (const shot of SHOTS) {
+  for (const width of [1280, 1024, 375]) {
+    test(`${width}: «${shot.name}» - no chip wraps or touches its icon, money is one line, the line under a name is one line, no sideways scroll`, async () => {
+      const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
+      if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
+      await page.evaluate(([pad, name, props, search]) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = pad ? `0 32px 0 ${pad + 32}px` : "0 16px"; if (search) window.__search = search; window.mount(name, { role: "owner", org_role: "owner" }, props); }, [sidebar(width), shot.mount, shot.props, shot.search]);
+      await page.waitForSelector(shot.wait, WAIT);
+      await page.waitForTimeout(400);
+      const facts = await page.evaluate(PROBE);
+      assert.deepEqual(facts.bad, [], `${shot.name} ${width}: ${facts.bad.join("; ")}`);
+      assert.equal(facts.scroll, 0, "no horizontal scroll");
+      if (shot.name === "payments" || shot.name === "payroll-month") assert.ok(facts.chips >= 2, "the chips of the screen were checked");
+      await page.close();
+    });
+  }
 }

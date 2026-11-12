@@ -11,6 +11,7 @@ export function AfterDeadlineChip({ mark, className = "" }: { mark: AfterDeadlin
   return (
     <span
       data-testid="after-deadline-chip"
+      data-kind="chip"
       title={mark.title}
       className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS.neutral} cursor-help ${className}`}
     >
