@@ -492,7 +492,7 @@ function PayrollMonthContent() {
             В этом месяце нет завершённых уроков — считать зарплату не за что.
           </p>
         ) : (
-          <DataTable columns={MONTH_COLUMNS} minWidth={880} gap="0.75rem" testId="month-list">
+          <DataTable columns={MONTH_COLUMNS} minWidth={880} compact gap="0.75rem" testId="month-list">
             {teachers.map((teacher) => (
               <TeacherRow
                 key={teacher.teacher_id}
@@ -714,7 +714,7 @@ export function TeacherRow({
   const metaLine = tidyMoneyText(meta.join(" · "));
 
   return (
-    <DataColumns columns={MONTH_COLUMNS} minWidth={880}>
+    <DataColumns columns={MONTH_COLUMNS} minWidth={880} compact>
     <DataRow>
       <DataCell col="teacher">
       <div className="min-w-0">

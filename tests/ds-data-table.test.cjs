@@ -103,6 +103,49 @@ for (const [width, table] of [[1280, true], [1200, true], [1024, false], [768, f
   });
 }
 
+// the COMPACT card of the month list (a place from 560 px up to the table): the name with the status and a button of its own size in the first line, the three sums in equal columns under it
+const ADVANCE = { teacher_id: "t9", teacher_name: "Юсупов Рустам", lessons_count: 0, lesson_types: [], rates: {}, missing_rates: [], sheet: null, advance_only: true, member_active: false, carry_in: 40000, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 },
+  payout: { saved_total: 0, fresh_total: 0, target: 0, paid: 0, balance: 0, state: "unpaid", basis: "fresh", changed_by: 0, change_text: null, text: "x", items: [], carry_in: 40000, carry_used: 0, advance_out: 40000 } };
+const CARD_FACTS = `(() => {
+  const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+  return [...document.querySelectorAll(".dt-body > li")].map((li) => {
+    const row = li.classList.contains("dt-row") ? li : li.querySelector(".dt-row"), btn = li.querySelector('[data-col="action"] button'), figs = ["salary", "paid", "rest"].map((c) => li.querySelector('[data-col="' + c + '"]')).filter((el) => el.offsetParent !== null);
+    const rb = box(row), one = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getClientRects().length <= 1 || new Set([...r.getClientRects()].map((q) => Math.round(q.top / 4))).size === 1; };
+    const lonely = [...li.querySelectorAll(".dt-value *")].filter((el) => el.offsetParent !== null && [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())).filter((el) => !one(el)).map((el) => el.textContent.trim().slice(0, 30));
+    const chip = li.querySelector('[data-kind="status"], [data-kind="chip"], [data-kind="tag"]');
+    return { name: li.querySelector('[data-col="teacher"] p')?.textContent.slice(0, 20), row: rb, btn: btn ? box(btn) : null, figs: figs.map(box), wraps: lonely, chipOne: chip ? box(chip).height < 40 : true, fig3: figs.length };
+  });
+})()`;
+for (const [width, compact] of [[1024, true], [375, false]]) {
+  test(`${width}: «Зарплата», the card of a teacher is ${compact ? "COMPACT (a line of name, status and button; the three sums in a row)" : "a COLUMN with a full-width button"}`, async () => {
+    const { page } = await openPage(browser, "money.entry.tsx", monthServer({ teachers: [...require("./helpers/month-list-fixture.cjs").TEACHERS, ADVANCE] }), { width, height: 900 });
+    await page.clock.setFixedTime(new Date("2026-11-05T10:00:00+05:00"));
+    await page.evaluate((pad) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = pad ? `0 32px 0 ${pad + 32}px` : "0 16px"; window.__search = "month=2026-11"; window.mount("monthPage", { role: "owner", org_role: "owner" }); }, sidebar(width));
+    await page.waitForSelector(".dt-row", WAIT);
+    await page.waitForTimeout(300);
+    const cards = await page.evaluate(CARD_FACTS);
+    assert.ok(cards.length >= 4, "all the rows are there, with the advance row");
+    for (const card of cards) {
+      assert.deepEqual(card.wraps, [], `${card.name}: chips and sums on one line`);
+      if (compact) {
+        assert.ok(card.row.height <= 160, `${card.name}: a card is at most 160 px high (${Math.round(card.row.height)})`);
+        if (card.btn) {
+          assert.ok(card.btn.width < card.row.width * 0.4, `${card.name}: the button is not over the whole width (${Math.round(card.btn.width)} of ${Math.round(card.row.width)})`);
+          assert.ok(card.btn.top < card.figs[0].top, `${card.name}: the button is in the first line`);
+        }
+        assert.ok(card.figs.length >= 1 && card.figs.every((f) => Math.abs(f.top - card.figs[0].top) < 2), `${card.name}: the sums stand on one horizontal`);
+        if (card.figs.length === 3) assert.ok(Math.abs(card.figs[0].width - card.figs[1].width) < 2 && Math.abs(card.figs[1].width - card.figs[2].width) < 2, `${card.name}: equal columns`);
+      } else {
+        if (card.btn) { assert.ok(card.btn.height >= 40, `${card.name}: the button is at least 40 px high (${Math.round(card.btn.height)})`); assert.ok(card.btn.width > card.row.width * 0.8, `${card.name}: the button is over the whole width`); }
+        if (card.figs.length === 3) assert.ok(card.figs[1].top > card.figs[0].top && card.figs[2].top > card.figs[1].top, `${card.name}: the sums are a column`);
+      }
+    }
+    const scroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.equal(scroll, 0, "no horizontal scroll");
+    await page.close();
+  });
+}
+
 const STUDENTS = [
   { id: "s1", first_name: "Азиз", last_name: "Эргашев", full_name: "Эргашев Азиз Абдуллаевич", class_level: 7, display_id: "DS-0012345", student_phone: "+998901234567", joined_at: "2026-09-01T05:00:00", status: "active" },
   { id: "s2", first_name: "Мадина", last_name: "Каримова", full_name: "Каримова Мадина", class_level: 7, display_id: "DS-0012346", student_phone: "+998907654321", joined_at: "2026-10-12T05:00:00", status: "active" },

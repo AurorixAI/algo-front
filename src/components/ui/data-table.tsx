@@ -38,17 +38,17 @@ export interface DataColumn {
   sortKey?: string;
 }
 
-interface Ctx { columns: readonly DataColumn[]; minWidth: DataMinWidth; align: "center" | "start" }
+interface Ctx { columns: readonly DataColumn[]; minWidth: DataMinWidth; align: "center" | "start"; compact: boolean }
 const TableContext = createContext<Ctx | null>(null);
 
 const ALIGN_ATTR: Record<DataAlign, string> = { start: "start", center: "center", end: "end" };
 
 /** The columns of a table for rows that are drawn on their own (a row rendered outside its `DataTable`, e.g. in a test or a preview). */
-export function DataColumns({ columns, minWidth = 880, align = "center", children }: { columns: readonly DataColumn[]; minWidth?: DataMinWidth; align?: "center" | "start"; children: ReactNode }) {
-  return <TableContext.Provider value={{ columns, minWidth, align }}>{children}</TableContext.Provider>;
+export function DataColumns({ columns, minWidth = 880, align = "center", compact = false, children }: { columns: readonly DataColumn[]; minWidth?: DataMinWidth; align?: "center" | "start"; compact?: boolean; children: ReactNode }) {
+  return <TableContext.Provider value={{ columns, minWidth, align, compact }}>{children}</TableContext.Provider>;
 }
 
-export function DataTable({ columns, minWidth = 880, align = "center", children, className, testId, ariaLabel, hideHeader = false, headTestId, gap, sort, onSort }: {
+export function DataTable({ columns, minWidth = 880, align = "center", children, className, testId, ariaLabel, hideHeader = false, headTestId, gap, sort, onSort, compact = false }: {
   columns: readonly DataColumn[];
   /** The table is a table from this width of ITSELF; narrower it is a list of cards. */
   minWidth?: DataMinWidth;
@@ -63,12 +63,14 @@ export function DataTable({ columns, minWidth = 880, align = "center", children,
   /** The sorted column and its direction; the headers of the columns with a `sortKey` are buttons. */
   sort?: { key: string; asc: boolean };
   onSort?: (key: string) => void;
+  /** A middle place (560 px up to the width of the table; only for a table of 880) gets a COMPACT card: title, status and button in the first line, the captioned cells as equal columns under it. */
+  compact?: boolean;
   /** The gap between the columns of a wide row (a CSS length; 1.5rem by default). */
   gap?: string;
 }) {
   const template = columns.map((column) => column.width).join(" ");
   return (
-    <TableContext.Provider value={{ columns, minWidth, align }}>
+    <TableContext.Provider value={{ columns, minWidth, align, compact }}>
       <div className={cn("dt", className)} data-testid={testId} data-min={minWidth} style={{ "--dt-cols": template, ...(gap ? { "--dt-gap": gap } : {}) } as CSSProperties}>
         <div className="dt-frame" data-min={minWidth}>
         {!hideHeader && (
@@ -118,7 +120,7 @@ export function DataRow({ children, className, testId, as: Tag = "li", href, onA
   detail?: ReactNode;
 } & Record<string, unknown>) {
   const ctx = useContext(TableContext);
-  const common = { "data-min": ctx?.minWidth, "data-valign": ctx?.align };
+  const common = { "data-min": ctx?.minWidth, "data-valign": ctx?.align, "data-compact": ctx?.compact ? "" : undefined };
   if (href) {
     return (
       <Tag className="dt-li">
