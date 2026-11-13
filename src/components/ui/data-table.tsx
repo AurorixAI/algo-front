@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 
 export type DataAlign = "start" | "center" | "end";
 export type DataMinWidth = 640 | 760 | 880 | 1040;
+/** The width of the TABLE below which its `priority="low"` columns are hidden (whole: heading and cells); the screen picks one. */
+export type DataLowBelow = 1040 | 1100 | 1200;
 
 export interface DataColumn {
   key: string;
@@ -34,6 +36,8 @@ export interface DataColumn {
   hint?: string;
   /** In a card this cell is a row of controls (buttons, «⋯») at the bottom. */
   actions?: boolean;
+  /** `low`: a secondary column - in a table narrower than `lowBelow` it is hidden whole (heading and cells) and its room goes to the free columns; a card keeps its value. */
+  priority?: "low";
   /** The header is a button that sorts by this key (`DataTable` gets `sort` and `onSort`). */
   sortKey?: string;
 }
@@ -50,7 +54,7 @@ export function DataColumns({ columns, minWidth = 880, align = "center", compact
   return <TableContext.Provider value={{ columns, minWidth, align, compact }}>{children}</TableContext.Provider>;
 }
 
-export function DataTable({ columns, minWidth = 880, align = "center", children, className, testId, ariaLabel, hideHeader = false, headTestId, gap, sort, onSort, compact = false }: {
+export function DataTable({ columns, minWidth = 880, align = "center", children, className, testId, ariaLabel, hideHeader = false, headTestId, gap, sort, onSort, compact = false, lowBelow }: {
   columns: readonly DataColumn[];
   /** The table is a table from this width of ITSELF; narrower it is a list of cards. */
   minWidth?: DataMinWidth;
@@ -67,18 +71,22 @@ export function DataTable({ columns, minWidth = 880, align = "center", children,
   onSort?: (key: string) => void;
   /** A middle place (560 px up to the width of the table; only for a table of 880) gets a COMPACT card: title, status and button in the first line, the captioned cells as equal columns under it. */
   compact?: boolean;
+  /** The width of the table under which the columns marked `priority="low"` are hidden (a table, not a card). */
+  lowBelow?: DataLowBelow;
   /** The gap between the columns of a wide row (a CSS length; 1.5rem by default). */
   gap?: string;
 }) {
   const template = columns.map((column) => column.width).join(" ");
+  const hasLow = lowBelow !== undefined && columns.some((column) => column.priority === "low");
+  const lean = columns.filter((column) => column.priority !== "low").map((column) => column.width).join(" ");
   return (
     <TableContext.Provider value={{ columns, minWidth, align, compact }}>
-      <div className={cn("dt", className)} data-testid={testId} data-min={minWidth} style={{ "--dt-cols": template, ...(gap ? { "--dt-gap": gap } : {}) } as CSSProperties}>
-        <div className="dt-frame" data-min={minWidth}>
+      <div className={cn("dt", className)} data-testid={testId} data-min={minWidth} style={{ "--dt-cols": template, ...(hasLow ? { "--dt-cols-lean": lean } : {}), ...(gap ? { "--dt-gap": gap } : {}) } as CSSProperties}>
+        <div className="dt-frame" data-min={minWidth} data-low-below={hasLow ? lowBelow : undefined}>
         {!hideHeader && (
           <div role="presentation" className="dt-head" data-min={minWidth} data-testid={headTestId}>
             {columns.map((column) => (
-              <span key={column.key} className="dt-head-cell" data-col={column.key} data-align={ALIGN_ATTR[column.align ?? "start"]} aria-sort={column.sortKey && sort?.key === column.sortKey ? (sort.asc ? "ascending" : "descending") : undefined}>
+              <span key={column.key} className="dt-head-cell" data-col={column.key} data-low={column.priority === "low" ? "true" : undefined} data-align={ALIGN_ATTR[column.align ?? "start"]} aria-sort={column.sortKey && sort?.key === column.sortKey ? (sort.asc ? "ascending" : "descending") : undefined}>
                 {column.header && column.sortKey && onSort ? (
                   <button type="button" onClick={() => onSort(column.sortKey as string)} aria-label={`Сортировать: ${typeof column.header === "string" ? column.header : column.key}`}
                     className={cn("inline-flex items-center gap-1 rounded text-inherit hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500", column.align === "end" && "flex-row-reverse")}>
@@ -175,7 +183,7 @@ export function DataCell({ col, children, className, testId, title }: { col: str
   const column = ctx?.columns.find((item) => item.key === col);
   const align = column?.align ?? "start";
   return (
-    <div className={cn("dt-cell", className)} data-col={col} data-align={ALIGN_ATTR[align]} data-actions={column?.actions ? "true" : undefined} data-labelled={column?.cardLabel ? "true" : undefined} data-testid={testId} title={title}>
+    <div className={cn("dt-cell", className)} data-col={col} data-align={ALIGN_ATTR[align]} data-actions={column?.actions ? "true" : undefined} data-labelled={column?.cardLabel ? "true" : undefined} data-low={column?.priority === "low" ? "true" : undefined} data-testid={testId} title={title}>
       {column?.cardLabel ? <span className="dt-label">{column.cardLabel}</span> : null}
       <CellColumnContext.Provider value={column ?? null}><div className="dt-value">{children}</div></CellColumnContext.Provider>
     </div>

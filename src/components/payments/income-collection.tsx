@@ -8,6 +8,7 @@ import { COLLECTION_COST_HINT, COLLECTION_COST_LINE, collectionDebtNote, collect
 import { ProgressBar } from "./income-parts";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Words } from "@/components/ui/words";
 
 /** The columns: the group is text (left, wide); the cost, the paid sum and the debt are money (RIGHT); «Собрано» is a bar; the number of debtors is a count (RIGHT). */
 const COLLECTION_COLUMNS: DataColumn[] = [
@@ -42,7 +43,7 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
   return (
     <>
       <DataCell col="group">
-        <p className="break-words text-sm font-medium text-slate-800">{row.title}</p>
+        <p className="break-words text-sm font-medium text-slate-800"><Words text={row.title} /></p>
         {row.teacher && <p className="truncate text-xs text-slate-500">{row.teacher}</p>}
       </DataCell>
       <DataCell col="charged"><span className="font-medium text-slate-700">{formatMoney(row.charged)}</span></DataCell>

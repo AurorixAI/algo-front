@@ -11,6 +11,7 @@ import { orgApi, StudentInGroup } from "@/lib/api";
 import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Words } from "@/components/ui/words";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
@@ -106,7 +107,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary-200/50 bg-primary-100 text-xs font-bold text-primary-700">
                   {(s.first_name?.[0] || "?").toUpperCase()}
                 </div>
-                <span className="min-w-0 break-words text-sm font-medium text-slate-700 transition-colors group-hover/student:text-primary-600">{name(s)}</span>
+                <span className="min-w-0 break-words text-sm font-medium text-slate-700 transition-colors group-hover/student:text-primary-600"><Words text={name(s)} /></span>
                 {pausedChipText(s) && <span data-kind="chip" className="shrink-0 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">{pausedChipText(s)}</span>}
               </Link>
             </DataCell>

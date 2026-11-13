@@ -27,6 +27,7 @@ import {
 } from "@/lib/payments-income-v2";
 import { Select } from "@/components/ui/select";
 import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Words } from "@/components/ui/words";
 import { Checkbox } from "@/components/ui/checkbox";
 import { IncomeError } from "./income-parts";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: 
             </DataCell>
             <DataCell col="student">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <span className={`min-w-0 break-words text-sm font-medium ${quiet}`}>{view.student}</span>
+                <span className={`min-w-0 break-words text-sm font-medium ${quiet}`}><Words text={view.student} /></span>
                 {view.tag && <span data-testid="journal-tag" className="shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">{view.tag}</span>}
                 {/* «исправлена» sits where «отменена» does (next to the name), so the amount column stays one line */}
                 {view.correctedChip && <span data-testid="journal-corrected" data-kind="chip" title={view.correctedTitle ?? undefined} className="shrink-0 whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800">{view.correctedChip}</span>}
@@ -77,7 +78,7 @@ export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: 
                 </span>
               )}
             </DataCell>
-            <DataCell col="group"><span className={`break-words text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.group}</span></DataCell>
+            <DataCell col="group"><span className={`break-words text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}><Words text={view.group} /></span></DataCell>
             <DataCell col="amount"><span className={`whitespace-nowrap text-sm font-medium tracking-tight ${view.muted ? "text-slate-500 line-through" : "text-slate-800"}`}>{view.amount}</span></DataCell>
             <DataCell col="method"><span className={`text-sm ${view.muted ? "text-slate-500" : "text-slate-600"}`}>{view.method}</span></DataCell>
           </DataRow>

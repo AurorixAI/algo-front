@@ -844,7 +844,7 @@ test("INCOME-2 addendum: «Кто внёс» from two authors, the Excel limit, 
 test("phone polish (stage walk 22.10): the status chip leaves the name line and the total tooltip", () => {
   const journal = read("src/components/payments/income-journal.tsx");
   // (wave 3) the name is the title of a card and wraps, the chips wrap under it - the DataTable gives the phone the same rows as cards
-  assert.match(journal, /min-w-0 break-words text-sm font-medium \$\{quiet\}`\}>\{view\.student\}/);
+  assert.match(journal, /min-w-0 break-words text-sm font-medium \$\{quiet\}`\}><Words text=\{view\.student\} \/>/);
   assert.match(journal, /data-testid="journal-tag" className="shrink-0 whitespace-nowrap rounded-md/);
   assert.match(journal, /flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /\{paymentsCountText\(row\.count\)\}/);

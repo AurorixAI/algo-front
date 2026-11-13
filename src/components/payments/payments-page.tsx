@@ -59,6 +59,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Words } from "@/components/ui/words";
 import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
@@ -79,7 +80,7 @@ const paymentColumns = (priceLabel: string): DataColumn[] => [
   { key: "group", header: "Группа", width: "minmax(5.5rem,2fr)", cardLabel: "Группа" },
   { key: "price", header: priceLabel, align: "end", width: "max-content", cardLabel: priceLabel },
   { key: "status", header: "Статус", width: "max-content" },
-  { key: "last", header: "Последняя оплата", align: "end", width: "max-content", cardLabel: "Последняя оплата" },
+  { key: "last", header: "Последняя оплата", align: "end", width: "max-content", cardLabel: "Последняя оплата", priority: "low" },
   { key: "actions", header: "", align: "end", width: "max-content", actions: true },
 ];
 
@@ -411,7 +412,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       ) : items.length === 0 ? (
         <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
-        <DataTable columns={paymentColumns(priceLabelOf(periodMode))} minWidth={880} gap="1.5rem" testId="payments-table">
+        <DataTable columns={paymentColumns(priceLabelOf(periodMode))} minWidth={880} gap="1.5rem" lowBelow={1100} testId="payments-table">
           {items.map((row) => (
             <PaymentRow
               key={row.membership_id}
@@ -526,7 +527,7 @@ function PaymentRow({
   const student = (
     <div className="min-w-0">
       <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center" title="Открыть карточку ученика">
-        {row.student_name}
+        <Words text={row.student_name} />
       </Link>
       <p className="text-xs text-slate-500">
         {[row.display_id, row.class_level ? `${row.class_level} класс` : ""].filter(Boolean).join(" · ")}
@@ -536,7 +537,7 @@ function PaymentRow({
   const group = (
     <div className="min-w-0">
       <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center">
-        {row.group_name}
+        <Words text={row.group_name} />
       </Link>
       <p className="text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>

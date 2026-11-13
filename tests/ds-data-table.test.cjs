@@ -53,7 +53,7 @@ for (const width of [1280, 1024, 375]) {
         return {
           nameCut: cut(cell("student").querySelector("a")), groupCut: cut(cell("group").querySelector("a")),
           price: [getComputedStyle(head("price")).textAlign, getComputedStyle(cell("price")).textAlign],
-          last: [getComputedStyle(head("last")).textAlign, getComputedStyle(cell("last")).textAlign],
+          last: head("last").offsetParent ? [getComputedStyle(head("last")).textAlign, getComputedStyle(cell("last")).textAlign] : null,
           group: [getComputedStyle(head("group")).textAlign, getComputedStyle(cell("group")).textAlign],
           student: [getComputedStyle(head("student")).textAlign, getComputedStyle(cell("student")).textAlign],
           leftEdge: [Math.round(head("student").getBoundingClientRect().left), Math.round(cell("student").getBoundingClientRect().left)],
@@ -63,7 +63,7 @@ for (const width of [1280, 1024, 375]) {
       assert.equal(facts.nameCut, false, "the name is not cut");
       assert.equal(facts.groupCut, false, "the group is not cut");
       assert.deepEqual(facts.price, ["right", "right"], "the price is money: right, its header too");
-      assert.deepEqual(facts.last, ["right", "right"], "the last payment is money: right");
+      assert.equal(facts.last, null, "«Последняя оплата» is a secondary column: hidden in a table narrower than 1100 px (the sidebar takes 240 px at 1280)");
       assert.deepEqual(facts.group, ["left", "left"], "the group is text: left");
       assert.deepEqual(facts.student, ["left", "left"]);
       assert.equal(facts.leftEdge[0], facts.leftEdge[1], "the header and the cells share one left edge");
@@ -250,14 +250,14 @@ for (const [width, pad] of [[1280, 240], [1024, 0]]) {
           if (process.env.DT_LOG) console.log("DTLOG-LINES", width, JSON.stringify(facts.names));
           if (width === 1280) { assert.equal(facts.names.group, 1, "«7-А Алгебра» is one line"); assert.equal(facts.names.ivan, 1, "«Иванов Иван» is one line"); assert.ok(facts.names.long <= 3, `the long name takes ${facts.names.long} lines`); }
         }
-        if (["payments", "payroll-month"].includes(shot.name)) assert.ok(facts.dashes.length > 0, `${shot.name}: the check of «—» has something to measure`);
+        if (["payroll-month"].includes(shot.name)) assert.ok(facts.dashes.length > 0, `${shot.name}: the check of «—» has something to measure`);
       }
       await page.close();
     });
   }
 }
-test("1280 and 1024: «Оплаты» - «Цена в месяц» ends 24 px or more before the status, «—» of «Последняя оплата» and of the salary list is under the centre of the heading", async () => {
-  for (const [width, pad] of [[1280, 240], [1024, 0]]) {
+test("1440 (sidebar) and 1920: «Оплаты» - «Цена в месяц» ends 24 px or more before the status, «—» of «Последняя оплата» and of the salary list is under the centre of the heading", async () => {
+  for (const [width, pad] of [[1440, 240], [1920, 0]]) {
     const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer, { width, height: 900 });
     await page.evaluate(([padding]) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = padding ? `0 32px 0 ${padding + 32}px` : "0 16px"; }, [pad]);
     await page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=debtors" }));
@@ -343,7 +343,7 @@ const gridCheck = (facts, label, needTable) => {
   if (needTable) { assert.ok(facts.seen.tables >= 1 && facts.seen.cells >= 6, `${label}: something was measured ${JSON.stringify(facts.seen)}`); }
 };
 // the sidebar: 240 px at 1280 (a table of 976 px); at 1024 the menu is folded (a table of 992 px)
-for (const [width, pad] of [[1280, 240], [1024, 0]]) {
+for (const [width, pad] of [[1280, 240], [1024, 0], [1440, 240]]) {
   for (const shot of [...SHOTS, ...REAL_SCREENS]) {
     test(`${width}: «${shot.name}» - every column: the heading and the cells have one left (right) edge ±1 px, 24 px between the contents, nothing leaves its column, «—» under the centre of the heading`, async () => {
       const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
@@ -358,7 +358,7 @@ for (const [width, pad] of [[1280, 240], [1024, 0]]) {
       if (process.env.DT_LOG) console.log("GRIDLOG", width, shot.name, JSON.stringify(facts.seen), facts.bad.length);
       gridCheck(facts, `${shot.name} ${width}`, !["statement", "excuses"].includes(shot.name) || facts.seen.tables > 0);
       assert.deepEqual(lines.bad, [], `${shot.name} ${width}: ${lines.bad.join("; ")}`);
-      if (shot.name.endsWith("-real")) assert.ok(facts.seen.tables === 1 && facts.seen.dashes >= (shot.name === "payments-real" ? 2 : 0), `${shot.name} ${width}: a table with real data stays a table ${JSON.stringify(facts.seen)}`);
+      if (shot.name.endsWith("-real")) assert.ok(facts.seen.tables === 1 && facts.seen.dashes >= (shot.name === "payments-real" && width === 1440 ? 2 : 0), `${shot.name} ${width}: a table with real data stays a table ${JSON.stringify(facts.seen)}`);
       await page.close();
     });
   }
@@ -379,4 +379,86 @@ test("1280: «Оплаты» on real data - the long group name wraps by words I
   assert.ok(f.inside, "the wrapped name stays in its column");
   assert.deepEqual(f.tracks, f.rowTracks, "the header and a row have the same column widths");
   await page.close();
+});
+
+// ---- owner 13.11: priority of columns («Последняя оплата» is secondary: hidden whole in a table narrower than 1100 px) and wrapping BETWEEN words only ----
+const openPayments = async (width, pad) => {
+  const { page } = await openPage(browser, "money-b.entry.tsx", R.paymentsRealServer, { width, height: 900 });
+  await setPage(page, pad, REAL_SCREENS[0]);
+  await page.waitForFunction(() => document.querySelectorAll(".dt-row").length >= 5, null, WAIT);
+  await page.waitForTimeout(300);
+  return page;
+};
+const LINES_OF = `(el) => { const q = document.createRange(); q.selectNodeContents(el); return new Set([...q.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top / 4))).size; }`;
+test("1280 with the 240 px sidebar: «Оплаты» - no «Последняя оплата» in the heading or the rows; names wrap between words, in few lines", async () => {
+  const page = await openPayments(1280, 240);
+  const f = await page.evaluate(`(() => {
+    const lines = ${LINES_OF};
+    const row = (txt) => [...document.querySelectorAll(".dt-body .dt-row")].find((r) => r.textContent.includes(txt));
+    const link = (txt, col) => row(txt).querySelector('[data-col="' + col + '"] a');
+    return {
+      headLast: document.querySelectorAll('.dt-head [data-col="last"]').length, headVisible: [...document.querySelectorAll('.dt-head-cell')].filter((c) => c.offsetParent !== null).map((c) => c.dataset.col),
+      cellsLast: [...document.querySelectorAll('[data-col="last"]')].filter((c) => c.offsetParent !== null).length,
+      cells: [...document.querySelectorAll(".dt-body .dt-row")].map((r) => [...r.children].filter((c) => c.offsetParent !== null).length),
+      algebra: lines(link("Тошматов", "group")), prep: lines(link("Ученик 1", "group")), fio: lines(link("Абдурахмонов", "student")),
+      text: link("Тошматов", "group").textContent,
+    };
+  })()`);
+  assert.equal(f.cellsLast, 0, "no visible cell of the hidden column");
+  assert.ok(!f.headVisible.includes("last"), "no heading of it");
+  assert.deepEqual(f.headVisible, ["student", "group", "price", "status", "actions"]);
+  assert.ok(f.cells.every((n) => n === 5), `every row has five visible cells: ${f.cells}`);
+  assert.equal(f.algebra, 1, "«Алгебра 7 (вт/пт)» is one line");
+  assert.ok(f.fio <= 2, `a three-word full name takes ${f.fio} lines`);
+  assert.ok(f.prep <= 2, `«Подготовка к экзамену 9 класс» (five words) takes ${f.prep} lines`);
+  assert.equal(f.text, "Алгебра 7 (вт/пт)", "the text itself is untouched");
+  await page.close();
+});
+test("1440 with the sidebar: «Оплаты» keeps the secondary column «Последняя оплата»", async () => {
+  const page = await openPayments(1440, 240);
+  const f = await page.evaluate(() => ({ head: [...document.querySelectorAll('.dt-head [data-col="last"]')].filter((c) => c.offsetParent !== null).length, cells: [...document.querySelectorAll('.dt-row [data-col="last"]')].filter((c) => c.offsetParent !== null).length, rows: document.querySelectorAll(".dt-body .dt-row").length }));
+  assert.equal(f.head, 1); assert.equal(f.cells, f.rows);
+  await page.close();
+});
+test("1403 / 1404: the table of 1099 / 1100 px: the column hides exactly under 1100 px of the TABLE (and is back in a card)", async () => {
+  for (const [width, pad, visible] of [[1404, 240, true], [1403, 240, false]]) {
+    const page = await openPayments(width, pad);
+    const w = await page.evaluate(() => Math.round(document.querySelector(".dt").getBoundingClientRect().width));
+    const shown = await page.evaluate(() => [...document.querySelectorAll('.dt-head [data-col="last"]')].some((c) => c.offsetParent !== null));
+    assert.equal(shown, visible, `${width}: the table is ${w} px wide`);
+    await page.close();
+  }
+  const card = await openPayments(375, 0);
+  const labels = await card.evaluate(() => [...document.querySelectorAll('.dt-row [data-col="last"]')].filter((c) => c.offsetParent !== null).length);
+  assert.ok(labels >= 3, "a card keeps «Последняя оплата»");
+  await card.close();
+});
+for (const width of [1280, 1024]) {
+  test(`${width}: «вт/пт», «пн/чт», «7-А» are never torn inside a word (payments, roster, collection)`, async () => {
+    const checks = [[REAL_SCREENS[0], width === 1280 ? 240 : 0], [REAL_SCREENS[2], width === 1280 ? 240 : 0]];
+    for (const [shot, pad] of checks) {
+      const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
+      await setPage(page, pad, shot);
+      await page.waitForSelector(".dt-row", WAIT);
+      await page.waitForTimeout(300);
+      const torn = await page.evaluate(() => {
+        const bad = [];
+        for (const word of ["(вт/пт)", "(пн/чт)"]) {
+          const walker = document.createTreeWalker(document.querySelector(".dt-body"), NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (!n.textContent.includes(word)) continue;
+            const r = document.createRange(); r.selectNodeContents(n);
+            if (new Set([...r.getClientRects()].map((q) => Math.round(q.top / 4))).size > 1) bad.push(word);
+          }
+        }
+        return bad;
+      });
+      assert.deepEqual(torn, [], `${shot.name} ${width}`);
+      await page.close();
+    }
+  });
+}
+test("Words: no character is added, spaces stay spaces", () => {
+  const src = fs.readFileSync(path.join(root, "src/components/ui/words.tsx"), "utf8");
+  assert.doesNotMatch(src, /\\u2060|\\u200b|&#8203;|<wbr/i, "no zero-width characters or <wbr> are inserted");
 });
