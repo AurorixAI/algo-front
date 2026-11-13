@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Words } from "@/components/ui/words";
 import { Select } from "@/components/ui/select";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { IncomeError } from "./income-parts";
@@ -26,7 +27,7 @@ const DECISION_COLUMNS: DataColumn[] = [
   { key: "who", header: "Ученик · группа", width: "minmax(10rem,1fr)" },
   { key: "amount", header: "Сумма", align: "end", width: "max-content", cardLabel: "Сумма" },
   { key: "debt", header: "Долг", align: "end", width: "max-content", cardLabel: "Долг" },
-  { key: "actor", header: "Кто", width: "max-content", cardLabel: "Кто" },
+  { key: "actor", header: "Кто", width: "max-content", cardLabel: "Кто", priority: "low" },
   { key: "open", header: "", align: "end", width: "max-content" },
 ];
 
@@ -112,7 +113,7 @@ export function IncomeDecisions({ period, authors, paymentsBase, studentProfileB
             action={narrowed ? <Button variant="secondary" size="sm" onClick={() => { setKind(""); setActor(""); setPage(1); }}>Сбросить</Button> : undefined}
           />
         ) : (
-          <DataTable columns={DECISION_COLUMNS} minWidth={880} gap="0.75rem" testId="decisions-list">
+          <DataTable columns={DECISION_COLUMNS} minWidth={880} lowBelow={1100} testId="decisions-list">
             {data.rows.map((row) => (
               <DecisionLine key={row.id} row={row} open={opened === row.id} onToggle={() => setOpened(opened === row.id ? null : row.id)} studentLink={row.student_id ? studentHref(bases.students || studentProfileBasePath, row.student_id, "payments") : null} />
             ))}
@@ -146,6 +147,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       expanded={open}
       detail={open && (
         <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
+          {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.receipt_no !== null && <p>Квитанция № {row.receipt_no}</p>}
           {studentLink && <Link href={studentLink} className="inline-flex min-h-10 items-center font-medium text-primary-700 hover:underline">Оплаты ученика</Link>}
@@ -154,10 +156,10 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
     >
       <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
       <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
-      <DataCell col="who"><span className="break-words text-sm font-medium text-slate-900">{who}</span></DataCell>
+      <DataCell col="who"><span className="text-sm font-medium text-slate-900"><Words text={who} /></span></DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
       <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : `Долг ${debt}`}</span></DataCell>
-      <DataCell col="actor"><span className="break-words text-sm text-slate-600">{row.actor_name ?? <DataEmpty />}</span></DataCell>
+      <DataCell col="actor"><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>
       <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>
     </DataRow>
   );

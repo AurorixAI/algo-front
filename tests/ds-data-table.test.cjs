@@ -333,6 +333,7 @@ const GRID_PROBE = `(() => {
 })()`;
 const REAL_SCREENS = [
   { name: "payments-real", entry: "money-b.entry.tsx", server: R.paymentsRealServer, mount: "payments", props: { refresh: true, search: "bucket=debtors" }, wait: ".dt-row", ready: () => document.querySelectorAll(".dt-row").length >= 5, shots: "payments-real" },
+  { name: "income-decisions-real", entry: "money-v.entry.tsx", server: R.decisionsRealServer, mount: "decisions", props: {}, wait: '[data-testid="decision-row"]', ready: () => document.querySelectorAll('[data-testid="decision-row"]').length >= 5, shots: "income-decisions-real" },
   { name: "roster-real", entry: "ds.entry.tsx", server: () => null, mount: "roster", props: { students: R.STUDENTS_REAL }, wait: ".dt-row", shots: "roster-real" },
   { name: "income-groups-real", entry: "ds.entry.tsx", server: () => null, mount: "collection", props: { collection: R.COLLECTION_REAL }, wait: ".dt-row", shots: "income-groups-real" },
 ];
@@ -462,3 +463,41 @@ test("Words: no character is added, spaces stay spaces", () => {
   const src = fs.readFileSync(path.join(root, "src/components/ui/words.tsx"), "utf8");
   assert.doesNotMatch(src, /\\u2060|\\u200b|&#8203;|<wbr/i, "no zero-width characters or <wbr> are inserted");
 });
+
+// ---- stage walk W4 (13.11): «Поступления → Решения» at 1280 was 1056 px wide in a 976 px container: the «open» column left it and the page scrolled sideways.
+// Real data (long names, a long chip, «1 250 000 сум»): the page never scrolls sideways at 1280 / 1024 / 1440 / 375, the «open» arrow is inside the table, «Кто» (low priority) is
+// hidden whole under 1100 px of the TABLE and its value stands in the opened row; the grid check above (shot «income-decisions-real») measures the gap and the one grid.
+const DECISIONS_REAL_SHOT = REAL_SCREENS.find((shot) => shot.name === "income-decisions-real");
+for (const [width, pad] of [[1280, 240], [1024, 0], [1440, 240], [375, 0]]) {
+  test(`${width}: «Решения» on real data - no sideways scroll, the «open» arrow is inside the table, «Кто» ${width === 1440 ? "is a column" : "is not a column (it is in the opened row / the card)"}`, async () => {
+    const { page } = await openPage(browser, DECISIONS_REAL_SHOT.entry, DECISIONS_REAL_SHOT.server, { width, height: 900 });
+    await page.addStyleTag({ content: ".max-w-\\[1100px\\]{max-width:none !important}" }); // the real page has no 1100 px frame: the table gets what the sidebar leaves
+    await setPage(page, pad, DECISIONS_REAL_SHOT);
+    await page.waitForSelector(DECISIONS_REAL_SHOT.wait, WAIT);
+    await page.waitForFunction(DECISIONS_REAL_SHOT.ready, null, WAIT);
+    await page.waitForTimeout(300);
+    const facts = await page.evaluate(() => {
+      const frame = document.querySelector(".dt-frame").getBoundingClientRect();
+      const arrows = [...document.querySelectorAll('.dt-row [data-col="open"] svg')].filter((svg) => svg.getBoundingClientRect().width > 0);
+      const actors = [...document.querySelectorAll('.dt-head [data-col="actor"]')].filter((cell) => cell.offsetParent !== null && getComputedStyle(cell).display !== "none");
+      return { scroll: document.documentElement.scrollWidth - window.innerWidth, wide: window.innerWidth, table: getComputedStyle(document.querySelector(".dt-head")).display === "grid", frameRight: frame.right, arrowRight: Math.max(0, ...arrows.map((svg) => svg.getBoundingClientRect().right)), arrows: arrows.length, actorHead: actors.length };
+    });
+    assert.equal(facts.scroll, 0, "document.scrollWidth === innerWidth");
+    if (process.env.DT_SHOTS) await page.screenshot({ path: path.join(process.env.DT_SHOTS, `decisions-fix-${width}.png`), fullPage: true });
+    if (facts.table) {
+      assert.equal(facts.arrows, 5, "an arrow in every row");
+      assert.ok(facts.arrowRight <= facts.frameRight + 0.5, `the arrow ends at ${facts.arrowRight}, the table at ${facts.frameRight}`);
+      assert.equal(facts.actorHead, width === 1440 ? 1 : 0, "«Кто» is a column only where the table is 1100 px or more");
+      if (width < 1440) {
+        await page.locator('[data-testid="decision-row"]').first().click();
+        const detail = await page.locator('[data-testid="decision-details"]').innerText();
+        assert.ok(detail.includes("Рахимжонова Нилуфар"), `the opened row says who decided: ${detail}`);
+      }
+    } else {
+      assert.equal(width, 375, "only the phone is cards");
+      const card = await page.evaluate(() => document.querySelector('[data-testid="decision-row"]').textContent);
+      assert.ok(card.includes("Кто") && card.includes("Рахимжонова"), `a card keeps «Кто»: ${card}`);
+    }
+    await page.close();
+  });
+}

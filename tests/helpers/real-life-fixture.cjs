@@ -35,4 +35,15 @@ const COLLECTION_REAL = {
   ],
   total: crow(null, "Всего", null, { charged: 36400000, paid: 31300000, debtors_debt: 4600000, debt_waiting: 500000, students: 74, students_with_debt: 14, students_waiting: 2, pct: 86 }),
 };
-module.exports = { PAYMENT_ITEMS, paymentsRealServer, STUDENTS_REAL, COLLECTION_REAL };
+
+// «Поступления → Решения» as in life (stage walk W4, 13.11): long names, long chips, sums with a new value and a debt, a decision without a debt and without an author.
+const DEC = (id, at, kind, kind_label, student, group, amount, extra = {}) => ({ id, at, kind, kind_label, student_id: "s" + id, student_name: student, group_name: group, amount, new_amount: null, debt_before: null, debt_after: null, actor_name: "Рахимжонова Нилуфар", reason: "Ошибка кассира: оплата внесена не тому ученику", receipt_no: 21, ...extra });
+const DECISIONS_REAL = [
+  DEC("1", "2026-11-05T09:20:00", "payment_replace", "Оплата исправлена", "Абдурахмонов Мухаммадюсуф", "Алгебра 7 (вт/пт)", 1250000, { new_amount: 900000, debt_before: 0, debt_after: 350000 }),
+  DEC("2", "2026-11-04T07:00:00", "payment_writeoff", "Долг прощён", "Каримова Мадина", "Геометрия 8 (пн/чт)", 250000, { debt_before: 250000, debt_after: 0, actor_name: "Камол Эргашев" }),
+  DEC("3", "2026-11-03T11:45:00", "payment_refund_void", "Возврат отменён", "Абдурахмонов Достонбек Шухратович", "Подготовка к экзамену 9 класс", 1250000),
+  DEC("4", "2026-11-02T15:10:00", "payment_void", "Оплата отменена", "Тошматов Бобур", "Алгебра 7 (вт/пт)", 400000, { debt_before: 0, debt_after: 400000, actor_name: null }),
+  DEC("5", "2026-11-02T08:30:00", "payment_writeoff_void", "Прощение отменено", "Эргашев Азиз Абдуллаевич", "Геометрия 8 (пн/чт)", 1250000, { debt_before: 0, debt_after: 1250000 }),
+];
+const decisionsRealServer = (request) => (request.path === "/auth/org/payments/decisions" ? { json: { as_of: "2026-11-10", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: DECISIONS_REAL.length, pages: 1, since: "2026-11-02", rows: DECISIONS_REAL } } : null);
+module.exports = { decisionsRealServer, PAYMENT_ITEMS, paymentsRealServer, STUDENTS_REAL, COLLECTION_REAL };
