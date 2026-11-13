@@ -86,13 +86,13 @@ import { Button } from "@/components/ui/button";
  * numbers on the right, the status and the button centred.  A table from 1280; 1024 and a phone get cards in the same order.
  */
 export const MONTH_COLUMNS: DataColumn[] = [
-  { key: "teacher", header: "Преподаватель", width: "minmax(0,2fr)" },
-  { key: "salary", header: `${SALARY_COLUMN}, сум`, align: "end", width: "minmax(5.5rem,1.2fr)", cardLabel: SALARY_COLUMN },
-  { key: "paid", header: "Выплачено, сум", align: "end", width: "minmax(4.75rem,0.8fr)", cardLabel: "Выплачено" },
-  { key: "rest", header: "Остаток, сум", align: "end", width: "minmax(6rem,0.9fr)", cardLabel: "Остаток" },
+  { key: "teacher", header: "Преподаватель", width: "minmax(8rem,2fr)" },
+  { key: "salary", header: `${SALARY_COLUMN}, сум`, align: "end", width: "max-content", cardLabel: SALARY_COLUMN },
+  { key: "paid", header: "Выплачено, сум", align: "end", width: "max-content", cardLabel: "Выплачено" },
+  { key: "rest", header: "Остаток, сум", align: "end", width: "max-content", cardLabel: "Остаток" },
   // the status takes what its LONGEST chip needs («Требует действия» + the chevron; «Сохранено 05.11» + the «?»), the rest goes to the name
-  { key: "status", header: "Статус", width: "9.75rem" },
-  { key: "action", header: "", align: "end", width: "6.75rem", actions: true },
+  { key: "status", header: "Статус", width: "max-content" },
+  { key: "action", header: "", align: "end", width: "max-content", actions: true },
 ];
 
 interface Preview {

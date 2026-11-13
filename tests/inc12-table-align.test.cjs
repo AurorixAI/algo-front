@@ -66,7 +66,7 @@ test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплат�
   assert.match(src, /<DataEmpty testId="last-payment-empty" \/>/);   // «—» stands in the CENTRE of the column (DataEmpty), the header and the values stay on the right
   assert.doesNotMatch(src, /xl:text-center/, "no accidental centring in the list");
   // the names and the groups are wide, not cut (they wrap)
-  assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(0,3fr\)" \}/);
+  assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(8rem,3fr\)" \}/);
   assert.match(src, /\{ key: "group", header: "Группа", width: "minmax\(5\.5rem,2fr\)"/);
   assert.doesNotMatch(src, /xl:truncate/);
 });
@@ -74,11 +74,11 @@ test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплат�
 test("inc12-4 (wave 3): journal «Оплаты» - text columns LEFT, «Сумма» money RIGHT in its own fixed column", () => {
   const src = read("src/components/payments/income-journal.tsx");
   const cols = src.match(/const JOURNAL_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
-  assert.match(cols, /key: "when", header: "Дата · время", width: "7\.5rem"/);
-  assert.match(cols, /key: "student", header: "Ученик", width: "minmax\(0,1\.5fr\)"/);
-  assert.match(cols, /key: "group", header: "Группа", width: "minmax\(0,1fr\)"/);
-  assert.match(cols, /key: "amount", header: "Сумма", align: "end", width: "8\.5rem"/);
-  assert.match(cols, /key: "method", header: "Способ", width: "9rem"/);
+  assert.match(cols, /key: "when", header: "Дата · время", width: "max-content"/);
+  assert.match(cols, /key: "student", header: "Ученик", width: "minmax\(8rem,1\.5fr\)"/);
+  assert.match(cols, /key: "group", header: "Группа", width: "minmax\(7rem,1fr\)"/);
+  assert.match(cols, /key: "amount", header: "Сумма", align: "end", width: "max-content"/);
+  assert.match(cols, /key: "method", header: "Способ", width: "max-content"/);
   assert.doesNotMatch(cols, /center/, "nothing is centred");
   assert.match(src, /<DataCell col="amount"><span className=\{`whitespace-nowrap text-sm font-medium tracking-tight/);
 });

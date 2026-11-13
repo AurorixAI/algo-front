@@ -32,17 +32,19 @@ export function Chip({ tone = "neutral", size = "md", pill = false, bleed, title
  * A STATUS - something that changes («Оплачено», «Месяц открыт», «Долг 400 000 сум»): a pill, one line, an optional dot.  One tone per chip; the number goes AFTER the word.
  * `warn` only when somebody has to act; `ok` only for «сделано»; «открыт / закрыт / активна / запланирован» are `neutral` or `info`.
  */
-export function StatusChip({ tone = "neutral", dot = false, title, testId, className = "", children }: {
+export function StatusChip({ tone = "neutral", dot = false, bleed = false, title, testId, className = "", children }: {
   tone?: ChipTone;
   /** A coloured dot before the word. */
   dot?: boolean;
+  /** In a cell of a table: the chip leans out to the left by its frame and padding, so its TEXT stands on the vertical of the heading (see `Chip` `bleed`). */
+  bleed?: boolean;
   title?: string;
   testId?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
+    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${bleed ? " -ml-[9px]" : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
       {dot && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />}
       {children}
     </span>

@@ -11,12 +11,12 @@ import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/comp
 
 /** The columns: the group is text (left, wide); the cost, the paid sum and the debt are money (RIGHT); «Собрано» is a bar; the number of debtors is a count (RIGHT). */
 const COLLECTION_COLUMNS: DataColumn[] = [
-  { key: "group", header: "Группа", width: "minmax(0,1.6fr)" },
-  { key: "charged", header: <>Стоимость <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></>, align: "end", width: "7.5rem", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "end", width: "7.5rem", cardLabel: "Оплачено" },
-  { key: "pct", header: "Собрано", width: "minmax(0,1.3fr)" },
-  { key: "debt", header: "Долг", align: "end", width: "7.5rem", cardLabel: "Долг" },
-  { key: "debtors", header: "Должников", align: "end", width: "6rem", cardLabel: "Должников" },
+  { key: "group", header: "Группа", width: "minmax(9rem,1.6fr)" },
+  { key: "charged", header: <>Стоимость <InfoTip className="-mr-0.5" text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></>, align: "end", width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", width: "max-content", cardLabel: "Оплачено" },
+  { key: "pct", header: "Собрано", width: "minmax(7rem,1.3fr)" },
+  { key: "debt", header: "Долг", align: "end", width: "max-content", cardLabel: "Долг" },
+  { key: "debtors", header: "Должников", align: "end", width: "max-content", cardLabel: "Должников" },
 ];
 
 /** The words of an empty cell: debt 0 is good news (a quiet green tick), no debtors is a muted 0 — never «нет». */

@@ -631,7 +631,7 @@ test("the journal on screen: compact rows, cancelled ones grey with «отмен
   // money is RIGHT, text and the date LEFT (wave 3); one markup, the DataTable decides between a table and cards
   assert.match(markup, /data-col="amount" data-align="end"/);
   assert.ok(!/data-align="center"/.test(markup));
-  assert.match(markup, /--dt-cols:7\.5rem /);
+  assert.match(markup, /--dt-cols:max-content /);
 });
 
 test("the drawer body: amount, method, who entered it, where the money went, links to the receipt and the student", () => {

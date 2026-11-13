@@ -21,13 +21,13 @@ import { IncomeError } from "./income-parts";
 
 /** The columns: when, what, whom - text (left); the sum and the debt - money (RIGHT); who decided - text; the arrow shows that the row opens. */
 const DECISION_COLUMNS: DataColumn[] = [
-  { key: "when", header: "Когда", width: "5.5rem" },
-  { key: "kind", header: "Что", width: "8rem" },
-  { key: "who", header: "Ученик · группа", width: "minmax(0,1.4fr)" },
-  { key: "amount", header: "Сумма", align: "end", width: "9.5rem", cardLabel: "Сумма" },
-  { key: "debt", header: "Долг", align: "end", width: "9rem", cardLabel: "Долг" },
-  { key: "actor", header: "Кто", width: "6rem", cardLabel: "Кто" },
-  { key: "open", header: "", align: "end", width: "1.5rem" },
+  { key: "when", header: "Когда", width: "max-content" },
+  { key: "kind", header: "Что", width: "max-content" },
+  { key: "who", header: "Ученик · группа", width: "minmax(10rem,1fr)" },
+  { key: "amount", header: "Сумма", align: "end", width: "max-content", cardLabel: "Сумма" },
+  { key: "debt", header: "Долг", align: "end", width: "max-content", cardLabel: "Долг" },
+  { key: "actor", header: "Кто", width: "max-content", cardLabel: "Кто" },
+  { key: "open", header: "", align: "end", width: "max-content" },
 ];
 
 /**
@@ -153,7 +153,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       )}
     >
       <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
-      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
+      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
       <DataCell col="who"><span className="break-words text-sm font-medium text-slate-900">{who}</span></DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
       <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : `Долг ${debt}`}</span></DataCell>

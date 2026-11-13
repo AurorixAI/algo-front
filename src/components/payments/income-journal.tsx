@@ -39,11 +39,11 @@ const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm t
 
 // Дата · Ученик · Группа · Сумма (money: RIGHT, tabular) · Способ - all text columns are LEFT, no accidental centring.
 const JOURNAL_COLUMNS: DataColumn[] = [
-  { key: "when", header: "Дата · время", width: "7.5rem" },
-  { key: "student", header: "Ученик", width: "minmax(0,1.5fr)" },
-  { key: "group", header: "Группа", width: "minmax(0,1fr)", cardLabel: "Группа" },
-  { key: "amount", header: "Сумма", align: "end", width: "8.5rem", cardLabel: "Сумма" },
-  { key: "method", header: "Способ", width: "9rem", cardLabel: "Способ" },
+  { key: "when", header: "Дата · время", width: "max-content" },
+  { key: "student", header: "Ученик", width: "minmax(8rem,1.5fr)" },
+  { key: "group", header: "Группа", width: "minmax(7rem,1fr)", cardLabel: "Группа" },
+  { key: "amount", header: "Сумма", align: "end", width: "max-content", cardLabel: "Сумма" },
+  { key: "method", header: "Способ", width: "max-content", cardLabel: "Способ" },
 ];
 
 /**

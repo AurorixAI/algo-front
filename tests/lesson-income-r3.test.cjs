@@ -177,7 +177,7 @@ test("the journal: time only when paid_time is there; «внесена …» qui
   assert.ok(!backText.includes(" · 11:40") && backText.includes("внесена 21.10 в 11:40"));
   const markup = html(list(back));
   assert.match(markup, /data-testid="journal-entered" class="[^"]*text-slate-500[^"]*"/);
-  assert.match(markup, /--dt-cols:7\.5rem minmax\(0,1\.5fr\) minmax\(0,1fr\) 8\.5rem 9rem/, "still five columns");
+  assert.match(markup, /--dt-cols:max-content minmax\(8rem,1\.5fr\) minmax\(7rem,1fr\) max-content max-content/, "still five columns");
   assert.ok(!/data-testid="journal-entered"/.test(html(list(timed))), "an older server: no line");
   // the view and the drawer
   assert.equal(V.journalRowView(back).time, "");

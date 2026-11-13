@@ -66,12 +66,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 /** Date · operation · charged · paid · balance: a bank statement.  Text and the date LEFT, the three money columns RIGHT (their headers too), the action column right. */
 const STATEMENT_COLUMNS: DataColumn[] = [
-  { key: "date", header: "Дата", width: "6.5rem" },
-  { key: "operation", header: "Операция", width: "minmax(0,1fr)" },
-  { key: "charged", header: "Стоимость", align: "end", width: "7.5rem", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "end", width: "7.5rem", cardLabel: "Оплачено" },
-  { key: "balance", header: "Остаток", align: "end", width: "8.5rem", cardLabel: "Остаток" },
-  { key: "menu", header: "", align: "end", width: "2.75rem", actions: true },
+  { key: "date", header: "Дата", width: "max-content" },
+  { key: "operation", header: "Операция", width: "minmax(10rem,1fr)" },
+  { key: "charged", header: "Стоимость", align: "end", width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", width: "max-content", cardLabel: "Оплачено" },
+  { key: "balance", header: "Остаток", align: "end", width: "max-content", cardLabel: "Остаток" },
+  { key: "menu", header: "", align: "end", width: "max-content", actions: true },
 ];
 
 const TOTAL_TONE = {

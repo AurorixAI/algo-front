@@ -59,7 +59,7 @@ function InlineTodo({ status, name }: { status: RowStatusView; name: string }) {
         aria-expanded={open}
         aria-label={`${status.label}: ${name}`}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
+        className={`dt-lean inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS.changed}`}
       >
         <span className="whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -129,7 +129,7 @@ export function RowStatus({ status, hint, name }: { status: RowStatusView; hint?
         onFocus={() => dispatch({ type: "focus" })}
         onBlur={() => dispatch({ type: "blur" })}
         onClick={() => dispatch({ type: "click", mousePins: true })}
-        className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
+        className={`dt-lean inline-flex min-h-[40px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl border px-2.5 py-1 text-xs font-semibold xl:min-h-[32px] ${STATUS_CHIP_CLASS.changed}`}
       >
         <span className="whitespace-nowrap text-left">{status.label}</span>
         <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />

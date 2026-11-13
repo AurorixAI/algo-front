@@ -80,6 +80,7 @@ body {
 @container dt (min-width: 560px) and (max-width: 719px) { .dt-row[data-compact] .dt-cap-long { display: none; } }
 /* the gap between the columns of a table is never under 34 px: 24 px between the content of two neighbours + the 9 px a status chip leans into the gap to put its TEXT on the line of the heading (a screen `gap` can only widen it) */
 .dt-empty { color: theme(colors.slate.500); }
+.dt-ghost { display: none; }
 .dt-wide-only { display: none; }
 .dt-ctl { width: 2.5rem; height: 2.5rem; }
 .dt-head-cell { min-width: 0; font-size: 0.75rem; font-weight: 600; line-height: 1rem; color: theme(colors.slate.600); }
@@ -89,12 +90,15 @@ body {
 /* a table only where the viewport is wider than a tablet in portrait (769 px and up: «до 768 — карточки»); there the width of the TABLE decides */
 @media (min-width: 769px) {
 @container dt (min-width: 640px) {
-  .dt-frame[data-min="640"] { overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
-  .dt-frame[data-min="640"] .dt-body { gap: 0; }
+  /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
+  .dt-frame[data-min="640"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.75rem), 1.5rem); overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
+  .dt-frame[data-min="640"] .dt-body { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; }
+  .dt-frame[data-min="640"] .dt-li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+  .dt-frame[data-min="640"] .dt-li > .dt-row, .dt-frame[data-min="640"] .dt-detail { grid-column: 1 / -1; }
   .dt-frame[data-min="640"] .dt-row + .dt-row, .dt-frame[data-min="640"] .dt-li + .dt-li, .dt-frame[data-min="640"] .dt-li + .dt-row, .dt-frame[data-min="640"] .dt-row + .dt-li { border-top: 1px solid theme(colors.slate.100); }
   .dt-frame[data-min="640"] .dt-detail { border-top: 1px solid theme(colors.slate.100); }
-  .dt-head[data-min="640"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
-  .dt-row[data-min="640"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; min-height: 3.5rem; gap: 0; column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
+  .dt-head[data-min="640"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
+  .dt-row[data-min="640"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; align-items: center; min-height: 3.5rem; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
   .dt-row[data-min="640"][data-valign="start"] { align-items: start; }
   .dt-row[data-min="640"] .dt-label, .dt-row[data-min="640"] .dt-unit { display: none; }
   .dt-row[data-min="640"] .dt-ctl { width: 2rem; height: 2rem; }
@@ -103,7 +107,12 @@ body {
   .dt-row-span[data-min="640"][data-tone="heading"] { background: theme(colors.slate.50); padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row-span[data-min="640"][data-tone="note"] { padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row[data-min="640"] .dt-wide-only { display: block; }
-  .dt-row[data-min="640"] .dt-empty { display: block; text-align: center; }
+  .dt-row[data-min="640"] .dt-empty { display: block; width: fit-content; max-width: 100%; text-align: center; }
+  .dt-row[data-min="640"] .dt-cell[data-align="end"] .dt-empty { margin-left: auto; }
+  .dt-row[data-min="640"] .dt-cell[data-align="center"] .dt-empty { margin-inline: auto; }
+  .dt-row[data-min="640"] .dt-cell[data-align="end"] .dt-value > [data-kind="chip"] { margin-right: -9px; }
+  .dt-row[data-min="640"] .dt-lean { margin-left: -11px; }
+  .dt-row[data-min="640"] .dt-ghost { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: nowrap; font-size: 0.75rem; font-weight: 600; line-height: 1rem; }
   .dt-row[data-min="640"] .dt-card-only { display: none; }
   .dt-row[data-min="640"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="640"] .dt-cell[data-actions="true"] { margin-top: 0; }
@@ -111,12 +120,15 @@ body {
   .dt-row[data-min="640"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
 }
 @container dt (min-width: 760px) {
-  .dt-frame[data-min="760"] { overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
-  .dt-frame[data-min="760"] .dt-body { gap: 0; }
+  /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
+  .dt-frame[data-min="760"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.75rem), 1.5rem); overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
+  .dt-frame[data-min="760"] .dt-body { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; }
+  .dt-frame[data-min="760"] .dt-li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+  .dt-frame[data-min="760"] .dt-li > .dt-row, .dt-frame[data-min="760"] .dt-detail { grid-column: 1 / -1; }
   .dt-frame[data-min="760"] .dt-row + .dt-row, .dt-frame[data-min="760"] .dt-li + .dt-li, .dt-frame[data-min="760"] .dt-li + .dt-row, .dt-frame[data-min="760"] .dt-row + .dt-li { border-top: 1px solid theme(colors.slate.100); }
   .dt-frame[data-min="760"] .dt-detail { border-top: 1px solid theme(colors.slate.100); }
-  .dt-head[data-min="760"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
-  .dt-row[data-min="760"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; min-height: 3.5rem; gap: 0; column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
+  .dt-head[data-min="760"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
+  .dt-row[data-min="760"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; align-items: center; min-height: 3.5rem; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
   .dt-row[data-min="760"][data-valign="start"] { align-items: start; }
   .dt-row[data-min="760"] .dt-label, .dt-row[data-min="760"] .dt-unit { display: none; }
   .dt-row[data-min="760"] .dt-ctl { width: 2rem; height: 2rem; }
@@ -125,7 +137,12 @@ body {
   .dt-row-span[data-min="760"][data-tone="heading"] { background: theme(colors.slate.50); padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row-span[data-min="760"][data-tone="note"] { padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row[data-min="760"] .dt-wide-only { display: block; }
-  .dt-row[data-min="760"] .dt-empty { display: block; text-align: center; }
+  .dt-row[data-min="760"] .dt-empty { display: block; width: fit-content; max-width: 100%; text-align: center; }
+  .dt-row[data-min="760"] .dt-cell[data-align="end"] .dt-empty { margin-left: auto; }
+  .dt-row[data-min="760"] .dt-cell[data-align="center"] .dt-empty { margin-inline: auto; }
+  .dt-row[data-min="760"] .dt-cell[data-align="end"] .dt-value > [data-kind="chip"] { margin-right: -9px; }
+  .dt-row[data-min="760"] .dt-lean { margin-left: -11px; }
+  .dt-row[data-min="760"] .dt-ghost { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: nowrap; font-size: 0.75rem; font-weight: 600; line-height: 1rem; }
   .dt-row[data-min="760"] .dt-card-only { display: none; }
   .dt-row[data-min="760"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="760"] .dt-cell[data-actions="true"] { margin-top: 0; }
@@ -133,12 +150,15 @@ body {
   .dt-row[data-min="760"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
 }
 @container dt (min-width: 880px) {
-  .dt-frame[data-min="880"] { overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
-  .dt-frame[data-min="880"] .dt-body { gap: 0; }
+  /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
+  .dt-frame[data-min="880"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.75rem), 1.5rem); overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
+  .dt-frame[data-min="880"] .dt-body { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; }
+  .dt-frame[data-min="880"] .dt-li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+  .dt-frame[data-min="880"] .dt-li > .dt-row, .dt-frame[data-min="880"] .dt-detail { grid-column: 1 / -1; }
   .dt-frame[data-min="880"] .dt-row + .dt-row, .dt-frame[data-min="880"] .dt-li + .dt-li, .dt-frame[data-min="880"] .dt-li + .dt-row, .dt-frame[data-min="880"] .dt-row + .dt-li { border-top: 1px solid theme(colors.slate.100); }
   .dt-frame[data-min="880"] .dt-detail { border-top: 1px solid theme(colors.slate.100); }
-  .dt-head[data-min="880"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
-  .dt-row[data-min="880"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; min-height: 3.5rem; gap: 0; column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
+  .dt-head[data-min="880"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
+  .dt-row[data-min="880"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; align-items: center; min-height: 3.5rem; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
   .dt-row[data-min="880"][data-valign="start"] { align-items: start; }
   .dt-row[data-min="880"] .dt-label, .dt-row[data-min="880"] .dt-unit { display: none; }
   .dt-row[data-min="880"] .dt-ctl { width: 2rem; height: 2rem; }
@@ -147,7 +167,12 @@ body {
   .dt-row-span[data-min="880"][data-tone="heading"] { background: theme(colors.slate.50); padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row-span[data-min="880"][data-tone="note"] { padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row[data-min="880"] .dt-wide-only { display: block; }
-  .dt-row[data-min="880"] .dt-empty { display: block; text-align: center; }
+  .dt-row[data-min="880"] .dt-empty { display: block; width: fit-content; max-width: 100%; text-align: center; }
+  .dt-row[data-min="880"] .dt-cell[data-align="end"] .dt-empty { margin-left: auto; }
+  .dt-row[data-min="880"] .dt-cell[data-align="center"] .dt-empty { margin-inline: auto; }
+  .dt-row[data-min="880"] .dt-cell[data-align="end"] .dt-value > [data-kind="chip"] { margin-right: -9px; }
+  .dt-row[data-min="880"] .dt-lean { margin-left: -11px; }
+  .dt-row[data-min="880"] .dt-ghost { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: nowrap; font-size: 0.75rem; font-weight: 600; line-height: 1rem; }
   .dt-row[data-min="880"] .dt-card-only { display: none; }
   .dt-row[data-min="880"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="880"] .dt-cell[data-actions="true"] { margin-top: 0; }
@@ -155,12 +180,15 @@ body {
   .dt-row[data-min="880"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
 }
 @container dt (min-width: 1040px) {
-  .dt-frame[data-min="1040"] { overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
-  .dt-frame[data-min="1040"] .dt-body { gap: 0; }
+  /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
+  .dt-frame[data-min="1040"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.75rem), 1.5rem); overflow: hidden; border: 1px solid theme(colors.slate.200); border-radius: 1rem; background: #fff; }
+  .dt-frame[data-min="1040"] .dt-body { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; }
+  .dt-frame[data-min="1040"] .dt-li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+  .dt-frame[data-min="1040"] .dt-li > .dt-row, .dt-frame[data-min="1040"] .dt-detail { grid-column: 1 / -1; }
   .dt-frame[data-min="1040"] .dt-row + .dt-row, .dt-frame[data-min="1040"] .dt-li + .dt-li, .dt-frame[data-min="1040"] .dt-li + .dt-row, .dt-frame[data-min="1040"] .dt-row + .dt-li { border-top: 1px solid theme(colors.slate.100); }
   .dt-frame[data-min="1040"] .dt-detail { border-top: 1px solid theme(colors.slate.100); }
-  .dt-head[data-min="1040"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
-  .dt-row[data-min="1040"] { display: grid; grid-template-columns: var(--dt-cols); column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); align-items: center; min-height: 3.5rem; gap: 0; column-gap: max(var(--dt-gap, 1.5rem), 2.125rem); border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
+  .dt-head[data-min="1040"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; padding: 0.625rem 1.25rem; border-bottom: 1px solid theme(colors.slate.100); background: theme(colors.slate.50); }
+  .dt-row[data-min="1040"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: normal; row-gap: 0; align-items: center; min-height: 3.5rem; border: 0; border-radius: 0; background: transparent; padding: 0.75rem 1.25rem; }
   .dt-row[data-min="1040"][data-valign="start"] { align-items: start; }
   .dt-row[data-min="1040"] .dt-label, .dt-row[data-min="1040"] .dt-unit { display: none; }
   .dt-row[data-min="1040"] .dt-ctl { width: 2rem; height: 2rem; }
@@ -169,7 +197,12 @@ body {
   .dt-row-span[data-min="1040"][data-tone="heading"] { background: theme(colors.slate.50); padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row-span[data-min="1040"][data-tone="note"] { padding: 0.5rem 1.25rem; min-height: 0; }
   .dt-row[data-min="1040"] .dt-wide-only { display: block; }
-  .dt-row[data-min="1040"] .dt-empty { display: block; text-align: center; }
+  .dt-row[data-min="1040"] .dt-empty { display: block; width: fit-content; max-width: 100%; text-align: center; }
+  .dt-row[data-min="1040"] .dt-cell[data-align="end"] .dt-empty { margin-left: auto; }
+  .dt-row[data-min="1040"] .dt-cell[data-align="center"] .dt-empty { margin-inline: auto; }
+  .dt-row[data-min="1040"] .dt-cell[data-align="end"] .dt-value > [data-kind="chip"] { margin-right: -9px; }
+  .dt-row[data-min="1040"] .dt-lean { margin-left: -11px; }
+  .dt-row[data-min="1040"] .dt-ghost { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: nowrap; font-size: 0.75rem; font-weight: 600; line-height: 1rem; }
   .dt-row[data-min="1040"] .dt-card-only { display: none; }
   .dt-row[data-min="1040"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="1040"] .dt-cell[data-actions="true"] { margin-top: 0; }

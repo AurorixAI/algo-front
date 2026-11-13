@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 /**
  * DataTable (design system, wave 3): ONE frame for every list of rows of the platform - the header, the grid of the rows, the cards on a narrow place.
  *
- * - The columns are declared once: `{ key, header, align, width }`.  The header and every row use the same grid template and the same padding, so a header and its cells share one left edge.
+ * - The columns are declared once: `{ key, header, align, width }`.  ONE grid for the whole table (CSS subgrid): the frame owns the columns, the header and every row take them over, so a column is as wide as its longest value over ALL the rows and a header and its cells share one edge.
  * - Alignment: text and names LEFT (`start`), money and numbers RIGHT (`end`, `tabular-nums`, the header over them is right too), short status / date columns `center` only when asked; the action column is RIGHT and has no header text.
  * - Rows are one height by their content; the cells are vertically centred (`align="start"` for rows of several lines).
  * - Where the place is narrower than `minWidth` (the width of the TABLE itself, not of the screen: the sidebar takes 240 px) the rows become cards: the first column is the title, a cell with a
@@ -26,7 +26,7 @@ export interface DataColumn {
   /** The header text; "" for the action column (read as «Действия» by a screen reader). */
   header: ReactNode;
   align?: DataAlign;
-  /** A CSS grid track: `minmax(0, 1.2fr)`, `132px` ... */
+  /** A CSS grid track of the ONE grid of the table: `max-content` (a short column: money, a status, a date, the buttons - as wide as its longest value over every row), `minmax(8rem, 2fr)` (a free column: names, groups - it takes what is left and wraps by words; give it a minimum). */
   width: string;
   /** The label of the cell in a CARD; none = the value stands alone (the title of the card). */
   cardLabel?: string;
@@ -40,6 +40,8 @@ export interface DataColumn {
 
 interface Ctx { columns: readonly DataColumn[]; minWidth: DataMinWidth; align: "center" | "start"; compact: boolean }
 const TableContext = createContext<Ctx | null>(null);
+/** The column of the cell that is being drawn (the sign of an empty value reads its heading to stand under the centre of it). */
+const CellColumnContext = createContext<DataColumn | null>(null);
 
 const ALIGN_ATTR: Record<DataAlign, string> = { start: "start", center: "center", end: "end" };
 
@@ -175,12 +177,23 @@ export function DataCell({ col, children, className, testId, title }: { col: str
   return (
     <div className={cn("dt-cell", className)} data-col={col} data-align={ALIGN_ATTR[align]} data-actions={column?.actions ? "true" : undefined} data-labelled={column?.cardLabel ? "true" : undefined} data-testid={testId} title={title}>
       {column?.cardLabel ? <span className="dt-label">{column.cardLabel}</span> : null}
-      <div className="dt-value">{children}</div>
+      <CellColumnContext.Provider value={column ?? null}><div className="dt-value">{children}</div></CellColumnContext.Provider>
     </div>
   );
 }
 
-/** The sign of an empty value («—»): in a table it stands in the CENTRE of its column, under the centre of the heading, whatever the alignment of the values (it is not a number: no digit alignment). */
+/**
+ * The sign of an empty value («—»): in a table it stands under the CENTRE of its heading, whatever the alignment of the values (it is not a number: no digit alignment).
+ * A column is as wide as its longest value, so the heading can be narrower than the column; an invisible copy of the heading (`dt-ghost`, the width of the heading text and
+ * of its sort / hint icon) gives the sign a box of exactly the heading's width, which `.dt-empty` centres the sign in and sets to the same edge as the heading.
+ */
 export function DataEmpty({ testId }: { testId?: string }) {
-  return <span className="dt-empty" data-testid={testId}>—</span>;
+  const column = useContext(CellColumnContext);
+  const ghost = column && typeof column.header === "string" && column.header ? column.header : null;
+  return (
+    <span className="dt-empty" data-testid={testId}>
+      {ghost && <span className="dt-ghost" aria-hidden="true">{ghost}{(column?.sortKey || column?.hint) && <span className="inline-block w-[18px]" />}</span>}
+      —
+    </span>
+  );
 }

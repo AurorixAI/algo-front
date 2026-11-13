@@ -150,7 +150,7 @@ test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three mo
   assert.match(L.STATEMENT_ALIGN.money, /tabular-nums/);
   const src = read("src/components/payments/statement-view.tsx");
   const cols = src.match(/const STATEMENT_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
-  assert.match(cols, /key: "date", header: "Дата", width: "6\.5rem"/);
+  assert.match(cols, /key: "date", header: "Дата", width: "max-content"/);
   assert.match(cols, /key: "operation", header: "Операция"/);
   for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"], ["balance", "Остаток"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "end"`), word);
   const { React, html } = renderer();

@@ -222,7 +222,7 @@ const TABLE_FACTS = `(() => {
     for (let i = 1; i < cells.length; i++) gaps.push(Math.round(cells[i].getBoundingClientRect().left - cells[i - 1].getBoundingClientRect().right));
     for (const dash of row.querySelectorAll(".dt-empty")) {
       const head = document.querySelector('.dt-head [data-col="' + dash.closest(".dt-cell").dataset.col + '"]');
-      const r = document.createRange(); r.selectNodeContents(dash); const d = r.getBoundingClientRect(), h = head.getBoundingClientRect();
+      const r = document.createRange(); r.selectNodeContents(dash); const hr = document.createRange(); hr.selectNodeContents(head); const d = r.getBoundingClientRect(), h = hr.getBoundingClientRect();
       dashes.push({ col: head.dataset.col, off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) });
     }
   }
@@ -267,13 +267,116 @@ test("1280 and 1024: «Оплаты» - «Цена в месяц» ends 24 px or
       const row = document.querySelector(".dt-row"), price = row.querySelector('[data-col="price"]'), chip = row.querySelector('[data-col="status"] [data-kind]') || row.querySelector('[data-col="status"] span');
       const r = document.createRange(); r.selectNodeContents(price.querySelector(".dt-value")); const text = r.getBoundingClientRect();
       const dash = row.querySelector('[data-col="last"] .dt-empty'), head = document.querySelector('.dt-head [data-col="last"]'), dr = document.createRange(); dr.selectNodeContents(dash);
-      const d = dr.getBoundingClientRect(), h = head.getBoundingClientRect();
-      return { table: getComputedStyle(row).display === "grid", gap: chip.getBoundingClientRect().left - text.right, off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) };
+      const hr = document.createRange(); hr.selectNodeContents(head); const d = dr.getBoundingClientRect(), h = hr.getBoundingClientRect();
+      return { table: getComputedStyle(row).display === "grid", gap: (() => { const cr = document.createRange(); cr.selectNodeContents(chip); return cr.getBoundingClientRect().left - text.right; })(), off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) };
     });
     if (process.env.DT_LOG) console.log("DTLOG-PAY", width, f.gap.toFixed(1), f.off.toFixed(2));
     assert.ok(f.table, `${width}: a table`);
-    assert.ok(f.gap >= 24, `${width}: the sum ends ${f.gap.toFixed(1)} px before the status`);
+    assert.ok(f.gap >= 24, `${width}: the sum ends ${f.gap.toFixed(1)} px before the TEXT of the status (the fill of a chip leans 9 px into the gap)`);
     assert.ok(f.off <= 2, `${width}: «—» is ${f.off.toFixed(1)} px off the centre of «Последняя оплата»`);
     await page.close();
   }
+});
+
+// ---- owner's stage walk (12.11): on REAL data the header did not match the columns and the cells overlapped (every row was a grid of its own).  ONE grid for the whole table; measured for EVERY column of EVERY screen ----
+const R = require("./helpers/real-life-fixture.cjs");
+const GRID_PROBE = `(() => {
+  const vis = (r) => r.width > 0.5 && r.height > 0.5;
+  const clipTo = (rect, node, stop) => { let out = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; for (let el = node.parentElement; el && el !== stop; el = el.parentElement) { const st = getComputedStyle(el); if (st.overflowX !== "visible") { const b = el.getBoundingClientRect(); out = { left: Math.max(out.left, b.left), right: Math.min(out.right, b.right), top: out.top, bottom: out.bottom }; } } return out; };
+  const ink = (root) => {
+    const boxes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) { if (!n.textContent.trim() || n.parentElement.closest(".sr-only, .dt-ghost")) continue; const r = document.createRange(); r.selectNodeContents(n); for (const q of r.getClientRects()) if (vis(q)) boxes.push(clipTo(q, n, root.parentElement)); }
+    for (const e of root.querySelectorAll('button, svg, img, input, [role="progressbar"], progress, .rounded-full:not([data-kind])')) { if (e.closest(".sr-only, .dt-ghost, [data-kind]")) continue; const q = e.getBoundingClientRect(); if (vis(q)) boxes.push(q); }
+    return boxes.length ? { left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)) } : null;
+  };
+  const bad = [], seen = { tables: 0, cells: 0, dashes: 0, cols: 0 };
+  for (const table of document.querySelectorAll(".dt")) {
+    const head = table.querySelector(".dt-head");
+    if (!head || getComputedStyle(head).display !== "grid") continue;
+    seen.tables++;
+    const name = table.dataset.testid || "table";
+    const heads = [...head.querySelectorAll(":scope > .dt-head-cell")];
+    const rows = [...table.querySelectorAll(".dt-body .dt-row:not(.dt-row-span)")].filter((row) => getComputedStyle(row).display === "grid");
+    const headBox = heads.map((h) => h.getBoundingClientRect());
+    const headInk = heads.map((h) => ink(h));
+    seen.cols += heads.length;
+    rows.forEach((row, ri) => {
+      const label = name + " row " + (ri + 1);
+      const cells = [...row.querySelectorAll(":scope > .dt-cell")];
+      if (cells.length !== heads.length) { bad.push(label + ": " + cells.length + " cells for " + heads.length + " columns"); return; }
+      if (row.scrollWidth > row.clientWidth + 1) bad.push(label + ": the row scrolls sideways");
+      let prev = null;
+      cells.forEach((cell, ci) => {
+        const col = heads[ci].dataset.col, hb = headBox[ci], cb = cell.getBoundingClientRect();
+        seen.cells++;
+        if (Math.abs(hb.left - cb.left) > 1 || Math.abs(hb.right - cb.right) > 1) bad.push(label + " / " + col + ": the column of the header is " + Math.round(hb.left) + "–" + Math.round(hb.right) + ", of the cell " + Math.round(cb.left) + "–" + Math.round(cb.right));
+        const content = ink(cell), dash = cell.querySelector(".dt-empty");
+        if (content) {
+          if (content.left < hb.left - 1 || content.right > hb.right + 1) bad.push(label + " / " + col + ": the content leaves its column (" + Math.round(content.left) + "–" + Math.round(content.right) + " in " + Math.round(hb.left) + "–" + Math.round(hb.right) + ")");
+          const align = heads[ci].dataset.align, hi = headInk[ci];
+          if (dash) {
+            seen.dashes++;
+            const d = ink(dash);
+            if (hi && d) { const off = Math.abs((d.left + d.right) / 2 - (hi.left + hi.right) / 2); if (off > 2) bad.push(label + " / " + col + ": «—» is " + off.toFixed(1) + " px off the centre of its heading"); }
+          } else if (hi) {
+            if (align === "start" && Math.abs(hi.left - content.left) > 1) bad.push(label + " / " + col + ": the left edge of the heading is " + Math.round(hi.left) + ", of the content " + Math.round(content.left));
+            if (align === "end" && Math.abs(hi.right - content.right) > 1) bad.push(label + " / " + col + ": the right edge of the heading is " + Math.round(hi.right) + ", of the content " + Math.round(content.right));
+          }
+          if (prev && content.left - prev.right < 23.9) bad.push(label + " / " + col + ": only " + (content.left - prev.right).toFixed(1) + " px from the previous column");
+          prev = content;
+        }
+      });
+    });
+  }
+  return { bad, seen, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+})()`;
+const REAL_SCREENS = [
+  { name: "payments-real", entry: "money-b.entry.tsx", server: R.paymentsRealServer, mount: "payments", props: { refresh: true, search: "bucket=debtors" }, wait: ".dt-row", ready: () => document.querySelectorAll(".dt-row").length >= 5, shots: "payments-real" },
+  { name: "roster-real", entry: "ds.entry.tsx", server: () => null, mount: "roster", props: { students: R.STUDENTS_REAL }, wait: ".dt-row", shots: "roster-real" },
+  { name: "income-groups-real", entry: "ds.entry.tsx", server: () => null, mount: "collection", props: { collection: R.COLLECTION_REAL }, wait: ".dt-row", shots: "income-groups-real" },
+];
+const setPage = (page, pad, shot) => page.evaluate(([padding, name, props, search]) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = padding ? `0 32px 0 ${padding + 32}px` : "0 16px"; if (search) window.__search = search; window.mount(name, { role: "owner", org_role: "owner" }, props); }, [pad, shot.mount, shot.props, shot.search]);
+const gridCheck = (facts, label, needTable) => {
+  assert.deepEqual(facts.bad, [], `${label}: ${facts.bad.slice(0, 8).join(" | ")}`);
+  assert.equal(facts.scroll, 0, "no horizontal scroll");
+  if (needTable) { assert.ok(facts.seen.tables >= 1 && facts.seen.cells >= 6, `${label}: something was measured ${JSON.stringify(facts.seen)}`); }
+};
+// the sidebar: 240 px at 1280 (a table of 976 px); at 1024 the menu is folded (a table of 992 px)
+for (const [width, pad] of [[1280, 240], [1024, 0]]) {
+  for (const shot of [...SHOTS, ...REAL_SCREENS]) {
+    test(`${width}: «${shot.name}» - every column: the heading and the cells have one left (right) edge ±1 px, 24 px between the contents, nothing leaves its column, «—» under the centre of the heading`, async () => {
+      const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
+      if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
+      await setPage(page, pad, shot);
+      await page.waitForSelector(shot.wait, WAIT);
+      if (shot.ready) await page.waitForFunction(shot.ready, null, WAIT);
+      await page.waitForTimeout(400);
+      const facts = await page.evaluate(GRID_PROBE);
+      const lines = await page.evaluate(PROBE);
+      if (process.env.DT_SHOTS && shot.shots) await page.screenshot({ path: path.join(process.env.DT_SHOTS, `${shot.shots}-${width}.png`), fullPage: true });
+      if (process.env.DT_LOG) console.log("GRIDLOG", width, shot.name, JSON.stringify(facts.seen), facts.bad.length);
+      gridCheck(facts, `${shot.name} ${width}`, !["statement", "excuses"].includes(shot.name) || facts.seen.tables > 0);
+      assert.deepEqual(lines.bad, [], `${shot.name} ${width}: ${lines.bad.join("; ")}`);
+      if (shot.name.endsWith("-real")) assert.ok(facts.seen.tables === 1 && facts.seen.dashes >= (shot.name === "payments-real" ? 2 : 0), `${shot.name} ${width}: a table with real data stays a table ${JSON.stringify(facts.seen)}`);
+      await page.close();
+    });
+  }
+}
+test("1280: «Оплаты» on real data - the long group name wraps by words INSIDE its column, the name, the sums and the chips keep one column grid", async () => {
+  const { page } = await openPage(browser, "money-b.entry.tsx", R.paymentsRealServer, { width: 1280, height: 900 });
+  await setPage(page, 240, REAL_SCREENS[0]);
+  await page.waitForFunction(() => document.querySelectorAll(".dt-row").length >= 5, null, WAIT);
+  const f = await page.evaluate(() => {
+    const row = (txt) => [...document.querySelectorAll(".dt-body .dt-row")].find((r) => r.textContent.includes(txt));
+    const g = row("Ученик 1 Б-тест").querySelector('[data-col="group"] a'), gb = g.closest(".dt-cell").getBoundingClientRect();
+    const r = document.createRange(); r.selectNodeContents(g);
+    const tracks = [...document.querySelectorAll(".dt-head > .dt-head-cell")].map((c) => Math.round(c.getBoundingClientRect().width));
+    const rowTracks = [...row("Тошматов").querySelectorAll(":scope > .dt-cell")].map((c) => Math.round(c.getBoundingClientRect().width));
+    return { lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top / 4))).size, inside: r.getBoundingClientRect().right <= gb.right + 1, tracks, rowTracks };
+  });
+  assert.ok(f.lines >= 2, "«Подготовка к экзамену 9 класс» wraps into lines");
+  assert.ok(f.inside, "the wrapped name stays in its column");
+  assert.deepEqual(f.tracks, f.rowTracks, "the header and a row have the same column widths");
+  await page.close();
 });

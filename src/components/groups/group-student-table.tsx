@@ -88,12 +88,12 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
   }
 
   const columns: DataColumn[] = [
-    { key: "name", header: "Ученик", width: "minmax(0,1.7fr)", sortKey: "name" },
-    { key: "display_id", header: "ID ученика", width: "minmax(7.5rem,0.9fr)", cardLabel: "ID ученика", sortKey: "display_id" },
-    { key: "class_level", header: "Класс", width: "minmax(4.5rem,0.5fr)", cardLabel: "Класс", sortKey: "class_level" },
-    { key: "phone", header: "Телефон", width: "minmax(9rem,0.9fr)", cardLabel: "Телефон", sortKey: "phone" },
-    { key: "joined_at", header: "Дата зачисления", width: "minmax(7.5rem,0.8fr)", cardLabel: "Дата зачисления", sortKey: "joined_at" },
-    ...(removable ? [{ key: "actions", header: "", align: "end", width: "2.5rem", actions: true } as DataColumn] : []),
+    { key: "name", header: "Ученик", width: "minmax(8rem,1fr)", sortKey: "name" },
+    { key: "display_id", header: "ID ученика", width: "max-content", cardLabel: "ID ученика", sortKey: "display_id" },
+    { key: "class_level", header: "Класс", width: "max-content", cardLabel: "Класс", sortKey: "class_level" },
+    { key: "phone", header: "Телефон", width: "max-content", cardLabel: "Телефон", sortKey: "phone" },
+    { key: "joined_at", header: "Дата зачисления", width: "max-content", cardLabel: "Дата зачисления", sortKey: "joined_at" },
+    ...(removable ? [{ key: "actions", header: "", align: "end", width: "max-content", actions: true } as DataColumn] : []),
   ];
   const name = (s: StudentInGroup) => s.full_name || `${s.last_name} ${s.first_name}`;
   return (
