@@ -343,7 +343,7 @@ export function isTransientApiError(error: unknown): boolean {
 }
 
 /** `AbortSignal.timeout` where it exists, an AbortController timer elsewhere; `done` clears the timer. */
-function timeoutSignal(ms: number): { signal: AbortSignal | undefined; done: () => void } {
+export function timeoutSignal(ms: number): { signal: AbortSignal | undefined; done: () => void } {
   if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
     return { signal: AbortSignal.timeout(ms), done: () => {} };
   }
@@ -573,7 +573,7 @@ async function previewExamPrintPdf(
 
 /** Fetch wrapper for diagnostic-service: see ApiAudience for what `audience` changes. */
 async function diagServiceApi<T>(endpoint: string, audience: ApiAudience, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body, inviteCode } = options;
+  const { method = "GET", body, inviteCode, signal } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -584,7 +584,7 @@ async function diagServiceApi<T>(endpoint: string, audience: ApiAudience, option
 
   const response = await fetchService(
     `${DIAG_API_V1}${endpoint}`,
-    { method, headers, credentials: "include", cache: "no-store", body: body ? JSON.stringify(body) : undefined },
+    { method, headers, credentials: "include", cache: "no-store", body: body ? JSON.stringify(body) : undefined, ...(signal ? { signal } : {}) },
     audience,
   );
 
@@ -2239,8 +2239,8 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
 // ============================================================================
 
 export const diagnosticInviteApi = {
-  getInfo: (code: string) =>
-    api<any>(`/auth/diagnostic/${encodePathId(code)}`, { noAuth: true }),
+  getInfo: (code: string, signal?: AbortSignal) =>
+    api<any>(`/auth/diagnostic/${encodePathId(code)}`, { noAuth: true, signal }),
   confirm: (code: string) =>
     api<any>(`/auth/diagnostic/${encodePathId(code)}/confirm`, {
       method: "POST",
@@ -2298,10 +2298,10 @@ export interface ResolvedDiagnosticSession {
 }
 
 export const diagnosticApi = {
-  resolveSession: (inviteCode: string) =>
+  resolveSession: (inviteCode: string, signal?: AbortSignal) =>
     diagServiceApi<ResolvedDiagnosticSession>(
       // the invite code is a capability: in a header (like `answer`), not in the URL (history, proxy logs)
-      "/diagnostic/sessions/by-invite", "student", { inviteCode },
+      "/diagnostic/sessions/by-invite", "student", { inviteCode, signal },
     ),
   createSession: (data: {
     student_id: string;

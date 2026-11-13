@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +10,7 @@ interface QuestionCardProps {
   children: ReactNode;
   /** Optional metadata area (bounds, hints) below the question */
   meta?: ReactNode;
-  /** Unique key for AnimatePresence transitions */
+  /** Unique key: a new key shows the next question */
   questionKey?: string;
   className?: string;
 }
@@ -22,17 +21,11 @@ interface QuestionCardProps {
  */
 export function QuestionCard({ topic, children, meta, questionKey, className }: QuestionCardProps) {
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
+    // The next question is shown at once; the fade-in is a CSS keyframe (the card is fully visible without any frame).
+    <div
         key={questionKey}
-        initial={{ opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, x: -120, scale: 0.9, filter: "blur(12px)" }}
-        transition={{
-          enter: { duration: 0.8, ease: [0.34, 1.56, 0.64, 1], delay: 0.15 },
-          exit: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
-        }}
         className={cn(
+          "animate-scale-in",
           "glass-panel rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 text-center",
           "shadow-[0_12px_32px_-8px_rgba(0,0,0,0.08)] relative overflow-hidden",
           "bg-gradient-to-b from-white to-white/90",
@@ -60,7 +53,6 @@ export function QuestionCard({ topic, children, meta, questionKey, className }: 
             {meta}
           </div>
         )}
-      </motion.div>
-    </AnimatePresence>
+    </div>
   );
 }

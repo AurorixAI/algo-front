@@ -124,5 +124,5 @@ test("the answer type and the task type hold no result and no internal field of 
 test("the resume lookup sends the invite code in a header, never in the URL", async () => {
   const api = read("src/lib/api.ts");
   assert.doesNotMatch(api, /by-invite\?invite_code|invite_code=\$\{/);
-  assert.match(api, /"\/diagnostic\/sessions\/by-invite", "student", \{ inviteCode \}/);
+  assert.match(api, /"\/diagnostic\/sessions\/by-invite", "student", \{ inviteCode, signal \}/);
 });

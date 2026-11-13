@@ -660,10 +660,10 @@ export default function ExamPage() {
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
         <TestBackground />
         <div className="relative z-10 h-full flex items-center justify-center">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
+          <div className="text-center animate-fade-in">
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
             <p className="text-slate-500 font-medium">Загрузка экзамена...</p>
-          </motion.div>
+          </div>
         </div>
       </div>
     );
@@ -690,7 +690,7 @@ export default function ExamPage() {
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
         <TestBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+          <div className="w-full max-w-md animate-slide-up">
             <GlassCard variant="panel" className="p-8 md:p-12 text-center" glow>
               <div
                 className={`w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center ${
@@ -709,7 +709,7 @@ export default function ExamPage() {
                 </Button>
               </Link>
             </GlassCard>
-          </motion.div>
+          </div>
         </div>
       </div>
     );
@@ -724,11 +724,8 @@ export default function ExamPage() {
         {/* ═══════════════ LOBBY ═══════════════ */}
         {(phase === "lobby" || phase === "starting") && examInfo && (
           <div className="flex-1 flex items-center justify-center p-4 py-8">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="w-full max-w-md"
+            <div
+              className="w-full max-w-md animate-slide-up"
             >
               <GlassCard variant="panel" className="p-7 md:p-9 relative overflow-hidden" glow>
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500 via-indigo-500 to-primary-500 opacity-70" />
@@ -753,10 +750,8 @@ export default function ExamPage() {
 
                 {/* Already Submitted Banner */}
                 {alreadySubmitted && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-emerald-50/95 border border-emerald-300 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
+                  <div
+                    className="animate-fade-in p-4 bg-emerald-50/95 border border-emerald-300 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
                   >
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
@@ -765,15 +760,13 @@ export default function ExamPage() {
                         Вы уже завершили данный экзамен. Согласно регламенту, повторное прохождение заблокировано.
                       </p>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Warning Banner if verification failed and not submitted */}
                 {groupWarning && !alreadySubmitted && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
+                  <div
+                    className="animate-fade-in p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-card"
                   >
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
@@ -784,7 +777,7 @@ export default function ExamPage() {
                         {rateLimited && limitUntil !== null ? rateLimitText(limitUntil, limitNow, limitFallback) : groupWarning}
                       </p>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Info grid */}
@@ -895,7 +888,7 @@ export default function ExamPage() {
                   </Link>
                 )}
               </GlassCard>
-            </motion.div>
+            </div>
           </div>
         )}
 
@@ -937,7 +930,7 @@ export default function ExamPage() {
                   const formattedSec = remSec.toString().padStart(2, "0");
 
                   return (
-                    <div className="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-card">
+                    <div className="animate-fade-in p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-card">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
@@ -991,11 +984,8 @@ export default function ExamPage() {
         {/* ═══════════════ WAITING ROOM (KAHOOT STYLE) ═══════════════ */}
         {phase === "waiting_room" && examInfo && (
           <div className="flex-1 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="w-full max-w-md"
+            <div
+              className="w-full max-w-md animate-slide-up"
             >
               <GlassCard variant="panel" className="p-8 md:p-10 text-center" glow>
                 <motion.div
@@ -1050,7 +1040,7 @@ export default function ExamPage() {
                   <span>Ожидание синхронного старта...</span>
                 </div>
               </GlassCard>
-            </motion.div>
+            </div>
           </div>
         )}
 
@@ -1202,10 +1192,8 @@ export default function ExamPage() {
         {/* ═══════════════ REVIEW ═══════════════ */}
         {phase === "review" && (
           <div className="flex-1 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full max-w-md"
+            <div
+              className="w-full max-w-md animate-slide-up"
             >
               <GlassCard variant="panel" className="p-8 md:p-10 text-center">
                 <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-amber-100 flex items-center justify-center">
@@ -1249,7 +1237,7 @@ export default function ExamPage() {
                   </Button>
                 </div>
               </GlassCard>
-            </motion.div>
+            </div>
           </div>
         )}
 
@@ -1258,7 +1246,7 @@ export default function ExamPage() {
           <>
             <AnalyzingToast visible={true} text="Отправляем ответы…" />
             <div className="flex-1 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
+              <div className="text-center animate-fade-in">
                 <div className="relative w-20 h-20 mx-auto mb-6 rounded-full overflow-hidden border border-slate-200 bg-slate-100 shadow-inner">
                   <div className="absolute bottom-0 left-0 w-full animate-liquid-rise z-0">
                     <div className="w-full h-20 liquid-bg animate-liquid-pulse opacity-90" />
@@ -1269,7 +1257,7 @@ export default function ExamPage() {
                 <p className="text-slate-500" role="status" aria-live="polite">
                   {retryNotice ?? "Пожалуйста, не закрывайте страницу"}
                 </p>
-              </motion.div>
+              </div>
             </div>
           </>
         )}
@@ -1277,21 +1265,16 @@ export default function ExamPage() {
         {/* ═══════════════ RESULTS ═══════════════ */}
         {phase === "results" && result && (
           <div className="flex-1 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full max-w-lg"
+            <div
+              className="w-full max-w-lg animate-slide-up"
             >
               <GlassCard variant="panel" className="p-8 md:p-10" glow>
                 <div className="text-center">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2, type: "spring" }}
+                  <div
                     className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
                   >
                     <CheckCircle2 className="w-10 h-10 text-white" />
-                  </motion.div>
+                  </div>
 
                   <h2 className="text-2xl font-bold text-slate-900 mb-2">Спасибо за прохождение!</h2>
                   <p className="text-slate-500 mb-2">
@@ -1308,7 +1291,7 @@ export default function ExamPage() {
                   </Link>
                 </div>
               </GlassCard>
-            </motion.div>
+            </div>
           </div>
         )}
       </main>

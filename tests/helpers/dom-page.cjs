@@ -12,10 +12,12 @@ async function launch() { return chromium.launch(); }
 
 /**
  * `answer(request)` -> `{ status?, json? }` for a request of the API; every request is written to `calls` as `{ method, path, query, headers, body }` (`path` without `/api/v1`).
- * Anything not answered is a 404 - the test sees it in `calls`.
+ * `initScript` (a function or a string) is run in the page before any script of it. Anything not answered is a 404 - the test sees it in `calls`.
  */
-async function openPage(browser, entry, answer = () => null, { width = 1280, height = 900 } = {}) {
+async function openPage(browser, entry, answer = () => null, { width = 1280, height = 900, initScript = null } = {}) {
   const page = await browser.newPage({ viewport: { width, height } });
+  // runs BEFORE the page's own scripts (a phone that gives no animation frames, a shortened limit)
+  if (initScript) await page.addInitScript(initScript);
   const calls = [];
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));

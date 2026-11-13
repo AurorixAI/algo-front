@@ -208,7 +208,7 @@ test("the student's entry page: a 200 «cancelled» goes through resolve / resum
   assert.doesNotMatch(page, /isInviteCancelled\(info\.status\)/);
   assert.match(page, /let inviteStatus: string \| undefined;/);
   assert.match(page, /inviteStatus = info\.status;/);
-  assert.match(page, /diagnosticApi\.resolveSession\(code\)/);
+  assert.match(page, /diagnosticApi\.resolveSession\(code, limit\.signal\)/);
   // the end of the page follows the pure decision, in the check ...
   assert.match(page, /setInviteCancelled\(inviteEndsCancelled\(inviteStatus, err\)\);/);
   // ... and in the start of a session (a 410 INVITE_CANCELLED there)

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -622,9 +622,8 @@ export default function NewExamPage() {
             ))}
           </div>
 
-          <AnimatePresence mode="wait">
             {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div key="step1" className="animate-slide-up">
                 <GlassCard className="p-10 pb-10">
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-100 flex items-center justify-center">
@@ -681,12 +680,12 @@ export default function NewExamPage() {
                     />
                   </div>
                 </GlassCard>
-              </motion.div>
+              </div>
             )}
 
 
             {step === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div key="step2" className="animate-slide-up">
                 <GlassCard className="p-8">
                   <div className="text-center mb-6">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-purple-100 flex items-center justify-center">
@@ -853,11 +852,11 @@ export default function NewExamPage() {
                     </div>
                   )}
                 </GlassCard>
-              </motion.div>
+              </div>
             )}
 
             {step === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div key="step3" className="animate-slide-up">
                 <div className="space-y-4 max-w-2xl mx-auto">
                   {/* ── Section: Core Parameters ── */}
                   <GlassCard className="p-6">
@@ -1014,11 +1013,11 @@ export default function NewExamPage() {
                     </div>
                   </GlassCard>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {step === 4 && (
-              <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div key="step4" className="animate-slide-up">
                 <GlassCard className="p-6 sm:p-10">
                   <div className="text-center mb-8">
                     <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-card">
@@ -1273,9 +1272,8 @@ export default function NewExamPage() {
                     </div>
                   </div>
                 </GlassCard>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           {step <= 4 && (
             <div className="flex justify-between mt-6">

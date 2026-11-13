@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -34,13 +33,17 @@ import {
   notCheckedMessage,
   type NotCheckedStreak,
 } from "@/lib/diagnostic-not-checked";
-import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult } from "@/lib/api";
+import { ApiError, diagnosticApi, diagnosticInviteApi, timeoutSignal, type DiagTaskOut, type DiagAnswerResult } from "@/lib/api";
 import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, inviteEndsCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
+
+/** How long the first check of the invite may take before the student gets the error screen with «retry». */
+const INVITE_CHECK_LIMIT_MS = 20_000;
+const INVITE_CHECK_TIMEOUT_MESSAGE = "Не удалось открыть диагностику. Проверьте связь и повторите.";
 
 type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "results" | "error";
 
@@ -246,8 +249,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const checkInvite = async (offerResume = true, recoveringAnswer = false) => {
     const epoch = requestEpochRef.current;
     let inviteStatus: string | undefined;
+    // A request that never answers (a dead socket on a phone) must not keep the spinner for good: one limit for the whole check.
+    const limit = timeoutSignal(INVITE_CHECK_LIMIT_MS);
     try {
-      const info = await diagnosticInviteApi.getInfo(code);
+      const info = await diagnosticInviteApi.getInfo(code, limit.signal);
       if (epoch !== requestEpochRef.current) return;
       inviteStatus = info.status;
       setInviteInfo(info);
@@ -259,7 +264,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         return;
       }
       try {
-        const resolved = await diagnosticApi.resolveSession(code);
+        const resolved = await diagnosticApi.resolveSession(code, limit.signal);
         if (epoch !== requestEpochRef.current) return;
         if (resolved.status === "completed") {
           diagStore.restoreCompleted(resolved.session_id);
@@ -298,11 +303,20 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       }
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
+      if (limit.signal?.aborted) {
+        setInviteCancelled(false);
+        setCanRetry(true);
+        setErrorMsg(INVITE_CHECK_TIMEOUT_MESSAGE);
+        setPhase("error");
+        return;
+      }
       // Nothing to resume of a cancelled invite (410 INVITE_CANCELLED, or no session of it) ends on «Приглашение отменено».
       setInviteCancelled(inviteEndsCancelled(inviteStatus, err));
       setCanRetry(!(err instanceof ApiError) || ![403, 404, 410].includes(err.status));
       setErrorMsg(err?.message || "Не удалось проверить состояние диагностики. Проверьте подключение и повторите проверку.");
       setPhase("error");
+    } finally {
+      limit.done();
     }
   };
 
@@ -365,39 +379,32 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       <TestBackground />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
-        <AnimatePresence mode="wait">
 
           {/* ══════════════════════ LOADING ══════════════════════ */}
           {phase === "loading" && (
-            <motion.div
+            <div
               key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+              className="animate-fade-in flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ CONFIRM NAME ══════════════════════ */}
           {phase === "confirm" && (
-            <motion.div
+            <div
               key="confirm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="w-full max-w-sm">
                 {/* Header */}
-                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
+                <div className="text-center mb-8 animate-slide-down">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30 mx-auto mb-3">
                     <Brain className="w-8 h-8" />
                   </div>
                   <h1 className="text-2xl font-bold text-slate-900">Диагностика ALGO</h1>
                   <p className="text-slate-500 text-sm mt-1">Математическое тестирование</p>
-                </motion.div>
+                </div>
 
                 <GlassCard variant="elevated" className="p-8">
                   <div className="text-center mb-6">
@@ -428,31 +435,25 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </Button>
                 </GlassCard>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ RESUME ══════════════════════ */}
           {phase === "resume" && activeSession && (
-            <motion.div
+            <div
               key="resume"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="w-full max-w-sm">
                 <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-40" />
 
                   <div className="text-center mb-6">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                    <div
                       className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
                     >
                       <Clock className="w-8 h-8 text-white" />
-                    </motion.div>
+                    </div>
                     <h1 className="text-xl font-bold text-slate-900 mb-1.5">Незавершённая диагностика</h1>
                     <p className="text-slate-500 text-sm">
                       Вы остановились на вопросе{" "}
@@ -474,11 +475,9 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       <span>{Math.round((activeSession.items_answered / activeItemsMax) * 100)}%</span>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.round((activeSession.items_answered / activeItemsMax) * 100)}%` }}
-                        transition={{ duration: 0.6, delay: 0.3 }}
-                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
+                      <div
+                        style={{ width: `${Math.round((activeSession.items_answered / activeItemsMax) * 100)}%` }}
+                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full transition-[width] duration-500"
                       />
                     </div>
                   </div>
@@ -510,31 +509,25 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </p>
                 </GlassCard>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ WELCOME ══════════════════════ */}
           {phase === "welcome" && (
-            <motion.div
+            <div
               key="welcome"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="w-full max-w-sm">
                 <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-40" />
 
                   <div className="text-center mb-6">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                    <div
                       className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30"
                     >
                       <Sparkles className="w-8 h-8 text-white" />
-                    </motion.div>
+                    </div>
                     <h1 className="text-2xl font-bold text-slate-900 mb-1">
                       {inviteInfo?.student_first_name ? `Привет, ${inviteInfo.student_first_name}!` : "Диагностика"}
                     </h1>
@@ -577,17 +570,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </p>
                 </GlassCard>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ TESTING ══════════════════════ */}
           {phase === "testing" && currentTask && (
-            <motion.div
+            <div
               key="testing"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col w-full"
+              className="animate-fade-in flex-1 flex flex-col w-full"
             >
               <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-card">
                 <TestHeader
@@ -673,17 +663,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   )}
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ LOADING (no task yet) ══════════════════════ */}
           {phase === "testing" && !currentTask && (
-            <motion.div
+            <div
               key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center"
+              className="animate-fade-in flex-1 flex items-center justify-center"
             >
               <GlassCard variant="panel" className="p-12 text-center">
                 <div className="relative w-16 h-16 mx-auto mb-4">
@@ -692,16 +679,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                 </div>
                 <p className="text-slate-600">Загрузка задания...</p>
               </GlassCard>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ RESULTS — the test is over, nothing of the result is shown ══════════════════════ */}
           {phase === "results" && (
-            <motion.div
+            <div
               key="results"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex-1 flex items-center justify-center p-4"
+              className="animate-slide-up flex-1 flex items-center justify-center p-4"
             >
               <div className="w-full max-w-md">
                 <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
@@ -709,54 +694,39 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
                   {/* Success icon */}
                   <div className="text-center mb-6">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
+                    <div
                       className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
                     >
                       <CheckCircle className="w-10 h-10 text-white" />
-                    </motion.div>
+                    </div>
 
-                    <motion.h2
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    <h2
                       className="text-2xl font-bold text-slate-900 mb-2"
                     >
                       Тест завершён
-                    </motion.h2>
+                    </h2>
 
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.6 }}
+                    <p
                       className="text-slate-500"
                     >
                       Ответы сохранены — результаты увидит преподаватель.
-                    </motion.p>
+                    </p>
                   </div>
 
                   {/* The test took this long (the server's sum); no number, no card */}
                   {elapsedMs > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.7 }}
+                    <div
                       className="mb-6"
                     >
                       <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
                         <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
                         <p className="text-xs text-slate-500">Затраченное время</p>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
 
                   {/* CTA */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1.1 }}
+                  <div
                   >
                     <Button
                       size="lg"
@@ -769,23 +739,21 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     >
                       На главную
                     </Button>
-                  </motion.div>
+                  </div>
 
                   <p className="text-xs text-center text-slate-500 mt-4">
                     Код диагностики: <span className="font-mono">{code}</span>
                   </p>
                 </GlassCard>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ══════════════════════ ERROR ══════════════════════ */}
           {phase === "error" && (
-            <motion.div
+            <div
               key="error"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex-1 flex items-center justify-center p-4"
+              className="animate-slide-up flex-1 flex items-center justify-center p-4"
             >
               <div className="w-full max-w-md">
                 <GlassCard variant="panel" className="p-8 md:p-10 text-center">
@@ -825,10 +793,9 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </div>
                 </GlassCard>
               </div>
-            </motion.div>
+            </div>
           )}
 
-        </AnimatePresence>
       </main>
     </div>
   );
