@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,11 +69,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
+        <div className="text-center mb-8 animate-slide-down">
           <Link href="/" className="inline-flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-2xl bg-primary-500 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
               <span className="text-2xl font-bold">∫</span>
@@ -82,14 +77,10 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold text-slate-900">ALGO</h1>
           </Link>
           <p className="text-slate-500 text-sm">Войдите в свой аккаунт</p>
-        </motion.div>
+        </div>
 
         {/* Main login card */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-        >
+        <div className="animate-slide-up">
           <GlassCard variant="elevated" className="p-8 [contain:paint]">
             {/* Error message */}
             {errorMessage && (
@@ -149,7 +140,7 @@ export default function LoginPage() {
               </Button>
             </div>
           </GlassCard>
-        </motion.div>
+        </div>
 
         {/* Footer hint — the same for everyone: the page does not know the role before the password */}
         <p className="text-center mt-6 text-sm text-slate-500 [text-wrap:balance]">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,7 +112,7 @@ export default function InviteAcceptPage() {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
+        <div className="text-center mb-8 animate-slide-down">
           <Link href="/" className="inline-flex items-center gap-3 mb-4">
             <div className="w-14 h-14 rounded-2xl bg-primary-500 flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
               <span className="text-3xl font-bold">∫</span>
@@ -121,10 +120,10 @@ export default function InviteAcceptPage() {
             <h1 className="text-4xl font-bold text-slate-900">ALGO</h1>
           </Link>
           <p className="text-slate-500">Вас пригласили в организацию</p>
-        </motion.div>
+        </div>
 
         {inviteInfo && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+          <div className="mb-4 animate-fade-in">
             <div className="flex items-center gap-3 p-4 bg-primary-50 border border-primary-100 rounded-xl">
               <Building2 className="w-5 h-5 text-primary-600" />
               <div>
@@ -139,10 +138,10 @@ export default function InviteAcceptPage() {
                 {returningIntroText(inviteInfo.org_name)}
               </p>
             )}
-          </motion.div>
+          </div>
         )}
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <div className="animate-slide-up">
           <GlassCard variant="elevated" className="p-8">
             {displayError && (
               <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -210,7 +209,7 @@ export default function InviteAcceptPage() {
               </Button>
             </div>
           </GlassCard>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -893,93 +893,87 @@ export default function ExamPage() {
         )}
 
         {/* ═══════════════ LATE JOIN / START CONFIRMATION MODAL ═══════════════ */}
-        <AnimatePresence>
-          {showStartConfirm && examInfo && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.94, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: 10 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/90 text-left relative overflow-hidden"
-              >
-                {/* Decorative Top Accent Bar */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500" />
+        {showStartConfirm && examInfo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <div
+              className="animate-scale-in w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/90 text-left relative overflow-hidden"
+            >
+              {/* Decorative Top Accent Bar */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500" />
 
-                {/* Header Icon Badge & Title */}
-                <div className="flex items-center gap-3.5 mb-4">
-                  <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/90 flex items-center justify-center shrink-0 shadow-card">
-                    <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">Экзамен уже начался!</h3>
-                    <p className="text-xs text-slate-500 font-medium">Преподаватель запустил тестирование группы</p>
-                  </div>
+              {/* Header Icon Badge & Title */}
+              <div className="flex items-center gap-3.5 mb-4">
+                <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/90 flex items-center justify-center shrink-0 shadow-card">
+                  <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
                 </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Экзамен уже начался!</h3>
+                  <p className="text-xs text-slate-500 font-medium">Преподаватель запустил тестирование группы</p>
+                </div>
+              </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed mb-5">
-                  Вы подключаетесь к уже идущему тестированию. Поспешите приступить к выполнению заданий.
-                </p>
+              <p className="text-xs text-slate-600 leading-relaxed mb-5">
+                Вы подключаетесь к уже идущему тестированию. Поспешите приступить к выполнению заданий.
+              </p>
 
-                {/* Live Remaining Time Highlight Card */}
-                {(() => {
-                  const rem = liveRemainingSec !== null ? liveRemainingSec : (examInfo.time_remaining_seconds || examInfo.total_time_minutes * 60);
-                  const remMin = Math.floor(rem / 60);
-                  const remSec = rem % 60;
-                  const formattedMin = remMin.toString().padStart(2, "0");
-                  const formattedSec = remSec.toString().padStart(2, "0");
+              {/* Live Remaining Time Highlight Card */}
+              {(() => {
+                const rem = liveRemainingSec !== null ? liveRemainingSec : (examInfo.time_remaining_seconds || examInfo.total_time_minutes * 60);
+                const remMin = Math.floor(rem / 60);
+                const remSec = rem % 60;
+                const formattedMin = remMin.toString().padStart(2, "0");
+                const formattedSec = remSec.toString().padStart(2, "0");
 
-                  return (
-                    <div className="animate-fade-in p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-card">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                          Оставшееся время группы
-                        </span>
-                      </div>
+                return (
+                  <div className="animate-fade-in p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                        Оставшееся время группы
+                      </span>
+                    </div>
 
-                      {/* Prominent Digital Countdown Box */}
-                      <div className="flex items-center justify-center py-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-card">
-                        <div className="flex items-baseline gap-1 font-mono">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">{formattedMin}</span>
-                          <span className="text-xs font-sans font-bold text-slate-500 mr-2">мин</span>
-                          <span className="text-2xl font-bold text-amber-400 mr-2">:</span>
-                          <span className="text-3xl font-black text-amber-600 tracking-tight">{formattedSec}</span>
-                          <span className="text-xs font-sans font-bold text-amber-600">сек</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2 pt-0.5">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
-                          Время идёт непрерывно для всех учеников одновременно. Таймер не останавливается при закрытии браузера.
-                        </p>
+                    {/* Prominent Digital Countdown Box */}
+                    <div className="flex items-center justify-center py-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-card">
+                      <div className="flex items-baseline gap-1 font-mono">
+                        <span className="text-3xl font-black text-slate-900 tracking-tight">{formattedMin}</span>
+                        <span className="text-xs font-sans font-bold text-slate-500 mr-2">мин</span>
+                        <span className="text-2xl font-bold text-amber-400 mr-2">:</span>
+                        <span className="text-3xl font-black text-amber-600 tracking-tight">{formattedSec}</span>
+                        <span className="text-xs font-sans font-bold text-amber-600">сек</span>
                       </div>
                     </div>
-                  );
-                })()}
 
-                {/* Modal Action Buttons */}
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setShowStartConfirm(false)}
-                  >
-                    Отмена
-                  </Button>
-                  <Button
-                    className="flex-1 shadow-md shadow-primary-500/20 font-bold"
-                    onClick={() => executeStartExam()}
-                    icon={<ArrowRight className="w-4 h-4" />}
-                  >
-                    Приступить
-                  </Button>
-                </div>
-              </motion.div>
+                    <div className="flex items-start gap-2 pt-0.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
+                        Время идёт непрерывно для всех учеников одновременно. Таймер не останавливается при закрытии браузера.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Modal Action Buttons */}
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowStartConfirm(false)}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  className="flex-1 shadow-md shadow-primary-500/20 font-bold"
+                  onClick={() => executeStartExam()}
+                  icon={<ArrowRight className="w-4 h-4" />}
+                >
+                  Приступить
+                </Button>
+              </div>
             </div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {/* ═══════════════ WAITING ROOM (KAHOOT STYLE) ═══════════════ */}
         {phase === "waiting_room" && examInfo && (

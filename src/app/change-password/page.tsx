@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { Lock, KeyRound, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { authApi, REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
@@ -102,11 +101,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[420px] bg-white rounded-[24px] shadow-xl border border-slate-100 overflow-hidden"
-      >
+      <div className="animate-slide-up w-full max-w-[420px] bg-white rounded-[24px] shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-7">
           <div className="w-12 h-12 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center mb-4">
             <ShieldCheck className="w-6 h-6 text-primary-600" />
@@ -160,7 +155,7 @@ export default function ChangePasswordPage() {
             </Button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

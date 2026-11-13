@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { AlertCircle, ArrowRight, CheckCircle2, Circle, Loader2, MailQuestion, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -219,7 +218,7 @@ export function SetPasswordPage({ token }: { token: string }) {
         )}
 
         {done === "login" && (
-          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="py-4 text-center" role="status">
+          <div className="animate-scale-in py-4 text-center" role="status">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
               <CheckCircle2 className="h-8 w-8 text-green-600" aria-hidden />
             </div>
@@ -231,7 +230,7 @@ export function SetPasswordPage({ token }: { token: string }) {
             >
               Войти <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
-          </motion.div>
+          </div>
         )}
       </GlassCard>
     </NarrowPage>

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Clock, RefreshCw } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,7 @@ export function RateLimitCard({ deadline, fallback = null, onRetry }: { deadline
   const now = useNowUntil(deadline);
   const ready = canRetryNow(deadline, now);
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+    <div className="w-full max-w-md animate-slide-up">
       <GlassCard variant="panel" className="p-8 md:p-12 text-center" glow>
         <div className="w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center bg-amber-100 text-amber-600">
           <Clock className="w-8 h-8 text-amber-600" />
@@ -29,6 +28,6 @@ export function RateLimitCard({ deadline, fallback = null, onRetry }: { deadline
           {RATE_LIMIT_RETRY_LABEL}
         </Button>
       </GlassCard>
-    </motion.div>
+    </div>
   );
 }

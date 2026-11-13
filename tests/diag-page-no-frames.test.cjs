@@ -19,10 +19,12 @@ test.before(async () => {
 });
 test.after(async () => { await browser.close(); });
 
-// no frame ever comes (framer-motion lives on requestAnimationFrame); the 20 s limit of the check becomes 400 ms
+// no frame ever comes (framer-motion lives on requestAnimationFrame and on the Web Animations API, both tick by frames: a Web animation
+// of a phone without frames stays on its first keyframe, here it never starts); the 20 s limit of the check becomes 400 ms
 const NO_FRAMES = () => {
   window.requestAnimationFrame = () => 0;
   window.cancelAnimationFrame = () => {};
+  Element.prototype.animate = () => ({ finished: new Promise(() => {}), ready: new Promise(() => {}), cancel() {}, play() {}, pause() {}, finish() {}, commitStyles() {}, persist() {}, addEventListener() {}, removeEventListener() {}, currentTime: 0, playbackRate: 1, effect: null, timeline: null });
   const timeout = AbortSignal.timeout.bind(AbortSignal);
   AbortSignal.timeout = (ms) => timeout(ms >= 20000 ? 400 : ms);
 };
@@ -82,4 +84,35 @@ test("проверка приглашения не отвечает: через 
   await page.waitForFunction(SHOWN, "Повторить проверку состояния", WAIT);
   assert.equal(await page.locator(".animate-spin").count(), 0);
   await page.close();
+});
+
+const EXAM = { exam_id: "E1", title: "Алгебра 7", subject: "math", teacher_name: "Т", has_group: false, total_time_minutes: 40, tasks_per_variant: 5, variants_count: 1, status: "active", time_remaining_seconds: 1500 };
+
+test("кадры анимации отключены, экзамен уже идёт: «Начать» открывает окно подтверждения, «Приступить» начинает экзамен", async () => {
+  const { page, calls } = await openPage(browser, "exam-page.entry.tsx", (request) => {
+    if (request.path === "/exams/by-code/EX1") return { json: EXAM };
+    if (request.path === "/exams/by-code/EX1/start") return { json: { session_id: "S1", variant_number: 1, time_minutes: 40, time_remaining_seconds: 1500, status: "in_progress", session_token: "tok", tasks: [{ task_id: "t1", text: "Вычислите 9+4", options: ["11", "12", "13"], difficulty: "easy", skill_name: "s" }] } };
+    return null;
+  }, { width: 375, height: 800, initScript: NO_FRAMES });
+  await page.evaluate(() => window.mountExam("ex1"));
+  await page.waitForFunction(SHOWN, "Начать экзамен", WAIT);
+  await page.getByLabel("Имя и фамилия").fill("Иван Иванов");
+  await page.getByLabel("ID ученика").fill("ALGO-1");
+  await page.getByRole("button", { name: /Начать экзамен/ }).click();
+  await page.waitForFunction(SHOWN, "Экзамен уже начался!", WAIT);
+  await page.waitForFunction(SHOWN, "Приступить", WAIT);
+  await page.getByRole("button", { name: /Приступить/ }).click();
+  await page.waitForFunction(SHOWN, "Вычислите 9+4", WAIT);
+  assert.ok(calls.some((call) => call.path === "/exams/by-code/EX1/start" && call.method === "POST"), "the exam was started");
+  await page.close();
+});
+
+test("публичные страницы для телефона: ни AnimatePresence, ни начального opacity 0 от JS-анимации", () => {
+  const files = ["src/app/d/[code]/page.tsx", "src/app/e/[code]/page.tsx", "src/app/login/page.tsx", "src/app/invite/[code]/page.tsx", "src/app/change-password/page.tsx",
+    "src/components/onboarding/set-password-page.tsx", "src/components/exam/rate-limit-card.tsx", "src/components/ui/analyzing-toast.tsx", "src/components/ui/question-card.tsx"];
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(root, file), "utf8");
+    assert.ok(!/AnimatePresence/.test(source), `${file}: AnimatePresence`);
+    assert.ok(!/initial=\{\{[^}]*opacity: 0/.test(source), `${file}: starts from opacity 0 by JS`);
+  }
 });
