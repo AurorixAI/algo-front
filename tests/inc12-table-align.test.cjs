@@ -66,8 +66,8 @@ test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплат�
   assert.match(src, /<DataEmpty testId="last-payment-empty" \/>/);   // «—» stands in the CENTRE of the column (DataEmpty), the header and the values stay on the right
   assert.doesNotMatch(src, /xl:text-center/, "no accidental centring in the list");
   // the names and the groups are wide, not cut (they wrap)
-  assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(0,1\.5fr\)" \}/);
-  assert.match(src, /\{ key: "group", header: "Группа", width: "minmax\(0,1\.2fr\)"/);
+  assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(0,3fr\)" \}/);
+  assert.match(src, /\{ key: "group", header: "Группа", width: "minmax\(5\.5rem,2fr\)"/);
   assert.doesNotMatch(src, /xl:truncate/);
 });
 

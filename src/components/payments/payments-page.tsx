@@ -75,11 +75,11 @@ const ROW_MENU_TRIGGER = "dt-ctl flex items-center justify-center rounded-lg tex
 
 /** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the price and the last payment are money, RIGHT; the action column is right. */
 const paymentColumns = (priceLabel: string): DataColumn[] => [
-  { key: "student", header: "Ученик", width: "minmax(0,1.5fr)" },
-  { key: "group", header: "Группа", width: "minmax(0,1.2fr)", cardLabel: "Группа" },
-  { key: "price", header: priceLabel, align: "end", width: "minmax(5.5rem,0.7fr)", cardLabel: priceLabel },
+  { key: "student", header: "Ученик", width: "minmax(0,3fr)" },
+  { key: "group", header: "Группа", width: "minmax(5.5rem,2fr)", cardLabel: "Группа" },
+  { key: "price", header: priceLabel, align: "end", width: "5.25rem", cardLabel: priceLabel },
   { key: "status", header: "Статус", width: "10.75rem" },
-  { key: "last", header: "Последняя оплата", align: "end", width: "minmax(8.5rem,0.9fr)", cardLabel: "Последняя оплата" },
+  { key: "last", header: "Последняя оплата", align: "end", width: "7.5rem", cardLabel: "Последняя оплата" },
   { key: "actions", header: "", align: "end", width: "188px", actions: true },
 ];
 

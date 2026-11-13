@@ -226,7 +226,10 @@ const TABLE_FACTS = `(() => {
       dashes.push({ col: head.dataset.col, off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) });
     }
   }
-  return { rows: rows.length, minGap: gaps.length ? Math.min(...gaps) : null, dashes, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  const lines = (el) => { const q = document.createRange(); q.selectNodeContents(el); return new Set([...q.getClientRects()].map((x) => Math.round(x.top / 4))).size; };
+  const name = (txt) => { const a = [...document.querySelectorAll('.dt-body [data-col="student"] a')].find((x) => x.textContent.includes(txt)); return a ? lines(a) : null; };
+  const grp = [...document.querySelectorAll('.dt-body [data-col="group"] *')].find((x) => x.children.length === 0 && x.textContent.includes("7-А"));
+  return { names: { ivan: name("Иванов Иван"), long: name("Очень"), group: grp ? lines(grp) : null }, rows: rows.length, minGap: gaps.length ? Math.min(...gaps) : null, dashes, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
 })()`;
 // 1280 with the 240 px sidebar and 1024 with the menu folded (the tables stand there too)
 for (const [width, pad] of [[1280, 240], [1024, 0]]) {
@@ -243,6 +246,10 @@ for (const [width, pad] of [[1280, 240], [1024, 0]]) {
         assert.ok(facts.minGap >= 24, `${shot.name}: the gap between columns is ${facts.minGap} px`);
         for (const dash of facts.dashes) assert.ok(dash.off <= 2, `${shot.name}: «—» of «${dash.col}» is ${dash.off.toFixed(1)} px off the centre of its heading`);
         assert.equal(facts.scroll, 0, "no horizontal scroll");
+        if (shot.name === "payments") {
+          if (process.env.DT_LOG) console.log("DTLOG-LINES", width, JSON.stringify(facts.names));
+          if (width === 1280) { assert.equal(facts.names.group, 1, "«7-А Алгебра» is one line"); assert.equal(facts.names.ivan, 1, "«Иванов Иван» is one line"); assert.ok(facts.names.long <= 3, `the long name takes ${facts.names.long} lines`); }
+        }
         if (["payments", "payroll-month"].includes(shot.name)) assert.ok(facts.dashes.length > 0, `${shot.name}: the check of «—» has something to measure`);
       }
       await page.close();
