@@ -20,7 +20,8 @@ export function Chip({ tone = "neutral", size = "md", pill = false, bleed, title
   className?: string;
   children: ReactNode;
 }) {
-  const lean = bleed ? `${bleed === "xl" ? "xl:" : ""}${size === "sm" ? "-ml-[7px]" : size === "lg" ? "-ml-[13px]" : "-ml-[9px]"}` : "";
+  // the negative left margin is given back on the right: otherwise a `max-content` column is narrower than the chip by that margin and the chip sticks out of its cell
+  const lean = bleed ? (([prefix, out]) => `${prefix}-ml-[${out}px] ${prefix}mr-[${out}px]`)([bleed === "xl" ? "xl:" : "", size === "sm" ? 7 : size === "lg" ? 13 : 9]) : "";
   return (
     <span className={`${chipClass({ tone, size, pill })}${lean ? ` ${lean}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="chip" data-bleed={bleed || undefined}>
       {children}
@@ -44,7 +45,7 @@ export function StatusChip({ tone = "neutral", dot = false, bleed = false, title
   children: ReactNode;
 }) {
   return (
-    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${bleed ? " -ml-[9px]" : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
+    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${bleed ? " -ml-[9px] mr-[9px]" : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
       {dot && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />}
       {children}
     </span>

@@ -483,6 +483,17 @@ for (const [width, pad] of [[1280, 240], [1024, 0], [1440, 240], [375, 0]]) {
       return { scroll: document.documentElement.scrollWidth - window.innerWidth, wide: window.innerWidth, table: getComputedStyle(document.querySelector(".dt-head")).display === "grid", frameRight: frame.right, arrowRight: Math.max(0, ...arrows.map((svg) => svg.getBoundingClientRect().right)), arrows: arrows.length, actorHead: actors.length };
     });
     assert.equal(facts.scroll, 0, "document.scrollWidth === innerWidth");
+    // a chip of «Что» is never cut: its text is whole, and the chip is wholly inside its cell with room to the right (not sticking out of a too narrow `max-content` column)
+    const chips = await page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-kind"]')].map((chip) => {
+      const box = chip.getBoundingClientRect(), cell = chip.closest('[data-col="kind"]').getBoundingClientRect();
+      return { text: chip.textContent, cut: chip.scrollWidth - chip.clientWidth, wraps: chip.getBoundingClientRect().height > 30, right: Math.round((cell.right - box.right) * 10) / 10 };
+    }));
+    assert.equal(chips.length, 5, "a chip in every row");
+    for (const chip of chips) {
+      assert.ok(chip.cut <= 0, `«${chip.text}» is cut by ${chip.cut}px`);
+      assert.ok(!chip.wraps, `«${chip.text}» wraps`);
+      assert.ok(chip.right >= 0, `«${chip.text}» sticks out of its cell by ${-chip.right}px`);
+    }
     if (process.env.DT_SHOTS) await page.screenshot({ path: path.join(process.env.DT_SHOTS, `decisions-fix-${width}.png`), fullPage: true });
     if (facts.table) {
       assert.equal(facts.arrows, 5, "an arrow in every row");
