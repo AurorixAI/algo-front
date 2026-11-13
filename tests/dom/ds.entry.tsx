@@ -3,7 +3,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
+import { Chip, StatusChip } from "@/components/ui/chip";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
@@ -116,6 +116,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   const page = (node: React.ReactNode) => root.render(<div className="min-h-screen bg-background p-4 md:p-8"><div className="mx-auto max-w-[1400px]">{node}</div></div>);
   switch (name) {
     case "gallery": root.render(<Gallery />); break;
+    case "chipBleed": root.render(<div className="p-8">{(["sm", "md", "lg"] as const).map((size) => <div key={size}><Chip size={size} bleed testId={`bleed-${size}`}>Долг</Chip></div>)}<div><StatusChip bleed testId="bleed-status">Долг</StatusChip></div></div>); break;
     case "excuses": page(<ExcusesPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />); break;
     case "timePicker": root.render(<TimeDemo initial={props.initial ?? ""} inModal={props.inModal !== false} />); break;
     case "addLesson": root.render(<AddLessonDialog open group={{ id: "g1", name: "7-А Алгебра" }} teacherAssigned role="manager" siblings={[]} onClose={() => {}} onAdded={() => {}} />); break;

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { chipClass, type ChipSize, type ChipTone } from "@/lib/chip-tone";
 
+// the negative left margin is given back on the right: otherwise a `max-content` column is narrower than the chip by that margin and the chip sticks out of its cell.  Whole literals: Tailwind finds classes only so.
+const LEAN: Record<ChipSize, string> = { sm: "-ml-[7px] mr-[7px]", md: "-ml-[9px] mr-[9px]", lg: "-ml-[13px] mr-[13px]" };
+
 /**
  * IA audit F14: THE chip - a status, a tag, a count in a row.  One border, one palette (`ChipTone`), two sizes, two shapes; the classes were
  * typed by hand in about seventy places.  Pure markup (no hooks), so a server render and node:test show it as it is.
@@ -10,20 +13,15 @@ export function Chip({ tone = "neutral", size = "md", pill = false, bleed, title
   size?: ChipSize;
   /** A rounded pill instead of a rounded rectangle. */
   pill?: boolean;
-  /**
-   * In a cell of a table: the chip leans out to the left by its own frame and padding, so the TEXT of the chip stands on the same vertical as the line under it and the header of the column (the fill goes into the gap of the
-   * column).  `"xl"` only from 1280, where the table is a table; below it the chip is a chip in a card.
-   */
-  bleed?: "always" | "xl";
+  /** In a cell of a table: the chip leans out to the left by its own frame and padding, so the TEXT of the chip stands on the same vertical as the line under it and the header of the column (the fill goes into the gap of the column). */
+  bleed?: boolean;
   title?: string;
   testId?: string;
   className?: string;
   children: ReactNode;
 }) {
-  // the negative left margin is given back on the right: otherwise a `max-content` column is narrower than the chip by that margin and the chip sticks out of its cell
-  const lean = bleed ? (([prefix, out]) => `${prefix}-ml-[${out}px] ${prefix}mr-[${out}px]`)([bleed === "xl" ? "xl:" : "", size === "sm" ? 7 : size === "lg" ? 13 : 9]) : "";
   return (
-    <span className={`${chipClass({ tone, size, pill })}${lean ? ` ${lean}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="chip" data-bleed={bleed || undefined}>
+    <span className={`${chipClass({ tone, size, pill })}${bleed ? ` ${LEAN[size]}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="chip" data-bleed={bleed ? "" : undefined}>
       {children}
     </span>
   );
@@ -45,7 +43,7 @@ export function StatusChip({ tone = "neutral", dot = false, bleed = false, title
   children: ReactNode;
 }) {
   return (
-    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${bleed ? " -ml-[9px] mr-[9px]" : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
+    <span className={`${chipClass({ tone, size: "md", pill: true })} whitespace-nowrap${bleed ? ` ${LEAN.md}` : ""}${className ? ` ${className}` : ""}`} title={title} data-testid={testId} data-kind="status" data-tone={tone}>
       {dot && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />}
       {children}
     </span>

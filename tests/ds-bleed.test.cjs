@@ -56,3 +56,24 @@ for (const bucket of ["debt", "waiting"]) {
     });
   }
 }
+
+// the class of the lean is a whole literal in the source, so Tailwind generates it: the computed margins are -N / +N px for every size
+for (const [size, out] of [["sm", 7], ["md", 9], ["lg", 13]]) {
+  test(`Chip bleed size ${size}: margin-left -${out}px, margin-right ${out}px (real CSS built from the sources)`, async () => {
+    const { page } = await openPage(browser, "ds.entry.tsx", () => null, { width: 1280, height: 900 });
+    await page.evaluate(() => window.mount("chipBleed"));
+    await page.waitForSelector(`[data-testid="bleed-${size}"]`);
+    const m = await page.evaluate((s) => { const st = getComputedStyle(document.querySelector(`[data-testid="bleed-${s}"]`)); return [st.marginLeft, st.marginRight]; }, size);
+    assert.deepEqual(m, [`-${out}px`, `${out}px`]);
+    await page.close();
+  });
+}
+
+test("StatusChip bleed: the same margins as the medium Chip", async () => {
+  const { page } = await openPage(browser, "ds.entry.tsx", () => null, { width: 1280, height: 900 });
+  await page.evaluate(() => window.mount("chipBleed"));
+  await page.waitForSelector('[data-testid="bleed-status"]');
+  const m = await page.evaluate(() => { const st = getComputedStyle(document.querySelector('[data-testid="bleed-status"]')); return [st.marginLeft, st.marginRight]; });
+  assert.deepEqual(m, ["-9px", "9px"]);
+  await page.close();
+});

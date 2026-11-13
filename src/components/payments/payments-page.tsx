@@ -561,7 +561,7 @@ function PaymentRow({
       </DataCell>
       <DataCell col="status" testId="status-cell">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left sm:flex-col sm:items-start">
-          <Chip tone={moneyChipTone(chip.tone)} bleed="always">{chip.label}</Chip>
+          <Chip tone={moneyChipTone(chip.tone)} bleed>{chip.label}</Chip>
           {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
           {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
           <BalanceNote row={row} className="w-full" />
