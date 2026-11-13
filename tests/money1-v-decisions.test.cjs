@@ -30,7 +30,7 @@ test("a row is one line: when · what · whom · sum · debt before → after ·
   assert.equal(plain(await first.locator('[data-testid="decision-when"]').textContent()), "05.11 · 14:20");
   assert.equal(plain(await first.locator('[data-testid="decision-kind"]').textContent()), "Оплата отменена");
   assert.equal(plain(await first.textContent()).includes("Тошматов Бобур · Алгебра 7"), true);
-  assert.equal(plain(await first.locator('[data-testid="decision-debt"]').textContent()), "Долг 0 → 400 000 сум");
+  assert.equal(plain(await first.locator('[data-testid="decision-debt"]').textContent()), "0 → 400 000 сум");
   assert.ok((await first.locator('[data-testid="decision-debt"]').textContent()).includes(`400${NB}000${NB}сум`));
   assert.equal(plain(await p.locator('[data-testid="decision-amount"]').nth(1).textContent()), "400 000 → 200 000 сум");
   // the row is a ONE line on 1280 and the reason is inside

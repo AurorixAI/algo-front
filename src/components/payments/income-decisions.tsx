@@ -158,7 +158,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
       <DataCell col="who"><span className="text-sm font-medium text-slate-900"><Words text={who} /></span></DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
-      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : `Долг ${debt}`}</span></DataCell>
+      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
       <DataCell col="actor"><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>
       <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>
     </DataRow>
