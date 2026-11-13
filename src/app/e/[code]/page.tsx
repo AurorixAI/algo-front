@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/lib/button-style";
 import { useTouchDensity } from "@/components/ui/touch-density";
 import { Input } from "@/components/ui/input";
 import { TestBackground } from "@/components/ui/test-background";
@@ -703,10 +704,9 @@ export default function ExamPage() {
                 {isClosed ? "Экзамен завершён" : "Ошибка"}
               </h2>
               <p className="text-slate-500 mb-6">{error}</p>
-              <Link href="/login">
-                <Button className="w-full" icon={<Home className="w-4 h-4" />}>
-                  На главную
-                </Button>
+              <Link href="/login" className={cn(buttonClass({ variant: "primary" }), "w-full")} data-variant="primary" data-size="md">
+                <Home className="w-4 h-4" aria-hidden="true" />
+                На главную
               </Link>
             </GlassCard>
           </div>
@@ -881,10 +881,9 @@ export default function ExamPage() {
                     </Button>
                   </>
                 ) : (
-                  <Link href="/login">
-                    <Button className="w-full" variant="secondary" icon={<Home className="w-4 h-4" />}>
-                      Вернуться на главную
-                    </Button>
+                  <Link href="/login" className={cn(buttonClass({ variant: "secondary" }), "w-full")} data-variant="secondary" data-size="md">
+                    <Home className="w-4 h-4" aria-hidden="true" />
+                    Вернуться на главную
                   </Link>
                 )}
               </GlassCard>
@@ -1278,10 +1277,9 @@ export default function ExamPage() {
                     Результаты будут доступны у вашего преподавателя.
                   </p>
 
-                  <Link href="/login">
-                    <Button className="w-full" icon={<Home className="w-4 h-4" />}>
-                      На главную
-                    </Button>
+                  <Link href="/login" className={cn(buttonClass({ variant: "primary" }), "w-full")} data-variant="primary" data-size="md">
+                    <Home className="w-4 h-4" aria-hidden="true" />
+                    На главную
                   </Link>
                 </div>
               </GlassCard>

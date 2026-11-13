@@ -122,5 +122,5 @@ test("start repeats on a busy server too; the lobby form keeps what was typed an
 
 test("the ordinary error page is unchanged: it still has its way home", () => {
   const errorScreen = page.slice(page.indexOf('if (phase === "error")'));
-  assert.match(errorScreen, /<Link href="\/login">/);
+  assert.match(errorScreen, /<Link href="\/login"/);
 });

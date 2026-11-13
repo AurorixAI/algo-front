@@ -116,3 +116,15 @@ test("публичные страницы для телефона: ни AnimateP
     assert.ok(!/initial=\{\{[^}]*opacity: 0/.test(source), `${file}: starts from opacity 0 by JS`);
   }
 });
+
+test("экран «Экзамен не найден»: ровно один элемент «На главную» (не ссылка с кнопкой внутри), и это ссылка на /login", async () => {
+  const { page } = await openPage(browser, "exam-page.entry.tsx", () => null, { width: 375, height: 800 });
+  await page.evaluate(() => window.mountExam("nope"));
+  await page.waitForFunction(SHOWN, "Ошибка", WAIT);
+  const named = await page.getByRole("link", { name: "На главную" }).count() + await page.getByRole("button", { name: "На главную" }).count();
+  assert.equal(named, 1, "one «На главную» for the accessibility tree");
+  assert.equal(await page.getByText("На главную").count(), 1);
+  assert.equal(await page.locator("a button, button a").count(), 0, "no interactive element inside another one");
+  assert.equal(await page.getByRole("link", { name: "На главную" }).getAttribute("href"), "/login");
+  await page.close();
+});
