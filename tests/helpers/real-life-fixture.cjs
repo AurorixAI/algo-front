@@ -46,4 +46,4 @@ const DECISIONS_REAL = [
   DEC("5", "2026-11-02T08:30:00", "payment_writeoff_void", "Прощение отменено", "Эргашев Азиз Абдуллаевич", "Геометрия 8 (пн/чт)", 1250000, { debt_before: 0, debt_after: 1250000 }),
 ];
 const decisionsRealServer = (request) => (request.path === "/auth/org/payments/decisions" ? { json: { as_of: "2026-11-10", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: DECISIONS_REAL.length, pages: 1, since: "2026-11-02", rows: DECISIONS_REAL } } : null);
-module.exports = { decisionsRealServer, PAYMENT_ITEMS, paymentsRealServer, STUDENTS_REAL, COLLECTION_REAL };
+module.exports = { decisionsRealServer, DECISIONS_REAL, PAYMENT_ITEMS, paymentsRealServer, STUDENTS_REAL, COLLECTION_REAL };

@@ -512,3 +512,56 @@ for (const [width, pad] of [[1280, 240], [1024, 0], [1440, 240], [375, 0]]) {
     await page.close();
   });
 }
+
+// ---- words stay words (owner's walk of prod, 14.11): on a phone «Лидтест 14 Тимур» read «Лидтест14Тимур» - the words of a name were separate boxes, and the cell of a card (a flex
+// container) made the boxes its own flex items: the spaces between them vanished.  Every screen of REAL data, cards (375) and table (1280): the text of each cell with a name
+// or a group is the string of the data (spaces normalised) and between two neighbouring words of one line there is a visible gap.
+const NAMES_OF = {
+  "payments-real": R.PAYMENT_ITEMS.flatMap((item) => [item.student_name, item.group_name]),
+  "income-decisions-real": R.DECISIONS_REAL.map((item) => [item.student_name, item.group_name].join(" · ")),
+  "roster-real": R.STUDENTS_REAL.map((item) => item.full_name),
+  "income-groups-real": R.COLLECTION_REAL.groups.map((item) => item.group_name),
+};
+const WORDS_PROBE = `((names) => {
+  const norm = (text) => text.replace(/\\s+/g, " ").trim();
+  const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null; };
+  const bad = []; const found = {};
+  for (const name of names) {
+    const holders = [...document.querySelectorAll("body *")].filter((el) => visible(el) && norm(el.textContent) === name);
+    for (const el of holders) {
+      found[name] = (found[name] || 0) + 1;
+      if (norm(el.innerText) !== name) bad.push("«" + name + "»: the text of the cell is «" + norm(el.innerText) + "»");
+      const boxes = [];
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const match of node.data.matchAll(/\\S+/g)) {
+          const range = document.createRange(); range.setStart(node, match.index); range.setEnd(node, match.index + match[0].length);
+          const r = range.getBoundingClientRect(); if (r.width > 0) boxes.push({ word: match[0], left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+        }
+      }
+      if (boxes.map((b) => b.word).join(" ") !== name) bad.push("«" + name + "»: words in the DOM are «" + boxes.map((b) => b.word).join(" ") + "»");
+      for (let i = 1; i < boxes.length; i++) {
+        const a = boxes[i - 1], b = boxes[i];
+        if (Math.abs(a.top - b.top) < (a.bottom - a.top) / 2 && !(a.right < b.left - 0.5)) bad.push("«" + name + "»: «" + a.word + "» and «" + b.word + "» touch (" + a.right.toFixed(1) + " / " + b.left.toFixed(1) + ")");
+      }
+    }
+  }
+  return { bad: [...new Set(bad)], found };
+})`;
+for (const width of [375, 1280]) {
+  for (const shot of REAL_SCREENS) {
+    test(`${width}: «${shot.name}» - the words of names and groups are the string of the data, with a gap between neighbours (${width === 375 ? "cards" : "table"})`, async () => {
+      const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
+      await page.addStyleTag({ content: ".max-w-\\[1100px\\]{max-width:none !important}" });
+      await setPage(page, width === 1280 ? 240 : 0, shot);
+      await page.waitForSelector(shot.wait, WAIT);
+      if (shot.ready) await page.waitForFunction(shot.ready, null, WAIT);
+      await page.waitForTimeout(300);
+      const names = [...new Set(NAMES_OF[shot.name])];
+      const facts = await page.evaluate(`${WORDS_PROBE}(${JSON.stringify(names)})`);
+      assert.deepEqual(facts.bad, [], `${shot.name} ${width}: ${facts.bad.slice(0, 6).join(" | ")}`);
+      assert.ok(Object.keys(facts.found).length >= 2, `${shot.name} ${width}: names were measured ${JSON.stringify(facts.found)}`);
+      await page.close();
+    });
+  }
+}
