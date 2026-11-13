@@ -380,421 +380,421 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
 
-          {/* ══════════════════════ LOADING ══════════════════════ */}
-          {phase === "loading" && (
-            <div
-              key="loading"
-              className="animate-fade-in flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
-            >
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-            </div>
-          )}
+        {/* ══════════════════════ LOADING ══════════════════════ */}
+        {phase === "loading" && (
+          <div
+            key="loading"
+            className="animate-fade-in flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+          >
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+          </div>
+        )}
 
-          {/* ══════════════════════ CONFIRM NAME ══════════════════════ */}
-          {phase === "confirm" && (
-            <div
-              key="confirm"
-              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
-            >
-              <div className="w-full max-w-sm">
-                {/* Header */}
-                <div className="text-center mb-8 animate-slide-down">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30 mx-auto mb-3">
-                    <Brain className="w-8 h-8" />
-                  </div>
-                  <h1 className="text-2xl font-bold text-slate-900">Диагностика ALGO</h1>
-                  <p className="text-slate-500 text-sm mt-1">Математическое тестирование</p>
+        {/* ══════════════════════ CONFIRM NAME ══════════════════════ */}
+        {phase === "confirm" && (
+          <div
+            key="confirm"
+            className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+          >
+            <div className="w-full max-w-sm">
+              {/* Header */}
+              <div className="text-center mb-8 animate-slide-down">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-lg shadow-primary-500/30 mx-auto mb-3">
+                  <Brain className="w-8 h-8" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900">Диагностика ALGO</h1>
+                <p className="text-slate-500 text-sm mt-1">Математическое тестирование</p>
+              </div>
+
+              <GlassCard variant="elevated" className="p-8">
+                <div className="text-center mb-6">
+                  <p className="text-2xl font-bold text-slate-900">
+                    {inviteInfo?.student_first_name} {inviteInfo?.student_last_name}
+                  </p>
+                  <p className="text-sm text-primary-600 mt-1">
+                    {inviteInfo?.class_level} класс
+                    {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
+                  </p>
                 </div>
 
-                <GlassCard variant="elevated" className="p-8">
-                  <div className="text-center mb-6">
-                    <p className="text-2xl font-bold text-slate-900">
-                      {inviteInfo?.student_first_name} {inviteInfo?.student_last_name}
-                    </p>
-                    <p className="text-sm text-primary-600 mt-1">
-                      {inviteInfo?.class_level} класс
-                      {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
-                    </p>
+                {confirmError && (
+                  <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{confirmError}</span>
                   </div>
+                )}
 
-                  {confirmError && (
-                    <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{confirmError}</span>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleConfirm}
-                    loading={confirmLoading}
-                    className="w-full"
-                    size="lg"
-                    icon={<ArrowRight className="w-4 h-4" />}
-                  >
-                    Да, это я
-                  </Button>
-                </GlassCard>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════ RESUME ══════════════════════ */}
-          {phase === "resume" && activeSession && (
-            <div
-              key="resume"
-              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
-            >
-              <div className="w-full max-w-sm">
-                <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-40" />
-
-                  <div className="text-center mb-6">
-                    <div
-                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
-                    >
-                      <Clock className="w-8 h-8 text-white" />
-                    </div>
-                    <h1 className="text-xl font-bold text-slate-900 mb-1.5">Незавершённая диагностика</h1>
-                    <p className="text-slate-500 text-sm">
-                      Вы остановились на вопросе{" "}
-                      <span className="font-bold text-slate-900">{activeSession.items_answered + 1}</span>
-                      {" "}из{" "}
-                      <span className="font-bold text-slate-900">{activeItemsMax}</span>
-                    </p>
-                    {(activeSession.total_time_ms ?? 0) > 0 && (
-                      <p className="text-slate-500 text-xs mt-1.5">
-                        Время: <span className="font-semibold text-slate-700">{formatTime(activeSession.total_time_ms!)}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="mb-6">
-                    <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                      <span>Прогресс</span>
-                      <span>{Math.round((activeSession.items_answered / activeItemsMax) * 100)}%</span>
-                    </div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        style={{ width: `${Math.round((activeSession.items_answered / activeItemsMax) * 100)}%` }}
-                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full transition-[width] duration-500"
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => {
-                      if (activeSession) {
-                        initialElapsedMsRef.current = activeSession.total_time_ms || 0;
-                        setElapsedMs(activeSession.total_time_ms || 0);
-                        sessionStartRef.current = Date.now();
-                        questionStartRef.current = Date.now();
-                        diagStore.startSession(
-                          String(activeSession.session_id),
-                          activeSession.current_task,
-                          (activeSession.items_answered ?? 0) + 1,
-                        );
-                      }
-                      setPhase("testing");
-                    }}
-                    size="lg"
-                    className="w-full"
-                    icon={<ArrowRight className="w-5 h-5" />}
-                  >
-                    Продолжить с вопроса {activeSession.items_answered + 1}
-                  </Button>
-
-                  <p className="text-xs text-center text-slate-500 mt-4">
-                    Код: <span className="font-mono font-medium">{code}</span>
-                  </p>
-                </GlassCard>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════ WELCOME ══════════════════════ */}
-          {phase === "welcome" && (
-            <div
-              key="welcome"
-              className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
-            >
-              <div className="w-full max-w-sm">
-                <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-40" />
-
-                  <div className="text-center mb-6">
-                    <div
-                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30"
-                    >
-                      <Sparkles className="w-8 h-8 text-white" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-900 mb-1">
-                      {inviteInfo?.student_first_name ? `Привет, ${inviteInfo.student_first_name}!` : "Диагностика"}
-                    </h1>
-                    <p className="text-slate-500 text-sm">
-                      {inviteInfo?.class_level ? `${inviteInfo.class_level} класс` : "Тестирование"}
-                      {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
-                      <Clock className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-slate-900 text-sm">Время не ограничено</p>
-                        <p className="text-xs text-slate-500">Решай спокойно: можно сделать паузу и продолжить по той же ссылке</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
-                      <Target className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-slate-900 text-sm">Адаптивный тест</p>
-                        <p className="text-xs text-slate-500">Задания подбираются под твои ответы: чем точнее мы понимаем уровень, тем раньше тест завершится</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
-                      <TrendingUp className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-slate-900 text-sm">Это не школьная оценка</p>
-                        <p className="text-xs text-slate-500">Результат нужен, чтобы составить твой план занятий</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button onClick={handleStartTest} size="lg" className="w-full" icon={<ArrowRight className="w-5 h-5" />}>
-                    Начать диагностику
-                  </Button>
-
-                  <p className="text-xs text-center text-slate-500 mt-4">
-                    Код: <span className="font-mono font-medium">{code}</span>
-                  </p>
-                </GlassCard>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════ TESTING ══════════════════════ */}
-          {phase === "testing" && currentTask && (
-            <div
-              key="testing"
-              className="animate-fade-in flex-1 flex flex-col w-full"
-            >
-              <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-card">
-                <TestHeader
-                  mode="diagnostic"
-                  timer={formatTime(elapsedMs)}
-                />
-              </div>
-
-              <div className="w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-5rem)] p-4 md:p-6">
-                <div
-                  className={cn(
-                    "w-full mx-auto py-4 md:py-6 flex flex-col gap-6 md:gap-8 transition-all duration-300",
-                    isWideTask
-                      ? "max-w-7xl 2xl:max-w-[1440px] px-2 md:px-4"
-                      : "max-w-4xl",
-                  )}
+                <Button
+                  onClick={handleConfirm}
+                  loading={confirmLoading}
+                  className="w-full"
+                  size="lg"
+                  icon={<ArrowRight className="w-4 h-4" />}
                 >
-                  {/* Question card — clean, no phase/difficulty badges */}
-                  <QuestionCard
-                    questionKey={currentTask.task_id}
-                    topic={`Вопрос ${diagStore.itemNumber}`}
-                  >
-                    <MathRenderer
-                      text={taskDisplay.text}
-                      renderMode={taskDisplay.renderMode}
-                      block
-                    />
-                    {currentTask.question_image_url && (
-                      <div className="mt-4 sm:mt-6 flex justify-center">
-                        <TaskFigureDrawer
-                          imageUrl={currentTask.question_image_url}
-                          inlinePreview={true}
-                        />
-                      </div>
-                    )}
-                  </QuestionCard>
-
-                  {submissionNotice && (
-                    <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                      <p>{submissionNotice}</p>
-                      {canSkipQuestion(notChecked, currentTask.task_id) && (
-                        <>
-                          <p className="mt-2">{SKIP_HINT}</p>
-                          <Button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => void handleSubmit(SKIP_ANSWER)}
-                            variant="secondary" size="sm" className="mt-2"
-                          >
-                            {SKIP_BUTTON_LABEL}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Answer area — MC or text */}
-                  {currentTask.answer_options && currentTask.answer_options.length > 0 ? (
-                    <OptionGrid
-                      questionKey={currentTask.task_id}
-                      options={currentTask.answer_options.map((opt: string, idx: number) => ({
-                        id: `${currentTask.task_id}-${idx}`,
-                        key: opt,
-                        label: String.fromCharCode(65 + idx),
-                        content: opt,
-                        contentLatex: currentTask.answer_options_latex?.[idx] ?? null,
-                      }))}
-                      selected={answer}
-                      disabled={isSubmitting}
-                      onSelect={(key) => {
-                        setAnswer(key);
-                        void handleSubmit(key);
-                      }}
-                    />
-                  ) : (
-                    <TextInputAnswer
-                      value={answer}
-                      onChange={setAnswer}
-                      onSubmit={handleSubmit}
-                      answerType={currentTask.answer_type}
-                      disabled={isSubmitting}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════ LOADING (no task yet) ══════════════════════ */}
-          {phase === "testing" && !currentTask && (
-            <div
-              key="loading"
-              className="animate-fade-in flex-1 flex items-center justify-center"
-            >
-              <GlassCard variant="panel" className="p-12 text-center">
-                <div className="relative w-16 h-16 mx-auto mb-4">
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
-                  <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 animate-spin" />
-                </div>
-                <p className="text-slate-600">Загрузка задания...</p>
+                  Да, это я
+                </Button>
               </GlassCard>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ══════════════════════ RESULTS — the test is over, nothing of the result is shown ══════════════════════ */}
-          {phase === "results" && (
-            <div
-              key="results"
-              className="animate-slide-up flex-1 flex items-center justify-center p-4"
-            >
-              <div className="w-full max-w-md">
-                <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-40" />
+        {/* ══════════════════════ RESUME ══════════════════════ */}
+        {phase === "resume" && activeSession && (
+          <div
+            key="resume"
+            className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+          >
+            <div className="w-full max-w-sm">
+              <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-40" />
 
-                  {/* Success icon */}
-                  <div className="text-center mb-6">
-                    <div
-                      className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
-                    >
-                      <CheckCircle className="w-10 h-10 text-white" />
-                    </div>
-
-                    <h2
-                      className="text-2xl font-bold text-slate-900 mb-2"
-                    >
-                      Тест завершён
-                    </h2>
-
-                    <p
-                      className="text-slate-500"
-                    >
-                      Ответы сохранены — результаты увидит преподаватель.
-                    </p>
+                <div className="text-center mb-6">
+                  <div
+                    className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
+                  >
+                    <Clock className="w-8 h-8 text-white" />
                   </div>
+                  <h1 className="text-xl font-bold text-slate-900 mb-1.5">Незавершённая диагностика</h1>
+                  <p className="text-slate-500 text-sm">
+                    Вы остановились на вопросе{" "}
+                    <span className="font-bold text-slate-900">{activeSession.items_answered + 1}</span>
+                    {" "}из{" "}
+                    <span className="font-bold text-slate-900">{activeItemsMax}</span>
+                  </p>
+                  {(activeSession.total_time_ms ?? 0) > 0 && (
+                    <p className="text-slate-500 text-xs mt-1.5">
+                      Время: <span className="font-semibold text-slate-700">{formatTime(activeSession.total_time_ms!)}</span>
+                    </p>
+                  )}
+                </div>
 
-                  {/* The test took this long (the server's sum); no number, no card */}
-                  {elapsedMs > 0 && (
+                {/* Progress bar */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                    <span>Прогресс</span>
+                    <span>{Math.round((activeSession.items_answered / activeItemsMax) * 100)}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="mb-6"
-                    >
-                      <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
-                        <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
-                        <p className="text-xs text-slate-500">Затраченное время</p>
-                      </div>
+                      style={{ width: `${Math.round((activeSession.items_answered / activeItemsMax) * 100)}%` }}
+                      className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full transition-[width] duration-500"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => {
+                    if (activeSession) {
+                      initialElapsedMsRef.current = activeSession.total_time_ms || 0;
+                      setElapsedMs(activeSession.total_time_ms || 0);
+                      sessionStartRef.current = Date.now();
+                      questionStartRef.current = Date.now();
+                      diagStore.startSession(
+                        String(activeSession.session_id),
+                        activeSession.current_task,
+                        (activeSession.items_answered ?? 0) + 1,
+                      );
+                    }
+                    setPhase("testing");
+                  }}
+                  size="lg"
+                  className="w-full"
+                  icon={<ArrowRight className="w-5 h-5" />}
+                >
+                  Продолжить с вопроса {activeSession.items_answered + 1}
+                </Button>
+
+                <p className="text-xs text-center text-slate-500 mt-4">
+                  Код: <span className="font-mono font-medium">{code}</span>
+                </p>
+              </GlassCard>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════ WELCOME ══════════════════════ */}
+        {phase === "welcome" && (
+          <div
+            key="welcome"
+            className="animate-slide-up flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+          >
+            <div className="w-full max-w-sm">
+              <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-40" />
+
+                <div className="text-center mb-6">
+                  <div
+                    className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30"
+                  >
+                    <Sparkles className="w-8 h-8 text-white" />
+                  </div>
+                  <h1 className="text-2xl font-bold text-slate-900 mb-1">
+                    {inviteInfo?.student_first_name ? `Привет, ${inviteInfo.student_first_name}!` : "Диагностика"}
+                  </h1>
+                  <p className="text-slate-500 text-sm">
+                    {inviteInfo?.class_level ? `${inviteInfo.class_level} класс` : "Тестирование"}
+                    {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
+                  </p>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
+                    <Clock className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">Время не ограничено</p>
+                      <p className="text-xs text-slate-500">Решай спокойно: можно сделать паузу и продолжить по той же ссылке</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
+                    <Target className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">Адаптивный тест</p>
+                      <p className="text-xs text-slate-500">Задания подбираются под твои ответы: чем точнее мы понимаем уровень, тем раньше тест завершится</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
+                    <TrendingUp className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">Это не школьная оценка</p>
+                      <p className="text-xs text-slate-500">Результат нужен, чтобы составить твой план занятий</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Button onClick={handleStartTest} size="lg" className="w-full" icon={<ArrowRight className="w-5 h-5" />}>
+                  Начать диагностику
+                </Button>
+
+                <p className="text-xs text-center text-slate-500 mt-4">
+                  Код: <span className="font-mono font-medium">{code}</span>
+                </p>
+              </GlassCard>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════ TESTING ══════════════════════ */}
+        {phase === "testing" && currentTask && (
+          <div
+            key="testing"
+            className="animate-fade-in flex-1 flex flex-col w-full"
+          >
+            <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-card">
+              <TestHeader
+                mode="diagnostic"
+                timer={formatTime(elapsedMs)}
+              />
+            </div>
+
+            <div className="w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-5rem)] p-4 md:p-6">
+              <div
+                className={cn(
+                  "w-full mx-auto py-4 md:py-6 flex flex-col gap-6 md:gap-8 transition-all duration-300",
+                  isWideTask
+                    ? "max-w-7xl 2xl:max-w-[1440px] px-2 md:px-4"
+                    : "max-w-4xl",
+                )}
+              >
+                {/* Question card — clean, no phase/difficulty badges */}
+                <QuestionCard
+                  questionKey={currentTask.task_id}
+                  topic={`Вопрос ${diagStore.itemNumber}`}
+                >
+                  <MathRenderer
+                    text={taskDisplay.text}
+                    renderMode={taskDisplay.renderMode}
+                    block
+                  />
+                  {currentTask.question_image_url && (
+                    <div className="mt-4 sm:mt-6 flex justify-center">
+                      <TaskFigureDrawer
+                        imageUrl={currentTask.question_image_url}
+                        inlinePreview={true}
+                      />
                     </div>
                   )}
+                </QuestionCard>
 
-                  {/* CTA */}
-                  <div
-                  >
-                    <Button
-                      size="lg"
-                      className="w-full"
-                      icon={<Home className="w-4 h-4" />}
-                      onClick={() => {
-                        diagStore.reset();
-                        window.location.href = "/login";
-                      }}
-                    >
-                      На главную
-                    </Button>
-                  </div>
-
-                  <p className="text-xs text-center text-slate-500 mt-4">
-                    Код диагностики: <span className="font-mono">{code}</span>
-                  </p>
-                </GlassCard>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════ ERROR ══════════════════════ */}
-          {phase === "error" && (
-            <div
-              key="error"
-              className="animate-slide-up flex-1 flex items-center justify-center p-4"
-            >
-              <div className="w-full max-w-md">
-                <GlassCard variant="panel" className="p-8 md:p-10 text-center">
-                  <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-100 flex items-center justify-center">
-                    <AlertTriangle className="w-8 h-8 text-red-600" />
-                  </div>
-
-                  <h1 className="text-xl font-bold text-slate-900 mb-2">
-                    {inviteCancelled ? INVITE_CANCELLED_MESSAGE : "Не удалось продолжить"}
-                  </h1>
-                  <p className="text-slate-500 mb-6">
-                    {inviteCancelled ? INVITE_CANCELLED_CENTER_HINT : errorMsg || "Произошла непредвиденная ошибка"}
-                  </p>
-
-                  <div className="space-y-3">
-                    {canRetry && (
-                      <Button
-                        onClick={() => {
-                          setErrorMsg(null);
-                          setCheckVersion((value) => value + 1);
-                        }}
-                        size="lg"
-                        className="w-full"
-                      >
-                        Повторить проверку состояния
-                      </Button>
+                {submissionNotice && (
+                  <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p>{submissionNotice}</p>
+                    {canSkipQuestion(notChecked, currentTask.task_id) && (
+                      <>
+                        <p className="mt-2">{SKIP_HINT}</p>
+                        <Button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => void handleSubmit(SKIP_ANSWER)}
+                          variant="secondary" size="sm" className="mt-2"
+                        >
+                          {SKIP_BUTTON_LABEL}
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      onClick={() => (window.location.href = "/login")}
-                      size="lg"
-                      className="w-full"
-                      variant="ghost"
-                      icon={<Home className="w-4 h-4" />}
-                    >
-                      На главную
-                    </Button>
                   </div>
-                </GlassCard>
+                )}
+
+                {/* Answer area — MC or text */}
+                {currentTask.answer_options && currentTask.answer_options.length > 0 ? (
+                  <OptionGrid
+                    questionKey={currentTask.task_id}
+                    options={currentTask.answer_options.map((opt: string, idx: number) => ({
+                      id: `${currentTask.task_id}-${idx}`,
+                      key: opt,
+                      label: String.fromCharCode(65 + idx),
+                      content: opt,
+                      contentLatex: currentTask.answer_options_latex?.[idx] ?? null,
+                    }))}
+                    selected={answer}
+                    disabled={isSubmitting}
+                    onSelect={(key) => {
+                      setAnswer(key);
+                      void handleSubmit(key);
+                    }}
+                  />
+                ) : (
+                  <TextInputAnswer
+                    value={answer}
+                    onChange={setAnswer}
+                    onSubmit={handleSubmit}
+                    answerType={currentTask.answer_type}
+                    disabled={isSubmitting}
+                  />
+                )}
               </div>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* ══════════════════════ LOADING (no task yet) ══════════════════════ */}
+        {phase === "testing" && !currentTask && (
+          <div
+            key="loading"
+            className="animate-fade-in flex-1 flex items-center justify-center"
+          >
+            <GlassCard variant="panel" className="p-12 text-center">
+              <div className="relative w-16 h-16 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 animate-spin" />
+              </div>
+              <p className="text-slate-600">Загрузка задания...</p>
+            </GlassCard>
+          </div>
+        )}
+
+        {/* ══════════════════════ RESULTS — the test is over, nothing of the result is shown ══════════════════════ */}
+        {phase === "results" && (
+          <div
+            key="results"
+            className="animate-slide-up flex-1 flex items-center justify-center p-4"
+          >
+            <div className="w-full max-w-md">
+              <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-40" />
+
+                {/* Success icon */}
+                <div className="text-center mb-6">
+                  <div
+                    className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
+                  >
+                    <CheckCircle className="w-10 h-10 text-white" />
+                  </div>
+
+                  <h2
+                    className="text-2xl font-bold text-slate-900 mb-2"
+                  >
+                    Тест завершён
+                  </h2>
+
+                  <p
+                    className="text-slate-500"
+                  >
+                    Ответы сохранены — результаты увидит преподаватель.
+                  </p>
+                </div>
+
+                {/* The test took this long (the server's sum); no number, no card */}
+                {elapsedMs > 0 && (
+                  <div
+                    className="mb-6"
+                  >
+                    <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
+                      <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
+                      <p className="text-xs text-slate-500">Затраченное время</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* CTA */}
+                <div
+                >
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    icon={<Home className="w-4 h-4" />}
+                    onClick={() => {
+                      diagStore.reset();
+                      window.location.href = "/login";
+                    }}
+                  >
+                    На главную
+                  </Button>
+                </div>
+
+                <p className="text-xs text-center text-slate-500 mt-4">
+                  Код диагностики: <span className="font-mono">{code}</span>
+                </p>
+              </GlassCard>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════ ERROR ══════════════════════ */}
+        {phase === "error" && (
+          <div
+            key="error"
+            className="animate-slide-up flex-1 flex items-center justify-center p-4"
+          >
+            <div className="w-full max-w-md">
+              <GlassCard variant="panel" className="p-8 md:p-10 text-center">
+                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-red-600" />
+                </div>
+
+                <h1 className="text-xl font-bold text-slate-900 mb-2">
+                  {inviteCancelled ? INVITE_CANCELLED_MESSAGE : "Не удалось продолжить"}
+                </h1>
+                <p className="text-slate-500 mb-6">
+                  {inviteCancelled ? INVITE_CANCELLED_CENTER_HINT : errorMsg || "Произошла непредвиденная ошибка"}
+                </p>
+
+                <div className="space-y-3">
+                  {canRetry && (
+                    <Button
+                      onClick={() => {
+                        setErrorMsg(null);
+                        setCheckVersion((value) => value + 1);
+                      }}
+                      size="lg"
+                      className="w-full"
+                    >
+                      Повторить проверку состояния
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => (window.location.href = "/login")}
+                    size="lg"
+                    className="w-full"
+                    variant="ghost"
+                    icon={<Home className="w-4 h-4" />}
+                  >
+                    На главную
+                  </Button>
+                </div>
+              </GlassCard>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
