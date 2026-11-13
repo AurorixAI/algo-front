@@ -14,19 +14,19 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Select } from "@/components/ui/select";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { IncomeError } from "./income-parts";
 
 /** The columns: when, what, whom - text (left); the sum and the debt - money (RIGHT); who decided - text; the arrow shows that the row opens. */
 const DECISION_COLUMNS: DataColumn[] = [
-  { key: "when", header: "Когда", width: "6.5rem" },
-  { key: "kind", header: "Что", width: "9rem" },
+  { key: "when", header: "Когда", width: "5.5rem" },
+  { key: "kind", header: "Что", width: "8rem" },
   { key: "who", header: "Ученик · группа", width: "minmax(0,1.4fr)" },
-  { key: "amount", header: "Сумма", align: "end", width: "10.5rem", cardLabel: "Сумма" },
-  { key: "debt", header: "Долг", align: "end", width: "10.5rem", cardLabel: "Долг" },
-  { key: "actor", header: "Кто", width: "7.5rem", cardLabel: "Кто" },
+  { key: "amount", header: "Сумма", align: "end", width: "9.5rem", cardLabel: "Сумма" },
+  { key: "debt", header: "Долг", align: "end", width: "9rem", cardLabel: "Долг" },
+  { key: "actor", header: "Кто", width: "6rem", cardLabel: "Кто" },
   { key: "open", header: "", align: "end", width: "1.5rem" },
 ];
 
@@ -156,8 +156,8 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
       <DataCell col="who"><span className="break-words text-sm font-medium text-slate-900">{who}</span></DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
-      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? "—" : `Долг ${debt}`}</span></DataCell>
-      <DataCell col="actor"><span className="break-words text-sm text-slate-600">{row.actor_name ?? "—"}</span></DataCell>
+      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : `Долг ${debt}`}</span></DataCell>
+      <DataCell col="actor"><span className="break-words text-sm text-slate-600">{row.actor_name ?? <DataEmpty />}</span></DataCell>
       <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>
     </DataRow>
   );

@@ -7,7 +7,7 @@ import { formatMoney } from "@/lib/payments";
 import { COLLECTION_COST_HINT, COLLECTION_COST_LINE, collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 
 /** The columns: the group is text (left, wide); the cost, the paid sum and the debt are money (RIGHT); «Собрано» is a bar; the number of debtors is a count (RIGHT). */
 const COLLECTION_COLUMNS: DataColumn[] = [
@@ -60,7 +60,7 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
         </div>
       </DataCell>
       <DataCell col="debt">
-        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.waitingDebt > 0 ? null : nothingCharged ? <span className="text-slate-500">—</span> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
+        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.waitingDebt > 0 ? null : nothingCharged ? <DataEmpty /> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
         {row.waitingDebt > 0 && <span className="block text-xs font-normal text-slate-600" data-testid="collection-waiting">ждём оплату {formatMoney(row.waitingDebt)}</span>}
       </DataCell>
       <DataCell col="debtors" title={debtorsHint?.title}>

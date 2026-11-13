@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { orgApi, StudentInGroup } from "@/lib/api";
 import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
-import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
@@ -126,13 +126,13 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
                   </span>
                   <span>{s.display_id}</span>
                 </button>
-              ) : <span className="font-mono text-xs text-slate-500">—</span>}
+              ) : <DataEmpty />}
             </DataCell>
             <DataCell col="class_level"><span className="whitespace-nowrap text-sm font-medium text-slate-700">{s.class_level} класс</span></DataCell>
-            <DataCell col="phone"><span className="whitespace-nowrap text-xs font-medium text-slate-700">{displayPhone(s.student_phone) || <span className="font-mono text-slate-500">—</span>}</span></DataCell>
+            <DataCell col="phone">{displayPhone(s.student_phone) ? <span className="whitespace-nowrap text-xs font-medium text-slate-700">{displayPhone(s.student_phone)}</span> : <DataEmpty />}</DataCell>
             <DataCell col="joined_at">
               <span className="whitespace-nowrap text-xs font-medium text-slate-500">
-                {s.joined_at ? formatUtcNaiveAsBusinessDate(s.joined_at, { day: "numeric", month: "short", year: "numeric" }) : <span className="font-mono">—</span>}
+                {s.joined_at ? formatUtcNaiveAsBusinessDate(s.joined_at, { day: "numeric", month: "short", year: "numeric" }) : null}
               </span>
             </DataCell>
             {removable && (

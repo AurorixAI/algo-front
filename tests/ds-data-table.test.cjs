@@ -204,6 +204,7 @@ for (const shot of SHOTS) {
       await page.waitForSelector(shot.wait, WAIT);
       await page.waitForTimeout(400);
       const facts = await page.evaluate(PROBE);
+      if (process.env.DT_SHOTS) await page.screenshot({ path: path.join(process.env.DT_SHOTS, `${shot.name}-${width}.png`), fullPage: true });
       assert.deepEqual(facts.bad, [], `${shot.name} ${width}: ${facts.bad.join("; ")}`);
       assert.equal(facts.scroll, 0, "no horizontal scroll");
       if (shot.name === "payments" || shot.name === "payroll-month") assert.ok(facts.chips >= 2, "the chips of the screen were checked");
@@ -211,3 +212,61 @@ for (const shot of SHOTS) {
     });
   }
 }
+
+// ---- owner's remarks on «Оплаты» (06.11): the gap between neighbouring columns is at least 24 px (a sum on the right never touches the status on the left); the sign of an empty value «—» stands in the CENTRE of its column, under the centre of the heading ----
+const TABLE_FACTS = `(() => {
+  const rows = [...document.querySelectorAll(".dt-body .dt-row")].filter((row) => getComputedStyle(row).display === "grid");
+  const gaps = [], dashes = [];
+  for (const row of rows) {
+    const cells = [...row.querySelectorAll(":scope > .dt-cell")].filter((c) => c.offsetParent !== null).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+    for (let i = 1; i < cells.length; i++) gaps.push(Math.round(cells[i].getBoundingClientRect().left - cells[i - 1].getBoundingClientRect().right));
+    for (const dash of row.querySelectorAll(".dt-empty")) {
+      const head = document.querySelector('.dt-head [data-col="' + dash.closest(".dt-cell").dataset.col + '"]');
+      const r = document.createRange(); r.selectNodeContents(dash); const d = r.getBoundingClientRect(), h = head.getBoundingClientRect();
+      dashes.push({ col: head.dataset.col, off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) });
+    }
+  }
+  return { rows: rows.length, minGap: gaps.length ? Math.min(...gaps) : null, dashes, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+})()`;
+// 1280 with the 240 px sidebar and 1024 with the menu folded (the tables stand there too)
+for (const [width, pad] of [[1280, 240], [1024, 0]]) {
+  for (const shot of SHOTS) {
+    test(`${width}${pad ? "" : " (no sidebar)"}: «${shot.name}» - at least 24 px between the columns, «—» in the centre of its column`, async () => {
+      const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
+      if (shot.time) await page.clock.setFixedTime(new Date(shot.time));
+      await page.evaluate(([padding, name, props, search]) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = padding ? `0 32px 0 ${padding + 32}px` : "0 16px"; if (search) window.__search = search; window.mount(name, { role: "owner", org_role: "owner" }, props); }, [pad, shot.mount, shot.props, shot.search]);
+      await page.waitForSelector(shot.wait, WAIT);
+      await page.waitForTimeout(400);
+      const facts = await page.evaluate(TABLE_FACTS);
+      if (process.env.DT_LOG) console.log("DTLOG", width, shot.name, facts.rows, facts.minGap, "dashes=" + facts.dashes.length, Math.max(0, ...facts.dashes.map((d) => d.off)).toFixed(2));
+      if (facts.rows) {
+        assert.ok(facts.minGap >= 24, `${shot.name}: the gap between columns is ${facts.minGap} px`);
+        for (const dash of facts.dashes) assert.ok(dash.off <= 2, `${shot.name}: «—» of «${dash.col}» is ${dash.off.toFixed(1)} px off the centre of its heading`);
+        assert.equal(facts.scroll, 0, "no horizontal scroll");
+        if (["payments", "payroll-month"].includes(shot.name)) assert.ok(facts.dashes.length > 0, `${shot.name}: the check of «—» has something to measure`);
+      }
+      await page.close();
+    });
+  }
+}
+test("1280 and 1024: «Оплаты» - «Цена в месяц» ends 24 px or more before the status, «—» of «Последняя оплата» and of the salary list is under the centre of the heading", async () => {
+  for (const [width, pad] of [[1280, 240], [1024, 0]]) {
+    const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer, { width, height: 900 });
+    await page.evaluate(([padding]) => { document.getElementById("root").style.boxSizing = "border-box"; document.getElementById("root").style.padding = padding ? `0 32px 0 ${padding + 32}px` : "0 16px"; }, [pad]);
+    await page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=debtors" }));
+    await page.waitForSelector(".dt-row", WAIT);
+    await page.waitForFunction(() => document.querySelector('[data-col="student"] a')?.textContent?.includes("Иванов"), null, WAIT);
+    const f = await page.evaluate(() => {
+      const row = document.querySelector(".dt-row"), price = row.querySelector('[data-col="price"]'), chip = row.querySelector('[data-col="status"] [data-kind]') || row.querySelector('[data-col="status"] span');
+      const r = document.createRange(); r.selectNodeContents(price.querySelector(".dt-value")); const text = r.getBoundingClientRect();
+      const dash = row.querySelector('[data-col="last"] .dt-empty'), head = document.querySelector('.dt-head [data-col="last"]'), dr = document.createRange(); dr.selectNodeContents(dash);
+      const d = dr.getBoundingClientRect(), h = head.getBoundingClientRect();
+      return { table: getComputedStyle(row).display === "grid", gap: chip.getBoundingClientRect().left - text.right, off: Math.abs((d.left + d.right) / 2 - (h.left + h.right) / 2) };
+    });
+    if (process.env.DT_LOG) console.log("DTLOG-PAY", width, f.gap.toFixed(1), f.off.toFixed(2));
+    assert.ok(f.table, `${width}: a table`);
+    assert.ok(f.gap >= 24, `${width}: the sum ends ${f.gap.toFixed(1)} px before the status`);
+    assert.ok(f.off <= 2, `${width}: «—» is ${f.off.toFixed(1)} px off the centre of «Последняя оплата»`);
+    await page.close();
+  }
+});

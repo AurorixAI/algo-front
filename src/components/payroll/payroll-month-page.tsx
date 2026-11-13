@@ -70,7 +70,7 @@ import { askConfirm } from "@/lib/confirm-dialog";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
-import { DataCell, DataColumns, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataColumns, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
@@ -658,7 +658,7 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
       {/* an advance row has no salary and no payout to show: a card keeps only «Остаток», the table keeps its cells (dashes) */}
       <DataCell col="salary" className={advance ? "dt-card-hidden" : undefined}>
         <div data-testid="teacher-sum">
-          {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <span className="text-slate-500">—</span>}
+          {numbers.salary !== null ? <span className="font-semibold text-slate-900">{plainSum(numbers.salary)}<Unit /></span> : <DataEmpty />}
           {/* ONE line under the sum: «начислено сейчас · было 120 834»; where it does not fit only «было 120 834» stays (`dt-cap-long` goes), the whole text is in `title` */}
           {(numbers.caption || numbers.was !== null) && (
             <p className="whitespace-nowrap text-xs font-normal leading-4 text-slate-600" title={[numbers.caption, numbers.was !== null ? `было ${plainSum(numbers.was)}` : null].filter(Boolean).join(" · ")}>
@@ -670,7 +670,7 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
       </DataCell>
       <DataCell col="paid" className={advance ? "dt-card-hidden" : undefined}>
         <div data-testid="teacher-paid">
-          {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <span className="text-slate-500">—</span>}
+          {numbers.paid !== null ? <span className="text-slate-800">{plainSum(numbers.paid)}<Unit /></span> : <DataEmpty />}
         </div>
       </DataCell>
       <DataCell col="rest">
@@ -679,7 +679,7 @@ function RowNumbers({ numbers, advance = false }: { numbers: TeacherMonthNumbers
           {rest.kind === "ahead" && <span className="text-slate-600">вперёд&nbsp;{plainSum(rest.amount)}<Unit /></span>}
           {rest.kind === "more" && <span className="text-slate-600">больше&nbsp;на&nbsp;{plainSum(rest.amount)}<Unit /></span>}
           {rest.kind === "done" && <span className="font-medium text-emerald-700">выплачено ✓</span>}
-          {rest.kind === "none" && <span className="text-slate-500">—</span>}
+          {rest.kind === "none" && <DataEmpty />}
         </div>
       </DataCell>
     </>

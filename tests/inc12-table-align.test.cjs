@@ -59,11 +59,11 @@ test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned; the p
   assert.match(src, /<div className="flex items-center gap-2 lg:justify-end">/);
 });
 
-test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплата» is money: the header and the amount / date / «—» are RIGHT, never centred", () => {
+test("inc12-3 (wave 3): «Оплаты» list - «Последняя оплата» is money: the header and the amount / date are RIGHT, «—» is the centred DataEmpty", () => {
   const src = read("src/components/payments/payments-page.tsx");
   assert.match(src, /\{ key: "last", header: "Последняя оплата", align: "end"/);
   assert.match(src, /<DataCell col="last">/);
-  assert.match(src, /data-testid="last-payment-empty">—<\/span>/);
+  assert.match(src, /<DataEmpty testId="last-payment-empty" \/>/);   // «—» stands in the CENTRE of the column (DataEmpty), the header and the values stay on the right
   assert.doesNotMatch(src, /xl:text-center/, "no accidental centring in the list");
   // the names and the groups are wide, not cut (they wrap)
   assert.match(src, /\{ key: "student", header: "Ученик", width: "minmax\(0,1\.5fr\)" \}/);

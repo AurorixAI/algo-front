@@ -179,3 +179,8 @@ export function DataCell({ col, children, className, testId, title }: { col: str
     </div>
   );
 }
+
+/** The sign of an empty value («—»): in a table it stands in the CENTRE of its column, under the centre of the heading, whatever the alignment of the values (it is not a number: no digit alignment). */
+export function DataEmpty({ testId }: { testId?: string }) {
+  return <span className="dt-empty" data-testid={testId}>—</span>;
+}

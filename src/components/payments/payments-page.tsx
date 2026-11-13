@@ -58,7 +58,7 @@ import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
-import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
@@ -574,7 +574,7 @@ function PaymentRow({
             <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
           </span>
         ) : (
-          <span className="text-slate-500" data-testid="last-payment-empty">—</span>
+          <DataEmpty testId="last-payment-empty" />
         )}
       </DataCell>
       <DataCell col="actions">
