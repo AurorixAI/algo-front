@@ -238,7 +238,7 @@ test("the facts line says when the rate in force for the month is not the saved 
   assert.equal(R.sheetRateLine(sheet, null), "Ставка: Группа 50% · Индивидуально 40%");
   assert.deepEqual(R.sheetFactsParts(sheet, 0, now("45", "40"))[0].includes("пересчитайте"), true);
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
-  assert.match(page, /orgApi\.getPayrollRates\(sheet\.month\)/);
+  assert.match(page, /orgApi\.getPayrollRates\(target\.month\)/);
   assert.match(page, /ratesNow=\{ratesNow\}/);
 });
 
@@ -294,7 +294,7 @@ test("a line saved with no price shows the price the recalculation will use (fro
   assert.deepEqual(todo(null), [], "not known yet: nothing is said");
   assert.deepEqual(todo({ open_lessons: 0, pending_excused: 0, no_fee: 1, unpaid: 0 }), ["у 1 ученика нет цены"]);
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
-  assert.match(page, /orgApi\.getPayrollMonth\(sheet\.month\)/);
+  assert.match(page, /orgApi\.getPayrollMonth\(target\.month\)/);
   assert.match(page, /warnings=\{warningsFailed \? undefined : freshWarnings\}/);
   assert.match(page, /freshPrices=\{diff\?\.stale \? freshPricesOf\(diff\) : undefined\}/);
 });

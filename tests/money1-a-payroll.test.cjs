@@ -253,7 +253,7 @@ test("the notice of a closed month in a lesson window: the server's sentence for
 
 test("the sheet page and the month page read the state of the month from GET payroll-periods (a failed read says nothing, it does not block); the sheet page re-reads it after every save", () => {
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
-  assert.match(page, /orgApi\.getPayrollPeriods\(sheet\.month\)\s*\.then\(\(answer\) => \{ if \(!cancelled\) setPeriod\(periodOf\(answer, sheet\.teacher_id\)\); \}\)\s*\.catch\(\(\) => \{ if \(!cancelled\) setPeriod\(null\); \}\)/);
+  assert.match(page, /orgApi\.getPayrollPeriods\(target\.month\)\s*\.then\(\(answer\) => \{ if \(fresh\(\)\) setPeriod\(periodOf\(answer, target\.teacher_id\)\); \}\)\s*\.catch\(\(\) => \{ if \(fresh\(\)\) setPeriod\(null\); \}\)/);
   assert.match(page, /period=\{periodView\(period\)\}/);
   assert.match(page, /onReopen=\{period && sheet\.id \? \(\) => setReopening\(true\) : undefined\}/);
   // ONE number for «изменилась на ±N» (R3 unconfirmed 1): the `changed_by` of the payout, the same fresh-minus-saved the month list shows; null when the server could not count the fresh total
