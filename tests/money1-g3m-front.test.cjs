@@ -125,7 +125,8 @@ test("Ф6 lib: одна подпись — «Цена с 25.11 — 400 000 су�
   assert.equal(g.lacksGroupPrice({ price_current: null, price_scheduled: planned }), false);
   assert.equal(g.countGroupsWithoutPrice([{ price_current: null }, { price_current: null, price_scheduled: planned }, { price_current: null, status: "archived" }]), 1);
   assert.equal(plain(g.membershipPriceLine({ amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, "Цена в месяц", planned).text), "Цена с 25.11 — 400 000 сум");
-  assert.equal(lib("group-workspace.ts").groupPriceChipText(null, "Цена в месяц", planned), "Цена с 25.11 — 400 000 сум");
+  assert.equal(lib("group-workspace.ts").groupPriceChipText(null, "Цена в месяц", planned), null, "К2 круг 3: a planned price is no chip of the header");
+  assert.equal(lib("group-workspace.ts").groupPriceChipText(null, "Цена в месяц", null), "Цена группы не задана");
 });
 
 const GROUP = { id: "g1", name: "Алгебра 7", status: "active", max_students: 10, student_count: 3, price_current: null };
@@ -342,3 +343,25 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+// ── Круг 3, К2: ученик группы с запланированной ценой — «Цена с 01.12 — 420 000 сум», «Не задана» только когда цены нет вовсе ──
+test("К2: строка вкладки «Оплаты» — запланированная цена группы или своя той же функцией, красное «Не задана» только без цены", () => {
+  const G = lib("group-payments.ts");
+  const gp = lib("group-price.ts");
+  const row = (id, price) => ({ membership_id: id, student_id: `s${id}`, student_name: `Ученик ${id}`, group_id: "g1", group_name: "Г", is_primary: true, is_active: true, status: "active", debt: 0, price });
+  const none = { amount: null, source: "none", valid_from: null, group_amount: null, reason: null };
+  const groupPlanned = { row_id: "r", amount: 420000, valid_from: "2026-12-01" };
+  const views = (rows, extra = {}) => G.paymentRowViews(rows, { periodMode: "calendar", today: "2026-11-15", ...extra });
+  const [a] = views([row("1", none)], { groupScheduled: groupPlanned });
+  assert.equal(plain(a.priceText), "Цена с 01.12 — 420 000 сум");
+  assert.equal(a.priceScheduled, true);
+  const [b] = views([row("2", none)]);
+  assert.equal(b.priceText, "Не задана");
+  assert.equal(b.priceScheduled, false);
+  const [c] = views([row("3", { ...none, scheduled: { row_id: "o", amount: 300000, valid_from: "2026-12-05", reason: "x" } })], { groupScheduled: groupPlanned });
+  assert.equal(plain(c.priceText), "Цена с 05.12 — 300 000 сум", "the own planned price first");
+  assert.equal(c.scheduledText, null, "and not twice");
+  const [d] = views([row("4", { amount: 500000, source: "group", valid_from: "2026-01-01", group_amount: 500000, reason: null })], { groupScheduled: groupPlanned });
+  assert.equal(plain(d.priceText), "500 000 сум");
+  assert.equal(plain(gp.priceNotInForceText(groupPlanned, "Не задана")), plain(a.priceText), "the one function");
+});

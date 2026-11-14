@@ -12,10 +12,12 @@ import {
   activeOverrideFrom,
   formatPriceAmount,
   priceLabelOf,
+  priceNotInForceText,
   priceOfRow,
   scheduledOverrides,
   sinceText,
   type GroupPriceBrief,
+  type GroupPriceScheduled,
   type PriceInfo,
   type PriceOverrideRow,
   type PriceScheduledOverride,
@@ -98,6 +100,8 @@ export interface GroupPaymentRowView {
   priceText: string;
   priceSource: PriceSource;
   priceMissing: boolean;
+  /** К2 круг 3: there is no price today but one is planned (the student's own or the group's): `priceText` says «Цена с 01.12 — 420 000 сум» (`priceNotInForceText`), not «Не задана». */
+  priceScheduled: boolean;
   /** An individual price is in force today. */
   individual: boolean;
   /** «Сестра ученика · с 15.10.2026 · назначил Иванов А.»; null when the price is the group's. */
@@ -136,13 +140,15 @@ export function individualHint(price: PriceInfo, setBy: string | null | undefine
 }
 
 /** The row as the tab shows it; `extras` is what the extra call knew about this membership (the list's own fields win). */
-export function paymentRowView(row: MembershipPaymentRow, options: { label: string; today: string; extras?: PriceExtras | null }): GroupPaymentRowView {
+export function paymentRowView(row: MembershipPaymentRow, options: { label: string; today: string; extras?: PriceExtras | null; groupScheduled?: GroupPriceScheduled | null }): GroupPaymentRowView {
   const price = priceOfRow(row);
   const extras = options.extras ?? null;
   const setBy = price.set_by_name !== undefined ? price.set_by_name : extras?.setBy ?? null;
   const scheduled = price.scheduled !== undefined ? price.scheduled : extras?.scheduled ?? null;
   const individual = price.source === "override" && price.amount !== null && price.amount !== undefined;
   const missing = price.source === "none" || price.amount === null || price.amount === undefined;
+  const own = scheduled && scheduled.amount !== null && scheduled.amount !== undefined ? scheduled : null;
+  const planned = missing ? own ?? options.groupScheduled ?? null : null;      // К2: no price in force, one planned - the student's own first, else the group's
   const debt = Math.max(0, Math.round(Number(row.debt) || 0));
   return {
     key: row.membership_id,
@@ -150,12 +156,13 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     studentId: row.student_id,
     name: row.student_name,
     displayId: row.display_id ?? null,
-    priceText: missing ? "Не задана" : formatPriceAmount(price.amount), // the header says «Цена пакета» / «Цена в месяц»
+    priceText: missing ? priceNotInForceText(planned, "Не задана") : formatPriceAmount(price.amount), // the header says «Цена пакета» / «Цена в месяц»
     priceSource: price.source,
     priceMissing: missing,
+    priceScheduled: planned !== null,
     individual,
     individualHint: individual ? individualHint(price, setBy) : null,
-    scheduledText: scheduledLine(scheduled, options.today, options.label),
+    scheduledText: planned !== null && planned === own ? null : scheduledLine(scheduled, options.today, options.label),      // the own planned price already stands as the price: not twice
     scheduled: scheduled ?? null,
     chip: membershipChip(row),
     debt,
@@ -167,9 +174,9 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
   };
 }
 
-export function paymentRowViews(rows: ReadonlyArray<MembershipPaymentRow>, options: { periodMode: PeriodMode; today: string; extras?: Readonly<Record<string, PriceExtras>> }): GroupPaymentRowView[] {
+export function paymentRowViews(rows: ReadonlyArray<MembershipPaymentRow>, options: { periodMode: PeriodMode; today: string; extras?: Readonly<Record<string, PriceExtras>>; groupScheduled?: GroupPriceScheduled | null }): GroupPaymentRowView[] {
   const label = priceLabelOf(options.periodMode);
-  return rows.map((row) => paymentRowView(row, { label, today: options.today, extras: options.extras?.[row.membership_id] ?? null }));
+  return rows.map((row) => paymentRowView(row, { label, today: options.today, extras: options.extras?.[row.membership_id] ?? null, groupScheduled: options.groupScheduled ?? null }));
 }
 
 export interface PaymentsCounts { all: number; individual: number; debt: number; waiting: number }

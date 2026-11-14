@@ -4,7 +4,7 @@
  * workspace, the «⋯» of the group header, the roster menu, the list filters with their deep link, the money chips of the header.
  */
 import { formatMoney, waitingLine } from "./payments";
-import { lacksGroupPrice, formatPrice, priceNotInForceText, type GroupPriceBrief, type GroupPriceScheduled } from "./group-price";
+import { lacksGroupPrice, formatPrice, type GroupPriceBrief, type GroupPriceScheduled } from "./group-price";
 import { pluralRu } from "./plural";
 import { workspaceBases, type Workspace } from "./ia-links";
 
@@ -157,10 +157,11 @@ export function groupWaitingChipText(summary: GroupDebtSummary | null | undefine
   return summary && summary.count > 0 ? waitingLine(summary.total, summary.count) : null;
 }
 
-/** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or «Цена группы не задана». */
+/** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or the warning «Цена группы не задана»; null: the role has no money or the price is planned from a day. */
 export function groupPriceChipText(price: { amount: number } | null | undefined, priceLabel: string, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null; // the key is absent: the role does not see money
-  return price === null ? priceNotInForceText(scheduled, "Цена группы не задана") : `Цена ${formatPrice(price.amount, priceLabel)}`;
+  if (price === null) return scheduled ? null : "Цена группы не задана";      // К2 круг 3: a planned price is not repeated in the header - it stands on «Оплаты» and on the card of the group
+  return `Цена ${formatPrice(price.amount, priceLabel)}`;
 }
 
 // ── the list of groups ──────────────────────────────────────────────────────

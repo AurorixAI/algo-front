@@ -176,8 +176,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     return () => { cancelled = true; queue.forEach((id) => extrasAsked.current.delete(id)); };
   }, [rows, fetchExtras]);
 
-  const views = useMemo(() => paymentRowViews(rows ?? [], { periodMode, today, extras }), [rows, periodMode, today, extras]);
-  const leftViews = useMemo(() => paymentRowViews(leftRows, { periodMode, today }), [leftRows, periodMode, today]);
+  const views = useMemo(() => paymentRowViews(rows ?? [], { periodMode, today, extras, groupScheduled: groupScheduledPrice }), [rows, periodMode, today, extras, groupScheduledPrice]);
+  const leftViews = useMemo(() => paymentRowViews(leftRows, { periodMode, today, groupScheduled: groupScheduledPrice }), [leftRows, periodMode, today, groupScheduledPrice]);
   const counts = useMemo(() => paymentsCounts(views), [views]);
   const shown = useMemo(() => filterPaymentRows(views, filter, search), [views, filter, search]);
 
@@ -369,7 +369,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
         <span className="shrink-0 text-xs text-slate-500 lg:hidden">{label}</span>
         <div className="min-w-0 text-right lg:text-left">
           <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 lg:flex-col lg:items-start lg:justify-center lg:gap-y-0.5">
-            <span className={`text-sm font-semibold tabular-nums ${view.priceMissing ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
+            <span className={`text-sm font-semibold tabular-nums ${view.priceMissing && !view.priceScheduled ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
             {view.individual && view.individualHint && (
               <Hint text={view.individualHint} side="below" width={280} className="inline-flex">
                 <span data-testid="individual-badge" className="inline-block rounded-md border border-primary-200 bg-primary-50 px-1.5 py-px text-[11px] font-semibold leading-4 text-primary-700">индивидуальная</span>
