@@ -445,7 +445,7 @@ export function DecisionBody({
             <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={REASON_LIMITS.cancel.max} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
           <div ref={kindRef}>
-            <CancellationKindField canChooseKind={canChooseKind} value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+            <CancellationKindField canChooseKind={canChooseKind} value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} consequence={{ groupId: item.group.id, lessonId: item.lesson.lessonId, lessonDate: item.lesson.date }} />
             {!canChooseKind && <CancelConsequence target={{ groupId: item.group.id, lessonId: item.lesson.lessonId, lessonDate: item.lesson.date }} />}
           </div>
           {binding?.state === "ok" && examTitle && (binding.canCancel === false

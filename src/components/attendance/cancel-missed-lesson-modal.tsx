@@ -65,6 +65,11 @@ export function CancelMissedLessonModal({
   }, { dryRun: true, signal }));
   const closed = preview.status === "failed" ? periodClosedOf(preview.error) : null;
   const money = preview.status === "ready" ? cancelMoneyView(preview.answer) : null;
+  // G3M Ф5: the owner reads the sentence about the students under «По вине центра» (the dry run of the centre's kind), not in a block of its own; the kind «Праздник» keeps the last one
+  const centreText = useRef<string | null>(null);
+  useEffect(() => { centreText.current = null; }, [target?.groupId, target?.lessonId, target?.lessonDate]);
+  if (kind === "centre" && money?.students) centreText.current = money.students;
+  const centreKnown = { loading: kind === "centre" && preview.status === "loading", text: kind === "centre" ? money?.students ?? null : centreText.current };
 
   const submit = async () => {
     if (!target || busy || sending.current) return;
@@ -128,13 +133,13 @@ export function CancelMissedLessonModal({
             placeholder="Например: преподаватель заболел, урок не проводился"
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
           />
-          <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+          <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} help={CANCEL_CONSEQUENCES} known={centreKnown} />
           {!canChooseKind && preview.status === "loading" && <CancelConsequenceLine loading text={null} />}
           {closed && <PeriodClosedNotice info={closed} onReopened={retry} />}
-          {money && (money.students || money.payroll.length > 0) && (
+          {money && ((!canChooseKind && money.students) || money.payroll.length > 0) && (
             <section aria-label={EFFECTS_TITLE} data-testid="cancel-effects" className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
               <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
-              {money.students && <p className="text-sm text-slate-800" data-testid="cancel-effects-students">{money.students}</p>}
+              {!canChooseKind && money.students && <p className="text-sm text-slate-800" data-testid="cancel-effects-students">{money.students}</p>}
               {money.payroll.map((line) => <PayrollEffect key={line.key} line={line} />)}
             </section>
           )}

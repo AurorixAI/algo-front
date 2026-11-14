@@ -121,7 +121,7 @@ test("Ф-1 menu: a refusal to load the sentence neither shows an error nor block
 });
 
 for (const [who, user] of [["the owner", OWNER], ["an administrator with the right", ADMIN_WITH_RIGHT]]) {
-  test(`Ф-1 menu: ${who} chooses the kind as before - no sentence asked, the kind is sent`, async () => {
+  test(`Ф-1 menu: ${who} chooses the kind as before - the sentence is asked once (it stands under «По вине центра»), the kind is sent`, async () => {
     const run = await openSheet(user);
     await run.page.click("text=Отменить урок");
     await run.page.waitForSelector('[data-testid="cancellation-kind"]');
@@ -129,7 +129,7 @@ for (const [who, user] of [["the owner", OWNER], ["an administrator with the rig
     await reasonIn(run.page);
     await run.page.click('button:has-text("Отменить урок") >> nth=-1');
     await run.page.waitForFunction(() => window.__log.includes("changed:Урок отменён"));
-    assert.equal(consequenceCalls(run.calls).length, 0);
+    assert.equal(consequenceCalls(run.calls).length, 1);
     assert.equal(run.calls.find((call) => call.method === "POST" && call.path === "/auth/org/groups/g1/attendance").body.cancellationKind, "holiday");
     await run.page.close();
   });
@@ -191,14 +191,14 @@ test("Ф-1 «Замены», one request: without the right no kind, the sentenc
   await run.page.close();
 });
 
-test("Ф-1 «Замены», one request: the owner chooses the kind and no sentence is asked", async () => {
+test("Ф-1 «Замены», one request: the owner chooses the kind; the sentence is asked once (it stands under «По вине центра»)", async () => {
   const run = await openDecision(OWNER);
   await run.page.waitForSelector('[data-testid="cancellation-kind"]');
   await run.page.click('[data-testid="cancellation-kind-holiday"]');
   await run.page.fill("#substitution-cancel-reason", "праздник");
   await run.page.click('button:has-text("Отменить урок") >> nth=-1');
   await run.page.waitForFunction(() => window.__log.includes("decided"));
-  assert.equal(consequenceCalls(run.calls).length, 0);
+  assert.equal(consequenceCalls(run.calls).length, 1);
   assert.equal(run.calls.find((call) => call.path === "/auth/org/substitutions/r1/decide").body.cancellationKind, "holiday");
   await run.page.close();
 });
@@ -978,4 +978,52 @@ test("Ф-9 diagnostic, the error screen: ONE «На главную» - a link to
   const box = await run.page.getByRole("link", { name: "На главную" }).boundingBox();
   assert.ok(box.height >= 40, `a phone button is at least 40 px: ${box.height}`);
   await run.page.close();
+});
+
+// ── G3M Ф5: the owner reads the number of the server under «По вине центра» ──
+const LINE = '[data-testid="cancellation-kind-centre"] [data-testid="cancellation-kind-students"]';
+for (const phrase of ["Ученикам зачтётся по 33 000 сум", "Ученикам зачтётся от 25 000 до 33 000 сум", "На оплату не влияет"]) {
+  test(`Ф5: the owner's window - under «По вине центра» the server's «${phrase}»; «Праздник» stays «без перерасчёта»`, async () => {
+    const run = await openSheet(OWNER, 1280, serverOf({ consequence: phrase }));
+    await run.page.click("text=Отменить урок");
+    await run.page.waitForFunction(([sel, text]) => (document.querySelector(sel)?.textContent ?? "").replace(/\s+/g, " ") === text, [LINE, phrase]);
+    assert.equal(plain(await run.page.textContent('[data-testid="cancellation-kind-holiday"] [data-testid="cancellation-kind-students"]')), "Ученикам: без перерасчёта");
+    assert.doesNotMatch(plain(await run.page.textContent('[data-testid="cancellation-kind"]')), /если он включён/);
+    await run.page.close();
+  });
+}
+
+test("Ф5: until the sentence has come - a skeleton; refused - a neutral line without a promise and without a sum", async () => {
+  const held = defer();
+  const run = await openSheet(OWNER, 1280, serverOf({ gate: held.gate }));
+  await run.page.click("text=Отменить урок");
+  await run.page.waitForSelector('[data-testid="cancellation-kind-students-loading"]');
+  held.release();
+  await run.page.waitForSelector(LINE);
+  await run.page.close();
+  const refused = await openSheet(OWNER, 1280, serverOf({ status: 500 }));
+  await refused.page.click("text=Отменить урок");
+  await refused.page.waitForFunction(() => !document.querySelector('[data-testid="cancellation-kind-students-loading"]') && document.querySelector('[data-testid="cancellation-kind-centre"]'));
+  const text = plain(await refused.page.textContent(LINE));
+  assert.equal(text, lib("payf.ts").CANCELLATION_CENTRE_NEUTRAL);
+  assert.doesNotMatch(text, /\d|сум|перерасчёт/);
+  await refused.page.close();
+});
+
+test("Ф5: «?» of «Вид отмены» explains the difference and the day off of the centre (the name is the title of the day-off window)", async () => {
+  const kinds = lib("payf.ts");
+  assert.equal(kinds.CANCELLATION_KIND_HELP, "По вине центра — ученикам перерасчёт. Праздник, выходной — без перерасчёта, для одного урока. Если не работает весь центр — отметьте «Выходной день центра», уроки этого дня отменятся сами.");
+  assert.match(fs.readFileSync(path.join(root, "src/components/schedule/day-off-dialog.tsx"), "utf8"), /DAY_OFF_TITLE = "Выходной день центра"/);
+});
+
+test("Ф5: the teacher's windows have no kind and no text of their own with sums: only the server's phrase", async () => {
+  const run = await openSheet(ADMIN_NO_RIGHT, 1280, serverOf({ consequence: "Ученикам будет перерасчёт за этот урок" }));
+  await run.page.click("text=Отменить урок");
+  await run.page.waitForSelector('[data-testid="cancel-consequence"]');
+  assert.equal(await run.page.locator('[data-testid="cancellation-kind"]').count(), 0);
+  assert.equal(plain(await run.page.textContent('[data-testid="cancel-consequence"]')), "Ученикам будет перерасчёт за этот урок");
+  await run.page.close();
+  const payf = fs.readFileSync(path.join(root, "src/lib/payf.ts"), "utf8");
+  const lines = payf.split("\n").filter((line) => /CANCELLATION_(CENTRE_NEUTRAL|KINDS)|students:/.test(line));
+  assert.ok(lines.every((line) => !/\d[\d ]*сум/.test(line)));
 });

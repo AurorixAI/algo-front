@@ -49,6 +49,10 @@ export const CANCELLATION_KIND_LEGEND = "Вид отмены";
 /** Said ONCE under both choices (re-audit С3): the pay of the teacher is the same in either. */
 export const CANCELLATION_TEACHER_LINE = "Преподавателю: урок не входит в зарплату";
 
+/** The line under «По вине центра» while the server's sentence has not come (or was refused): no sum and no promise (G3M Ф5). */
+export const CANCELLATION_CENTRE_NEUTRAL = "Ученикам: влияние на оплату уточняется";
+/** The «?» of «Вид отмены» (owner's question 14.11): the difference and the link with the day off of the centre. */
+export const CANCELLATION_KIND_HELP = "По вине центра — ученикам перерасчёт. Праздник, выходной — без перерасчёта, для одного урока. Если не работает весь центр — отметьте «Выходной день центра», уроки этого дня отменятся сами.";
 /**
  * The choice in the dialog of a cancellation (UX pack №5): the centre's fault is the default, a holiday is nobody's.  Under EACH option stands what it does to the money (the words of
  * the dictionary: «перерасчёт» for the student, «не входит в зарплату» for the teacher), so nothing has to be guessed before the button.  Checked against the server (`lesson_cancel._kind_for`,
@@ -56,7 +60,7 @@ export const CANCELLATION_TEACHER_LINE = "Преподавателю: урок �
  * lesson that did not take place is not paid to the teacher in either case.  The server has no preview of the cancellation with numbers (`reconcile/cancel` has no dry run) - the sums are not told.
  */
 export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: string; students: string; teacher: string }> = [
-  { key: "centre", label: "По вине центра", students: "Ученикам: перерасчёт, если он включён в настройках центра", teacher: "Преподавателю: урок не входит в зарплату" },
+  { key: "centre", label: "По вине центра", students: CANCELLATION_CENTRE_NEUTRAL, teacher: "Преподавателю: урок не входит в зарплату" },
   { key: "holiday", label: "Праздник, выходной", students: "Ученикам: без перерасчёта", teacher: "Преподавателю: урок не входит в зарплату" },
 ];
 export const DEFAULT_CANCELLATION_KIND: CancellationKind = "centre";

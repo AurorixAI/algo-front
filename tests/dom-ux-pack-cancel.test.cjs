@@ -47,7 +47,7 @@ test("№5: «Кто за это платит» and under each option its conseq
     options.push([plain(await card.locator("span.font-semibold").textContent()), plain(await card.locator('[data-testid="cancellation-kind-students"]').textContent())]);
   }
   assert.deepEqual(options.map((row) => row.slice(0, 2)), [
-    ["По вине центра", "Ученикам: перерасчёт, если он включён в настройках центра"],
+    ["По вине центра", "Ученикам — перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)"],
     ["Праздник, выходной", "Ученикам: без перерасчёта"],
   ]);
   // re-audit С3: the pay of the teacher is the same in both - said ONCE under them, not in each
@@ -104,13 +104,16 @@ for (const width of [1280, 1024, 375]) {
 
 test("№5 / server 64a929b: «Что изменится» comes from the dry run - «перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)»; «Праздник, выходной» - «перерасчёта не будет»; nothing is written by the preview", async () => {
   const run = await open(1280);
-  await run.page.waitForSelector('[data-testid="cancel-effects-students"]');
-  assert.equal(plain(await run.page.textContent('[data-testid="cancel-effects-students"]')), "Ученикам — перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)");
-  assert.ok(/92\u00a0000\u00a0сум/.test(await run.page.textContent('[data-testid="cancel-effects-students"]')), "non-breaking spaces");
-  assert.equal(plain(await run.page.textContent('[data-testid="cancel-effects"] h3')), "Что изменится");
+  const centreLine = '[data-testid="cancellation-kind-centre"] [data-testid="cancellation-kind-students"]';
+  await run.page.waitForSelector(centreLine);
+  assert.equal(plain(await run.page.textContent(centreLine)), "Ученикам — перерасчёт: долг уменьшится сразу на 92 000 сум (2 ученика)");
+  assert.ok(/92\u00a0000\u00a0сум/.test(await run.page.textContent(centreLine)), "non-breaking spaces");
+  assert.equal(await run.page.locator('[data-testid="cancel-effects-students"]').count(), 0, "the owner reads it under the kind, not twice");
   assert.ok(!/в следующей оплате|вычет|списан/i.test(plain(await run.page.textContent('[role="dialog"]'))));
   await run.page.click('[data-testid="cancellation-kind-holiday"]');
-  await run.page.waitForFunction(() => /перерасчёта не будет/.test(document.querySelector('[data-testid="cancel-effects-students"]')?.textContent ?? ""));
+  await run.page.waitForFunction(() => /перерасчёта/.test(document.querySelector('[data-testid="cancellation-kind-holiday"]')?.textContent ?? ""));
+  await run.page.waitForTimeout(600);
+  assert.match(plain(await run.page.textContent(centreLine)), /92 000 сум/, "the sentence of the centre's kind stays under it after «Праздник» is chosen");
   const dry = run.calls.filter((call) => call.path.endsWith("/attendance/reconcile/cancel"));
   assert.ok(dry.length >= 2 && dry.every((call) => /dry_run=true/.test(call.query)), "only previews were asked");
   assert.deepEqual(dry.map((call) => call.body.cancellationKind), ["centre", "holiday"]);

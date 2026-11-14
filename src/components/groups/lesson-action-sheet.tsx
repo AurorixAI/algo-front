@@ -405,7 +405,7 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-reason" className={LABEL}>Причина отмены</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
-              <CancellationKindField canChooseKind={moneyRight} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+              <CancellationKindField canChooseKind={moneyRight} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} consequence={{ groupId, lessonId: lesson.id, lessonDate: lesson.date }} />
               {!moneyRight && <CancelConsequence target={{ groupId, lessonId: lesson.id, lessonDate: lesson.date }} />}
               <ExamBindingNote state={examState} onRetry={loadBinding} />
             </div>

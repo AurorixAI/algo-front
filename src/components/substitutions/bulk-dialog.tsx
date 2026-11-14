@@ -155,7 +155,7 @@ export function BulkDialog({
             </div>
             {kind === "cancel" && (
               <>
-                <CancellationKindField canChooseKind={moneyRight} value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+                <CancellationKindField canChooseKind={moneyRight} value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} consequence={items.length === 1 && first ? { groupId: first.group.id, lessonId: first.lesson.lessonId, lessonDate: first.lesson.date } : null} />
                 {/* without the right: the sentence of the server for ONE lesson only (several lessons have no single sum, so none is said) */}
                 {!moneyRight && items.length === 1 && first && <CancelConsequence target={{ groupId: first.group.id, lessonId: first.lesson.lessonId, lessonDate: first.lesson.date }} />}
               </>
