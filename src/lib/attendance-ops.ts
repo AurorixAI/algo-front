@@ -107,7 +107,7 @@ export function conflictHeadline(detail: AttendanceConflictDetail): string {
   return (detail.message ?? "").trim() || "Отметки уже изменил другой сотрудник.";
 }
 
-export const CONFLICT_EXPLAIN = "Ваши несохранённые изменения сохранятся в окне, пока вы не выберете";
+export const CONFLICT_EXPLAIN = "Ваши несохранённые отметки останутся в окне, пока вы не выберете, чьи оставить.";
 export const CONFLICT_KEEP_MINE = "Оставить мои";
 export const CONFLICT_TAKE_THEIRS = "Принять чужие";
 

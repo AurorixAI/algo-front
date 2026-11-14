@@ -259,7 +259,7 @@ test("[O7.R4] chain 7: the conflict says who and when (on the Tashkent clock), l
   assert.equal(Ops.sameRecords({ a: "present" }, { a: "late" }), false);
   assert.equal(Ops.CONFLICT_KEEP_MINE, "Оставить мои");
   assert.equal(Ops.CONFLICT_TAKE_THEIRS, "Принять чужие");
-  assert.equal(Ops.CONFLICT_EXPLAIN, "Ваши несохранённые изменения сохранятся в окне, пока вы не выберете");
+  assert.equal(Ops.CONFLICT_EXPLAIN, "Ваши несохранённые отметки останутся в окне, пока вы не выберете, чьи оставить.");
   const failure = Ops.lessonFailure(refusal(body.status, body.body), "save", "x");
   assert.equal(failure.kind, "conflict");
   assert.equal(failure.text, "Отметки уже изменил(а) Рахимов Т. в 10:42.");
@@ -269,7 +269,7 @@ test("[O7.R4] chain 7: the conflict says who and when (on the Tashkent clock), l
   assert.match(text, /Каримов Азиз/);
   assert.match(text, /Не был/);
   assert.match(text, /не отмечен/);
-  assert.match(text, /Ваши несохранённые изменения сохранятся в окне, пока вы не выберете/);
+  assert.match(text, /Ваши несохранённые отметки останутся в окне, пока вы не выберете, чьи оставить\./);
 });
 
 test("[O7.R4] a conflict without a name still has a headline; other 409s are not conflicts", () => {
