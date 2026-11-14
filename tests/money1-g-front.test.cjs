@@ -575,6 +575,49 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
+const OWNER_USER = { role: "owner", org_role: "owner" };
+/** Where the «⋯» of every card stands against the name of the student and the journal link of the same card, and how much empty room the card keeps under its last visible text. */
+const menuPlaces = (page) => page.evaluate(() => [...document.querySelectorAll("li")].filter((li) => li.querySelector('[data-testid="excuse-journal-link"]')).map((li) => {
+  const rect = (node) => node.getBoundingClientRect();
+  const menus = [...li.querySelectorAll('button[aria-label^="Действия"]')].filter((node) => rect(node).width > 0);
+  const card = rect(li);
+  const bottoms = [...li.querySelectorAll("a, p, span, button")].filter((node) => rect(node).height > 0 && (node.children.length === 0 || node.tagName === "BUTTON")).map((node) => rect(node).bottom);
+  return { menus: menus.length, menuTop: rect(menus[0]).top, menuRight: rect(menus[0]).right, nameBottom: rect(li.querySelector('a[title="Открыть карточку ученика"]')).bottom, journalTop: rect(li.querySelector('[data-testid="excuse-journal-link"]')).top, journalBottom: rect(li.querySelector('[data-testid="excuse-journal-link"]')).bottom, cardTop: card.top, cardRight: card.right, emptyBelow: Math.round(card.bottom - Math.max(...bottoms)) };
+}));
+
+test("Ф-3 375: without the money right the «⋯» stands in the top line of the card, right of the name, and the card has no empty strip; with the right it stays in the bottom row", async () => {
+  const bare = await openExcuses(ADMIN_NO_RIGHT, NO_DEADLINE_ROWS, 375);
+  await bare.page.waitForTimeout(300);
+  const cards = await menuPlaces(bare.page);
+  assert.equal(cards.length, 3);
+  for (const card of cards) {
+    assert.equal(card.menus, 1, "ONE visible «⋯» per card");
+    assert.ok(card.menuTop < card.nameBottom, `the menu is in the line of the name: ${JSON.stringify(card)}`);
+    assert.ok(card.cardRight - card.menuRight <= 16, `at the right edge: ${JSON.stringify(card)}`);
+    assert.ok(card.emptyBelow <= 20, `no empty strip under the text: ${JSON.stringify(card)}`);
+  }
+  const facts = await bare.page.evaluate(layoutProbe, "main, body");
+  assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+  await bare.page.close();
+  const money = await openExcuses(OWNER_USER, NO_DEADLINE_ROWS, 375);
+  await money.page.waitForTimeout(300);
+  for (const card of await menuPlaces(money.page)) {
+    assert.equal(card.menus, 1);
+    assert.ok(card.menuTop > card.journalBottom, `with the right the menu stays in the row of the buttons: ${JSON.stringify(card)}`);
+  }
+  await money.page.close();
+});
+
+test("Ф-3 1280: the table keeps ONE visible «⋯» per row, in the last column, with and without the right", async () => {
+  for (const user of [ADMIN_NO_RIGHT, OWNER_USER]) {
+    const run = await openExcuses(user, NO_DEADLINE_ROWS, 1280);
+    const cards = await menuPlaces(run.page);
+    assert.equal(cards.length, 3);
+    for (const card of cards) { assert.equal(card.menus, 1); assert.ok(card.cardRight - card.menuRight <= 40, JSON.stringify(card)); }
+    await run.page.close();
+  }
+});
+
 // ── Ф-7: «кто провёл» a past lesson is for the money right ───────────────────────────────────────────
 
 const PAST_NO_RIGHT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";

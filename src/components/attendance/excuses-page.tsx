@@ -708,11 +708,14 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                 const lateMark = pendingTab ? null : afterDeadlineMark(item);
                 const teacherShort = shortPersonName(item.teacher?.name) || "—";
                 const decisionDetail = excuseDecisionDetail(item, businessToday.slice(0, 4));
+                const hasDecisionButton = moneyRight && (pendingTab || tab === "rejected");
+                const menu = <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />;
                 return (
                   <DataRow key={item.id}>
                     {/* Ученик: the name leads, id and group are secondary */}
                     <DataCell col="student">
-                      <div className="min-w-0">
+                      <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
                         <Link
                           href={`${studentProfileBasePath}/${item.student.id}`}
                           className="block min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700"
@@ -725,6 +728,9 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                         </p>
                         {/* an excuse of an archived group still has to be decided: it is shown, with the mark (the server sends `group.archived`) */}
                         {item.group.archived && <Tag testId="excuse-group-archived" className="mt-0.5">группа в архиве</Tag>}
+                      </div>
+                      {/* a card without a decision button: «⋯» stands in the top line, right of the name (no strip of its own under the text) */}
+                      {!hasDecisionButton && <span className="dt-card-only -mt-1.5 shrink-0">{menu}</span>}
                       </div>
                     </DataCell>
 
@@ -792,7 +798,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                     )}
 
                     {/* Действия */}
-                    <DataCell col="actions">
+                    <DataCell col="actions" className={hasDecisionButton ? undefined : "dt-card-hidden"}>
                       {pendingTab && moneyRight && (
                         <Button
                           type="button"
@@ -816,7 +822,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                           Подтвердить
                         </Button>
                       )}
-                      <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />
+                      {menu}
                     </DataCell>
                   </DataRow>
                 );
