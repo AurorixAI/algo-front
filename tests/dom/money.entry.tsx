@@ -113,6 +113,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<LessonActionSheet
         lesson={{ id: "l1", date: "2026-11-20", startTime: "16:00", endTime: "17:00", status: "cancelled" } as never}
         groupId="g1" title="7-А Алгебра" subtitle="пт, 20 ноября · 16:00–17:00" teacherLine={null} actions={(props.actions ?? ["restore"]) as never}
+        assignLabel={props.assignLabel} assignLock={props.assignLock ?? null} markLock={props.markLock ?? null}
         cancellationKind="centre" onClose={() => log("close")} onChanged={(text: string, notes?: string[]) => log(`changed:${text}:${(notes ?? []).join("|")}`)} onRefresh={() => log("refresh")} onReload={() => log("reload")} />);
       break;
     case "payout":

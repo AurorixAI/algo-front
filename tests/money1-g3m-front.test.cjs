@@ -365,3 +365,33 @@ test("К2: строка вкладки «Оплаты» — запланиров
   assert.equal(plain(d.priceText), "500 000 сум");
   assert.equal(plain(gp.priceNotInForceText(groupPlanned, "Не задана")), plain(a.priceText), "the one function");
 });
+
+// ── Круг 3, К3: карточка урока в расписании — «Назначить того, кто провёл» у закончившегося урока без права на деньги: пункт есть, неактивен, причина та же ──
+test("К3: карточка урока в расписании — пункт неактивен с причиной журнала (одна функция), у владельца активен; у идущего урока открыт", async () => {
+  const SCA = lib("schedule-card-actions.ts");
+  const card = { role: "admin", archived: false, state: "scheduled", date: "2026-11-05", today: "2026-11-06", hasTeacherInfo: true, startTime: "08:00", endTime: "09:00" };
+  const open = async (raw, label = "Назначить того, кто провёл") => {
+    const input = { now: new Date("2026-11-06T10:00:00+05:00"), ...raw };
+    const actions = SCA.scheduleCardActions(input);
+    const run = await openPage(browser, "money.entry.tsx", () => null);
+    await run.page.evaluate((p) => window.mount("sheet", undefined, p), { actions, assignLabel: label, assignLock: SCA.assignLockReason(input) });
+    await run.page.waitForSelector('[role="dialog"]');
+    return run;
+  };
+  const admin = await open({ ...card, moneyRight: false });
+  const locked = admin.page.locator('[data-testid="sheet-assign-locked"]');
+  assert.equal(await locked.count(), 1, "the item is on the card");
+  assert.equal(await locked.getAttribute("aria-disabled"), "true");
+  assert.ok(plain(await locked.textContent()).includes(ASSIGN_LOCK));
+  assert.equal(SCA.assignLockReason({ ...card, moneyRight: false }), SCA.pastSubstituteLockReason({ date: card.date, today: card.today, endTime: card.endTime, moneyRight: false }), "the one function");
+  await admin.page.close();
+  const rich = await open({ ...card, moneyRight: true });
+  assert.equal(await rich.page.locator('[data-testid="sheet-assign-locked"]').count(), 0);
+  assert.ok(plain(await rich.page.locator('[role="group"][aria-label="Действия с уроком"]').textContent()).includes("Назначить того, кто провёл"));
+  await rich.page.close();
+  const going = await open({ ...card, date: "2026-11-06", endTime: "23:00", startTime: "08:00", moneyRight: false });      // today 08:00-23:00: not ended
+  assert.equal(await going.page.locator('[data-testid="sheet-assign-locked"]').count(), 0);
+  await going.page.close();
+  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /assignLock=\{assignLock\}/);
+  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /assignLockReason\(cardInput\)/);
+});

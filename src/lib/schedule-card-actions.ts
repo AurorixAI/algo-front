@@ -136,6 +136,11 @@ export function pastMarkLockReason(input: ScheduleCardInput): string | null {
   return input.moneyRight !== true && lessonActions(input).includes("mark") ? PAST_MARK_NO_RIGHT_TEXT : null;
 }
 
+/** К3 круг 3: the reason «Назначить того, кто провёл» is off on the card of a lesson that has ENDED for an administrator without the money right (null: open, or the lesson has no such action) - the SAME function as the journal and «Замены». */
+export function assignLockReason(input: ScheduleCardInput): string | null {
+  return lessonActions(input).includes("assign") ? pastSubstituteLockReason({ date: input.date, today: input.today, endTime: input.endTime, moneyRight: input.moneyRight === true, now: input.now }) : null;
+}
+
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
   const base = lessonActions(input);
@@ -163,8 +168,8 @@ function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
     out.push("reschedule", "cancel");
   } else {
     out.push("mark");
-    // «Назначить того, кто провёл» of a lesson that has ended decides whose pay it is: the money right's (Money-1 Г-3; the server answers 403 `MONEY_RIGHT_REQUIRED`); a lesson that goes on is open to the administrator
-    if (canAssign && pastSubstituteLockReason({ date, today, endTime: input.endTime, moneyRight: input.moneyRight === true, now: input.now }) === null) out.push("assign");
+    // «Назначить того, кто провёл» of a lesson that has ended decides whose pay it is: the money right's (Money-1 Г-3; the server answers 403 `MONEY_RIGHT_REQUIRED`); without it the item stays and is off with the reason (`assignLockReason`, as in the journal)
+    if (canAssign) out.push("assign");
   }
   return out;
 }

@@ -635,10 +635,12 @@ test("Ф-1 «Замены», the window of a decision: the grey block shows the 
 const PAST_NO_RIGHT = "Это решает владелец или администратор с доступом к деньгам";      // G3M Ф10: under the title «Назначить того, кто провёл урок» the reason starts from who decides
 
 test("Ф-7 menu: «Назначить того, кто провёл» of a past lesson is not offered without the money right; a coming lesson keeps «Назначить замену»", () => {
-  const { scheduleCardActions } = lib("schedule-card-actions.ts");
+  const { scheduleCardActions, assignLockReason } = lib("schedule-card-actions.ts");
   const past = { role: "admin", archived: false, state: "scheduled", date: "2026-11-10", today: "2026-11-14", hasTeacherInfo: true, startTime: "16:00" };
-  assert.deepEqual(scheduleCardActions({ ...past, moneyRight: false }), ["mark"]);
-  assert.deepEqual(scheduleCardActions({ ...past }), ["mark"], "an absent flag is no right");
+  assert.deepEqual(scheduleCardActions({ ...past, moneyRight: false }), ["mark", "assign"], "К3 круг 3: the item stays, off with the reason");
+  assert.ok(assignLockReason({ ...past, moneyRight: false }));
+  assert.ok(assignLockReason({ ...past }), "an absent flag is no right");
+  assert.equal(assignLockReason({ ...past, moneyRight: true }), null);
   assert.deepEqual(scheduleCardActions({ ...past, moneyRight: true }), ["mark", "assign"]);
   assert.deepEqual(scheduleCardActions({ ...past, role: "owner", moneyRight: true }), ["mark", "assign"]);
   const coming = { ...past, date: "2026-11-20" };
@@ -646,12 +648,14 @@ test("Ф-7 menu: «Назначить того, кто провёл» of a past 
 });
 
 test("Ф-7 menu, the server's rule: without the right only a lesson that has ENDED loses «Назначить того, кто провёл»; one that goes on keeps it (the teacher did not come, a substitute did)", () => {
-  const { scheduleCardActions } = lib("schedule-card-actions.ts");
+  const { scheduleCardActions, assignLockReason } = lib("schedule-card-actions.ts");
   const today = { role: "admin", archived: false, state: "scheduled", date: "2026-11-14", today: "2026-11-14", hasTeacherInfo: true, startTime: "16:00", endTime: "17:00" };
   const at = (utc) => new Date(`2026-11-14T${utc}:00Z`);   // business time is Tashkent, UTC+5
   assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("11:10") }), ["mark", "assign"], "16:10 - begun, not over: no right is enough");
   assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("12:00") }), ["mark", "assign"], "17:00 - the minute of the end is not over yet");
-  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("12:01") }), ["mark"], "17:01 - over: the money right's");
+  assert.equal(assignLockReason({ ...today, moneyRight: false, now: at("12:00") }), null);
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("12:01") }), ["mark", "assign"], "17:01 - over: the item is off");
+  assert.ok(assignLockReason({ ...today, moneyRight: false, now: at("12:01") }), "17:01 - over: the money right's");
   assert.deepEqual(scheduleCardActions({ ...today, moneyRight: true, now: at("12:30") }), ["mark", "assign"], "with the right - always");
   assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, endTime: null, now: at("12:30") }), ["mark", "assign"], "no readable end: the server has the last word");
 });

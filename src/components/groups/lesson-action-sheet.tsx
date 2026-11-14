@@ -60,7 +60,7 @@ const NO_MARKS: LessonMark[] = [];
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", markLock = null, requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh, onReload,
+  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", markLock = null, assignLock = null, requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh, onReload,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -79,6 +79,8 @@ export function LessonActionSheet({
   assignLabel?: string;
   /** G3M Ф3: why «Отметить посещаемость» is off (an administrator without the money right); null/absent - open. */
   markLock?: string | null;
+  /** К3: the reason «Назначить того, кто провёл» is off (a lesson that has ended, no money right); the item stays, as in the journal. */
+  assignLock?: string | null;
   requestHref?: (requestId: string) => string;
   /** P1.1, the teacher's own move: the sheet opens straight on the form of the move and «Назад» closes it. */
   moveOnly?: boolean;
@@ -302,7 +304,9 @@ export function LessonActionSheet({
                 {actions.map((action) => {
                   switch (action) {
                     case "assign":
-                      return <button key={action} type="button" onClick={() => onAssign?.()} className={ACTION_BUTTON}><UserRoundCheck className="h-4 w-4 text-violet-600" />{assignLabel}</button>;
+                      return assignLock
+                        ? <button key={action} type="button" data-testid="sheet-assign-locked" aria-disabled="true" onClick={(event) => event.preventDefault()} className="flex w-full flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-left text-sm font-semibold text-slate-500"><span className="flex items-center gap-3"><UserRoundCheck className="h-4 w-4 text-slate-500" />{assignLabel}</span><span className="pl-7 text-xs font-medium text-amber-700">{assignLock}</span></button>
+                        : <button key={action} type="button" onClick={() => onAssign?.()} className={ACTION_BUTTON}><UserRoundCheck className="h-4 w-4 text-violet-600" />{assignLabel}</button>;
                     case "reschedule":
                       return <button key={action} type="button" onClick={() => open("reschedule")} className={ACTION_BUTTON}><CalendarClock className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.reschedule}</button>;
                     case "cancel":
