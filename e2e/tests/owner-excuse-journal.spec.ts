@@ -36,11 +36,13 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   const row = page.getByRole("row").filter({ hasText: "Отклонённый Дилшод" });
   const cell = row.getByRole("button", { name: "Ждёт решения" });
 
-  // INC-14: no always-visible legend rows; the same words are in the «?» next to the journal title and in the tooltip of a chip
-  await expect(page.getByRole("group", { name: "Обозначения в журнале" })).toHaveCount(0);
-  await expect(page.getByText("Решение по уважительной причине")).toHaveCount(0);
+  // INC-14: no always-visible legend rows; the same words are in the «?» next to the journal title and in the tooltip of a chip.
+  // The negative checks come only after the journal is drawn (on an empty page they passed vacuously); the hint text always sits
+  // in a hidden sr-only span for screen readers, so «not on screen» means: the bubble is closed and there is no legend group.
   const title = page.getByRole("heading", { name: "Журнал посещаемости" });
   await expect(title).toBeVisible();
+  await expect(page.getByRole("group", { name: "Обозначения в журнале" })).toHaveCount(0);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   const help = page.getByRole("button", { name: "Обозначения в журнале" });
   await help.hover();
   const bubble = page.getByRole("tooltip");
