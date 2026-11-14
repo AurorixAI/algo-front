@@ -68,13 +68,13 @@ export function inviteCancelHint(invite: { status?: string | null; cancel_reason
  */
 export function inviteCodeNote(expiresAt: string | null | undefined): string {
   const until = formatUtcNaiveAsBusinessDayTime(expiresAt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });   // ru-RU: «21.11, 14:30»
-  return until ? `Код действителен до ${until} · одна попытка` : "Одна попытка";
+  return until ? `Код действителен до\u00a0${until.replace(" ", "\u00a0")} · одна\u00a0попытка` : "Одна попытка";
 }
 
-/** «до 21.11» for a waiting invitation in the list (the business day of `expires_at`); "" without a term. */
+/** «действует до 21.11» for a waiting invitation in the list (the business day of `expires_at`), ONE unbreakable piece (a bare «до 21.11» beside the date of creation reads as its continuation); "" without a term. */
 export function inviteUntilText(expiresAt: string | null | undefined): string {
   const day = formatUtcNaiveAsBusinessDate(expiresAt, { day: "2-digit", month: "2-digit" });
-  return day ? `до ${day}` : "";
+  return day ? `действует\u00a0до\u00a0${day}` : "";
 }
 
 /** The badge on the student card (his diagnostics list) for an invite that is not done. */

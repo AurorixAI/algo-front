@@ -755,11 +755,12 @@ const diagServer = (invite = INVITE()) => (request) => {
 
 test("Ф-8 lib: «Код действителен до 21.11, 14:30 · одна попытка» from `expires_at`; no term - no promise; the list says «до 21.11»", () => {
   const { inviteCodeNote, inviteUntilText } = lib("diagnostic-invite.ts");
-  assert.equal(inviteCodeNote(EXPIRES), "Код действителен до 21.11, 14:30 · одна попытка");
-  assert.equal(inviteCodeNote("2026-11-21T09:30:00"), "Код действителен до 21.11, 14:30 · одна попытка", "a naive UTC stamp is UTC too");
+  assert.equal(plain(inviteCodeNote(EXPIRES)), "Код действителен до 21.11, 14:30 · одна попытка");
+  assert.equal(plain(inviteCodeNote("2026-11-21T09:30:00")), "Код действителен до 21.11, 14:30 · одна попытка", "a naive UTC stamp is UTC too");
   for (const none of [null, undefined, "", "soon"]) assert.equal(inviteCodeNote(none), "Одна попытка", String(none));
-  assert.equal(inviteUntilText(EXPIRES), "до 21.11");
-  assert.equal(inviteUntilText("2026-12-31T20:00:00+00:00"), "до 01.01", "the business calendar, not UTC");
+  assert.equal(inviteUntilText(EXPIRES), "действует\u00a0до\u00a021.11", "one unbreakable piece: «до 21.11» is not read as the end of the date of creation");
+  assert.equal(inviteUntilText("2026-12-31T20:00:00+00:00"), "действует\u00a0до\u00a001.01", "the business calendar, not UTC");
+  assert.ok(inviteCodeNote(EXPIRES).endsWith("одна\u00a0попытка") && inviteCodeNote(null) === "Одна попытка", "«одна попытка» never breaks between the words");
   for (const none of [null, undefined, ""]) assert.equal(inviteUntilText(none), "");
 });
 
@@ -796,7 +797,7 @@ test("Ф-8 list of invitations: a waiting one says «до 21.11» (its `expires_
   await run.page.waitForSelector('[data-testid="diagnostic-card"]');
   const cards = run.page.locator('[data-testid="diagnostic-card"]');
   assert.equal(await cards.count(), 3);
-  assert.equal(plain(await cards.nth(0).locator('[data-testid="diagnostic-until"]').textContent()), "до 21.11");
+  assert.equal(plain(await cards.nth(0).locator('[data-testid="diagnostic-until"]').textContent()), "действует до 21.11");
   assert.equal(await cards.nth(1).locator('[data-testid="diagnostic-until"]').count(), 0);
   assert.equal(await cards.nth(2).locator('[data-testid="diagnostic-until"]').count(), 0);
   await run.page.close();
@@ -810,6 +811,7 @@ for (const width of [1280, 1024, 375]) {
     await run.page.waitForSelector('[data-testid="student-diagnostic-created"]');
     await run.page.waitForTimeout(450);
     assert.equal(plain(await run.page.locator('[data-testid="student-diagnostic-created"] p:has-text("Код действителен")').innerText()), "Код действителен до 21.11, 14:30 · одна попытка");
+    assert.ok((await run.page.locator('[data-testid="student-diagnostic-created"] p:has-text("Код действителен")').innerText()).includes("одна\u00a0попытка"), "«одна попытка» is one piece on the screen");
     const facts = await run.page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
     assert.equal(facts.scroll, 0);
@@ -817,7 +819,8 @@ for (const width of [1280, 1024, 375]) {
     const list = await openPage(browser, "money-g.entry.tsx", (request) => (request.method === "GET" && request.path === "/auth/org/diagnostics" ? { json: { items: [INVITE({ student_name: "Каримов Фарходжон Рустамович Ибрагимович" })], total: 1, limit: 50, offset: 0 } } : null), { width, height: 900 });
     await list.page.evaluate((who) => window.mount("diagList", who), ADMIN_WITH_RIGHT);
     await list.page.waitForSelector('[data-testid="diagnostic-until"]');
-    assert.equal(plain(await list.page.locator('[data-testid="diagnostic-until"]').innerText()), "до 21.11");
+    assert.equal(plain(await list.page.locator('[data-testid="diagnostic-until"]').innerText()), "действует до 21.11");
+    assert.equal(await list.page.locator('[data-testid="diagnostic-until"]').evaluate((el) => el.getClientRects().length), 1, "«действует до 21.11» is one piece");
     const f2 = await list.page.evaluate(layoutProbe, '[data-testid="diagnostic-card"]');
     assert.deepEqual(f2.bad, [], JSON.stringify(f2.bad));
     assert.equal(f2.scroll, 0);
