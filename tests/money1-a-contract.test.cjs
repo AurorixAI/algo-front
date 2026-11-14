@@ -197,7 +197,7 @@ test("the empty block of a LESSON action is ONE grey line «Деньги не и
   assert.equal(E.EFFECTS_TITLE, "Что изменится");
 });
 
-test("R3 m7: the cancel of a payment is the one window of the cancels of money; a carry-over is named by words, never «0 сум»", () => {
+test("R3 m7: the cancel of a payment is the one window of the cancels of money (the words about the student here, the money of other groups from the server's preview); a carry-over is named by words, never «0 сум»", () => {
   const { paymentVoidTarget } = component("payments/payment-void-modal.tsx");
   const carried = paymentVoidTarget({ id: "p1", paid_on: "2026-10-22", amount: 0, carried_from: { group_name: "7-А", payment_id: "p0", paid_on: "2026-10-01", amount: 300000, method: "cash" } }, "Иванов Иван", () => {});
   assert.doesNotMatch(String(carried.description), /(^|\D)0\sсум/);
@@ -206,7 +206,7 @@ test("R3 m7: the cancel of a payment is the one window of the cancels of money; 
   const plainPayment = paymentVoidTarget({ id: "p2", paid_on: "2026-10-22", amount: 300000 }, "Иванов Иван", () => {});
   assert.ok(plainPayment.explain.some((line) => /Деньги группы распределятся заново/.test(line)));
   assert.equal(plainPayment.key, "p2");
-  assert.equal(plainPayment.preview, undefined, "no dry run: the window is about the student only");
+  assert.equal(typeof plainPayment.preview, "function", "Money-1 G F-2: the dry run of the cancel is asked; its text is the server's, the window only draws it");
   assert.equal(plainPayment.action, "Отменить оплату");
 });
 
