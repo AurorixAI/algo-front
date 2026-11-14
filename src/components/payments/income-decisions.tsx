@@ -160,7 +160,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
         <span className="text-sm font-medium text-slate-900">
           <Words text={row.student_name} />
           {/* the name of the group is ONE piece: «Алгебра 7 (вт/пт)» goes to the next line whole (cut inside only when it is wider than the line) */}
-          {row.group_name && <> · <span data-testid="decision-group" className="inline-block max-w-full align-top"><Words text={row.group_name} /></span></>}
+          {row.group_name && <> · <span data-testid="decision-group" className="inline-block max-w-full"><Words text={row.group_name} /></span></>}
         </span>
       </DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>

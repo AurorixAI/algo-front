@@ -869,6 +869,22 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
+for (const width of [1280, 375]) {
+  test(`Ф-9 ${width} «Решения»: the name of the student, the dot and the name of the group stand on ONE baseline (bottoms of the text agree within 1 px)`, async () => {
+    const run = await openDecisions([DECISION("1", { student_name: "Каримов Ж.", group_name: "Алгебра 7 (вт/пт)" })], width);
+    await run.page.waitForTimeout(300);
+    const facts = await run.page.evaluate(() => {
+      const who = document.querySelector('[data-testid="decision-row"] [data-testid="decision-group"]').parentElement;
+      const box = (node) => { const range = document.createRange(); range.selectNodeContents(node); const rects = [...range.getClientRects()].filter((r) => r.width > 0); return rects[rects.length - 1]; };
+      const name = box(who.firstElementChild), group = box(who.querySelector('[data-testid="decision-group"]'));
+      return { nameTop: name.top, nameBottom: name.bottom, groupTop: group.top, groupBottom: group.bottom };
+    });
+    assert.ok(facts.groupTop < facts.nameBottom && facts.nameTop < facts.groupBottom, `${width}: the name and the group are not on one line ${JSON.stringify(facts)}`);
+    assert.ok(Math.abs(facts.nameBottom - facts.groupBottom) <= 1, `${width}: baselines differ ${JSON.stringify(facts)}`);
+    await run.page.close();
+  });
+}
+
 test("Ф-9 diagnostic, the error screen: ONE «На главную» - a link to /login, not a button and not a button inside a link (as on the exam)", async () => {
   const run = await openPage(browser, "diag-page.entry.tsx", () => ({ status: 404, json: { detail: { code: "NOT_FOUND", message: "Приглашение не найдено" } } }), { width: 375, height: 800 });
   await run.page.evaluate(() => window.mountDiag("NOPE"));
