@@ -679,3 +679,55 @@ test("Ф-5: a NEW payment of a student who has left keeps the cap (the correctio
   assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: 1300000, paidOn: "2026-11-04" }), true);
   assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: null, paidOn: "2026-11-05" }), true, "an empty field is a change");
 });
+
+// ── Ф-6: 409 ATTENDANCE_CONFLICT - the headline never says «изменил(а) <пусто>» ───────────────────────
+
+const VERSION_MESSAGE = "Отметки изменились — обновите страницу";
+const conflictError = (detail) => Object.assign(new Error(detail.message), { status: 409, code: "ATTENDANCE_CONFLICT", detail: { code: "ATTENDANCE_CONFLICT", ...detail } });
+
+test("Ф-6 lib: the conflict takes `currentVersion` and `records` from the answer; an unknown author - the sentence of the server", () => {
+  const { lessonFailure } = lib("attendance-ops.ts");
+  const unknown = lessonFailure(conflictError({ message: VERSION_MESSAGE, currentVersion: 5, updatedBy: { id: null, name: "" }, updatedAt: null, records: { s1: "present" } }), "save", "fallback");
+  assert.equal(unknown.kind, "conflict");
+  assert.equal(unknown.text, VERSION_MESSAGE);
+  assert.equal(unknown.detail.currentVersion, 5);
+  assert.deepEqual(unknown.detail.records, { s1: "present" });
+  const noAuthor = lessonFailure(conflictError({ message: VERSION_MESSAGE, currentVersion: 6, records: {} }), "save", "fallback");
+  assert.equal(noAuthor.text, VERSION_MESSAGE, "no `updatedBy` at all");
+  const known = lessonFailure(conflictError({ message: "Отметки уже изменил(а) Петров П. в 10:42", currentVersion: 7, updatedBy: { id: "u2", name: "Петров П." }, updatedAt: "2026-11-14T05:42:00" }), "save", "fallback");
+  assert.equal(known.text, "Отметки уже изменил(а) Петров П. в 10:42.", "a known author is named with the time on the business clock");
+  const nameOnly = lessonFailure(conflictError({ message: VERSION_MESSAGE, currentVersion: 8, updatedBy: { id: "u2", name: "Петров П." } }), "save", "fallback");
+  assert.equal(nameOnly.text, "Отметки уже изменил(а) Петров П.");
+  assert.doesNotMatch(unknown.text + noAuthor.text + known.text + nameOnly.text, /изменил\(а\) (\.|$)|undefined|null/);
+});
+
+const NAMES = { s1: "Каримов Фарходжон Рустамович", s2: "Иванов Иван" };
+async function openConflict(detail, width = 1280) {
+  const run = await openPage(browser, "money-g.entry.tsx", () => null, { width, height: 900 });
+  await run.page.evaluate(([d, names, w]) => window.mount("conflict", {}, { conflict: { detail: d, base: { s1: "present", s2: "present" }, mine: { s1: "absent", s2: "present" } }, names, width: w }), [detail, NAMES, width >= 1024 ? 460 : width - 32]);
+  await run.page.waitForSelector("table");
+  return run;
+}
+
+test("Ф-6 window: an unknown author - the server's sentence heads the window, the table of the two editors stands as before", async () => {
+  const { page } = await openConflict({ message: VERSION_MESSAGE, currentVersion: 5, updatedBy: { id: null, name: "" }, updatedAt: null, records: { s1: "present", s2: "absent" } });
+  const head = plain(await page.locator("p").first().innerText());
+  assert.equal(head, VERSION_MESSAGE);
+  assert.doesNotMatch(plain(await page.textContent("body")), /изменил\(а\)/);
+  assert.match(plain(await page.textContent("table")), /Каримов Фарходжон Рустамович/);
+  await page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-6 ${width}: the conflict window with a known and an unknown author - nothing leaves its box, the sentence is whole`, async () => {
+    for (const detail of [{ message: VERSION_MESSAGE, currentVersion: 5, records: { s1: "present", s2: "absent" } }, { message: "Отметки уже изменил(а) Ходжаев Алишер Бахтиёрович в 10:42", currentVersion: 5, updatedBy: { id: "u2", name: "Ходжаев Алишер Бахтиёрович" }, updatedAt: "2026-11-14T05:42:00", records: { s1: "present", s2: "absent" } }]) {
+      const { page } = await openConflict(detail, width);
+      const head = plain(await page.locator("p").first().innerText());
+      assert.equal(head, detail.updatedBy ? "Отметки уже изменил(а) Ходжаев Алишер Бахтиёрович в 10:42." : VERSION_MESSAGE);
+      const facts = await page.evaluate(layoutProbe, "#root");
+      assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+      assert.equal(facts.scroll, 0);
+      await page.close();
+    }
+  });
+}

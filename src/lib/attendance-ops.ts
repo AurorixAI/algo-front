@@ -95,13 +95,16 @@ export function endSentence(text: string): string {
   return text.endsWith(".") ? text : `${text}.`;
 }
 
-/** «Отметки уже изменил(а) Петров П. в 10:42.» - the time on the Tashkent clock (the server sends UTC). */
+/**
+ * «Отметки уже изменил(а) Петров П. в 10:42.» - the time on the Tashkent clock (the server sends UTC).  The author is not known (Money-1 Г-11: a save without a version): the sentence of the server
+ * stands as it is («Отметки изменились — обновите страницу»), never «изменил(а) <пусто>».
+ */
 export function conflictHeadline(detail: AttendanceConflictDetail): string {
   const name = (detail.updatedBy?.name ?? "").trim();
   const time = formatUtcNaiveAsBusinessTime(detail.updatedAt);
   if (name && time) return `Отметки уже изменил(а) ${name} в ${time}.`;
   if (name) return endSentence(`Отметки уже изменил(а) ${name}`);
-  return "Отметки уже изменил другой сотрудник.";
+  return (detail.message ?? "").trim() || "Отметки уже изменил другой сотрудник.";
 }
 
 export const CONFLICT_EXPLAIN = "Ваши несохранённые изменения сохранятся в окне, пока вы не выберете";

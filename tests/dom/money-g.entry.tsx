@@ -11,6 +11,7 @@ import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { MethodsDonut } from "@/components/payments/income-parts";
 import { JournalList } from "@/components/payments/income-journal";
 import { normalizeJournal, normalizeOverview } from "@/lib/payments-income-v2";
+import { AttendanceConflictBody } from "@/components/attendance/attendance-ops-dialogs";
 import { useAuthStore } from "@/lib/store";
 
 const w = window as any;
@@ -56,6 +57,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "journal":
       root.render(<div className="mx-auto" style={{ width: props.width ?? 1000 }}><JournalList rows={normalizeJournal({ rows: props.rows } as never).rows} withYear={false} activeId={null} onOpen={() => log("open")} /></div>);
+      break;
+    case "conflict":
+      root.render(<div className="mx-auto" style={{ width: props.width ?? 420 }}><AttendanceConflictBody conflict={props.conflict} names={props.names} /></div>);
       break;
     default:
       break;
