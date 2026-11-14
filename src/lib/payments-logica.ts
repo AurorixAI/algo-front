@@ -671,6 +671,14 @@ export function isLeftDebtOnly(preview: Pick<PaymentPreview, "warnings"> | null 
 /** «Ученик ушёл: можно оплатить только долг». */
 export const LEFT_DEBT_ONLY_TEXT = "Ученик ушёл: можно оплатить только долг";
 
+/**
+ * Does the cap «не больше долга» bind this form?  A NEW payment of a student who has left - always; a CORRECTION - only when its sum or date differ from the corrected payment's: changing
+ * the method alone accepts no money (Money-1 Г, Р-13: the server skips the check then, `_check_left_ceiling`).  An empty sum is a change.
+ */
+export function leftCapApplies(input: { kind: "create" | "replace"; original: { amount: number; paid_on: string } | null; amount: number | null; paidOn: string }): boolean {
+  return input.kind !== "replace" || input.original === null || input.amount !== input.original.amount || input.paidOn !== input.original.paid_on;
+}
+
 /** The cap of a payment of a left student: the debt (0 = nothing to pay). */
 export function leftPaymentProblem(amount: number | null, debt: number): string | null {
   if (debt <= 0) return "Ученик ушёл, долга нет: принимать нечего";

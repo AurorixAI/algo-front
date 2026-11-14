@@ -52,7 +52,7 @@ import {
   debtNowLine,
   type PlanView,
 } from "@/lib/payment-plan";
-import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
+import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftCapApplies, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { useReplaceEffects } from "@/lib/use-replace-effects";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
@@ -192,7 +192,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const fresh = latest && state.previewKey === key ? latest : null;
   const due = dueView(latest);
   // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
-  const leftOnly = isLeftDebtOnly(latest);
+  const leftOnly = isLeftDebtOnly(latest) && leftCapApplies({ kind, original: payment ?? null, amount: amountNow, paidOn: values.paidOn });      // Р-13: the method alone of a correction takes no money
   const leftDebt = due?.total ?? 0;
   const leftProblem = leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
   const plan = amountNow !== null ? planView(fresh) : null;

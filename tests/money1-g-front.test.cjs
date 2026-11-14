@@ -625,3 +625,57 @@ for (const width of [1280, 1024, 375]) {
     await page.close();
   });
 }
+
+// ── Ф-5: a correction of the payment of a student who has LEFT - the method alone may be changed ─────
+
+const LEFT_PREVIEW = { ...require("./helpers/stage-numbers.cjs").toshmatovPreview(null), warnings: [{ code: "left_debt_only", message: "Ученик ушёл: можно оплатить только долг" }] };      // the debt is 1 200 000
+const leftServer = (log = []) => async (request) => {
+  if (request.method === "GET" && /\/payments\/preview$/.test(request.path)) return { json: LEFT_PREVIEW };
+  if (request.method === "POST" && /\/payments\/p1\/replace$/.test(request.path)) {
+    log.push(/dry_run=true/.test(request.query) ? "dry" : "real");
+    return { status: 201, json: { payment: PAYMENT, row: PAYMENT_ROW, warnings: [], allocation: null, dry_run: /dry_run=true/.test(request.query), new_debts: [], money_effects: { students: [], payroll: [], text: "", dryRun: true } } };
+  }
+  return null;
+};
+const BIG_PAYMENT = { id: "p1", amount: 1300000, paid_on: "2026-11-05", method: "cash", note: null };      // more than the debt of the student who left (1 200 000)
+
+test("Ф-5: only the method changes (sum and date the same) - no «не больше долга», the correction goes to the server", async () => {
+  const log = [];
+  const run = await openReplace(1280, leftServer(log), BIG_PAYMENT);
+  await run.page.waitForSelector('[data-testid="left-debt-only"], [data-testid="payment-methods"]');
+  await run.page.click('[data-testid="payment-methods"] >> text=Карта');
+  await run.page.fill("#payment-reason", "ошиблись в способе");
+  await run.page.waitForFunction(() => !document.querySelector('button[form="payment-form"]').disabled);
+  assert.doesNotMatch(plain(await run.page.textContent('[role="dialog"]')), /принять можно не больше долга/);
+  assert.equal(await run.page.locator('[data-testid="left-debt-only"]').count(), 0, "the cap does not bind this correction");
+  await run.page.click('button[form="payment-form"]');
+  await run.page.waitForFunction(() => window.__log.includes("saved"));
+  const real = run.calls.filter((call) => /replace$/.test(call.path) && !/dry_run=true/.test(call.query));
+  assert.equal(real.length, 1);
+  assert.equal(real[0].body.method, "card");
+  assert.equal(real[0].body.amount, 1300000);
+  await run.page.close();
+});
+
+test("Ф-5: a changed sum above the debt of the student who left stays refused in the server's words of the window", async () => {
+  const run = await openReplace(1280, leftServer(), BIG_PAYMENT);
+  await run.page.waitForSelector('[data-testid="payment-methods"]');
+  await run.page.fill("#payment-amount", "1 400 000");
+  await run.page.fill("#payment-reason", "ошиблись в сумме");
+  await run.page.waitForSelector('[role="alert"]:has-text("принять можно не больше долга")');
+  assert.equal(await run.page.locator('button[form="payment-form"]').isDisabled(), true);
+  assert.equal(await run.page.locator('[data-testid="left-debt-only"]').count(), 1);
+  // the date changed (the sum the same) binds the cap too
+  await run.page.fill("#payment-amount", "1 300 000");
+  await run.page.waitForFunction(() => !/принять можно не больше долга/.test(document.body.textContent || ""));
+  await run.page.close();
+});
+
+test("Ф-5: a NEW payment of a student who has left keeps the cap (the correction rule is for corrections only)", () => {
+  const { leftCapApplies } = lib("payments-logica.ts");
+  assert.equal(leftCapApplies({ kind: "create", original: null, amount: 100, paidOn: "2026-11-05" }), true);
+  assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: 1300000, paidOn: "2026-11-05" }), false);
+  assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: 1200000, paidOn: "2026-11-05" }), true);
+  assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: 1300000, paidOn: "2026-11-04" }), true);
+  assert.equal(leftCapApplies({ kind: "replace", original: { amount: 1300000, paid_on: "2026-11-05" }, amount: null, paidOn: "2026-11-05" }), true, "an empty field is a change");
+});
