@@ -62,6 +62,8 @@ export interface ScheduleCardInput {
   hasTeacherInfo: boolean;
   /** «HH:MM» of the start: with it a lesson of today that has begun is treated as a past one. */
   startTime?: string | null;
+  /** «HH:MM» of the end: without the money right «who held it» is closed only for a lesson that has ENDED (`pastSubstituteLockReason`, the server's `_has_ended`). */
+  endTime?: string | null;
   /** The lesson is an occurrence of a WEEKLY lesson (not a one-off one): the sheet then also changes / stops the weekly lesson. */
   recurring?: boolean;
   /** The moment of the decision (business clock is applied to it); the real now by default, a test passes its own. */
@@ -151,8 +153,8 @@ function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
     out.push("reschedule", "cancel");
   } else {
     out.push("mark");
-    // «Назначить того, кто провёл» of a past lesson decides whose pay it is: the money right's (Money-1 Г-3; the server answers 403 `MONEY_RIGHT_REQUIRED`) - without it the action is not offered
-    if (canAssign && input.moneyRight === true) out.push("assign");
+    // «Назначить того, кто провёл» of a lesson that has ended decides whose pay it is: the money right's (Money-1 Г-3; the server answers 403 `MONEY_RIGHT_REQUIRED`); a lesson that goes on is open to the administrator
+    if (canAssign && pastSubstituteLockReason({ date, today, endTime: input.endTime, moneyRight: input.moneyRight === true, now: input.now }) === null) out.push("assign");
   }
   return out;
 }

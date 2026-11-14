@@ -570,6 +570,17 @@ test("Ф-7 menu: «Назначить того, кто провёл» of a past 
   assert.deepEqual(scheduleCardActions({ ...coming, moneyRight: false }), ["assign", "reschedule", "cancel"], "a substitute for a coming lesson moves no money");
 });
 
+test("Ф-7 menu, the server's rule: without the right only a lesson that has ENDED loses «Назначить того, кто провёл»; one that goes on keeps it (the teacher did not come, a substitute did)", () => {
+  const { scheduleCardActions } = lib("schedule-card-actions.ts");
+  const today = { role: "admin", archived: false, state: "scheduled", date: "2026-11-14", today: "2026-11-14", hasTeacherInfo: true, startTime: "16:00", endTime: "17:00" };
+  const at = (utc) => new Date(`2026-11-14T${utc}:00Z`);   // business time is Tashkent, UTC+5
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("11:10") }), ["mark", "assign"], "16:10 - begun, not over: no right is enough");
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("12:00") }), ["mark", "assign"], "17:00 - the minute of the end is not over yet");
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, now: at("12:01") }), ["mark"], "17:01 - over: the money right's");
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: true, now: at("12:30") }), ["mark", "assign"], "with the right - always");
+  assert.deepEqual(scheduleCardActions({ ...today, moneyRight: false, endTime: null, now: at("12:30") }), ["mark", "assign"], "no readable end: the server has the last word");
+});
+
 test("Ф-7 server text: 403 MONEY_RIGHT_REQUIRED is shown as the server wrote it (the window of «кто провёл», the decision of a request)", () => {
   const message = "Провести урок за другого преподавателя в журнале может владелец или администратор с доступом к деньгам: от этого зависит, чья это зарплата";
   const error = Object.assign(new Error(message), { status: 403, code: "MONEY_RIGHT_REQUIRED", detail: { code: "MONEY_RIGHT_REQUIRED", message } });
