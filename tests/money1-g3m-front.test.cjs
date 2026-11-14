@@ -300,3 +300,45 @@ test("Н3: окно конфликта отметок — «Отметки из�
   assert.equal(conflictHeadline({ currentVersion: 3, updatedBy: { name: "Петров П." }, message: "" }), "Отметки изменены: Петров П.");
   assert.doesNotMatch(read("src/lib/attendance-ops.ts"), /изменил\(а\)/);
 });
+
+// ── Круг 3, К1: «Исправить оплату» ушедшего — потолок сказан один раз (слова сервера), числа «Что изменится» — ответ сервера ──
+const CEILING_TEXT = "Ученик ушёл из группы: сумму можно исправить не больше 500 000 сум";
+const k1Server = (request) => {
+  if (request.method === "GET" && /payments\/preview$/.test(request.path)) {
+    const amount = Number(/amount=(\d+)/.exec(request.query)?.[1]) || null;
+    const base = toshmatovPreview(amount);
+    return { json: { ...base, suggested_amount: 500000, warnings: [{ code: "left_debt_only", message: CEILING_TEXT }], ...(amount ? { result: { ...base.result, debt_after: 19000, past_debt_after: 19000, paid_until_after: "2026-11-12", summary_text: "Останется долг 19 000 сум" } } : {}) } };
+  }
+  if (request.method === "POST") {
+    const dry = /dry_run=true/.test(request.query);
+    const amount = request.body?.amount;
+    if (dry && amount > 500000) return invalid("PAYMENT_EXCEEDS_DEBT", "Ученик ушёл из группы: при исправлении сумма не может быть больше 500 000 сум", { debt: 500000 });
+    return { status: 201, json: { payment: { id: "p1", amount, paid_on: "2026-11-05", method: "cash", note: null }, row: ROW, warnings: [], allocation: null, dry_run: dry, new_debts: [], money_effects: { students: [], payroll: [], text: "", dryRun: true } } };
+  }
+  return null;
+};
+const times = (text, part) => text.split(part).length - 1;
+
+for (const width of [1280, 375]) {
+  test(`К1 ${width}: «Исправить оплату» ушедшего — потолок один раз, словами сервера, вне «Что изменится»; числа блока — сервера`, async () => {
+    const payment = { id: "p1", amount: 500000, paid_on: "2026-11-05", method: "cash", note: null };
+    const run = await open(browser, "money-v.entry.tsx", "replace", { width, props: { membership: TOSHMATOV, payment }, server: k1Server });
+    const page = run.page;
+    await page.waitForSelector("#payment-form");
+    await page.fill("#payment-amount", "100 000");
+    await page.waitForFunction(() => /19[\s\u00a0\u202f]000/.test(document.querySelector('[data-testid="payment-calc"]')?.textContent ?? ""));
+    const dialog = plain(await page.textContent('[role="dialog"]'));
+    assert.equal(times(dialog, "не больше 500 000"), 1, dialog);
+    assert.ok(!dialog.includes("можно оплатить только долг"));
+    assert.ok(!plain(await page.textContent('[data-testid="payment-calc"]')).includes("не больше 500 000"));
+    assert.equal(plain(await page.textContent('[data-testid="left-debt-only"]')), CEILING_TEXT);
+        // above the ceiling: the reason of the off button stands over the button, once; the calm hint gives way to it
+    await page.fill("#payment-amount", "600 000");
+    await page.fill("#payment-reason", "ошибся в сумме");
+    await page.waitForFunction(() => /не может быть больше/.test(document.querySelector('[data-testid="payment-blocker"]')?.textContent ?? ""));
+    const over = plain(await page.textContent('[role="dialog"]'));
+    assert.equal(times(over, "не больше 500 000"), 0, over);
+    assert.equal(times(over, "не может быть больше 500 000"), 1, over);
+    await page.close();
+  });
+}

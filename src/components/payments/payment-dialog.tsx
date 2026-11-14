@@ -194,6 +194,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
   const leftOnly = isLeftDebtOnly(latest) && leftCapApplies({ kind, original: payment ?? null, amount: amountNow, paidOn: values.paidOn });      // Р-13: the method alone of a correction takes no money
   const leftDebt = due?.total ?? 0;
+  const leftWords = latest?.warnings.find((warning) => warning.code === "left_debt_only")?.message ?? null;      // К1 круг 3: the server's own sentence, once (the plan does not repeat it)
   const leftCeiling = kind === "replace" ? latest?.suggested_amount ?? 0 : leftDebt;
   const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;      // G3M С1: a correction has no text of its own - its ceiling is the server's (`suggested_amount`), the refusal comes in its words
   const plan = amountNow !== null ? planView(fresh) : null;
@@ -357,7 +358,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               </p>
             )}
             {calmHint && <p className="mt-2.5 text-xs text-slate-500" data-testid="payment-nodebt">{calmHint}</p>}
-            {leftOnly && (
+            {leftOnly && kind === "replace" && !replace.refused && !(amountNow !== null && amountNow > leftCeiling) && leftWords !== null && (
+              <p className="mt-2.5 text-xs text-slate-600" data-testid="left-debt-only">{leftWords}</p>
+            )}
+            {leftOnly && kind !== "replace" && (
               <p role="note" className="mt-2.5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 <span>{LEFT_DEBT_ONLY_TEXT}{leftCeiling > 0 ? `: не больше ${formatMoney(leftCeiling)}` : kind === "create" ? "; долга нет — принимать нечего" : ""}</span>

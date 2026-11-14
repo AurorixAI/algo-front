@@ -413,7 +413,7 @@ export function previewView(preview: PaymentPreview | null | undefined): Preview
       text: balanceAfterText(debtAfter, advanceAfter),
     },
     priceAhead: ahead,
-    warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE).map((warning) => warning.message),
+    warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE && warning.code !== "left_debt_only").map((warning) => warning.message),
     repeated: preview.warnings.find((warning) => warning.code === PAYMENT_REPEATED_CODE)?.message ?? null,
   };
 }
