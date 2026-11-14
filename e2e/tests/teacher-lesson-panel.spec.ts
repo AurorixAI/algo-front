@@ -1,5 +1,5 @@
 import { test, expect } from "../support/fixtures";
-import { Org, clockReaches, runLesson, type GroupInfo, type LessonInfo, type Staff } from "../support/api";
+import { Org, clockReaches, lessonVersion, runLesson, saveLessonMarks, type GroupInfo, type LessonInfo, type Staff } from "../support/api";
 import type { Page, Request } from "@playwright/test";
 
 /**
@@ -28,7 +28,7 @@ test.beforeAll(async () => {
   for (const pair of made) {
     await runLesson(pair.teacher, pair.lessonB, { records: { [pair.b1.id]: "present" } });
     // a second save of B moves its version on: the versions of A and B differ
-    await pair.teacher.api.post(`/auth/org/groups/${pair.groupB.id}/attendance`, { lessonDate: pair.lessonB.date, lessonId: pair.lessonB.id, status: "in_progress", records: { [pair.b1.id]: "present", [pair.b2.id]: "late" } });
+    await saveLessonMarks(pair.teacher, pair.lessonB, { status: "in_progress", records: { [pair.b1.id]: "present", [pair.b2.id]: "late" } });
     pairs[pair.label] = pair;
   }
 });
@@ -45,13 +45,6 @@ async function makePair(label: string) {
   const lessonB = await org.createLessonStartingNow(groupB.id, org.owner, 10, 1);
   await runLesson(teacher, lessonA, { records: { [a1.id]: "present", [a2.id]: "absent" }, complete: true });
   return { label, teacher, groupA, groupB, a1, a2, b1, b2, lessonA, lessonB };
-}
-
-async function versionOf(teacher: Staff, group: GroupInfo, lesson: LessonInfo): Promise<number> {
-  const journal = await teacher.api.get(`/auth/org/groups/${group.id}/attendance`, { date_from: lesson.date, date_to: lesson.date });
-  const version = journal.versions?.[`${lesson.date}_${lesson.id}`];
-  expect(typeof version).toBe("number");
-  return version;
 }
 
 /** Holds the answers of the journal of `group` (only after `arm()`), counts them, lets them go on `release()`. */
@@ -131,8 +124,8 @@ for (const screen of ["dashboard", "schedule"] as const) {
     await expect(page.getByRole("heading", { name: /Отметка посещаемости \(2 из 2\)/ })).toBeVisible();
 
     // the save goes to B with the version of B (and not the version of A)
-    const versionB = await versionOf(teacher, groupB, lessonB);
-    const versionA = await versionOf(teacher, groupA, lessonA);
+    const versionB = await lessonVersion(teacher, lessonB);
+    const versionA = await lessonVersion(teacher, lessonA);
     expect(versionB).not.toBe(versionA);
     await markAbsentAndSave(page, b2.fullName);
     await expect(page.getByText("Идёт урок · Посещаемость отмечена")).toBeVisible();
@@ -240,7 +233,7 @@ for (const screen of ["dashboard", "schedule"] as const) {
       await expect(page.getByText("Урок ещё не начался", { exact: true })).toBeVisible();
       if (variant === "conflict") {
         // somebody saves A in the other window: the version of A moves on
-        await teacher.api.post(`/auth/org/groups/${groupA.id}/attendance`, { lessonDate: lessonA.date, lessonId: lessonA.id, status: "in_progress", records: { [a1.id]: "absent", [a2.id]: "present" } });
+        await saveLessonMarks(teacher, lessonA, { status: "in_progress", records: { [a1.id]: "absent", [a2.id]: "present" } });
       }
       release();
       await page.waitForTimeout(900);

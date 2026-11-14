@@ -421,15 +421,30 @@ export async function runLesson(
     complete?: boolean;
   },
 ): Promise<void> {
-  const base = `/auth/org/groups/${lesson.groupId}/attendance`;
-  await actor.api.post(`${base}/start`, { lessonDate: lesson.date, lessonId: lesson.id });
-  await actor.api.post(base, {
-    lessonDate: lesson.date,
-    lessonId: lesson.id,
+  await startLesson(actor, lesson);
+  await saveLessonMarks(actor, lesson, {
     status: opts.complete ? "completed" : "in_progress",
     records: opts.records,
     excuseReasons: opts.reasons,
   });
+}
+
+/** The current version of the lesson record (what the screen sends back as `expectedVersion`; Money-1 G-11). */
+export async function lessonVersion(actor: Session, lesson: LessonInfo): Promise<number> {
+  const journal = await actor.api.get(`/auth/org/groups/${lesson.groupId}/attendance`, { date_from: lesson.date, date_to: lesson.date });
+  const version = journal.versions?.[`${lesson.date}_${lesson.id}`];
+  if (typeof version !== "number") throw new Error(`no version of lesson ${lesson.id} on ${lesson.date}`);
+  return version;
+}
+
+/** Save the marks of an EXISTING lesson record with its current version (the server refuses a save without one: ATTENDANCE_CONFLICT). */
+export async function saveLessonMarks(
+  actor: Session,
+  lesson: LessonInfo,
+  body: { status: "in_progress" | "completed" | "cancelled"; records: Record<string, Mark>; excuseReasons?: Record<string, string>; [k: string]: unknown },
+): Promise<void> {
+  const expectedVersion = await lessonVersion(actor, lesson);
+  await actor.api.post(`/auth/org/groups/${lesson.groupId}/attendance`, { lessonDate: lesson.date, lessonId: lesson.id, expectedVersion, ...body });
 }
 
 export interface LessonInfo {
