@@ -159,3 +159,45 @@ test("Ф7: «Приглашение отправлено» — срок из exp
   assert.ok(sl.INVITE_SENT_NOTES.every((note) => !/7 дн/.test(note)));
   assert.match(read("src/app/owner/teachers/page.tsx"), /expiresAt=\{sent\.expires_at\}/);
 });
+
+// ── Ф8: ведомость — блоки строятся из нового ответа после 409 SHEET_DATA_CHANGED и «Пересчитать» ──
+const PAYOUT8 = { saved_total: 475000, fresh_total: 475000, target: 475000, paid: 0, balance: 475000, state: "unpaid", basis: "saved", changed_by: 0, change_text: null, text: "Не выплачено", items: [] };
+const SHEET8 = (revision) => ({ id: "s1", saved: true, month: "2026-10", period_start: "2026-10-01", period_end: "2026-10-31", month_open: false, teacher_id: "t1", teacher_name: "Каримова К.", revision,
+  percents: { group: "50" }, divisor_default: 12, lines: [], groups: [], total_amount: 475000, counted_total: 38, unpaid_total: 0, pending_excused_total: 0, undecided_total: 0,
+  warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }, written_off_total: 0, payout: PAYOUT8, source_fingerprint: "fp-1", stale: false, note: null,
+  created_by_name: "Арслан", created_at: "2026-11-03T05:00:00", updated_by_name: "Арслан", updated_at: "2026-11-03T05:00:00" });
+const DIFF8 = { sheet_id: "s1", revision: 2, stale: false, source_fingerprint: "fp-1", saved_total: 475000, fresh_total: 475000, delta_amount: 0, reasons: [], rate_changes: [], lines: [] };
+function sheetServer(state) {
+  return (request) => {
+    const { method, path } = request;
+    if (method === "GET" && path === "/auth/org/payroll/sheets/s1") return { json: SHEET8(state.revision) };
+    if (method === "GET" && path === "/auth/org/payroll/sheets/s1/diff") return { json: { ...DIFF8, source_fingerprint: state.fingerprint } };
+    if (method === "GET" && path === "/auth/org/payroll-periods") return { json: { month: "2026-10", items: [{ teacherId: "t1", teacherName: "Каримова К.", month: "2026-10", state: "reopened", closedOn: "2026-11-03", sheetId: "s1", sheetRevision: 2, reopened: { at: "2026-11-05T09:00:00", by: "Арслан", reason: "ошибочно отметили урок" } }] } };
+    if (method === "GET" && path === "/auth/org/payroll/months/2026-10") return { json: { month: "2026-10", period_start: "2026-10-01", period_end: "2026-10-31", month_open: false, divisor: 12, lessons_without_teacher: 0, teachers: [{ teacher_id: "t1", teacher_name: "Каримова К.", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: null, warnings: { open_lessons: 0, pending_excused: state.excused, no_fee: 0, unpaid: 0 } }] } };
+    if (method === "GET" && path === "/auth/org/payroll/rates") return { json: { month: "2026-10", items: [{ teacher_id: "t1", rates: { group: { percent: "50", valid_from: "2026-01" } } }] } };
+    if (method === "PATCH" && path === "/auth/org/payroll/sheets/s1") {
+      state.patches += 1;
+      if (state.patches === 1) { state.excused = 0; state.fingerprint = "fp-2"; return { status: 409, json: { detail: { code: "SHEET_DATA_CHANGED", message: "Данные изменились после просмотра", fingerprint: "fp-2" } } }; }
+      return { json: SHEET8(state.revision) };      // the same revision: no new key for the page to notice
+    }
+    return null;
+  };
+}
+test("Ф8: после 409 SHEET_DATA_CHANGED и «Пересчитать» панель «уважительная ждёт решения» исчезает без обновления страницы (нового ответа месяца), а после сохранения с той же ревизией — тоже", async () => {
+  const state = { revision: 2, patches: 0, excused: 1, fingerprint: "fp-1" };
+  const run = await openPage(browser, "money.entry.tsx", sheetServer(state));
+  await run.page.evaluate(() => window.mount("sheetPage", { role: "owner", org_role: "owner" }));
+  await run.page.waitForSelector('[aria-label="Итог ведомости"]');
+  const panel = () => run.page.getByText("уважительная ждёт решения").count();
+  await run.page.waitForFunction(() => /уважительная ждёт решения/.test(document.body.textContent || ""));
+  await run.page.click('[aria-label="Итог ведомости"] button:has-text("Сохранить и закрыть месяц")');
+  await run.page.waitForSelector('button:has-text("Пересчитать")');
+  assert.equal(await panel() > 0, true, "before the owner looks at the new data the block is the old one");
+  await run.page.click('button:has-text("Пересчитать")');
+  await run.page.waitForFunction(() => !/уважительная ждёт решения/.test(document.body.textContent || ""));
+  assert.equal(await panel(), 0);
+  state.excused = 1;      // the data moves once more behind the save: a save that keeps the revision must read the blocks again
+  await run.page.click('[aria-label="Итог ведомости"] button:has-text("Сохранить и закрыть месяц")');
+  await run.page.waitForFunction(() => /уважительная ждёт решения/.test(document.body.textContent || ""));
+  await run.page.close();
+});

@@ -205,34 +205,40 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     if (tab === "history" && sheet && revisions === null && !revisionsFailed) void loadRevisions();
   }, [tab, sheet, revisions, revisionsFailed, loadRevisions]);
 
-  // The rate in force in the month of this sheet, read again after every save / recalculation (a quiet failure: the card just says nothing)
-  const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
-  useEffect(() => {
-    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); setFreshUndecided(0); setPeriod(null); return undefined; }
-    let cancelled = false;
-    orgApi.getPayrollPeriods(sheet.month)
-      .then((answer) => { if (!cancelled) setPeriod(periodOf(answer, sheet.teacher_id)); })
-      .catch(() => { if (!cancelled) setPeriod(null); });
-    orgApi.getPayrollMonth(sheet.month)
+  // G3M Ф8: everything beside the sheet (the month's warnings, the period, the rates) is read by ONE function, so a block never lives on an older answer than the sheet: it runs when the sheet changes
+  // (the key) and after every save / «Пересчитать» / «Проверить данные» - even one that left the revision as it was (no new key, but the data under the blocks moved)
+  const contextRun = useRef(0);
+  const loadContext = useCallback((target: { month: string; teacher_id: string } | null) => {
+    const run = ++contextRun.current;
+    const fresh = () => contextRun.current === run;
+    if (!target || denied) { setRatesNow(null); setFreshWarnings(null); setFreshUndecided(0); setPeriod(null); return; }
+    orgApi.getPayrollPeriods(target.month)
+      .then((answer) => { if (fresh()) setPeriod(periodOf(answer, target.teacher_id)); })
+      .catch(() => { if (fresh()) setPeriod(null); });
+    orgApi.getPayrollMonth(target.month)
       .then((overview) => {
-        if (cancelled) return;
-        const row = overview.teachers.find((candidate) => candidate.teacher_id === sheet.teacher_id);
+        if (!fresh()) return;
+        const row = overview.teachers.find((candidate) => candidate.teacher_id === target.teacher_id);
         setFreshWarnings(row ? row.warnings : null);
         setFreshUndecided(row?.undecided_lessons ?? 0);
         setWarningsFailed(!row);
       })
-      .catch(() => { if (!cancelled) { setFreshWarnings(null); setWarningsFailed(true); } });
-    orgApi.getPayrollRates(sheet.month)
+      .catch(() => { if (fresh()) { setFreshWarnings(null); setWarningsFailed(true); } });
+    orgApi.getPayrollRates(target.month)
       .then((answer) => {
-        if (cancelled) return;
-        const item = answer.items.find((candidate) => candidate.teacher_id === sheet.teacher_id);
+        if (!fresh()) return;
+        const item = answer.items.find((candidate) => candidate.teacher_id === target.teacher_id);
         setRatesNow(item ? Object.fromEntries(Object.entries(item.rates ?? {}).map(([type, rate]) => [type, rate ? { percent: rate.percent, valid_from: rate.valid_from } : null])) : null);
       })
-      .catch(() => { if (!cancelled) setRatesNow(null); });
-    return () => { cancelled = true; };
+      .catch(() => { if (fresh()) setRatesNow(null); });
+  }, [denied]);
+  const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
+  useEffect(() => {
+    loadContext(sheet ? { month: sheet.month, teacher_id: sheet.teacher_id } : null);
+    return () => { contextRun.current += 1; };
     // the key says when the sheet changed; the sheet itself changes on every edit
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rateKey, denied]);
+  }, [rateKey, loadContext]);
 
   // The title becomes the default file name when the sheet is saved as PDF from the print dialog.
   useEffect(() => {
@@ -287,7 +293,9 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       setConflict(false);
       setRevisions(null);
       setDiff(null);
+      setFreshWarnings(null);      // the blocks of the old data go at once; the new ones come with the read below
       void loadDiff();
+      loadContext({ month: updated.month, teacher_id: updated.teacher_id });
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
       const error = cause as PayrollErrorLike;
@@ -431,6 +439,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   onReload={async () => {
                     // Look at the new difference first; the next «Пересчитать» expects exactly this data.
                     setRefreshing(true);
+                    loadContext({ month: sheet.month, teacher_id: sheet.teacher_id });
                     await loadDiff();
                     setRefreshing(false);
                     setDataChanged((current) => (current ? { ...current, acknowledged: true } : current));
