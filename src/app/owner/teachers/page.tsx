@@ -657,7 +657,7 @@ function OwnerTeachersContent() {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:text-slate-400"
               />
               <p className="text-xs font-medium text-slate-500 mt-2">
-                Приглашение придёт на эту почту. Принять его сможет только тот, кто получил письмо. Ссылка действует 7 дней.
+                Приглашение придёт на эту почту. Принять его сможет только тот, кто получил письмо.
               </p>
               {inviteError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{inviteError}</p>}
             </div>

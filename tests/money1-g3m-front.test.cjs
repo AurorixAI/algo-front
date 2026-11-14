@@ -247,3 +247,8 @@ test("Н5: код SHEET_NOT_SAVED сервер не выдаёт — во фро
   assert.doesNotMatch(read("src/lib/payroll-logica.ts"), /SHEET_NOT_SAVED|not_saved/);
   assert.equal(lib("payroll-logica.ts").payoutError({ code: "SHEET_NOT_SAVED", message: "m" }).kind, "other");
 });
+
+test("Н4: форма приглашения не обещает срок строкой (срок — из expires_at после отправки)", () => {
+  assert.doesNotMatch(read("src/app/owner/teachers/page.tsx"), /действует \d+ дн/);
+  for (const f of ["src/app/admin/diagnostics/page.tsx", "src/lib/diagnostic-invite.ts"]) assert.doesNotMatch(read(f), /(действует|действителен)\s+\d+\s+(дн|час)/);
+});
