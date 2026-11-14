@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import QRCode from "qrcode.react";
 import { orgApi } from "@/lib/api";
+import { inviteCodeNote } from "@/lib/diagnostic-invite";
 import { FULL_NAME_NEEDS_TWO_WORDS, splitFullName } from "@/lib/full-name";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/use-copy";
@@ -35,6 +36,7 @@ export default function NewStudentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [diagnosticCode, setDiagnosticCode] = useState<string>("");
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     phone: "+998 ",
@@ -111,6 +113,7 @@ export default function NewStudentPage() {
       });
 
       setDiagnosticCode(diagnostic.code);
+      setExpiresAt(diagnostic.expires_at ?? null);
       setStep(2);
     } catch (err: any) {
       setApiError(err.message || "Ошибка при создании ученика");
@@ -122,6 +125,7 @@ export default function NewStudentPage() {
   const handleReset = () => {
     setStep(1);
     setDiagnosticCode("");
+    setExpiresAt(null);
     setApiError(null);
     setFormData({ name: "", phone: "+998 ", grade: "", expectedLevel: "", comment: "" });
   };
@@ -303,7 +307,7 @@ export default function NewStudentPage() {
 
                     <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-1 font-medium">
                       <span>⏱️</span>
-                      <span>Код действителен 7 дней • 1 попытка</span>
+                      <span>{inviteCodeNote(expiresAt)}</span>
                     </p>
                   </div>
                 </div>

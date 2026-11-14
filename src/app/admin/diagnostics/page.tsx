@@ -23,7 +23,7 @@ import { formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 import {
   DIAGNOSTIC_ACTIONS_COLUMN, DiagnosticActionSpacer, DiagnosticStatusBadge, diagnosticActionClass,
 } from "@/components/diagnostics/list-chrome";
-import { INVITE_CANCELLED_LABEL, inviteCancelHint, isInviteAssigned, isInviteRunning, isInviteWaiting } from "@/lib/diagnostic-invite";
+import { INVITE_CANCELLED_LABEL, inviteCancelHint, inviteUntilText, isInviteAssigned, isInviteRunning, isInviteWaiting } from "@/lib/diagnostic-invite";
 import { Button } from "@/components/ui/button";
 
 interface DiagnosticInvite {
@@ -35,6 +35,8 @@ interface DiagnosticInvite {
   diagnostic_type: string;
   status: string;
   created_at: string;
+  /** The end of the term of the code (the server's; a waiting invitation says «до 21.11»). */
+  expires_at?: string | null;
   started_at: string | null;
   completed_at: string | null;
   /** Only a cancelled invite: when (naive UTC) and why ("student_archived"). */
@@ -493,6 +495,9 @@ export default function AdminDiagnosticsPage() {
                       <span className="text-xs text-slate-500">
                         {formatUtcNaiveAsBusinessDayTime(inv.created_at)}
                       </span>
+                      {inv.status === "pending" && inviteUntilText(inv.expires_at) && (
+                        <span data-testid="diagnostic-until" className="text-xs text-slate-500">{inviteUntilText(inv.expires_at)}</span>
+                      )}
                       {cancelHint && (
                         <span data-testid="diagnostic-cancel-hint" className="text-xs text-slate-500">{cancelHint}</span>
                       )}

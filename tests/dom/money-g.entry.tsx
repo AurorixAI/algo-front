@@ -12,6 +12,9 @@ import { MethodsDonut } from "@/components/payments/income-parts";
 import { JournalList } from "@/components/payments/income-journal";
 import { normalizeJournal, normalizeOverview } from "@/lib/payments-income-v2";
 import { AttendanceConflictBody } from "@/components/attendance/attendance-ops-dialogs";
+import { StudentDiagnosticDialog } from "@/components/students/student-diagnostic-dialog";
+import NewStudentPage from "@/app/admin/students/new/page";
+import AdminDiagnosticsPage from "@/app/admin/diagnostics/page";
 import { useAuthStore } from "@/lib/store";
 
 const w = window as any;
@@ -60,6 +63,15 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "conflict":
       root.render(<div className="mx-auto" style={{ width: props.width ?? 420 }}><AttendanceConflictBody conflict={props.conflict} names={props.names} /></div>);
+      break;
+    case "diagDialog":
+      root.render(<StudentDiagnosticDialog open studentId="s1" studentName="Каримов Фарходжон Рустамович" classLevel={7} initialKind="initial" onClose={() => log("close")} onCreated={() => log("created")} />);
+      break;
+    case "newStudent":
+      root.render(<NewStudentPage />);
+      break;
+    case "diagList":
+      root.render(<div className="mx-auto max-w-5xl p-4"><AdminDiagnosticsPage /></div>);
       break;
     default:
       break;

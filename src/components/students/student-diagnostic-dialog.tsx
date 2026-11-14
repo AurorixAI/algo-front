@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Copy, Send } from "lucide-react";
 import QRCode from "qrcode.react";
 import { orgApi } from "@/lib/api";
+import { inviteCodeNote } from "@/lib/diagnostic-invite";
 import { DIAGNOSTIC_KIND_LABEL, diagnosticLink, shareUrls, type DiagnosticKind } from "@/lib/student-diagnostic";
 import { useCopy } from "@/lib/use-copy";
 import { Modal } from "@/components/ui/modal";
@@ -33,6 +34,7 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const { copied, copy } = useCopy();
 
   const link = code && typeof window !== "undefined" ? diagnosticLink(window.location.origin, code) : "";
@@ -46,6 +48,7 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
     try {
       const invite = await orgApi.createDiagnostic({ student_id: studentId, class_level: level, diagnostic_type: kind });
       setCode(invite.code);
+      setExpiresAt(invite.expires_at ?? null);
       onCreated();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось создать диагностику");
@@ -73,7 +76,7 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-xs font-semibold text-slate-500">Ссылка для прохождения</p>
               <p className="select-all truncate rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{link}</p>
-              <p className="text-xs text-slate-500">Код действителен 7 дней, одна попытка.</p>
+              <p className="text-xs text-slate-500">{inviteCodeNote(expiresAt)}</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">

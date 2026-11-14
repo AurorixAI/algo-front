@@ -731,3 +731,85 @@ for (const width of [1280, 1024, 375]) {
     }
   });
 }
+
+// ── Ф-8: the term of a diagnostic code is the server's `expires_at`, not a «7 дней» of the front (LESSONS 125) ──────
+
+const EXPIRES = "2026-11-21T09:30:00+00:00";      // 14:30 on the Tashkent clock
+const INVITE = (extra = {}) => ({ id: "d1", student_id: "s1", student_name: "Каримов Фарходжон Рустамович", code: "ABC123", url: "http://localhost/d/ABC123", class_level: 7, diagnostic_type: "initial", status: "pending", expires_at: EXPIRES, created_at: "2026-11-14T07:00:00+00:00", ...extra });
+const diagServer = (invite = INVITE()) => (request) => {
+  if (request.method === "POST" && request.path === "/auth/org/diagnostics") return { status: 201, json: invite };
+  if (request.method === "POST" && request.path === "/auth/org/students") return { status: 201, json: { id: "s1", first_name: "Алия", last_name: "Каримова" } };
+  return null;
+};
+
+test("Ф-8 lib: «Код действителен до 21.11, 14:30 · одна попытка» from `expires_at`; no term - no promise; the list says «до 21.11»", () => {
+  const { inviteCodeNote, inviteUntilText } = lib("diagnostic-invite.ts");
+  assert.equal(inviteCodeNote(EXPIRES), "Код действителен до 21.11, 14:30 · одна попытка");
+  assert.equal(inviteCodeNote("2026-11-21T09:30:00"), "Код действителен до 21.11, 14:30 · одна попытка", "a naive UTC stamp is UTC too");
+  for (const none of [null, undefined, "", "soon"]) assert.equal(inviteCodeNote(none), "Одна попытка", String(none));
+  assert.equal(inviteUntilText(EXPIRES), "до 21.11");
+  assert.equal(inviteUntilText("2026-12-31T20:00:00+00:00"), "до 01.01", "the business calendar, not UTC");
+  for (const none of [null, undefined, ""]) assert.equal(inviteUntilText(none), "");
+});
+
+test("Ф-8 dialog «Новая диагностика»: the term is the server's `expires_at`; no «7 дней»", async () => {
+  const run = await openPage(browser, "money-g.entry.tsx", diagServer(), { width: 1280, height: 900 });
+  await run.page.evaluate((who) => window.mount("diagDialog", who), ADMIN_WITH_RIGHT);
+  await run.page.click('button:has-text("Создать ссылку")');
+  await run.page.waitForSelector('[data-testid="student-diagnostic-created"]');
+  const body = plain(await run.page.textContent('[data-testid="student-diagnostic-created"]'));
+  assert.match(body, /Код действителен до 21\.11, 14:30 · одна попытка/);
+  assert.doesNotMatch(body, /7 дней|24 часа/);
+  await run.page.close();
+});
+
+test("Ф-8 «Новый ученик»: the term of the code is the server's `expires_at`; no «7 дней»", async () => {
+  const run = await openPage(browser, "money-g.entry.tsx", diagServer(), { width: 1280, height: 900 });
+  await run.page.evaluate((who) => window.mount("newStudent", who), ADMIN_WITH_RIGHT);
+  await run.page.fill('input[placeholder="Алия Каримова"]', "Алия Каримова");
+  await run.page.fill('input[placeholder="+998 XX XXX XX XX"]', "+998901234567");
+  await run.page.click('button:has-text("Выберите класс")');
+  await run.page.click('[role="option"]:has-text("7 класс")');
+  await run.page.click('button:has-text("Создать и получить ссылку")');
+  await run.page.waitForSelector("text=Диагностика готова!");
+  const body = plain(await run.page.textContent("body"));
+  assert.match(body, /Код действителен до 21\.11, 14:30 · одна попытка/);
+  assert.doesNotMatch(body, /7 дней|24 часа/);
+  await run.page.close();
+});
+
+test("Ф-8 list of invitations: a waiting one says «до 21.11» (its `expires_at`), a finished one and one without a term say nothing", async () => {
+  const items = [INVITE(), INVITE({ id: "d2", code: "DEF456", status: "completed", student_name: "Иванов Иван" }), INVITE({ id: "d3", code: "GHI789", expires_at: null, student_name: "Петров Пётр" })];
+  const run = await openPage(browser, "money-g.entry.tsx", (request) => (request.method === "GET" && request.path === "/auth/org/diagnostics" ? { json: { items, total: 3, limit: 50, offset: 0 } } : null), { width: 1280, height: 900 });
+  await run.page.evaluate((who) => window.mount("diagList", who), ADMIN_WITH_RIGHT);
+  await run.page.waitForSelector('[data-testid="diagnostic-card"]');
+  const cards = run.page.locator('[data-testid="diagnostic-card"]');
+  assert.equal(await cards.count(), 3);
+  assert.equal(plain(await cards.nth(0).locator('[data-testid="diagnostic-until"]').textContent()), "до 21.11");
+  assert.equal(await cards.nth(1).locator('[data-testid="diagnostic-until"]').count(), 0);
+  assert.equal(await cards.nth(2).locator('[data-testid="diagnostic-until"]').count(), 0);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-8 ${width}: the dialog and the list with a long name - nothing leaves its box, the lines are whole`, async () => {
+    const run = await openPage(browser, "money-g.entry.tsx", diagServer(), { width, height: 900 });
+    await run.page.evaluate((who) => window.mount("diagDialog", who), ADMIN_WITH_RIGHT);
+    await run.page.click('button:has-text("Создать ссылку")');
+    await run.page.waitForSelector('[data-testid="student-diagnostic-created"]');
+    await run.page.waitForTimeout(450);
+    assert.equal(plain(await run.page.locator('[data-testid="student-diagnostic-created"] p:has-text("Код действителен")').innerText()), "Код действителен до 21.11, 14:30 · одна попытка");
+    const facts = await run.page.evaluate(layoutProbe, '[role="dialog"]');
+    assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+    assert.equal(facts.scroll, 0);
+    await run.page.close();
+    const list = await openPage(browser, "money-g.entry.tsx", (request) => (request.method === "GET" && request.path === "/auth/org/diagnostics" ? { json: { items: [INVITE({ student_name: "Каримов Фарходжон Рустамович Ибрагимович" })], total: 1, limit: 50, offset: 0 } } : null), { width, height: 900 });
+    await list.page.evaluate((who) => window.mount("diagList", who), ADMIN_WITH_RIGHT);
+    await list.page.waitForSelector('[data-testid="diagnostic-until"]');
+    assert.equal(plain(await list.page.locator('[data-testid="diagnostic-until"]').innerText()), "до 21.11");
+    const f2 = await list.page.evaluate(layoutProbe, '[data-testid="diagnostic-card"]');
+    assert.deepEqual(f2.bad, [], JSON.stringify(f2.bad));
+    assert.equal(f2.scroll, 0);
+    await list.page.close();
+  });
+}

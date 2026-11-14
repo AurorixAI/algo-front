@@ -4,7 +4,7 @@
  * never waiting, never running and never done; it is only history with a reason.
  * Pure: no React and no network, so node:test can load this file.
  */
-import { formatUtcNaiveAsBusinessDate } from "./business-time";
+import { formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime } from "./business-time";
 
 /** `cancel_reason` of an invite cancelled by archiving the student. */
 export const CANCEL_REASON_STUDENT_ARCHIVED = "student_archived";
@@ -60,6 +60,21 @@ export function inviteCancelHint(invite: { status?: string | null; cancel_reason
   const date = formatUtcNaiveAsBusinessDate(invite.cancelled_at);
   if (date) parts.push(date);
   return parts.join(" · ");
+}
+
+/**
+ * The term of a diagnostic code, the SERVER's `expires_at` (LESSONS 125: the rule lives in one constant on the server, the screen never repeats it as «7 дней»):
+ * «Код действителен до 21.11, 14:30 · одна попытка» on the Tashkent clock.  No `expires_at` - no promise about the term, only «Одна попытка».
+ */
+export function inviteCodeNote(expiresAt: string | null | undefined): string {
+  const until = formatUtcNaiveAsBusinessDayTime(expiresAt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });   // ru-RU: «21.11, 14:30»
+  return until ? `Код действителен до ${until} · одна попытка` : "Одна попытка";
+}
+
+/** «до 21.11» for a waiting invitation in the list (the business day of `expires_at`); "" without a term. */
+export function inviteUntilText(expiresAt: string | null | undefined): string {
+  const day = formatUtcNaiveAsBusinessDate(expiresAt, { day: "2-digit", month: "2-digit" });
+  return day ? `до ${day}` : "";
 }
 
 /** The badge on the student card (his diagnostics list) for an invite that is not done. */
