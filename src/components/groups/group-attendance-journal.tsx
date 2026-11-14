@@ -98,7 +98,7 @@ import {
   notYourLessonText,
   substituteLabel,
 } from "@/lib/lesson-teacher";
-import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasStarted, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
+import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasStarted, MARK_LESSON_LABEL, pastMarkLockReason, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
 import { canManageMoney } from "@/lib/money-effects";
@@ -706,6 +706,12 @@ export function GroupAttendanceJournal({
     const started = lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time });
     return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight), started });
   };
+
+  /** G3M Ф3: «Отметить посещаемость» of a past lesson nobody started is the money right's (the same rule as the schedule's sheet): without it the column says why. */
+  const markLockFor = (lesson: Lesson, lessonStatus: string): string | null =>
+    canEdit && adminMode
+      ? pastMarkLockReason({ role: "admin", archived: false, state: lessonStatus, date: lesson.date, today, hasTeacherInfo: false, startTime: lesson.startTime || lesson.start_time, moneyRight })
+      : null;
 
   const handleSelectStatus = async (
     status: AttendanceStatus | "",
@@ -1530,7 +1536,7 @@ export function GroupAttendanceJournal({
                         title={presentation.description}
                         className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : highlightedKey === key ? "bg-primary-100 ring-2 ring-inset ring-primary-300" : lesson.date === today ? "bg-primary-50" : ""}`}
                       >
-                        {(adminActions.length > 0 || canReplace) && (
+                        {(adminActions.length > 0 || canReplace || markLockFor(lesson, lessonStatus) !== null) && (
                           <button
                             type="button"
                             data-column-menu-trigger
@@ -1969,6 +1975,7 @@ export function GroupAttendanceJournal({
         const actions = actionsFor(lesson, columnMenu.key, lessonStatus);
         const menuTeacherInfo = attendanceData?.lessonTeachers?.[columnMenu.key];
         const menuCanReplace = Boolean(menuTeacherInfo) && canReplaceTeacher("admin", lessonStatus) && (moneyRight || lessonStatus !== "completed");
+        const markLock = markLockFor(lesson, lessonStatus);
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
@@ -1977,6 +1984,12 @@ export function GroupAttendanceJournal({
               <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
                 <span className="min-w-0"><span className="block">{MARK_LESSON_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.reconcile} /></span>
+              </button>
+            )}
+            {markLock && (
+              <button type="button" role="menuitem" data-testid="menu-mark-locked" aria-disabled="true" onClick={() => { setColumnMenu(null); showToast(markLock, "warning"); }} className="flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-500 hover:bg-slate-50">
+                <span className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-slate-300" />{MARK_LESSON_LABEL}</span>
+                <span className="pl-6 text-[11px] font-medium text-amber-700">{markLock}</span>
               </button>
             )}
             {actions.includes("cancel_missed") && (
@@ -2004,12 +2017,26 @@ export function GroupAttendanceJournal({
                 {finishHint && <span className="pl-6 text-[11px] font-medium text-amber-700">{finishHint}</span>}
               </button>
             )}
-            {menuCanReplace && (
-              <button type="button" role="menuitem" onClick={() => void runColumnAction("replace_teacher", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <UserRoundCheck className="h-4 w-4 text-violet-600" />
-                {assignActionLabel({ past: lesson.date <= today, lacksTeacher: lacksTeacher(menuTeacherInfo), isSubstitution: Boolean(menuTeacherInfo?.isSubstitution) })}
-              </button>
-            )}
+            {menuCanReplace && (() => {
+              // G3M Ф2: the same rule as the schedule - a lesson that has ENDED is assigned only with the money right; without it the item is off and says why
+              const assignLock = pastSubstituteLockReason({ date: lesson.date, today, endTime: lesson.endTime, moneyRight });
+              return (
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="menu-assign-held"
+                  aria-disabled={assignLock !== null}
+                  onClick={() => {
+                    if (assignLock) { setColumnMenu(null); showToast(assignLock, "warning"); return; }
+                    void runColumnAction("replace_teacher", lesson);
+                  }}
+                  className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${assignLock ? "text-slate-500" : "text-slate-700"}`}
+                >
+                  <span className="flex items-center gap-2"><UserRoundCheck className={`h-4 w-4 ${assignLock ? "text-slate-300" : "text-violet-600"}`} />{assignActionLabel({ past: lesson.date <= today, lacksTeacher: lacksTeacher(menuTeacherInfo), isSubstitution: Boolean(menuTeacherInfo?.isSubstitution) })}</span>
+                  {assignLock && <span className="pl-6 text-[11px] font-medium text-amber-700">{assignLock}</span>}
+                </button>
+              );
+            })()}
             {actions.includes("correct") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />

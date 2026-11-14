@@ -60,7 +60,7 @@ const NO_MARKS: LessonMark[] = [];
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh, onReload,
+  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", markLock = null, requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh, onReload,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -77,6 +77,8 @@ export function LessonActionSheet({
   marks?: LessonMark[];
   actions: ScheduleCardAction[];
   assignLabel?: string;
+  /** G3M Ф3: why «Отметить посещаемость» is off (an administrator without the money right); null/absent - open. */
+  markLock?: string | null;
   requestHref?: (requestId: string) => string;
   /** P1.1, the teacher's own move: the sheet opens straight on the form of the move and «Назад» closes it. */
   moveOnly?: boolean;
@@ -314,7 +316,9 @@ export function LessonActionSheet({
                     case "returnReview":
                       return <button key={action} type="button" data-testid="sheet-return-review" onClick={() => setReturning("review")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-emerald-600" />{SCHEDULE_ACTION_LABEL.returnReview}</button>;
                     case "mark":
-                      return <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
+                      return markLock
+                        ? <button key={action} type="button" data-testid="sheet-mark-locked" aria-disabled="true" onClick={(event) => event.preventDefault()} className="flex w-full flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-left text-sm font-semibold text-slate-500"><span className="flex items-center gap-3"><ClipboardCheck className="h-4 w-4 text-slate-300" />{SCHEDULE_ACTION_LABEL.mark}</span><span className="pl-7 text-xs font-medium text-amber-700">{markLock}</span></button>
+                        : <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
                     case "editSeries":
                       return <button key={action} type="button" onClick={onEditSeries} disabled={seriesPending !== null} className={`${ACTION_BUTTON} disabled:cursor-wait disabled:opacity-70`}>{seriesPending === "edit" ? <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> : <Pencil className="h-4 w-4 text-primary-600" />}{SCHEDULE_ACTION_LABEL.editSeries}</button>;
                     case "endSeries":

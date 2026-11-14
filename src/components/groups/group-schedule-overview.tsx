@@ -41,7 +41,7 @@ import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { canManageMoney } from "@/lib/money-effects";
 import { canUndoDecision } from "@/lib/one-off";
-import { addedByLine, assignActionLabel, lessonHasStarted, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
+import { addedByLine, assignActionLabel, lessonHasStarted, pastMarkLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 import { Button } from "@/components/ui/button";
 
 type ScheduleStatus = {
@@ -502,7 +502,9 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
         const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
-        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null, moneyRight: canManageMoney(user), undoDecision: canUndoDecision(lesson, canManageMoney(user)) }) : [];
+        const cardInput = lesson ? { role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null, moneyRight: canManageMoney(user), undoDecision: canUndoDecision(lesson, canManageMoney(user)) } : null;
+        const actions = cardInput ? scheduleCardActions(cardInput) : [];
+        const markLock = cardInput ? pastMarkLockReason(cardInput) : null;
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
@@ -527,6 +529,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
             cancellationKind={lessonState === "cancelled" ? attendance?.cancellationKinds?.[key] ?? null : null}
             actions={actions}
+            markLock={markLock}
             assignLabel={assignActionLabel({ past: Boolean(lesson && lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time })), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}
             onClose={() => { setSheetLesson(null); setSeriesError(null); }}
             onAssign={() => {

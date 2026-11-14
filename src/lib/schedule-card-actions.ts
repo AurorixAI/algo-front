@@ -126,6 +126,14 @@ export function todayPendingHintForLesson(
   return found ? todayPendingHint(found, today, now) : null;
 }
 
+/** G3M Ф3: the server formalises a lesson nobody started («Отметить посещаемость» of a past lesson) only for the money right (`reconcile`: 403 `MONEY_RIGHT_REQUIRED`). */
+export const PAST_MARK_NO_RIGHT_TEXT = "Отметки прошедшего урока меняет владелец или администратор с правом на оплаты";
+
+/** The reason «Отметить посещаемость» is off for an administrator without the money right (null: it is open, or the lesson has no such action).  One rule for the schedule and the journal. */
+export function pastMarkLockReason(input: ScheduleCardInput): string | null {
+  return input.moneyRight !== true && lessonActions(input).includes("mark") ? PAST_MARK_NO_RIGHT_TEXT : null;
+}
+
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
   const base = lessonActions(input);
