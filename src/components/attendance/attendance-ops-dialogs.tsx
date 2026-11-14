@@ -4,6 +4,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import {
   CONFLICT_EXPLAIN,
+  CONFLICT_TITLE,
   CONFLICT_KEEP_MINE,
   CONFLICT_TAKE_THEIRS,
   FINISH_LESSON_ACTION,
@@ -101,7 +102,7 @@ export function AttendanceConflictDialog({
   return (
     <Modal
       open={conflict !== null}
-      title="Отметки уже изменены"
+      title={CONFLICT_TITLE}
       onClose={() => undefined}
       busy
       aboveLessonPanel={aboveLessonPanel}

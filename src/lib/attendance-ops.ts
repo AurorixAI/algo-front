@@ -107,6 +107,8 @@ export function conflictHeadline(detail: AttendanceConflictDetail): string {
   return (detail.message ?? "").trim() || "Отметки уже изменил другой сотрудник.";
 }
 
+/** The window's title says WHAT happened; the line under it says who and when (`conflictHeadline`), the next one what happens to my marks - three different things (G3M Ф4). */
+export const CONFLICT_TITLE = "Журнал изменили, пока вы отмечали";
 export const CONFLICT_EXPLAIN = "Ваши несохранённые отметки останутся в окне, пока вы не выберете, чьи оставить.";
 export const CONFLICT_KEEP_MINE = "Оставить мои";
 export const CONFLICT_TAKE_THEIRS = "Принять чужие";

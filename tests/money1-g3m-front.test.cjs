@@ -95,3 +95,20 @@ test("Ф3: администратор без права — «Отметить �
   assert.equal(lib("schedule-card-actions.ts").pastMarkLockReason({ ...card, moneyRight: true }), null);
   assert.equal(lib("schedule-card-actions.ts").pastMarkLockReason({ ...card, moneyRight: false, state: "cancelled" }), null, "a cancelled lesson has no «mark»");
 });
+
+// ── Ф4 ──
+test("Ф4: заголовок окна конфликта отметок не повторяет строку под ним (кто и когда / без автора — слова сервера)", () => {
+  const ops = lib("attendance-ops.ts");
+  const first = (text) => plain(text).toLowerCase().split(/[ ,.:—]+/).slice(0, 2).join(" ");
+  for (const detail of [
+    { currentVersion: 3, updatedBy: { name: "Рахимов Т." }, updatedAt: "2026-11-06T05:42:00" },
+    { currentVersion: 3, updatedBy: { name: "Рахимов Т." } },
+    { currentVersion: 3, updatedBy: {}, message: "Отметки изменились — обновите страницу" },
+    { currentVersion: 3, updatedBy: {}, message: "" },
+  ]) {
+    const line = ops.conflictHeadline(detail);
+    assert.notEqual(plain(ops.CONFLICT_TITLE), plain(line));
+    assert.notEqual(first(ops.CONFLICT_TITLE), first(line), line);
+  }
+  assert.match(read("src/components/attendance/attendance-ops-dialogs.tsx"), /title=\{CONFLICT_TITLE\}/);
+});
