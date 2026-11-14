@@ -48,6 +48,11 @@ export interface IncomeCash {
   label: string;
   cash_received: number;
   cash_refunded: number;
+  /** A record of an earlier day cancelled today (taken out of the till; not a «return»). */
+  cash_cancelled: number;
+  /** A payment of an earlier day corrected today: the signed difference. */
+  cash_corrected: number;
+  /** The server's number: received − refunded − cancelled + corrected. */
   expected: number;
   payments_count: number;
   text: string;
@@ -160,6 +165,8 @@ export interface JournalRow {
   created_at: string | null;
   /** «внесена 21.10 в 11:40»: when the payment was entered, said by the server (absent on an older server). */
   entered_at_text?: string | null;
+  /** Money-1 Г-17: «внесена 22.10 · дата оплаты 21.10» - only for a payment entered NOT on its payment day; null otherwise. */
+  dates_text?: string | null;
   student_id: string;
   student_name: string;
   display_id: string | null;
@@ -273,7 +280,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     series: arr<IncomeDay>(raw?.series).map((item) => ({ bucket: text(item.bucket), received: sum(item.received), count: sum(item.count) })),
     series_by: raw?.series_by === "month" ? "month" : "day",
     refunded_total: sum(raw?.refunded_total), refunded_from_earlier: Math.max(0, sum(raw?.refunded_from_earlier)), refunded_text: nullableText(raw?.refunded_text),
-    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true, scope_text: nullableText(cash.scope_text) } : null,
+    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), cash_cancelled: sum(cash.cash_cancelled), cash_corrected: sum(cash.cash_corrected), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true, scope_text: nullableText(cash.scope_text) } : null,
     collection: collection ? {
       month: text(collection.month), month_label: text(collection.month_label), from: text(collection.from), to: text(collection.to), text: text(collection.text),
       total: collectionRow(collection.total), groups: arr<CollectionRow>(collection.groups).map(collectionRow),
@@ -294,7 +301,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
 function journalRow(raw: JournalRow): JournalRow {
   const status: JournalStatus = raw.status === "voided" || raw.status === "replaced" ? raw.status : "active";
   return {
-    id: text(raw.id), receipt_no: raw.receipt_no ?? null, paid_on: text(raw.paid_on), paid_time: nullableText(raw.paid_time), created_at: nullableText(raw.created_at), entered_at_text: nullableText(raw.entered_at_text),
+    id: text(raw.id), receipt_no: raw.receipt_no ?? null, paid_on: text(raw.paid_on), paid_time: nullableText(raw.paid_time), created_at: nullableText(raw.created_at), entered_at_text: nullableText(raw.entered_at_text), dates_text: nullableText(raw.dates_text),
     student_id: text(raw.student_id), student_name: text(raw.student_name), display_id: nullableText(raw.display_id), membership_id: text(raw.membership_id),
     group_id: text(raw.group_id), group_name: text(raw.group_name), teacher_name: nullableText(raw.teacher_name),
     amount: sum(raw.amount), method: text(raw.method), method_label: text(raw.method_label),
@@ -1055,20 +1062,6 @@ export function arcPath(cx: number, cy: number, radius: number, start: number, e
   return `M ${point(start)} A ${radius} ${radius} 0 ${end - start > 180 ? 1 : 0} 1 ${point(end)}`;
 }
 
-/**
- * The quiet line of the donut card on the current month: how much cash must be in the till today (the server's `cash.expected`, the
- * till of the whole centre).  No answer → no line; nothing taken in cash and nothing returned → «Сегодня наличными оплат не было»
- * (never «0 сум»).
- */
-export function cashTodayLine(cash: Pick<IncomeCash, "expected" | "cash_received" | "cash_refunded"> | null | undefined): { text: string; note: string | null } | null {
-  if (!cash) return null;
-  if (cash.expected === 0 && cash.cash_received === 0 && cash.cash_refunded === 0) return { text: "Сегодня наличными оплат не было", note: null };
-  return {
-    text: `Сегодня наличными: ${formatMoney(cash.expected)} — столько должно быть в кассе`,
-    note: cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null,
-  };
-}
-
 // ── «Группы — собираемость» ────────────────────────────────────────────────
 
 export interface CollectionRowView {
@@ -1333,10 +1326,13 @@ export interface JournalRowView {
   subLines: string[];
 }
 
-/** The server's «внесена 21.10 в 11:40» (trimmed); null when it is absent. */
-export function enteredAtText(row: Pick<JournalRow, "entered_at_text">): string | null {
-  const value = typeof row.entered_at_text === "string" ? row.entered_at_text.trim() : "";
-  return value || null;
+/**
+ * The quiet line under the date of a payment, the server's words (trimmed): «внесена 22.10 · дата оплаты 21.10» for a payment entered not on its payment day (`dates_text`, Г-17), else
+ * the older «внесена 21.10 в 11:40»; null when the server sends neither.
+ */
+export function enteredAtText(row: Pick<JournalRow, "entered_at_text" | "dates_text">): string | null {
+  for (const value of [row.dates_text, row.entered_at_text]) if (typeof value === "string" && value.trim()) return value.trim();
+  return null;
 }
 
 export function journalRowView(row: JournalRow, withYear = false, history: readonly JournalRow[] = []): JournalRowView {

@@ -395,23 +395,19 @@ test("the donut on screen: buttons with aria-labels, the total in the centre, th
   assert.equal((src.match(/\.\.\.hoverProps\(/g) || []).length, 2);
 });
 
-test("«Сегодня наличными»: one quiet line on the current month only; hidden when the request failed; «оплат не было» instead of 0", () => {
+test("«Касса за день»: the server's own line under the donut on the current month only (Money-1 Г-17: no line of ours); hidden when the request failed", () => {
   const day = overview("I02_income_day_today_cash");
-  const line = V.cashTodayLine(day.cash);
-  assert.equal(plain(line.text), "Сегодня наличными: 150 000 сум — столько должно быть в кассе");
-  assert.equal(plain(line.note), "принято 250 000 сум, возвращено 100 000 сум");
-  assert.equal(V.cashTodayLine(null), null, "the request failed / no block: no line");
-  assert.equal(V.cashTodayLine(undefined), null);
-  assert.deepEqual(V.cashTodayLine({ expected: 0, cash_received: 0, cash_refunded: 0 }), { text: "Сегодня наличными оплат не было", note: null }, "never «0 сум»");
-  assert.equal(plain(V.cashTodayLine({ expected: 0, cash_received: 100000, cash_refunded: 100000 }).text), "Сегодня наличными: 0 сум — столько должно быть в кассе", "a refund took it back to zero: the figure is real");
-  assert.equal(V.cashTodayLine({ expected: 235000, cash_received: 235000, cash_refunded: 0 }).note, null);
+  assert.equal(day.cash.cash_cancelled, 0);
+  assert.equal(day.cash.cash_corrected, 0);
+  assert.equal(V.cashTodayLine, undefined, "the own assembly of the line is gone");
   // on screen
   const { React, text, html, P } = parts();
   const o = { ...overview("I01_income_month_october"), by_method: SPEC_METHODS };
   assert.ok(!html(React.createElement(P.MethodsDonut, { overview: o })).includes("cash-today"), "no line without the till");
-  const withCash = text(React.createElement(P.MethodsDonut, { overview: o, cashToday: { ...day.cash, expected: 235000, cash_received: 235000, cash_refunded: 0 } }));
-  assert.ok(withCash.includes("Сегодня наличными: 235 000 сум — столько должно быть в кассе"));
-  assert.ok(text(React.createElement(P.MethodsDonut, { overview: o, cashToday: { ...day.cash, expected: 0, cash_received: 0, cash_refunded: 0 } })).includes("Сегодня наличными оплат не было"));
+  const withCash = text(React.createElement(P.MethodsDonut, { overview: o, cashToday: day.cash }));
+  assert.ok(withCash.includes("Касса за день · по дню внесения"), "what the figure is counted by");
+  assert.ok(plain(withCash).includes(plain(day.cash.text)), "the text of the server as it is");
+  assert.ok(withCash.includes("Чем платили · по дате оплаты"), "the ring is counted by the payment date");
   // the page: ONE request for today (period=day, no filters), only on the current month; the answer is not shown elsewhere
   const page = read("src/components/payments/income-page.tsx");
   assert.match(page, /const cashWanted = !blocked && isCurrentMonth\(period, today\);/);

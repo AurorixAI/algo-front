@@ -13,7 +13,6 @@ import {
   chartFocusIndex,
   chartScrollLeft,
   arcPath,
-  cashTodayLine,
   collectedCard,
   debtCard,
   debtorsHref,
@@ -370,7 +369,6 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
   // The centre text is fitted to the inner edge of the ring: ≥ 8 px of clearance for any amount (text-base cap on a phone, text-lg from md).
   const fontPhone = donutCenterFont(centre.text, 16);
   const fontDesk = donutCenterFont(centre.text, 18);
-  const cash = cashTodayLine(cashToday);
   const lit = hover ?? (selected || null);
   const tip = hover ? segments.find((segment) => segment.method === hover) ?? null : null;
   const many = segments.length > 1;
@@ -388,7 +386,7 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
   const label = (segment: MethodSegment) => `${methodTooltip(segment)}. Показать оплаты`;
   return (
     <section aria-label="Чем платили" className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 md:px-5" data-testid="income-methods">
-      <h2 className="text-sm font-semibold text-slate-800">Чем платили</h2>
+      <h2 className="text-sm font-semibold text-slate-800">Чем платили<span className="font-normal text-slate-500"> · по дате оплаты</span></h2>
 
       <div className="mt-1 flex h-8 items-center justify-center" aria-hidden>
         {tip ? (
@@ -463,11 +461,11 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
 
       <FilterNotice text={notice} onJump={onJump} />
 
-      {cash && (
-        <p className="mt-2.5 border-t border-slate-100 pt-2.5 text-sm text-slate-600" data-testid="cash-today">
-          {cash.text}
-          {cash.note && <span className="block text-xs text-slate-500">{cash.note}</span>}
-        </p>
+      {cashToday?.text && (
+        <div className="mt-2.5 border-t border-slate-100 pt-2.5" data-testid="cash-today">
+          <p className="text-xs font-semibold text-slate-500">Касса за день · по дню внесения</p>
+          <p className="mt-0.5 break-words text-sm text-slate-700" data-testid="cash-today-text">{cashToday.text}</p>
+        </div>
       )}
     </section>
   );

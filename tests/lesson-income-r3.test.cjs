@@ -159,8 +159,9 @@ test("the till block keeps the server's centre-wide scope through the normalizer
   assert.equal(day.cash.expected, 150000);
   const o = { ...day, by_method: [{ method: "cash", label: "Наличные", amount: 250000, count: 2 }] };
   const body = text(React.createElement(P.IncomeOverviewView, { overview: o, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {}, cashToday: day.cash }));
-  assert.ok(body.includes("Сегодня наличными: 150 000 сум — столько должно быть в кассе"));
-  assert.ok(!text(React.createElement(P.IncomeOverviewView, { overview: o, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} })).includes("Сегодня наличными"));
+  assert.ok(plain(body).includes(plain(day.cash.text)), "the line of the till is the server's text");
+  assert.ok(body.includes("Касса за день · по дню внесения"));
+  assert.ok(!text(React.createElement(P.IncomeOverviewView, { overview: o, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} })).includes("Касса за день"));
 });
 
 test("the journal: time only when paid_time is there; «внесена …» quietly in the drawer and as a grey line of the phone card, not a column", () => {

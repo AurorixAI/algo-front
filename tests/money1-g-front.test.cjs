@@ -400,3 +400,73 @@ for (const width of [1280, 1024, 375]) {
     }
   });
 }
+
+// ── Ф-4: «Поступления» - the till of the day and the journal of payments ─────────────────────────────
+
+const CASH_TEXT = "Наличные в кассе за сегодня: 130 000 сум (принято 250 000 сум, возвращено 100 000 сум, отменено 20 000 сум)";
+const CASH = { date: "2026-10-21", label: "Наличные в кассе за сегодня", cash_received: 250000, cash_refunded: 100000, cash_cancelled: 20000, cash_corrected: 0, expected: 130000, payments_count: 2, text: CASH_TEXT, scope: "centre", filtered_view: false, scope_text: null };
+const OVERVIEW = { by_method: [{ method: "cash", label: "Наличные", amount: 250000, count: 2 }, { method: "card", label: "Карта", amount: 180000, count: 1 }] };
+
+test("Ф-4: the normalizer keeps the cancelled and corrected parts of the till", () => {
+  const { normalizeOverview } = lib("payments-income-v2.ts");
+  const cash = normalizeOverview({ cash: { ...CASH, cash_cancelled: 20000, cash_corrected: -50000 } }).cash;
+  assert.equal(cash.cash_cancelled, 20000);
+  assert.equal(cash.cash_corrected, -50000);
+  assert.equal(cash.expected, 130000, "the sum of the till is the server's number");
+});
+
+async function openDonut(width = 1280, cash = CASH) {
+  const run = await openPage(browser, "money-g.entry.tsx", () => null, { width, height: 900 });
+  await run.page.evaluate(([c, o, w]) => window.mount("donut", {}, { cash: c, overview: o, width: w }), [cash, OVERVIEW, width >= 1024 ? 420 : width - 32]);
+  await run.page.waitForSelector('[data-testid="income-methods"]');
+  return run;
+}
+
+test("Ф-4: the line of the till is the text of the server (all parts: received, returned, cancelled); the two «наличные» say what they are counted by", async () => {
+  const { page } = await openDonut();
+  assert.equal(plain(await page.textContent('[data-testid="cash-today-text"]')), plain(CASH_TEXT));
+  assert.equal(await page.textContent('[data-testid="cash-today-text"]'), CASH_TEXT, "as it is, down to the non-breaking spaces");
+  assert.match(plain(await page.textContent('[data-testid="cash-today"]')), /^Касса за день · по дню внесения/);
+  assert.equal(plain(await page.textContent('[data-testid="income-methods"] h2')), "Чем платили · по дате оплаты");
+  await page.close();
+});
+
+test("Ф-4: a till with nothing moved says the server's line as it is, never a line of ours", async () => {
+  const { page } = await openDonut(1280, { ...CASH, cash_received: 0, cash_refunded: 0, cash_cancelled: 0, expected: 0, text: "Наличные в кассе за сегодня: 0 сум" });
+  assert.equal(await page.textContent('[data-testid="cash-today-text"]'), "Наличные в кассе за сегодня: 0 сум");
+  await page.close();
+});
+
+const DATES = "внесена 22.10 · дата оплаты 21.10";
+const JOURNAL_ROW = (id, extra = {}) => ({ id, receipt_no: 41, paid_on: "2026-10-21", paid_time: null, created_at: "2026-10-22T07:00:00", entered_at_text: "внесена 22.10 в 12:00", student_id: "s1", student_name: "Каримов Фарходжон Рустамович", display_id: null, membership_id: "m1", group_id: "g1", group_name: "Алгебра 7 (вт/пт)", teacher_name: "Эргашев К.", amount: 1250000, method: "cash", method_label: "Наличные", created_by_id: "u1", created_by_name: "Иванова А.", note: null, status: "active", ...extra });
+
+test("Ф-4 journal: a payment entered not on its payment day says `dates_text` under the date; a payment of its own day says nothing", async () => {
+  const run = await openPage(browser, "money-g.entry.tsx", () => null, { width: 1280, height: 900 });
+  await run.page.evaluate((rows) => window.mount("journal", {}, { rows }), [JOURNAL_ROW("a", { dates_text: DATES }), JOURNAL_ROW("b", { entered_at_text: null, dates_text: null, paid_time: "11:40", student_name: "Иванов Иван" })]);
+  await run.page.waitForSelector('[data-testid="journal-row"]');
+  const rows = run.page.locator('[data-testid="journal-row"]');
+  assert.equal(plain(await rows.nth(0).locator('[data-testid="journal-entered"]').textContent()), DATES);
+  assert.equal(await rows.nth(1).locator('[data-testid="journal-entered"]').count(), 0);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-4 ${width}: the till and the journal at «как в жизни» data - nothing leaves its box, the texts are whole`, async () => {
+    const donut = await openDonut(width);
+    await donut.page.waitForTimeout(100);
+    assert.equal(await donut.page.textContent('[data-testid="cash-today-text"]'), CASH_TEXT, `${width}`);
+    const f1 = await donut.page.evaluate(layoutProbe, '[data-testid="income-methods"]');
+    assert.deepEqual(f1.bad, [], JSON.stringify(f1.bad));
+    assert.equal(f1.scroll, 0);
+    await donut.page.close();
+    const run = await openPage(browser, "money-g.entry.tsx", () => null, { width, height: 900 });
+    await run.page.evaluate(([rows, w]) => window.mount("journal", {}, { rows, width: w }), [[JOURNAL_ROW("a", { dates_text: DATES })], width >= 1024 ? 960 : width - 32]);
+    await run.page.waitForSelector('[data-testid="journal-row"]');
+    assert.equal(plain(await run.page.locator('[data-testid="journal-entered"]').first().innerText()), DATES);
+    assert.equal(plain(await run.page.locator('[data-testid="journal-row"]').first().innerText()).includes("Каримов Фарходжон Рустамович"), true);
+    const f2 = await run.page.evaluate(layoutProbe, '[data-testid="income-journal-list"]');
+    assert.deepEqual(f2.bad, [], JSON.stringify(f2.bad));
+    assert.equal(f2.scroll, 0);
+    await run.page.close();
+  });
+}

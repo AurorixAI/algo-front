@@ -8,6 +8,9 @@ import { BulkDialog } from "@/components/substitutions/bulk-dialog";
 import { PaymentVoidModal } from "@/components/payments/payment-void-modal";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { IncomeDecisions } from "@/components/payments/income-decisions";
+import { MethodsDonut } from "@/components/payments/income-parts";
+import { JournalList } from "@/components/payments/income-journal";
+import { normalizeJournal, normalizeOverview } from "@/lib/payments-income-v2";
 import { useAuthStore } from "@/lib/store";
 
 const w = window as any;
@@ -47,6 +50,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "decisions":
       root.render(<IncomeDecisions period={{ kind: "month", from: "2026-11-01", to: "2026-11-30" } as never} authors={[]} paymentsBase="/owner/payments" studentProfileBasePath="/owner/students" />);
+      break;
+    case "donut":
+      root.render(<div className="mx-auto" style={{ width: props.width ?? 420 }}><MethodsDonut overview={props.overview} cashToday={normalizeOverview({ cash: props.cash } as never).cash} /></div>);
+      break;
+    case "journal":
+      root.render(<div className="mx-auto" style={{ width: props.width ?? 1000 }}><JournalList rows={normalizeJournal({ rows: props.rows } as never).rows} withYear={false} activeId={null} onOpen={() => log("open")} /></div>);
       break;
     default:
       break;
