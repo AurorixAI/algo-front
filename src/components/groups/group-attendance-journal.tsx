@@ -1988,8 +1988,8 @@ export function GroupAttendanceJournal({
             )}
             {markLock && (
               <button type="button" role="menuitem" data-testid="menu-mark-locked" aria-disabled="true" onClick={() => { setColumnMenu(null); showToast(markLock, "warning"); }} className="flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-500 hover:bg-slate-50">
-                <span className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-slate-300" />{MARK_LESSON_LABEL}</span>
-                <span className="pl-6 text-[11px] font-medium text-amber-700">{markLock}</span>
+                <span className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-slate-500" />{MARK_LESSON_LABEL}</span>
+                <span className="pl-6 text-xs font-medium text-amber-700">{markLock}</span>
               </button>
             )}
             {actions.includes("cancel_missed") && (
@@ -2032,8 +2032,8 @@ export function GroupAttendanceJournal({
                   }}
                   className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${assignLock ? "text-slate-500" : "text-slate-700"}`}
                 >
-                  <span className="flex items-center gap-2"><UserRoundCheck className={`h-4 w-4 ${assignLock ? "text-slate-300" : "text-violet-600"}`} />{assignActionLabel({ past: lesson.date <= today, lacksTeacher: lacksTeacher(menuTeacherInfo), isSubstitution: Boolean(menuTeacherInfo?.isSubstitution) })}</span>
-                  {assignLock && <span className="pl-6 text-[11px] font-medium text-amber-700">{assignLock}</span>}
+                  <span className="flex items-center gap-2"><UserRoundCheck className={`h-4 w-4 ${assignLock ? "text-slate-500" : "text-violet-600"}`} />{assignActionLabel({ past: lesson.date <= today, lacksTeacher: lacksTeacher(menuTeacherInfo), isSubstitution: Boolean(menuTeacherInfo?.isSubstitution) })}</span>
+                  {assignLock && <span className="pl-6 text-xs font-medium text-amber-700">{assignLock}</span>}
                 </button>
               );
             })()}

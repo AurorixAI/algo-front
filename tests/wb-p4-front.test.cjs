@@ -61,7 +61,7 @@ test("the dialog asks only what the server asked, and sends the flag only on the
   assert.match(dialog, /primary=\{`\$\{PAYOUT_ACTION_LABEL\}\$\{amountText\}`\}/, "the button of the question is named like the form (the part that goes ahead is said by the plaque)");
   assert.match(dialog, /onCancel=\{overpay !== null \? \(\) => setOverpay\(null\) : onClose\}/, "«Отмена» of the question returns to the form, of the form closes");
   assert.match(dialog, /if \(sending\.current\) return;\s+sending\.current = true;/, "a second Enter / click before the next render (LESSONS 27)");
-  assert.match(dialog, /payoutOverpayQuestion\(overpay, state\?\.basis\)/);
+  assert.match(dialog, /payoutOverpayQuestion\(overpay, state\?\.basis, monthHasEnded\(month\)\)/);
 });
 
 test("MUTATIONS: the guards removed from a copy of the dialog are caught by the same pins", () => {
@@ -94,7 +94,7 @@ test("R3 3: the advance of the earlier months is a part of the block, a line und
   assert.equal(Y.payoutAdvanceHint, undefined, "UX pack №9: the question is one plaque with the whole sentence - no second hint line");
   assert.equal(Y.normalizePayoutState({ saved_total: 1, target: 1, paid: 0, balance: 1, state: "unpaid", items: [] }).carry_used, 0, "an older answer without the fields");
   const block = read("src/components/payroll/payout-block.tsx");
-  assert.match(block, /advanceLines\(state\)\.map/);
+  assert.match(block, /advanceLines\(state, month\)\.map/);
 });
 
 test("the server's sentence shows only when it adds to the chip and the figures", () => {
