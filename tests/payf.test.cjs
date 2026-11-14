@@ -273,7 +273,7 @@ test("the small components render their words", () => {
   const field = html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true }));
   assert.match(field, /По вине центра/);
   assert.match(field, /Праздник, выходной/);
-  assert.match(field, /Ученикам: перерасчёт, если он включён в настройках центра/);
+  assert.match(field, /Ученикам: влияние на оплату уточняется/);
   assert.match(field, /Ученикам: без перерасчёта/);
   assert.equal((field.match(/Преподавателю: урок не входит в зарплату/g) ?? []).length, 1, "the teacher is said ONCE under both options (re-audit С3)");
   assert.match(field, /aria-describedby="[^"]+"/);                                                   // the hint is tied to the field and to its radios

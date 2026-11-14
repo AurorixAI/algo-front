@@ -194,10 +194,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
   const leftOnly = isLeftDebtOnly(latest) && leftCapApplies({ kind, original: payment ?? null, amount: amountNow, paidOn: values.paidOn });      // Р-13: the method alone of a correction takes no money
   const leftDebt = due?.total ?? 0;
-  // a correction: the ceiling is the server's own number (`suggested_amount` of the preview with `replace_payment_id`, G3M С1), not the debt
   const leftCeiling = kind === "replace" ? latest?.suggested_amount ?? 0 : leftDebt;
-  // a CORRECTION has no text of its own here (G3M С1): its cap is the server's max(debt without this payment, the old sum) and the refusal comes in the server's words from the dry run
-  const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
+  const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;      // G3M С1: a correction has no text of its own - its ceiling is the server's (`suggested_amount`), the refusal comes in its words
   const plan = amountNow !== null ? planView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
   const debtNow = debtNowLine(latest);
