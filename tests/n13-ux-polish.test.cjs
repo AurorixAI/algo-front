@@ -206,7 +206,7 @@ const excuseItem = (over = {}) => ({
   reason_by: { name: "Дилноза Каримова" }, reason_at: "2026-10-09T16:35:00", ...over,
 });
 
-test("deadline passed: exactly when the «Срок» cell is red - date, lessons package, month-end fallback", () => {
+test("deadline passed: exactly when the «Срок» cell is red - date, lessons package, no fallback", () => {
   const { excuseDeadlinePassed, excuseDeadlineCell } = require(path.join(root, "src/lib/excuse-deadline.ts"));
   const cases = [
     { deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } },
@@ -216,8 +216,8 @@ test("deadline passed: exactly when the «Срок» cell is red - date, lessons
     { deadline: { kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true } },
     { deadline: { kind: "lessons", lessons_left: 1, urgent: true, due_now: true, overdue: false } },
     { deadline: { kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false } },
-    { deadline: null, lesson_date: "2026-09-12" },    // older server: month end 30.09 has passed
-    { deadline: undefined, lesson_date: "2026-10-12" }, // month end 31.10: still in time
+    { deadline: null, lesson_date: "2026-09-12" },    // no deadline from the server: none of ours (Money-1 Г-10)
+    { deadline: undefined, lesson_date: "2026-10-12" },
     { deadline: { kind: "date", date: "garbage", overdue: true }, lesson_date: "2026-09-12" },
     { status: "confirmed", deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } },
   ];
@@ -230,7 +230,7 @@ test("deadline passed: exactly when the «Срок» cell is red - date, lessons
   const datePassed = excuseDeadlinePassed(excuseItem({ deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } }), TODAY);
   assert.deepEqual(datePassed, { date: "2026-10-12" });
   assert.deepEqual(excuseDeadlinePassed(excuseItem({ deadline: { kind: "lessons", lessons_left: 0, urgent: true, overdue: true } }), TODAY), { date: null });
-  assert.deepEqual(excuseDeadlinePassed(excuseItem({ deadline: null, lesson_date: "2026-09-12" }), TODAY), { date: "2026-09-30" });
+  assert.equal(excuseDeadlinePassed(excuseItem({ deadline: null, lesson_date: "2026-09-12" }), TODAY), null, "no month-end of ours");
 });
 
 test("deadline passed: the dialog note names the real date and says the decision will be marked «после срока»", () => {

@@ -470,3 +470,87 @@ for (const width of [1280, 1024, 375]) {
     await run.page.close();
   });
 }
+
+// ── Ф-3: «Посещаемость → Пропуски» without the money right: no deadline at all ──────────────────────
+
+const excuse = (id, date, group, extra = {}) => ({ id, attendance_id: `a${id}`, lesson_date: date, lesson_key: `${date}_l`, group: { id: `g${id}`, name: group }, teacher: { id: "t1", name: "Каримова Дилдора Рустамовна" }, student: { id: `s${id}`, full_name: `Каримов Фарходжон ${id}`, display_id: null }, reason: "болел", reason_by: null, reason_at: null, status: "pending", reviewed_by: null, reviewed_at: null, review_note: null, files: [], deadline: null, billing_mode: null, decided_after_deadline: null, deadline_at_decision: null, ...extra });
+// the order of the server (by lesson date, the oldest first) - the lessons are of different months, so a fallback «last day of the month» would colour them differently
+const NO_DEADLINE_ROWS = [excuse("1", "2026-09-22", "Алгебра 7 (вт/пт)"), excuse("2", "2026-10-14", "Алгебра 7 (вт/пт)"), excuse("3", "2026-11-05", "Геометрия 8 (пн/ср)")];
+const excusesServer = (rows) => (request) => {
+  if (request.path === "/auth/org/attendance/excuses/summary") return { json: { pending_total: rows.length, open_lessons_total: 0 } };
+  if (request.path === "/auth/org/attendance/excuses") return { json: { items: request.query.includes("status=pending") ? rows : [], total: rows.length, pending_total: rows.length } };
+  return null;
+};
+async function openExcuses(user, rows, width = 1280) {
+  const run = await openPage(browser, "ds.entry.tsx", excusesServer(rows), { width, height: 900 });
+  await run.page.clock.setFixedTime(new Date("2026-11-14T10:00:00+05:00"));
+  await run.page.evaluate((who) => window.mount("excuses", who, {}), user);
+  await run.page.waitForFunction((count) => document.querySelectorAll("li").length >= count, rows.length, { timeout: 10000, polling: "raf" });
+  await run.page.waitForFunction(() => !document.querySelector('[role="progressbar"], .animate-pulse'), null, { timeout: 10000, polling: "raf" });
+  return run;
+}
+
+test("Ф-3: without the money right (`deadline` null) there is no deadline: no column, no chip, no colour; the order is the server's (by the date of the lesson)", async () => {
+  const { page } = await openExcuses(ADMIN_NO_RIGHT, NO_DEADLINE_ROWS);
+  const body = plain(await page.textContent("body"));
+  assert.doesNotMatch(body, /Срок|Осталось|прошёл|до 30\.09|до 31\.10|до 30\.11/, body.slice(0, 400));
+  assert.equal(await page.locator('[data-testid="excuses-no-money-right"]').count(), 1);
+  const students = (await page.locator("li").allTextContents()).map(plain).filter((text) => /Каримов Фарходжон \d/.test(text)).map((text) => /Фарходжон (\d)/.exec(text)[1]);
+  assert.deepEqual(students, ["1", "2", "3"], "the order of the server");
+  await page.close();
+});
+
+test("Ф-3: with the right the server's deadline stays: the column, the chip, the urgent first", async () => {
+  const rows = [
+    excuse("1", "2026-11-05", "Алгебра 7 (вт/пт)", { deadline: { kind: "date", date: "2026-11-30", days_left: 16, overdue: false } }),
+    excuse("2", "2026-10-14", "Алгебра 7 (вт/пт)", { deadline: { kind: "date", date: "2026-11-10", days_left: -4, overdue: true } }),
+    excuse("3", "2026-11-12", "Геометрия 8 (пн/ср)", { deadline: { kind: "date", date: "2026-11-15", days_left: 1, overdue: false } }),
+  ];
+  const { page } = await openExcuses(OWNER, rows);
+  const body = plain(await page.textContent("body"));
+  assert.match(body, /Срок/);
+  assert.match(body, /Срок прошёл 4 дня назад/);
+  const order = (await page.locator("li").allTextContents()).map(plain).filter((text) => /Каримов Фарходжон \d/.test(text)).map((text) => /Фарходжон (\d)/.exec(text)[1]);
+  assert.deepEqual(order, ["2", "3", "1"], "passed first, then the nearest");
+  await page.close();
+});
+
+test("Ф-3 lib: no deadline from the server - no deadline of ours (neither `null` nor an absent key falls back to «конец месяца»)", () => {
+  const { excuseDeadlineCell, excuseDeadlinePassed, sortExcusesByUrgency } = lib("excuse-deadline.ts");
+  for (const deadline of [null, undefined]) {
+    const item = { lesson_date: "2026-09-22", status: "pending", ...(deadline === undefined ? {} : { deadline }) };
+    assert.equal(excuseDeadlineCell(item, "2026-11-14"), null);
+    assert.equal(excuseDeadlinePassed(item, "2026-11-14"), null);
+  }
+  const items = [{ id: "a", lesson_date: "2026-11-05", status: "pending", deadline: null }, { id: "b", lesson_date: "2026-09-22", status: "pending", deadline: null }];
+  assert.deepEqual(sortExcusesByUrgency(items, "2026-11-14").map((item) => item.id), ["a", "b"], "the server's order stands");
+  assert.equal(lib("excuse-deadline.ts").excuseDeadline, undefined, "the month-end rule is gone");
+});
+
+test("Ф-3: decided excuses with `billing_mode` and `decided_after_deadline` null do not break the screen and show no mark", async () => {
+  const decided = [excuse("1", "2026-10-14", "Алгебра 7 (вт/пт)", { status: "confirmed", reviewed_by: { id: "u1", name: "Иванова А." }, reviewed_at: "2026-10-20T08:00:00" })];
+  const run = await openPage(browser, "ds.entry.tsx", (request) => {
+    if (request.path === "/auth/org/attendance/excuses/summary") return { json: { pending_total: 0, open_lessons_total: 0 } };
+    if (request.path === "/auth/org/attendance/excuses") return { json: { items: request.query.includes("status=confirmed") ? decided : [], total: request.query.includes("status=confirmed") ? 1 : 0, pending_total: 0 } };
+    return null;
+  }, { width: 1280, height: 900 });
+  await run.page.clock.setFixedTime(new Date("2026-11-14T10:00:00+05:00"));
+  await run.page.evaluate((who) => window.mount("excuses", who, {}), ADMIN_NO_RIGHT);
+  await run.page.click('[role="tab"]:has-text("Подтверждено")');
+  await run.page.waitForFunction(() => /Каримов Фарходжон 1/.test(document.body.textContent || ""), null, { timeout: 10000 });
+  assert.doesNotMatch(plain(await run.page.textContent("body")), /после срока|Срок/);
+  assert.deepEqual(run.errors.filter((text) => !/404|Failed to load resource/.test(text)), []);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-3 ${width}: the queue of an administrator without the right - nothing leaves its box`, async () => {
+    const { page } = await openExcuses(ADMIN_NO_RIGHT, NO_DEADLINE_ROWS, width);
+    await page.waitForTimeout(450);
+    const facts = await page.evaluate(layoutProbe, "main, body");
+    assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+    assert.equal(facts.scroll, 0);
+    assert.match(plain(await page.textContent("body")), /Алгебра 7 \(вт\/пт\)/);
+    await page.close();
+  });
+}

@@ -1,7 +1,6 @@
 /**
- * Deadline of a pending excuse: payroll is monthly, so a decision must be made by the last day
- * of the month of the lesson (business calendar, Asia/Tashkent). Pure: the caller passes the
- * business date of "today" (`formatBusinessDate()`), so nothing here depends on the browser zone.
+ * Deadline of a pending excuse, ALWAYS the server's (`deadline` of the list: a date or the lessons left in a package; `null` for a person without the money right - Money-1 Г-10:
+ * no deadline at all then, and none is invented from the month of the lesson).  Pure: the caller passes the business date of "today" (`formatBusinessDate()`).
  */
 
 import { formatDateRu, formatDayMonthRu } from "./business-time";
@@ -13,14 +12,6 @@ const DAY_MS = 86_400_000;
 function utcDay(iso: string): number {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / DAY_MS : NaN;
-}
-
-/** Last day (YYYY-MM-DD) of the month of the lesson, or null when the date is invalid. */
-export function excuseDeadline(lessonDate: string | null | undefined): string | null {
-  const match = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}/.exec(lessonDate ?? "");
-  if (!match) return null;
-  const last = new Date(Date.UTC(Number(match[1]), Number(match[2]), 0)).getUTCDate();
-  return `${match[1]}-${match[2]}-${String(last).padStart(2, "0")}`;
 }
 
 // ── Server deadline (N13 P1.5): before the student's next payment ────────────
@@ -55,7 +46,7 @@ export interface ExcuseDeadlinePassed {
 }
 
 /**
- * Has the deadline passed - exactly when the «Срок» cell is red (same checks, same fallback to the month end)?
+ * Has the deadline passed - exactly when the «Срок» cell is red (same checks)?
  * null for a decided excuse, for one whose deadline is not known, and while there is still time (including the last day and,
  * for a package, the last lesson to confirm in).  Confirming after the deadline stays allowed - this only informs the dialog.
  */
@@ -74,9 +65,7 @@ export function excuseDeadlinePassed(
   if (server && server.kind === "lessons" && typeof server.lessons_left === "number" && Number.isFinite(server.lessons_left)) {
     return lessonsPhase(server, Math.max(0, server.lessons_left)) === "overdue" ? { date: null } : null;
   }
-  // an older server: the last day of the lesson's month
-  const monthEnd = excuseDeadline(item.lesson_date);
-  return monthEnd && utcDay(monthEnd) - utcDay(today) < 0 ? { date: monthEnd } : null;
+  return null;
 }
 
 // ── The «Срок» column in human words (UX-1 B) ────────────────────────────────
@@ -128,7 +117,7 @@ function dateCell(date: string, left: number, overdueFlag: boolean, today: strin
 
 /**
  * The «Срок» cell of a pending excuse in words a person reads at a glance (the server value wins, same checks as
- * `excuseDeadlinePassed`; an older server without `deadline` falls back to the last day of the lesson's month).
+ * `excuseDeadlinePassed`).
  * null for anything but a pending excuse (or an unreadable date).  Confirming after the deadline stays allowed - this is only a hint.
  */
 export function excuseDeadlineCell(item: DeadlineSource, today: string): ExcuseDeadlineCell | null {
@@ -159,12 +148,7 @@ export function excuseDeadlineCell(item: DeadlineSource, today: string): ExcuseD
     };
   }
 
-  // No usable server value: the last day of the lesson's month.
-  const date = excuseDeadline(item.lesson_date);
-  if (!date) return null;
-  const left = utcDay(date) - utcDay(today);
-  if (Number.isNaN(left)) return null;
-  return dateCell(date, left, false, today);
+  return null;      // no deadline from the server (no money right): none of ours
 }
 
 /**

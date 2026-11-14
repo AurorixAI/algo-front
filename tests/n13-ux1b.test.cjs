@@ -127,14 +127,10 @@ test("a lessons package: «Осталось 5 уроков» grey, the last less
   ]) assert.equal(cell(value).sub, "по пакету уроков");
 });
 
-test("an older server (no deadline) or a broken value: the last day of the lesson's month is used; decided excuses have no deadline", () => {
-  assert.deepEqual(brief(cell(undefined)), { headline: "Осталось 16 дней", tone: "neutral" });
-  assert.deepEqual(brief(cell(null)), { headline: "Осталось 16 дней", tone: "neutral" });
-  assert.equal(cell(undefined).sub, "до 31.10");
-  assert.deepEqual(brief(cell(undefined, { lesson_date: "2026-09-20" })), { headline: "Срок прошёл 15 дней назад", tone: "danger" });
-  for (const broken of [{}, { kind: "date" }, { kind: "date", date: "31.10" }, { kind: "lessons" }, { kind: "x" }, "soon", 7]) {
-    assert.deepEqual(brief(cell(broken)), { headline: "Осталось 16 дней", tone: "neutral" }, JSON.stringify(broken));
-  }
+test("no usable deadline from the server (none, a broken value - the person has no money right): no cell and no month-end of ours; decided excuses have no deadline", () => {
+  assert.equal(cell(undefined), null);
+  assert.equal(cell(null), null);
+  for (const broken of [{}, { kind: "date" }, { kind: "date", date: "31.10" }, { kind: "lessons" }, { kind: "x" }, "soon", 7]) assert.equal(cell(broken), null, JSON.stringify(broken));
   assert.equal(cell(undefined, { lesson_date: "nope" }), null);
   for (const status of ["confirmed", "rejected"]) assert.equal(cell(dateDeadline(25), { status }), null, status);
 });
@@ -325,12 +321,12 @@ test("a waiting row holds ONE button «Подтвердить» and «⋯»; «�
 
 test("the waiting list is shown in urgency order and the column says it in words", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  assert.match(page, /pendingTab \? sortExcusesByUrgency\(items, businessToday\) : items/);
+  assert.match(page, /pendingTab && moneyRight \? sortExcusesByUrgency\(items, businessToday\) : items/);
   assert.match(page, /\{rows\.map\(\(item\) => \{/);
   assert.match(page, /\{deadline\.headline\}/);
   assert.match(page, /<p className="mt-0\.5 text-xs text-slate-500">\{deadline\.sub\}<\/p>/);
   assert.doesNotMatch(page, /excuseDeadlineChip/);
-  assert.match(page, /tab === "pending" \? \{ key: "deadline", header: "Срок"[^}]*\} : \{ key: "decision", header: "Решение"/);
+  assert.match(page, /tab === "pending" \? \(canDecide \? \[\{ key: "deadline", header: "Срок"[^}]*\}\] : \[\]\) : \[\{ key: "decision", header: "Решение"/);
 });
 
 test("the «Пропуски» list has no phone link (the phone lives in the student's card); telHref still dials only real numbers", () => {

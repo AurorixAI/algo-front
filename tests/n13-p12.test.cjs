@@ -171,24 +171,22 @@ test("the teacher's group page honours the same deep link: ?tab=attendance opens
 
 // ---- excuse deadline and phone ---------------------------------------------
 
-test("an excuse must be decided by the end of the lesson's month", () => {
-  assert.equal(deadline.excuseDeadline("2026-10-03"), "2026-10-31");
-  assert.equal(deadline.excuseDeadline("2026-09-30"), "2026-09-30");
-  assert.equal(deadline.excuseDeadline("2026-02-10"), "2026-02-28");
-  assert.equal(deadline.excuseDeadline("2028-02-10"), "2028-02-29");
-  assert.equal(deadline.excuseDeadline("2026-12-31"), "2026-12-31");
-  for (const bad of ["", null, undefined, "bad", "2026-13-01"]) assert.equal(deadline.excuseDeadline(bad), null, String(bad));
+test("the deadline of an excuse is the server's: the month-end rule of the front is gone (Money-1 Г-10)", () => {
+  assert.equal(deadline.excuseDeadline, undefined);
+  for (const bad of [null, undefined]) assert.equal(deadline.excuseDeadlineCell({ lesson_date: "2026-10-03", status: "pending", deadline: bad }, "2026-10-15"), null, String(bad));
 });
 
-test("deadline of a pending excuse by the month end: days left, today, passed (red), nothing for decided excuses", () => {
-  const cell = (lesson, status, today) => deadline.excuseDeadlineCell({ lesson_date: lesson, status }, today);
+test("deadline of a pending excuse (the server's date): days left, today, passed (red), nothing for decided excuses", () => {
+  const ends = { "2026-10-03": "2026-10-31", "2026-09-20": "2026-09-30", "2026-12-10": "2026-12-31", "2028-02-01": "2028-02-29" };
+  const serverOf = (lesson) => (ends[lesson] ? { kind: "date", date: ends[lesson] } : null);
+  const cell = (lesson, status, today) => deadline.excuseDeadlineCell({ lesson_date: lesson, status, deadline: serverOf(lesson) }, today);
   const look = (c) => c && { headline: c.headline, sub: c.sub, tone: c.tone };
   assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-15")), { headline: "Осталось 16 дней", sub: "до 31.10", tone: "neutral" });
   assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-30")), { headline: "Остался 1 день", sub: "до 31.10", tone: "warn" });
   assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-31")), { headline: "Срок сегодня", sub: "до 31.10", tone: "warn" });
   assert.deepEqual(look(cell("2026-09-20", "pending", "2026-10-01")), { headline: "Срок прошёл 1 день назад", sub: "до 30.09", tone: "danger" });
   assert.equal(cell("2026-09-20", "pending", "2027-01-05").tone, "danger");
-  assert.equal(deadline.excuseDeadlinePassed({ lesson_date: "2026-09-20", status: "pending" }, "2027-01-05").date, "2026-09-30");
+  assert.equal(deadline.excuseDeadlinePassed({ lesson_date: "2026-09-20", status: "pending", deadline: serverOf("2026-09-20") }, "2027-01-05").date, "2026-09-30");
   // across a year edge and a leap day
   assert.equal(cell("2026-12-10", "pending", "2026-12-30").headline, "Остался 1 день");
   assert.equal(cell("2028-02-01", "pending", "2028-02-27").headline, "Осталось 2 дня");

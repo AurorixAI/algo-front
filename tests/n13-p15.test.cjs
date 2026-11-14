@@ -238,27 +238,21 @@ test("the «Срок» cell: the server value wins (date, lessons package)", () 
   assert.equal(cell({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }).tone, "danger");
 });
 
-test("the «Срок» cell: nothing for decided excuses, month end when the server sent nothing usable", () => {
+test("the «Срок» cell: nothing for decided excuses, nothing when the server sent nothing usable (Money-1 Г-10: no month-end of ours)", () => {
   const item = (over) => ({ lesson_date: "2026-10-03", status: "pending", ...over });
   const today = "2026-10-15";
   for (const status of ["confirmed", "rejected"]) {
     assert.equal(deadline.excuseDeadlineCell(item({ status, deadline: { kind: "date", date: "2026-10-25", overdue: false, days_left: 10 } }), today), null);
   }
-  // older server: no field -> the month-end rule
-  assert.equal(deadline.excuseDeadlineCell(item({}), today).headline, "Осталось 16 дней");
-  assert.equal(deadline.excuseDeadlineCell(item({ deadline: null }), today).sub, "до 31.10");
-  assert.equal(deadline.excuseDeadlineCell(item({ lesson_date: "2026-09-20" }), today).tone, "danger");
-  // unreadable server values fall back too
+  assert.equal(deadline.excuseDeadlineCell(item({}), today), null);
+  assert.equal(deadline.excuseDeadlineCell(item({ deadline: null }), today), null);
   for (const broken of [{ kind: "date" }, { kind: "date", date: "soon" }, { kind: "lessons" }, { kind: "lessons", lessons_left: "2" }, { kind: "money", amount: 5 }, {}]) {
-    assert.equal(deadline.excuseDeadlineCell(item({ deadline: broken }), today).headline, "Осталось 16 дней", JSON.stringify(broken));
+    assert.equal(deadline.excuseDeadlineCell(item({ deadline: broken }), today), null, JSON.stringify(broken));
   }
-  assert.equal(deadline.excuseDeadlineCell(item({ lesson_date: "nope" }), today), null);
   // the page shows the deadline in words (UX-1 B: tests/n13-ux1b.test.cjs), not this long sentence
   const page = read("components/attendance/excuses-page.tsx");
   assert.match(page, /excuseDeadlineCell\(item, businessToday\)/);
   assert.match(page, /CHIP_TONE_CLASS\[deadline\.tone\]/);
-  // old callers of the month-end helpers keep working
-  assert.equal(deadline.excuseDeadline("2026-10-03"), "2026-10-31");
 });
 
 test("the API type has an optional deadline and no money", () => {

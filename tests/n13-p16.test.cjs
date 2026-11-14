@@ -163,7 +163,7 @@ test("«Пропуски»: «Подтвердить» (primary) and «Откл�
   assert.match(page, /shortPersonName\(item\.teacher\?\.name\)/);
   // the decided tabs show the decision instead of the deadline
   assert.match(page, /excuseDecisionLabel\(item\)/);
-  assert.match(page, /tab === "pending" \? \{ key: "deadline", header: "Срок"[^}]*\} : \{ key: "decision", header: "Решение"/);
+  assert.match(page, /tab === "pending" \? \(canDecide \? \[\{ key: "deadline", header: "Срок"[^}]*\}\] : \[\]\) : \[\{ key: "decision", header: "Решение"/);
 });
 
 test("the camera button is gone from every screen", () => {

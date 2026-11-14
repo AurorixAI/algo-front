@@ -88,7 +88,8 @@ const excuseColumns = (tab: Tab, canDecide: boolean): DataColumn[] => [
   { key: "student", header: "Ученик", width: "minmax(8rem,1.2fr)" },
   { key: "lesson", header: "Урок", width: "minmax(8.5rem,0.7fr)" },
   { key: "reason", header: "Причина", width: "minmax(0,2fr)" },
-  tab === "pending" ? { key: "deadline", header: "Срок", width: "max-content" } : { key: "decision", header: "Решение", width: "minmax(0,1.2fr)" },
+  // the deadline is a money fact (Money-1 Г-10): without the money right the server sends none and the column is not there at all
+  ...(tab === "pending" ? (canDecide ? [{ key: "deadline", header: "Срок", width: "max-content" }] : []) : [{ key: "decision", header: "Решение", width: "minmax(0,1.2fr)" }]),
   { key: "actions", header: "", align: "end", width: tab === "pending" ? "11rem" : tab === "rejected" && canDecide ? "11rem" : "2.75rem", actions: true },
 ];
 
@@ -622,10 +623,10 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
     { key: "rejected", label: "Отклонено" },
   ];
   const pendingTab = tab === "pending";
-    // Waiting excuses: the deadline that has passed first, then the nearest - over the whole queue (see lib/excuses-pending.ts).
+    // Waiting excuses: the deadline that has passed first, then the nearest - over the whole queue (see lib/excuses-pending.ts); without the money right there is no deadline: the order of the server (by the date of the lesson)
   const rows = useMemo(
-    () => (pendingTab ? sortExcusesByUrgency(items, businessToday) : items),
-    [items, pendingTab, businessToday],
+    () => (pendingTab && moneyRight ? sortExcusesByUrgency(items, businessToday) : items),
+    [items, pendingTab, moneyRight, businessToday],
   );
   const dialogBusy = dialog ? dialog.items.some((item) => busyIds.has(item.id)) : false;
 
@@ -642,7 +643,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
               role="tab"
               aria-selected={tab === key}
               onClick={() => switchTab(key)}
-              className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+              className={`max-sm:min-h-10 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-all sm:px-3.5 ${
                 tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}
             >
@@ -703,7 +704,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
               {rows.map((item) => {
                 const busy = busyIds.has(item.id);
                 const uploading = uploadingId === item.id;
-                const deadline = pendingTab ? excuseDeadlineCell(item, businessToday) : null;
+                const deadline = pendingTab && moneyRight ? excuseDeadlineCell(item, businessToday) : null;
                 const lateMark = pendingTab ? null : afterDeadlineMark(item);
                 const teacherShort = shortPersonName(item.teacher?.name) || "—";
                 const decisionDetail = excuseDecisionDetail(item, businessToday.slice(0, 4));
@@ -763,7 +764,7 @@ export function ExcusesPage({ studentProfileBasePath, groupsBasePath }: { studen
                     </DataCell>
 
                     {/* Срок / Решение */}
-                    {pendingTab ? (
+                    {pendingTab ? moneyRight && (
                       <DataCell col="deadline">
                         <div className="min-w-0">
                           {deadline && (
