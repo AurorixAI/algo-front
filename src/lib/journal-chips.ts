@@ -40,6 +40,8 @@ export function headerChipPlan(input: { marks: ReadonlyArray<LessonMark>; teache
 export const COLUMN_ACTION_HINT = {
   reconcile: "Урок войдёт в зарплату того, кто его провёл.",
   cancel_missed: "Урок не войдёт в зарплату; перерасчёт ученикам — по вашему выбору.",
+  /** Without the money right the kind of the cancel is not chosen (the window shows what happens to the students' pay): the line does not promise a choice. */
+  cancel_missed_no_choice: "Урок не войдёт в зарплату. Что будет с оплатой учеников — покажем в окне",
   correct: "Зарплата и оплата учеников пересчитаются — покажем до сохранения.",
   return: "Урок станет «не проведён» и выйдет из зарплаты.",
   undo_decision: "Урок выйдет из зарплаты — пока месяц не закрыт.",

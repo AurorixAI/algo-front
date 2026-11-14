@@ -128,7 +128,8 @@ export function todayPendingHintForLesson(
 }
 
 /** G3M Ф3: the server formalises a lesson nobody started («Отметить посещаемость» of a past lesson) only for the money right (`reconcile`: 403 `MONEY_RIGHT_REQUIRED`). */
-export const PAST_MARK_NO_RIGHT_TEXT = OPEN_LESSONS_NO_RIGHT_RULE;
+/** A reason under an off item: one sentence, no full stop (as every such line of the menu); the notice above the list keeps its own full stop. */
+export const PAST_MARK_NO_RIGHT_TEXT = OPEN_LESSONS_NO_RIGHT_RULE.replace(/\.$/, "");
 
 /** The reason «Отметить посещаемость» is off for an administrator without the money right (null: it is open, or the lesson has no such action).  One rule for the schedule and the journal. */
 export function pastMarkLockReason(input: ScheduleCardInput): string | null {

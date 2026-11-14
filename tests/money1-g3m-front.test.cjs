@@ -61,7 +61,7 @@ async function journal(user, lessons) {
   return run;
 }
 const ASSIGN_LOCK = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
-const MARK_LOCK = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам.";
+const MARK_LOCK = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам";
 
 test("Ф2: журнал — «Назначить…» у закончившегося урока: без права на деньги пункт неактивен с причиной расписания; у владельца активен; у идущего урока активен", async () => {
   const lessons = [lesson("a", "2026-11-05", "scheduled"), lesson("b", "2026-11-06", "scheduled")];      // b: 08-09, now 12:00 -> ended
@@ -272,4 +272,24 @@ test("Н1: отказ сервера при исправлении — один 
   assert.equal(await page.locator("#payment-calc").count(), 0, "блок «Что изменится» скрыт");
   assert.doesNotMatch(body, /Погасит долг|Останется долг/);
   await page.close();
+});
+
+test("Н2: меню столбца — подпись «Урока не было» по праву на деньги; причины неактивных пунктов без точки в конце (журнал и расписание)", async () => {
+  const lessons = [lesson("a", "2026-11-05", "scheduled")];
+  const hints = async (user) => {
+    const { page } = await journal(user, lessons);
+    await page.locator('button[aria-label="Действия с уроком 05.11.2026"]').first().click();
+    const text = plain(await page.locator('[role="menu"]').first().innerText());
+    const lock = plain(await page.locator('[data-testid="menu-mark-locked"]').count() ? await page.locator('[data-testid="menu-mark-locked"]').textContent() : "");
+    await page.close();
+    return { text, lock };
+  };
+  const admin = await hints({ role: "admin", org_role: "admin", payments_access: false });
+  assert.ok(admin.text.includes("Урок не войдёт в зарплату. Что будет с оплатой учеников — покажем в окне"), admin.text);
+  assert.doesNotMatch(admin.text, /по вашему выбору/);
+  assert.ok(admin.lock.endsWith("деньгам"), admin.lock);
+  const owner = await hints({ role: "owner", org_role: "owner" });
+  assert.ok(owner.text.includes("перерасчёт ученикам — по вашему выбору."), owner.text);
+  const { PAST_MARK_NO_RIGHT_TEXT, PAST_ASSIGN_NO_RIGHT_TEXT } = lib("schedule-card-actions.ts");
+  for (const text of [PAST_MARK_NO_RIGHT_TEXT, PAST_ASSIGN_NO_RIGHT_TEXT]) assert.doesNotMatch(text, /[.!]$/);
 });
