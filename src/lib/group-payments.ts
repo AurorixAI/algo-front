@@ -156,7 +156,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     studentId: row.student_id,
     name: row.student_name,
     displayId: row.display_id ?? null,
-    priceText: missing ? priceNotInForceText(planned, "Не задана") : formatPriceAmount(price.amount), // the header says «Цена пакета» / «Цена в месяц»
+    priceText: missing ? priceNotInForceText(planned, "Не задана", "bare") : formatPriceAmount(price.amount), // the header says «Цена пакета» / «Цена в месяц»
     priceSource: price.source,
     priceMissing: missing,
     priceScheduled: planned !== null,

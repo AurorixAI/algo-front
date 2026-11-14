@@ -364,17 +364,19 @@ test("К2: строка вкладки «Оплаты» — запланиров
   const groupPlanned = { row_id: "r", amount: 420000, valid_from: "2026-12-01" };
   const views = (rows, extra = {}) => G.paymentRowViews(rows, { periodMode: "calendar", today: "2026-11-15", ...extra });
   const [a] = views([row("1", none)], { groupScheduled: groupPlanned });
-  assert.equal(plain(a.priceText), "Цена с 01.12 — 420 000 сум");
+  assert.equal(plain(a.priceText), "с 01.12 — 420 000 сум");
   assert.equal(a.priceScheduled, true);
   const [b] = views([row("2", none)]);
   assert.equal(b.priceText, "Не задана");
   assert.equal(b.priceScheduled, false);
   const [c] = views([row("3", { ...none, scheduled: { row_id: "o", amount: 300000, valid_from: "2026-12-05", reason: "x" } })], { groupScheduled: groupPlanned });
-  assert.equal(plain(c.priceText), "Цена с 05.12 — 300 000 сум", "the own planned price first");
+  assert.equal(plain(c.priceText), "с 05.12 — 300 000 сум", "the own planned price first, under the caption «Цена в месяц» - without the second «Цена»");
   assert.equal(c.scheduledText, null, "and not twice");
   const [d] = views([row("4", { amount: 500000, source: "group", valid_from: "2026-01-01", group_amount: 500000, reason: null })], { groupScheduled: groupPlanned });
   assert.equal(plain(d.priceText), "500 000 сум");
-  assert.equal(plain(gp.priceNotInForceText(groupPlanned, "Не задана")), plain(a.priceText), "the one function");
+  assert.equal(plain(gp.priceNotInForceText(groupPlanned, "Не задана", "bare")), plain(a.priceText), "the one function");
+  assert.equal(plain(gp.priceNotInForceText(groupPlanned, "Не задана")), "Цена " + plain(a.priceText), "full form = «Цена» + bare form");
+  assert.equal(gp.priceNotInForceText(null, "Не задана", "bare"), "Не задана");
 });
 
 // ── Круг 3, К3: карточка урока в расписании — «Назначить того, кто провёл» у закончившегося урока без права на деньги: пункт есть, неактивен, причина та же ──
@@ -488,7 +490,7 @@ test("К2 (экран): вкладка «Оплаты» группы с запл
       const colours = await run.page.locator('[data-testid="group-payment-price"]').evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
       const summary = plain(await run.page.textContent('[data-testid="group-payments-summary"]'));
       if (scheduled) {
-        assert.deepEqual(texts, ["Цена с 01.12 — 420 000 сум", "Цена с 01.12 — 420 000 сум"]);
+        assert.deepEqual(texts, ["с 01.12 — 420 000 сум", "с 01.12 — 420 000 сум"]);
         assert.notEqual(colours[0], "rgb(180, 83, 9)", "not the amber of «не задана»");
         assert.ok(summary.includes("Цена с 01.12 — 420 000 сум"));
       } else {

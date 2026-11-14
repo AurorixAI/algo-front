@@ -453,11 +453,13 @@ export function lacksGroupPrice(group: { price_current?: GroupPriceBrief | null;
 
 /**
  * G3M Ф6: ONE caption of a group whose price is not in force today - for the card of the group, its «Оплаты», the warning of the page «Оплаты», the window of an enrolment and the price line of a student.
- * A price planned from a day: «Цена с 25.11 — 400 000 сум» (the case of the first letter follows `fallback`); none: the `fallback` as the place had it («Цена группы не задана»).
+ * A price planned from a day: «Цена с 25.11 — 400 000 сум» (the case of the first letter follows `fallback`); `form: "bare"` drops the word «Цена» where a caption beside the value already has it; none: the `fallback` as the place had it («Цена группы не задана»).
  */
-export function priceNotInForceText(scheduled: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null | undefined, fallback: string): string {
+export function priceNotInForceText(scheduled: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null | undefined, fallback: string, form: "full" | "bare" = "full"): string {
   if (!scheduled || scheduled.amount === null || scheduled.amount === undefined) return fallback;
-  const text = `Цена с ${formatDayMonthRu(scheduled.valid_from)} — ${scheduled.amount === 0 ? FREE_WORD : formatMoney(scheduled.amount)}`;
+  const tail = `с ${formatDayMonthRu(scheduled.valid_from)} — ${scheduled.amount === 0 ? FREE_WORD : formatMoney(scheduled.amount)}`;
+  if (form === "bare") return tail;      // under a caption that already says «Цена …» («Цена в месяц»): «с 01.12 — 420 000 сум»
+  const text = `Цена ${tail}`;
   return fallback.charAt(0) === fallback.charAt(0).toLowerCase() ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
 
