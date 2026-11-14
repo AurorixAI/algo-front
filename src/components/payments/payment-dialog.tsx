@@ -53,6 +53,7 @@ import {
   type PlanView,
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftCapApplies, leftPaymentProblem } from "@/lib/payments-logica";
+import { refusedInWords } from "@/lib/money-preview";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { useReplaceEffects } from "@/lib/use-replace-effects";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
@@ -203,6 +204,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
   const blocker = payBlocker(values, today, leftProblem, kind) ?? replace.why;
+  // Н1: a refusal in the server's words stands ONCE - over the button (`blocker`); the block «Что изменится» with the numbers of the earlier answer is hidden until a new good one
+  const refusedReplace = kind === "replace" && replace.preview.status === "failed" && refusedInWords(replace.preview.error) !== null;
   const methods = methodChoices(kind === "replace" && payment ? paymentFormFrom(payment).method : null);
 
   const patch = (next: Partial<PaymentFormValues>) => {
@@ -366,7 +369,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           </div>
 
           {/* 2. What saving will do to the STUDENT (UX pack §5.1): a table - the name on the left, the number on the right; the server's live calculation, future tense */}
-          <section aria-label={EFFECTS_TITLE} id="payment-calc" aria-live="polite" data-testid="payment-calc" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+          {!refusedReplace && <section aria-label={EFFECTS_TITLE} id="payment-calc" aria-live="polite" data-testid="payment-calc" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
             <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
             <div className="mt-2">
               {state.error ? (
@@ -381,7 +384,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             </div>
             <RecalcNote lines={latest?.recalc} />
             {replace.draft !== null && <MoneyEffectsBlock preview={replace.preview} onRetry={replace.retry} serverText bare className="mt-2" />}
-          </section>
+          </section>}
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}
           <div>

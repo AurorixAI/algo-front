@@ -38,8 +38,8 @@ test("Ф1: отказ PAYMENT_EXCEEDS_DEBT при исправлении пок�
   await page.waitForSelector("#payment-form");
   await page.fill("#payment-amount", "400 000");
   await page.fill("#payment-reason", "ошибся в сумме");
-  await page.waitForSelector('[data-testid="money-effects"][data-state="failed"]');
-  assert.ok(plain(await page.textContent("#payment-form")).includes(text));
+  await page.waitForFunction((t) => document.querySelector('[data-testid="payment-blocker"]')?.textContent?.replace(/[\s\u00a0\u202f]+/g, ' ').includes(t), text);
+  assert.ok(plain(await page.textContent("body")).includes(text));
   assert.equal(await page.locator('[data-testid="money-effects-retry"]').count(), 0);
   assert.ok(plain(await page.textContent('[data-testid="payment-blocker"]')).includes(text));
   await page.close();
@@ -251,4 +251,25 @@ test("Н5: код SHEET_NOT_SAVED сервер не выдаёт — во фро
 test("Н4: форма приглашения не обещает срок строкой (срок — из expires_at после отправки)", () => {
   assert.doesNotMatch(read("src/app/owner/teachers/page.tsx"), /действует \d+ дн/);
   for (const f of ["src/app/admin/diagnostics/page.tsx", "src/lib/diagnostic-invite.ts"]) assert.doesNotMatch(read(f), /(действует|действителен)\s+\d+\s+(дн|час)/);
+});
+
+test("Н1: отказ сервера при исправлении — один раз (над кнопкой), блок «Что изменится» с прежними числами скрыт", async () => {
+  const text = "Ученик ушёл из группы: при исправлении сумма не может быть больше 347 000 сум";
+  const server = (request) => {
+    if (request.method === "GET" && /payments\/preview$/.test(request.path)) return { json: toshmatovPreview(Number(/amount=(\d+)/.exec(request.query)?.[1]) || null) };
+    if (request.method === "POST") return invalid("PAYMENT_EXCEEDS_DEBT", text, { debt: 347000 });
+    return null;
+  };
+  const payment = { id: "p1", amount: 300000, paid_on: "2026-11-05", method: "cash", note: null };
+  const run = await open(browser, "money-v.entry.tsx", "replace", { props: { membership: TOSHMATOV, payment }, server });
+  const page = run.page;
+  await page.waitForSelector("#payment-form");
+  await page.fill("#payment-amount", "400 000");
+  await page.fill("#payment-reason", "ошибся в сумме");
+  await page.waitForFunction((t) => document.querySelector('[data-testid="payment-blocker"]')?.textContent?.replace(/[\s\u00a0\u202f]+/g, ' ').includes(t), text);
+  const body = plain(await page.locator("body").innerText());
+  assert.equal(body.split(text).length - 1, 1, "текст отказа на экране один раз");
+  assert.equal(await page.locator("#payment-calc").count(), 0, "блок «Что изменится» скрыт");
+  assert.doesNotMatch(body, /Погасит долг|Останется долг/);
+  await page.close();
 });
