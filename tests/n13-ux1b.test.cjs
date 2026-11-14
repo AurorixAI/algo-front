@@ -302,7 +302,7 @@ test("table headers and captions of the attendance screens are ordinary case, ne
 test("a waiting row holds ONE button «Подтвердить» and «⋯»; «Отклонить…» (danger) is the FIRST item of the menu; both go through the dialog", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
   const confirmAt = page.search(/onClick=\{\(\) => openDialog\(item, "confirmed", "none"\)\}\s+variant="primary"/);
-  const menuAt = page.indexOf("<RowMenu items={menuFor(item)}");
+  const menuAt = page.lastIndexOf("{menu}");   // the menu is built once (`const menu = <RowMenu items={menuFor(item)} .../>`) and stands in the actions cell after the buttons
   assert.ok(confirmAt > 0 && menuAt > confirmAt, "Подтвердить, then «⋯» in one row");
   assert.match(page, /aria-label=\{`Подтвердить: \$\{item\.student\.full_name\}`\}/);
   assert.doesNotMatch(page, /aria-label=\{`Отклонить: /, "no «Отклонить» button in the row");

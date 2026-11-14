@@ -307,7 +307,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(excuses, /<div className="flex min-w-0">\s*<span (?:data-kind="chip" )?className=\{`\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}`\}/);
   assert.match(open, /<div className="flex min-w-0 lg:-my-px lg:justify-center">/);
   // the controls of a row are pulled onto the first line: 32 px buttons on a 20 px line
-  assert.match(excuses, /<DataCell col="actions">/); // the controls of a row sit in the action cell (right, centred on the row)
+  assert.match(excuses, /<DataCell col="actions" className=/); // the controls of a row sit in the action cell (right, centred on the row)
   assert.match(open, /flex items-center justify-end gap-2 lg:-my-1\.5 lg:justify-self-end/);
   // empty states are one component
   assert.match(excuses, /<EmptyState icon=\{CheckCircle2\}/);
