@@ -9,7 +9,9 @@ import { formatBusinessDate } from "@/lib/business-time";
 import {
   groupPriceHref,
   priceLabelOf,
+  priceNotInForceText,
   type GroupPriceBrief,
+  type GroupPriceScheduled,
 } from "@/lib/group-price";
 import {
   emptyFilterText,
@@ -83,6 +85,8 @@ interface GroupPaymentsTabProps {
   groupName: string;
   /** `price_current` of the group (money roles only). */
   groupPrice: GroupPriceBrief | null | undefined;
+  /** G3M Ф6: the price planned from a day (no price today). */
+  groupScheduledPrice?: GroupPriceScheduled | null;
   /** `/owner/groups` or `/admin/groups`. */
   groupsBasePath: string;
   /** `/owner/students` or `/admin/students`. */
@@ -100,7 +104,7 @@ interface GroupPaymentsTabProps {
  * One request for the rows (`payments/status?group_id=`); the price, the chip and every action are the student card's own
  * (`membershipChip`, the payment / opening / individual-price dialogs).  Spec: artifacts/partner_doc_check/group_payments_tab_spec.md.
  */
-export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePath, studentsBasePath, paymentsBasePath, joinedAt, filter, onFilterChange }: GroupPaymentsTabProps) {
+export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupScheduledPrice = null, groupsBasePath, studentsBasePath, paymentsBasePath, joinedAt, filter, onFilterChange }: GroupPaymentsTabProps) {
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const { showToast, toastNode } = useToast();
@@ -218,8 +222,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
       {/* The price is in the header chips; only a group without one gets a line here, because that is an action */}
       {!groupPrice && (
         <p className="text-sm text-slate-600" data-testid="group-payments-summary">
-          <span className="font-semibold text-slate-900">Цена группы не задана</span>
-          <Link href={groupPriceHref(groupsBasePath, groupId)} className="ml-3 text-xs font-semibold text-primary-700 hover:underline">Задать цену группы</Link>
+          <span className="font-semibold text-slate-900">{priceNotInForceText(groupScheduledPrice, "Цена группы не задана")}</span>
+          <Link href={groupPriceHref(groupsBasePath, groupId)} className="ml-3 text-xs font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</Link>
         </p>
       )}
 

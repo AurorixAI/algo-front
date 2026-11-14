@@ -13,7 +13,8 @@ import { IncomePage } from "@/components/payments/income-page";
 import { JournalSection } from "@/components/payments/income-journal";
 import { periodOf } from "@/lib/payments-income-v2";
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
-import { AssignOverrideDialog } from "@/components/payments/membership-price";
+import { AssignOverrideDialog, MembershipPriceLine } from "@/components/payments/membership-price";
+import { GroupCard } from "@/components/groups/group-card";
 import { OpeningBalanceDialog } from "@/components/payments/opening-balance-dialog";
 import { TransferPreviewBlock } from "@/components/groups/transfer-preview-block";
 import { OpeningsReviewDialog } from "@/components/payments/openings-dialogs";
@@ -92,6 +93,12 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "assignOverride":
       root.render(<AssignOverrideDialog open row={{ ...ROW, price: { amount: 300000, source: "group", group_amount: 300000 } } as never} studentName="Иванов Иван" label="Цена в месяц" onClose={() => log("close")} onConflict={() => log("conflict")} onSaved={() => log("saved")} />);
+      break;
+    case "groupCard":
+      root.render(<GroupCard group={props.group as never} href="/owner/groups/g1" />);
+      break;
+    case "priceLine":
+      root.render(<MembershipPriceLine row={{ ...ROW, price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null } } as never} periodMode={"calendar" as never} groupsBasePath="/owner/groups" />);
       break;
     case "opening":
       root.render(<OpeningBalanceDialog open membershipId="m1" studentName="Иванов Иван" groupName="7-А Алгебра" opening={null} enrolDate="2026-09-01" accountingStart="2026-09-01" onClose={() => log("close")} onSaved={() => log("saved")} />);

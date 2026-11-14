@@ -36,6 +36,7 @@ import {
   type PriceOverrideRequest,
   type PriceOverrideRow,
 } from "@/lib/group-price";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { Notice } from "@/components/ui/notice";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -55,12 +56,14 @@ export function MembershipPriceLine({ row, periodMode, groupsBasePath }: {
   /** `/owner/groups` or `/admin/groups`: «Задать цену группы» leads to the group. */
   groupsBasePath: string;
 }) {
-  const view = membershipPriceLine(priceOfRow(row), priceLabelOf(periodMode));
+  const noPrice = (priceOfRow(row).amount ?? null) === null;
+  const scheduled = useScheduledGroupPrices(noPrice)[row.group_id] ?? null;      // G3M Ф6: «Цена с 25.11 — 400 000 сум», not «не задана»
+  const view = membershipPriceLine(priceOfRow(row), priceLabelOf(periodMode), scheduled);
   return view.kind === "none" ? (
     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-      <span className="font-medium text-amber-800" data-testid="membership-price">{view.text}</span>
+      <span className={`font-medium ${scheduled ? "text-slate-800" : "text-amber-800"}`} data-testid="membership-price">{view.text}</span>
       <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-semibold text-primary-700 hover:underline">
-        Задать цену группы
+        {scheduled ? "Цена группы" : "Задать цену группы"}
       </Link>
     </p>
   ) : (

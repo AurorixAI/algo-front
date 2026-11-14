@@ -37,6 +37,7 @@ import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeat
 import type {
   EnrolPriceOverride,
   GroupPriceBrief,
+  GroupPriceScheduled,
   GroupPriceRequest,
   GroupPriceResult,
   GroupPriceList,
@@ -678,6 +679,8 @@ export interface GroupInfo {
    * (owner; administrator when the owner allowed it); for everybody else it is absent - never render a price then.
    */
   price_current?: GroupPriceBrief | null;
+  /** G3M Ф6: the price that starts later, put on by the screen from `GET /org/group-prices` (the list sends only `price_current`). */
+  price_scheduled?: GroupPriceScheduled | null;
   created_at: string | null;
   /** LOGIC-B (O4): when the group went to the archive (naive UTC) and why; absent on an older server / for a live group. */
   archivedAt?: string | null;

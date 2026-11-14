@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { orgApi, GroupDetail, type StudentInGroup } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
 import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, type PaymentsFilter } from "@/lib/group-payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -120,6 +121,8 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   const [transferStudent, setTransferStudent] = useState<StudentInGroup | null>(null);
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   // The debt of the group for the chip of the header (only while the tab «Оплаты» exists for this role)
+  // G3M Ф6: no price today but one planned from a day - the chip and «Оплаты» say so instead of «не задана»
+  const scheduledPrice = useScheduledGroupPrices(paymentsAccess === "show" && group?.price_current === null)[groupId];
   const [debt, setDebt] = useState<GroupDebtSummary | null>(null);
   const [waiting, setWaiting] = useState<GroupDebtSummary | null>(null);
   const [debtTick, setDebtTick] = useState(0); // a price or a lesson type just changed: the debt of the group is read again
@@ -269,7 +272,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
   }
   const journal = groupJournalAccess({ workspace, group, userId: user?.id });
 
-  const priceChip = paymentsAccess === "show" ? groupPriceChipText(group.price_current, priceLabelOf(periodMode)) : null;
+  const priceChip = paymentsAccess === "show" ? groupPriceChipText(group.price_current, priceLabelOf(periodMode), scheduledPrice) : null;
   const debtChip = paymentsAccess === "show" && debt ? groupDebtChipText(debt) : null;
   const waitingChip = paymentsAccess === "show" ? groupWaitingChipText(waiting) : null;
   const headerMenu: RowMenuItem[] = groupHeaderActions({ archived: group.status === "archived", priceAvailable: paymentsAccess === "show", canManage }).map((action) => {
@@ -593,6 +596,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               groupId={groupId}
               groupName={group.name}
               groupPrice={group.price_current}
+              groupScheduledPrice={scheduledPrice ?? null}
               groupsBasePath={paths.groups}
               studentsBasePath={paths.students}
               paymentsBasePath={paths.payments}

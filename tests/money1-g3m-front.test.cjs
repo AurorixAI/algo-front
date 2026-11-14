@@ -112,3 +112,40 @@ test("Ф4: заголовок окна конфликта отметок не п
   }
   assert.match(read("src/components/attendance/attendance-ops-dialogs.tsx"), /title=\{CONFLICT_TITLE\}/);
 });
+
+// ── Ф6 ──
+test("Ф6 lib: одна подпись — «Цена с 25.11 — 400 000 сум» при запланированной цене, старые слова без неё; такая группа не «без цены»", () => {
+  const g = lib("group-price.ts");
+  const planned = { row_id: "r", amount: 400000, valid_from: "2026-11-25" };
+  assert.equal(plain(g.priceNotInForceText(planned, "Цена группы не задана")), "Цена с 25.11 — 400 000 сум");
+  assert.equal(plain(g.priceNotInForceText(planned, "цена группы не задана")), "цена с 25.11 — 400 000 сум");
+  assert.equal(g.priceNotInForceText(null, "Цена группы не задана"), "Цена группы не задана");
+  assert.equal(plain(g.priceNotInForceText({ ...planned, amount: 0 }, "Цена не задана")), "Цена с 25.11 — бесплатно");
+  assert.equal(g.lacksGroupPrice({ price_current: null }), true);
+  assert.equal(g.lacksGroupPrice({ price_current: null, price_scheduled: planned }), false);
+  assert.equal(g.countGroupsWithoutPrice([{ price_current: null }, { price_current: null, price_scheduled: planned }, { price_current: null, status: "archived" }]), 1);
+  assert.equal(plain(g.membershipPriceLine({ amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, "Цена в месяц", planned).text), "Цена с 25.11 — 400 000 сум");
+  assert.equal(lib("group-workspace.ts").groupPriceChipText(null, "Цена в месяц", planned), "Цена с 25.11 — 400 000 сум");
+});
+
+const GROUP = { id: "g1", name: "Алгебра 7", status: "active", max_students: 10, student_count: 3, price_current: null };
+const PRICES = { as_of: "2026-11-14", period_mode: "calendar", price_label: "Цена в месяц", items: [{ group_id: "g1", name: "Алгебра 7", current: null, scheduled: { row_id: "r", amount: 400000, valid_from: "2026-11-25" }, scheduled_count: 1 }] };
+const priceServer = (request) => (request.method === "GET" && /\/auth\/org\/group-prices$/.test(request.path) ? { json: PRICES } : null);
+
+test("Ф6: карточка группы без цены сегодня, но с ценой с 25.11, пишет «Цена с 25.11 — 400 000 сум» (после ответа сервера), а не «не задана»; без запланированной — как было", async () => {
+  const run = await open(browser, "money-v.entry.tsx", "groupCard", { props: { group: { ...GROUP, price_scheduled: PRICES.items[0].scheduled } }, server: priceServer });
+  assert.equal(plain(await run.page.textContent('[data-testid="group-card-price"]')), "Цена с 25.11 — 400 000 сум");
+  await run.page.close();
+  const none = await open(browser, "money-v.entry.tsx", "groupCard", { props: { group: GROUP }, server: priceServer });
+  assert.match(plain(await none.page.textContent('[data-testid="group-card-price"]')), /Цена не задана/);
+  await none.page.close();
+});
+
+test("Ф6: строка цены ученика — запрос цен групп один раз, «Цена с 25.11 — 400 000 сум» вместо «Цена группы не задана»", async () => {
+  const run = await open(browser, "money-v.entry.tsx", "priceLine", { server: priceServer });
+  await run.page.waitForFunction(() => /Цена с 25\.11/.test(document.body.textContent || ""));
+  assert.equal(plain(await run.page.textContent('[data-testid="membership-price"]')), "Цена с 25.11 — 400 000 сум");
+  assert.equal(run.calls.filter((call) => /group-prices$/.test(call.path)).length, 1);
+  assert.doesNotMatch(plain(await run.page.textContent("body")), /не задана/);
+  await run.page.close();
+});

@@ -4,7 +4,7 @@
  * workspace, the «⋯» of the group header, the roster menu, the list filters with their deep link, the money chips of the header.
  */
 import { formatMoney, waitingLine } from "./payments";
-import { lacksGroupPrice, formatPrice, type GroupPriceBrief } from "./group-price";
+import { lacksGroupPrice, formatPrice, priceNotInForceText, type GroupPriceBrief, type GroupPriceScheduled } from "./group-price";
 import { pluralRu } from "./plural";
 import { workspaceBases, type Workspace } from "./ia-links";
 
@@ -158,9 +158,9 @@ export function groupWaitingChipText(summary: GroupDebtSummary | null | undefine
 }
 
 /** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or «Цена группы не задана». */
-export function groupPriceChipText(price: { amount: number } | null | undefined, priceLabel: string): string | null {
+export function groupPriceChipText(price: { amount: number } | null | undefined, priceLabel: string, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null; // the key is absent: the role does not see money
-  return price === null ? "Цена группы не задана" : `Цена ${formatPrice(price.amount, priceLabel)}`;
+  return price === null ? priceNotInForceText(scheduled, "Цена группы не задана") : `Цена ${formatPrice(price.amount, priceLabel)}`;
 }
 
 // ── the list of groups ──────────────────────────────────────────────────────
@@ -203,6 +203,7 @@ export interface GroupListRow {
   teacher_name?: string | null;
   class_level?: number | null;
   price_current?: GroupPriceBrief | null;
+  price_scheduled?: GroupPriceScheduled | null;
 }
 
 /** The status tab, the class and the search of the list; «Без цены» (`?price=none`) shows every live group without a price whatever its tab. */

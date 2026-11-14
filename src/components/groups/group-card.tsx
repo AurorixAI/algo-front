@@ -6,7 +6,9 @@ import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
 import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
 import { lessonTypeLabel, normalizeLessonType } from "@/lib/payroll";
-import { formatPrice, groupPriceHref, priceLabelOf } from "@/lib/group-price";
+import { formatPrice, groupPriceHref, priceLabelOf, priceNotInForceText } from "@/lib/group-price";
+
+const CARD_PRICE_NOT_SET = "Цена не задана";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 import { classLabel } from "@/lib/class-label";
@@ -94,8 +96,10 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
             <span className="font-semibold tabular-nums text-slate-800">{formatPrice(group.price_current.amount, priceLabel)}</span>
           ) : (
             <>
-              <span className="font-medium text-amber-800">Цена не задана</span>
-              {href && (
+              {group.price_scheduled
+                ? <span className="font-medium tabular-nums text-slate-800" data-testid="group-card-price-scheduled">{priceNotInForceText(group.price_scheduled, CARD_PRICE_NOT_SET)}</span>
+                : <span className="font-medium text-amber-800">{CARD_PRICE_NOT_SET}</span>}
+              {href && !group.price_scheduled && (
                 <Link href={groupPriceHref(href.replace(/\/[^/]+\/?$/, ""), group.id)} className="text-xs font-semibold text-primary-700 hover:underline">
                   задать
                 </Link>

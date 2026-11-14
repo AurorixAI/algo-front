@@ -22,7 +22,9 @@ import {
   priceLabelOf,
   targetGroupPriceHint,
   type GroupPriceBrief,
+  priceNotInForceText,
 } from "@/lib/group-price";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
@@ -113,6 +115,7 @@ export function AssignGroupModal({
   // Calm notes of the server, e.g. "оплата перенесена в новую группу" (N13 P2.1).
   const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const scheduledPrices = useScheduledGroupPrices(open && moneyAvailable && groups.some((g) => g.price_current === null));      // G3M Ф6: a price planned from a day is not «не задана»
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   // An individual price is an exception: off by default, a sum and a reason when on.
@@ -560,8 +563,8 @@ export function AssignGroupModal({
                         {g.teacher_name ? `Преподаватель: ${g.teacher_name}` : "Преподаватель не назначен"}
                       </span>
                       {moneyAvailable && g.price_current !== undefined && (
-                        <span className={g.price_current ? "font-medium text-slate-700" : "font-medium text-amber-700"}>
-                          {g.price_current ? formatPrice(g.price_current.amount, priceLabel) : "цена не задана"}
+                        <span className={g.price_current || scheduledPrices[g.id] ? "font-medium text-slate-700" : "font-medium text-amber-700"}>
+                          {g.price_current ? formatPrice(g.price_current.amount, priceLabel) : priceNotInForceText(scheduledPrices[g.id], "цена не задана")}
                         </span>
                       )}
                     </div>
@@ -590,9 +593,9 @@ export function AssignGroupModal({
         {selectedGroup.price_current === null && (
           <div className="mb-2 border-b border-slate-200 pb-2" data-testid="assign-price-missing">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-semibold text-amber-800">«{selectedGroup.name}»: цена группы не задана</span>
+              <span className={`font-semibold ${scheduledPrices[selectedGroup.id] ? "text-slate-800" : "text-amber-800"}`}>«{selectedGroup.name}»: {priceNotInForceText(scheduledPrices[selectedGroup.id], "цена группы не задана")}</span>
               {groupsBasePath && (
-                <a href={groupPriceHref(groupsBasePath, selectedGroup.id)} className="inline-flex min-h-10 items-center font-semibold text-primary-700 hover:underline sm:min-h-0">Задать цену группы</a>
+                <a href={groupPriceHref(groupsBasePath, selectedGroup.id)} className="inline-flex min-h-10 items-center font-semibold text-primary-700 hover:underline sm:min-h-0">{scheduledPrices[selectedGroup.id] ? "Цена группы" : "Задать цену группы"}</a>
               )}
             </p>
             {selectedPriceNote && <p className="mt-0.5 text-slate-600">{selectedPriceNote}</p>}

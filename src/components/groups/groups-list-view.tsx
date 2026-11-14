@@ -11,6 +11,7 @@ import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
 import { GroupPriceFilter } from "@/components/groups/group-price-filter";
 import { countGroupsWithoutPrice, parsePriceFilter } from "@/lib/group-price";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import {
   filterGroups,
   GROUP_CLASS_LEVELS,
@@ -95,11 +96,14 @@ function GroupsListContent({ workspace }: { workspace: Workspace }) {
     .map((m: any) => ({ id: m.user_id || m.id, first_name: m.first_name || "", last_name: m.last_name || "", org_role: m.org_role }));
 
   // the name of the teacher comes from the list; the members fill it where the list has only the id
-  const named = useMemo(() => groups.map((g) => {
+  // G3M Ф6: a group with no price today but one planned from a day is not «без цены»: the planned price is put on the group (asked only while some group lacks a price)
+  const scheduled = useScheduledGroupPrices(groups.some((g) => g.price_current === null));
+  const named = useMemo(() => groups.map((group) => {
+    const g = scheduled[group.id] && group.price_current === null ? { ...group, price_scheduled: scheduled[group.id] } : group;
     if (g.teacher_name || !g.teacher_id) return g;
     const teacher = members.find((m: any) => m.user_id === g.teacher_id || m.id === g.teacher_id);
     return teacher ? { ...g, teacher_name: staffDisplayName(teacher) || null } : g;
-  }), [groups, members]);
+  }), [groups, members, scheduled]);
 
   const withoutPrice = countGroupsWithoutPrice(named);
   const filtered = filterGroups(named, query, priceFilter);

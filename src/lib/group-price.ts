@@ -18,7 +18,7 @@ import {
   type MembershipPaymentRow,
   type PeriodMode,
 } from "./payments";
-import { addIsoDays, formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
+import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
 import type { PriceImpactMoney } from "./payments-logica";
 
 // ── Shapes of the API ───────────────────────────────────────────────────────
@@ -389,9 +389,10 @@ export interface PriceLine {
  * «Цена 500 000 сум/мес · цена группы», «Индивидуальная цена 400 000 сум/мес · Сестра ученика», «Цена группы не задана».
  * A price of 0 is a price: «Бесплатно · цена группы».
  */
-export function membershipPriceLine(price: PriceInfo | null | undefined, label: string): PriceLine {
+export function membershipPriceLine(price: PriceInfo | null | undefined, label: string, groupScheduled?: GroupPriceScheduled | null): PriceLine {
   if (!price || price.source === "none" || price.amount === null || price.amount === undefined) {
-    return { kind: "none", lead: "Цена группы не задана", value: null, tail: "", text: "Цена группы не задана", title: null };
+    const text = priceNotInForceText(groupScheduled, "Цена группы не задана");      // G3M Ф6
+    return { kind: "none", lead: text, value: null, tail: "", text, title: null };
   }
   const free = price.amount === 0;
   const money = formatPrice(price.amount, label); // «500 000 сум/мес» | «бесплатно»
@@ -442,12 +443,25 @@ export function parsePriceFilter(value: string | null | undefined): PriceFilter 
   return value === "none" ? "none" : "all";
 }
 
-/** A group the money role sees without a price (`price_current: null`); a role without money has no key and no such group. */
-export function lacksGroupPrice(group: { price_current?: GroupPriceBrief | null }): boolean {
-  return "price_current" in group && group.price_current === null;
+/**
+ * A group the money role sees without a price (`price_current: null`) AND with none planned (`price_scheduled`, G3M Ф6: «Цена с 25.11 — 400 000 сум» is not «не задана»); a role without money has
+ * no key and no such group.
+ */
+export function lacksGroupPrice(group: { price_current?: GroupPriceBrief | null; price_scheduled?: GroupPriceScheduled | null }): boolean {
+  return "price_current" in group && group.price_current === null && !group.price_scheduled;
 }
 
-export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null }>): number {
+/**
+ * G3M Ф6: ONE caption of a group whose price is not in force today - for the card of the group, its «Оплаты», the warning of the page «Оплаты», the window of an enrolment and the price line of a student.
+ * A price planned from a day: «Цена с 25.11 — 400 000 сум» (the case of the first letter follows `fallback`); none: the `fallback` as the place had it («Цена группы не задана»).
+ */
+export function priceNotInForceText(scheduled: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null | undefined, fallback: string): string {
+  if (!scheduled || scheduled.amount === null || scheduled.amount === undefined) return fallback;
+  const text = `Цена с ${formatDayMonthRu(scheduled.valid_from)} — ${scheduled.amount === 0 ? FREE_WORD : formatMoney(scheduled.amount)}`;
+  return fallback.charAt(0) === fallback.charAt(0).toLowerCase() ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
+export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null; price_scheduled?: GroupPriceScheduled | null }>): number {
   return groups.filter((group) => group.status !== "archived" && lacksGroupPrice(group)).length;
 }
 

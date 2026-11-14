@@ -46,7 +46,8 @@ import {
   canWriteOff,
   savedPaymentToastDetails,
 } from "@/lib/payments-ledger";
-import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
+import { FREE_WORD, groupPriceHref, priceLabelOf, priceNotInForceText, priceOfRow, priceSourceTag, pricesBaseOf, type GroupPriceScheduled } from "@/lib/group-price";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
@@ -125,6 +126,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const { showToast, toastNode } = useToast();
 
   const [items, setItems] = useState<MembershipPaymentRow[]>([]);
+  const scheduledPrices = useScheduledGroupPrices(items.some((row) => (priceOfRow(row).amount ?? null) === null));      // G3M Ф6
   const [total, setTotal] = useState(0);
   const urlState = parsePaymentsListQuery(searchParams);
   const [page, setPage] = useState(urlState.page);
@@ -417,6 +419,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             <PaymentRow
               key={row.membership_id}
               row={row}
+              scheduledPrice={scheduledPrices[row.group_id] ?? null}
               bucket={bucket}
               periodMode={periodMode}
               paymentsBase={paymentsBase}
@@ -487,7 +490,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 }
 
 function PaymentRow({
-  row, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund,
+  row, scheduledPrice, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund,
 }: {
   row: MembershipPaymentRow;
   bucket: PaymentBucket;
@@ -496,6 +499,8 @@ function PaymentRow({
   paymentsBase: string;
   studentProfileBasePath: string;
   groupsBasePath: string;
+  /** G3M Ф6: the price of the group planned from a day (no price today). */
+  scheduledPrice: GroupPriceScheduled | null;
   onPay: () => void;
   onCorrect: (payment: PaymentOut) => void;
   onVoid: (payment: PaymentOut) => void;
@@ -549,8 +554,8 @@ function PaymentRow({
       <DataCell col="group">{group}</DataCell>
       <DataCell col="price">
         {price.amount === null || price.amount === undefined ? (
-          <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
-            цена группы не задана
+          <Link href={groupPriceHref(groupsBasePath, row.group_id)} data-testid="payment-row-price-missing" className={`text-xs font-medium hover:underline ${scheduledPrice ? "text-slate-700" : "text-amber-800"}`} title={scheduledPrice ? "Открыть цену группы" : "Открыть группу и задать цену"}>
+            {priceNotInForceText(scheduledPrice, "цена группы не задана")}
           </Link>
         ) : (
           <span>
