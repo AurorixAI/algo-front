@@ -326,7 +326,7 @@ test("the comment of the polling is the real rule (2 s, then 5 s, 150 s)", () =>
 test("[G2][UX] the success window: «Приглашение отправлено», the address apart, three short notes, «Готово» is the main blue button and takes the focus", () => {
   assert.equal(SL.INVITE_SENT_TITLE, "Приглашение отправлено");
   assert.deepEqual([...SL.INVITE_SENT_NOTES], [
-    "Ссылка действует 7 дней и открывается один раз",
+    "Ссылка открывается один раз",
     "Если письмо не дойдёт — в «Приглашениях» появится пометка и кнопка «Отправить ещё раз»",
     "Ошиблись адресом — отмените приглашение там же",
   ]);

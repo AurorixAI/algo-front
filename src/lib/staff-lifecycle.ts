@@ -282,8 +282,13 @@ export function inviteOutcomeText(result: { mail_status?: MailStatusValue; email
 
 /** The success window of «Пригласить сотрудника»: the title and three short notes (the address has its own line under the title). */
 export const INVITE_SENT_TITLE = "Приглашение отправлено";
+/** G3M Ф7: the term is the server's `expires_at` of the answer («Ссылка действует до 28.10, 14:00 и открывается один раз»); without it - no promise about the term. */
+export function inviteLinkNote(expiresAt: string | null | undefined): string {
+  const until = inviteValidUntilText(expiresAt);
+  return until ? `Ссылка ${until.charAt(0).toLowerCase()}${until.slice(1)} и открывается один раз` : "Ссылка открывается один раз";
+}
 export const INVITE_SENT_NOTES = [
-  "Ссылка действует 7 дней и открывается один раз",
+  "Ссылка открывается один раз",
   "Если письмо не дойдёт — в «Приглашениях» появится пометка и кнопка «Отправить ещё раз»",
   "Ошиблись адресом — отмените приглашение там же",
 ] as const;

@@ -149,3 +149,13 @@ test("Ф6: строка цены ученика — запрос цен груп
   assert.doesNotMatch(plain(await run.page.textContent("body")), /не задана/);
   await run.page.close();
 });
+
+// ── Ф7 ──
+test("Ф7: «Приглашение отправлено» — срок из expires_at сервера (+00:00 не сдвигается дважды), без срока — без обещаний; числа «7 дней» в окне нет", () => {
+  const sl = lib("staff-lifecycle.ts");
+  assert.equal(sl.inviteLinkNote("2026-11-21T09:30:00+00:00"), "Ссылка действует до 21.11, 14:30 и открывается один раз");
+  assert.equal(sl.inviteLinkNote("2026-11-21T09:30:00"), sl.inviteLinkNote("2026-11-21T09:30:00+00:00"), "the same instant with and without the zone");
+  assert.equal(sl.inviteLinkNote(null), "Ссылка открывается один раз");
+  assert.ok(sl.INVITE_SENT_NOTES.every((note) => !/7 дн/.test(note)));
+  assert.match(read("src/app/owner/teachers/page.tsx"), /expiresAt=\{sent\.expires_at\}/);
+});

@@ -608,7 +608,7 @@ function OwnerTeachersContent() {
         bodyClassName="p-6 sm:p-8 overflow-y-auto overscroll-contain min-h-0"
       >
         {sent ? (
-          <InviteSentView email={sent.email} onDone={() => { setShowInvite(false); setSent(null); selectTab("invites"); }} />
+          <InviteSentView email={sent.email} expiresAt={sent.expires_at} onDone={() => { setShowInvite(false); setSent(null); selectTab("invites"); }} />
         ) : (
           <div className="space-y-6">
             <div>

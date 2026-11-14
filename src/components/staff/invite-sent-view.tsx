@@ -3,13 +3,13 @@
 import { useEffect, useRef } from "react";
 import { CheckCircle, Clock, Mail, Send, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { INVITE_SENT_NOTES, INVITE_SENT_TITLE } from "@/lib/staff-lifecycle";
+import { INVITE_SENT_NOTES, INVITE_SENT_TITLE, inviteLinkNote } from "@/lib/staff-lifecycle";
 
 /**
  * The success window of «Пригласить сотрудника» (and of «Пригласить заново»: the same dialog): a short title, the address on its own line, three short notes, one main
  * button. ONE view for every way into that window (K2-2, stage walk). «Готово» takes the focus when the window shows (Enter closes it; Escape is the dialog's own).
  */
-export function InviteSentView({ email, onDone }: { email: string; onDone: () => void }) {
+export function InviteSentView({ email, expiresAt, onDone }: { email: string; /** the server's `expires_at` of the invitation just sent */ expiresAt?: string | null; onDone: () => void }) {
   const done = useRef<HTMLButtonElement>(null);
   useEffect(() => { done.current?.focus(); }, []);
   const icons = [Clock, Send, XCircle];
@@ -28,7 +28,8 @@ export function InviteSentView({ email, onDone }: { email: string; onDone: () =>
         <span className="min-w-0">{email}</span>
       </p>
       <ul className="mb-6 space-y-2.5 text-left text-sm text-slate-600">
-        {INVITE_SENT_NOTES.map((note, index) => {
+        {INVITE_SENT_NOTES.map((fixed, index) => {
+          const note = index === 0 ? inviteLinkNote(expiresAt) : fixed;
           const Icon = icons[index];
           return (
             <li key={note} className="flex items-start gap-2.5">
