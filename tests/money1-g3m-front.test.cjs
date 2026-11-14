@@ -395,3 +395,54 @@ test("К3: карточка урока в расписании — пункт н
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /assignLock=\{assignLock\}/);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /assignLockReason\(cardInput\)/);
 });
+
+// ── Круг 3, К4: «Сотрудники» владельца на 375 — в строке главная кнопка и «⋯», вкладки в одну строку, ничего не обрезано ──
+test("К4: «Сотрудники» — на телефоне в строке преподавателя главная кнопка и «⋯» (остальное в меню), вкладки в одну строку; на 1280 всё как было", async () => {
+  const fs2 = require("node:fs"), os = require("node:os"), { execFileSync } = require("node:child_process");
+  const css = path.join(fs2.mkdtempSync(path.join(os.tmpdir(), "algo-css-")), "tw.css");
+  execFileSync(process.execPath, [path.join(root, "node_modules", "tailwindcss", "lib", "cli.js"), "-i", path.join(root, "src", "app", "globals.css"), "-o", css], { cwd: root, stdio: "pipe" });
+  process.env.DOM_CSS = css;
+  const member = (id, first, last, role) => ({ id, member_id: `m-${id}`, user_id: id, first_name: first, last_name: last, email: `${id}@example.test`, org_role: role, is_active: true });
+  const rate = (id, first, last) => ({ teacher_id: id, teacher_name: `${first} ${last}`, lesson_types: ["group", "individual"], rates: { group: { percent: "50", valid_from: "2026-01" }, individual: { percent: "60", valid_from: "2026-01" } } });
+  const server = (request) => {
+    if (request.path === "/auth/org/members") return { json: /status=removed/.test(request.query) ? [] : [member("o1", "Рустам", "Валиев", "owner"), member("a1", "Сабина", "Назарова", "admin"), member("t1", "Лола", "Мирзаева", "teacher"), member("t2", "Камол", "Эргашев", "teacher")] };
+    if (request.path === "/auth/org/invitations") return { json: [] };
+    if (request.path === "/auth/org/payroll/rates") return { json: { items: [rate("t1", "Лола", "Мирзаева"), rate("t2", "Камол", "Эргашев")] } };
+    return null;
+  };
+  const shots = path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3");
+  fs2.mkdirSync(shots, { recursive: true });
+  for (const width of [375, 1280]) {
+    const run = await openPage(browser, "staff.entry.tsx", server, { width, height: 900 });
+    await run.page.evaluate(() => window.mountStaff());
+    await run.page.waitForSelector('button[aria-label^="Изменить ставку"]');
+    await run.page.waitForTimeout(700);
+    const facts = await run.page.evaluate(() => {
+      const tabs = document.querySelector('[data-testid="staff-tabs"]');
+      const rows = [...document.querySelectorAll('[data-testid="staff-row-actions"]')].filter((row) => row.children.length > 0);
+      const rowInfo = rows.map((row) => {
+        const card = row.closest(".overflow-hidden").getBoundingClientRect();
+        const kids = [...row.querySelectorAll("button")].map((b) => ({ text: (b.textContent || "").trim(), aria: b.getAttribute("aria-label"), right: b.getBoundingClientRect().right, visible: b.offsetParent !== null }));
+        return { cardRight: card.right, kids };
+      });
+      return { tabHeights: [...tabs.querySelectorAll("button")].map((b) => Math.round(b.getBoundingClientRect().height)), tabsScroll: tabs.scrollWidth - tabs.clientWidth, rowInfo, bodyScroll: document.documentElement.scrollWidth - window.innerWidth };
+    });
+    assert.equal(facts.bodyScroll <= 0, true, JSON.stringify(facts));
+    for (const row of facts.rowInfo) for (const kid of row.kids) assert.ok(kid.right <= row.cardRight + 0.5, `cut: ${JSON.stringify(kid)} of ${row.cardRight}`);
+    const teacherRows = facts.rowInfo.filter((row) => row.kids.some((k) => /Изменить ставку/.test(k.aria || "")));
+    assert.equal(teacherRows.length, 2);
+    if (width === 375) {
+      assert.ok(new Set(facts.tabHeights).size === 1 && facts.tabHeights[0] < 50, `tabs in one line ${facts.tabHeights}`);
+      for (const row of teacherRows) assert.deepEqual(row.kids.map((k) => (k.aria || "").split(":")[0] || "menu"), ["Изменить ставку", "Действия"], JSON.stringify(row.kids));
+      await run.page.screenshot({ path: path.join(shots, "k4-staff-375.png"), fullPage: true });
+      await run.page.locator('button[aria-label^="Действия:"]').nth(1).click();
+      const menu = plain(await run.page.locator('[role="menu"]').innerText());
+      assert.ok(menu.includes("Сменить роль") && menu.includes("Удалить сотрудника"), menu);
+    } else {
+      for (const row of teacherRows) assert.deepEqual(row.kids.map((k) => (k.aria || "").split(":")[0]).slice(0, 2), ["Изменить ставку", "Сменить роль"]);
+    }
+    if (width === 375) await run.page.screenshot({ path: path.join(shots, "k4-staff-375-menu.png") });
+    else await run.page.screenshot({ path: path.join(shots, "k4-staff-1280.png"), fullPage: true });
+    await run.page.close();
+  }
+});

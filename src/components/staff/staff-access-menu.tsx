@@ -32,11 +32,16 @@ export function StaffAccessMenu({
   actorRole,
   showToast,
   onChanged,
+  leadItems = [],
+  tailItems = [],
 }: {
   member: OrgMemberRow;
   actorRole: "owner" | "admin";
   showToast: (message: string, kind?: "success" | "error") => void;
   onChanged?: () => void;
+  /** К4 круг 3: the actions the row moves into «⋯» on a phone (before / after the access ones; a destructive one goes last) - the row keeps one main button. */
+  leadItems?: RowMenuItem[];
+  tailItems?: RowMenuItem[];
 }) {
   const allowed = canManageAccess(actorRole, member.org_role);
   const name = staffDisplayName(member, "Без имени");
@@ -49,7 +54,9 @@ export function StaffAccessMenu({
   const items: RowMenuItem[] = [];
   if (allowed.password) items.push({ key: "password-link", label: PASSWORD_LINK_MENU_LABEL, icon: KeyRound, onSelect: () => { setError(null); setDialog("password"); } });
   if (allowed.email) items.push({ key: "email-change", label: EMAIL_CHANGE_MENU_LABEL, icon: Mail, onSelect: () => { setEmail(""); setError(null); setDialog("email"); } });
-  if (items.length === 0 || !member.member_id) return null;
+  if (items.length === 0 && leadItems.length === 0 && tailItems.length === 0) return null;
+  if (!member.member_id && leadItems.length === 0 && tailItems.length === 0) return null;
+  const menu = [...leadItems, ...items, ...tailItems];
 
   const close = () => { if (!busy) setDialog(null); };
 
@@ -93,7 +100,7 @@ export function StaffAccessMenu({
 
   return (
     <>
-      <RowMenu items={items} label={`Действия: ${name}`} width={290} />
+      <RowMenu items={menu} label={`Действия: ${name}`} width={290} />
       <Modal
         open={dialog === "password"}
         title={PASSWORD_LINK_MENU_LABEL}

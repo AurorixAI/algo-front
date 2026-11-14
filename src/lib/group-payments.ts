@@ -147,7 +147,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
   const scheduled = price.scheduled !== undefined ? price.scheduled : extras?.scheduled ?? null;
   const individual = price.source === "override" && price.amount !== null && price.amount !== undefined;
   const missing = price.source === "none" || price.amount === null || price.amount === undefined;
-  const own = scheduled && scheduled.amount !== null && scheduled.amount !== undefined ? scheduled : null;
+  const own = scheduled && typeof scheduled.amount === "number" ? { amount: scheduled.amount, valid_from: scheduled.valid_from } : null;
   const planned = missing ? own ?? options.groupScheduled ?? null : null;      // К2: no price in force, one planned - the student's own first, else the group's
   const debt = Math.max(0, Math.round(Number(row.debt) || 0));
   return {

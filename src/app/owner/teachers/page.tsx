@@ -16,6 +16,8 @@ import { toastWithEffects } from "@/lib/money-effects";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { StaffAccessMenu } from "@/components/staff/staff-access-menu";
+import type { RowMenuItem } from "@/components/ui/row-menu";
+import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { InviteSentView } from "@/components/staff/invite-sent-view";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
@@ -66,6 +68,7 @@ export default function OwnerTeachersPage() {
 function OwnerTeachersContent() {
   const { org } = useAuthStore();
   const router = useRouter();
+  const phone = useMediaQuery(PHONE_QUERY);
   const searchParams = useSearchParams();
   const { showToast, toastNode } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
@@ -279,10 +282,10 @@ function OwnerTeachersContent() {
       </div>
 
       {/* Custom Tabs */}
-      <div className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-full max-w-2xl">
+      <div data-testid="staff-tabs" className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-full max-w-2xl overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           onClick={() => selectTab("members")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "members" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -290,7 +293,7 @@ function OwnerTeachersContent() {
         </button>
         <button
           onClick={() => selectTab("invites")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "invites" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -303,11 +306,11 @@ function OwnerTeachersContent() {
         </button>
         <button
           onClick={() => selectTab("former")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "former" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          Бывшие сотрудники{formerMembers.length > 0 ? ` (${formerMembers.length})` : ""}
+          <span className="max-sm:hidden">Бывшие сотрудники</span><span className="sm:hidden">Бывшие</span>{formerMembers.length > 0 ? ` (${formerMembers.length})` : ""}
         </button>
       </div>
 
@@ -371,39 +374,46 @@ function OwnerTeachersContent() {
                               })()}
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 sm:ml-auto">
-                            {rates[m.user_id || m.id] && (
-                              <Button
-                                type="button"
-                                onClick={() => setRateTeacherId(m.user_id || m.id)}
-                                aria-label={`Изменить ставку: ${staffDisplayName(m, "Без имени")}`}
-                                variant="secondary" size="sm"
-                              >
-                                Изменить ставку
-                              </Button>
-                            )}
-                            {m.org_role !== "owner" && (
-                              <Button
-                                type="button"
-                                onClick={() => setRoleTarget(m)}
-                                aria-label={`Сменить роль: ${staffDisplayName(m, "Без имени")}`}
-                                variant="secondary" size="sm"
-                              >
-                                Сменить роль
-                              </Button>
-                            )}
-                            <StaffAccessMenu member={m} actorRole="owner" showToast={showToast} />
+                          <div className="flex items-center gap-4 max-sm:gap-2 sm:ml-auto" data-testid="staff-row-actions">
+                            {(() => {
+                              // К4 круг 3: on a phone the row keeps ONE main button and «⋯»; the rest of the actions are in the menu (nothing leaves the card)
+                              const rateOn = Boolean(rates[m.user_id || m.id]);
+                              const roleOn = m.org_role !== "owner";
+                              const name = staffDisplayName(m, "Без имени");
+                              const openRate = () => setRateTeacherId(m.user_id || m.id);
+                              const openRole = () => setRoleTarget(m);
+                              const mainIsRate = rateOn;
+                              const lead: RowMenuItem[] = phone && mainIsRate && roleOn ? [{ key: "role", label: "Сменить роль", icon: Shield, onSelect: openRole }] : [];
+                              const tail: RowMenuItem[] = phone && roleOn ? [{ key: "remove", label: "Удалить сотрудника", icon: Trash2, danger: true, onSelect: () => handleRemoveMember(m) }] : [];
+                              return (
+                                <>
+                                  {rateOn && (
+                                    <Button type="button" onClick={openRate} aria-label={`Изменить ставку: ${name}`} variant="secondary" size="sm" className="max-sm:flex-1">
+                                      Изменить ставку
+                                    </Button>
+                                  )}
+                                  {roleOn && (!phone || !mainIsRate) && (
+                                    <Button type="button" onClick={openRole} aria-label={`Сменить роль: ${name}`} variant="secondary" size="sm" className="max-sm:flex-1">
+                                      Сменить роль
+                                    </Button>
+                                  )}
+                                  <StaffAccessMenu member={m} actorRole="owner" showToast={showToast} leadItems={lead} tailItems={tail} />
+                                </>
+                              );
+                            })()}
                             {m.org_role !== "owner" ? (
-                              <button
-                                onClick={() => handleRemoveMember(m)}
-                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:!opacity-100"
-                                title="Удалить сотрудника"
-                                aria-label="Удалить сотрудника"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              !phone && (
+                                <button
+                                  onClick={() => handleRemoveMember(m)}
+                                  className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:!opacity-100"
+                                  title="Удалить сотрудника"
+                                  aria-label="Удалить сотрудника"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )
                             ) : (
-                              <div className="w-8" /> // Spacer for alignment
+                              !phone && <div className="w-8" /> // Spacer for alignment
                             )}
                           </div>
                         </motion.div>
