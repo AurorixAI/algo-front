@@ -751,7 +751,7 @@ test("Ф-5 (G3M С1): a changed sum above the ceiling of the student who left is
   await run.page.waitForSelector('[data-testid="payment-methods"]');
   await run.page.fill("#payment-amount", "1 400 000");
   await run.page.fill("#payment-reason", "ошиблись в сумме");
-  await run.page.waitForSelector('[data-testid="money-effects"][data-state="failed"]');
+  await run.page.waitForFunction((t) => document.querySelector('[data-testid="payment-blocker"]')?.textContent?.replace(/[\s\u00a0\u202f]+/g, " ").includes(t), text);
   const body = plain(await run.page.textContent("body"));
   assert.ok(body.includes(text));
   assert.doesNotMatch(body, /принять можно не больше долга/);
@@ -782,11 +782,11 @@ test("Ф-6 lib: the conflict takes `currentVersion` and `records` from the answe
   assert.deepEqual(unknown.detail.records, { s1: "present" });
   const noAuthor = lessonFailure(conflictError({ message: VERSION_MESSAGE, currentVersion: 6, records: {} }), "save", "fallback");
   assert.equal(noAuthor.text, VERSION_MESSAGE, "no `updatedBy` at all");
-  const known = lessonFailure(conflictError({ message: "Отметки уже изменил(а) Петров П. в 10:42", currentVersion: 7, updatedBy: { id: "u2", name: "Петров П." }, updatedAt: "2026-11-14T05:42:00" }), "save", "fallback");
-  assert.equal(known.text, "Отметки уже изменил(а) Петров П. в 10:42.", "a known author is named with the time on the business clock");
+  const known = lessonFailure(conflictError({ message: "Отметки изменены: Петров П., 10:42", currentVersion: 7, updatedBy: { id: "u2", name: "Петров П." }, updatedAt: "2026-11-14T05:42:00" }), "save", "fallback");
+  assert.equal(known.text, "Отметки изменены: Петров П., 10:42", "a known author is named with the time on the business clock");
   const nameOnly = lessonFailure(conflictError({ message: VERSION_MESSAGE, currentVersion: 8, updatedBy: { id: "u2", name: "Петров П." } }), "save", "fallback");
-  assert.equal(nameOnly.text, "Отметки уже изменил(а) Петров П.");
-  assert.doesNotMatch(unknown.text + noAuthor.text + known.text + nameOnly.text, /изменил\(а\) (\.|$)|undefined|null/);
+  assert.equal(nameOnly.text, "Отметки изменены: Петров П.");
+  assert.doesNotMatch(unknown.text + noAuthor.text + known.text + nameOnly.text, /изменены: ($|,)|undefined|null/);
 });
 
 const NAMES = { s1: "Каримов Фарходжон Рустамович", s2: "Иванов Иван" };
@@ -808,10 +808,10 @@ test("Ф-6 window: an unknown author - the server's sentence heads the window, t
 
 for (const width of [1280, 1024, 375]) {
   test(`Ф-6 ${width}: the conflict window with a known and an unknown author - nothing leaves its box, the sentence is whole`, async () => {
-    for (const detail of [{ message: VERSION_MESSAGE, currentVersion: 5, records: { s1: "present", s2: "absent" } }, { message: "Отметки уже изменил(а) Ходжаев Алишер Бахтиёрович в 10:42", currentVersion: 5, updatedBy: { id: "u2", name: "Ходжаев Алишер Бахтиёрович" }, updatedAt: "2026-11-14T05:42:00", records: { s1: "present", s2: "absent" } }]) {
+    for (const detail of [{ message: VERSION_MESSAGE, currentVersion: 5, records: { s1: "present", s2: "absent" } }, { message: "Отметки изменены: Ходжаев Алишер Бахтиёрович, 10:42", currentVersion: 5, updatedBy: { id: "u2", name: "Ходжаев Алишер Бахтиёрович" }, updatedAt: "2026-11-14T05:42:00", records: { s1: "present", s2: "absent" } }]) {
       const { page } = await openConflict(detail, width);
       const head = plain(await page.locator("p").first().innerText());
-      assert.equal(head, detail.updatedBy ? "Отметки уже изменил(а) Ходжаев Алишер Бахтиёрович в 10:42." : VERSION_MESSAGE);
+      assert.equal(head, detail.updatedBy ? "Отметки изменены: Ходжаев Алишер Бахтиёрович, 10:42" : VERSION_MESSAGE);
       const facts = await page.evaluate(layoutProbe, "#root");
       assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
       assert.equal(facts.scroll, 0);

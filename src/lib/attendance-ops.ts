@@ -90,21 +90,16 @@ export function conflictDetailOf(error: unknown): AttendanceConflictDetail | nul
   return { ...detail, records: detail.records ?? {} };
 }
 
-/** A sentence ends with one full stop: a short name («Петров П.») already has it. */
-export function endSentence(text: string): string {
-  return text.endsWith(".") ? text : `${text}.`;
-}
-
 /**
- * «Отметки уже изменил(а) Петров П. в 10:42.» - the time on the Tashkent clock (the server sends UTC).  The author is not known (Money-1 Г-11: a save without a version): the sentence of the server
- * stands as it is («Отметки изменились — обновите страницу»), never «изменил(а) <пусто>».
+ * «Отметки изменены: Петров П., 10:42» - the time on the Tashkent clock (the server sends UTC).  The author is not known (Money-1 Г-11: a save without a version): the sentence of the server
+ * stands as it is («Отметки изменились — обновите страницу»), never «Отметки изменены: <пусто>».
  */
 export function conflictHeadline(detail: AttendanceConflictDetail): string {
   const name = (detail.updatedBy?.name ?? "").trim();
   const time = formatUtcNaiveAsBusinessTime(detail.updatedAt);
-  if (name && time) return `Отметки уже изменил(а) ${name} в ${time}.`;
-  if (name) return endSentence(`Отметки уже изменил(а) ${name}`);
-  return (detail.message ?? "").trim() || "Отметки уже изменил другой сотрудник.";
+  if (name && time) return `Отметки изменены: ${name}, ${time}`;
+  if (name) return `Отметки изменены: ${name}`;
+  return (detail.message ?? "").trim() || "Отметки изменил другой сотрудник";
 }
 
 /** The window's title says WHAT happened; the line under it says who and when (`conflictHeadline`), the next one what happens to my marks - three different things (G3M Ф4). */

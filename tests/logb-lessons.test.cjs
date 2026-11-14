@@ -246,7 +246,7 @@ test("[O7.R4] chain 7: the conflict says who and when (on the Tashkent clock), l
   assert.equal(detail.currentVersion, 2);
   const s1 = Object.keys(detail.records)[0];
   const s2 = "s2-student";
-  assert.equal(Ops.conflictHeadline(detail), "Отметки уже изменил(а) Рахимов Т. в 10:42."); // 05:42 UTC
+  assert.equal(Ops.conflictHeadline(detail), "Отметки изменены: Рахимов Т., 10:42"); // 05:42 UTC
   const base = {};
   const mine = { [s2]: "absent" };
   const rows = Ops.conflictRows(base, mine, detail.records);
@@ -262,10 +262,10 @@ test("[O7.R4] chain 7: the conflict says who and when (on the Tashkent clock), l
   assert.equal(Ops.CONFLICT_EXPLAIN, "Ваши несохранённые отметки останутся в окне, пока вы не выберете, чьи оставить.");
   const failure = Ops.lessonFailure(refusal(body.status, body.body), "save", "x");
   assert.equal(failure.kind, "conflict");
-  assert.equal(failure.text, "Отметки уже изменил(а) Рахимов Т. в 10:42.");
+  assert.equal(failure.text, "Отметки изменены: Рахимов Т., 10:42");
   const html = renderToStaticMarkup(React.createElement(AttendanceConflictBody, { conflict: { detail, base, mine }, names: { [s2]: "Каримов Азиз" }, error: null }));
   const text = textOf(html);
-  assert.match(text, /Отметки уже изменил\(а\) Рахимов Т\. в 10:42\./);
+  assert.match(text, /Отметки изменены: Рахимов Т\., 10:42/);
   assert.match(text, /Каримов Азиз/);
   assert.match(text, /Не был/);
   assert.match(text, /не отмечен/);
@@ -273,8 +273,8 @@ test("[O7.R4] chain 7: the conflict says who and when (on the Tashkent clock), l
 });
 
 test("[O7.R4] a conflict without a name still has a headline; other 409s are not conflicts", () => {
-  assert.equal(Ops.conflictHeadline({ currentVersion: 3, updatedBy: {}, message: "" }), "Отметки уже изменил другой сотрудник.");
-  assert.equal(Ops.conflictHeadline({ currentVersion: 3, updatedBy: { name: "Петров П." }, message: "" }), "Отметки уже изменил(а) Петров П.");
+  assert.equal(Ops.conflictHeadline({ currentVersion: 3, updatedBy: {}, message: "" }), "Отметки изменил другой сотрудник");
+  assert.equal(Ops.conflictHeadline({ currentVersion: 3, updatedBy: { name: "Петров П." }, message: "" }), "Отметки изменены: Петров П.");
   assert.equal(Ops.conflictDetailOf(refusal(409, { detail: { code: "NO_STUDENTS", message: "x" } })), null);
   assert.equal(Ops.isAttendanceConflict(new Error("x")), false);
 });

@@ -293,3 +293,10 @@ test("Н2: меню столбца — подпись «Урока не было
   const { PAST_MARK_NO_RIGHT_TEXT, PAST_ASSIGN_NO_RIGHT_TEXT } = lib("schedule-card-actions.ts");
   for (const text of [PAST_MARK_NO_RIGHT_TEXT, PAST_ASSIGN_NO_RIGHT_TEXT]) assert.doesNotMatch(text, /[.!]$/);
 });
+
+test("Н3: окно конфликта отметок — «Отметки изменены: Имя, время», без «(а)»", () => {
+  const { conflictHeadline } = lib("attendance-ops.ts");
+  assert.equal(conflictHeadline({ currentVersion: 3, updatedBy: { name: "Рахимов Т." }, updatedAt: "2026-11-14T05:42:00", message: "" }), "Отметки изменены: Рахимов Т., 10:42");
+  assert.equal(conflictHeadline({ currentVersion: 3, updatedBy: { name: "Петров П." }, message: "" }), "Отметки изменены: Петров П.");
+  assert.doesNotMatch(read("src/lib/attendance-ops.ts"), /изменил\(а\)/);
+});
