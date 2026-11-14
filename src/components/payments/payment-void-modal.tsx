@@ -8,13 +8,17 @@ import {
   type MembershipPaymentRow,
   type PaymentOut,
 } from "@/lib/payments";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
+
+/** The answer of the cancel: the payment, its row and `money_effects` (its `text` is what the cancel did to the debt in other groups and to the pay). */
+export type VoidedPayment = { payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown };
 
 /** What the dialog needs to know of the payment (the statement knows no more than this). */
 export type VoidablePayment = Pick<PaymentOut, "id" | "paid_on" | "amount"> & Partial<Pick<PaymentOut, "carried_from">>;
 
 /** «Отменить оплату?»: the words and the calls of the cancel of a payment, for the one cancel dialog of money. */
-export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void, onStale?: () => void): VoidTarget {
+export function paymentVoidTarget(payment: VoidablePayment, studentName: string | undefined, onVoided: (result: VoidedPayment) => void, onStale?: () => void): VoidTarget {
   return {
     key: payment.id,
     title: "Отменить оплату?",
@@ -28,6 +32,7 @@ export function paymentVoidTarget(payment: VoidablePayment, studentName: string 
     action: "Отменить оплату",
     failure: "Не удалось отменить оплату",
     onStale,
+    preview: (signal) => orgApi.voidPayment(payment.id, DRY_RUN_REASON, { dryRun: true, signal }),
     run: async (reason) => { onVoided(await orgApi.voidPayment(payment.id, reason)); },
   };
 }
@@ -38,7 +43,7 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided, onSt
   payment: VoidablePayment | null;
   studentName?: string;
   onClose: () => void;
-  onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void;
+  onVoided: (result: VoidedPayment) => void;
   /** «Оплата уже отменена · кем, когда» -> «Понятно»: the page reads its data again. */
   onStale?: () => void;
 }) {

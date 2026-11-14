@@ -9,6 +9,9 @@ import { DialogError } from "@/components/money/dialog-error";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
 import { useDialogAction } from "@/lib/use-dialog-action";
+import { useMoneyPreview } from "@/lib/use-money-preview";
+import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
+import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
 import { Notice } from "@/components/ui/notice";
 
@@ -27,6 +30,8 @@ export interface VoidTarget {
   failure?: string;
   /** `expected`: the debt / the advance the window SHOWED (Money-1 V1); absent for the cancel of a payment, which has no such check. */
   run: (reason: string, expected?: number) => Promise<void>;
+  /** Money-1 Г: the dry run of this cancel (`?dry_run=true`) - the window shows «Что изменится» from the server's own sentence and its button waits for it.  Absent: the window says nothing about other money. */
+  preview?: (signal: AbortSignal) => Promise<unknown>;
   /** The number the window shows and the server checks (debt for a write-off, advance for a refund). */
   expected?: number;
   /** Which number a 409 `BALANCE_CHANGED` carries for this cancel. */
@@ -38,8 +43,8 @@ export interface VoidTarget {
 }
 
 /**
- * A reason of 3..500 characters and a red button: the ONE cancel dialog of a payment, a write-off and a refund.  The record stays in the history, grey (said by `explain`).  The window is about the
- * STUDENT's money only (UX pack §5.1-тер): the pay of the teachers is not drawn here, so there is no dry run to wait for.
+ * A reason of 3..500 characters and a red button: the ONE cancel dialog of a payment, a write-off and a refund.  The record stays in the history, grey (said by `explain`).  The cancel of a PAYMENT
+ * (`target.preview`) asks the dry run first: the debt that appears in another group and the pay of the teachers stand in «Что изменится» BEFORE the button (Money-1 Г-4).
  */
 export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null; onClose: () => void }) {
   const [reason, setReason] = useState("");
@@ -48,11 +53,14 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
   const { busy, error, setError, closed, run } = useDialogAction(target?.key ?? null);
   useEffect(() => { setReason(""); setTouched(false); setExpected(target?.expected); }, [target?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const { preview, retry } = useMoneyPreview(target?.preview ? target.key : null, (signal) => target!.preview!(signal));
+  const waits = Boolean(target?.preview) && !effectsAllowConfirm(preview);
+
   const change = target?.expectedKind ? balanceChangeOf(error, target.expectedKind) : null;
-  const voided = alreadyVoidedText(error);
+  const voided = alreadyVoidedText(error) ?? (preview.status === "failed" ? alreadyVoidedText(preview.error) : null);      // the dry run found it already cancelled: said at once
 
   const submit = async () => {
-    if (!target || busy) return;
+    if (!target || busy || waits) return;
     const problem = validateReason(reason);
     if (problem) { setTouched(true); if (reason.trim().length >= REASON_MIN) setError(new Error(problem)); return; }
     if (await run(() => target.run(reason.trim(), expected))) onClose();
@@ -72,12 +80,13 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
         <ConfirmFooter primary={null} cancelLabel="Понятно" onCancel={() => { target?.onStale?.(); onClose(); }} />
       ) : (
         // red: cancelling a payment / a write-off cannot be undone for the money (UX pack, rule 3); the secondary button is «Не отменять»
-        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone="danger" busy={busy} disabled={change !== null} why={null} whyId="record-void-why" onCancel={onClose} />
+        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone="danger" busy={busy} disabled={change !== null || waits} why={waits ? effectsWhyOff(preview) : null} whyId="record-void-why" onCancel={onClose} />
       )}
     >
       <form id="record-void-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>
         <ReasonField id="record-void-reason" value={reason} onChange={(next) => { setReason(next); setError(null); }} required error={reasonFieldError(reason, touched)} onBlur={() => setTouched(reason.length > 0)} autoFocus maxLength={REASON_MAX} />
         {explain.map((text, index) => <p key={index} className="text-xs text-slate-600">{text}</p>)}
+        {target?.preview && voided === null && <MoneyEffectsBlock preview={preview} onRetry={retry} serverText className="mt-1" />}
         {voided !== null && <Notice variant="info" compact testId="already-voided">{voided}</Notice>}
         {change && (
           <BalanceChangedNotice

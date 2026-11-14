@@ -43,10 +43,15 @@ test("the rows never carry the pay of the teachers", () => {
   assert.ok(!/зарплат|Эргашев/i.test(all), all);
 });
 
-test("the pay of the teachers is not drawn in a window of a payment, a correction, a cancel, a write-off, a refund - the code has no dry run and no block of effects there (decision of the owner 05.11)", () => {
-  for (const file of ["payment-dialog", "record-void-modal", "writeoff-dialog", "refund-dialog", "payment-void-modal"]) {
+test("the pay of the teachers is not drawn by the screen in a window of a payment, a write-off, a refund (decision of the owner 05.11); the cancel and the correction of a payment say only the server's own sentence (Money-1 Г)", () => {
+  for (const file of ["writeoff-dialog", "refund-dialog"]) {
     const source = read(`src/components/payments/${file}.tsx`);
     assert.ok(!/MoneyEffectsBlock|PayrollConsequence|useDryRunForm|usePaymentEffects|dryRun|money_effects|toastWithEffects/.test(source), file);
+  }
+  for (const file of ["payment-dialog", "record-void-modal"]) {
+    const source = read(`src/components/payments/${file}.tsx`);
+    assert.ok(/<MoneyEffectsBlock[^>]*serverText/.test(source), `${file}: «Что изменится» is the server's sentence`);
+    assert.ok(!/PayrollConsequence|useDryRunForm|usePaymentEffects|toastWithEffects/.test(source), file);
   }
   for (const file of ["payments-page", "statement-view", "membership-payments", "membership-row-actions"]) {
     assert.ok(!/toastWithEffects/.test(read(`src/components/payments/${file}.tsx`)), `${file}: the toast of a payment is the student's only`);

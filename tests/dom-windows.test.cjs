@@ -17,28 +17,31 @@ const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|
 const PERIOD_CLOSED = { code: "PERIOD_CLOSED", message: "Месяц октябрь 2026 у преподавателя Каримова К. закрыт: ведомость сохранена 03.11.2026. Чтобы исправить, владелец переоткрывает месяц.", month: "2026-10", teacherId: "t1", teacherName: "Каримова К.", closedOn: "2026-11-03" };
 
 // ── cancel of a payment, of a write-off, of a refund: the ONE window ───────────────────────────────
-// UX pack §5.1-тер (decision of the owner 05.11): these windows are about the STUDENT.  The pay of the teachers is not drawn in them, so there is no dry run to wait for: one request, with the typed reason.
+// UX pack §5.1-тер (decision of the owner 05.11): a write-off and a refund are about the STUDENT only - one request, with the typed reason.  Since Money-1 Г (Г-4, MONEY1_G_FRONT.md) the cancel of a PAYMENT
+// asks the dry run first: the debt that appears in another group and the pay of the teachers are the server's own sentence in «Что изменится» (tests/money1-g-front.test.cjs).
 
-test("cancel of a payment: the red button names the action, the secondary one is «Не отменять», the reason is «Причина (обязательно)» (3 characters at least, the error at the field); ONE request - no dry run - with the typed reason", async () => {
-  const { page, calls, errors } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/payments/p1/void" ? { json: { ...fixture("e1_void_300000"), dry_run: false } } : null));
+test("cancel of a payment: the red button names the action, the secondary one is «Не отменять», the reason is «Причина (обязательно)» (3 characters at least, the error at the field); the dry run first, then ONE real request - with the typed reason", async () => {
+  const { page, calls, errors } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/payments/p1/void" ? { json: { ...fixture("e1_void_300000"), dry_run: isDry(request), money_effects: EMPTY_EFFECTS } } : null));
   await page.evaluate(() => window.mount("voidPayment"));
   await page.waitForSelector("#record-void-reason");
+  await page.waitForFunction(() => !document.querySelector('button[form="record-void-form"]').disabled);      // the dry run answered: nothing changes elsewhere, no block
   assert.equal(await page.textContent('label[for="record-void-reason"]'), "Причина (обязательно)");
   assert.equal(await page.textContent('button[form="record-void-form"]'), "Отменить оплату");
   assert.equal(await page.textContent('[data-testid="confirm-cancel"]'), "Не отменять");
   assert.equal(await page.getAttribute('button[form="record-void-form"]', "data-variant"), "danger", "red: cancelling a payment cannot be undone for the money");
-  assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0, "nothing about the pay of the teachers");
+  assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0, "the server says nothing else changes: no block");
   await page.fill("#record-void-reason", "ав");
   await page.click('button[form="record-void-form"]');
   await page.waitForSelector('[role="alert"]');
   assert.match(await page.textContent('[role="alert"]'), /не короче 3/);
-  assert.deepEqual(calls, [], "a too short reason sends nothing");
+  assert.deepEqual(calls.filter((call) => !isDry(call)), [], "a too short reason sends nothing real");
   await page.fill("#record-void-reason", "оплата внесена по ошибке");
   await page.click('button[form="record-void-form"]');
   await page.waitForFunction(() => window.__log.includes("voided"));
-  assert.equal(calls.length, 1);
-  assert.ok(!isDry(calls[0]));
-  assert.deepEqual(calls[0].body, { reason: "оплата внесена по ошибке" });
+  assert.equal(calls.length, 2);
+  assert.ok(isDry(calls[0]));
+  assert.ok(!isDry(calls[1]));
+  assert.deepEqual(calls[1].body, { reason: "оплата внесена по ошибке" });
   assert.deepEqual(noise(errors), []);
   await page.close();
 });

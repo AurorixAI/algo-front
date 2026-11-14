@@ -1832,13 +1832,15 @@ export const orgApi = {
     api<PaymentSaveResult>(`/auth/org/memberships/${encodePathId(membershipId)}/payments`, {
       method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     }).then(normalizeSaveResult),
-  replacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }, idempotencyKey?: string) =>
-    api<PaymentSaveResult>(`/auth/org/payments/${encodePathId(paymentId)}/replace`, {
-      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  /** `dryRun` (Money-1 Г-4б): the same request with `?dry_run=true` - nothing is written, `money_effects.text` says what changes (no `Idempotency-Key`). */
+  replacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }, idempotencyKey?: string, options: { dryRun?: boolean; signal?: AbortSignal } = {}) =>
+    api<PaymentSaveResult>(`/auth/org/payments/${encodePathId(paymentId)}/replace${options.dryRun ? "?dry_run=true" : ""}`, {
+      method: "POST", body: data, headers: idempotencyKey && !options.dryRun ? { "Idempotency-Key": idempotencyKey } : undefined, signal: options.signal,
     }).then(normalizeSaveResult),
-  voidPayment: (paymentId: string, reason: string) =>
-    api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
-      method: "POST", body: { reason },
+  /** `dryRun` (Money-1 Г-4): the same request with `?dry_run=true` - what the cancel does to the debt in the other groups and to the pay of the teachers (`money_effects.text`). */
+  voidPayment: (paymentId: string, reason: string, options: { dryRun?: boolean; signal?: AbortSignal } = {}) =>
+    api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void${options.dryRun ? "?dry_run=true" : ""}`, {
+      method: "POST", body: { reason }, signal: options.signal,
     }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
   /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
   getPaymentPreview: (membershipId: string, q: PreviewQuery, signal?: AbortSignal) => {

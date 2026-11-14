@@ -13,6 +13,7 @@
  */
 import { formatMoney, formatSignedMoney, tidyMoneyText } from "./money-format";
 import { canDecideMoney } from "./one-off";
+import { carriedRows } from "./dry-run";
 import { pluralRu } from "./plural";
 import { formatBusinessDate } from "./business-time";
 import { monthTitle } from "./payroll";
@@ -364,6 +365,12 @@ export function toastWithEffects(answer: unknown, details: string[] = []): { ton
   return { tone: lines.some((line) => line.tone === "warn") ? "warning" : "success", details: [...details, ...effectLineTexts(lines)] };
 }
 
+/** Money-1 Г (Г-4, Р-2, Р-3): the sentence of the server about what an action did / will do (`money_effects.text`: a debt in another group, the pay of the teachers) as rows - its parts divided by «; ». Empty: nothing to say. */
+export function serverEffectsRows(answer: unknown): string[] {
+  const text = moneyEffectsOf(answer)?.text ?? "";
+  return text ? carriedRows(text) : [];
+}
+
 /** The sum an action moved, for a toast of ONE phrase («+45 000 сум»): the sum of `changedBy` of the lines of the answer - the owner's only; null for everybody else or when nothing moved. */
 export function movedByOf(answer: unknown): number | null {
   const lines = moneyEffectsOf(answer)?.payroll.filter((line) => line.changedBy !== null && line.changedBy !== 0) ?? [];
@@ -371,8 +378,9 @@ export function movedByOf(answer: unknown): number | null {
 }
 
 /**
- * The toast of an action on the STUDENT's money - a payment, its correction or cancel, a forgiven debt, a refund (UX pack §5.1-тер, decision of the owner 05.11): the pay of the teachers is NOT in it, whoever
- * the person is.  The server still sends `moneyEffects.payroll`; the screen does not draw it in these windows.  The change lives where it is acted on - in «Зарплата» (the chip of the list, the bar over it).
+ * The toast of an action on the STUDENT's money - a payment, its correction or cancel, a forgiven debt, a refund (UX pack §5.1-тер, decision of the owner 05.11): the pay of the teachers is NOT drawn by
+ * the screen from `moneyEffects.payroll`; the change lives where it is acted on - in «Зарплата» (the chip of the list, the bar over it).  What the server SAYS about it (`serverEffectsRows`: a debt in
+ * another group, the pay) the caller passes as `details`..
  */
 export function studentToast(details: string[] = []): { tone: "success"; details: string[] } {
   return { tone: "success", details };

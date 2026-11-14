@@ -40,11 +40,11 @@ import {
   writeoffDoneText,
   refundReceiptHref,
 } from "@/lib/payments";
-import { studentToast } from "@/lib/money-effects";
+import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import {
   canRefund,
   canWriteOff,
-  savedPaymentDetails,
+  savedPaymentToastDetails,
 } from "@/lib/payments-ledger";
 import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
@@ -277,7 +277,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }, [load, loadNarrowedCounts, refreshSummary]);
 
   const onSaved = (result: PaymentSaveResult) => {
-    const note = studentToast(savedPaymentDetails(result.allocation));
+    const note = studentToast(savedPaymentToastDetails(form?.kind ?? "create", result));
     showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], note.tone, note.details);
     afterChange();
   };
@@ -463,7 +463,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         payment={voidTarget?.payment ?? null}
         studentName={voidTarget?.studentName}
         onClose={() => setVoidTarget(null)}
-        onVoided={(result) => { const note = studentToast(); showToast("Оплата отменена", note.tone, note.details); afterChange(); }}
+        onVoided={(result) => { const note = studentToast(serverEffectsRows(result)); showToast("Оплата отменена", note.tone, note.details); afterChange(); }}
         onStale={afterChange}
       />
       <WriteoffDialog

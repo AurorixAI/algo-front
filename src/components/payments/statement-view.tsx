@@ -16,7 +16,7 @@ import {
   refundReceiptHref,
   type StatementOut,
 } from "@/lib/payments";
-import { studentToast } from "@/lib/money-effects";
+import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import { basesOfPayments, groupHref, queryWith, studentHref } from "@/lib/ia-links";
 import {
   BALANCE_TEXT_CLASS,
@@ -53,7 +53,7 @@ import { canGoBack, clearReceiptNavigationMark, markReceiptNavigation, receiptNa
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
-import { savedPaymentDetails } from "@/lib/payments-ledger";
+import { savedPaymentDetails, savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { useToast } from "@/components/ui/toast";
 import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
@@ -362,7 +362,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         membership={correct && m ? { membership_id: m.membership_id, student_name: m.student_name, group_name: m.group_name } : null}
         payment={correct}
         onClose={() => setCorrect(null)}
-        onSaved={(result) => { const note = studentToast(); showToast("Оплата исправлена", note.tone, note.details); changed(); void cheques.reload(); }}
+        onSaved={(result) => { const note = studentToast(savedPaymentToastDetails("replace", result)); showToast("Оплата исправлена", note.tone, note.details); changed(); void cheques.reload(); }}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
         onStale={() => { changed(); void cheques.reload(); }}
       />
@@ -370,7 +370,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         payment={voidPayment}
         studentName={m?.student_name}
         onClose={() => setVoidPayment(null)}
-        onVoided={(result) => { const note = studentToast(); showToast("Оплата отменена", note.tone, note.details); changed(); void cheques.reload(); }}
+        onVoided={(result) => { const note = studentToast(serverEffectsRows(result)); showToast("Оплата отменена", note.tone, note.details); changed(); void cheques.reload(); }}
         onStale={() => { changed(); void cheques.reload(); }}
       />
       <RecordVoidModal target={voidRecord} onClose={() => setVoidRecord(null)} />

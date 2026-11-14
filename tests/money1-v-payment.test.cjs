@@ -50,10 +50,11 @@ test("«Исправить оплату»: the reason is required (no «необ
   assert.equal(await submit.isDisabled(), true);
   assert.match(plain(await page.textContent('[data-testid="payment-blocker"]')), /Укажите причину/);
   await page.fill("#payment-reason", "ошибся в сумме");
+  await page.waitForFunction(() => !document.querySelector('button[form="payment-form"]').disabled);      // Money-1 Г: the button waits for the dry run of the correction
   assert.equal(await submit.isDisabled(), false);
   await submit.click();
   await page.waitForFunction(() => window.__log.includes("saved"));
-  const post = calls.find((call) => call.method === "POST");
+  const post = calls.find((call) => call.method === "POST" && !/dry_run=true/.test(call.query));
   assert.equal(post.body.reason, "ошибся в сумме");
   assert.equal(post.body.method, "cash");
   assert.ok(post.headers["idempotency-key"]);
@@ -76,18 +77,20 @@ test("«Исправить оплату»: the line «Фото чека пере
 
 test("«Исправить оплату»: a server 422 REASON_REQUIRED stands under the reason; ALREADY_VOIDED says who and when and ends in «Понятно»", async () => {
   {
-    const { page } = await mount("replace", { post: () => ({ status: 422, json: { detail: { code: "REASON_REQUIRED", message: "Причина: от 3 до 500 символов" } } }) });
+    const { page } = await mount("replace", { post: (request) => (/dry_run=true/.test(request.query) ? saved : { status: 422, json: { detail: { code: "REASON_REQUIRED", message: "Причина: от 3 до 500 символов" } } }) });
     await page.fill("#payment-amount", "200 000");
     await page.fill("#payment-reason", "ошибся");
+    await page.waitForFunction(() => !document.querySelector('button[form="payment-form"]').disabled);
     await page.click('button[form="payment-form"]');
     await page.waitForSelector('[data-testid="payment-reason-error"]');
     assert.equal(plain(await page.textContent('[data-testid="payment-reason-error"]')), "Причина: от 3 до 500 символов");
     await page.close();
   }
   {
-    const { page } = await mount("replace", { post: () => conflict("ALREADY_VOIDED", "Оплата уже отменена", { voided_at: "2026-11-05T09:20:00", voided_by_name: "Иванова Д." }) });
+    const { page } = await mount("replace", { post: (request) => (/dry_run=true/.test(request.query) ? saved : conflict("ALREADY_VOIDED", "Оплата уже отменена", { voided_at: "2026-11-05T09:20:00", voided_by_name: "Иванова Д." })) });
     await page.fill("#payment-amount", "200 000");
     await page.fill("#payment-reason", "ошибся");
+    await page.waitForFunction(() => !document.querySelector('button[form="payment-form"]').disabled);
     await page.click('button[form="payment-form"]');
     await page.waitForSelector('[data-testid="already-voided"]');
     assert.match(plain(await page.textContent('[data-testid="already-voided"]')), /^Оплата уже отменена · Иванова Д\., 05\.11\.2026 14:20$/);

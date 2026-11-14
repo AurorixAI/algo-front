@@ -149,6 +149,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
         <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
           {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
+          {row.consequence && <p className="break-words" data-testid="decision-consequence">{row.consequence}</p>}
           {row.receipt_no !== null && <p>Квитанция № {row.receipt_no}</p>}
           {studentLink && <Link href={studentLink} className="inline-flex min-h-10 items-center font-medium text-primary-700 hover:underline">Оплаты ученика</Link>}
         </div>

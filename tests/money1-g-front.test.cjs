@@ -6,8 +6,18 @@ const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 const { execFileSync } = require("node:child_process");
+const ts = require("typescript");
+const Module = require("node:module");
 const { launch, openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
+
+// the pure functions of src/lib are loaded as TypeScript (the same loader as payf.test.cjs)
+require.extensions[".ts"] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText, filename);
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, ...rest) {
+  return resolveFilename.call(this, request.startsWith("@/") ? path.join(__dirname, "..", "src", request.slice(2)) : request, ...rest);
+};
+const lib = (name) => require(path.join(__dirname, "..", "src", "lib", name));
 
 const root = path.join(__dirname, "..");
 let browser;
@@ -19,7 +29,7 @@ test.before(async () => {
 });
 test.after(async () => { await browser.close(); });
 
-const plain = (text) => text.replace(/\s+/g, " ").trim();
+const plain = (text) => text.replace(/\s+/g, " ").trim();      // \s covers the non-breaking space
 const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN_NO_RIGHT = { role: "admin", org_role: "admin", payments_access: false };
 const ADMIN_WITH_RIGHT = { role: "admin", org_role: "admin", payments_access: true };
@@ -229,6 +239,159 @@ for (const width of [1280, 1024, 375]) {
       await page.waitForSelector('[data-testid="cancel-consequence"], [data-testid="cancel-effects-students"]');
       const sentence = plain(await page.locator('[data-testid="cancel-consequence"], [data-testid="cancel-effects-students"]').first().textContent());
       assert.equal(sentence, "Ученикам зачтётся по 46 000 сум", `${width}: ${sentence}`);
+      await page.waitForTimeout(450);
+      const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
+      assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+      assert.equal(facts.scroll, 0);
+      await page.close();
+    }
+  });
+}
+
+// ── Ф-2: cancel and correction of a payment - «Что изменится» from the dry run, the server's words ─────
+
+const NEW_DEBT_TEXT = "В группе «Вторая (пн/ср/пт)» появится долг 300 000 сум; Зарплата за ноябрь у Эргашева К. уменьшится на 45 000 сум";
+const DONE_DEBT_TEXT = "В группе «Вторая (пн/ср/пт)» появился долг 300 000 сум";
+const PAYMENT_ROW = { membership_id: "m1", student_id: "s1", student_name: "Каримов Фарходжон Рустамович", group_id: "g1", group_name: "Алгебра 7 (вт/пт)", is_primary: true, is_active: true, status: "ok", debt: 0, advance: 0 };
+const PAYMENT = { id: "p1", amount: 300000, paid_on: "2026-11-05", method: "cash", status: "active", kind: "payment" };
+
+function paymentServer({ text = NEW_DEBT_TEXT, gate = null, dryStatus = 200, log = [] } = {}) {
+  return async (request) => {
+    const dry = /dry_run=true/.test(request.query);
+    if (request.method === "POST" && /\/org\/payments\/p1\/(void|replace)$/.test(request.path)) {
+      log.push(`${request.path.split("/").pop()}${dry ? ":dry" : ""}`);
+      if (dry) {
+        if (gate) await gate;
+        if (dryStatus !== 200) return { status: dryStatus, json: { detail: { code: "SERVER_ERROR", message: "boom" } } };
+        return { status: request.path.endsWith("/replace") ? 201 : 200, json: { payment: PAYMENT, row: PAYMENT_ROW, warnings: [], allocation: null, dry_run: true, new_debts: [], money_effects: { students: [], payroll: [], text, dryRun: true } } };
+      }
+      return { status: request.path.endsWith("/replace") ? 201 : 200, json: { payment: PAYMENT, row: PAYMENT_ROW, warnings: [], allocation: null, dry_run: false, new_debts: [], money_effects: { students: [], payroll: [], text: DONE_DEBT_TEXT, dryRun: false } } };
+    }
+    if (request.method === "GET" && /\/payments\/preview$/.test(request.path)) return { json: { suggested_amount: 0, due: { total: 0, rows: [] }, left_debt_only: false } };
+    return null;
+  };
+}
+async function openVoid(width = 1280, server = paymentServer()) {
+  const run = await openPage(browser, "money-g.entry.tsx", server, { width, height: 900 });
+  await run.page.evaluate((who) => window.mount("voidPayment", who), OWNER);
+  await run.page.waitForSelector('[role="dialog"]');
+  return run;
+}
+const rowsOf = async (page) => (await page.locator('[data-testid="effects-text-row"]').allTextContents()).map((row) => row.replace(/\s+/g, " ").trim());
+
+test("Ф-2 cancel of a payment: «Что изменится» says the debt in the other group in the server's words; the button waits for it; the real request goes after", async () => {
+  const held = defer();
+  const sent = [];
+  const run = await openVoid(1280, paymentServer({ gate: held.gate, log: sent }));
+  await run.page.waitForSelector('[data-testid="money-effects-skeleton"]');
+  const button = run.page.locator('button:has-text("Отменить оплату")').last();
+  assert.equal(await button.isDisabled(), true);
+  assert.match(await run.page.textContent('[role="dialog"]'), /Считаем/, "the off button says why");
+  held.release();
+  await run.page.waitForSelector('[data-testid="effects-text-row"]');
+  assert.deepEqual(await rowsOf(run.page), ["В группе «Вторая (пн/ср/пт)» появится долг 300 000 сум", "Зарплата за ноябрь у Эргашева К. уменьшится на 45 000 сум"]);
+  assert.equal(plain(await run.page.textContent('[data-testid="money-effects"] p')), "Что изменится");
+  const dry = run.calls.find((call) => /dry_run=true/.test(call.query));
+  assert.equal(dry.body.reason, "Проверка последствий");
+  assert.equal(await button.isDisabled(), false);
+  await run.page.fill("#record-void-reason", "ошибочно внесли");
+  await button.click();
+  await run.page.waitForFunction(() => window.__log.includes("voided"));
+  assert.deepEqual(sent, ["void:dry", "void"]);
+  const real = run.calls.filter((call) => /payments\/p1\/void$/.test(call.path) && !/dry_run/.test(call.query));
+  assert.equal(real.length, 1);
+  assert.equal(real[0].body.reason, "ошибочно внесли");
+  await run.page.close();
+});
+
+test("Ф-2 cancel of a payment: nothing changes elsewhere - no block at all, the button is ready", async () => {
+  const run = await openVoid(1280, paymentServer({ text: "" }));
+  await run.page.waitForFunction(() => !document.querySelector('[data-testid="money-effects-skeleton"]'));
+  assert.equal(await run.page.locator('[data-testid="money-effects"]').count(), 0);
+  assert.equal(await run.page.locator('button:has-text("Отменить оплату")').last().isDisabled(), false);
+  await run.page.close();
+});
+
+test("Ф-2 cancel of a payment: a failed preview says so with «Повторить» and holds the button with the reason", async () => {
+  const run = await openVoid(1280, paymentServer({ dryStatus: 500 }));
+  await run.page.waitForSelector('[data-testid="money-effects-retry"]');
+  assert.equal(await run.page.locator('button:has-text("Отменить оплату")').last().isDisabled(), true);
+  assert.match(plain(await run.page.textContent('[role="dialog"]')), /нажмите «Повторить»/);
+  await run.page.close();
+});
+
+async function openReplace(width = 1280, server = paymentServer(), payment) {
+  const run = await openPage(browser, "money-g.entry.tsx", server, { width, height: 900 });
+  await run.page.evaluate(([who, pay]) => window.mount("replace", who, { payment: pay }), [OWNER, payment]);
+  await run.page.waitForSelector('[role="dialog"]');
+  return run;
+}
+
+test("Ф-2 correction of a payment: the dry run of the correction stands in the one «Что изменится» of the window; the real request has the key, the dry one has none", async () => {
+  const sent = [];
+  const run = await openReplace(1280, paymentServer({ log: sent }));
+  await run.page.waitForSelector('[data-testid="effects-text-row"]');
+  assert.deepEqual(await rowsOf(run.page), ["В группе «Вторая (пн/ср/пт)» появится долг 300 000 сум", "Зарплата за ноябрь у Эргашева К. уменьшится на 45 000 сум"]);
+  assert.equal(await run.page.locator('[role="dialog"] >> text="Что изменится"').count(), 1, "ONE title per window");
+  const dry = run.calls.find((call) => /replace$/.test(call.path) && /dry_run=true/.test(call.query));
+  assert.equal("idempotency-key" in dry.headers, false);
+  assert.equal(dry.body.amount, 400000);
+  await run.page.fill("#payment-amount", "100 000");
+  await run.page.fill("#payment-reason", "ошиблись в сумме");
+  await run.page.waitForFunction(() => document.querySelectorAll('[data-testid="effects-text-row"]').length > 0 && !document.querySelector('[data-testid="money-effects-skeleton"]'));
+  await run.page.click('button:has-text("Исправить")');
+  await run.page.waitForFunction(() => window.__log.includes("saved"));
+  const asked = run.calls.filter((call) => /replace$/.test(call.path));
+  assert.equal(asked[asked.length - 1].query, "", "the last one is the real request");
+  assert.ok(asked[asked.length - 1].headers["idempotency-key"]);
+  assert.equal(asked.some((call) => /dry_run=true/.test(call.query) && call.body.amount === 100000), true, "the changed amount was previewed");
+  await run.page.close();
+});
+
+test("Ф-2 correction of a payment: a draft that cannot be sent asks nothing; the sentence of the toast is the server's (done form)", async () => {
+  const run = await openReplace(1280, paymentServer());
+  await run.page.waitForSelector('[data-testid="effects-text-row"]');
+  const before = run.calls.filter((call) => /replace$/.test(call.path)).length;
+  await run.page.fill("#payment-amount", "");
+  await run.page.waitForTimeout(700);
+  assert.equal(run.calls.filter((call) => /replace$/.test(call.path)).length, before);
+  await run.page.close();
+});
+
+test("Ф-2 toast after a correction: the rows are the server's `money_effects.text` in the done form; a plain payment adds nothing", () => {
+  const { savedPaymentToastDetails } = lib("payments-ledger.ts");
+  const result = { allocation: null, money_effects: { students: [], payroll: [], text: DONE_DEBT_TEXT + "; Зарплата за ноябрь у Эргашева К. уменьшилась на 45\u00a0000 сум" } };
+  assert.deepEqual(savedPaymentToastDetails("replace", result).map(plain), ["В группе «Вторая (пн/ср/пт)» появился долг 300 000 сум", "Зарплата за ноябрь у Эргашева К. уменьшилась на 45 000 сум"]);
+  assert.deepEqual(savedPaymentToastDetails("create", result), []);
+  assert.deepEqual(savedPaymentToastDetails("replace", { allocation: null, money_effects: { students: [], payroll: [], text: "" } }), []);
+  assert.deepEqual(lib("money-effects.ts").serverEffectsRows({ money_effects: null }), []);
+});
+
+// ── Ф-2: «Решения» ───────────────────────────────────────────────────────────────────────────────
+
+test("Ф-2 «Решения»: the opened row says the `consequence` of the server; a row without it says nothing", async () => {
+  const rows = [
+    { id: "d1", at: "2026-11-05T09:00:00", kind: "payment_void", kind_label: "Оплата отменена", student_id: "s1", student_name: "Каримов Фарходжон Рустамович", group_name: "Алгебра 7 (вт/пт)", amount: 300000, new_amount: null, receipt_no: 12, reason: "ошибочно", actor_name: "Иванова А.", debt_before: 0, debt_after: 300000, consequence: "В группе «Вторая (пн/ср/пт)» долг вырос на 300 000 сум — до 700 000 сум" },
+    { id: "d2", at: "2026-11-05T09:10:00", kind: "payment_void", kind_label: "Оплата отменена", student_id: "s2", student_name: "Иванов Иван", group_name: "Геометрия", amount: 100000, new_amount: null, receipt_no: 13, reason: "ошибка", actor_name: "Иванова А.", debt_before: null, debt_after: null, consequence: null },
+  ];
+  const run = await openPage(browser, "money-g.entry.tsx", async (request) => (request.path === "/auth/org/payments/decisions" ? { json: { as_of: "2026-11-05", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: 2, pages: 1, since: "2026-10-01", rows } } : null), { width: 1280, height: 900 });
+  await run.page.evaluate((who) => window.mount("decisions", who), OWNER);
+  await run.page.waitForSelector('[data-testid="decision-row"]');
+  await run.page.locator('[data-testid="decision-row"]').nth(0).click();
+  await run.page.waitForSelector('[data-testid="decision-consequence"]');
+  assert.equal(await run.page.textContent('[data-testid="decision-consequence"]'), "В группе «Вторая (пн/ср/пт)» долг вырос на 300 000 сум — до 700 000 сум");
+  await run.page.locator('[data-testid="decision-row"]').nth(1).click();
+  await run.page.waitForSelector('[data-testid="decision-details"]');
+  assert.equal(await run.page.locator('[data-testid="decision-consequence"]').count(), 0);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-2 ${width}: the cancel and the correction of a payment - nothing leaves its box, the sentence is whole`, async () => {
+    for (const open of [() => openVoid(width), () => openReplace(width)]) {
+      const { page } = await open();
+      await page.waitForSelector('[data-testid="effects-text-row"]');
+      assert.deepEqual(await rowsOf(page), ["В группе «Вторая (пн/ср/пт)» появится долг 300 000 сум", "Зарплата за ноябрь у Эргашева К. уменьшится на 45 000 сум"], `${width}`);
       await page.waitForTimeout(450);
       const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
       assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));

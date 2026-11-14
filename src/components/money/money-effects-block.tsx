@@ -18,6 +18,7 @@ import { formatMoney, formatSignedMoney } from "@/lib/money-format";
 import { periodClosedOf, type ClosedPurpose } from "@/lib/closed-period";
 import type { EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
+import { carriedRows } from "@/lib/dry-run";
 import { tidyMoneyText } from "@/lib/money-format";
 import { Button } from "@/components/ui/button";
 
@@ -176,10 +177,10 @@ function EffectsSkeleton() {
  *  - while it is asked: a skeleton of the same size and colour; a failure says so in amber and offers «Повторить» (the button of the window waits for the answer: `effectsAllowConfirm`);
  *  - a refusal «месяц закрыт» is NOT a part of the block: it is its own amber block (`PeriodClosedNotice`) with «Переоткрыть месяц», after which the dry run is asked again;
  *  - `variant="quiet"` (a transfer of a student: the window has its own part about the student's money): when nothing moves for the teachers it says NOTHING (no «Деньги не изменятся»).
- *  - The windows of a PAYMENT, its correction / cancel, a write-off and a refund do not draw this block at all (UX pack §5.1-тер, decision of the owner 05.11): they are about the student only.
+ *  - A payment, a write-off and a refund do not draw it (UX pack §5.1-тер, owner 05.11: about the student only); the cancel and the correction of a payment do since Money-1 Г - with `serverText`, the sentence of the server about the debt in another group and the pay of the teachers.
  */
 export function MoneyEffectsBlock({
-  preview, onRetry, aboveLessonPanel = false, variant = "lesson", noneText, className = "", closedPurpose, withPaid = false, teacherName = null,
+  preview, onRetry, aboveLessonPanel = false, variant = "lesson", noneText, className = "", closedPurpose, withPaid = false, teacherName = null, serverText = false, bare = false,
 }: {
   preview: EffectsPreview;
   onRetry: () => void;
@@ -193,35 +194,47 @@ export function MoneyEffectsBlock({
   withPaid?: boolean;
   /** The teacher the window is about (a decision about his lesson): an administrator without the right of money reads «Изменится зарплата Эргашева К. за ноябрь · суммы видит владелец». */
   teacherName?: string | null;
+  /** Money-1 Г (Г-4, Р-2, Р-3): the block is the server's own sentence (`money_effects.text`: a debt in another group, the pay of the teachers), one row per part; no consequences - no block at all. */
+  serverText?: boolean;
+  /** No frame and no title of its own: the window already has a block «Что изменится» (a correction of a payment: the plan of the student) - the server's rows go inside it, ONE title per window. */
+  bare?: boolean;
 }) {
   const closed = preview.status === "failed" ? periodClosedOf(preview.error) : null;
   if (closed) return <PeriodClosedNotice info={closed} aboveLessonPanel={aboveLessonPanel} onReopened={onRetry} purpose={closedPurpose} className={className} />;
-  const lines = preview.status === "ready" && preview.effects !== null ? effectLines(preview.effects, { withPaid, teacherName }) : [];
-  const none = preview.status === "ready" && preview.effects !== null && (effectsEmpty(preview.effects) || lines.length === 0);
+  const lines = preview.status === "ready" && preview.effects !== null && !serverText ? effectLines(preview.effects, { withPaid, teacherName }) : [];
+  const none = preview.status === "ready" && preview.effects !== null && (serverText ? preview.effects.text === "" : effectsEmpty(preview.effects) || lines.length === 0);
   const warn = lines.some((line) => line.tone === "warn");
   const failed = preview.status === "failed";
   const idle = preview.status === "idle" || (preview.status === "ready" && preview.effects === null);   // the server sent no block: nothing is claimed about the money
   if (idle) return null;
   if (none) {
-    if (variant === "quiet" && !noneText) return null;
+    if ((variant === "quiet" || serverText) && !noneText) return null;
     const text = noneText ?? EFFECTS_NONE_TEXT;
     return <p data-testid="money-effects-none" data-state="ready" className={`text-sm text-slate-600 ${className}`}>{text}</p>;
   }
   const amber = warn || failed;
+  const body = (
+    <>
+      {preview.status === "loading" && <EffectsSkeleton />}
+      {failed && (
+        <div role="alert" className="space-y-1.5">
+          <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
+          <Button type="button" data-testid="money-effects-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
+        </div>
+      )}
+      {preview.status === "ready" && preview.effects !== null && (serverText
+        ? <ul className="space-y-1.5">{carriedRows(preview.effects.text).map((row) => <li key={row} data-testid="effects-text-row" className="text-sm text-slate-800">{row}</li>)}</ul>
+        : <EffectLines effects={preview.effects} withPaid={withPaid} teacherName={teacherName} />)}
+    </>
+  );
+  if (bare) return <div data-testid="money-effects" data-state={preview.status} className={`space-y-2 ${className}`}>{body}</div>;
   const tone = amber ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50";
   return (
     <section aria-label={EFFECTS_TITLE} data-testid="money-effects" data-state={preview.status} className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 ${tone} ${className}`}>
       {amber && <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
       <div className="min-w-0 flex-1 space-y-2">
         <p className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</p>
-        {preview.status === "loading" && <EffectsSkeleton />}
-        {failed && (
-          <div role="alert" className="space-y-1.5">
-            <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
-            <Button type="button" data-testid="money-effects-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
-          </div>
-        )}
-        {preview.status === "ready" && preview.effects !== null && <EffectLines effects={preview.effects} withPaid={withPaid} teacherName={teacherName} />}
+        {body}
       </div>
     </section>
   );

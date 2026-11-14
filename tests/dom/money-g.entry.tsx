@@ -5,6 +5,9 @@ import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
 import { CancelMissedLessonModal } from "@/components/attendance/cancel-missed-lesson-modal";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { BulkDialog } from "@/components/substitutions/bulk-dialog";
+import { PaymentVoidModal } from "@/components/payments/payment-void-modal";
+import { PaymentDialog } from "@/components/payments/payment-dialog";
+import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { useAuthStore } from "@/lib/store";
 
 const w = window as any;
@@ -35,6 +38,15 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "bulk":
       root.render(<BulkDialog kind="cancel" items={(props.dates as string[]).map((date, index) => ITEM(`r${index + 1}`, date)) as never} role="admin" onClose={() => log("close")} onDone={() => log("done")} />);
+      break;
+    case "voidPayment":
+      root.render(<PaymentVoidModal payment={{ id: "p1", paid_on: "2026-11-05", amount: 300000 }} studentName="Каримов Фарходжон Рустамович" onClose={() => log("close")} onVoided={() => log("voided")} />);
+      break;
+    case "replace":
+      root.render(<PaymentDialog open kind="replace" membership={{ membership_id: "m1", group_id: "g1", student_name: "Каримов Фарходжон Рустамович", group_name: "Алгебра 7 (вт/пт)" }} payment={props.payment ?? { id: "p1", amount: 400000, paid_on: "2026-11-05", method: "cash", note: null }} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
+      break;
+    case "decisions":
+      root.render(<IncomeDecisions period={{ kind: "month", from: "2026-11-01", to: "2026-11-30" } as never} authors={[]} paymentsBase="/owner/payments" studentProfileBasePath="/owner/students" />);
       break;
     default:
       break;

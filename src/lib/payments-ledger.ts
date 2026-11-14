@@ -41,6 +41,7 @@ import {
 } from "./payments";
 import { formatDayMonthRu, shiftMonthKey } from "./business-time";
 import { recalcAmountText, type RecalcLine } from "./payf";
+import { serverEffectsRows } from "./money-effects";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
 
@@ -176,6 +177,11 @@ export function savedPaymentDetails(allocation: AllocationSummary | null | undef
   const lines = allocationLines(allocation.items).map(allocationText);
   lines.push(balanceAfterText(allocation.debt_after, allocation.advance_after));
   return lines;
+}
+
+/** The lines under the toast of a saved payment: where the money went; after a CORRECTION also what the server says it did to the debt in other groups and to the pay (Money-1 Г-4б, `money_effects.text`). */
+export function savedPaymentToastDetails(kind: "create" | "replace", result: PaymentSaveResult): string[] {
+  return [...savedPaymentDetails(result.allocation), ...(kind === "replace" ? serverEffectsRows(result) : [])];
 }
 
 // ── Payment form ───────────────────────────────────────────────────────────

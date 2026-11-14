@@ -243,13 +243,15 @@ test("cancel of a refund sends expected_advance; ALREADY_VOIDED says who and whe
 
 test("cancel of a payment: ALREADY_VOIDED is told with the author; two presses are one request", async () => {
   const hold = deferred();
-  const { page, calls } = await open(browser, "money-v.entry.tsx", "voidPayment", { server: async (request) => { if (request.method !== "POST") return null; await hold.promise; return conflict("ALREADY_VOIDED", "Оплата уже отменена", { voided_at: "2026-11-05T09:20:00", voided_by_name: "Иванова Д." }); } });
+  const { page, calls } = await open(browser, "money-v.entry.tsx", "voidPayment", { server: async (request) => { if (request.method !== "POST") return null; if (/dry_run=true/.test(request.query)) return { json: { payment: {}, row: {}, dry_run: true, money_effects: { students: [], payroll: [], text: "", dryRun: true } } }; await hold.promise; return conflict("ALREADY_VOIDED", "Оплата уже отменена", { voided_at: "2026-11-05T09:20:00", voided_by_name: "Иванова Д." }); } });
   await page.waitForSelector("#record-void-form");
+  await page.waitForFunction(() => !document.querySelector('button[form="record-void-form"]').disabled);      // Money-1 Г: the dry run answered first
   await page.fill("#record-void-reason", "ошиблись");
   await page.evaluate(() => { const form = document.querySelector("#record-void-form"); form.requestSubmit(); form.requestSubmit(); });
   await page.waitForTimeout(150);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 1);
-  assert.equal(JSON.stringify(calls[0].body), JSON.stringify({ reason: "ошиблись" }), "a payment cancel has no expected_*");
+  const real = calls.filter((call) => call.method === "POST" && !/dry_run=true/.test(call.query));
+  assert.equal(real.length, 1);
+  assert.equal(JSON.stringify(real[0].body), JSON.stringify({ reason: "ошиблись" }), "a payment cancel has no expected_*");
   hold.open();
   await page.waitForSelector('[data-testid="already-voided"]');
   assert.match(plain(await page.textContent('[data-testid="already-voided"]')), /Оплата уже отменена · Иванова Д\./);

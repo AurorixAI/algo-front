@@ -23,6 +23,8 @@ export interface DecisionRow {
   actor_name: string | null;
   debt_before: number | null;
   debt_after: number | null;
+  /** Money-1 Г (Г-4, Р-3): what the decision did to the debt in the OTHER groups of the student, in the server's words («В группе «Вторая» долг вырос на 300 000 сум — до 700 000 сум»); null - nothing to say. */
+  consequence: string | null;
 }
 
 export interface DecisionsPage {
@@ -55,7 +57,7 @@ export function normalizeDecisions(raw: Partial<DecisionsPage> | null | undefine
       id: textOf(row?.id), at: textOrNull(row?.at), kind: textOf(row?.kind), kind_label: textOf(row?.kind_label), student_id: textOrNull(row?.student_id),
       student_name: textOf(row?.student_name), group_name: textOrNull(row?.group_name), amount: num(row?.amount), new_amount: numOrNull(row?.new_amount),
       receipt_no: numOrNull(row?.receipt_no), reason: textOrNull(row?.reason), actor_name: textOrNull(row?.actor_name),
-      debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after),
+      debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after), consequence: textOrNull(row?.consequence),
     })),
   };
 }

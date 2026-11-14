@@ -16,7 +16,7 @@ import {
 import { studentToast } from "@/lib/money-effects";
 import { lastPaymentLine } from "@/lib/membership-actions";
 import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
-import { savedPaymentDetails } from "@/lib/payments-ledger";
+import { savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
@@ -73,7 +73,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
 
   const onSaved = (result: PaymentSaveResult) => {
     changed(result.row);
-    const note = studentToast(savedPaymentDetails(result.allocation));
+    const note = studentToast(savedPaymentToastDetails(form?.kind ?? "create", result));
     onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], note.tone, note.details);
   };
 
