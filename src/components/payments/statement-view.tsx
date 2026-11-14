@@ -221,13 +221,12 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
       }
       const attach = cheques.menuItem(id);
       if (attach) items.push(attach);
-      // «Исправить» needs a running membership (a group the student has left keeps its payments, they can only be cancelled)
-      if (statement?.membership.is_active) {
-        items.push({
-          key: "correct", label: CORRECT_PAYMENT_LABEL, icon: Pencil,
-          onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined, files: cheques.fileListOf(id) }),
-        });
-      }
+      // «Исправить» is there for a student who has left too (G3M С1): the server lets the method, the date and a SMALLER amount be corrected and answers
+      // `PAYMENT_EXCEEDS_DEBT` in words; a payment that came over from another group is a «transfer» row, never this one
+      items.push({
+        key: "correct", label: CORRECT_PAYMENT_LABEL, icon: Pencil,
+        onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined, files: cheques.fileListOf(id) }),
+      });
       items.push({
         key: "void", label: VOID_PAYMENT_LABEL, icon: XCircle, danger: true,
         onSelect: () => setVoidPayment({ id, paid_on: item.date, amount: item.credit }),

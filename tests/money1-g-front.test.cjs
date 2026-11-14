@@ -743,17 +743,19 @@ test("Ф-5: only the method changes (sum and date the same) - no «не боль
   await run.page.close();
 });
 
-test("Ф-5: a changed sum above the debt of the student who left stays refused in the server's words of the window", async () => {
-  const run = await openReplace(1280, leftServer(), BIG_PAYMENT);
+test("Ф-5 (G3M С1): a changed sum above the ceiling of the student who left is refused in the server's words (the window has no text of its own for it)", async () => {
+  const text = "Ученик ушёл из группы: при исправлении сумма не может быть больше 1 300 000 сум";
+  const inner = leftServer();
+  const server = (request) => (request.method === "POST" && !/dry_run=true/.test(request.query) ? null : request.method === "POST" ? { status: 422, json: { detail: { code: "PAYMENT_EXCEEDS_DEBT", message: text, debt: 1300000 } } } : inner(request));
+  const run = await openReplace(1280, server, BIG_PAYMENT);
   await run.page.waitForSelector('[data-testid="payment-methods"]');
   await run.page.fill("#payment-amount", "1 400 000");
   await run.page.fill("#payment-reason", "ошиблись в сумме");
-  await run.page.waitForSelector('[role="alert"]:has-text("принять можно не больше долга")');
+  await run.page.waitForSelector('[data-testid="money-effects"][data-state="failed"]');
+  const body = plain(await run.page.textContent("body"));
+  assert.ok(body.includes(text));
+  assert.doesNotMatch(body, /принять можно не больше долга/);
   assert.equal(await run.page.locator('button[form="payment-form"]').isDisabled(), true);
-  assert.equal(await run.page.locator('[data-testid="left-debt-only"]').count(), 1);
-  // the date changed (the sum the same) binds the cap too
-  await run.page.fill("#payment-amount", "1 300 000");
-  await run.page.waitForFunction(() => !/принять можно не больше долга/.test(document.body.textContent || ""));
   await run.page.close();
 });
 

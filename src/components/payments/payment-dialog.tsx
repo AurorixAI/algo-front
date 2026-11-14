@@ -194,7 +194,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
   const leftOnly = isLeftDebtOnly(latest) && leftCapApplies({ kind, original: payment ?? null, amount: amountNow, paidOn: values.paidOn });      // Р-13: the method alone of a correction takes no money
   const leftDebt = due?.total ?? 0;
-  const leftProblem = leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
+  // a correction: the ceiling is the server's own number (`suggested_amount` of the preview with `replace_payment_id`, G3M С1), not the debt
+  const leftCeiling = kind === "replace" ? latest?.suggested_amount ?? 0 : leftDebt;
+  // a CORRECTION has no text of its own here (G3M С1): its cap is the server's max(debt without this payment, the old sum) and the refusal comes in the server's words from the dry run
+  const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
   const plan = amountNow !== null ? planView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
   const debtNow = debtNowLine(latest);
@@ -359,7 +362,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             {leftOnly && (
               <p role="note" className="mt-2.5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>{LEFT_DEBT_ONLY_TEXT}{leftDebt > 0 ? `: не больше ${formatMoney(leftDebt)}` : "; долга нет — принимать нечего"}</span>
+                <span>{LEFT_DEBT_ONLY_TEXT}{leftCeiling > 0 ? `: не больше ${formatMoney(leftCeiling)}` : kind === "create" ? "; долга нет — принимать нечего" : ""}</span>
               </p>
             )}
           </div>

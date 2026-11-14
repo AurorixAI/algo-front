@@ -16,7 +16,7 @@ import {
 } from "@/lib/money-effects";
 import { formatMoney, formatSignedMoney } from "@/lib/money-format";
 import { periodClosedOf, type ClosedPurpose } from "@/lib/closed-period";
-import type { EffectsPreview } from "@/lib/money-preview";
+import { refusedInWords, type EffectsPreview } from "@/lib/money-preview";
 import { PeriodClosedNotice } from "./period-closed-notice";
 import { carriedRows } from "@/lib/dry-run";
 import { tidyMoneyText } from "@/lib/money-format";
@@ -219,7 +219,7 @@ export function MoneyEffectsBlock({
       {failed && (
         <div role="alert" className="space-y-1.5">
           <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
-          <Button type="button" data-testid="money-effects-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
+          {!refusedInWords(preview.error) && <Button type="button" data-testid="money-effects-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>}
         </div>
       )}
       {preview.status === "ready" && preview.effects !== null && (serverText

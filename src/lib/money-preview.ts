@@ -66,8 +66,15 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
  * Why the button of a confirmation is off while the answer about money is not here (UX pack, rule 3: an off main button ALWAYS says why): it is being counted / the month is closed / it could not be counted.
  * null once the answer is here.
  */
+/** A refusal the server says in its own words and that «Повторить» cannot change (G3M С1: «Ученик ушёл из группы: при исправлении сумма не может быть больше N сум»). */
+export function refusedInWords(error: unknown): string | null {
+  const source = error as { code?: unknown; message?: unknown } | null | undefined;
+  return source?.code === "PAYMENT_EXCEEDS_DEBT" && typeof source.message === "string" && source.message.trim() ? source.message.trim() : null;
+}
+
 export function effectsWhyOff(preview: EffectsPreview): string | null {
   if (preview.status === "ready") return null;
+  if (preview.status === "failed" && refusedInWords(preview.error)) return refusedInWords(preview.error);
   if (preview.status === "failed") return periodClosedOf(preview.error) ? "Месяц закрыт: сначала переоткройте его" : "Не удалось посчитать, что изменится: нажмите «Повторить»";
   return EFFECTS_LOADING_TEXT;
 }
