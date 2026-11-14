@@ -15,7 +15,12 @@ const lib = (name) => require(path.join(__dirname, "..", "src", "lib", name));
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 let browser;
-test.before(async () => { browser = await start(); });
+test.before(async () => {
+  const css = path.join(fs.mkdtempSync(path.join(require("node:os").tmpdir(), "algo-css-")), "tw.css");
+  require("node:child_process").execFileSync(process.execPath, [path.join(root, "node_modules", "tailwindcss", "lib", "cli.js"), "-i", path.join(root, "src", "app", "globals.css"), "-o", css], { cwd: root, stdio: "pipe" });
+  process.env.DOM_CSS = css;      // the project's tailwind: the shots and the layout facts of the tests are the real ones
+  browser = await start();
+});
 test.after(async () => { await browser.close(); });
 
 // ── Ф1 ──
@@ -340,6 +345,12 @@ for (const width of [1280, 375]) {
     const over = plain(await page.textContent('[role="dialog"]'));
     assert.equal(times(over, "не больше 500 000"), 0, over);
     assert.equal(times(over, "не может быть больше 500 000"), 1, over);
+    await page.screenshot({ path: path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3", `k1-replace-over-${width}.png`) });
+    await page.fill("#payment-amount", "100 000");
+    await page.waitForFunction(() => /19[\s\u00a0\u202f]000/.test(document.querySelector('[data-testid="payment-calc"]')?.textContent ?? ""));
+    await page.waitForTimeout(400);
+    require("node:fs").mkdirSync(path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3"), { recursive: true });
+    await page.screenshot({ path: path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3", `k1-replace-${width}.png`) });
     await page.close();
   });
 }
@@ -389,6 +400,14 @@ test("К3: карточка урока в расписании — пункт н
   assert.equal(await rich.page.locator('[data-testid="sheet-assign-locked"]').count(), 0);
   assert.ok(plain(await rich.page.locator('[role="group"][aria-label="Действия с уроком"]').textContent()).includes("Назначить того, кто провёл"));
   await rich.page.close();
+  const shotRun = await open({ ...card, moneyRight: false });
+  await shotRun.page.setViewportSize({ width: 375, height: 700 });
+  await shotRun.page.waitForTimeout(400);
+  require("node:fs").mkdirSync(path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3"), { recursive: true });
+  await shotRun.page.screenshot({ path: path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3", "k3-card-375.png") });
+  await shotRun.page.setViewportSize({ width: 1280, height: 700 });
+  await shotRun.page.screenshot({ path: path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3", "k3-card-1280.png") });
+  await shotRun.page.close();
   const going = await open({ ...card, date: "2026-11-06", endTime: "23:00", startTime: "08:00", moneyRight: false });      // today 08:00-23:00: not ended
   assert.equal(await going.page.locator('[data-testid="sheet-assign-locked"]').count(), 0);
   await going.page.close();
@@ -444,5 +463,40 @@ test("К4: «Сотрудники» — на телефоне в строке п
     if (width === 375) await run.page.screenshot({ path: path.join(shots, "k4-staff-375-menu.png") });
     else await run.page.screenshot({ path: path.join(shots, "k4-staff-1280.png"), fullPage: true });
     await run.page.close();
+  }
+});
+
+test("К2 (экран): вкладка «Оплаты» группы с запланированной ценой — у учеников «Цена с 01.12 — 420 000 сум», не красным «Не задана»; без цены вовсе — «Не задана»", async () => {
+  const fs2 = require("node:fs"), os = require("node:os"), { execFileSync } = require("node:child_process");
+  const css = path.join(fs2.mkdtempSync(path.join(os.tmpdir(), "algo-css-")), "tw.css");
+  execFileSync(process.execPath, [path.join(root, "node_modules", "tailwindcss", "lib", "cli.js"), "-i", path.join(root, "src", "app", "globals.css"), "-o", css], { cwd: root, stdio: "pipe" });
+  process.env.DOM_CSS = css;
+  const none = { amount: null, source: "none", valid_from: null, group_amount: null, reason: null };
+  const row = (id, name) => ({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, display_id: `AL1-00${id}`, group_id: "g1", group_name: "Алгебра 7", is_primary: true, is_active: true, price: none, status: "none", period_mode: "calendar", paid_until: null, debt: 0, past_debt: 0, current_due: 0, advance: 0, partial_credit: 0, price_missing: true });
+  const items = [row(1, "Алиев Анвар"), row(2, "Бекова Мадина")];
+  const server = (request) => (request.path === "/auth/org/payments/status" ? { json: { items: /bucket=debtors/.test(request.query) ? [] : items, total: /bucket=debtors/.test(request.query) ? 0 : items.length, summary: {} } } : null);
+  const shots = path.join(root, "..", "artifacts", "analysis", "money_g_front", "fix3");
+  fs2.mkdirSync(shots, { recursive: true });
+  for (const width of [375, 1280]) {
+    for (const scheduled of [{ row_id: "r", amount: 420000, valid_from: "2026-12-01" }, null]) {
+      const run = await openPage(browser, "group-tab.entry.tsx", server, { width, height: 800 });
+      await run.page.clock.setFixedTime(new Date("2026-11-15T10:00:00+05:00"));
+      await run.page.evaluate((s) => window.mountGroupTab({ scheduled: s }), scheduled);
+      await run.page.waitForSelector('[data-testid="group-payment-price"]');
+      await run.page.waitForTimeout(500);
+      const texts = (await run.page.locator('[data-testid="group-payment-price"]').allTextContents()).map(plain);
+      const colours = await run.page.locator('[data-testid="group-payment-price"]').evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+      const summary = plain(await run.page.textContent('[data-testid="group-payments-summary"]'));
+      if (scheduled) {
+        assert.deepEqual(texts, ["Цена с 01.12 — 420 000 сум", "Цена с 01.12 — 420 000 сум"]);
+        assert.notEqual(colours[0], "rgb(180, 83, 9)", "not the amber of «не задана»");
+        assert.ok(summary.includes("Цена с 01.12 — 420 000 сум"));
+      } else {
+        assert.deepEqual(texts, ["Не задана", "Не задана"]);
+        assert.ok(summary.includes("Цена группы не задана"));
+      }
+      if (scheduled) await run.page.screenshot({ path: path.join(shots, `k2-paytab-${width}.png`), fullPage: true });
+      await run.page.close();
+    }
   }
 });
