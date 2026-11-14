@@ -1,6 +1,6 @@
 import { orgApi } from "./api";
 import { DRY_RUN_REASON } from "./dry-run";
-import { effectsWhyOff, formAllowsConfirm } from "./money-preview";
+import { effectsWhyOff, formAllowsConfirm, refusedInWords } from "./money-preview";
 import { buildPaymentPayload, validatePaymentForm, type PaymentFormValues } from "./payments-ledger";
 import type { EffectsPreview } from "./money-preview";
 import { useFormMoneyPreview } from "./use-money-preview";
@@ -11,8 +11,10 @@ import { useFormMoneyPreview } from "./use-money-preview";
  */
 export function useReplaceEffects({ payment, active, values, today }: { payment: { id: string } | null; active: boolean; values: PaymentFormValues; today: string }): {
   draft: string | null; preview: EffectsPreview; retry: () => void; why: string | null;
+  /** Н1: the server refused in its own words - they stand once, over the button; the window hides «Что изменится» (no numbers of an earlier answer). */
+  refused: boolean;
 } {
   const draft = payment && active && validatePaymentForm(values, today) === null ? JSON.stringify(buildPaymentPayload(values)) : null;
   const { preview, retry } = useFormMoneyPreview(draft, (signal) => orgApi.replacePayment(payment!.id, { ...buildPaymentPayload(values), reason: DRY_RUN_REASON }, undefined, { dryRun: true, signal }));
-  return { draft, preview, retry, why: formAllowsConfirm(draft, preview) ? null : effectsWhyOff(preview) };
+  return { draft, preview, retry, why: formAllowsConfirm(draft, preview) ? null : effectsWhyOff(preview), refused: preview.status === "failed" && refusedInWords(preview.error) !== null };
 }
