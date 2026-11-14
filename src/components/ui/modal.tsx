@@ -8,6 +8,7 @@ import { lockScroll } from "@/lib/scroll-lock";
 import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
 import { modalLayout, shouldRememberOpener, type ModalSize } from "@/lib/modal-layout";
 import { Button } from "@/components/ui/button";
+import { DotSeparated } from "@/components/ui/words";
 
 /**
  * R3 M1: the `submit` of a React portal climbs the REACT tree, not the DOM one: a dialog opened from inside a form (the notice «Переоткрыть месяц» in the form of a pause) would send
@@ -181,7 +182,7 @@ export function Modal({
     <div className={layout.header} data-modal-part="header">
       <div className="min-w-0">
         <h2 id={titleId} className={layout.title}>{title}</h2>
-        {description && <div className="mt-1 text-xs text-slate-500">{description}</div>}
+        {description && <div className="mt-1 text-xs text-slate-500">{typeof description === "string" ? <DotSeparated text={description} /> : description}</div>}
       </div>
       <Button
         type="button"

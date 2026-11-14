@@ -279,6 +279,26 @@ async function openVoid(width = 1280, server = paymentServer()) {
 }
 const rowsOf = async (page) => (await page.locator('[data-testid="effects-text-row"]').allTextContents()).map((row) => row.replace(/\s+/g, " ").trim());
 
+/** The «·» of a subtitle never starts a line: its top is the top of the letter before it. */
+const dotsStartingALine = (page) => page.evaluate(() => {
+  const box = document.querySelector('[role="dialog"] h2 + div');
+  const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+  const chars = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) for (let i = 0; i < node.length; i += 1) { const range = document.createRange(); range.setStart(node, i); range.setEnd(node, i + 1); const rect = range.getClientRects()[0]; if (rect && node.data[i].trim()) chars.push({ ch: node.data[i], top: Math.round(rect.top) }); }
+  return { text: box.innerText, lines: new Set(chars.map((c) => c.top)).size, bad: chars.filter((c, i) => c.ch === "·" && (i === 0 || chars[i - 1].top !== c.top)).length };
+});
+for (const [kind, open] of [["«Отменить оплату»", (w) => openVoid(w)], ["«Исправить оплату»", (w) => openReplace(w)]]) {
+  for (const width of [375, 320]) {
+    test(`Ф-2 ${width} ${kind}: the subtitle breaks between the pieces «имя · дата · сумма», the dot ends a line and never starts one`, async () => {
+      const run = await open(width);
+      const facts = await dotsStartingALine(run.page);
+      assert.ok(facts.lines >= 2 || width > 375, "the line must be narrow enough to wrap for the test to mean anything: " + JSON.stringify(facts));
+      assert.equal(facts.bad, 0, `a line begins with «·»: ${JSON.stringify(facts)}`);
+      await run.page.close();
+    });
+  }
+}
+
 test("Ф-2 cancel of a payment: «Что изменится» says the debt in the other group in the server's words; the button waits for it; the real request goes after", async () => {
   const held = defer();
   const sent = [];
