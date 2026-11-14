@@ -88,7 +88,9 @@ export function showsStatusColumn(items: ReadonlyArray<Pick<OpenAttendanceAction
 }
 
 /** The plaque over the list for an administrator without the money right (UX pack №7): ONE for the page, not a line in every row. */
-export const OPEN_LESSONS_NO_RIGHT_NOTICE = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам. Вам доступно «Урока не было» — в меню строки (⋯).";
+/** The rule in one sentence: the words of the project for «Отметить посещаемость» of a past lesson (the schedule and the journal say it too, G3M Ф3). */
+export const OPEN_LESSONS_NO_RIGHT_RULE = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам.";
+export const OPEN_LESSONS_NO_RIGHT_NOTICE = `${OPEN_LESSONS_NO_RIGHT_RULE} Вам доступно «Урока не было» — в меню строки (⋯).`;
 
 /** «Показаны уроки без отметки с 1 сентября 2026»: from which day the list is counted (the accounting start of the centre). */
 export function sinceLine(since: string | null | undefined): string | null {

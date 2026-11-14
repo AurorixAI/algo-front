@@ -632,7 +632,7 @@ test("Ф-1 «Замены», the window of a decision: the grey block shows the 
 
 // ── Ф-7: «кто провёл» a past lesson is for the money right ───────────────────────────────────────────
 
-const PAST_NO_RIGHT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
+const PAST_NO_RIGHT = "Это решает владелец или администратор с доступом к деньгам";      // G3M Ф10: under the title «Назначить того, кто провёл урок» the reason starts from who decides
 
 test("Ф-7 menu: «Назначить того, кто провёл» of a past lesson is not offered without the money right; a coming lesson keeps «Назначить замену»", () => {
   const { scheduleCardActions } = lib("schedule-card-actions.ts");

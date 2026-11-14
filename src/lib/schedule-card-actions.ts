@@ -1,4 +1,5 @@
 import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from "./lesson-teacher";
+import { OPEN_LESSONS_NO_RIGHT_RULE } from "./open-lessons";
 import { canReturnHeld, canReturnToReview } from "./lesson-return";
 import { UNDO_DECISION_LABEL } from "./one-off";
 import { businessWallTimeToInstant } from "./business-time";
@@ -127,7 +128,7 @@ export function todayPendingHintForLesson(
 }
 
 /** G3M Ф3: the server formalises a lesson nobody started («Отметить посещаемость» of a past lesson) only for the money right (`reconcile`: 403 `MONEY_RIGHT_REQUIRED`). */
-export const PAST_MARK_NO_RIGHT_TEXT = "Отметки прошедшего урока меняет владелец или администратор с правом на оплаты";
+export const PAST_MARK_NO_RIGHT_TEXT = OPEN_LESSONS_NO_RIGHT_RULE;
 
 /** The reason «Отметить посещаемость» is off for an administrator without the money right (null: it is open, or the lesson has no such action).  One rule for the schedule and the journal. */
 export function pastMarkLockReason(input: ScheduleCardInput): string | null {
@@ -219,6 +220,8 @@ export function teacherCancelOffer(input: {
   return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL } : null;
 }
 
+/** The same reason under the title of the option «Назначить того, кто провёл урок» (the title already says what it is: the sentence starts from WHO may). */
+export const PAST_ASSIGN_CARD_REASON = "Это решает владелец или администратор с доступом к деньгам";
 export const PAST_ASSIGN_NO_RIGHT_TEXT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
 
 /**

@@ -61,7 +61,7 @@ async function journal(user, lessons) {
   return run;
 }
 const ASSIGN_LOCK = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
-const MARK_LOCK = "Отметки прошедшего урока меняет владелец или администратор с правом на оплаты";
+const MARK_LOCK = "Отмечать посещаемость прошедших уроков может владелец или администратор с доступом к деньгам.";
 
 test("Ф2: журнал — «Назначить…» у закончившегося урока: без права на деньги пункт неактивен с причиной расписания; у владельца активен; у идущего урока активен", async () => {
   const lessons = [lesson("a", "2026-11-05", "scheduled"), lesson("b", "2026-11-06", "scheduled")];      // b: 08-09, now 12:00 -> ended
@@ -219,3 +219,26 @@ test("Ф9: подсказка про выплату вперёд — по дат
   assert.match(pl.payoutOverpayQuestion(50000, "fresh", false), /до конца месяца/);
   assert.equal(pl.overpaidExplain({ basis: "fresh" }, true), "Вычтем из следующей выплаты.");
 });
+
+// ── Ф10: окно решения по заявке на телефоне ──
+for (const [width, columns] of [[375, 1], [1280, 2]]) {
+  test(`Ф10: ${width}: варианты решения стоят в ${columns} колонк${columns === 1 ? "у, каждый строкой во всю ширину" : "и, как было"}; причина недоступного — одной фразой без повтора заголовка`, async () => {
+    const run = await openPage(browser, "money-g.entry.tsx", () => null, { width, height: 900 });
+    await run.page.evaluate((who) => window.mount("decision", who, { role: "admin", past: true }), { role: "admin", org_role: "admin", payments_access: false });
+    await run.page.waitForSelector('[role="radiogroup"]');
+    const facts = await run.page.evaluate(() => {
+      const group = document.querySelector('[role="radiogroup"]');
+      const cards = [...group.querySelectorAll("label")].map((label) => label.getBoundingClientRect());
+      const lefts = new Set(cards.map((rect) => Math.round(rect.left)));
+      const lock = [...group.querySelectorAll("label")].find((label) => label.querySelector("input:disabled"));
+      return { columns: lefts.size, width: group.getBoundingClientRect().width, first: cards[0].width, lockTitle: lock?.querySelector(".font-semibold")?.textContent ?? "", lockText: lock?.querySelector("span.text-xs")?.textContent ?? "", scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    assert.equal(facts.columns, columns);
+    if (columns === 1) assert.ok(facts.first >= facts.width - 1, "a card takes the whole width");
+    assert.ok(facts.lockTitle.length > 0, "the locked option is there");
+    assert.equal(plain(facts.lockText), "Это решает владелец или администратор с доступом к деньгам");
+    assert.ok(!plain(facts.lockText).toLowerCase().includes("назначить"), "the reason does not repeat the title");
+    assert.equal(facts.scroll, 0);
+    await run.page.close();
+  });
+}

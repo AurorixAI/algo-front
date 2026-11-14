@@ -58,7 +58,7 @@ import { DeadlineBadge } from "@/components/substitutions/journal-cells";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useMoneyRight } from "@/lib/use-money-right";
-import { pastSubstituteLockReason } from "@/lib/schedule-card-actions";
+import { PAST_ASSIGN_CARD_REASON, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { outcomeOf, systemReasonOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
@@ -371,7 +371,7 @@ export function DecisionBody({
 
       {late && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium leading-relaxed text-amber-900">{LATE_BANNER_TEXT}</p>}
 
-      <div role="radiogroup" aria-label="Решение" className="grid grid-cols-2 gap-2">
+      <div role="radiogroup" aria-label="Решение" className="grid grid-cols-1 gap-2 sm:grid-cols-2">      {/* G3M Ф10: a phone - one option per row over the whole width (two columns squeezed the words to 2-3 per line) */}
         {kinds.map((entry) => {
           const Icon = CARD_ICON[entry];
           const checked = entry === kind;
@@ -387,7 +387,7 @@ export function DecisionBody({
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? (entry === "cancel" ? "text-rose-600" : "text-primary-600") : "text-slate-500"}`} />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold leading-snug text-slate-900">{decisionCardTitle(entry, late)}</span>
-                <span className="mt-0.5 block text-xs leading-snug text-slate-500">{locked ? substituteLock : CARD_HINT[entry]}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-slate-500">{locked ? PAST_ASSIGN_CARD_REASON : CARD_HINT[entry]}</span>
               </span>
             </label>
           );
