@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { PublicBackground } from "@/components/ui/public-background";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -107,9 +108,7 @@ export default function InviteAcceptPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] relative overflow-hidden">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[80vw] h-[80vw] bg-blue-100/60 rounded-full blur-[120px] mix-blend-multiply opacity-70" />
-      </div>
+      <PublicBackground />
 
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8 animate-slide-down">

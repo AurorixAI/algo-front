@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/lib/button-style";
 import { useTouchDensity } from "@/components/ui/touch-density";
 import { Input } from "@/components/ui/input";
-import { TestBackground } from "@/components/ui/test-background";
+import { PublicBackground } from "@/components/ui/public-background";
 import { TestHeader } from "@/components/ui/test-header";
 import { QuestionCard } from "@/components/ui/question-card";
 import { OptionGrid } from "@/components/ui/option-grid";
@@ -659,7 +659,7 @@ export default function ExamPage() {
   if (phase === "loading") {
     return (
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
-        <TestBackground />
+        <PublicBackground />
         <div className="relative z-10 h-full flex items-center justify-center">
           <div className="text-center animate-fade-in">
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
@@ -674,7 +674,7 @@ export default function ExamPage() {
   if (phase === "rate_limited") {
     return (
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
-        <TestBackground />
+        <PublicBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-4">
           <RateLimitCard deadline={loadLimit?.deadline ?? null} fallback={loadLimit?.fallback ?? null} onRetry={retryLoad} />
         </div>
@@ -689,7 +689,7 @@ export default function ExamPage() {
     );
     return (
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
-        <TestBackground />
+        <PublicBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-4">
           <div className="w-full max-w-md animate-slide-up">
             <GlassCard variant="panel" className="p-8 md:p-12 text-center" glow>
@@ -717,7 +717,7 @@ export default function ExamPage() {
 
   return (
     <div className="min-h-screen w-full relative bg-background-light flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      <TestBackground />
+      <PublicBackground />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
 

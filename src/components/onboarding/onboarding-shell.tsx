@@ -2,17 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-
-/** The soft coloured background of the public pages (login, activate, set-password). */
-export function PublicBackdrop() {
-  return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
-      <div className="absolute -top-[20%] -left-[10%] w-[80vw] h-[80vw] bg-blue-100/60 rounded-full blur-[120px] mix-blend-multiply opacity-70" />
-      <div className="absolute top-[20%] right-[10%] w-[60vw] h-[60vw] bg-indigo-100/50 rounded-full blur-[100px] mix-blend-multiply opacity-60" />
-      <div className="absolute -bottom-[20%] left-[20%] w-[70vw] h-[70vw] bg-slate-200/60 rounded-full blur-[140px] mix-blend-multiply" />
-    </div>
-  );
-}
+import { PublicBackground } from "@/components/ui/public-background";
 
 export function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
   return (
@@ -31,7 +21,7 @@ export function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
 export function NarrowPage({ children, caption }: { children: ReactNode; caption?: string }) {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] relative overflow-hidden">
-      <PublicBackdrop />
+      <PublicBackground />
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8">
           <BrandMark size="lg" />
