@@ -201,3 +201,21 @@ test("Ф8: после 409 SHEET_DATA_CHANGED и «Пересчитать» па�
   await run.page.waitForFunction(() => /уважительная ждёт решения/.test(document.body.textContent || ""));
   await run.page.close();
 });
+
+// ── Ф9 ──
+test("Ф9: подсказка про выплату вперёд — по дате конца месяца: у закончившегося (в том числе переоткрытого) «Вычтем из следующей выплаты», у идущего «Покроется начислениями до конца месяца»", () => {
+  const pl = lib("payroll-logica.ts");
+  assert.equal(pl.monthHasEnded("2026-10", "2026-11-14"), true);
+  assert.equal(pl.monthHasEnded("2026-11", "2026-11-14"), false);
+  assert.equal(pl.monthHasEnded("2026-11", "2026-11-30"), false, "the last day itself is not over yet");
+  assert.equal(pl.monthHasEnded("2026-11", "2026-12-01"), true);
+  assert.equal(pl.monthHasEnded(null), false);
+  // a reopened month: the server counts it fresh (`basis: "fresh"`), but it has ended
+  const fresh = { basis: "fresh", state: "overpaid", balance: -50000, carry_used: 0, advance_out: 0 };
+  assert.deepEqual(pl.advanceLines(fresh, "2020-01"), ["Вычтем из следующей выплаты"]);
+  assert.deepEqual(pl.advanceLines(fresh, "2999-01"), [pl.PAYOUT_ADVANCE_HINT_OPEN]);
+  assert.deepEqual(pl.advanceLines(fresh), [pl.PAYOUT_ADVANCE_HINT_OPEN], "no month - the old rule");
+  assert.doesNotMatch(pl.payoutOverpayQuestion(50000, "fresh", true), /до конца месяца/);
+  assert.match(pl.payoutOverpayQuestion(50000, "fresh", false), /до конца месяца/);
+  assert.equal(pl.overpaidExplain({ basis: "fresh" }, true), "Вычтем из следующей выплаты.");
+});

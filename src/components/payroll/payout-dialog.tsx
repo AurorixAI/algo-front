@@ -18,6 +18,7 @@ import {
   payoutError,
   payoutNote,
   payoutOverpayQuestion,
+  monthHasEnded,
   validatePayout,
   type PayoutFormValues,
   type PayoutState,
@@ -152,7 +153,7 @@ export function PayoutDialog({
           {overpay !== null && (
             <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-medium text-amber-900" data-testid="payout-overpay">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{payoutOverpayQuestion(overpay, state?.basis)}</span>
+              <span>{payoutOverpayQuestion(overpay, state?.basis, monthHasEnded(month))}</span>
             </p>
           )}
         </div>

@@ -50,7 +50,7 @@ export function SheetPayoutBlock({
             Выплата
             {chip && <span className={`rounded-2xl border px-2.5 py-0.5 text-xs font-semibold ${PAYOUT_CHIP_CLASS[chip.tone]}`}>{chip.text}</span>}
           </h2>
-          {advanceLines(state).map((line) => <p key={line} className="mt-1 text-xs text-slate-500" data-testid="payout-advance">{line}</p>)}
+          {advanceLines(state, month).map((line) => <p key={line} className="mt-1 text-xs text-slate-500" data-testid="payout-advance">{line}</p>)}
           {state.fresh_total === null && state.state !== "settled" && (
             <p className="mt-1 text-xs text-slate-500">Новую сумму посчитать нельзя (нет ставки или цена задана вручную) — за основу взята сохранённая; пересчитайте после указания ставки.</p>
           )}

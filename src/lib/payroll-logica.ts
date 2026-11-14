@@ -6,7 +6,7 @@
  * The pay of a teacher is a different account from the student's: «начислено / к выплате» keep their words here (owner 21.10).
  * Pure: no React, no network.
  */
-import { formatIsoDateLabel, formatUtcNaiveAsBusinessDateTime, utcNaiveToBusinessIsoDate } from "./business-time";
+import { formatBusinessDate, formatIsoDateLabel, formatUtcNaiveAsBusinessDateTime, utcNaiveToBusinessIsoDate } from "./business-time";
 import { CLOSE_MONTH_LABEL } from "./closed-period";
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoneyInput, formatSignedMoney } from "./money-format";
@@ -200,9 +200,20 @@ export function overpaidText(state: Pick<PayoutState, "basis" | "balance">): str
   return state.basis === "fresh" ? `Выплачено вперёд ${formatMoney(-state.balance)}` : `Выплачено больше на ${formatMoney(-state.balance)}`;
 }
 
+/**
+ * G3M Ф9: has the month ENDED - by the date of its last day, not by «the month is open» (a REOPENED past month is open for corrections, but nothing is accrued in it any more: an overpay
+ * is not covered «до конца месяца», it is taken off the next payout).  `month` is `YYYY-MM`; unknown month - not ended.
+ */
+export function monthHasEnded(month: string | null | undefined, today: string = formatBusinessDate()): boolean {
+  const match = /^(\d{4})-(\d{2})$/.exec(month ?? "");
+  if (!match) return false;
+  const last = new Date(Date.UTC(Number(match[1]), Number(match[2]), 0)).toISOString().slice(0, 10);
+  return last < today;
+}
+
 /** What an overpay means, said once under the figures of the sheet: open month - it is covered by the accruals to the end of the month; closed month - it is taken off the next payout. */
-export function overpaidExplain(state: Pick<PayoutState, "basis">): string {
-  return state.basis === "fresh"
+export function overpaidExplain(state: Pick<PayoutState, "basis">, ended = false): string {
+  return state.basis === "fresh" && !ended
     ? "Покроется начислениями до конца месяца; если останется — уменьшит следующую выплату."
     : "Вычтем из следующей выплаты.";
 }
@@ -429,10 +440,10 @@ export function buildPayoutBody(values: PayoutFormValues, confirmedOverpay: numb
 }
 
 /** MN-32: the question of the window when the SERVER says the payout is above the balance (it counts the balance under the lock of the sheet, the screen may be stale). */
-export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis"] = "saved"): string {
+export function payoutOverpayQuestion(overpay: number, basis: PayoutState["basis"] = "saved", ended = false): string {
   // UX pack №9: ONE plaque, the whole sentence (the words of the server: «Выплачено вперёд …» / «Выплачено больше … — вычтем из следующей выплаты»).
   // An open month is paid by what is accrued now (R3 #20): the payout above it is made ahead of what the month has not earned yet.
-  return basis === "fresh"
+  return basis === "fresh" && !ended
     ? `Это на ${formatMoney(overpay)} больше начисленного сейчас: эти ${formatMoney(overpay)} запишем как выплату вперёд — она покроется начислениями до конца месяца; если останется — уменьшит следующую выплату.`
     : `Это на ${formatMoney(overpay)} больше, чем осталось выплатить: эти ${formatMoney(overpay)} запишем как выплату вперёд и вычтем из следующей выплаты.`;
 }
@@ -446,7 +457,7 @@ export const PAYOUT_ADVANCE_HINT_OPEN = "Покроется начисления
  * happens to it («Вычтем из следующей выплаты»), and the sum is repeated only when it is not the chip's (the advance then includes what is left of earlier ones).
  * An OPEN month hands nothing on yet: the overpay may still be earned back.  Empty when there is nothing to add.
  */
-export function advanceLines(state: PayoutState | null | undefined): string[] {
+export function advanceLines(state: PayoutState | null | undefined, month?: string | null): string[] {
   if (!state) return [];
   const lines: string[] = [];
   if (state.carry_used > 0) {
@@ -454,7 +465,8 @@ export function advanceLines(state: PayoutState | null | undefined): string[] {
     lines.push(`Выплачено больше в прошлом месяце: ${formatMoney(state.carry_used)} — вычтено${whole ? " целиком" : ", «К выплате» уменьшена на эту сумму"}`);   // словарь §1 (как в Excel сервера)
   }
   if (state.basis === "fresh") {
-    if (state.state === "overpaid") lines.push(PAYOUT_ADVANCE_HINT_OPEN);
+    // an ENDED month (a reopened one too) accrues nothing more: the overpay goes off the next payout (G3M Ф9)
+    if (state.state === "overpaid") lines.push(monthHasEnded(month) ? "Вычтем из следующей выплаты" : PAYOUT_ADVANCE_HINT_OPEN);
   } else if (state.advance_out > 0) {
     lines.push(state.state === "overpaid" && state.advance_out === -state.balance
       ? "Вычтем из следующей выплаты"
