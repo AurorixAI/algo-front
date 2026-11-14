@@ -7,7 +7,7 @@ import { buttonClass } from "@/lib/button-style";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { useTouchDensity } from "@/components/ui/touch-density";
-import { TestBackground } from "@/components/ui/test-background";
+import { PublicBackground } from "@/components/ui/public-background";
 import { TestHeader } from "@/components/ui/test-header";
 import { QuestionCard } from "@/components/ui/question-card";
 import { OptionGrid } from "@/components/ui/option-grid";
@@ -378,7 +378,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
   return (
     <div className="min-h-screen w-full relative bg-background-light text-slate-800 font-sans flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      <TestBackground />
+      <PublicBackground />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
 

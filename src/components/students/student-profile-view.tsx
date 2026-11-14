@@ -426,7 +426,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
 
       {/* ── Hero Profile Card ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-8">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-primary-50/40 rounded-full blur-3xl -z-0 pointer-events-none" />
+        <div className="absolute top-0 right-0 profile-glow w-80 h-80 -z-0 pointer-events-none" />
 
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 sm:gap-5">
