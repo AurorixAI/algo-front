@@ -138,7 +138,6 @@ export function IncomeDecisions({ period, authors, paymentsBase, studentProfileB
 }
 
 function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; open: boolean; onToggle: () => void; studentLink: string | null }) {
-  const who = [row.student_name, row.group_name].filter(Boolean).join(" · ");
   const debt = decisionDebtText(row);
   return (
     <DataRow
@@ -157,7 +156,13 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
     >
       <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
       <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
-      <DataCell col="who"><span className="text-sm font-medium text-slate-900"><Words text={who} /></span></DataCell>
+      <DataCell col="who">
+        <span className="text-sm font-medium text-slate-900">
+          <Words text={row.student_name} />
+          {/* the name of the group is ONE piece: «Алгебра 7 (вт/пт)» goes to the next line whole (cut inside only when it is wider than the line) */}
+          {row.group_name && <> · <span data-testid="decision-group" className="inline-block max-w-full align-top"><Words text={row.group_name} /></span></>}
+        </span>
+      </DataCell>
       <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
       <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
       <DataCell col="actor"><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>

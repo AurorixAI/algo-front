@@ -813,3 +813,62 @@ for (const width of [1280, 1024, 375]) {
     await list.page.close();
   });
 }
+
+// ── Ф-9: «Решения» (debt, group name) and the error screens of the diagnostic ─────────────────────────
+
+test("Ф-9 lib: a debt that did not change (0 → 0, N → N) is «—»; a change keeps its words", () => {
+  const { decisionDebtText } = lib("payments-decisions.ts");
+  assert.equal(decisionDebtText({ debt_before: 0, debt_after: 0 }), "—");
+  assert.equal(decisionDebtText({ debt_before: 700000, debt_after: 700000 }), "—");
+  assert.equal(decisionDebtText({ debt_before: null, debt_after: 0 }), "—");
+  assert.equal(plain(decisionDebtText({ debt_before: 0, debt_after: 300000 })), "0 → 300 000 сум");
+  assert.equal(plain(decisionDebtText({ debt_before: 400000, debt_after: 0 })), "400 000 → 0 сум");
+});
+
+const DECISION = (id, extra = {}) => ({ id, at: "2026-11-05T09:00:00", kind: "payment_void", kind_label: "Оплата отменена", student_id: `s${id}`, student_name: "Абдурахмонов Мухаммадюсуф Рустамович", group_name: "Алгебра 7 (вт/пт)", amount: 1250000, new_amount: null, receipt_no: 12, reason: "ошибочно", actor_name: "Иванова А.", debt_before: 0, debt_after: 0, consequence: null, ...extra });
+async function openDecisions(rows, width) {
+  const run = await openPage(browser, "money-g.entry.tsx", (request) => (request.path === "/auth/org/payments/decisions" ? { json: { as_of: "2026-11-05", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: rows.length, pages: 1, since: "2026-10-01", rows } } : null), { width, height: 900 });
+  await run.page.evaluate((who) => window.mount("decisions", who), OWNER);
+  await run.page.waitForSelector('[data-testid="decision-row"]');
+  return run;
+}
+
+test("Ф-9 «Решения»: an unchanged debt shows «—» in the column «Долг»; a changed one shows both numbers", async () => {
+  const run = await openDecisions([DECISION("1", { debt_before: 0, debt_after: 0 }), DECISION("2", { debt_before: 700000, debt_after: 700000 }), DECISION("3", { debt_before: 0, debt_after: 300000 })], 1280);
+  const cells = (await run.page.locator('[data-testid="decision-debt"]').evaluateAll((nodes) => nodes.map((node) => node.innerText))).map(plain);
+  assert.deepEqual(cells, ["—", "—", "0 → 300 000 сум"]);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-9 ${width} «Решения»: the name of the group «Алгебра 7 (вт/пт)» is one piece (it moves to the next line whole), the debt is «—», nothing leaves its box`, async () => {
+    const run = await openDecisions([DECISION("1"), DECISION("2", { student_name: "Каримов Ж.", debt_before: 0, debt_after: 300000 })], width);
+    await run.page.waitForTimeout(300);
+    const groups = run.page.locator('[data-testid="decision-group"]');
+    assert.equal(await groups.count(), 2);
+    for (let index = 0; index < 2; index += 1) {
+      const rects = await groups.nth(index).evaluate((el) => el.getClientRects().length);
+      assert.equal(rects, 1, `${width}: the group name is split over ${rects} lines`);
+      assert.equal(plain(await groups.nth(index).innerText()), "Алгебра 7 (вт/пт)");
+    }
+    const facts = await run.page.evaluate(layoutProbe, '[data-testid="decisions-list"]');
+    assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+    assert.equal(facts.scroll, 0);
+    await run.page.close();
+  });
+}
+
+test("Ф-9 diagnostic, the error screen: ONE «На главную» - a link to /login, not a button and not a button inside a link (as on the exam)", async () => {
+  const run = await openPage(browser, "diag-page.entry.tsx", () => ({ status: 404, json: { detail: { code: "NOT_FOUND", message: "Приглашение не найдено" } } }), { width: 375, height: 800 });
+  await run.page.evaluate(() => window.mountDiag("NOPE"));
+  await run.page.waitForSelector("text=Не удалось продолжить", { timeout: 15000 });
+  const named = await run.page.getByRole("link", { name: "На главную" }).count() + await run.page.getByRole("button", { name: "На главную" }).count();
+  assert.equal(named, 1);
+  assert.equal(await run.page.getByRole("link", { name: "На главную" }).count(), 1, "it is a link");
+  assert.equal(await run.page.getByRole("link", { name: "На главную" }).getAttribute("href"), "/login");
+  assert.equal(await run.page.getByText("На главную").count(), 1);
+  assert.equal(await run.page.locator("a button, button a").count(), 0);
+  const box = await run.page.getByRole("link", { name: "На главную" }).boundingBox();
+  assert.ok(box.height >= 40, `a phone button is at least 40 px: ${box.height}`);
+  await run.page.close();
+});

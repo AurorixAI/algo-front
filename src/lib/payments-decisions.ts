@@ -88,7 +88,7 @@ export function decisionAmountText(row: Pick<DecisionRow, "amount" | "new_amount
 
 /** «долг 0 → 400 000 сум»; a dash when the server did not count it. */
 export function decisionDebtText(row: Pick<DecisionRow, "debt_before" | "debt_after">): string {
-  if (row.debt_before === null || row.debt_after === null) return "—";
+  if (row.debt_before === null || row.debt_after === null || row.debt_before === row.debt_after) return "—";      // an unchanged debt (0 → 0, N → N) is no news (Money-1 Г, Ф-9)
   return `${formatMoney(row.debt_before).replace(/\s*сум$/, "")} → ${formatMoney(row.debt_after)}`;
 }
 

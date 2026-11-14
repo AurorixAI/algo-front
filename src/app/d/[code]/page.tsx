@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/button-style";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { useTouchDensity } from "@/components/ui/touch-density";
@@ -728,17 +730,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                 {/* CTA */}
                 <div
                 >
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    icon={<Home className="w-4 h-4" />}
-                    onClick={() => {
-                      diagStore.reset();
-                      window.location.href = "/login";
-                    }}
-                  >
+                  <Link href="/login" onClick={() => diagStore.reset()} className={cn(buttonClass({ variant: "primary", size: "lg" }), "w-full")} data-variant="primary" data-size="lg">
+                    <Home className="w-4 h-4" aria-hidden="true" />
                     На главную
-                  </Button>
+                  </Link>
                 </div>
 
                 <p className="text-xs text-center text-slate-500 mt-4">
@@ -781,15 +776,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       Повторить проверку состояния
                     </Button>
                   )}
-                  <Button
-                    onClick={() => (window.location.href = "/login")}
-                    size="lg"
-                    className="w-full"
-                    variant="ghost"
-                    icon={<Home className="w-4 h-4" />}
-                  >
+                  <Link href="/login" className={cn(buttonClass({ variant: "ghost", size: "lg" }), "w-full")} data-variant="ghost" data-size="lg">
+                    <Home className="w-4 h-4" aria-hidden="true" />
                     На главную
-                  </Button>
+                  </Link>
                 </div>
               </GlassCard>
             </div>
