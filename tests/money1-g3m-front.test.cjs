@@ -242,3 +242,8 @@ for (const [width, columns] of [[375, 1], [1280, 2]]) {
     await run.page.close();
   });
 }
+
+test("Н5: код SHEET_NOT_SAVED сервер не выдаёт — во фронте обработки нет, неизвестный код — «other»", () => {
+  assert.doesNotMatch(read("src/lib/payroll-logica.ts"), /SHEET_NOT_SAVED|not_saved/);
+  assert.equal(lib("payroll-logica.ts").payoutError({ code: "SHEET_NOT_SAVED", message: "m" }).kind, "other");
+});

@@ -397,7 +397,6 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.match(Y.validatePayout({ ...ready, amount: "" }, "2026-11-12"), /Укажите сумму/);
   assert.equal(plain(Y.payoutLine(named("A20_").payout)), "05.11.2026 · 475 000 сум · Наличные · Арслан");
   assert.equal(Y.payoutError({ code: "DUPLICATE_PAYOUT", message: "Выплата уже внесена" }).kind, "duplicate");
-  assert.equal(Y.payoutError({ code: "SHEET_NOT_SAVED", message: "Сначала сохраните ведомость" }).kind, "not_saved");
   // the void of a payout puts the balance back by its amount
   const voided = named("A25_");
   assert.ok(voided.payout.voided_at);

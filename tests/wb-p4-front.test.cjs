@@ -37,7 +37,7 @@ test("the error reader tells the overpay question from the other refusals", () =
   // a question without a usable number is not a question: the message is shown as an error
   assert.equal(Y.payoutError({ code: "OVERPAY_CONFIRM_REQUIRED", message: "x", detail: { overpay: 0 } }).overpay, null);
   assert.equal(Y.payoutError({ code: "OVERPAY_CONFIRM_REQUIRED", message: "x", detail: {} }).overpay, null);
-  for (const [code, kind] of [["DUPLICATE_PAYOUT", "duplicate"], ["SHEET_NOT_SAVED", "not_saved"], ["AMOUNT_RANGE", "amount_range"], ["SOMETHING", "other"]]) {
+  for (const [code, kind] of [["DUPLICATE_PAYOUT", "duplicate"], ["AMOUNT_RANGE", "amount_range"], ["SOMETHING", "other"]]) {
     const failure = Y.payoutError({ code, message: "m", detail: { overpay: 5 } });
     assert.equal(failure.kind, kind);
     assert.equal(failure.overpay, null, "only the overpay question carries the number");

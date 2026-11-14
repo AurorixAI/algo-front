@@ -512,12 +512,11 @@ export function validatePayoutVoid(reason: string | null | undefined): string | 
   return null;
 }
 
-export type PayoutErrorKind = "overpay_confirm" | "duplicate" | "not_saved" | "already_voided" | "amount_range" | "paid_on_range" | "method_required" | "reason_required" | "other";
+export type PayoutErrorKind = "overpay_confirm" | "duplicate" | "already_voided" | "amount_range" | "paid_on_range" | "method_required" | "reason_required" | "other";
 
 const PAYOUT_ERROR: Record<string, PayoutErrorKind> = {
   OVERPAY_CONFIRM_REQUIRED: "overpay_confirm",
   DUPLICATE_PAYOUT: "duplicate",
-  SHEET_NOT_SAVED: "not_saved",
   ALREADY_VOIDED: "already_voided",
   AMOUNT_RANGE: "amount_range",
   PAID_ON_RANGE: "paid_on_range",
