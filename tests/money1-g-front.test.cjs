@@ -618,6 +618,18 @@ test("Ф-3 1280: the table keeps ONE visible «⋯» per row, in the last column
   }
 });
 
+test("Ф-1 «Замены», the window of a decision: the grey block shows the reason as a badge with words; a request without a known reason draws no empty badge", async () => {
+  for (const [reasonCode, expected] of [["sick", "Болезнь"], ["", null]]) {
+    const run = await openPage(browser, "money-g.entry.tsx", () => null, { width: 375, height: 900 });
+    await run.page.evaluate(([who, code]) => window.mount("decision", who, { role: "admin", reasonCode: code }), [ADMIN_NO_RIGHT, reasonCode]);
+    await run.page.waitForSelector('[role="dialog"]');
+    const badges = await run.page.evaluate(() => [...document.querySelectorAll('[role="dialog"] .rounded-md.border')].filter((node) => node.getBoundingClientRect().width > 0).map((node) => (node.textContent || "").trim()));
+    assert.ok(!badges.includes(""), `an empty badge is drawn: ${JSON.stringify(badges)}`);
+    if (expected) assert.ok(badges.includes(expected), JSON.stringify(badges));
+    await run.page.close();
+  }
+});
+
 // ── Ф-7: «кто провёл» a past lesson is for the money right ───────────────────────────────────────────
 
 const PAST_NO_RIGHT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";

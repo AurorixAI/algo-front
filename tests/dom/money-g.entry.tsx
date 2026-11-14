@@ -21,10 +21,10 @@ const w = window as any;
 w.__log = [] as string[];
 const log = (text: string) => w.__log.push(text);
 
-const ITEM = (id: string, date: string, minutesToStart = 3000) => ({
+const ITEM = (id: string, date: string, minutesToStart = 3000, reasonCode = "sick") => ({
   id, status: "pending", group: { id: "g1", name: "Алгебра 7 (вт/пт)" },
   lesson: { lessonId: `l-${id}`, date, startTime: "16:00", endTime: "17:00", format: "offline" },
-  teacher: { id: "t1", name: "Каримова Дилдора Рустамовна" }, reasonCode: "illness", minutesToStart, urgent: false, overdue: false,
+  teacher: { id: "t1", name: "Каримова Дилдора Рустамовна" }, reasonCode, minutesToStart, urgent: false, overdue: false,
 });
 
 w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
@@ -41,7 +41,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
         onClose={() => log("close")} onChanged={(text: string) => log(`changed:${text}`)} />);
       break;
     case "decision":
-      root.render(<DecisionDialog item={ITEM("r1", props.past ? "2026-11-10" : "2099-11-20", props.past ? -5800 : 3000) as never} role={props.role ?? "admin"} onClose={() => log("close")} onDecided={() => log("decided")} onStale={() => log("stale")} />);
+      root.render(<DecisionDialog item={ITEM("r1", props.past ? "2026-11-10" : "2099-11-20", props.past ? -5800 : 3000, props.reasonCode) as never} role={props.role ?? "admin"} onClose={() => log("close")} onDecided={() => log("decided")} onStale={() => log("stale")} />);
       break;
     case "bulk":
       root.render(<BulkDialog kind="cancel" items={(props.dates as string[]).map((date, index) => ITEM(`r${index + 1}`, date)) as never} role="admin" onClose={() => log("close")} onDone={() => log("done")} />);

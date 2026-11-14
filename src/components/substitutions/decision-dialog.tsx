@@ -357,11 +357,12 @@ export function DecisionBody({
   const suggested = suggestedLine(item);
   const lines = check ? moveCheckLines(check, item.group.name) : null;
   const examTitle = binding?.state === "ok" ? (binding.title ?? "").trim() : "";
+  const reasonText = systemReasonOf(item)?.label ?? (item.reasonLabel || reasonLabelOf(item.reasonCode));
   return (
     <div className="space-y-5 pb-1">
       <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{systemReasonOf(item)?.label ?? (item.reasonLabel || reasonLabelOf(item.reasonCode))}</span>
+          {reasonText && <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{reasonText}</span>}
           <DeadlineBadge item={item} />
         </div>
         {item.comment && <p className="mt-2 break-words text-sm text-slate-800">{item.comment}</p>}
