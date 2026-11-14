@@ -56,7 +56,9 @@ import { TimeInput } from "@/components/ui/time-input";
 import { Radio } from "@/components/ui/radio";
 import { DeadlineBadge } from "@/components/substitutions/journal-cells";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
-import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { useMoneyRight } from "@/lib/use-money-right";
+import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { outcomeOf, systemReasonOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
 import { ModalActions } from "@/components/ui/modal-actions";
@@ -147,6 +149,8 @@ function DecisionDialogInner({
   /** W1 F4: why the centre cancels - «по вине центра» is the default (it may be deducted from the students), a holiday never is. */
   const [cancelKind, setCancelKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const [binding, setBinding] = useState<ExamBinding | null>(null);
+  // Г-16 / Р-4: the kind is the money right's; without it the window says what the cancellation does to the students (the server's words) and sends no kind
+  const moneyRight = useMoneyRight();
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
@@ -222,7 +226,7 @@ function DecisionDialogInner({
     setBusy(true);
     setError(null);
     try {
-      const body = buildDecide(kind, { teacherId: pick, note, reason, move, cancellationKind: cancelKind });
+      const body = buildDecide(kind, { teacherId: pick, note, reason, move, ...cancellationKindBody(cancelKind, moneyRight) });
       const out = await substitutionsApi.decide(item.id, body);
       onDecided(out);
     } catch (failure) {
@@ -275,6 +279,7 @@ function DecisionDialogInner({
           reason={reason}
           cancelKind={cancelKind}
           onCancelKind={setCancelKind}
+          canChooseKind={moneyRight}
           binding={binding}
           problem={touched ? problem : null}
           busy={busy}
@@ -308,7 +313,7 @@ export function StaleBody({ message, item }: { message: string; item: Substituti
 
 /** The inside of the dialog: the head of the request, the four cards and the form of the chosen one. */
 export function DecisionBody({
-  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, cancelKind, onCancelKind, binding,
+  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, cancelKind, onCancelKind, canChooseKind, binding,
   problem, busy, error, onKind, onPick, onNote, onMove, onReason, onRetryCandidates,
 }: {
   item: SubstitutionItem;
@@ -327,6 +332,8 @@ export function DecisionBody({
   reason: string;
   cancelKind: CancellationKind;
   onCancelKind: (kind: CancellationKind) => void;
+  /** The money right: the kind of the cancellation is chosen only with it; without it the sentence of the server stands there. */
+  canChooseKind: boolean;
   binding: ExamBinding | null;
   problem: string | null;
   busy: boolean;
@@ -429,7 +436,10 @@ export function DecisionBody({
             <label htmlFor="substitution-cancel-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{CANCEL_REASON_LABEL}</label>
             <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={REASON_LIMITS.cancel.max} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
-          <div ref={kindRef}><CancellationKindField canChooseKind value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} /></div>
+          <div ref={kindRef}>
+            <CancellationKindField canChooseKind={canChooseKind} value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+            {!canChooseKind && <CancelConsequence target={{ groupId: item.group.id, lessonId: item.lesson.lessonId, lessonDate: item.lesson.date }} />}
+          </div>
           {binding?.state === "ok" && examTitle && (binding.canCancel === false
             ? <p role="alert" className="text-xs font-semibold text-rose-700">{examRunningText(examTitle)}</p>
             : <p role="status" className="text-xs font-medium text-amber-800">{examDraftCancelText(examTitle)}</p>)}

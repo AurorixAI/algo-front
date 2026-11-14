@@ -102,25 +102,21 @@ test("3. the dialog of a cancellation asks «По вине центра» (defau
   assert.equal(F.DEFAULT_CANCELLATION_KIND, "centre");
   for (const file of ["src/components/groups/lesson-action-sheet.tsx", "src/components/attendance/cancel-missed-lesson-modal.tsx"]) {
     const source = read(file);
-    assert.match(source, /<CancellationKindField canChooseKind=\{canChooseKind\}/, file);          // the field gets the right to choose
+    assert.match(source, /<CancellationKindField canChooseKind=\{(canChooseKind|moneyRight)\}/, file);          // the field gets the right to choose
     assert.match(source, /cancellationKindBody\(/, file);                                            // and what is sent goes through the one rule below
   }
   // W1 F4: the decision about a request and the pack decision choose the kind too (administrator / owner only: the page is theirs), and send it
-  for (const file of ["src/components/substitutions/decision-dialog.tsx", "src/components/substitutions/bulk-dialog.tsx"]) assert.match(read(file), /<CancellationKindField canChooseKind value=\{cancelKind\}/, file);
+  for (const file of ["src/components/substitutions/decision-dialog.tsx", "src/components/substitutions/bulk-dialog.tsx"]) assert.match(read(file), /<CancellationKindField canChooseKind=\{(canChooseKind|moneyRight)\} value=\{cancelKind\}/, file);
   // W1 F1: the teacher's pages (teacher only: the layout lets nobody else in) never ask for a kind - a teacher does not cancel, «Урока не было» is always «по вине центра»
   for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.doesNotMatch(read(file), /CancellationKindField/, file);
   const api = read("src/lib/api.ts");
   assert.equal((api.match(/cancellationKind\?: CancellationKind/g) || []).length, 2);              // the lesson cancel and «Урока не было»
 });
 
-test("3. only the owner and the administrator choose the kind; a teacher sends nothing", () => {
-  assert.equal(F.canChooseCancellationKind({ org_role: "owner" }), true);
-  assert.equal(F.canChooseCancellationKind({ org_role: "admin" }), true);
-  assert.equal(F.canChooseCancellationKind({ org_role: "teacher" }), false);
-  assert.equal(F.canChooseCancellationKind({ org_role: null }), false);
-  assert.equal(F.canChooseCancellationKind(null), false);
+test("3. only the money right chooses the kind (Г-16); without it nothing is sent", () => {
+  assert.equal(F.canChooseCancellationKind, undefined, "the role-based rule is gone: the one function is canManageMoney");
   assert.deepEqual(F.cancellationKindBody("holiday", true), { cancellationKind: "holiday" });
-  assert.deepEqual(F.cancellationKindBody("holiday", false), {});                                    // never «holiday» from a teacher: the server would answer 403
+  assert.deepEqual(F.cancellationKindBody("holiday", false), {});                                    // never «holiday» without the right: the server would answer 403
   assert.deepEqual(F.cancellationKindBody("centre", false), {});
   assert.equal(F.canChangeKind(true, "centre"), true);
   assert.equal(F.canChangeKind(true, "holiday"), true);

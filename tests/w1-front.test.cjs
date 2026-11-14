@@ -199,17 +199,17 @@ test("F3: the words and the call of «Вернуть урок»; every RESTORE_*
 
 // ── F4 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("F4: the decision «Отменить» sends its kind (default «по вине центра»), says the truth about money, asks it in the pack too", () => {
-  assert.deepEqual(S.buildDecide("cancel", { reason: " Болен " }), { decision: "cancel", reason: "Болен", cancellationKind: "centre", expectedStatus: "pending" });
+test("F4: the decision «Отменить» sends its kind only with the money right (Г-16; the default of the server is «по вине центра»), says the truth about money, asks it in the pack too", () => {
+  assert.deepEqual(S.buildDecide("cancel", { reason: " Болен " }), { decision: "cancel", reason: "Болен", expectedStatus: "pending" });
   assert.equal(S.buildDecide("cancel", { reason: "Праздник", cancellationKind: "holiday" }).cancellationKind, "holiday");
   assert.equal("cancellationKind" in S.buildDecide("reject", { reason: "Нет" }), false);
   assert.equal("cancellationKind" in S.buildDecide("substitute", { teacherId: "t" }), false);
   assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется/, "D18: the old hint contradicted PAY-F");
   const dialog = read("src/components/substitutions/decision-dialog.tsx");
   assert.match(dialog, /useState<CancellationKind>\(DEFAULT_CANCELLATION_KIND\)/);
-  assert.match(dialog, /buildDecide\(kind, \{ teacherId: pick, note, reason, move, cancellationKind: cancelKind \}\)/);
+  assert.match(dialog, /buildDecide\(kind, \{ teacherId: pick, note, reason, move, \.\.\.cancellationKindBody\(cancelKind, moneyRight\) \}\)/);
   const bulk = read("src/components/substitutions/bulk-dialog.tsx");
-  assert.match(bulk, /cancellationKind: cancelKind/);
+  assert.match(bulk, /\.\.\.cancellationKindBody\(cancelKind, moneyRight\)/);
   // the toast of a decision shows what the server said besides (a date under a day off became a holiday)
   const out = { item: { id: "r" }, result: { kind: "cancel", cancellationKind: "holiday", warnings: [{ code: "CANCELLED_AS_HOLIDAY", message: "Дата под выходным: отменено как праздник" }] } };
   assert.deepEqual(S.assignmentNotes(out.result), ["Дата под выходным: отменено как праздник"]);

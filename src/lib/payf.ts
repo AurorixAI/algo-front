@@ -61,12 +61,7 @@ export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: s
 ];
 export const DEFAULT_CANCELLATION_KIND: CancellationKind = "centre";
 
-/** Who may choose the kind: the owner and the administrator of the centre (the server answers 403 to a teacher who sends «holiday»; a teacher always cancels «по вине центра»). */
-export function canChooseCancellationKind(user: { org_role?: string | null } | null | undefined): boolean {
-  return user?.org_role === "owner" || user?.org_role === "admin";
-}
-
-/** The part of the body of a cancellation that carries the kind: nothing for a teacher (the server's default is «по вине центра»). */
+/** The part of the body of a cancellation that carries the kind: only with the money right (Г-16: the server answers 403 `MONEY_RIGHT_REQUIRED` to «Праздник, выходной» without it; its default is «по вине центра»). */
 export function cancellationKindBody(kind: CancellationKind, canChoose: boolean): { cancellationKind?: CancellationKind } {
   return canChoose ? { cancellationKind: kind } : {};
 }

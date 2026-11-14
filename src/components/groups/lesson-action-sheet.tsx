@@ -23,8 +23,7 @@ import {
 import { CANCEL_CONSEQUENCES, substitutionErrorText, type LessonMark } from "@/lib/substitutions";
 import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
 import { returnDoneText, returnReviewDoneText } from "@/lib/lesson-return";
-import { canManageMoney, movedByOf, toastWithEffects } from "@/lib/money-effects";
-import { useAuthStore } from "@/lib/store";
+import { movedByOf, toastWithEffects } from "@/lib/money-effects";
 import { LessonReturnDialog, ReturnToReviewDialog } from "./lesson-return-dialogs";
 import { RestoreConsequences, useRestorePreview } from "./restore-consequences";
 import { effectsAllowConfirm } from "@/lib/money-preview";
@@ -33,7 +32,8 @@ import { undoToastText } from "@/lib/one-off";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
 import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
-import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { useMoneyRight } from "@/lib/use-money-right";
+import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { reasonProblemFor } from "@/lib/reason-rules";
 import { ChangeKindForm } from "./change-kind-form";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
@@ -106,10 +106,9 @@ export function LessonActionSheet({
   const setMode = (next: SheetMode) => dispatch({ type: "mode", mode: next });
   const setReason = (next: string) => dispatch({ type: "reason", reason: next });
   const setKind = (next: CancellationKind) => dispatch({ type: "kind", kind: next });
-  const canChooseKind = useCanChooseCancellationKind();
-  // Money-1 A4 (I-6): to CHANGE the kind of a cancellation afterwards moves the deduction of the students - the money right (choosing it while cancelling is the owner's / administrator's as before)
-  const moneyRight = canManageMoney(useAuthStore((state) => state.user));
-  const changeKind = canChangeKind(canChooseKind && moneyRight, cancellationKind) ? cancellationKind : null;
+  // the money right decides both: to choose the kind of a cancellation (Г-16: «Праздник, выходной» changes the students' recalculation) and to CHANGE it afterwards (Money-1 A4, I-6)
+  const moneyRight = useMoneyRight();
+  const changeKind = canChangeKind(moneyRight, cancellationKind) ? cancellationKind : null;
   const [newDate, setNewDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -233,7 +232,7 @@ export function LessonActionSheet({
         setMode("menu");
         onChanged("Урок возвращён", warningTexts(restored));      // the note about the exams is under the field of the form already (not repeated as a warning)
       } else {
-        const cancelled = await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, canChooseKind) });
+        const cancelled = await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, moneyRight) });
         setMode("menu");
         onChanged("Урок отменён", warningTexts(cancelled));
       }
@@ -402,7 +401,8 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-reason" className={LABEL}>Причина отмены</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
-              <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+              <CancellationKindField canChooseKind={moneyRight} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+              {!moneyRight && <CancelConsequence target={{ groupId, lessonId: lesson.id, lessonDate: lesson.date }} />}
               <ExamBindingNote state={examState} onRetry={loadBinding} />
             </div>
           )}

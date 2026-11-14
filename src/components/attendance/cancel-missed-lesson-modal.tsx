@@ -5,7 +5,7 @@ import { orgApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
-import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { useMoneyRight } from "@/lib/use-money-right";
 import { warningTexts } from "@/lib/ops-errors";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { CANCEL_CONSEQUENCES, substitutionErrorText } from "@/lib/substitutions";
@@ -13,6 +13,7 @@ import { CancellationKindField } from "./cancellation-kind-field";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { cancelMoneyView } from "@/lib/cancel-preview";
 import { PayrollEffect } from "@/components/money/money-effects-block";
+import { CancelConsequenceLine } from "@/components/money/cancel-consequence-line";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { EFFECTS_TITLE } from "@/lib/money-effects";
 import { periodClosedOf } from "@/lib/closed-period";
@@ -45,7 +46,7 @@ export function CancelMissedLessonModal({
 }) {
   const [reason, setReason] = useState("");
   const [kind, setKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
-  const canChooseKind = useCanChooseCancellationKind();
+  const canChooseKind = useMoneyRight();      // the kind is the money right's (Г-16): without it the window says the consequence and sends no kind
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
@@ -128,6 +129,7 @@ export function CancelMissedLessonModal({
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
           />
           <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+          {!canChooseKind && preview.status === "loading" && <CancelConsequenceLine loading text={null} />}
           {closed && <PeriodClosedNotice info={closed} onReopened={retry} />}
           {money && (money.students || money.payroll.length > 0) && (
             <section aria-label={EFFECTS_TITLE} data-testid="cancel-effects" className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">

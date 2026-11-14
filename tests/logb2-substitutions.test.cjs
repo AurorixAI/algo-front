@@ -252,10 +252,10 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   assert.equal(S.CANCEL_CONSEQUENCES, "Ученики не отмечаются, из пакета урок не списывается. Вернуть урок можно, пока он не начался.");
   assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется|не вернётся/);
   assert.ok(S.CANCEL_CONSEQUENCES.length < 140, "short: it sits under a «?»");
-  assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", cancellationKind: "centre", expectedStatus: "pending" }, "the default kind is «по вине центра»");
+  assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", expectedStatus: "pending" }, "no kind chosen (no money right, Г-16): none is sent - the default of the server is «по вине центра»");
   assert.deepEqual(S.buildDecide("cancel", { reason: "Праздник", cancellationKind: "holiday" }), { decision: "cancel", reason: "Праздник", cancellationKind: "holiday", expectedStatus: "pending" });
   assert.deepEqual(S.buildBulk(["a", "b"], "cancel", { reason: "Праздник", cancellationKind: "holiday" }), { ids: ["a", "b"], decision: "cancel", reason: "Праздник", cancellationKind: "holiday" });
-  assert.deepEqual(S.buildBulk(["a"], "cancel", { reason: "Болен" }), { ids: ["a"], decision: "cancel", reason: "Болен", cancellationKind: "centre" });
+  assert.deepEqual(S.buildBulk(["a"], "cancel", { reason: "Болен" }), { ids: ["a"], decision: "cancel", reason: "Болен" });
   assert.equal("cancellationKind" in S.buildBulk(["a"], "reject", { reason: "Нет" }), false, "only a cancellation carries a kind");
   assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor(S.decisionReasonKind("cancel"), "ок"), "Укажите причину — не менее 3 символов");
   assert.equal(require(path.join(__dirname, "../src/lib/reason-rules.ts")).reasonProblemFor(S.decisionReasonKind("cancel"), "Болен"), null);
@@ -429,7 +429,7 @@ function decisionProps(item, over = {}) {
   const candidates = fx("b2c1_candidates_admin");
   return {
     item, role: "admin", late: S.isLateRequest(item), kinds: S.availableDecisions(item), kind: "substitute", candidates, candidatesError: null, pick: candidates.candidates[0].teacherId,
-    note: "", move: initialMoveForm(item, "2026-10-21"), check: null, checking: false, checkError: null, reason: "", binding: null, problem: null, busy: false, error: null,
+    note: "", move: initialMoveForm(item, "2026-10-21"), check: null, checking: false, checkError: null, reason: "", cancelKind: "centre", onCancelKind() {}, canChooseKind: true, consequence: { loading: false, text: null }, binding: null, problem: null, busy: false, error: null,
     onKind() {}, onPick() {}, onNote() {}, onMove() {}, onReason() {}, onRetryCandidates() {}, ...over,
   };
 }

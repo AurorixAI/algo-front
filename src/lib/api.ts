@@ -1379,6 +1379,8 @@ export interface CancelMissedResult {
   dryRun?: boolean;
   moneyEffects?: unknown;
   deductions?: Array<{ studentId: string; name: string | null; amount: number }>;
+  /** Money-1 Г (Р-4): what the cancellation does to the students in the server's own words («Ученикам зачтётся по 46 000 сум» / «На оплату не влияет»); for everyone, with no sums for a person without the money right. */
+  consequence?: string;
 }
 
 export const orgApi = {
@@ -1718,6 +1720,10 @@ export const orgApi = {
   ) =>
     // server 64a929b: `?dry_run=true` runs the same road and writes nothing; `moneyEffects` + `deductions` ([{studentId, name, amount}], the money right only) say what the cancellation does to money
     api<CancelMissedResult>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel${options.dryRun ? "?dry_run=true" : ""}`, { method: "POST", body: data, signal: options.signal }),
+
+  /** Money-1 Г (Р-4, Д-3): the sentence about the students for cancelling a lesson to come - the server's words, nothing is written.  A teacher gets 403 `TEACHER_CANNOT_CANCEL` for a lesson he may not cancel. */
+  cancelConsequence: (groupId: string, params: { lessonDate: string; lessonId: string }, signal?: AbortSignal) =>
+    api<{ consequence: string }>(`/auth/org/groups/${encodePathId(groupId)}/lessons/cancel-consequence?${new URLSearchParams(params).toString()}`, { signal }),
 
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
   restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean }, signal?: AbortSignal) =>

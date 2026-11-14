@@ -5,7 +5,9 @@ import { Repeat2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
-import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { useMoneyRight } from "@/lib/use-money-right";
+import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { SubstituteForm } from "@/components/substitutions/decision-dialog";
 import {
   CANCEL_CONSEQUENCES,
@@ -68,6 +70,7 @@ export function BulkDialog({
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const token = useRef(0);
+  const moneyRight = useMoneyRight();
 
   // the nearest lesson of the selection stands for the candidates (the server checks every lesson on its own)
   const first = items.slice().sort((a, b) => (startsAtMsOf(a) ?? 0) - (startsAtMsOf(b) ?? 0))[0] ?? null;
@@ -106,7 +109,7 @@ export function BulkDialog({
     setBusy(true);
     setError(null);
     try {
-      const out = await substitutionsApi.decideBulk(buildBulk(items.map((item) => item.id), kind, { teacherId: pick, reason, note, cancellationKind: cancelKind }));
+      const out = await substitutionsApi.decideBulk(buildBulk(items.map((item) => item.id), kind, { teacherId: pick, reason, note, ...cancellationKindBody(cancelKind, moneyRight) }));
       onDone(out);
     } catch (failure) {
       setError(substitutionErrorText(failure));
@@ -152,7 +155,9 @@ export function BulkDialog({
             </div>
             {kind === "cancel" && (
               <>
-                <CancellationKindField canChooseKind value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+                <CancellationKindField canChooseKind={moneyRight} value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
+                {/* without the right: the sentence of the server for ONE lesson only (several lessons have no single sum, so none is said) */}
+                {!moneyRight && items.length === 1 && first && <CancelConsequence target={{ groupId: first.group.id, lessonId: first.lesson.lessonId, lessonDate: first.lesson.date }} />}
               </>
             )}
           </>

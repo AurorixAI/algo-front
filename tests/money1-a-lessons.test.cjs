@@ -492,7 +492,7 @@ test("an administrator without the money right: «Перевести в друг
   assert.equal(lib("group-lesson-type.ts").LESSON_TYPE_NO_RIGHT_NOTE, "Тип занятий меняет зарплату преподавателя: его меняет владелец или администратор с доступом к деньгам");
   assert.match(read("src/components/groups/group-student-table.tsx"), /canTransfer: Boolean\(canRemove && onTransfer && !isTeacher\)/);
   assert.match(read("src/components/groups/group-student-table.tsx"), /disabled: !moneyRight, hint: moneyRight \? undefined : TRANSFER_NO_RIGHT_TEXT/, "the roster: the item is off with its reason");
-  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /canChangeKind\(canChooseKind && moneyRight, cancellationKind\)/);
+  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /canChangeKind\(moneyRight, cancellationKind\)/);
   assert.match(read("src/components/students/student-profile-view.tsx"), /moneyRight=\{canManageMoney\(user\)\}/);
 });
 

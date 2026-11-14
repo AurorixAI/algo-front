@@ -5,7 +5,7 @@
  */
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import type { GroupDetail, StudentInGroup } from "./api";
-import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
+import { type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
@@ -847,8 +847,8 @@ export function buildDecide(
       expectedStatus,
     };
   }
-  // W1 F4 (S11): a cancellation says its kind (the default of the server is «по вине центра»; the field is the choice of the administrator)
-  if (kind === "cancel") return { decision: kind, reason: (form.reason ?? "").trim(), cancellationKind: form.cancellationKind ?? DEFAULT_CANCELLATION_KIND, expectedStatus };
+  // W1 F4 (S11) + Г-16: a cancellation says its kind only when the person chose one (the money right); without it the server's default stands - «по вине центра»
+  if (kind === "cancel") return { decision: kind, reason: (form.reason ?? "").trim(), ...(form.cancellationKind ? { cancellationKind: form.cancellationKind } : {}), expectedStatus };
   return { decision: kind, reason: (form.reason ?? "").trim(), expectedStatus };
 }
 
@@ -861,7 +861,7 @@ export function buildBulk(
     const note = (form.note ?? "").trim();
     return { ids, decision: kind, teacherId: form.teacherId ?? null, ...(note ? { note } : {}) };
   }
-  if (kind === "cancel") return { ids, decision: kind, reason: (form.reason ?? "").trim(), cancellationKind: form.cancellationKind ?? DEFAULT_CANCELLATION_KIND };
+  if (kind === "cancel") return { ids, decision: kind, reason: (form.reason ?? "").trim(), ...(form.cancellationKind ? { cancellationKind: form.cancellationKind } : {}) };
   return { ids, decision: kind, reason: (form.reason ?? "").trim() };
 }
 
