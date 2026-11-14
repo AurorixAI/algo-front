@@ -37,7 +37,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
         onClose={() => log("close")} onChanged={(text: string) => log(`changed:${text}`)} />);
       break;
     case "decision":
-      root.render(<DecisionDialog item={ITEM("r1", "2099-11-20") as never} role={props.role ?? "admin"} onClose={() => log("close")} onDecided={() => log("decided")} onStale={() => log("stale")} />);
+      root.render(<DecisionDialog item={ITEM("r1", props.past ? "2026-11-10" : "2099-11-20") as never} role={props.role ?? "admin"} onClose={() => log("close")} onDecided={() => log("decided")} onStale={() => log("stale")} />);
       break;
     case "bulk":
       root.render(<BulkDialog kind="cancel" items={(props.dates as string[]).map((date, index) => ITEM(`r${index + 1}`, date)) as never} role="admin" onClose={() => log("close")} onDone={() => log("done")} />);

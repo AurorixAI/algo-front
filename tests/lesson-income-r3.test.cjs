@@ -112,7 +112,7 @@ test("the move-check says an origin refusal (ok:false + code/message) inline, st
 });
 
 test("a lesson of TODAY whose start has passed (business time) is marked, not moved or cancelled", () => {
-  const base = { role: "owner", archived: false, today: "2026-10-22", hasTeacherInfo: true, state: "scheduled", date: "2026-10-22", startTime: "10:00" };
+  const base = { role: "owner", archived: false, today: "2026-10-22", hasTeacherInfo: true, state: "scheduled", date: "2026-10-22", startTime: "10:00", moneyRight: true };      // «кто провёл» is the money right's (Money-1 Г-3)
   const before = new Date("2026-10-22T04:30:00Z"); // 09:30 in Tashkent
   const after = new Date("2026-10-22T06:00:00Z");  // 11:00 in Tashkent
   assert.deepEqual(C.scheduleCardActions({ ...base, now: before }), ["assign", "reschedule", "cancel"]);

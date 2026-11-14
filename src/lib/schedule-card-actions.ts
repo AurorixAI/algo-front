@@ -151,7 +151,8 @@ function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
     out.push("reschedule", "cancel");
   } else {
     out.push("mark");
-    if (canAssign) out.push("assign");
+    // «Назначить того, кто провёл» of a past lesson decides whose pay it is: the money right's (Money-1 Г-3; the server answers 403 `MONEY_RIGHT_REQUIRED`) - without it the action is not offered
+    if (canAssign && input.moneyRight === true) out.push("assign");
   }
   return out;
 }
@@ -206,6 +207,16 @@ export function teacherCancelOffer(input: {
   // (a lesson that has begun but not ended is held, not «missed»: the teacher starts it as usual - nothing new on the panel)
   // W1 S27: a lesson to come is not his to cancel - except the one-off lesson he created himself (the server: 403 for every other)
   return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL } : null;
+}
+
+export const PAST_ASSIGN_NO_RIGHT_TEXT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
+
+/**
+ * Money-1 Г-3 (Р-1): in «Замены» the variant «Замена» of a request on a lesson that has ENDED names who held it, so it is the money right's.  The reason it is off, in words;
+ * null when the variant is open (a lesson to come, or the person has the right).  The same `lessonHasEnded` as the server's `_has_ended`.
+ */
+export function pastSubstituteLockReason(input: { date: string; today: string; endTime?: string | null; moneyRight: boolean; now?: Date }): string | null {
+  return !input.moneyRight && lessonHasEnded(input) ? PAST_ASSIGN_NO_RIGHT_TEXT : null;
 }
 
 /** The label of «assign» by situation: a future lesson «Назначить замену» (or «Заменить преподавателя» when a substitute is already there), a past one «Назначить того, кто провёл». */

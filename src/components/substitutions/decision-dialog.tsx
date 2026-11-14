@@ -58,6 +58,7 @@ import { DeadlineBadge } from "@/components/substitutions/journal-cells";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useMoneyRight } from "@/lib/use-money-right";
+import { pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { outcomeOf, systemReasonOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
@@ -136,7 +137,10 @@ function DecisionDialogInner({
   const today = formatBusinessDate();
   const late = isLateRequest(item);
   const kinds = availableDecisions(item);
-  const [kind, setKind] = useState<SubstitutionDecisionKind>("substitute");
+  // Г-3: «Замена» of a lesson that has ended names who held it - the money right's; without it the card is off with its reason and the decision starts on the next card
+  const moneyRight = useMoneyRight();
+  const substituteLock = pastSubstituteLockReason({ date: item.lesson.date, today, endTime: item.lesson.endTime, moneyRight });
+  const [kind, setKind] = useState<SubstitutionDecisionKind>(substituteLock ? kinds.find((entry) => entry !== "substitute") ?? "reject" : "substitute");
   const [candidates, setCandidates] = useState<CandidatesOut | null>(null);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [pick, setPick] = useState<string | null>(null);
@@ -150,7 +154,6 @@ function DecisionDialogInner({
   const [cancelKind, setCancelKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const [binding, setBinding] = useState<ExamBinding | null>(null);
   // Г-16 / Р-4: the kind is the money right's; without it the window says what the cancellation does to the students (the server's words) and sends no kind
-  const moneyRight = useMoneyRight();
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
@@ -280,6 +283,7 @@ function DecisionDialogInner({
           cancelKind={cancelKind}
           onCancelKind={setCancelKind}
           canChooseKind={moneyRight}
+          substituteLock={substituteLock}
           binding={binding}
           problem={touched ? problem : null}
           busy={busy}
@@ -313,7 +317,7 @@ export function StaleBody({ message, item }: { message: string; item: Substituti
 
 /** The inside of the dialog: the head of the request, the four cards and the form of the chosen one. */
 export function DecisionBody({
-  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, cancelKind, onCancelKind, canChooseKind, binding,
+  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, cancelKind, onCancelKind, canChooseKind, substituteLock, binding,
   problem, busy, error, onKind, onPick, onNote, onMove, onReason, onRetryCandidates,
 }: {
   item: SubstitutionItem;
@@ -334,6 +338,8 @@ export function DecisionBody({
   onCancelKind: (kind: CancellationKind) => void;
   /** The money right: the kind of the cancellation is chosen only with it; without it the sentence of the server stands there. */
   canChooseKind: boolean;
+  /** Why «Замена» is off (a past lesson, no money right); null: it is open. */
+  substituteLock: string | null;
   binding: ExamBinding | null;
   problem: string | null;
   busy: boolean;
@@ -368,18 +374,19 @@ export function DecisionBody({
         {kinds.map((entry) => {
           const Icon = CARD_ICON[entry];
           const checked = entry === kind;
+          const locked = entry === "substitute" && substituteLock !== null;
           return (
             <label
               key={entry}
-              className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-primary-500/30 ${
-                checked ? (entry === "cancel" ? "border-rose-400 bg-rose-50/60" : "border-primary-500 bg-primary-50/60") : "border-slate-200 bg-white hover:bg-slate-50"
+              className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-primary-500/30 ${
+                checked ? (entry === "cancel" ? "cursor-pointer border-rose-400 bg-rose-50/60" : "cursor-pointer border-primary-500 bg-primary-50/60") : locked ? "cursor-not-allowed border-slate-200 bg-slate-50" : "cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
               }`}
             >
-              <Radio bare name="substitution-decision" value={entry} checked={checked} disabled={busy} onChange={() => onKind(entry)} />
+              <Radio bare name="substitution-decision" value={entry} checked={checked} disabled={busy || locked} onChange={() => onKind(entry)} />
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? (entry === "cancel" ? "text-rose-600" : "text-primary-600") : "text-slate-500"}`} />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold leading-snug text-slate-900">{decisionCardTitle(entry, late)}</span>
-                <span className="mt-0.5 block text-xs leading-snug text-slate-500">{CARD_HINT[entry]}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-slate-500">{locked ? substituteLock : CARD_HINT[entry]}</span>
               </span>
             </label>
           );

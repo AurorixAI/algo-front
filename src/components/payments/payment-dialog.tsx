@@ -54,9 +54,7 @@ import {
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
-import { useFormMoneyPreview } from "@/lib/use-money-preview";
-import { effectsWhyOff, formAllowsConfirm } from "@/lib/money-preview";
-import { DRY_RUN_REASON } from "@/lib/dry-run";
+import { useReplaceEffects } from "@/lib/use-replace-effects";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { EFFECTS_TITLE } from "@/lib/money-effects";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
@@ -171,10 +169,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   }, [open, ready, membership, amountNow, paidOnOk, values.paidOn, kind, payment]);
   const key = previewKey(query);
 
-  // Money-1 Г-4б: «Исправить оплату» asks the dry run of the correction (the form as it stands; the reason is not needed for it) - a debt in another group and the pay of the teachers stand in «Что изменится» BEFORE the button
-  const draft = kind === "replace" && payment && open && ready && validatePaymentForm(values, today) === null ? JSON.stringify(buildPaymentPayload(values)) : null;
-  const effects = useFormMoneyPreview(draft, (signal) => orgApi.replacePayment(payment!.id, { ...buildPaymentPayload(values), reason: DRY_RUN_REASON }, undefined, { dryRun: true, signal }));
-
+  const replace = useReplaceEffects({ payment: kind === "replace" ? payment ?? null : null, active: open && ready, values, today });
   const state = usePaymentPreview({
     enabled: open && ready && Boolean(membership),
     membershipId: membership?.membership_id ?? null,
@@ -206,7 +201,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const chips = kind === "create" ? quickAmounts(latest, { leftOnly }) : [];
   const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
-  const blocker = payBlocker(values, today, leftProblem, kind) ?? (formAllowsConfirm(draft, effects.preview) ? null : effectsWhyOff(effects.preview));
+  const blocker = payBlocker(values, today, leftProblem, kind) ?? replace.why;
   const methods = methodChoices(kind === "replace" && payment ? paymentFormFrom(payment).method : null);
 
   const patch = (next: Partial<PaymentFormValues>) => {
@@ -220,7 +215,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   };
 
   const submit = async () => {
-    if (sending.current || saved || !formAllowsConfirm(draft, effects.preview)) return;
+    if (sending.current || saved || replace.why) return;
     const problem = validatePaymentForm(values, today, kind === "replace") ?? leftProblem;
     if (problem) { if (kind === "replace" && reasonFieldError(values.reason, true)) setTouchedReason(true); else setError(problem); return; }
     sending.current = true;
@@ -384,7 +379,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               ) : null}
             </div>
             <RecalcNote lines={latest?.recalc} />
-            {draft !== null && <MoneyEffectsBlock preview={effects.preview} onRetry={effects.retry} serverText bare className="mt-2" />}
+            {replace.draft !== null && <MoneyEffectsBlock preview={replace.preview} onRetry={replace.retry} serverText bare className="mt-2" />}
           </section>
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}

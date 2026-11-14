@@ -750,7 +750,8 @@ test("schedule cards of the group (owner/admin): information only; the actions b
   const base = { role: "owner", archived: false, today: "2026-10-22", hasTeacherInfo: true };
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-24" }), ["assign", "reschedule", "cancel"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-22" }), ["assign", "reschedule", "cancel"]);
-  assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-20" }), ["mark", "assign"], "past, nobody marked");
+  assert.deepEqual(C.scheduleCardActions({ ...base, moneyRight: true, state: "scheduled", date: "2026-10-20" }), ["mark", "assign"], "past, nobody marked: «кто провёл» is the money right's (Money-1 Г-3)");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-20" }), ["mark"], "no right: no «кто провёл»");
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "completed", date: "2026-10-20" }), ["journal"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "in_progress", date: "2026-10-22" }), ["journal"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", date: "2026-10-24" }), ["restore"], "W1 F3: a cancelled lesson to come can be returned");

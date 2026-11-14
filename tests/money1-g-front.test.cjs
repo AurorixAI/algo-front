@@ -554,3 +554,74 @@ for (const width of [1280, 1024, 375]) {
     await page.close();
   });
 }
+
+// ── Ф-7: «кто провёл» a past lesson is for the money right ───────────────────────────────────────────
+
+const PAST_NO_RIGHT = "Назначить, кто провёл прошедший урок, может владелец или администратор с доступом к деньгам";
+
+test("Ф-7 menu: «Назначить того, кто провёл» of a past lesson is not offered without the money right; a coming lesson keeps «Назначить замену»", () => {
+  const { scheduleCardActions } = lib("schedule-card-actions.ts");
+  const past = { role: "admin", archived: false, state: "scheduled", date: "2026-11-10", today: "2026-11-14", hasTeacherInfo: true, startTime: "16:00" };
+  assert.deepEqual(scheduleCardActions({ ...past, moneyRight: false }), ["mark"]);
+  assert.deepEqual(scheduleCardActions({ ...past }), ["mark"], "an absent flag is no right");
+  assert.deepEqual(scheduleCardActions({ ...past, moneyRight: true }), ["mark", "assign"]);
+  assert.deepEqual(scheduleCardActions({ ...past, role: "owner", moneyRight: true }), ["mark", "assign"]);
+  const coming = { ...past, date: "2026-11-20" };
+  assert.deepEqual(scheduleCardActions({ ...coming, moneyRight: false }), ["assign", "reschedule", "cancel"], "a substitute for a coming lesson moves no money");
+});
+
+test("Ф-7 server text: 403 MONEY_RIGHT_REQUIRED is shown as the server wrote it (the window of «кто провёл», the decision of a request)", () => {
+  const message = "Провести урок за другого преподавателя в журнале может владелец или администратор с доступом к деньгам: от этого зависит, чья это зарплата";
+  const error = Object.assign(new Error(message), { status: 403, code: "MONEY_RIGHT_REQUIRED", detail: { code: "MONEY_RIGHT_REQUIRED", message } });
+  assert.equal(lib("ops-errors.ts").lessonTeacherErrorText(error), message);
+  assert.equal(lib("substitutions.ts").substitutionErrorText(error), message);
+});
+
+async function openPastDecision(user, width = 1280) {
+  const run = await openPage(browser, "money-g.entry.tsx", serverOf(), { width, height: 900 });
+  await run.page.clock.setFixedTime(new Date("2026-11-14T10:00:00+05:00"));
+  await run.page.evaluate(([who, role]) => window.mount("decision", who, { role, past: true }), [user, user.org_role]);
+  await run.page.waitForSelector('[role="dialog"]');
+  return run;
+}
+
+test("Ф-7 «Замены»: «Замена» of a past lesson is off for an administrator without the right - with the reason in words; the decision starts on another card", async () => {
+  const { page } = await openPastDecision(ADMIN_NO_RIGHT);
+  const card = page.locator('label:has(input[value="substitute"])');
+  assert.equal(await card.locator("input").isDisabled(), true);
+  assert.match(plain(await card.textContent()), new RegExp(PAST_NO_RIGHT));
+  assert.equal(await page.locator('input[name="substitution-decision"]:checked').getAttribute("value") !== "substitute", true);
+  for (const value of ["reschedule", "cancel", "reject"]) assert.equal(await page.locator(`input[value="${value}"]`).isDisabled(), false, value);
+  await page.close();
+});
+
+for (const [who, user] of [["the owner", OWNER], ["an administrator with the right", ADMIN_WITH_RIGHT]]) {
+  test(`Ф-7 «Замены»: ${who} may name who held a past lesson - the card is on and chosen`, async () => {
+    const { page } = await openPastDecision(user);
+    assert.equal(await page.locator('input[value="substitute"]').isDisabled(), false);
+    assert.equal(await page.locator('input[name="substitution-decision"]:checked').getAttribute("value"), "substitute");
+    assert.doesNotMatch(plain(await page.textContent('[role="dialog"]')), new RegExp(PAST_NO_RIGHT));
+    await page.close();
+  });
+}
+
+test("Ф-7 «Замены»: a lesson to come is not locked for an administrator without the right", async () => {
+  const run = await openPage(browser, "money-g.entry.tsx", serverOf(), { width: 1280, height: 900 });
+  await run.page.clock.setFixedTime(new Date("2026-11-14T10:00:00+05:00"));
+  await run.page.evaluate((who) => window.mount("decision", who, { role: "admin" }), ADMIN_NO_RIGHT);
+  await run.page.waitForSelector('[role="dialog"]');
+  assert.equal(await run.page.locator('input[value="substitute"]').isDisabled(), false);
+  await run.page.close();
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`Ф-7 ${width}: the locked card - the reason is whole and nothing leaves its box`, async () => {
+    const { page } = await openPastDecision(ADMIN_NO_RIGHT, width);
+    await page.waitForTimeout(450);
+    assert.match(plain(await page.locator('label:has(input[value="substitute"])').innerText()), new RegExp(PAST_NO_RIGHT));
+    const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
+    assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+    assert.equal(facts.scroll, 0);
+    await page.close();
+  });
+}
