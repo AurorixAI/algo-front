@@ -105,6 +105,8 @@ export interface GroupPaymentRowView {
   priceScheduled: boolean;
   /** An individual price is in force today. */
   individual: boolean;
+  /** Р4-1: the student has an individual price of his own - in force today OR planned; the filter «Индивидуальная цена» and its count follow this (the row shows his own price too). */
+  hasOwnPrice: boolean;
   /** «Сестра ученика · с 15.10.2026 · назначил Иванов А.»; null when the price is the group's. */
   individualHint: string | null;
   /** «с 01.12 — 400 000 сум» (or «… — цена группы»); null when nothing is scheduled. */
@@ -162,6 +164,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     priceMissing: missing,
     priceScheduled: planned !== null,
     individual,
+    hasOwnPrice: individual || own !== null,
     individualHint: individual ? individualHint(price, setBy) : null,
     scheduledText: missing && own !== null ? null : scheduledLine(scheduled, options.today, options.label),      // the own planned price already stands as the price: not twice
     scheduled: scheduled ?? null,
@@ -183,7 +186,7 @@ export function paymentRowViews(rows: ReadonlyArray<MembershipPaymentRow>, optio
 export interface PaymentsCounts { all: number; individual: number; debt: number; waiting: number }
 
 export function paymentsCounts(views: ReadonlyArray<GroupPaymentRowView>): PaymentsCounts {
-  return { all: views.length, individual: views.filter((view) => view.individual).length, debt: views.filter((view) => view.hasDebt).length, waiting: views.filter((view) => view.waiting).length };
+  return { all: views.length, individual: views.filter((view) => view.hasOwnPrice).length, debt: views.filter((view) => view.hasDebt).length, waiting: views.filter((view) => view.waiting).length };
 }
 
 /** The search box appears from this many rows (more than 8, like on «Цены групп»). */
@@ -194,7 +197,7 @@ export function filterPaymentRows(views: ReadonlyArray<GroupPaymentRowView>, fil
   const words = search.toLowerCase().split(/\s+/).filter(Boolean);
   const byName = (a: GroupPaymentRowView, b: GroupPaymentRowView) => a.name.localeCompare(b.name, "ru");
   return views
-    .filter((view) => (filter === "individual" ? view.individual : filter === "debt" ? view.hasDebt : filter === "waiting" ? view.waiting : true))
+    .filter((view) => (filter === "individual" ? view.hasOwnPrice : filter === "debt" ? view.hasDebt : filter === "waiting" ? view.waiting : true))
     .filter((view) => words.every((word) => `${view.name} ${view.displayId ?? ""}`.toLowerCase().includes(word)))
     .sort((a, b) => (filter === "debt" || filter === "waiting" ? b.debt - a.debt || byName(a, b) : byName(a, b)));
 }

@@ -84,3 +84,22 @@ test("Р4-1 место 8: окно «Назначить индивидуальн
     await run.page.close();
   }
 });
+
+test("Р4-1 счётчики: фильтр «Индивидуальная цена (N)» вкладки группы считает и запланированные свои цены (показан ученик со своей ценой); «Цены групп» — число сервера", async () => {
+  const gp = lib("group-payments.ts");
+  const label = "Цена в месяц";
+  const inForce = { amount: 500000, source: "group", valid_from: "2026-09-01", group_amount: 500000, reason: null };
+  const mk = (id, price) => gp.paymentRowView({ ...ROW, membership_id: id, student_id: id, student_name: "Ученик " + id, price, monthly_fee: price.amount }, { label, today: "2026-11-15", groupScheduled: null });
+  const views = [mk("a", NONE), mk("b", OWN), mk("c", { ...inForce, scheduled: OWN_PLAN }), mk("d", { ...inForce, source: "override", reason: "льгота" }), mk("e", inForce), mk("f", { ...inForce, scheduled: { ...OWN_PLAN, amount: null } })];
+  assert.deepEqual(gp.paymentsCounts(views).individual, 3, "b (своя запланированная, цены нет), c (действует групповая, запланирована своя), d (своя действует)");
+  assert.deepEqual(gp.filterPaymentRows(views, "individual").map((v) => v.name), ["Ученик b", "Ученик c", "Ученик d"]);
+  assert.equal(gp.filterChipLabel("individual", gp.paymentsCounts(views)), "Индивидуальная цена (3)");
+  const rows = [{ ...ROW, price: OWN }, { ...ROW, membership_id: "m2", student_id: "s2", student_name: "Петров Пётр", price: { amount: 500000, source: "group", valid_from: "2026-09-01", group_amount: 500000, reason: null } }];
+  for (const width of [375, 1280]) {
+    const run = await mounted("money-g4.entry.tsx", "groupTab", {}, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: rows.map((x) => ({ ...x, debt: 0, status: "ok" })), total: 2, limit: 50, offset: 0 } } : null), width);
+    await run.page.waitForSelector('[data-testid="group-payment-row"]');
+    assert.match(plain(await run.page.textContent("body")), /Индивидуальная цена \(1\)/);
+    await run.page.screenshot({ path: path.join(shots, `counters-grouptab-${width}.png`) });
+    await run.page.close();
+  }
+});
