@@ -59,7 +59,7 @@ const roleConfig: Record<string, { label: string; pluralLabel: string; color: st
 /** Р4-2: the counter of a staff tab on a phone (hidden from sm up, where the brackets stand); no badge for zero. */
 function StaffTabBadge({ count, active }: { count: number; active: boolean }) {
   if (count <= 0) return null;
-  return <span data-testid="staff-tab-count" className={`rounded-md px-1.5 py-0.5 text-[10px] leading-none sm:hidden ${active ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>{count}</span>;
+  return <span data-testid="staff-tab-count" className={`rounded-md px-1.5 py-0.5 text-xs leading-none sm:hidden ${active ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>{count}</span>;
 }
 
 export default function OwnerTeachersPage() {
@@ -306,7 +306,7 @@ function OwnerTeachersContent() {
         >
           Приглашения 
           {pendingInvites.length > 0 && (
-            <span className={`px-2 py-0.5 rounded-md text-xs max-sm:px-1.5 max-sm:text-[10px] ${activeTab === "invites" ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>
+            <span className={`px-2 py-0.5 rounded-md text-xs max-sm:px-1.5 max-sm:text-xs ${activeTab === "invites" ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>
               {pendingInvites.length}
             </span>
           )}
