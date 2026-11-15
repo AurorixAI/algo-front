@@ -10,7 +10,7 @@
  * `paid_until = accounting start - 1` is a REAL opening («на начало долга нет»): it is written, and the row stops being «не заполнено».
  */
 import { MONTHS_NOMINATIVE } from "./ru-calendar";
-import { formatPrice, priceLabelOf, type PriceInfo } from "./group-price";
+import { formatPrice, plannedPriceOf, priceLabelOf, priceNotInForceText, type GroupPriceScheduled, type PriceInfo } from "./group-price";
 import {
   formatDateRu,
   formatMoney,
@@ -269,6 +269,10 @@ export function normalizeRow(raw: Raw): OpeningRow {
       valid_from: text(price.valid_from),
       group_amount: price.group_amount === null || price.group_amount === undefined ? null : num(price.group_amount),
       reason: text(price.reason),
+      // Р4-1: the student's own planned price (PriceOut.scheduled) - without it «цена не задана» would hide it
+      scheduled: price.scheduled && typeof price.scheduled === "object" && typeof price.scheduled.valid_from === "string"
+        ? { amount: price.scheduled.amount === null || price.scheduled.amount === undefined ? null : num(price.scheduled.amount), valid_from: String(price.scheduled.valid_from) }
+        : undefined,
     },
     enrolled_on: String(raw.enrolled_on ?? ""),
     status: raw.status === "left" ? "left" : "active",
@@ -480,9 +484,9 @@ export function valueText(value: OpeningValue | null | undefined, accountingStar
 }
 
 /** «600 000 сум/мес · инд.», «1 200 000 сум за пакет», «бесплатно», «цена не задана». */
-export function priceText(row: Pick<OpeningRow, "price" | "mode">): string {
+export function priceText(row: Pick<OpeningRow, "price" | "mode">, groupScheduled?: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null): string {
   const price = row.price;
-  if (!price || price.source === "none" || price.amount === null || price.amount === undefined) return "цена не задана";
+  if (!price || price.source === "none" || price.amount === null || price.amount === undefined) return priceNotInForceText(plannedPriceOf(price, groupScheduled), "цена не задана");      // Р4-1: planned (his own first, else the group's) is not «не задана»
   const base = formatPrice(price.amount, priceLabelOf(row.mode));
   return price.source === "override" && price.amount !== 0 ? `${base} · инд.` : base;
 }
@@ -495,7 +499,7 @@ export interface RowChip {
 }
 
 /** The small marks of a row: pause, individual price, transfer, free, payments exist, left, no price, to review. */
-export function rowChips(row: OpeningRow, accountingStart: string): RowChip[] {
+export function rowChips(row: OpeningRow, accountingStart: string, groupScheduled?: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null): RowChip[] {
   const chips: RowChip[] = [];
   if (row.status === "left") chips.push({ key: "left", label: row.left_on ? `ушёл ${formatDayMonthRu(row.left_on)}` : "ушёл", tone: "slate" });
   if (row.paused) chips.push({ key: "paused", label: "пауза", tone: "sky" });
@@ -503,7 +507,7 @@ export function rowChips(row: OpeningRow, accountingStart: string): RowChip[] {
   if (row.reason_not_editable === "transfer") chips.push({ key: "transfer", label: "пришёл переводом", tone: "slate" });
   if (row.reason_not_editable === "free") chips.push({ key: "free", label: "бесплатно", tone: "slate" });
   if (row.has_money_records) chips.push({ key: "money", label: "есть оплаты", tone: "amber", title: "Правка остатка у ученика с оплатами требует причины" });
-  if (row.price.source === "none" || row.price.amount === null) chips.push({ key: "no_price", label: "нет цены", tone: "amber", title: "Пока у группы нет цены, стоимость не считается" });
+  if ((row.price.source === "none" || row.price.amount === null) && plannedPriceOf(row.price, groupScheduled) === null) chips.push({ key: "no_price", label: "нет цены", tone: "amber", title: "Пока у группы нет цены, стоимость не считается" });
   if (row.needs_review) chips.push({ key: "review", label: "проверьте даты", tone: "rose", title: "Остаток не подходит под дату начала учёта: исправьте или уберите" });
   if (row.status !== "left" && row.enrolled_on && accountingStart && row.enrolled_on >= accountingStart && !row.opening) {
     chips.push({ key: "late", label: `пришёл ${formatDayMonthRu(row.enrolled_on)}`, tone: "slate", title: "Пришёл после начала учёта: остаток обычно не нужен" });

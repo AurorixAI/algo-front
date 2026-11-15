@@ -298,7 +298,7 @@ export function AssignGroupModal({
   const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { pay_from: payBody, price_override: dryException.request }, signal));
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
-  const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1) : null;
+  const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1, scheduledPrices[selectedGroup.id]) : null;
 
   const closeAfterSuccess = () => {
     if (assignedSuccessGroup) onAssigned(assignedSuccessGroup);

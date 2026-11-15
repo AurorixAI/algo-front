@@ -26,7 +26,9 @@ import {
   pastDateWarning,
   priceDateRange,
   priceLabelOf,
+  priceNotInForceText,
   priceMenuActions,
+  plannedPriceOf,
   priceOfRow,
   PRICE_CONFLICT_TEXT,
   sinceText,
@@ -36,6 +38,7 @@ import {
   type PriceOverrideRequest,
   type PriceOverrideRow,
 } from "@/lib/group-price";
+import { extrasFromHistory } from "@/lib/group-payments";
 import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { Notice } from "@/components/ui/notice";
@@ -59,11 +62,12 @@ export function MembershipPriceLine({ row, periodMode, groupsBasePath }: {
   const noPrice = (priceOfRow(row).amount ?? null) === null;
   const scheduled = useScheduledGroupPrices(noPrice)[row.group_id] ?? null;      // G3M Ф6: «Цена с 25.11 — 400 000 сум», not «не задана»
   const view = membershipPriceLine(priceOfRow(row), priceLabelOf(periodMode), scheduled);
+  const planned = plannedPriceOf(priceOfRow(row), scheduled);      // Р4-1: his own planned price first, else the group's
   return view.kind === "none" ? (
     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-      <span className={`font-medium ${scheduled ? "text-slate-800" : "text-amber-800"}`} data-testid="membership-price">{view.text}</span>
+      <span className={`font-medium ${planned ? "text-slate-800" : "text-amber-800"}`} data-testid="membership-price">{view.text}</span>
       <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-semibold text-primary-700 hover:underline">
-        {scheduled ? "Цена группы" : "Задать цену группы"}
+        {planned ? "Цена группы" : "Задать цену группы"}
       </Link>
     </p>
   ) : (
@@ -103,7 +107,7 @@ interface IndividualPriceDialogProps {
 export function IndividualPriceDialog({ open, row, studentName, periodMode, onClose, onRowChange, onNotify }: IndividualPriceDialogProps) {
   const label = priceLabelOf(periodMode);
   const price = priceOfRow(row);
-  const view = membershipPriceLine(price, label);
+  const groupScheduled = useScheduledGroupPrices(open && (price.amount ?? null) === null)[row.group_id] ?? null;      // Р4-1: no price today - is one planned?
   const [dialog, setDialog] = useState<Dialog>(null);
   const [history, setHistory] = useState<MembershipPrice | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -122,6 +126,11 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
       .catch((cause) => { if (requests.isCurrent(token)) setHistoryError(cause instanceof Error ? cause.message : "Не удалось загрузить историю цены"); });
     return () => { requests.next(); };
   }, [open, row.membership_id, priceKey, reloads, requests]);
+
+  // «Сейчас:» says the same as the line of the card: his own planned price (the row's, else the history's) first, else the group's, else «не задана»
+  const own = price.scheduled !== undefined ? price.scheduled : extrasFromHistory(price, history?.history).scheduled;
+  const view = membershipPriceLine({ ...price, scheduled: own }, label, groupScheduled);
+  const planned = plannedPriceOf({ ...price, scheduled: own }, groupScheduled);
 
   // The individual price in force starts on `activeFrom`; the scheduled ones can be cancelled.
   const activeFrom = activeOverrideFrom(price);
@@ -163,7 +172,7 @@ export function IndividualPriceDialog({ open, row, studentName, periodMode, onCl
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
             <span className="text-xs text-slate-500">Сейчас: </span>
             {view.kind === "none" ? (
-              <span className="font-medium text-amber-800">{view.text}</span>
+              <span className={`font-medium ${planned ? "text-slate-900" : "text-amber-800"}`} data-testid="individual-price-now">{view.text}</span>
             ) : (
               <>
                 {view.lead ? `${view.lead} ` : null}
@@ -333,6 +342,7 @@ export function AssignOverrideDialog({
   const [offered, setOffered] = useState(false);
   const [correcting, setCorrecting] = useState(false);
   const price = priceOfRow(row);
+  const groupPlanned = useScheduledGroupPrices(open && (price.group_amount ?? null) === null)[row.group_id] ?? null;      // Р4-1: «Цена группы не задана» only when none is planned either
   const range = priceDateRange(today);
 
   useEffect(() => {
@@ -404,7 +414,7 @@ export function AssignOverrideDialog({
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
           Это исключение только для этого ученика. {price.group_amount !== null && price.group_amount !== undefined
             ? `Остальные платят по цене группы: ${formatPrice(price.group_amount, label)}.`
-            : "Цена группы не задана."}
+            : `${priceNotInForceText(groupPlanned, "Цена группы не задана")}.`}
         </p>
         <MoneyField id="membership-price-amount" label={`Индивидуальная ${label.charAt(0).toLowerCase()}${label.slice(1)}`} value={amount} onChange={(text) => { setError(null); setAmount(text); }} autoFocus />
         <div>

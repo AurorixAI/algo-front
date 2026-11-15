@@ -495,7 +495,7 @@ test("К2 (экран): вкладка «Оплаты» группы с запл
         assert.ok(summary.includes("Цена с 01.12 — 420 000 сум"));
       } else {
         assert.deepEqual(texts, ["Не задана", "Не задана"]);
-        assert.ok(summary.includes("Цена группы не задана"));
+        assert.equal(summary, "Задать цену группы");      // Р4-1: the warning is the chip of the header; the tab keeps only the action
       }
       if (scheduled) await run.page.screenshot({ path: path.join(shots, `k2-paytab-${width}.png`), fullPage: true });
       await run.page.close();

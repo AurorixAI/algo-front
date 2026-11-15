@@ -46,7 +46,7 @@ import {
   canWriteOff,
   savedPaymentToastDetails,
 } from "@/lib/payments-ledger";
-import { FREE_WORD, groupPriceHref, priceLabelOf, priceNotInForceText, priceOfRow, priceSourceTag, pricesBaseOf, type GroupPriceScheduled } from "@/lib/group-price";
+import { FREE_WORD, groupPriceHref, plannedPriceOf, priceLabelOf, priceNotInForceText, priceOfRow, priceSourceTag, pricesBaseOf, type GroupPriceScheduled } from "@/lib/group-price";
 import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
@@ -514,6 +514,7 @@ function PaymentRow({
   const reason = bucket === "debt" || bucket === "waiting" ? debtReasonLine(row, chip.label) : "";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
+  const planned = plannedPriceOf(price, scheduledPrice);      // Р4-1: the student's own planned price first, else the group's
   const tag = priceSourceTag(price);
 
   // IA audit F4 / d3: at most three items - forgive the debt OR give the advance back, correct the last payment, cancel it (danger last).
@@ -554,8 +555,8 @@ function PaymentRow({
       <DataCell col="group">{group}</DataCell>
       <DataCell col="price">
         {price.amount === null || price.amount === undefined ? (
-          <Link href={groupPriceHref(groupsBasePath, row.group_id)} data-testid="payment-row-price-missing" className={`text-xs font-medium hover:underline ${scheduledPrice ? "text-slate-700" : "text-amber-800"}`} title={scheduledPrice ? "Открыть цену группы" : "Открыть группу и задать цену"}>
-            {priceNotInForceText(scheduledPrice, "цена группы не задана")}
+          <Link href={groupPriceHref(groupsBasePath, row.group_id)} data-testid="payment-row-price-missing" className={`text-xs font-medium hover:underline ${planned ? "text-slate-700" : "text-amber-800"}`} title={planned ? "Открыть цену группы" : "Открыть группу и задать цену"}>
+            {priceNotInForceText(planned, "цена группы не задана")}
           </Link>
         ) : (
           <span>

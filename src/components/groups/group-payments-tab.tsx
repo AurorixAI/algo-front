@@ -219,11 +219,11 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
 
   return (
     <div className="space-y-4" data-testid="group-payments-tab">
-      {/* The price is in the header chips; only a group without one gets a line here, because that is an action */}
+      {/* The price is in the header chips.  A planned price (the chip is silent) says so here; with none at all the chip already warns, so here is only the action (LL 87: said once) */}
       {!groupPrice && (
         <p className="text-sm text-slate-600" data-testid="group-payments-summary">
-          <span className="font-semibold text-slate-900">{priceNotInForceText(groupScheduledPrice, "Цена группы не задана")}</span>
-          <Link href={groupPriceHref(groupsBasePath, groupId)} className="ml-3 text-xs font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</Link>
+          {groupScheduledPrice && <span className="mr-3 font-semibold text-slate-900">{priceNotInForceText(groupScheduledPrice, "Цена группы не задана")}</span>}
+          <Link href={groupPriceHref(groupsBasePath, groupId)} className={groupScheduledPrice ? "text-xs font-semibold text-primary-700 hover:underline" : "inline-flex min-h-10 items-center text-sm font-semibold text-primary-700 hover:underline sm:min-h-0"} data-testid="group-payments-set-price">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</Link>
         </p>
       )}
 

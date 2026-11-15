@@ -299,7 +299,8 @@ test("the tab renders the line of the group and a loader first (no table before 
     groupId: "g1", groupName: "Группа А", groupPrice: null, groupsBasePath: "/owner/groups",
     studentsBasePath: "/owner/students", paymentsBasePath: "/owner/payments", joinedAt: {}, filter: "all", onFilterChange: () => undefined,
   }));
-  assert.match(noPrice, /Цена группы не задана/);
+  assert.doesNotMatch(noPrice, /Цена группы не задана/, "Р4-1 / LL 87: the chip of the header already warns");
+  assert.match(noPrice, /Задать цену группы/);
   assert.match(noPrice, /href="\/owner\/payments\/prices\?group=g1"/); // «Задать цену группы»
 });
 

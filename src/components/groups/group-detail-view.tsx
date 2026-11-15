@@ -640,6 +640,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
             groupId={groupId}
             groupClassLevel={group.class_level}
             groupPrice={group.price_current}
+            groupScheduledPrice={scheduledPrice ?? null}
             groupsBasePath={paths.groups}
             existingStudentIds={existingIds}
             onClose={() => setAddOpen(false)}

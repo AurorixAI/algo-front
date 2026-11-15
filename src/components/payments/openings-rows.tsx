@@ -22,6 +22,8 @@ import {
   type RowDraft,
 } from "@/lib/openings";
 import { studentHref } from "@/lib/ia-links";
+import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
+import type { GroupPriceScheduled } from "@/lib/group-price";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NumberInput } from "@/components/ui/number-input";
@@ -64,6 +66,8 @@ export interface OpeningsListProps {
   onToggleGroup: (group: OpeningGroupBlock) => void;
   onEdit: (row: OpeningRow, patch: Partial<RowDraft>) => void;
   onUndo: (row: OpeningRow) => void;
+  /** Р4-1: the prices of groups planned from a day (set by `OpeningsGroups`; one request for the page). */
+  scheduledPrices?: Record<string, GroupPriceScheduled>;
 }
 
 /** The header row of the wide table: one cell per column of the template (the checkbox column has a cell too, or every title sits one column off). */
@@ -85,10 +89,11 @@ export function OpeningsTableHead({ lessons }: { lessons: boolean }) {
 /** The groups as an accordion: the name, the teacher and «заполнено x из y» in the header; the rows inside. */
 export function OpeningsGroups(props: OpeningsListProps) {
   const { groups, openIds, onToggleOpen } = props;
+  const scheduledPrices = useScheduledGroupPrices(groups.some((group) => group.memberships.some((row) => (row.price.amount ?? null) === null)));      // Р4-1
   return (
     <div className="space-y-3">
       {groups.map((group) => (
-        <GroupBlock key={group.id} group={group} open={openIds.has(group.id)} onToggle={() => onToggleOpen(group.id)} {...props} />
+        <GroupBlock key={group.id} group={group} open={openIds.has(group.id)} onToggle={() => onToggleOpen(group.id)} {...props} scheduledPrices={scheduledPrices} />
       ))}
     </div>
   );
@@ -165,7 +170,7 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
   const left = row.status === "left";
   const lessonsMode = row.mode === "lessons";
   const arrow = arrows[id] ?? null;
-  const chips = rowChips(row, accountingStart);
+  const chips = rowChips(row, accountingStart, props.scheduledPrices?.[row.group.id]);
   const name = row.student.name;
   const disabled = !row.editable;
   const debtDate = shown.debtOn || row.floor;
@@ -208,7 +213,7 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
         <span className="text-xs text-slate-500 xl:hidden">{lessonsMode ? "Цена пакета" : "Цена в месяц"}</span>
-        <span className="tabular-nums text-slate-700" data-testid="openings-price">{priceText(row)}</span>
+        <span className="tabular-nums text-slate-700" data-testid="openings-price">{priceText(row, props.scheduledPrices?.[row.group.id])}</span>
       </div>
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block">

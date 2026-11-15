@@ -13,6 +13,7 @@ import {
   targetGroupPriceHint,
   targetGroupPriceText,
   type GroupPriceBrief,
+  type GroupPriceScheduled,
 } from "@/lib/group-price";
 import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
@@ -72,6 +73,8 @@ interface AddStudentDrawerProps {
    * see money (the key is absent).  The students added here take it.
    */
   groupPrice?: GroupPriceBrief | null;
+  /** Р4-1: the price of the group planned from a day while none is in force (`GET /org/group-prices`): «Цена с 25.11 — 400 000 сум», not «не задана». */
+  groupScheduledPrice?: GroupPriceScheduled | null;
   /** Where the groups live («/owner/groups»): «Задать цену группы» leads to the page «Оплаты -> Цены групп» next to it. */
   groupsBasePath?: string;
   existingStudentIds: Set<string>;
@@ -80,7 +83,7 @@ interface AddStudentDrawerProps {
 }
 
 export function AddStudentDrawer({
-  open, groupId, groupClassLevel, groupPrice, groupsBasePath, existingStudentIds, onClose, onAdded,
+  open, groupId, groupClassLevel, groupPrice, groupScheduledPrice, groupsBasePath, existingStudentIds, onClose, onAdded,
 }: AddStudentDrawerProps) {
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
@@ -210,8 +213,8 @@ export function AddStudentDrawer({
   // A NEW student (no previous group) has nothing to carry over: the one line «Цена группы: …» is enough; the sentence about the previous group only for a real transfer.
   const priceHint = mode === "transfer" && transfers.length === 0 ? null : enrolPriceHint({ transfer: mode === "transfer", moneyAvailable });
   // The price of this group, shown to money roles only (the key is absent for the others).
-  const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel) : null;
-  const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size) : null;
+  const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel, groupScheduledPrice) : null;
+  const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size, groupScheduledPrice) : null;
 
   // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
   const today = formatBusinessDate();
@@ -371,9 +374,9 @@ export function AddStudentDrawer({
             {priceLine && (
               <>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className={`font-semibold ${groupPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
+                  <span className={`font-semibold ${groupPrice || groupScheduledPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
                   {groupPrice === null && (
-                    <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
+                    <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</a>
                   )}
                 </p>
                 {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}

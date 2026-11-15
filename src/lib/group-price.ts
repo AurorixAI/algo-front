@@ -389,9 +389,9 @@ export interface PriceLine {
  * «Цена 500 000 сум/мес · цена группы», «Индивидуальная цена 400 000 сум/мес · Сестра ученика», «Цена группы не задана».
  * A price of 0 is a price: «Бесплатно · цена группы».
  */
-export function membershipPriceLine(price: PriceInfo | null | undefined, label: string, groupScheduled?: GroupPriceScheduled | null): PriceLine {
+export function membershipPriceLine(price: PriceInfo | null | undefined, label: string, groupScheduled?: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null): PriceLine {
   if (!price || price.source === "none" || price.amount === null || price.amount === undefined) {
-    const text = priceNotInForceText(groupScheduled, "Цена группы не задана");      // G3M Ф6
+    const text = priceNotInForceText(plannedPriceOf(price, groupScheduled), "Цена группы не задана");      // G3M Ф6 / Р4-1: the student's own planned price first
     return { kind: "none", lead: text, value: null, tail: "", text, title: null };
   }
   const free = price.amount === 0;
@@ -461,6 +461,18 @@ export function priceNotInForceText(scheduled: Pick<GroupPriceScheduled, "amount
   if (form === "bare") return tail;      // under a caption that already says «Цена …» («Цена в месяц»): «с 01.12 — 420 000 сум»
   const text = `Цена ${tail}`;
   return fallback.charAt(0) === fallback.charAt(0).toLowerCase() ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
+/**
+ * G3M Р4-1: the ONE choice of «what is planned» for a student who pays nothing today (no price in force): his OWN scheduled individual price first (it wins over the group's), else the group's planned price, else null («не задана»).
+ * A student with a price in force has nothing planned to show here (null).  `scheduled.amount: null` of an own row means «the group price again» - it is not a sum, so the group's planned price stands.
+ */
+export function plannedPriceOf(price: PriceInfo | null | undefined, groupScheduled?: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null): { amount: number; valid_from: string } | null {
+  const missing = !price || price.source === "none" || price.amount === null || price.amount === undefined;
+  if (!missing) return null;
+  const own = price?.scheduled;
+  if (own && typeof own.amount === "number") return { amount: own.amount, valid_from: own.valid_from };
+  return groupScheduled && typeof groupScheduled.amount === "number" ? { amount: groupScheduled.amount, valid_from: groupScheduled.valid_from } : null;
 }
 
 export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null; price_scheduled?: GroupPriceScheduled | null }>): number {
@@ -875,14 +887,15 @@ export function enrolPriceHint(input: { transfer: boolean; moneyAvailable: boole
 }
 
 /** «Цена группы: 500 000 сум/мес» / «Цена группы не задана»; null for a role that does not see money (`price` undefined). */
-export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, label: string): string | null {
+export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, label: string, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null;
-  return price === null ? "Цена группы не задана" : `Цена группы: ${formatPrice(price.amount, label)}`;
+  return price === null ? priceNotInForceText(scheduled, "Цена группы не задана") : `Цена группы: ${formatPrice(price.amount, label)}`;
 }
 
 /** «Цену получат все добавленные ученики» / «Цену получит ученик» for the line under the price of the target group. */
-export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, students: number): string | null {
+export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, students: number, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null;
+  if (price === null && scheduled) return "До начала действия цены сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";      // Р4-1: the price is planned, not «не задана»
   if (price === null) return "Пока цена не задана, сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";
   return students === 1 ? "Эту цену получит ученик" : "Эту цену получат все добавляемые ученики";
 }

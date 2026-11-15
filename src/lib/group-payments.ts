@@ -13,6 +13,7 @@ import {
   formatPriceAmount,
   priceLabelOf,
   priceNotInForceText,
+  plannedPriceOf,
   priceOfRow,
   scheduledOverrides,
   sinceText,
@@ -148,7 +149,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
   const individual = price.source === "override" && price.amount !== null && price.amount !== undefined;
   const missing = price.source === "none" || price.amount === null || price.amount === undefined;
   const own = scheduled && typeof scheduled.amount === "number" ? { amount: scheduled.amount, valid_from: scheduled.valid_from } : null;
-  const planned = missing ? own ?? options.groupScheduled ?? null : null;      // К2: no price in force, one planned - the student's own first, else the group's
+  const planned = plannedPriceOf({ ...price, scheduled }, options.groupScheduled);      // К2 / Р4-1: no price in force, one planned - the student's own first, else the group's (one function for every screen)
   const debt = Math.max(0, Math.round(Number(row.debt) || 0));
   return {
     key: row.membership_id,
@@ -162,7 +163,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     priceScheduled: planned !== null,
     individual,
     individualHint: individual ? individualHint(price, setBy) : null,
-    scheduledText: planned !== null && planned === own ? null : scheduledLine(scheduled, options.today, options.label),      // the own planned price already stands as the price: not twice
+    scheduledText: missing && own !== null ? null : scheduledLine(scheduled, options.today, options.label),      // the own planned price already stands as the price: not twice
     scheduled: scheduled ?? null,
     chip: membershipChip(row),
     debt,
