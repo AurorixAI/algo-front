@@ -487,6 +487,13 @@ export function groupPriceNotSetText(planned: Pick<GroupPriceScheduled, "amount"
   return tail ? `Сейчас цена не задана. Запланирована: ${tail}.` : "Сейчас цена не задана.";
 }
 
+/** Р4-1 (place 8, the window «Назначить индивидуальную цену»): what the others pay - a reference about the GROUP, so a planned price carries the caption «Цена группы» and the bare value. */
+export function othersPayText(groupAmount: number | null | undefined, label: string, groupPlanned: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null | undefined): string {
+  if (groupAmount !== null && groupAmount !== undefined) return `Остальные платят по цене группы: ${formatPrice(groupAmount, label)}.`;
+  const tail = priceNotInForceText(groupPlanned, "", "bare");
+  return tail ? `Цена группы: ${tail}.` : "Цена группы не задана.";
+}
+
 export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null; price_scheduled?: GroupPriceScheduled | null }>): number {
   return groups.filter((group) => group.status !== "archived" && lacksGroupPrice(group)).length;
 }

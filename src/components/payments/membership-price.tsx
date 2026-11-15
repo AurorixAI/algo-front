@@ -29,6 +29,7 @@ import {
   priceNotInForceText,
   priceMenuActions,
   plannedPriceOf,
+  othersPayText,
   priceOfRow,
   PRICE_CONFLICT_TEXT,
   sinceText,
@@ -411,10 +412,8 @@ export function AssignOverrideDialog({
       footer={<ConfirmFooter primary={`Сохранить цену${formCheck.request?.amount ? ` ${formatMoney(formCheck.request.amount)}` : ""}`} submitFor="membership-price-form" busy={busy} disabled={unusualText !== null && !confirmed && !whatIf.blocked} why={null} whyId="membership-price-why" onCancel={onClose} testId="membership-price-save" />}
     >
       <form id="membership-price-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
-        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
-          Это исключение только для этого ученика. {price.group_amount !== null && price.group_amount !== undefined
-            ? `Остальные платят по цене группы: ${formatPrice(price.group_amount, label)}.`
-            : `${priceNotInForceText(groupPlanned, "Цена группы не задана")}.`}
+        <p data-testid="assign-others-pay" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
+          Это исключение только для этого ученика. {othersPayText(price.group_amount, label, groupPlanned)}
         </p>
         <MoneyField id="membership-price-amount" label={`Индивидуальная ${label.charAt(0).toLowerCase()}${label.slice(1)}`} value={amount} onChange={(text) => { setError(null); setAmount(text); }} autoFocus />
         <div>

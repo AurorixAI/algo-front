@@ -67,3 +67,20 @@ test("Р4-1 место 12: окно «Цена группы» без цены �
   assert.doesNotMatch(plain(await none.page.textContent('[data-testid="group-price-now"]')), /Запланирована/);
   await none.page.close();
 });
+
+test("Р4-1 место 8: окно «Назначить индивидуальную цену» — справка о цене ГРУППЫ с подписью «Цена группы: с 01.12 — 420 000 сум.» (форма bare), у ученика со своей запланированной 380 000", async () => {
+  const g = lib("group-price.ts");
+  assert.equal(plain(g.othersPayText(500000, "Цена в месяц", GROUP_PLAN)), "Остальные платят по цене группы: 500 000 сум/мес.");
+  assert.equal(plain(g.othersPayText(null, "Цена в месяц", GROUP_PLAN)), "Цена группы: " + T_B + ".");
+  assert.equal(g.othersPayText(null, "Цена в месяц", null), "Цена группы не задана.");
+  for (const width of [375, 1280]) {
+    const run = await mounted("money-g4.entry.tsx", "assign", { row: { ...ROW, price: OWN } }, server(PRICES), width);
+    await run.page.waitForFunction(() => /Цена группы: с 01/.test(document.querySelector('[data-testid="assign-others-pay"]')?.textContent || ""));
+    const text = plain(await run.page.textContent('[data-testid="assign-others-pay"]'));
+    assert.match(text, /Цена группы: с 01\.12 — 420 000 сум\./);
+    assert.doesNotMatch(text, /380/);
+    await run.page.waitForTimeout(400);
+    await run.page.screenshot({ path: path.join(shots, `p8-assign-${width}.png`) });
+    await run.page.close();
+  }
+});
