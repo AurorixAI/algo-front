@@ -4,7 +4,8 @@ import { createRoot } from "react-dom/client";
 import { PaymentsPage } from "@/components/payments/payments-page";
 import { AddStudentDrawer } from "@/components/groups/add-student-drawer";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
-import { IndividualPriceDialog, MembershipPriceLine } from "@/components/payments/membership-price";
+import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
+import { AssignOverrideDialog, IndividualPriceDialog, MembershipPriceLine } from "@/components/payments/membership-price";
 import { OpeningsGroups } from "@/components/payments/openings-rows";
 import { normalizeRow } from "@/lib/openings";
 import { useAuthStore } from "@/lib/store";
@@ -32,6 +33,12 @@ w.mount = (name: string, props: any = {}) => {
       break;
     case "individual":
       root.render(<IndividualPriceDialog open row={props.row} studentName="Иванов Иван" periodMode={"calendar" as never} onClose={() => {}} onRowChange={() => {}} onNotify={() => {}} />);
+      break;
+    case "groupPriceNone":
+      root.render(<GroupPriceDialog open groupId="g1" groupName="Алгебра 7" label="Цена в месяц" current={null} history={props.history ?? []} onClose={() => {}} onSaved={() => {}} onConflict={() => {}} />);
+      break;
+    case "assign":
+      root.render(<AssignOverrideDialog open row={props.row} studentName="Иванов Иван" label="Цена в месяц" onClose={() => {}} onConflict={() => {}} onSaved={() => {}} />);
       break;
     case "openings": {
       const rows = (props.rows as any[]).map(normalizeRow);

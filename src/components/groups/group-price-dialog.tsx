@@ -15,6 +15,8 @@ import {
   impactStudentsText,
   isNoopPriceChange,
   CHANGE_GROUP_PRICE_LABEL,
+  groupPlannedFromHistory,
+  groupPriceNotSetText,
   isPriceConflict,
   priceColumnLabel,
   PAID_NEVER_CHANGE_TEXT,
@@ -228,10 +230,10 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
             autoFocus
             describedBy="group-price-amount-note"
           />
-          <p id="group-price-amount-note" className="mt-1 text-xs text-slate-500">
+          <p id="group-price-amount-note" data-testid="group-price-now" className="mt-1 text-xs text-slate-500">
             {current
               ? current.amount === 0 ? "Сейчас: бесплатно. " : `Сейчас: ${formatMoneyInput(current.amount)} сум. `
-              : "Сейчас цена не задана. "}
+              : `${groupPriceNotSetText(groupPlannedFromHistory(history))} `}
             Цена 0 — занятия бесплатные.
           </p>
         </div>

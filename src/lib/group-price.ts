@@ -475,6 +475,18 @@ export function plannedPriceOf(price: PriceInfo | null | undefined, groupSchedul
   return groupScheduled && typeof groupScheduled.amount === "number" ? { amount: groupScheduled.amount, valid_from: groupScheduled.valid_from } : null;
 }
 
+/** The soonest price of a group that starts after today, from the saved rows of its history (`is_future`); null when none is planned. */
+export function groupPlannedFromHistory(history: ReadonlyArray<Pick<GroupPriceRow, "amount" | "valid_from" | "is_future">> | null | undefined): { amount: number; valid_from: string } | null {
+  const next = (history ?? []).filter((row) => row.is_future).sort((a, b) => a.valid_from.localeCompare(b.valid_from))[0];
+  return next ? { amount: next.amount, valid_from: next.valid_from } : null;
+}
+
+/** Р4-1 (place 12, the window «Цена группы» of a group with no price in force): «Сейчас цена не задана.» and, when one is planned, «Запланирована: с 01.12 — 420 000 сум.» (the bare form: «Цена» is not repeated). */
+export function groupPriceNotSetText(planned: Pick<GroupPriceScheduled, "amount" | "valid_from"> | null | undefined): string {
+  const tail = priceNotInForceText(planned, "", "bare");
+  return tail ? `Сейчас цена не задана. Запланирована: ${tail}.` : "Сейчас цена не задана.";
+}
+
 export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null; price_scheduled?: GroupPriceScheduled | null }>): number {
   return groups.filter((group) => group.status !== "archived" && lacksGroupPrice(group)).length;
 }
