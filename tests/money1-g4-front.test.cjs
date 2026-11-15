@@ -144,11 +144,11 @@ for (const [state, price, expected] of CASES) {
     await run.page.close();
   });
 
-  test(`Р4-1 место 5, страница «Оплаты» центра (${state}): колонка цены «цена ${expected}»`, async () => {
+  test(`Р4-1 место 5, страница «Оплаты» центра (${state}): колонка цены «${expected}» (bare, подпись столбца — «Цена в месяц»)`, async () => {
     const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, current_due: 100000, status: "debt" }], total: 1, limit: 50, offset: 0 } } : r.path === "/auth/org/payments/summary" ? { json: {} } : null));
     const run = await mounted("money-g4.entry.tsx", "payments", {}, answer);
     await run.page.waitForFunction((t) => (document.querySelector('[data-testid="payment-row-price-missing"]')?.textContent || "").replace(/[\s  ]+/g, " ").includes(t), expected, { timeout: 8000 });
-    assert.equal(plain(await run.page.textContent('[data-testid="payment-row-price-missing"]')), "цена " + expected);
+    assert.equal(plain(await run.page.textContent('[data-testid="payment-row-price-missing"]')), expected);
     await run.page.close();
   });
 }

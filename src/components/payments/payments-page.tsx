@@ -556,7 +556,7 @@ function PaymentRow({
       <DataCell col="price">
         {price.amount === null || price.amount === undefined ? (
           <Link href={groupPriceHref(groupsBasePath, row.group_id)} data-testid="payment-row-price-missing" className={`text-xs font-medium hover:underline ${planned ? "text-slate-700" : "text-amber-800"}`} title={planned ? "Открыть цену группы" : "Открыть группу и задать цену"}>
-            {priceNotInForceText(planned, "цена группы не задана")}
+            {planned ? priceNotInForceText(planned, "", "bare") : "цена группы не задана"}
           </Link>
         ) : (
           <span>
