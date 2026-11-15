@@ -171,11 +171,11 @@ test("a scheduled individual price is a quiet second line «с 01.12 — 400 000
 
 test("filters and counts: «Все (8)», «Индивидуальная цена (3)», «С долгом (1)»; individual by name, debt by the biggest debt", () => {
   const counts = G.paymentsCounts(VIEWS);
-  assert.deepEqual(counts, { all: 8, individual: 3, debt: 1, waiting: 0 });
+  assert.deepEqual(counts, { all: 8, individual: 4, debt: 1, waiting: 0 });      // Р4-1 круг 5: 3 действующие + 1 со своей запланированной ценой
   assert.equal(G.filterChipLabel("all", counts), "Все (8)");
-  assert.equal(G.filterChipLabel("individual", counts), "Индивидуальная цена (3)");
+  assert.equal(G.filterChipLabel("individual", counts), "Индивидуальная цена (4)");
   assert.equal(G.filterChipLabel("debt", counts), "С долгом (1)");
-  assert.deepEqual(G.filterPaymentRows(VIEWS, "individual").map((v) => v.name), ["Бекова Мадина", "Дадаев Саид", "Зокиров Рустам"]);
+  assert.deepEqual(G.filterPaymentRows(VIEWS, "individual").map((v) => v.name), ["Бекова Мадина", "Валиев Тимур", "Дадаев Саид", "Зокиров Рустам"]);      // Валиев — своя запланированная
   assert.deepEqual(G.filterPaymentRows(VIEWS, "debt").map((v) => v.name), ["Ёрова Лола"]);
   assert.equal(G.filterPaymentRows(VIEWS, "all").length, 8);
   assert.deepEqual(G.filterPaymentRows(VIEWS, "all", "мадина").map((v) => v.name), ["Бекова Мадина"]);
@@ -189,7 +189,9 @@ test("filters and counts: «Все (8)», «Индивидуальная цен�
 test("invariant: the count of the filter «Индивидуальная цена» equals the count on «Цены групп» (individual prices in force today)", () => {
   // the server counts active memberships with an override that is in force today and not «цена группы снова»; the tab counts source=override
   const serverCount = ROWS.filter((r) => r.is_active && r.price.source === "override" && r.price.amount !== null && r.price.valid_from <= TODAY).length;
-  assert.equal(G.paymentsCounts(VIEWS).individual, serverCount);
+  // Р4-1 круг 5: the tab ALSO counts a student with an own price planned (his row shows it); the server number of «Цены групп» stays «in force today» - the one planned is the +1
+  assert.equal(G.paymentsCounts(VIEWS).individual, serverCount + 1);
+  assert.equal(VIEWS.filter((v) => v.individual).length, serverCount);
   assert.equal(GP.individualPricesText(serverCount), "3 ученика");
   // 100 students: one list, one number
   const hundred = Array.from({ length: 100 }, (_, i) => row(i + 10, `Ученик ${String(i).padStart(3, "0")}`, i % 20 === 0 ? { price: override(400000) } : {}));
