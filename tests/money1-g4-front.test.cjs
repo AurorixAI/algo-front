@@ -107,6 +107,14 @@ for (const [state, price, expected] of CASES) {
     assert.doesNotMatch(await body(run.page), /не задана/);
     if (state === "в") await run.page.screenshot({ path: path.join(shots, "student-v-1280.png") });
     await run.page.close();
+    if (state === "в") {      // the same at 375: the text of the phone is read, not only the width (LL 126)
+      const phone = await mounted("money-g4.entry.tsx", "priceLine", { row: { ...ROW, price } }, server(PRICES), 375);
+      await phone.page.waitForFunction((t) => (document.body.textContent || "").replace(/[\s\u00a0\u202f]+/g, " ").includes(t), expected);
+      assert.equal(plain(await phone.page.textContent('[data-testid="membership-price"]')), "Цена " + expected);
+      assert.ok((await phone.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+      await phone.page.screenshot({ path: path.join(shots, "student-v-375.png") });
+      await phone.page.close();
+    }
   });
 
   test(`Р4-1 место 7, карточка «Индивидуальная цена» (${state}): «Сейчас: Цена ${expected}» не янтарным`, async () => {
@@ -116,8 +124,15 @@ for (const [state, price, expected] of CASES) {
     const colour = await run.page.locator('[data-testid="individual-price-now"]').evaluate((el) => getComputedStyle(el).color);
     assert.notEqual(colour, "rgb(146, 64, 14)", "не янтарный");
     assert.doesNotMatch(plain(await run.page.textContent('[data-testid="individual-price-dialog"]')), /не задана/);
+    await run.page.waitForTimeout(600);
     await run.page.screenshot({ path: path.join(shots, `pricecard-${state}-1280.png`) });
     await run.page.close();
+    const phone = await mounted("money-g4.entry.tsx", "individual", { row: { ...ROW, price } }, server(PRICES, (r) => (/price-override$/.test(r.path) ? { json: { membership_id: "m1", group_id: "g1", as_of: "2026-11-15", period_mode: "calendar", price_label: "Цена в месяц", price, history: [], cancelled: [] } } : null)), 375);
+    await phone.page.waitForFunction((t) => (document.querySelector('[data-testid="individual-price-now"]')?.textContent || "").replace(/[\s\u00a0\u202f]+/g, " ").includes(t), expected);
+    assert.equal(plain(await phone.page.textContent('[data-testid="individual-price-now"]')), "Цена " + expected);
+    await phone.page.waitForTimeout(600);
+    await phone.page.screenshot({ path: path.join(shots, `pricecard-${state}-375.png`) });
+    await phone.page.close();
   });
 
   test(`Р4-1 место 11, «Открытие учёта» (${state}): цена «Цена ${expected}», чипа «нет цены» нет`, async () => {
@@ -177,4 +192,44 @@ test("Р4-1: исходники — ни одно место не выбирае
     assert.match(read(f), /plannedPriceOf/, f);
   }
   assert.doesNotMatch(read("src/lib/group-payments.ts"), /own \?\? options\.groupScheduled/, "локальная ветка выбора убрана");
+});
+
+// ── Р4-2: «Сотрудники», вкладки на 375 ──
+test("Р4-2: «Сотрудники» — три вкладки целиком в одной строке при счётчиках до трёхзначных (375: нет прокрутки вбок, подписи не обрезаны); 1280 как был", async () => {
+  const member = (id, active) => ({ id: `${id}`, member_id: `m-${id}`, user_id: `${id}`, first_name: "Имя", last_name: `Ф${id}`, email: `${id}@example.test`, org_role: id === "o" ? "owner" : "teacher", is_active: active });
+  const many = (n, prefix, active) => Array.from({ length: n }, (_, i) => member(`${prefix}${i}`, active));
+  const invite = (i) => ({ id: `i${i}`, email: `i${i}@example.test`, org_role: "teacher", status: "pending", expires_at: "2030-01-01T00:00:00", created_at: "2026-11-10T00:00:00", email_status: "sent" });
+  for (const [members, former, invites] of [[4, 2, 2], [120, 130, 250], [999, 999, 999]]) {
+    const answer = (request) => {
+      if (request.path === "/auth/org/members") return { json: /status=removed/.test(request.query) ? many(former, "f", false) : many(members, "a", true) };
+      if (request.path === "/auth/org/invitations") return { json: Array.from({ length: invites }, (_, i) => invite(i)) };
+      if (request.path === "/auth/org/payroll/rates") return { json: { items: [] } };
+      return null;
+    };
+    for (const width of [375, 360, 1280]) {
+      const run = await openPage(browser, "staff.entry.tsx", answer, { width, height: 900 });
+      await run.page.evaluate(() => window.mountStaff());
+      await run.page.waitForSelector('[data-testid="staff-tabs"] button');
+      await run.page.waitForTimeout(500);
+      const facts = await run.page.evaluate(() => {
+        const tabs = document.querySelector('[data-testid="staff-tabs"]');
+        const box = tabs.getBoundingClientRect();
+        const buttons = [...tabs.querySelectorAll("button")].map((b) => { const r = b.getBoundingClientRect(); const visible = [...b.querySelectorAll("span")].filter((s) => s.offsetParent !== null).map((s) => s.textContent).join("|"); return { text: (b.innerText || "").replace(/\s+/g, " ").trim(), left: r.left, right: r.right, h: Math.round(r.height), clipped: b.scrollWidth > b.clientWidth + 1, visible }; });
+        return { scroll: tabs.scrollWidth - tabs.clientWidth, boxRight: box.right, buttons, body: document.documentElement.scrollWidth - window.innerWidth };
+      });
+      const id = `${width} счётчики ${members}/${invites}/${former}: ${JSON.stringify(facts.buttons.map((b) => b.text))}`;
+      assert.ok(facts.scroll <= 0, `вкладки прокручиваются вбок (${facts.scroll}) — ${id}`);
+      assert.ok(facts.body <= 0, `страница шире экрана — ${id}`);
+      assert.equal(new Set(facts.buttons.map((b) => b.h)).size, 1, `вкладки в одну строку — ${id}`);
+      for (const b of facts.buttons) assert.ok(b.right <= facts.boxRight + 0.5 && !b.clipped, `вкладка обрезана ${b.text} — ${id}`);
+      if (width < 768) {
+        assert.deepEqual(facts.buttons.map((b) => b.text.replace(/\s*\d+$/, "")), ["Сотрудники", "Приглашения", "Бывшие"], id);
+        assert.deepEqual(facts.buttons.map((b) => b.text.match(/\d+$/)?.[0]), [String(members), String(invites), String(former)], `счётчики целиком — ${id}`);
+      } else {
+        assert.deepEqual(facts.buttons.map((b) => b.text), [`Сотрудники (${members})`, `Приглашения ${invites}`, `Бывшие сотрудники (${former})`], id);
+      }
+      if (members === 120 && (width === 375 || width === 1280)) await run.page.screenshot({ path: path.join(shots, `staff-${width}.png`) });
+      await run.page.close();
+    }
+  }
 });

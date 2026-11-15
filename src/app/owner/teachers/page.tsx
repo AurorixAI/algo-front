@@ -56,6 +56,12 @@ const roleConfig: Record<string, { label: string; pluralLabel: string; color: st
   teacher: { label: "Преподаватель", pluralLabel: "Преподаватели", color: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
 };
 
+/** Р4-2: the counter of a staff tab on a phone (hidden from sm up, where the brackets stand); no badge for zero. */
+function StaffTabBadge({ count, active }: { count: number; active: boolean }) {
+  if (count <= 0) return null;
+  return <span data-testid="staff-tab-count" className={`rounded-md px-1.5 py-0.5 text-[10px] leading-none sm:hidden ${active ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>{count}</span>;
+}
+
 export default function OwnerTeachersPage() {
   // The page reads `?teacher=` (the link «Указать ставку» of «Зарплата»), so it needs a Suspense boundary above it.
   return (
@@ -282,35 +288,36 @@ function OwnerTeachersContent() {
       </div>
 
       {/* Custom Tabs */}
-      <div data-testid="staff-tabs" className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-full max-w-2xl overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div data-testid="staff-tabs" className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-full max-w-2xl overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:gap-1">
+        {/* Р4-2: on a phone the three tabs sit whole in one row at any counter: the short word, the counter as a small badge (as on the other screens); from sm up the words and brackets are as they were */}
         <button
           onClick={() => selectTab("members")}
-          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all max-sm:flex max-sm:min-h-10 max-sm:items-center max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:text-xs ${
             activeTab === "members" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          Сотрудники ({members.length})
+          Сотрудники<span className="max-sm:hidden"> ({members.length})</span><StaffTabBadge count={members.length} active={activeTab === "members"} />
         </button>
         <button
           onClick={() => selectTab("invites")}
-          className={`flex-1 shrink-0 whitespace-nowrap px-3 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl transition-all max-sm:min-h-10 max-sm:gap-1 max-sm:px-1 max-sm:text-xs ${
             activeTab === "invites" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           Приглашения 
           {pendingInvites.length > 0 && (
-            <span className={`px-2 py-0.5 rounded-md text-xs ${activeTab === "invites" ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>
+            <span className={`px-2 py-0.5 rounded-md text-xs max-sm:px-1.5 max-sm:text-[10px] ${activeTab === "invites" ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-600"}`}>
               {pendingInvites.length}
             </span>
           )}
         </button>
         <button
           onClick={() => selectTab("former")}
-          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all ${
+          className={`flex-1 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-xl transition-all max-sm:flex max-sm:min-h-10 max-sm:items-center max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:text-xs ${
             activeTab === "former" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          <span className="max-sm:hidden">Бывшие сотрудники</span><span className="sm:hidden">Бывшие</span>{formerMembers.length > 0 ? ` (${formerMembers.length})` : ""}
+          <span className="max-sm:hidden">Бывшие сотрудники</span><span className="sm:hidden">Бывшие</span>{formerMembers.length > 0 ? <span className="max-sm:hidden"> ({formerMembers.length})</span> : null}<StaffTabBadge count={formerMembers.length} active={activeTab === "former"} />
         </button>
       </div>
 
