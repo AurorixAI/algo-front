@@ -12,7 +12,6 @@ import {
   emptyPauseValues,
   isReasonRequired,
   livePauses,
-  otherGroupsLine,
   logicaError,
   PAUSE_BACKDATE_HINT,
   pauseCalcLines,
@@ -32,6 +31,7 @@ import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
 import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
+import { OtherGroupsRows } from "@/components/money/other-groups-rows";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -74,7 +74,7 @@ export function PauseDialog({
   /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
   const [endNeedsReason, setEndNeedsReason] = useState(false);
   /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the sentence about the other groups, or the refusal of the server (`blocked`: «PAUSE_BREAKS_REFUND» - nothing can be done here). */
-  const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; text: string | null } | { status: "failed"; message: string; blocked: boolean } | null>(null);
+  const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; answer: unknown } | { status: "failed"; message: string; blocked: boolean } | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const sequence = useRef(createRequestSequence());
 
@@ -135,12 +135,12 @@ export function PauseDialog({
       ? orgApi.patchPause(actingId, { last_day: pauseEndDay(today) }, { dryRun: true })
       : orgApi.voidPause(actingId, DRY_RUN_REASON, { dryRun: true });
     asked
-      .then((result) => { if (current) setActPreview({ status: "ready", text: otherGroupsLine(result) }); })
+      .then((result) => { if (current) setActPreview({ status: "ready", answer: result }); })
       .catch((cause) => {
         if (!current) return;
         const failure = logicaError(cause, "Не удалось посчитать, что изменится");
         // «укажите причину» is asked by the real press (the field opens there); it is not a refusal
-        if (isReasonRequired(failure)) { setEndNeedsReason(true); setActPreview({ status: "ready", text: null }); return; }
+        if (isReasonRequired(failure)) { setEndNeedsReason(true); setActPreview({ status: "ready", answer: null }); return; }
         setActPreview({ status: "failed", message: failure.message, blocked: failure.code === "PAUSE_BREAKS_REFUND" });
       });
     return () => { current = false; };
@@ -253,6 +253,7 @@ export function PauseDialog({
             ) : (
               <>
                 {lines.map((line) => <p key={line}>{line}</p>)}
+                <OtherGroupsRows answer={calc} testId="pause-other-groups" />
                 {warnings.map((line) => (
                   <p key={line} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -293,7 +294,7 @@ export function PauseDialog({
                           : "Пауза ещё не началась: она будет отменена, дни останутся платными."}
                       </p>
                       {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
-                      {actPreview?.status === "ready" && actPreview.text && <p data-testid="pause-act-effects" className="text-slate-800">{actPreview.text}</p>}
+                      {actPreview?.status === "ready" && <OtherGroupsRows answer={actPreview.answer} testId="pause-act-effects" />}
                       {actPreview?.status === "failed" && <p role="alert" data-testid="pause-act-effects" className="font-medium text-rose-700">{actPreview.message}</p>}
                       {(acting?.action === "cancel" || endNeedsReason) && (
                         <input aria-label={acting?.action === "cancel" ? "Причина отмены паузы" : "Причина изменения паузы"} value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Причина отмены" : "Причина изменения"} className={PRICE_FIELD} autoComplete="off" />

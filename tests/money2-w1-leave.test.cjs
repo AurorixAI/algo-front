@@ -36,9 +36,9 @@ test("Э1 (уход): «Закончится» is the server's `ends` - price, p
   await run.page.waitForSelector('[data-testid="effects-ends"]');
   const titles = (await run.page.locator('[data-testid="settle-membership"] h4').allTextContents()).map(plain);
   assert.deepEqual(titles, ["Закончится"], "the debt stays is the headline: only «Закончится» is a section");
-  const rows = (await run.page.locator('[data-testid="effects-ends"] li').allTextContents()).map(plain);
-  assert.deepEqual(rows, membership.effects.ends.map((item) => plain(item.text)));
-  const dialog = plain(await run.page.textContent('[role="dialog"]'));
+  const rows = await run.page.locator('[data-testid="effects-ends"] li').evaluateAll((items) => items.map((li) => [...li.children].map((child) => child.textContent.replace(/[\s\u00a0]+/g, " ").trim())));
+  assert.deepEqual(rows, [["Индивидуальная цена", "300 000 сум"], ["Цена с 01.12", "250 000 сум"], ["Пауза", "23–26.11"]]);
+  const dialog = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
   assert.ok(!/вместе с группой/.test(dialog), "the own sentence about the individual price is gone");
   assert.equal(count(dialog, "120 000 сум"), 1, "the debt once");
   assert.equal(count(dialog, "300 000 сум"), 1, "the price once");

@@ -70,7 +70,7 @@ function leaveMembership(index, { money = true, kind = "leave", names = LONG } =
       stays: [{ ...base, code: "debt", ...(money ? { amount: 120000 } : {}), text: money ? `Долг ${rub(120000)} останется за учеником в группе «${name}»: принять или простить его можно в её выписке` : `В группе «${name}» останется долг: принять или простить его можно в её выписке` }],
       ends: [
         { ...base, code: "individual_price", ...(money ? { amount: 300000 } : {}), since: "2026-10-01", text: money ? `Индивидуальная цена ${rub(300000)} в группе «${name}» закончится: при возвращении ученик получит цену группы` : `Индивидуальная цена в группе «${name}» закончится: при возвращении ученик получит цену группы` },
-        { ...base, code: "scheduled_price", valid_from: "2026-12-01", text: `Запланированная с 01.12.2026 индивидуальная цена в группе «${name}» (${money ? `цена ${rub(250000)}` : "новая индивидуальная цена"}) будет отменена` },
+        { ...base, code: "scheduled_price", valid_from: "2026-12-01", ...(money ? { amount: 250000 } : {}), text: `Запланированная с 01.12.2026 индивидуальная цена в группе «${name}» (${money ? `цена ${rub(250000)}` : "новая индивидуальная цена"}) будет отменена` },
         { ...base, code: "pause", first_day: "2026-11-23", last_day: "2026-11-26", text: `Пауза 23.11.2026–26.11.2026 в группе «${name}» закончится вместе с пребыванием ученика в ней` },
       ],
     },
@@ -92,7 +92,7 @@ function statementWithVoided(names = LONG) {
     rows: [row(2, "2026-11-22", "Оплата № 2", 600000, { payment_id: "p2", receipt_no: 2, replaces_receipt_no: 1 })],
     voided: [
       row(1, "2026-11-22", "Оплата № 1", 600000, { payment_id: "p1", receipt_no: 1, replaced_by_receipt_no: 2 }, { voided_at: "2026-11-23T08:00:00", void_reason: "Отменили по ошибке", voided_by_name: "Рустам Каримов" }),
-      row(0, "2026-11-10", "Оплата № 3", 150000, { payment_id: "p3", receipt_no: 3 }, { voided_at: "2026-11-12T08:00:00", void_reason: "Дубль", voided_by_name: "Рустам Каримов" }),
+      row(0, "2026-11-10", "Оплата № 3", 390000, { payment_id: "p3", receipt_no: 3 }, { voided_at: "2026-11-12T08:00:00", void_reason: "Дубль", voided_by_name: "Рустам Каримов" }),
     ],
     upcoming: [],
   };
@@ -100,7 +100,7 @@ function statementWithVoided(names = LONG) {
 const paymentsList = () => [
   { id: "p2", membership_id: MEMBERSHIP, amount: 600000, currency: "UZS", paid_on: "2026-11-22", method: "cash", kind: "payment", receipt_no: 2, restorable: false, replaced_by_receipt_no: null, restored_from_receipt_no: 1, voided_at: null, voided_by: null, voided_by_name: null, void_reason: null, created_by: null, created_by_name: null, created_at: null },
   { id: "p1", membership_id: MEMBERSHIP, amount: 600000, currency: "UZS", paid_on: "2026-11-22", method: "cash", kind: "payment", receipt_no: 1, restorable: false, replaced_by_receipt_no: 2, voided_at: "2026-11-23T08:00:00", voided_by: "u", voided_by_name: "Рустам Каримов", void_reason: "Отменили по ошибке", created_by: null, created_by_name: null, created_at: null },
-  { id: "p3", membership_id: MEMBERSHIP, amount: 150000, currency: "UZS", paid_on: "2026-11-10", method: "cash", kind: "payment", receipt_no: 3, restorable: true, replaced_by_receipt_no: null, restored_from_receipt_no: null, voided_at: "2026-11-12T08:00:00", voided_by: "u", voided_by_name: "Рустам Каримов", void_reason: "Дубль", created_by: null, created_by_name: null, created_at: null },
+  { id: "p3", membership_id: MEMBERSHIP, amount: 390000, currency: "UZS", paid_on: "2026-11-10", method: "cash", kind: "payment", receipt_no: 3, restorable: true, replaced_by_receipt_no: null, restored_from_receipt_no: null, voided_at: "2026-11-12T08:00:00", voided_by: "u", voided_by_name: "Рустам Каримов", void_reason: "Дубль", created_by: null, created_by_name: null, created_at: null },
 ];
 module.exports.statementWithVoided = statementWithVoided;
 module.exports.paymentsList = paymentsList;

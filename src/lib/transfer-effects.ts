@@ -1,3 +1,5 @@
+import { formatDayMonthRu } from "./business-time";
+import { formatMoney } from "./money-format";
 /**
  * Money-2 T3 / Э1: what a transfer, a leaving and an archiving MOVE, LEAVE BEHIND and END - read from the `effects` of the server (the dry run and the write say the same: И4).  Pure: the sections and the
  * sum of the dry run that rides back as `expected_carried` (T5), the leaving undone (`leave_undo`, T6) and the refusal «числа устарели».  Every sentence and every sum is the server's; the window adds titles only.
@@ -7,6 +9,11 @@ export interface EffectItem {
   text: string;
   group_name?: string;
   amount?: number;
+  first_day?: string;
+  last_day?: string;
+  date?: string;
+  since?: string;
+  valid_from?: string;
 }
 export interface TransferEffects {
   kind: string;
@@ -16,12 +23,13 @@ export interface TransferEffects {
   /** The sentence of the money alone (a transfer): the carried sum, or the fact that nothing moves. */
   moneyText: string | null;
 }
-export interface EffectSection { key: "money" | "stays" | "ends" | "with"; title: string; rows: string[] }
+/** One short row of «Что изменится»: «что» and «значение» (a sum, a day, a period of a pause); `value` null when the structure has none (a role without money: the fact alone). */
+export interface EffectRow { key: string; label: string; value: string | null }
+export interface EffectSection { key: "money" | "stays" | "ends"; title: string; rows: EffectRow[] }
 export interface LeaveUndo { undone: boolean; text: string; restored: string[] }
 
 export const SECTION_MONEY = "Перейдёт";
 export const SECTION_ENDS = "Закончится";
-export const SECTION_WITH = "Перейдёт вместе с учеником";
 export const staysTitle = (groupName: string) => (groupName ? `Останется в группе «${groupName}»` : "Останется в прошлой группе");
 export const BALANCE_CHANGED_TEXT = "Данные изменились — проверьте числа";
 
@@ -39,18 +47,55 @@ export function effectsOfAnswer(answer: unknown): TransferEffects | null {
   return { kind: typeof source.kind === "string" ? source.kind : "", moves: items(source.moves), stays: items(source.stays), ends: items(source.ends), moneyText };
 }
 
-/** The blocks of the window in the order of the spec; a section without rows is not shown.  The money alone is «Перейдёт»; the rest that goes on (pauses, «Оплата с», paid days) is «Перейдёт вместе с учеником». */
-export function effectSections(effects: TransferEffects): EffectSection[] {
-  const rows = (list: EffectItem[]) => list.map((item) => item.text);
-  const money = effects.moves.filter((item) => item.code === "money");
-  const along = effects.moves.filter((item) => item.code !== "money");
+/** «23–26.11» (one month) or «28.11–02.12»: a period of a pause from the two days of the server. */
+export function periodShort(first: string | undefined, last: string | undefined): string | null {
+  if (!first || !last) return null;
+  const a = formatDayMonthRu(first);
+  const b = formatDayMonthRu(last);
+  if (!a || !b) return null;
+  return a.slice(3) === b.slice(3) && first.slice(0, 4) === last.slice(0, 4) ? `${a.slice(0, 2)}–${b}` : `${a}–${b}`;
+}
+
+const sum = (amount: number | undefined): string | null => (typeof amount === "number" && Number.isFinite(amount) ? formatMoney(amount) : null);
+const dayOf = (iso: string | undefined): string | null => (iso ? formatDayMonthRu(iso) || null : null);
+
+/**
+ * One item of the server as a short row «что → значение» by its CODE and its STRUCTURAL fields (the sum, the days).  An item whose code is not known, or whose field the server did not send, is
+ * not guessed: the sentence of the server stands as the row (the full text is under «Подробнее» in any case).
+ */
+export function effectRow(item: EffectItem, index: number): EffectRow {
+  const key = `${item.code}-${index}`;
+  switch (item.code) {
+    case "money": return { key, label: "Деньги ученика", value: sum(item.amount) };
+    case "debt": return { key, label: "Долг", value: sum(item.amount) };
+    case "advance": return { key, label: "Аванс", value: sum(item.amount) };
+    case "individual_price": return { key, label: "Индивидуальная цена", value: sum(item.amount) };
+    case "scheduled_price": { const day = dayOf(item.valid_from); return day ? { key, label: `Цена с ${day}`, value: sum(item.amount) } : { key, label: item.text, value: null }; }
+    case "pause": { const period = periodShort(item.first_day, item.last_day); return period ? { key, label: "Пауза", value: period } : { key, label: item.text, value: null }; }
+    case "billing_from": { const day = dayOf(item.date); return day ? { key, label: "«Оплата с»", value: day } : { key, label: item.text, value: null }; }
+    default: return { key, label: item.text, value: null };
+  }
+}
+
+/**
+ * The blocks of the window as short rows.  What moves with the student (the money, the pauses, «Оплата с») is ONE block «Перейдёт в «цель»» (the target is named once, in its title; `target` is
+ * the group the window is about); what stays is «Останется в «источник»»; what ends is «Закончится».  A section without rows is not shown.
+ */
+export function effectSections(effects: TransferEffects, target: string | null = null): EffectSection[] {
+  const rows = (list: EffectItem[]) => list.map(effectRow);
   const sections: EffectSection[] = [
-    { key: "money", title: SECTION_MONEY, rows: rows(money) },
+    { key: "money", title: target ? `Перейдёт в «${target}»` : SECTION_MONEY, rows: rows(effects.moves) },
     { key: "stays", title: staysTitle(effects.stays[0]?.group_name ?? ""), rows: rows(effects.stays) },
     { key: "ends", title: SECTION_ENDS, rows: rows(effects.ends) },
-    { key: "with", title: SECTION_WITH, rows: rows(along) },
   ];
   return sections.filter((section) => section.rows.length > 0);
+}
+
+/** The full sentences of the server of the block (under «Подробнее»): the money alone, then what stays and ends, in the order of the rows. */
+export function effectFullTexts(effects: TransferEffects): string[] {
+  const texts = [...effects.moves, ...effects.stays, ...effects.ends].map((item) => item.text);
+  const lonely = lonelyMoneyText(effects);
+  return lonely ? [lonely, ...texts] : texts;
 }
 
 /** The sentence of the money when no money moves (nothing to carry): shown alone, without a title. */
@@ -58,7 +103,7 @@ export function lonelyMoneyText(effects: TransferEffects): string | null {
   return effects.moves.some((item) => item.code === "money") ? null : effects.moneyText;
 }
 
-export const effectsEmpty = (effects: TransferEffects): boolean => effectSections(effects).length === 0 && lonelyMoneyText(effects) === null;
+export const effectsEmpty = (effects: TransferEffects): boolean => effects.moves.length + effects.stays.length + effects.ends.length === 0 && lonelyMoneyText(effects) === null;
 
 /** T5: the sum of the dry run (`moves[code=money].amount`) that the write sends back; null without the right to money (the server sends no sum) or when nothing moves. */
 export function expectedCarriedOf(answer: unknown): number | null {

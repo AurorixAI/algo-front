@@ -62,7 +62,7 @@ test("Т7: the window - the reason is mandatory, «Что изменится» i
   await run.page.getByRole("button", { name: "Восстановить оплату" }).click();
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   const dialog = plain(await run.page.textContent('[role="dialog"]'));
-  assert.equal(dialog.split("390 000 сум").length - 1, 2, "the sentence of the server stands once: «вырастет на 390 000 сум — до 390 000 сум»");
+  assert.equal(dialog.split(WILL).length - 1, 1, "the sentence of the server stands once");
   assert.ok(dialog.includes("Что изменится") && dialog.includes("Восстановить оплату?"));
   const submit = run.page.locator('[role="dialog"] button[type="submit"]');
   await submit.click();

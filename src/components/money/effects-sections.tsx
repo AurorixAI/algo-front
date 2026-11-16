@@ -1,15 +1,16 @@
 "use client";
 
 import { tidyMoneyText } from "@/lib/money-format";
-import { effectSections, lonelyMoneyText, type TransferEffects } from "@/lib/transfer-effects";
+import { Disclosure } from "@/components/ui/disclosure";
+import { effectFullTexts, effectSections, lonelyMoneyText, type TransferEffects } from "@/lib/transfer-effects";
 import type { LeaveUndo } from "@/lib/transfer-effects";
 
 /**
- * Money-2 Э1: «Что изменится» of a transfer / leaving / archiving as the server's `effects` - «Перейдёт», «Останется в группе …», «Закончится», «Перейдёт вместе с учеником».  The window adds titles;
- * every sentence and sum is the server's, said once.  A section with no rows is not drawn (so a leaving shows «Закончится» and «Останется» only).
+ * Money-2 Э1 / А7: «Что изменится» of a transfer / leaving / archiving as SHORT ROWS «что → значение» from the structure of the server's `effects` (the sums and the days are the server's); the group
+ * is named once, in the title of its block.  The whole sentences of the server stay under «Подробнее» of the block.  A section with no rows is not drawn.
  */
-export function EffectsSections({ effects, testId = "transfer-effects", className = "" }: { effects: TransferEffects; testId?: string; className?: string }) {
-  const sections = effectSections(effects);
+export function EffectsSections({ effects, target = null, testId = "transfer-effects", className = "" }: { effects: TransferEffects; /** the group the student goes to (a transfer): named once in «Перейдёт в «…»» */ target?: string | null; testId?: string; className?: string }) {
+  const sections = effectSections(effects, target);
   const lonely = lonelyMoneyText(effects);
   if (sections.length === 0 && !lonely) return null;
   return (
@@ -17,12 +18,20 @@ export function EffectsSections({ effects, testId = "transfer-effects", classNam
       {lonely && <p className="text-sm text-slate-700" data-testid="effects-lonely">{tidyMoneyText(lonely)}</p>}
       {sections.map((section) => (
         <section key={section.key} aria-label={section.title}>
-          <h4 className="text-xs font-semibold text-slate-600">{section.title}</h4>
+          <h4 className="text-xs font-semibold text-slate-600 [overflow-wrap:anywhere]">{section.title}</h4>
           <ul className="mt-1 space-y-1" data-testid={`effects-${section.key}`}>
-            {section.rows.map((row, index) => <li key={`${index}-${row}`} className="text-sm leading-snug text-slate-800 [overflow-wrap:anywhere]">{tidyMoneyText(row)}</li>)}
+            {section.rows.map((row) => (
+              <li key={row.key} data-testid="effect-row" className="flex items-baseline justify-between gap-x-3 text-sm leading-snug text-slate-800">
+                <span className="min-w-0 [overflow-wrap:anywhere]">{tidyMoneyText(row.label)}</span>
+                {row.value && <span className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums">{row.value}</span>}
+              </li>
+            ))}
           </ul>
         </section>
       ))}
+      <Disclosure testId="effects-full">
+        <ul className="space-y-1">{effectFullTexts(effects).map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{tidyMoneyText(text)}</li>)}</ul>
+      </Disclosure>
     </div>
   );
 }

@@ -21,6 +21,8 @@ import { PeriodClosedNotice } from "./period-closed-notice";
 import { carriedRows } from "@/lib/dry-run";
 import { tidyMoneyText } from "@/lib/money-format";
 import { Button } from "@/components/ui/button";
+import { OtherGroupsRows } from "./other-groups-rows";
+import { otherGroupNames } from "@/lib/other-groups";
 
 const NUM = "whitespace-nowrap text-right tabular-nums";
 const deltaClass = (delta: number | null) => (delta !== null && delta > 0 ? "text-emerald-700" : "text-slate-600");
@@ -159,6 +161,21 @@ export function EffectLines({ effects, withPaid = false, teacherName = null }: {
   );
 }
 
+/**
+ * Money-2 А7: the server's own sentences of an action as rows.  What happens in OTHER groups comes as short rows from the structure of the answer (`new_debts`, `advance_drops`, `other_gains`; the
+ * whole sentence is under «Подробнее»); the sentences that are not about those groups (the pay of the teachers) stay as the server says them.
+ */
+function ServerTextRows({ text, answer }: { text: string; answer: unknown }) {
+  const groups = otherGroupNames(answer);
+  const rest = carriedRows(text).filter((row) => !groups.some((group) => row.includes(`«${group}»`)));
+  return (
+    <div className="space-y-1.5">
+      {groups.length > 0 && <OtherGroupsRows answer={answer} />}
+      {rest.length > 0 && <ul className="space-y-1.5">{rest.map((row) => <li key={row} data-testid="effects-text-row" className="text-sm text-slate-800">{row}</li>)}</ul>}
+    </div>
+  );
+}
+
 /** The grey bars that stand where the lines of the block will be: the same size and colour as the block itself, so nothing jumps when the answer comes (UX pack, rule 1). */
 function EffectsSkeleton() {
   return (
@@ -223,7 +240,7 @@ export function MoneyEffectsBlock({
         </div>
       )}
       {preview.status === "ready" && preview.effects !== null && (serverText
-        ? <ul className="space-y-1.5">{carriedRows(preview.effects.text).map((row) => <li key={row} data-testid="effects-text-row" className="text-sm text-slate-800">{row}</li>)}</ul>
+        ? <ServerTextRows text={preview.effects.text} answer={preview.answer} />
         : <EffectLines effects={preview.effects} withPaid={withPaid} teacherName={teacherName} />)}
     </>
   );

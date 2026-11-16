@@ -385,12 +385,6 @@ export interface PauseVoided {
   other_groups_text?: string | null;
 }
 
-/** Money-2 T9: the sentence of the server about the other groups of the student (null when nothing moves there, and for a role without the right to money). */
-export function otherGroupsLine(saved: { other_groups_text?: string | null } | null | undefined): string | null {
-  const text = typeof saved?.other_groups_text === "string" ? saved.other_groups_text.trim() : "";
-  return text ? tidyMoneyText(text) : null;
-}
-
 export interface PauseFormValues {
   first: string;
   last: string;
@@ -444,8 +438,6 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "oth
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
   const balance = impactBalanceLine(impact);
   if (balance) lines.push(balance);
-  const other = otherGroupsLine(saved);
-  if (other) lines.push(other);
   return lines;
 }
 

@@ -616,7 +616,7 @@ export function AssignGroupModal({
       </div>
     )}
 
-    {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} className="mt-3" />}
+    {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} target={selectedGroup?.name ?? null} className="mt-3" />}
     {leaveUndo && <LeaveUndoNote undo={leaveUndo} className="mt-3" />}
     {balanceChanged && <Notice variant="warning" compact testId="transfer-changed" className="mt-3">{BALANCE_CHANGED_TEXT}</Notice>}
 

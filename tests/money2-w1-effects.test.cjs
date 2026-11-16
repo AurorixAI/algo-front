@@ -27,25 +27,41 @@ const posts = (calls) => calls.filter((call) => call.method === "POST" && /\/gro
 async function open(width, answer, { money = true, props = {} } = {}) {
   const run = await openPage(browser, "money2.entry.tsx", answer, { width, height: 900 });
   await run.page.evaluate((p) => window.mount("assign", { role: "owner", org_role: "owner" }, p), { moneyAvailable: money, sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"], ...props });
-  await run.page.click(`text=${F.T.slice(0, 20)}`);
+  await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
   return run;
 }
 const sectionTitles = async (page) => (await page.locator('[data-testid="transfer-effects"] h4').allTextContents()).map(plain);
-const rows = async (page, key) => (await page.locator(`[data-testid="effects-${key}"] li`).allTextContents()).map(plain);
+const rows = async (page, key) => (await page.locator(`[data-testid="effects-${key}"] li`).evaluateAll((items) => items.map((li) => [...li.children].map((child) => child.textContent.replace(/[\s\u00a0]+/g, " ").trim()))));
+const visible = async (page) => plain(await page.locator('[role="dialog"]').evaluate((el) => el.innerText));
 
-test("Э1: «Что изменится» is the server's `effects` as sections - «Перейдёт», «Останется в группе …», «Закончится», «Перейдёт вместе с учеником» - each sentence once, the old `carried` sentence is not repeated", async () => {
-  const effects = F.transferEffects();
+test("Э1 / А7: «Что изменится» is SHORT ROWS «что → значение» from the structure of `effects` - the group is named once in the title of its block; the sentences of the server are under «Подробнее»; the old `carried` sentence is not said", async () => {
+  const effects = F.transferEffects({ names: F.SHORT });
   const run = await open(1280, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1"
-    ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), effects, carried: [{ code: "transfer_balance_after", message: "Старая фраза про 440 000 сум" }] } } : null));
+    ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), effects, carried: [{ code: "transfer_balance_after", message: "Старая фраза про 440 000 сум" }] } } : null, F.SHORT));
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
-  assert.deepEqual(await sectionTitles(run.page), ["Перейдёт", `Останется в группе «${F.A}»`, "Закончится", "Перейдёт вместе с учеником"]);
-  assert.deepEqual(await rows(run.page, "money"), [plain(effects.moves[0].text)]);
-  assert.deepEqual(await rows(run.page, "stays"), [plain(effects.stays[0].text)]);
-  assert.deepEqual(await rows(run.page, "ends"), effects.ends.map((item) => plain(item.text)));
-  assert.deepEqual(await rows(run.page, "with"), [plain(effects.moves[1].text), plain(effects.moves[2].text)]);
-  const dialog = plain(await run.page.textContent('[role="dialog"]'));
+  assert.deepEqual(await sectionTitles(run.page), [`Перейдёт в «Физика 9»`, `Останется в группе «Алгебра 7»`, "Закончится"]);
+  assert.deepEqual(await rows(run.page, "money"), [["Деньги ученика", "440 000 сум"], ["Пауза", "23–26.11"], ["«Оплата с»", "30.11"]]);
+  assert.deepEqual(await rows(run.page, "stays"), [["Долг", "120 000 сум"]]);
+  assert.deepEqual(await rows(run.page, "ends"), [["Индивидуальная цена", "300 000 сум"], ["Цена с 01.12", "250 000 сум"]]);
+  const dialog = await visible(run.page);
   assert.ok(!/Старая фраза/.test(dialog), "the sentence of `carried` is not said next to `effects`");
+  assert.ok(!/переходят в группу|останется за учеником/.test(dialog), "the whole sentences of the server are folded");
   assert.equal((dialog.match(/120 000 сум/g) ?? []).length, 1, "the debt is said once");
+  const block = plain(await run.page.locator('[data-testid="transfer-effects"]').evaluate((el) => el.innerText));
+  assert.equal((block.match(/Алгебра 7/g) ?? []).length, 1, "the source group is named once in the block (the title of its part)");
+  assert.equal((block.match(/Физика 9/g) ?? []).length, 1, "the target is named once in the block");
+  await run.page.locator('[data-testid="effects-full"] summary').click();
+  const opened = await visible(run.page);
+  for (const item of [...effects.moves, ...effects.stays, ...effects.ends]) assert.ok(opened.includes(plain(item.text)), `the full text of ${item.code}`);
+  await run.page.close();
+});
+
+test("А7: a field the structure lacks is not guessed - the sentence of the server stands as the row", async () => {
+  const effects = F.transferEffects({ names: F.SHORT });
+  effects.moves[1] = { ...effects.moves[1], first_day: undefined, last_day: undefined };
+  const run = await open(1280, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, effects } } : null, F.SHORT));
+  await run.page.waitForSelector('[data-testid="transfer-effects"]');
+  assert.deepEqual((await rows(run.page, "money"))[1], [plain(effects.moves[1].text)]);
   await run.page.close();
 });
 
@@ -109,4 +125,15 @@ test("И5: a role without the right to money sees the same facts without a sum, 
   assert.equal(await empty.page.locator('[data-testid="transfer-preview"]').count(), 0);
   assert.equal(await empty.page.locator('[data-testid="assign-submit"]').isDisabled(), false);
   await empty.page.close();
+});
+
+test("А7: a role without the right to money - the same short rows without a sum: «Долг», «Индивидуальная цена», a pause with its days; no digit of money, no dead end", async () => {
+  const effects = F.transferEffects({ money: false, names: F.SHORT });
+  const run = await open(375, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), effects } } : null, F.SHORT), { money: false });
+  await run.page.waitForSelector('[data-testid="transfer-effects"]');
+  assert.deepEqual(await rows(run.page, "stays"), [["Долг"]]);
+  assert.deepEqual((await rows(run.page, "money")).map((row) => row[0]), ["Пауза", "«Оплата с»"]);
+  assert.ok(!/сум/.test(await visible(run.page)), "no sum without the right");
+  assert.equal(await run.page.locator('[data-testid="assign-submit"]').isDisabled(), false);
+  await run.page.close();
 });
