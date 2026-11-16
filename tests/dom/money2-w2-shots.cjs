@@ -29,7 +29,7 @@ const scenes = (N) => [
     steps: async (page) => { await pick(page); await page.waitForSelector('[data-testid="transfer-effects"]'); } },
   { name: "leave", entry: "money2.entry.tsx", mount: ["leave", OWNER, {}], server: F.baseServer((r) => r.path === "/auth/org/groups/ga/students/st1/leave-preview" ? { json: { as_of: "2026-11-16", memberships: [F.leaveMembership(0, { names: N })] } } : null, N), steps: async (page) => { await page.waitForSelector('[data-testid="effects-ends"]'); } },
   { name: "pause-cancel", entry: "money2.entry.tsx", mount: ["pause", OWNER, { moneyAvailable: true, groupName: N.A }],
-    server: F.baseServer((r) => { const pf = { id: "pf", membership_id: "m-a", first_day: day(10), last_day: day(13), days: 4, reason: null, created_by_name: null, created_at: null, voided_at: null, void_reason: null }; if (r.path === "/auth/org/memberships/m-a/pauses") return { json: [pf] }; if (r.path === "/auth/org/pauses/pf/void") return { json: { pause: pf, impact: null, row: null, dry_run: true, advance_drops: [{ membership_id: "m-b", group_id: "gt", group_name: N.T, amount: 30000, total: 410000 }], other_groups_text: `В группе «${N.T}» аванс уменьшится на 30 000 сум — до 410 000 сум` } }; return null; }, N),
+    server: F.baseServer((r) => { const pf = { id: "pf", membership_id: "m-a", first_day: day(10), last_day: day(13), days: 4, reason: null, created_by_name: null, created_at: null, voided_at: null, void_reason: null }; if (r.path === "/auth/org/memberships/m-a/pauses") return { json: [pf] }; if (r.path === "/auth/org/pauses/pf/void") return { json: { pause: pf, impact: null, row: null, dry_run: true, advance_drops: [{ membership_id: "m-b", group_id: "ga", group_name: N.A, amount: 30000, total: 410000 }], other_groups_text: `В группе «${N.A}» аванс уменьшится на 30 000 сум — до 410 000 сум` } }; return null; }, N),
     steps: async (page) => { await page.waitForSelector('section[aria-label="Паузы ученика"]'); await page.getByRole("button", { name: "Отменить паузу" }).first().click(); await page.waitForSelector('[data-testid="pause-act-effects"]'); } },
   { name: "restore", entry: "money2.entry.tsx", mount: ["statement", OWNER, { moneyAvailable: true }],
     server: F.baseServer((r) => r.path === "/auth/org/memberships/m-a/statement" ? { json: F.statementWithVoided(N) } : r.path === "/auth/org/memberships/m-a/payments" ? { json: F.paymentsList().map((p) => p.id === "p2" ? { ...p, created_at: "2026-11-25T07:00:00" } : p) } : r.path === "/auth/org/payments/p3/restore" ? { status: 201, json: { payment: { ...F.paymentsList()[2], id: "p4" }, other_gains: [{ group_name: N.T, advance_grew: 390000, advance: 390000, debt_fell: 0, debt: 0 }], money_effects: { dryRun: true, text: `В группе «${N.T}» аванс вырастет на 390 000 сум — до 390 000 сум`, students: [], payroll: [] } } } : null, N),
@@ -42,25 +42,57 @@ const scenes = (N) => [
     server: F.baseServer((r) => r.method === "POST" && /writeoffs$/.test(r.path) ? { status: 201, json: { writeoff: {}, row: {}, money_effects: { text: "", students: [], payroll: [], forgiveness: { teacher_pay: 125000, text: "Долг будет прощён. Эти уроки будут оплачены преподавателю: зарплата за ноябрь вырастет на 125 000 сум" } } } } : null, N),
     steps: async (page) => { await page.waitForSelector('[data-testid="forgiveness-row"]'); } },
   { name: "ages", entry: "money-b.entry.tsx", mount: ["payments", OWNER, { refresh: true, search: "bucket=debt" }],
-    server: (r) => { if (r.path === "/auth/org/payments/summary") return { json: { ...X.SUMMARY, debt_split: { ...X.SPLIT, debtors: 4, debtors_memberships: 4, debtors_debt_total: 1500000 }, debt_ages: [{ bucket: "to_30", students: 2, memberships: 2, debt_total: 450000 }, { bucket: "31_60", students: 0, memberships: 0, debt_total: 0 }, { bucket: "61_90", students: 1, memberships: 1, debt_total: 450000 }, { bucket: "over_90", students: 1, memberships: 1, debt_total: 600000 }] } }; if (r.path === "/auth/org/payments/status") { const items = [X.ROW({ membership_id: "a", student_name: "Алиев Тимур", debt: 300000, days_overdue: 12, debt_age_days: 12, tab: "debtors", group_name: N.A }), X.ROW({ membership_id: "b", student_id: "sb", student_name: "Бекова Лола", debt: 450000, days_overdue: null, debt_age_days: 62, tab: "debtors", group_name: N.B })]; return { json: { items, total: 2, limit: 50, offset: 0 } }; } if (r.path === "/auth/org/groups") return { json: [{ id: "g1", name: N.A, teacher_id: "t1" }] }; return null; },
-    steps: async (page) => { await page.waitForSelector('[data-testid="debt-ages"]'); await page.waitForSelector('[data-testid="status-cell"]'); } },
+    // one story: 4 debtors = 1 500 000; the baskets are the sums of the rows; «Просрочено на N дней» is the age of the row (its basket)
+    server: (r) => {
+      const DEBTORS = [
+        { membership_id: "a", student_id: "sa", student_name: "Алиев Тимур", debt: 300000, days: 12, group_name: N.A, age: "to_30", word: "дней" },
+        { membership_id: "c", student_id: "sc", student_name: "Орлова Дильноза", debt: 150000, days: 25, group_name: N.C, age: "to_30", word: "дней" },
+        { membership_id: "b", student_id: "sb", student_name: "Бекова Лола", debt: 450000, days: 62, group_name: N.B, age: "61_90", word: "дня" },
+        { membership_id: "d", student_id: "sd", student_name: "Резников Артём", debt: 600000, days: 95, group_name: N.A, age: "over_90", word: "дней" },
+      ];
+      if (r.path === "/auth/org/payments/summary") return { json: { ...X.SUMMARY, debt_total: 1500000, students_with_debt: 4, memberships_with_debt: 4, debtors: 4, buckets: { ...X.SUMMARY.buckets, debt: 4 }, debt_split: { ...X.SPLIT, debtors: 4, debtors_memberships: 4, debtors_debt_total: 1500000, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 1500000, all_students_with_debt: 4 }, debt_ages: [{ bucket: "to_30", students: 2, memberships: 2, debt_total: 450000 }, { bucket: "31_60", students: 0, memberships: 0, debt_total: 0 }, { bucket: "61_90", students: 1, memberships: 1, debt_total: 450000 }, { bucket: "over_90", students: 1, memberships: 1, debt_total: 600000 }] } };
+      if (r.path === "/auth/org/payments/status") { const age = /age=([a-z0-9_]+)/.exec(r.query)?.[1]; const items = DEBTORS.filter((d) => !age || d.age === age).map((d) => X.ROW({ membership_id: d.membership_id, student_id: d.student_id, student_name: d.student_name, debt: d.debt, days_overdue: d.days, debt_age_days: d.days, debt_reason: "overdue", reason: `Просрочено на ${d.days} ${d.word}`, tab: "debtors", group_name: d.group_name })); return { json: { items, total: items.length, limit: 50, offset: 0 } }; }
+      if (r.path === "/auth/org/groups") return { json: [{ id: "g1", name: N.A, teacher_id: "t1" }] };
+      return null;
+    },    steps: async (page) => { await page.waitForSelector('[data-testid="debt-ages"]'); await page.waitForSelector('[data-testid="status-cell"]'); } },
 ];
 
 const NAMES = ["Иванов Иван", "Каримов Фарход", "Саидова Мадина", "Юсупов Бекзод"];
-const STUDENTS = NAMES.map((full, i) => ({ id: `st${i + 1}`, first_name: full.split(" ")[1], last_name: full.split(" ")[0], full_name: full, class_level: 7, status: "active", group_id: null, current_group_id: null, groups_count: 0 }));
+// bulk transfer: one story - the students come from «Физика 9» / «Геометрия 8»; st2 is in both (the screen does not guess the source: `sources` has no st2 and the server asks), st3 is being changed by another person
+const mkStudent = (full, i, gid, count) => ({ id: `st${i + 1}`, first_name: full.split(" ")[1], last_name: full.split(" ")[0], full_name: full, class_level: 7, status: "active", group_id: gid, current_group_id: gid, groups_count: count });
+const STUDENTS = [mkStudent(NAMES[0], 0, "gT", 1), mkStudent(NAMES[1], 1, "gT", 2), mkStudent(NAMES[2], 2, "gB", 1), mkStudent(NAMES[3], 3, "gT", 1)];
 const bulkScene = (N) => ({ name: "bulk-outcome", entry: "enrol.entry.tsx", enrol: true,
   server: (r) => {
-    if (r.method === "GET" && r.path === "/auth/org/groups") return { json: [{ id: "g2", name: N.A }] };
+    if (r.method === "GET" && r.path === "/auth/org/groups") return { json: [{ id: "g2", name: N.A }, { id: "gT", name: N.T }, { id: "gB", name: N.B }] };
     if (r.method === "GET" && r.path === "/auth/org/students") return { json: { items: STUDENTS, total: 4 } };
-    if (r.method === "POST" && r.path === "/auth/org/groups/g2/students/bulk") { const results = STUDENTS.map((s) => (s.id === "st2" ? { student_id: s.id, status: "skipped", code: "PAY_FROM_RANGE", reason: "«Оплата с» не раньше 21.11.2026" } : { student_id: s.id, status: "added" })); return { json: { added: 3, skipped: 1, results, skipped_details: [], warnings: [] } }; }
+    if (r.method === "POST" && r.path === "/auth/org/groups/g2/students/bulk") {
+      if (isDry(r)) return { json: { students: [] } };
+      const refused = { st2: { code: "TRANSFER_SOURCE_REQUIRED", reason: `Ученик учится в нескольких группах: «${N.T}», «${N.B}» — выберите, из какой переводить` }, st3: { code: "CONCURRENT_EDIT", reason: "Другой пользователь сейчас меняет эти данные — повторите через секунду" } };
+      const results = STUDENTS.map((s) => (refused[s.id] ? { student_id: s.id, status: "skipped", ...refused[s.id] } : { student_id: s.id, status: "added" }));
+      return { json: { added: 2, skipped: 2, results, skipped_details: results.filter((x) => x.status === "skipped").map(({ student_id, code, reason }) => ({ student_id, code, reason })), warnings: [] } };
+    }
     return null;
   },
-  steps: async (page) => { for (const name of NAMES) { await page.fill('input[placeholder^="Поиск по имени"]', name.split(" ")[0].slice(0, 3)); await page.click(`button:has-text("${name}")`); } await page.click('[data-testid="enrol-submit"]'); await page.waitForSelector('[data-testid="bulk-outcome"]'); } });
+  steps: async (page) => { for (const name of NAMES) { await page.fill('input[placeholder^="Поиск по имени"]', name.split(" ")[0].slice(0, 3)); await page.click(`button:has-text("${name}")`); } await page.waitForTimeout(500); await page.click('[data-testid="enrol-submit"]'); await page.waitForSelector('[data-testid="bulk-outcome"]'); } });
+
+const statementScene = (N) => ({ name: "statement", entry: "money2.entry.tsx", mount: ["statement", OWNER, { moneyAvailable: true }],
+  server: F.baseServer((r) => {
+    if (r.path === "/auth/org/memberships/m-a/statement") {
+      const data = F.statementWithVoided(N);
+      const mk = (seq, type, date, title, over, extra) => ({ ...data.rows[0], seq, type, date, title, credit: 0, debit: 0, outflow: 0, ...over, details: { ...data.rows[0].details, payment_id: null, receipt_no: null, replaces_receipt_no: null, ...extra } });
+      data.rows.push(mk(5, "refund", "2026-11-12", "Возврат аванса", { outflow: 120000 }, { refund_id: "r1", recorded_on: "2026-11-20" }));
+      data.rows.push(mk(6, "writeoff", "2026-11-13", "Долг прощён", { credit: 30000 }, { writeoff_id: "w1", recorded_on: "2026-11-21" }));
+      return { json: data };
+    }
+    if (r.path === "/auth/org/memberships/m-a/payments") return { json: F.paymentsList().map((p) => (p.id === "p2" ? { ...p, created_at: "2026-11-25T07:00:00" } : { ...p, created_at: `${p.paid_on}T07:00:00` })) };
+    return null;
+  }, N),
+  steps: async (page) => { await page.waitForSelector('[data-testid="statement-months"]'); await page.waitForSelector('[data-testid="entered-later"]'); await page.locator('[data-testid="entered-later"]').last().scrollIntoViewIfNeeded(); } });
 
 (async () => {
   const browser = await launch();
   for (const [setName, N] of [["normal", F.SHORT], ["long", F.LONG]]) {
-    for (const scene of [...scenes(N), bulkScene(N)]) {
+    for (const scene of [...scenes(N), bulkScene(N), statementScene(N)]) {
       for (const width of [1280, 1024, 375]) {
         const run = await openPage(browser, scene.entry, scene.server, { width, height: width === 375 ? 800 : 900 });
         try {
