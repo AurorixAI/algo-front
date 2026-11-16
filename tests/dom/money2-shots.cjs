@@ -77,6 +77,9 @@ const SHOTS = [
         if (probe.wide || probe.cut || (probe.boxRight !== null && probe.boxRight > probe.vw)) console.log(`SUSPECT ${shot.name} ${width}: ${JSON.stringify(probe)}`);
         if (run.errors.length) console.log(`ERRORS ${shot.name} ${width}: ${run.errors.slice(0, 2).join(" | ").slice(0, 200)}`);
         await run.page.screenshot({ path: path.join(out, `${shot.name}-${width}.png`), fullPage: false });
+        // a window taller than the screen: the second shot is its bottom (what changes, the buttons)
+        const scrolled = await run.page.evaluate(() => { const els = [...document.querySelectorAll('[role="dialog"] *')].filter((el) => el.scrollHeight > el.clientHeight + 8 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)); els.forEach((el) => { el.scrollTop = el.scrollHeight; }); return els.length; });
+        if (scrolled) { await run.page.waitForTimeout(150); await run.page.screenshot({ path: path.join(out, `${shot.name}-${width}-end.png`), fullPage: false }); }
       } catch (error) { console.log(`FAIL ${shot.name} ${width}: ${String(error).slice(0, 160)}`); }
       await run.page.close();
     }

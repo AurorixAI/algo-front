@@ -32,7 +32,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "statement":
       w.__params = { id: props.membershipId ?? "m-a" };
-      root.render(<StatementView paymentsHref="/owner/payments" />);
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><StatementView paymentsHref="/owner/payments" /></div>);
       break;
     case "pause":
       root.render(<PauseDialog open membershipId="m-a" studentName="Каримов Фарход" groupName={props.groupName ?? "Алгебра"} onClose={() => log("close")} onChanged={(_row, text) => log(`changed:${text}`)} />);

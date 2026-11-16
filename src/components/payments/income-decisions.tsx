@@ -156,7 +156,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       )}
     >
       <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
-      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
+      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed className="!whitespace-normal" testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
       <DataCell col="who">
         <span className="text-sm font-medium text-slate-900">
           <Words text={row.student_name} />

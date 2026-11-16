@@ -67,3 +67,14 @@ test("Э7: a role without the right to money gets the sentence of no access, not
   assert.equal(await run.page.locator('[data-testid="decision-row"]').count(), 0);
   await run.page.close();
 });
+
+test("Э7 (375): a long kind label wraps inside the card (the chip never leaves it), no horizontal scroll", async () => {
+  const run = await openPage(browser, "money2.entry.tsx", F.baseServer(answer), { width: 375, height: 900 });
+  await run.page.evaluate(() => window.mount("decisions", { role: "owner", org_role: "owner" }));
+  await run.page.waitForSelector('[data-testid="decision-row"]');
+  await run.page.waitForTimeout(300);
+  const out = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-row"]')].flatMap((row) => { return [...row.querySelectorAll('[data-testid="decision-kind"]')].filter((chip) => chip.scrollWidth > chip.clientWidth + 1 || chip.getBoundingClientRect().right > chip.parentElement.getBoundingClientRect().right + 1).map((chip) => chip.textContent); }));
+  assert.deepEqual(out, [], "a chip leaves its card");
+  assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
+  await run.page.close();
+});
