@@ -58,20 +58,20 @@ test("cancel of a write-off (the one cancel window): one request with the typed 
 
 // ── write-off and refund: a form that moves money ───────────────────────────────────────────────
 
-test("write-off: the button is free, a press with a missing reason says what is wrong; with the reason ONE request (no dry run), no pay of the teachers anywhere in the window", async () => {
+test("write-off: the button is free, a press with a missing reason says what is wrong; the write is ONE request with the reason (the dry run before it only asks what the forgiveness does to the pay of the teacher - one line, Money-2 Э6)", async () => {
   const { page, calls } = await openPage(browser, "money.entry.tsx", (request) => (request.path === "/auth/org/memberships/m1/writeoffs" ? { status: 201, json: fixture("e6_writeoff_40000") } : null));
   await page.evaluate(() => window.mount("writeoff"));
-  await page.waitForTimeout(400);
-  assert.equal(calls.length, 0);
+  await page.waitForTimeout(700);
+  assert.ok(calls.every((call) => isDry(call)), "before the press only dry runs");
   assert.equal(await page.locator('[data-testid="money-effects"], [data-testid="payroll-consequence"]').count(), 0);
   assert.equal(await page.textContent('label[for="writeoff-reason"]'), "Причина (обязательно)");
   assert.equal(await page.isDisabled('button[form="writeoff-form"]'), false, "the press shows what is wrong, as it always did");
   await page.fill("#writeoff-reason", "болезнь, договорились с родителем");
   await page.click('button[form="writeoff-form"]');
   await page.waitForFunction(() => window.__log.includes("done"));
-  assert.equal(calls.length, 1);
-  assert.ok(!isDry(calls[0]));
-  assert.equal(calls[0].body.reason, "болезнь, договорились с родителем");
+  const writes = calls.filter((call) => !isDry(call));
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].body.reason, "болезнь, договорились с родителем");
   await page.close();
 });
 

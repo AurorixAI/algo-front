@@ -31,7 +31,7 @@ test("the contract has 21 operations; the front has a helper for each one it use
   assert.equal(operations.length, 21); // the retired quote is among them: the front never calls it
   const api = read("src/lib/api.ts");
   const needed = {
-    "payments/preview": /payments\/preview/, "/writeoffs": /writeoffs`/, "/refunds": /refunds`/, "/statement": /statement`|statement\$\{/,
+    "payments/preview": /payments\/preview/, "/writeoffs": /writeoffs(`|\$\{)/, "/refunds": /refunds`/, "/statement": /statement`|statement\$\{/,
     "statement/export": /statement\/export/,
     "writeoffs void": /writeoffs\/\$\{encodePathId\(writeoffId\)\}\/void/, "refunds void": /refunds\/\$\{encodePathId\(refundId\)\}\/void/,
     "Idempotency-Key": /"Idempotency-Key"/, "dry_run": /dry_run=true/,

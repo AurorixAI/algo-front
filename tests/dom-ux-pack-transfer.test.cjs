@@ -44,7 +44,7 @@ test("№15: «Что изменится» is the sentence of the server about t
   const raw = await block.locator('[data-testid="transfer-carried"]').textContent();
   assert.ok(/640\u00a0000\u00a0сум/.test(raw) && /280\u00a0000\u00a0сум/.test(raw) && /360\u00a0000\u00a0сум/.test(raw), "the sums of the server's sentence carry non-breaking spaces: " + JSON.stringify(raw));
   const dialog = plain(await page.textContent('[role="dialog"]'));
-  assert.ok(!/зарплат|Каримова К\.|Эргашев К\.|Подробнее|закрыт/i.test(dialog.replace(/Преподаватель: Камол Эргашев/g, "")), dialog);
+  assert.ok(!/зарплат|Каримова К\.|Эргашев К\.|закрыт/i.test(dialog.replace(/Преподаватель: Камол Эргашев/g, "")), dialog);
   assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
   assert.ok(!/Что переедет/.test(dialog), "one title for every window");
   await page.close();

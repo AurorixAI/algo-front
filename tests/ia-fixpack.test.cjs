@@ -630,12 +630,12 @@ test("F17: one wording of the lesson actions by the date of the lesson, in the s
 });
 
 test("F34: the filters and sub-tabs are in the address - payments list, income period, statement month, excuses / substitutions status, staff tab", () => {
-  const url = (state) => PAY.paymentsListQueryString({ bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, ...state });
+  const url = (state) => PAY.paymentsListQueryString({ bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, age: "", ...state });
   assert.equal(url({}), "?bucket=debt");
   assert.equal(url({ bucket: "active", groupId: "g1", q: "али", page: 2 }), "?bucket=active&group_id=g1&q=%D0%B0%D0%BB%D0%B8&page=3");
   assert.equal(url({ teacherId: "t1" }), "?bucket=debt&teacher_id=t1");
-  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3 });
-  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debt", groupId: "", teacherId: "", q: "", page: 0 });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3, age: "" });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, age: "" });
   const today = "2026-10-22";
   const period = (kind, from, to) => ({ kind, from, to });
   assert.equal(INC.incomeQueryString(INC.periodOf("month", today), "journal", today), "?");
