@@ -57,8 +57,10 @@ export function RefundDialog({
   // while the notice stands, the window shows the FRESH sum at once (the warning below says the same: no second hint in the footer)
   const shown = change ? change.fresh : refundable;
   const problem = row ? validateRefund(values, refundable) : null;
-  const blocker = problem ?? (change ? "" : null);
   const failure = payError(error);
+  // Money-2 T8: the server said there is nothing to give back from this stay (the advance went to another group; its sentence names the group): the same press cannot succeed, the sentence stays alone
+  const nothingHere = failure.kind === "refund_exceeds" && failure.refundable === 0;
+  const blocker = problem ?? (change || nothingHere ? "" : null);
 
   const continueWith = (next: number) => {
     setFresh(next);
