@@ -16,6 +16,7 @@ import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Words } from "@/components/ui/words";
+import { tidyMoneyText } from "@/lib/money-format";
 import { Select } from "@/components/ui/select";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { IncomeError } from "./income-parts";
@@ -160,10 +161,12 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
         <span className="text-sm font-medium text-slate-900">
           <Words text={row.student_name} />
           {/* the name of the group is ONE piece: «Алгебра 7 (вт/пт)» goes to the next line whole (cut inside only when it is wider than the line) */}
-          {row.group_name && <> · <span data-testid="decision-group" className="inline-block max-w-full"><Words text={row.group_name} /></span></>}
+          {row.group_name && !(row.text ?? "").includes(row.group_name) && <> · <span data-testid="decision-group" className="inline-block max-w-full"><Words text={row.group_name} /></span></>}
         </span>
+        {/* Money-2 Э7: a transfer / a restoration / an undone leaving / a moved pause is ONE sentence of the server: from which group to which, the sum, the dates - the columns do not say it again */}
+        {row.text && <span className="mt-0.5 block text-sm text-slate-700 [overflow-wrap:anywhere]" data-testid="decision-line">{tidyMoneyText(row.text)}</span>}
       </DataCell>
-      <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{decisionAmountText(row)}</span></DataCell>
+      <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{row.text ? <DataEmpty /> : decisionAmountText(row)}</span></DataCell>
       <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
       <DataCell col="actor"><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>
       <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>

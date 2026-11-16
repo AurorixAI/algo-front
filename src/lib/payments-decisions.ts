@@ -25,6 +25,8 @@ export interface DecisionRow {
   debt_after: number | null;
   /** Money-1 Г (Г-4, Р-3): what the decision did to the debt in the OTHER groups of the student, in the server's words («В группе «Вторая» долг вырос на 300 000 сум — до 700 000 сум»); null - nothing to say. */
   consequence: string | null;
+  /** Money-2 Э7: the line of a transfer / a restored payment / a cancelled leaving / a moved pause in the server's words (who is the actor, the date and the sum are in the row); null for the older kinds. */
+  text: string | null;
 }
 
 export interface DecisionsPage {
@@ -57,7 +59,7 @@ export function normalizeDecisions(raw: Partial<DecisionsPage> | null | undefine
       id: textOf(row?.id), at: textOrNull(row?.at), kind: textOf(row?.kind), kind_label: textOf(row?.kind_label), student_id: textOrNull(row?.student_id),
       student_name: textOf(row?.student_name), group_name: textOrNull(row?.group_name), amount: num(row?.amount), new_amount: numOrNull(row?.new_amount),
       receipt_no: numOrNull(row?.receipt_no), reason: textOrNull(row?.reason), actor_name: textOrNull(row?.actor_name),
-      debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after), consequence: textOrNull(row?.consequence),
+      debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after), consequence: textOrNull(row?.consequence), text: textOrNull(row?.text),
     })),
   };
 }
@@ -71,11 +73,16 @@ export const DECISION_KINDS: Array<{ value: string; label: string }> = [
   { value: "payment_writeoff_void", label: "Прощение отменено" },
   { value: "payment_refund", label: "Аванс возвращён" },
   { value: "payment_refund_void", label: "Возврат отменён" },
+  // Money-2 Э7
+  { value: "student_transferred", label: "Перевод" },
+  { value: "leave_undone", label: "Уход отменён" },
+  { value: "payment_restored", label: "Оплата восстановлена" },
+  { value: "pause_moved", label: "Пауза перенесена" },
 ];
 
 /** Colour = meaning (LESSONS 108): a cancel is quiet, a correction is blue, a forgiveness is amber, a refund is neutral. */
 export function decisionTone(kind: string): ChipTone {
-  if (kind === "payment_replace") return "info";
+  if (kind === "payment_replace" || kind === "payment_restored") return "info";
   if (kind === "payment_writeoff") return "warn";
   if (kind === "payment_refund") return "neutral";
   return "muted";

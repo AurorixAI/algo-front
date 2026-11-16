@@ -92,3 +92,17 @@ const paymentsList = () => [
 module.exports.statementWithVoided = statementWithVoided;
 module.exports.paymentsList = paymentsList;
 module.exports.MEMBERSHIP = MEMBERSHIP;
+
+// Money-2 Э7: the journal of decisions - the four new kinds, the worst case: long names of the groups, the same student, a payment restored the day it was cancelled.
+function decisionsPage() {
+  const base = { student_id: "st1", student_name: "Каримов Фарход Абдуллаевич", actor_name: "Рустам Каримов", new_amount: null, debt_before: null, debt_after: null, consequence: null, reason: null, receipt_no: null, amount: 0, group_name: A };
+  const rows = [
+    { ...base, id: "d1", at: "2026-11-22T09:00:00", kind: "student_transferred", kind_label: "Ученик переведён: деньги перенесены в новую группу", amount: 440000, group_name: T, text: `Перевод из «${A}» в «${T}»: перенесено 440 000 сум` },
+    { ...base, id: "d2", at: "2026-11-22T10:00:00", kind: "leave_undone", kind_label: "Уход отменён", text: "Ученик вернулся в день ухода: уход отменён, цены и паузы возвращены (3)" },
+    { ...base, id: "d3", at: "2026-11-22T11:00:00", kind: "payment_restored", kind_label: "Оплата восстановлена", amount: 600000, receipt_no: 1, reason: "Отменили по ошибке", text: "Оплата № 1 на 600 000 сум от 22.11.2026 восстановлена как № 2" },
+    { ...base, id: "d4", at: "2026-11-22T12:00:00", kind: "pause_moved", kind_label: "Пауза перенесена в новую группу", group_name: T, text: `Пауза 23.11.2026–26.11.2026 перенесена в группу «${T}» вместе с учеником` },
+    { ...base, id: "d5", at: "2026-11-21T12:00:00", kind: "payment_void", kind_label: "Оплата отменена", amount: 600000, receipt_no: 1, reason: "Ошибка кассира", text: null },
+  ];
+  return { as_of: "2026-11-22", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: rows.length, pages: 1, since: "2026-11-01", rows };
+}
+module.exports.decisionsPage = decisionsPage;

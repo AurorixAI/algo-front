@@ -7,6 +7,8 @@ import { StudentArchiveModal } from "@/components/students/student-archive-modal
 import { StatementView } from "@/components/payments/statement-view";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
+import { IncomeDecisions } from "@/components/payments/income-decisions";
+import { periodOf } from "@/lib/payments-income-v2";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
@@ -37,6 +39,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "refund":
       root.render(<RefundDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра", refundable: 390000, advance: 390000, debt: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);
+      break;
+    case "decisions":
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><IncomeDecisions period={periodOf("month", "2026-11-10")} authors={props.authors ?? []} paymentsBase="/owner/payments" studentProfileBasePath="/owner/students" /></div>);
       break;
     default:
       break;
