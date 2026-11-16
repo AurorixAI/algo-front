@@ -74,7 +74,7 @@ test("F1 / F13: the student card and the group's «Оплаты» tab render the
     assert.doesNotMatch(file, /priceMenuActions|<AssignOverrideDialog|<ReturnPriceDialog|<CancelScheduledDialog|<WriteoffDialog|<RefundDialog|<OpeningBalanceDialog/);
   }
   const shared = read("src/components/payments/membership-row-actions.tsx");
-  assert.match(shared, /membershipActionKeys\(row, \{ archived \}\)/);
+  assert.match(shared, /membershipActionKeys\(row, \{ archived, openingLocked: openingLocked\(openingsSummary\) \}\)/);
   for (const dialog of ["<WriteoffDialog", "<RefundDialog", "<IndividualPriceDialog", "<OpeningBalanceDialog"]) assert.ok(shared.includes(dialog), dialog);
   // the same labels for the same row: the tab passes its own accessible name only
   assert.match(tab, /label=\{`Действия по оплате: \$\{view\.name\}`\}/);

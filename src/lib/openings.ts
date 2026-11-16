@@ -85,6 +85,8 @@ export interface OpeningsSummary {
   accounting_start: string;
   state: OpeningsState;
   totals: OpeningTotals;
+  /** Money-2 R3c Г1: the ASKING user may put / change / cancel an opening balance (the server's answer; the owner always, an administrator until the start is finished).  Absent on an older server: not locked. */
+  can_set_opening?: boolean;
 }
 
 export interface OpeningsList extends OpeningsSummary {
@@ -248,7 +250,12 @@ export function normalizeTotals(raw: Raw | null | undefined): OpeningTotals {
 }
 
 export function normalizeSummary(raw: Raw | null | undefined): OpeningsSummary {
-  return { accounting_start: String(raw?.accounting_start ?? ""), state: normalizeState(raw?.state), totals: normalizeTotals(raw?.totals) };
+  return {
+    accounting_start: String(raw?.accounting_start ?? ""),
+    state: normalizeState(raw?.state),
+    totals: normalizeTotals(raw?.totals),
+    ...(typeof raw?.can_set_opening === "boolean" ? { can_set_opening: raw.can_set_opening } : {}),
+  };
 }
 
 export function normalizeRow(raw: Raw): OpeningRow {
@@ -411,6 +418,13 @@ export function normalizeImport(raw: Raw | null | undefined): OpeningsImportPrev
 // ── Words of the screen ─────────────────────────────────────────────────────
 
 export const OPENINGS_TITLE = "Остатки на начало";
+/** Money-2 R3c Г1: once the accounting has started only the owner puts or changes an opening balance (the server's `OPENING_OWNER_ONLY` says the same).  ONE text for the table, the windows and the refusal. */
+export const OPENING_LOCKED_TEXT = "Учёт запущен — остаток на начало вносит и меняет владелец";
+export const OPENING_OWNER_ONLY_CODE = "OPENING_OWNER_ONLY";
+/** The summary says «not for you» (`can_set_opening` is false); an absent field (an older server) or no summary is NOT a lock - the server still refuses what it must. */
+export function openingLocked(summary: Pick<OpeningsSummary, "can_set_opening"> | null | undefined): boolean {
+  return summary?.can_set_opening === false;
+}
 export const OPENINGS_SHOW_LEFT = "Показать ушедших";
 export const OPENINGS_ONLY_MISSING = "Только незаполненные";
 export const OPENINGS_LEFT_NOTE = "Ушедшим можно внести только долг на начало.";
@@ -1074,6 +1088,8 @@ export function classifyOpeningsError(error: unknown, fallback = "Не удал�
   const code = String(e.code ?? detail.code ?? "") || null;
   const serverMessage = String(detail.message ?? e.message ?? "").trim();
   const known = code ? OPENINGS_ERROR_TEXT[code] : undefined;
+  // Money-2 R3c Г1: a 403 in the server's own words - not «no access to money»: the page stays, the text says who may
+  if (code === OPENING_OWNER_ONLY_CODE) return { kind: "other", code, message: serverMessage || OPENING_LOCKED_TEXT };
   if (e.status === 403) return { kind: "denied", message: "Нет доступа к оплатам. Доступ даёт владелец центра в настройках." };
   switch (code) {
     case "STALE_ITEMS": {

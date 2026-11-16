@@ -67,7 +67,7 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
  * null once the answer is here.
  */
 /** Money-2 fix 3: the refusals the server says in its own words and that «Повторить» cannot change. */
-const REFUSED_IN_WORDS = new Set(["PAYMENT_EXCEEDS_DEBT", "BACKDATE_OWNER_ONLY", "RESTORE_OWNER_ONLY", "PAYMENT_RESTORE_SUPERSEDED", "LEAVE_UNDO_NO_START", "TRANSFER_SOURCE_NOT_MEMBER", "TRANSFER_SOURCE_GONE"]);
+const REFUSED_IN_WORDS = new Set(["PAYMENT_EXCEEDS_DEBT", "BACKDATE_OWNER_ONLY", "RESTORE_OWNER_ONLY", "OPENING_OWNER_ONLY", "PAYMENT_RESTORE_SUPERSEDED", "LEAVE_UNDO_NO_START", "TRANSFER_SOURCE_NOT_MEMBER", "TRANSFER_SOURCE_GONE"]);
 /** 409: somebody changed the data first - the words of the server and ONE action, «Обновить» (not «Повторить»: the same request would be refused again). */
 const REFUSED_STALE = new Set(["PAYMENT_RESTORE_SUPERSEDED", "TRANSFER_SOURCE_GONE"]);
 export const REFRESH_LABEL = "Обновить";

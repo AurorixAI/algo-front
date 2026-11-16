@@ -8,6 +8,8 @@ import { membershipActionKeys, membershipActionLabel, type MembershipActionKey }
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { OpeningBalanceDialog } from "./opening-balance-dialog";
+import { openingLocked } from "@/lib/openings";
+import { useOpeningsSummary } from "@/lib/openings-summary";
 import { IndividualPriceDialog } from "./membership-price";
 import { RefundDialog } from "./refund-dialog";
 import { WriteoffDialog } from "./writeoff-dialog";
@@ -42,7 +44,8 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
   const [open, setOpen] = useState<MembershipActionKey | null>(null);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   const close = () => setOpen(null);
-  const keys = membershipActionKeys(row, { archived });
+  const { summary: openingsSummary } = useOpeningsSummary();     // Money-2 R3c Г1: the summary of the screen (one request for all rows) says whether this user may put an opening balance
+  const keys = membershipActionKeys(row, { archived, openingLocked: openingLocked(openingsSummary) });
   const items: RowMenuItem[] = keys.map((key) => ({
     key,
     label: membershipActionLabel(key, row),

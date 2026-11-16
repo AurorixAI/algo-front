@@ -9,6 +9,7 @@ import { StatementView } from "@/components/payments/statement-view";
 import { WriteoffDialog } from "@/components/payments/writeoff-dialog";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
+import { OpeningsPage } from "@/components/payments/openings-page";
 import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { periodOf } from "@/lib/payments-income-v2";
 import { useAuthStore } from "@/lib/store";
@@ -38,6 +39,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "statement":
       w.__params = { id: props.membershipId ?? "m-a" };
       root.render(<div className="mx-auto max-w-[1100px] p-4"><StatementView paymentsHref="/owner/payments" /></div>);
+      break;
+    case "openings":
+      root.render(<div className="mx-auto max-w-[1100px] p-4"><OpeningsPage paymentsHref="/owner/payments" /></div>);
       break;
     case "writeoff":
       root.render(<WriteoffDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра 7", debt: 190000, advance: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);

@@ -336,7 +336,7 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.match(actions, /if \(canWriteOff\(row\)\) out\.push\("writeoff"\);/);
   assert.match(actions, /if \(canRefund\(row\)\) out\.push\("refund"\);/);
   assert.match(actions, /if \(editable\) out\.push\("price"\);/);
-  assert.match(actions, /if \(!archived && row\.is_active\) out\.push\("opening"\);/);
+  assert.match(actions, /if \(!archived && row\.is_active && !input\.openingLocked\) out\.push\("opening"\);/);
   // «Внести оплату / Продлить» and the status stay behind `editable`
   assert.equal((row.match(/\{editable && \(/g) || []).length, 2); // the status chip, the main button
   assert.match(row, /<MembershipRowActions\b[\s\S]*?archived=\{archived\}/);

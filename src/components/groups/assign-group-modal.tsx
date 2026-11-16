@@ -43,6 +43,8 @@ import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
+import { openingLocked } from "@/lib/openings";
+import { useOpeningsSummary } from "@/lib/openings-summary";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
 import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
@@ -139,6 +141,9 @@ export function AssignGroupModal({
   const [exceptionAmount, setExceptionAmount] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
   // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership; not with a transfer (the server refuses it).
+  // Money-2 R3c Г1: once the accounting has started only the owner puts an opening balance - the summary (shared with the other pieces of the screen: one request) says so, the screen does not guess the role
+  const { summary: openingsSummary } = useOpeningsSummary();
+  const openingBlocked = openingLocked(openingsSummary);
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
   const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
@@ -253,7 +258,7 @@ export function AssignGroupModal({
     if (exception.error) { setAssignmentError(exception.error); return; }
     if (payProblem) { setAssignmentError(payProblem); return; }
     const todayDate = formatBusinessDate();
-    const withOpening = moneyAvailable && !isTransfer && openingOn && leaveUndo?.undone !== true;
+    const withOpening = moneyAvailable && !openingBlocked && !isTransfer && openingOn && leaveUndo?.undone !== true;
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: todayDate, accountingStart, today: todayDate });
       if (problem) { setAssignmentError(problem); return; }
@@ -588,7 +593,7 @@ export function AssignGroupModal({
           onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
           compact
         />
-        {!isTransfer && !leavingUndone && (
+        {!isTransfer && !leavingUndone && !openingBlocked && (
           <div className="mt-2 border-t border-slate-200 pt-2">
             <OpeningToggle
               idPrefix="assign-group-opening"

@@ -55,6 +55,8 @@ import {
   type OpeningsImportPreview,
   type OpeningsList,
   type RowDraft,
+  OPENING_LOCKED_TEXT,
+  openingLocked,
 } from "@/lib/openings";
 import { formatDateRu } from "@/lib/payments";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
@@ -457,7 +459,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     try {
       const next = await orgApi.setOpeningsState("done");
       summaryHook.replace(next);
-      setData((previous) => (previous ? { ...previous, state: next.state } : previous));
+      setData((previous) => (previous ? { ...previous, state: next.state, can_set_opening: next.can_set_opening } : previous));
       setDoneOpen(false);
       showToast("Готово: учёт оплат идёт с даты начала");
     } catch (cause) {
@@ -477,6 +479,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   const canFinish = Boolean(data) && !doneAll && data!.state !== "skipped" && progress !== null && progress.left > 0 && dirtyCount === 0;
   const hasLeft = (data?.totals.left_available ?? 0) > 0 || includeLeft;
   const lessonsCentre = data?.period_mode === "lessons";
+  const locked = openingLocked(data);       // Money-2 R3c Г1: the answer of the server (`can_set_opening`) - not a guess by role: the accounting has started and the asking user is not the owner
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-4 pb-2">
@@ -494,10 +497,10 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
             {busyFile === "export" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Скачать файл
           </Button>
-          <Button type="button" onClick={() => fileInput.current?.click()} disabled={!data || busyFile !== null} data-testid="openings-upload" variant="secondary" size="md">
+          {!locked && <Button type="button" onClick={() => fileInput.current?.click()} disabled={!data || busyFile !== null} data-testid="openings-upload" variant="secondary" size="md">
             {busyFile === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4 text-slate-500" aria-hidden="true" />}
             Загрузить файл
-          </Button>
+          </Button>}
           <FileInput ref={fileInput} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Файл с остатками (.xlsx)" data-testid="openings-file" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} />
         </div>
       </div>
@@ -552,6 +555,9 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
             </section>
           )}
 
+          {locked ? (
+            <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-700" data-testid="openings-locked">{OPENING_LOCKED_TEXT}</p>
+          ) : (<>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="openings-filters">
             <div className="relative min-w-0 flex-1 basis-56 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
@@ -616,6 +622,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
           {lessonsCentre && visible.length > 0 && (
             <p className="text-xs text-slate-500">В пакетах можно указать, сколько уроков осталось: ALGO сам найдёт дату, до которой они оплачены.</p>
           )}
+          </>)}
         </>
       ) : null}
 

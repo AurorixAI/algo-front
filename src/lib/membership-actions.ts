@@ -25,6 +25,8 @@ export type MembershipActionKey = "writeoff" | "refund" | "price" | "opening";
 export interface MembershipActionInput {
   /** The student is in the archive: history only, nothing can be changed (the server answers 409). */
   archived?: boolean;
+  /** Money-2 R3c Г1: the opening-balance summary says the asking user may not put or change one (`can_set_opening` false): the item is not offered. */
+  openingLocked?: boolean;
 }
 
 /**
@@ -43,7 +45,7 @@ export function membershipActionKeys(
   if (canWriteOff(row)) out.push("writeoff");
   if (canRefund(row)) out.push("refund");
   if (editable) out.push("price");
-  if (!archived && row.is_active) out.push("opening");
+  if (!archived && row.is_active && !input.openingLocked) out.push("opening");
   return out;
 }
 
