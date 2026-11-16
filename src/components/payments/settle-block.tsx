@@ -23,6 +23,8 @@ import {
 } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Radio } from "@/components/ui/radio";
+import { EffectsSections } from "@/components/money/effects-sections";
+import { endsOnly } from "@/lib/transfer-effects";
 
 /**
  * The state of the «what happens to the money» part of leaving a group / the archive: the server's preview (what is left on the
@@ -185,7 +187,9 @@ function MembershipSettle({
         </div>
       )}
 
-      {money?.individual_price_ends && (
+      {membership.effects ? (
+        <EffectsSections effects={endsOnly(membership.effects)} testId="settle-effects" />
+      ) : money?.individual_price_ends && (
         <p className="flex items-start gap-1.5 text-xs text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>{INDIVIDUAL_PRICE_ENDS_TEXT}</span>

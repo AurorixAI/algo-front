@@ -80,3 +80,8 @@ export function leaveUndoOf(answer: unknown): LeaveUndo | null {
   const restored = Array.isArray(raw.restored) ? raw.restored.map((item) => (item as { text?: unknown } | null)?.text).filter((text): text is string => typeof text === "string" && text.trim() !== "") : [];
   return { undone: raw.undone === true, text: raw.text, restored };
 }
+
+/** A leaving / archiving window says only what ENDS (the debt and the advance that stay are the headline of its block - one number, once). */
+export function endsOnly(effects: TransferEffects): TransferEffects {
+  return { ...effects, moves: [], stays: [], moneyText: null };
+}

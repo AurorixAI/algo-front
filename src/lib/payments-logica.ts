@@ -23,6 +23,7 @@ import {
 } from "./payments";
 import { addIsoDays, daysBetween, daysBetweenInclusive, formatDayMonthRu } from "./business-time";
 import { daysLabel, pluralRu } from "./plural";
+import { effectsOfAnswer, type TransferEffects } from "./transfer-effects";
 
 const num = (value: unknown): number => {
   const parsed = Number(value);
@@ -511,6 +512,8 @@ export interface LeaveMembership {
   money: LeaveMoney | null;
   has_open_balance: boolean;
   allowed: SettleAction[];
+  /** Money-2 T3: what ENDS with the stay, in the words of the server (null: an older server - the own sentence stays). */
+  effects: TransferEffects | null;
 }
 
 export interface LeavePreview {
@@ -555,6 +558,7 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
         : null,
       has_open_balance: Boolean(item.has_open_balance),
       allowed: arr<SettleAction>(item.allowed).length > 0 ? arr<SettleAction>(item.allowed) : ["keep"],
+      effects: effectsOfAnswer({ effects: (item as { effects?: unknown }).effects }),
     })),
   };
 }

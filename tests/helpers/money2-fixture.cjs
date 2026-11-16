@@ -43,4 +43,26 @@ function transferEffects({ money = true, carried = 440000 } = {}) {
   };
 }
 
-module.exports = { transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };
+// Money-2 T3: the leaving / archiving of one stay of the student: a debt stays; an individual price, a planned price and a pause end.  `money` false: the same facts without a sum.
+function leaveMembership(index, { money = true, kind = "leave" } = {}) {
+  const name = [A, B, C][index];
+  const id = `m-${index}`;
+  const base = { membership_id: id, group_id: ["ga", "gb", "gc"][index], group_name: name };
+  const rub = (n) => `${String(n).replace(/\B(?=(\d{3})+$)/g, "\u00a0")}\u00a0сум`;
+  return {
+    membership_id: id, group_id: base.group_id, group_name: name,
+    money: money ? { debt: 120000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: true } : null,
+    has_open_balance: true, allowed: money ? ["keep", "writeoff"] : ["keep"],
+    effects: {
+      kind, moves: [], money_text: null, texts: [],
+      stays: [{ ...base, code: "debt", ...(money ? { amount: 120000 } : {}), text: money ? `Долг ${rub(120000)} останется за учеником в группе «${name}»: принять или простить его можно в её выписке` : `В группе «${name}» останется долг: принять или простить его можно в её выписке` }],
+      ends: [
+        { ...base, code: "individual_price", ...(money ? { amount: 300000 } : {}), since: "2026-10-01", text: money ? `Индивидуальная цена ${rub(300000)} в группе «${name}» закончится: при возвращении ученик получит цену группы` : `Индивидуальная цена в группе «${name}» закончится: при возвращении ученик получит цену группы` },
+        { ...base, code: "scheduled_price", valid_from: "2026-12-01", text: `Запланированная с 01.12.2026 индивидуальная цена в группе «${name}» (${money ? `цена ${rub(250000)}` : "новая индивидуальная цена"}) будет отменена` },
+        { ...base, code: "pause", first_day: "2026-11-23", last_day: "2026-11-26", text: `Пауза 23.11.2026–26.11.2026 в группе «${name}» закончится вместе с пребыванием ученика в ней` },
+      ],
+    },
+  };
+}
+
+module.exports = { leaveMembership, transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };
