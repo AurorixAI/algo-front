@@ -1,5 +1,6 @@
 "use client";
 
+import { refusedInWords } from "@/lib/money-preview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -61,7 +62,7 @@ export function PauseDialog({
   const [values, setValues] = useState<PauseFormValues>(() => emptyPauseValues(today));
   const [pauses, setPauses] = useState<PauseOut[] | null>(null);
   const [calc, setCalc] = useState<PauseSaved | null>(null);
-  const [calcFailure, setCalcFailure] = useState<{ message: string; dates: string[]; closed: PeriodClosedInfo | null } | null>(null);
+  const [calcFailure, setCalcFailure] = useState<{ message: string; code?: string | null; dates: string[]; closed: PeriodClosedInfo | null } | null>(null);
   /** Money-1 A1: the month of the teacher is closed (422 `PAUSE_LOCKED`): the sentence of the server and «Переоткрыть месяц» (the right) instead of a bare red line. */
   const [errorClosed, setErrorClosed] = useState<PeriodClosedInfo | null>(null);
   const [calcNonce, setCalcNonce] = useState(0);
@@ -116,7 +117,7 @@ export function PauseDialog({
           if (!sequence.current.isCurrent(token)) return;
           const failure = logicaError(cause, "Не удалось посчитать паузу");
           setChecking(false);
-          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message, dates: failure.dates, closed: periodClosedOf(cause) });
+          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message, code: failure.code, dates: failure.dates, closed: periodClosedOf(cause) });
         });
     }, CALC_DEBOUNCE_MS);
     return () => { clearTimeout(timer); sequence.current.next(); };
@@ -215,7 +216,7 @@ export function PauseDialog({
           submitFor="pause-form"
           busy={busy && acting === null}
           disabled={busy || !ready || checking || calcFailure !== null}
-          why={checking ? EFFECTS_LOADING_TEXT : calcFailure !== null ? "Не удалось посчитать паузу — повторите." : "Укажите, с какого по какое число пауза."}
+          why={checking ? EFFECTS_LOADING_TEXT : calcFailure !== null ? (refusedInWords({ code: calcFailure.code, message: calcFailure.message }) ? null : "Не удалось посчитать паузу — повторите.") : "Укажите, с какого по какое число пауза."}
           whyId="pause-why"
           onCancel={onClose}
           testId="pause-submit"

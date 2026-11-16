@@ -1,5 +1,6 @@
 "use client";
 
+import { refusedInWords } from "@/lib/money-preview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -142,7 +143,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           setImpact(null);
           setChecking(false);
           const refusal = logicaError(cause);
-          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked({ key: askedKey, error: refusal }); if (refusal.canCorrect) setOfferKey(baseKey); return; }
+          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS" || refusedInWords(refusal)) { setBlocked({ key: askedKey, error: refusal }); if (refusal.canCorrect) setOfferKey(baseKey); return; }
           setBlocked(null);
           setCheckError(cause instanceof Error ? cause.message : "Не удалось проверить последствия");
         });

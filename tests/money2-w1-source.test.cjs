@@ -91,7 +91,8 @@ test("Э1: 409 `TRANSFER_SOURCE_GONE` is shown in the words of the server; one g
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForSelector('[role="alert"]');
-  assert.equal(plain(await run.page.textContent('[role="alert"]')), gone);
+  const alert = plain(await run.page.textContent('[role="alert"]'));
+  assert.ok(alert.startsWith(gone) && alert.endsWith("Обновить") && alert.split(gone).length === 2, "the words of the server once, then the one action");
   await run.page.close();
 
   const one = await open(1280, server(), { sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] });

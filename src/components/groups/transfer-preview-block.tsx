@@ -9,6 +9,7 @@ import { tidyMoneyText } from "@/lib/money-format";
 import { Button } from "@/components/ui/button";
 import { EffectsSections } from "@/components/money/effects-sections";
 import { effectsEmpty, effectsOfAnswer } from "@/lib/transfer-effects";
+import { isStaleRefusal, refusedInWords, REFRESH_LABEL } from "@/lib/money-preview";
 
 /**
  * «Что изменится» before a transfer is confirmed (UX pack №15; the principle of the owner: the window shows only its own - the money OF THE STUDENT): the dry run of the same request
@@ -16,7 +17,7 @@ import { effectsEmpty, effectsOfAnswer } from "@/lib/transfer-effects";
  * student when there are several).  The pay of the teachers is NOT here: it is told in «Зарплата».  While it is asked the block is a skeleton of the same size; a failure offers «Повторить»
  * (the button of the window waits for the answer).
  */
-export function TransferPreviewBlock({ preview, onRetry, names, target = null, className = "mx-5 mb-4" }: { preview: EffectsPreview; onRetry: () => void; /** id → name of the students being moved: with several of them each line starts with the name. */ names?: ReadonlyMap<string, string> | null; /** The group the student goes to (the window of a transfer): the block names it once. */ target?: string | null; /** The outer margin: a window without its own padding keeps the default, the footer of the drawer passes "". */ className?: string }) {
+export function TransferPreviewBlock({ preview, onRetry, onRefresh, names, target = null, className = "mx-5 mb-4" }: { preview: EffectsPreview; onRetry: () => void; /** the action of a stale refusal (409): the window asks the page for fresh data */ onRefresh?: () => void; /** id → name of the students being moved: with several of them each line starts with the name. */ names?: ReadonlyMap<string, string> | null; /** The group the student goes to (the window of a transfer): the block names it once. */ target?: string | null; /** The outer margin: a window without its own padding keeps the default, the footer of the drawer passes "". */ className?: string }) {
   // re-audit В2: the window does NOT scroll itself to the block (it cut the card above it); the block stands under the list, always in view
   if (preview.status === "idle") return null;
   const shell = `${className} rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3`;
@@ -38,7 +39,8 @@ export function TransferPreviewBlock({ preview, onRetry, names, target = null, c
         <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
         <div role="alert" className="mt-1.5 space-y-1.5">
           <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
-          <Button type="button" data-testid="transfer-preview-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
+          {isStaleRefusal(preview.error) ? <Button type="button" data-testid="transfer-preview-refresh" onClick={onRefresh ?? (() => window.location.reload())} variant="secondary" size="sm">{REFRESH_LABEL}</Button>
+            : !refusedInWords(preview.error) && <Button type="button" data-testid="transfer-preview-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>}
         </div>
       </section>
     );

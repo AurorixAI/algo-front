@@ -14,7 +14,7 @@ import {
 import { periodClosedOf } from "@/lib/closed-period";
 import { movedByOf } from "@/lib/money-effects";
 import { ConfirmFooter, CONFIRM_FOOTER_CLASS } from "@/components/money/dialog-footer";
-import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
+import { effectsAllowConfirm, effectsWhyOffBesideBlock } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
@@ -210,7 +210,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
             testId="one-off-decision-confirm"
             disabled={!ready}
             busy={busy}
-            why={effectsWhyOff(preview)}
+            why={effectsWhyOffBesideBlock(preview)}
             onCancel={close}
           />
         ) : null}

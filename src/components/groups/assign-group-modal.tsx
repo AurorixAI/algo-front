@@ -1,5 +1,6 @@
 "use client";
 
+import { isStaleRefusal, REFRESH_LABEL } from "@/lib/money-preview";
 import { Select } from "@/components/ui/select";
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -124,6 +125,8 @@ export function AssignGroupModal({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [assignedSuccessGroup, setAssignedSuccessGroup] = useState<GroupInfo | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  // Money-2 fix 3: 409 `TRANSFER_SOURCE_GONE` - the words of the server once and one action, «Обновить»
+  const [assignmentStale, setAssignmentStale] = useState(false);
   const [serverWarnings, setServerWarnings] = useState<string[]>([]);
   // Calm notes of the server, e.g. "оплата перенесена в новую группу" (N13 P2.1).
   const [serverInfos, setServerInfos] = useState<string[]>([]);
@@ -287,6 +290,7 @@ export function AssignGroupModal({
       const askedSources = sourcesFromError(e);
       if (askedSources) { setServerSources(askedSources); setFromGroupId(""); }
       const failure = logicaError(e);
+      setAssignmentStale(isStaleRefusal(e));
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
       setAssignmentError(payFromErrorText(failure) || (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message) || (isAdd ? "Не удалось зачислить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
     } finally {
@@ -615,7 +619,8 @@ export function AssignGroupModal({
     {assignmentError && (
       <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">
         <X className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>{assignmentError}</span>
+        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{assignmentError}</span>
+        {assignmentStale && <Button type="button" variant="secondary" size="sm" data-testid="assign-refresh" onClick={() => { onClose(); window.location.reload(); }}>{REFRESH_LABEL}</Button>}
       </div>
     )}
 

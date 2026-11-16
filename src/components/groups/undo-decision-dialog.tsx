@@ -4,7 +4,7 @@ import { orgApi } from "@/lib/api";
 import { formatWeekdayDate } from "@/lib/business-time";
 import { useDialogAction } from "@/lib/use-dialog-action";
 import { DECISION_UNDO_NO_SHEET_TEXT, oneOffRefusalText, UNDO_DECISION_BUTTON, UNDO_DECISION_NOTE, undoDecisionTitle, type MoneyDecisionOut, type OneOffMoney } from "@/lib/one-off";
-import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
+import { effectsAllowConfirm, effectsWhyOffBesideBlock } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
@@ -62,7 +62,7 @@ export function UndoDecisionDialog({
           testId="undo-decision-submit"
           disabled={!ready}
           busy={busy}
-          why={effectsWhyOff(preview)}
+          why={effectsWhyOffBesideBlock(preview)}
           onCancel={onClose}
         />
       )}

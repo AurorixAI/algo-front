@@ -20,8 +20,8 @@ test("Э9: the cancel of an old payment by an administrator - the refusal of the
   await run.page.getByRole("menuitem", { name: "Отменить оплату" }).click();
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="failed"]');
   const dialog = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
-  // the block of the effects and the line over the off button (rule 3: an off button says why) - the same words of the server
-  assert.equal((dialog.match(new RegExp(REFUSAL, "g")) ?? []).length, 2, dialog);
+  // one message - once: the words of the server stand in the block of the effects, not again over the off button
+  assert.equal((dialog.match(new RegExp(REFUSAL, "g")) ?? []).length, 1, dialog);
   assert.equal(await run.page.locator('[data-testid="money-effects-retry"]').count(), 0);
   assert.equal(await run.page.locator('[role="dialog"] button[type="submit"]').isDisabled(), true);
   await run.page.close();

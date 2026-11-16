@@ -66,11 +66,31 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
  * Why the button of a confirmation is off while the answer about money is not here (UX pack, rule 3: an off main button ALWAYS says why): it is being counted / the month is closed / it could not be counted.
  * null once the answer is here.
  */
+/** Money-2 fix 3: the refusals the server says in its own words and that «Повторить» cannot change. */
+const REFUSED_IN_WORDS = new Set(["PAYMENT_EXCEEDS_DEBT", "BACKDATE_OWNER_ONLY", "RESTORE_OWNER_ONLY", "PAYMENT_RESTORE_SUPERSEDED", "LEAVE_UNDO_NO_START", "TRANSFER_SOURCE_NOT_MEMBER", "TRANSFER_SOURCE_GONE"]);
+/** 409: somebody changed the data first - the words of the server and ONE action, «Обновить» (not «Повторить»: the same request would be refused again). */
+const REFUSED_STALE = new Set(["PAYMENT_RESTORE_SUPERSEDED", "TRANSFER_SOURCE_GONE"]);
+export const REFRESH_LABEL = "Обновить";
+
 /** A refusal the server says in its own words and that «Повторить» cannot change (G3M С1: «Ученик ушёл из группы: при исправлении сумма не может быть больше N сум»). */
 export function refusedInWords(error: unknown): string | null {
   const source = error as { code?: unknown; message?: unknown } | null | undefined;
   // Money-2 Т17: «Запись старше 7 дней меняет владелец» - the administrator cannot do it at all: «Повторить» changes nothing
-  return (source?.code === "PAYMENT_EXCEEDS_DEBT" || source?.code === "BACKDATE_OWNER_ONLY") && typeof source.message === "string" && source.message.trim() ? source.message.trim() : null;
+  return typeof source?.code === "string" && REFUSED_IN_WORDS.has(source.code) && typeof source.message === "string" && source.message.trim() ? source.message.trim() : null;
+}
+
+/** The refusal is a stale-data one (409): the window offers «Обновить» instead of «Повторить». */
+export function isStaleRefusal(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return typeof code === "string" && REFUSED_STALE.has(code);
+}
+
+/**
+ * The reason of the off button when the window ALSO draws the block of the effects (`MoneyEffectsBlock` / `TransferPreviewBlock`): a refusal in the server's words stands in that block once and
+ * is NOT repeated over the button (one message - once).  A window without such a block uses `effectsWhyOff`.
+ */
+export function effectsWhyOffBesideBlock(preview: EffectsPreview): string | null {
+  return preview.status === "failed" && refusedInWords(preview.error) ? null : effectsWhyOff(preview);
 }
 
 export function effectsWhyOff(preview: EffectsPreview): string | null {

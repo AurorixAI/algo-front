@@ -10,7 +10,7 @@ import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-f
 import { ReasonField, reasonFieldError } from "@/components/money/reason-field";
 import { useDialogAction } from "@/lib/use-dialog-action";
 import { useMoneyPreview } from "@/lib/use-money-preview";
-import { effectsAllowConfirm, effectsWhyOff } from "@/lib/money-preview";
+import { effectsAllowConfirm, effectsWhyOffBesideBlock, isStaleRefusal, REFRESH_LABEL } from "@/lib/money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { Modal } from "@/components/ui/modal";
 import { Notice } from "@/components/ui/notice";
@@ -61,6 +61,9 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
   const change = target?.expectedKind ? balanceChangeOf(error, target.expectedKind) : null;
   const voided = alreadyVoidedText(error) ?? (preview.status === "failed" ? alreadyVoidedText(preview.error) : null);      // the dry run found it already cancelled: said at once
 
+  // Money-2 fix 3: 409 «после отмены внесена другая оплата» - nothing to confirm; the words of the server stand once (the block / the error), the one action is «Обновить»
+  const stale = isStaleRefusal(error) || (preview.status === "failed" && isStaleRefusal(preview.error));
+
   const submit = async () => {
     if (!target || busy || waits) return;
     const problem = validateReason(reason);
@@ -80,9 +83,11 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
       footer={voided !== null ? (
         // somebody cancelled it first: nothing to confirm, the page reads its data again
         <ConfirmFooter primary={null} cancelLabel="Понятно" onCancel={() => { target?.onStale?.(); onClose(); }} />
+      ) : stale ? (
+        <ConfirmFooter primary={null} cancelLabel={REFRESH_LABEL} onCancel={() => { target?.onStale?.(); onClose(); }} />
       ) : (
         // red: cancelling a payment / a write-off cannot be undone for the money (UX pack, rule 3); the secondary button is «Не отменять»
-        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone={target?.tone ?? "danger"} busy={busy} disabled={change !== null || waits} why={waits ? effectsWhyOff(preview) : null} whyId="record-void-why" onCancel={onClose} />
+        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone={target?.tone ?? "danger"} busy={busy} disabled={change !== null || waits} why={waits ? effectsWhyOffBesideBlock(preview) : null} whyId="record-void-why" onCancel={onClose} />
       )}
     >
       <form id="record-void-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>
