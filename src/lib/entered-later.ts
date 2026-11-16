@@ -12,3 +12,12 @@ export function enteredLaterMark(createdAt: string | null | undefined, day: stri
   const iso = `${match[3]}-${match[2]}-${match[1]}`;
   return iso > day.slice(0, 10) ? `внесено ${formatDayMonthRu(iso)}` : null;
 }
+
+/** Money-2 fix 3: the same mark for a refund / a write-off of the statement: `details.recorded_on` (the business day of the record, ISO) against the day the row is dated by; shown only when they differ. */
+export function recordedOnMark(recordedOn: string | null | undefined, day: string | null | undefined): string | null {
+  if (!recordedOn || !day) return null;
+  const iso = recordedOn.slice(0, 10);
+  if (iso === day.slice(0, 10)) return null;
+  const text = formatDayMonthRu(iso);
+  return text ? `внесено ${text}` : null;
+}

@@ -820,6 +820,7 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
       replaces_receipt_no: item.details?.replaces_receipt_no ?? null,
       replaces_amount: item.details?.replaces_amount ?? null,
       replaced_by_receipt_no: item.details?.replaced_by_receipt_no ?? null,
+      recorded_on: item.details?.recorded_on ?? null,
     },
   });
   return {

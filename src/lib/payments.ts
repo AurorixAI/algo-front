@@ -677,6 +677,8 @@ export interface StatementDetails {
   replaces_amount?: number | null;
   /** On the cancelled original: the receipt of its correction. */
   replaced_by_receipt_no?: number | null;
+  /** Money-2 fix 3: a refund / a write-off - the business day the record was entered (`date` is the day it is dated by). */
+  recorded_on?: string | null;
 }
 
 export interface StatementRow {

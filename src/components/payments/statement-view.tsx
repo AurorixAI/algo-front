@@ -56,7 +56,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { savedPaymentDetails, savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { useToast } from "@/components/ui/toast";
 import { PaymentDialog, type EditablePayment } from "./payment-dialog";
-import { enteredLaterMark } from "@/lib/entered-later";
+import { enteredLaterMark, recordedOnMark } from "@/lib/entered-later";
 import { PaymentVoidModal, paymentRestoreTarget, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
@@ -361,7 +361,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
             </label>
           </div>
 
-          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? <>{entered.get(entry.raw.details.payment_id ?? "") && <span data-testid="entered-later" className="mt-0.5 block text-xs font-medium text-amber-800">{entered.get(entry.raw.details.payment_id ?? "")}</span>}{cheques.filesOf(entry.raw.details.payment_id)}</> : null)} withVoided={withVoided} month={month}
+          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "refund" || entry.type === "writeoff" ? (recordedOnMark(entry.raw.details.recorded_on, entry.date) ? <span data-testid="entered-later" className="mt-0.5 block text-xs font-medium text-amber-800">{recordedOnMark(entry.raw.details.recorded_on, entry.date)}</span> : null) : entry.type === "payment" ? <>{entered.get(entry.raw.details.payment_id ?? "") && <span data-testid="entered-later" className="mt-0.5 block text-xs font-medium text-amber-800">{entered.get(entry.raw.details.payment_id ?? "")}</span>}{cheques.filesOf(entry.raw.details.payment_id)}</> : null)} withVoided={withVoided} month={month}
             restorable={restorable}
             onRestore={(payment) => setVoidRecord(paymentRestoreTarget(payment, m?.student_name, () => { showToast("Оплата восстановлена", "success"); changed(); void cheques.reload(); }, () => { changed(); }))} />
         </>
@@ -513,6 +513,7 @@ export function StatementTimeline({
                     <span className="line-through">{view.title}</span>
                     <span className="ml-2 tabular-nums">{view.effect.replace(/^[+\u2212]/, "")}</span>
                   </p>
+                  {(view.type === "refund" || view.type === "writeoff") && recordedOnMark(statement.voided[index].details.recorded_on, view.date) && <p className="font-medium text-amber-800" data-testid="entered-later">{recordedOnMark(statement.voided[index].details.recorded_on, view.date)}</p>}
                   {view.cancelNote && <p className="text-slate-500">{view.cancelNote}</p>}
                   {view.type === "payment" && view.paymentId && restorable?.has(view.paymentId) && onRestore && (
                     <Button type="button" variant="secondary" size="sm" className="mt-1.5" data-testid="statement-restore" onClick={() => onRestore({ id: view.paymentId as string, paid_on: view.date, amount: statement.voided[index].credit })}>Восстановить оплату</Button>
