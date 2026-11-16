@@ -192,6 +192,12 @@ export interface PaymentOut {
   voided_by: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  /** Money-2 T7: a cancelled payment that nothing replaced yet and that may be restored (the button «Восстановить оплату»). */
+  restorable?: boolean;
+  /** Money-2 T7: a cancelled payment - the receipt number of the payment that stands in its place (a correction or a restoration). */
+  replaced_by_receipt_no?: number | null;
+  /** Money-2 T7: the payment is the restoration of the cancelled payment with this receipt number. */
+  restored_from_receipt_no?: number | null;
   /** Receipt number inside the center; null for a carry-over (not money) and on an older server. */
   receipt_no?: number | null;
   /** A pre-PAY-2 payment for a part of a center period; a fact of its time, never recalculated. */

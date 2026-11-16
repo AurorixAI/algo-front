@@ -56,7 +56,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { savedPaymentDetails, savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { useToast } from "@/components/ui/toast";
 import { PaymentDialog, type EditablePayment } from "./payment-dialog";
-import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
+import { PaymentVoidModal, paymentRestoreTarget, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -137,6 +137,8 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   const [payOpen, setPayOpen] = useState(false);
   const [voidPayment, setVoidPayment] = useState<VoidablePayment | null>(null);
   const [voidRecord, setVoidRecord] = useState<VoidTarget | null>(null);
+  // Money-2 T7: the cancelled payments the server lets be restored (`restorable` of the list of payments of the membership; the rows of the statement do not carry it)
+  const [restorable, setRestorable] = useState<ReadonlySet<string>>(new Set());
 
   // The whole statement is read once: the month is cut here, so the balance after every row stays the server's.
   const load = useCallback(async (silent = false) => {
@@ -144,9 +146,13 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
     if (!silent) setLoading(true);
     setFailure(null);
     try {
-      const data = await orgApi.getStatement(membershipId, { include_voided: withVoided });
+      const [data, payments] = await Promise.all([
+        orgApi.getStatement(membershipId, { include_voided: withVoided }),
+        withVoided ? orgApi.listMembershipPayments(membershipId, true).catch(() => []) : Promise.resolve([]),
+      ]);
       if (!requests.current.isCurrent(token)) return;
       setStatement(data);
+      setRestorable(new Set(payments.filter((payment) => payment.restorable === true).map((payment) => payment.id)));
     } catch (cause) {
       if (!requests.current.isCurrent(token)) return;
       const status = (cause as { status?: number } | null)?.status;
@@ -351,7 +357,9 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
             </label>
           </div>
 
-          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? cheques.filesOf(entry.raw.details.payment_id) : null)} withVoided={withVoided} month={month} />
+          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? cheques.filesOf(entry.raw.details.payment_id) : null)} withVoided={withVoided} month={month}
+            restorable={restorable}
+            onRestore={(payment) => setVoidRecord(paymentRestoreTarget(payment, m?.student_name, () => { showToast("Оплата восстановлена", "success"); changed(); void cheques.reload(); }, () => { changed(); }))} />
         </>
       ) : null}
 
@@ -452,7 +460,7 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
 
 /** The bank statement: a light row per month, then the rows of the month; the periods to come and the cancelled records below. */
 export function StatementTimeline({
-  statement, menuFor, extraFor, withVoided, month = null,
+  statement, menuFor, extraFor, withVoided, month = null, restorable, onRestore,
 }: {
   statement: StatementOut;
   menuFor: (entry: StatementEntry) => RowMenuItem[];
@@ -460,6 +468,9 @@ export function StatementTimeline({
   extraFor?: (entry: StatementEntry) => ReactNode;
   withVoided: boolean;
   month?: string | null;
+  /** Money-2 T7: the ids of the cancelled payments that can be restored, and what «Восстановить оплату» does. */
+  restorable?: ReadonlySet<string>;
+  onRestore?: (payment: VoidablePayment) => void;
 }) {
   const items = buildStatementItems(statement, month);
   const cancelled = statement.voided.map(statementRowView);
@@ -490,7 +501,7 @@ export function StatementTimeline({
             <p className="mt-1 text-xs text-slate-500">Отменённых записей нет</p>
           ) : (
             <ul className="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3.5">
-              {cancelled.map((view) => (
+              {cancelled.map((view, index) => (
                 <li key={`${view.seq}-${view.type}-x`} className="py-2 text-xs text-slate-500">
                   <p>
                     <span className="tabular-nums">{formatDateRu(view.date)}</span>
@@ -499,6 +510,9 @@ export function StatementTimeline({
                     <span className="ml-2 tabular-nums">{view.effect.replace(/^[+\u2212]/, "")}</span>
                   </p>
                   {view.cancelNote && <p className="text-slate-500">{view.cancelNote}</p>}
+                  {view.type === "payment" && view.paymentId && restorable?.has(view.paymentId) && onRestore && (
+                    <Button type="button" variant="secondary" size="sm" className="mt-1.5" data-testid="statement-restore" onClick={() => onRestore({ id: view.paymentId as string, paid_on: view.date, amount: statement.voided[index].credit })}>Восстановить оплату</Button>
+                  )}
                 </li>
               ))}
             </ul>

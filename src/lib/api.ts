@@ -1849,6 +1849,11 @@ export const orgApi = {
     api<{ payment: PaymentOut; row: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/void${options.dryRun ? "?dry_run=true" : ""}`, {
       method: "POST", body: { reason }, signal: options.signal,
     }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  /** Money-2 T7: «Восстановить оплату» - a NEW payment of the same sum, date and method in place of the cancelled one (`payment_id`); `dryRun`: the same request with `?dry_run=true` - `money_effects.text` says what changes (nothing is written). */
+  restorePayment: (paymentId: string, reason: string, options: { dryRun?: boolean; signal?: AbortSignal } = {}) =>
+    api<{ payment: PaymentOut; row?: MembershipPaymentRow; money_effects?: unknown }>(`/auth/org/payments/${encodePathId(paymentId)}/restore${options.dryRun ? "?dry_run=true" : ""}`, {
+      method: "POST", body: { reason }, signal: options.signal,
+    }),
   /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
   getPaymentPreview: (membershipId: string, q: PreviewQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();

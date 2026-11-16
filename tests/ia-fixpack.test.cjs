@@ -59,9 +59,9 @@ test("F1: the row menu has at most three items, one per domain, in a fixed order
   assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 })), ["Простить долг", "Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ refundable: 50000 })), ["Вернуть аванс", "Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ opening: { id: "o", paid_until: null, debt_amount: 1, debt_on: "2026-10-01" } })), ["Индивидуальная цена…", "Остаток на начало…"]);
-  // a group the student has left keeps the money actions; an archived student has none
+  // a group the student has left keeps the money actions; so does an archived student (Money-2 T11), but not the price and the opening balance
   assert.deepEqual(M.membershipMenuLabels(row({ is_active: false, debt: 100000 })), ["Простить долг"]);
-  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 }), { archived: true }), []);
+  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 }), { archived: true }), ["Простить долг"]);
 });
 
 test("F1 / F13: the student card and the group's «Оплаты» tab render the SAME component for the menu", () => {
@@ -80,12 +80,13 @@ test("F1 / F13: the student card and the group's «Оплаты» tab render the
   assert.match(tab, /label=\{`Действия по оплате: \$\{view\.name\}`\}/);
 });
 
-test("F1: the shared menu renders for a live row, and nothing for an archived student (static render)", () => {
+test("F1: the shared menu renders for a live row; an archived student has it only while there is a debt or an advance (Money-2 T11), otherwise nothing (static render)", () => {
   const { MembershipRowActions } = require(path.join(root, "src/components/payments/membership-row-actions.tsx"));
   const html = (props) => renderToStaticMarkup(React.createElement(MembershipRowActions, { row: row({ debt: 5 }), studentName: "Каримова Дилноза", periodMode: "calendar", onRowChange: () => {}, onNotify: () => {}, ...props }));
   assert.match(html({}), /aria-label="Действия по оплате: Алгебра 8А"/);
   assert.match(html({ label: "Действия по оплате: Каримова Дилноза" }), /aria-label="Действия по оплате: Каримова Дилноза"/);
-  assert.doesNotMatch(html({ archived: true }), /Действия по оплате/);
+  assert.match(html({ archived: true }), /Действия по оплате/);
+  assert.doesNotMatch(html({ archived: true, row: row() }), /Действия по оплате/);
 });
 
 test("F1: «Индивидуальная цена…» is one window: the modes of the existing rules, the history inside, the old dialogs composed", () => {

@@ -29,7 +29,7 @@ export interface MembershipActionInput {
 
 /**
  * The items of the menu in order.  `writeoff` / `refund` follow the server's own flags (`writeoff_allowed`, `refundable`) and
- * stay for a group the student has left (the debt or the advance remains); the price and the opening balance need an active
+ * stay for a group the student has left and for a student in the archive (the debt or the advance remains); the price and the opening balance need an active
  * membership of a student who is not archived.
  */
 export function membershipActionKeys(
@@ -39,8 +39,9 @@ export function membershipActionKeys(
   const archived = Boolean(input.archived);
   const editable = row.is_active && !archived;
   const out: MembershipActionKey[] = [];
-  if (!archived && canWriteOff(row)) out.push("writeoff");
-  if (!archived && canRefund(row)) out.push("refund");
+  // Money-2 T11: the debt and the advance of a student in the archive can still be forgiven / given back (the server allows both)
+  if (canWriteOff(row)) out.push("writeoff");
+  if (canRefund(row)) out.push("refund");
   if (editable) out.push("price");
   if (!archived && row.is_active) out.push("opening");
   return out;

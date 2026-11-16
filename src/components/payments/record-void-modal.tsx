@@ -38,6 +38,8 @@ export interface VoidTarget {
   expectedKind?: "debt" | "advance";
   /** Said when the fresh number is 0: «Долга больше нет» - there is nothing to cancel. */
   emptyText?: string;
+  /** The red button cancels (the default); `primary`: an action that brings money back («Восстановить оплату»). */
+  tone?: "danger" | "primary";
   /** An `ALREADY_VOIDED` (somebody did it first) or a continue after a change: the page reads its data again. */
   onStale?: () => void;
 }
@@ -80,7 +82,7 @@ export function RecordVoidModal({ target, onClose }: { target: VoidTarget | null
         <ConfirmFooter primary={null} cancelLabel="Понятно" onCancel={() => { target?.onStale?.(); onClose(); }} />
       ) : (
         // red: cancelling a payment / a write-off cannot be undone for the money (UX pack, rule 3); the secondary button is «Не отменять»
-        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone="danger" busy={busy} disabled={change !== null || waits} why={waits ? effectsWhyOff(preview) : null} whyId="record-void-why" onCancel={onClose} />
+        <ConfirmFooter primary={target?.action ?? ""} submitFor="record-void-form" tone={target?.tone ?? "danger"} busy={busy} disabled={change !== null || waits} why={waits ? effectsWhyOff(preview) : null} whyId="record-void-why" onCancel={onClose} />
       )}
     >
       <form id="record-void-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void submit(); }} className="space-y-2 pb-2" noValidate>

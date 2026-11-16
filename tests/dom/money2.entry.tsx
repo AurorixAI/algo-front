@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
+import { StatementView } from "@/components/payments/statement-view";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
@@ -24,6 +25,10 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "archive":
       root.render(<StudentArchiveModal open studentId="st1" studentName="Каримов Фарход" groupNames={props.groupNames ?? []} onClose={() => log("close")} onArchived={() => log("archived")} onStale={() => log("stale")} />);
+      break;
+    case "statement":
+      w.__params = { id: props.membershipId ?? "m-a" };
+      root.render(<StatementView paymentsHref="/owner/payments" />);
       break;
     default:
       break;

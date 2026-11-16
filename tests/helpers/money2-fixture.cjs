@@ -66,3 +66,29 @@ function leaveMembership(index, { money = true, kind = "leave" } = {}) {
 }
 
 module.exports = { leaveMembership, transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };
+
+// Money-2 T7 / Э3: the statement of a student who left, with the worst real case - one cancelled payment that can be restored, one that was ALREADY restored (nothing to press), the restoration itself.
+const MEMBERSHIP = "m-a";
+function statementWithVoided() {
+  const details = (extra) => ({ segment: null, method: "cash", created_by_name: "Рустам Каримов", note: null, allocations: [], writeoff_id: null, refund_id: null, reason: null, from_group_name: null, from_membership_id: null, to_group_name: null, to_membership_id: null, replaces_receipt_no: null, replaces_amount: null, replaced_by_receipt_no: null, ...extra });
+  const row = (seq, date, title, credit, extra, over = {}) => ({ seq, date, type: "payment", title, debit: 0, credit, outflow: 0, balance_after: 0, balance_text: "", voided_at: null, void_reason: null, voided_by_name: null, ...over, details: details(extra) });
+  return {
+    membership: { membership_id: MEMBERSHIP, student_id: "st1", student_name: "Каримов Фарход", display_id: "N13-004", group_id: "ga", group_name: A, teacher_name: "Камол Эргашев", is_active: false },
+    as_of: "2026-11-16", mode: "calendar", accounting_start: "2026-01-01",
+    summary: { charged: 200000, paid: 600000, transferred_in: 0, written_off: 0, refunded: 0, transferred_out: 0, debt: 0, advance: 400000, paid_until: null, status: "left", reconciles: true },
+    rows: [row(2, "2026-11-22", "Оплата № 2", 600000, { payment_id: "p2", receipt_no: 2, replaces_receipt_no: 1 })],
+    voided: [
+      row(1, "2026-11-22", "Оплата № 1", 600000, { payment_id: "p1", receipt_no: 1, replaced_by_receipt_no: 2 }, { voided_at: "2026-11-23T08:00:00", void_reason: "Отменили по ошибке", voided_by_name: "Рустам Каримов" }),
+      row(0, "2026-11-10", "Оплата № 3", 150000, { payment_id: "p3", receipt_no: 3 }, { voided_at: "2026-11-12T08:00:00", void_reason: "Дубль", voided_by_name: "Рустам Каримов" }),
+    ],
+    upcoming: [],
+  };
+}
+const paymentsList = () => [
+  { id: "p2", membership_id: MEMBERSHIP, amount: 600000, currency: "UZS", paid_on: "2026-11-22", method: "cash", kind: "payment", receipt_no: 2, restorable: false, replaced_by_receipt_no: null, restored_from_receipt_no: 1, voided_at: null, voided_by: null, voided_by_name: null, void_reason: null, created_by: null, created_by_name: null, created_at: null },
+  { id: "p1", membership_id: MEMBERSHIP, amount: 600000, currency: "UZS", paid_on: "2026-11-22", method: "cash", kind: "payment", receipt_no: 1, restorable: false, replaced_by_receipt_no: 2, voided_at: "2026-11-23T08:00:00", voided_by: "u", voided_by_name: "Рустам Каримов", void_reason: "Отменили по ошибке", created_by: null, created_by_name: null, created_at: null },
+  { id: "p3", membership_id: MEMBERSHIP, amount: 150000, currency: "UZS", paid_on: "2026-11-10", method: "cash", kind: "payment", receipt_no: 3, restorable: true, replaced_by_receipt_no: null, restored_from_receipt_no: null, voided_at: "2026-11-12T08:00:00", voided_by: "u", voided_by_name: "Рустам Каримов", void_reason: "Дубль", created_by: null, created_by_name: null, created_at: null },
+];
+module.exports.statementWithVoided = statementWithVoided;
+module.exports.paymentsList = paymentsList;
+module.exports.MEMBERSHIP = MEMBERSHIP;

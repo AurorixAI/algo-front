@@ -49,3 +49,19 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided, onSt
 }) {
   return <RecordVoidModal target={payment ? paymentVoidTarget(payment, studentName, onVoided, onStale) : null} onClose={onClose} />;
 }
+
+/** Money-2 T7: «Восстановить оплату?» - the cancelled payment comes back as a NEW one (same sum, date and method); the server's `money_effects.text` is «Что изменится»; the refusals (already replaced, from another group) are its words. */
+export function paymentRestoreTarget(payment: VoidablePayment, studentName: string | undefined, onRestored: () => void, onStale?: () => void): VoidTarget {
+  return {
+    key: `restore:${payment.id}`,
+    title: "Восстановить оплату?",
+    description: `${studentName ? `${studentName} · ` : ""}${formatDateRu(payment.paid_on)} · ${paymentAmountLabel(payment)}`,
+    explain: "Оплата вернётся новой записью — на ту же сумму, с той же датой и способом; отменённая запись останется в истории.",
+    action: "Восстановить оплату",
+    failure: "Не удалось восстановить оплату",
+    tone: "primary",
+    onStale,
+    preview: (signal) => orgApi.restorePayment(payment.id, DRY_RUN_REASON, { dryRun: true, signal }),
+    run: async (reason) => { await orgApi.restorePayment(payment.id, reason); onRestored(); },
+  };
+}
