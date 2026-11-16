@@ -332,7 +332,9 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.equal((row.match(/href=\{statement\}/g) || []).length, 2); // «Выписка» for a running group and for one the student has left
   const actions = read("src/lib/membership-actions.ts");
   assert.match(actions, /const editable = row\.is_active && !archived;/);
-  assert.match(actions, /if \(!archived && canWriteOff\(row\)\) out\.push\("writeoff"\);/);
+  // Money-2 T11 (Э3): the debt and the advance of an archived student can still be forgiven / given back - the server allows both; the price and the opening balance stay closed
+  assert.match(actions, /if \(canWriteOff\(row\)\) out\.push\("writeoff"\);/);
+  assert.match(actions, /if \(canRefund\(row\)\) out\.push\("refund"\);/);
   assert.match(actions, /if \(editable\) out\.push\("price"\);/);
   assert.match(actions, /if \(!archived && row\.is_active\) out\.push\("opening"\);/);
   // «Внести оплату / Продлить» and the status stay behind `editable`
