@@ -1867,9 +1867,9 @@ export const orgApi = {
       .then(normalizePreview);
   },
   /** Writes off a part of the debt (or all of it) with a reason; the owner and the administrator. */
-  createWriteoff: (membershipId: string, data: WriteoffCreate, idempotencyKey?: string) =>
-    api<WriteoffCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`, {
-      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  createWriteoff: (membershipId: string, data: WriteoffCreate, idempotencyKey?: string, options: { dryRun?: boolean; signal?: AbortSignal } = {}) =>
+    api<WriteoffCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs${options.dryRun ? "?dry_run=true" : ""}`, {
+      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, signal: options.signal,
     })
       .then((result) => ({ ...result, row: normalizeRow(result.row) })),
   /** `expectedDebt`: the debt the person SAW (Money-1 V1); another one now -> 409 `BALANCE_CHANGED`. */

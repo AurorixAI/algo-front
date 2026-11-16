@@ -174,9 +174,8 @@ test("С15: the bulk window of a transfer names the group in the heading and doe
   const drawer = src("components/groups/add-student-drawer.tsx");
   assert.match(drawer, /Перевести в «\$\{groupNames\[groupId\]\}»/);
   assert.doesNotMatch(drawer, /— из «\$\{t\.from\}»/);
-  const modal = src("components/groups/assign-group-modal.tsx");
-  assert.match(modal, /row\.price\?\.source === "override"/);
-  assert.match(modal, /isTransfer && hadOverride/);
+  // Money-2 wave 2: the window of a single transfer has no sentence of its own about the old individual price - `effects.ends` of the server says it (tests: money2-w1-effects, money2-w1-leave)
+  assert.doesNotMatch(src("components/groups/assign-group-modal.tsx"), /hadOverride/);
 });
 
 test("С17: below 1280 px the list of «Требует действия» opens INSIDE the card (an accordion); the floating layer stays for the table", () => {

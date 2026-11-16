@@ -44,10 +44,12 @@ test("the rows never carry the pay of the teachers", () => {
 });
 
 test("the pay of the teachers is not drawn by the screen in a window of a payment, a write-off, a refund (decision of the owner 05.11); the cancel and the correction of a payment say only the server's own sentence (Money-1 Г)", () => {
-  for (const file of ["writeoff-dialog", "refund-dialog"]) {
-    const source = read(`src/components/payments/${file}.tsx`);
-    assert.ok(!/MoneyEffectsBlock|PayrollConsequence|useDryRunForm|usePaymentEffects|dryRun|money_effects|toastWithEffects/.test(source), file);
-  }
+  const refund = read("src/components/payments/refund-dialog.tsx");
+  assert.ok(!/MoneyEffectsBlock|PayrollConsequence|useDryRunForm|usePaymentEffects|dryRun|money_effects|toastWithEffects/.test(refund), "refund-dialog");
+  // Money-2 Э6 (decision of the owner 16.11): the window of a forgiveness shows ONE line - what the forgiveness does to the pay of the teacher (`money_effects.forgiveness`, the server's sum); no table of sheets
+  const writeoff = read("src/components/payments/writeoff-dialog.tsx");
+  assert.ok(!/MoneyEffectsBlock|PayrollConsequence|useDryRunForm|usePaymentEffects|toastWithEffects/.test(writeoff), "writeoff-dialog");
+  assert.ok(/<ForgivenessLine/.test(writeoff));
   for (const file of ["payment-dialog", "record-void-modal"]) {
     const source = read(`src/components/payments/${file}.tsx`);
     assert.ok(/<MoneyEffectsBlock[^>]*serverText/.test(source), `${file}: «Что изменится» is the server's sentence`);

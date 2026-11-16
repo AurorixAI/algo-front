@@ -5,6 +5,9 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type WriteoffCreated } from "@/lib/payments";
 import { balanceChangeOf, buildWriteoffPayload, payError, validateWriteoff, writeoffAmount, writeoffPreviewText, type WriteoffFormValues } from "@/lib/payments-ledger";
+import { useFormMoneyPreview } from "@/lib/use-money-preview";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
+import { ForgivenessLine } from "./forgiveness-line";
 import { useDialogAction } from "@/lib/use-dialog-action";
 import { useDialogKey } from "@/lib/use-dialog-key";
 import { BalanceChangedNotice } from "@/components/money/balance-changed-notice";
@@ -91,6 +94,9 @@ export function WriteoffDialog({
 
   const debtShown = change ? change.fresh : debt;
   const preview = writeoffPreviewText(values, debtShown);
+  // Money-2 Э6: what the forgiveness does to the pay of the teacher - the dry run of the same request, asked once the amount is right (the button is not held: it is a notice, the decision is the owner's)
+  const forgivenessKey = row && debtShown > 0 && !validateWriteoff({ ...values, reason: "xxx" }, debtShown) ? `${row.membership_id}|${values.all ? "all" : values.amount}|${debtShown}` : null;
+  const forgiveness = useFormMoneyPreview(forgivenessKey, (signal) => orgApi.createWriteoff(row!.membership_id, buildWriteoffPayload({ ...values, reason: DRY_RUN_REASON }, today), undefined, { dryRun: true, signal }));
 
   return (
     <Modal
@@ -148,6 +154,8 @@ export function WriteoffDialog({
           placeholder="Например: болезнь, договорённость с родителем"
           hint="Причина и ваше имя останутся в выписке ученика. Прощение можно отменить."
         />
+
+        <ForgivenessLine preview={forgiveness.preview} onRetry={forgiveness.retry} />
 
         {problem && <Notice variant="error" compact>{problem}</Notice>}
         {change
