@@ -106,3 +106,14 @@ test("п.5: BACKDATE_OWNER_ONLY в окне паузы — слова серве
   assert.ok(!/повторите/i.test(dialog), "no «повторите» over a refusal that repeating cannot change");
   await run.page.close();
 });
+
+test("п.6 (375): подпись «сейчас в «…»» в шапке окна — на своей строке, без точки в начале", async () => {
+  const run = await openPage(browser, "money2.entry.tsx", F.baseServer(() => null, F.SHORT), { width: 375, height: 800 });
+  await run.page.evaluate((p) => window.mount("assign", { role: "owner", org_role: "owner" }, p), { moneyAvailable: true, sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"], studentName: "Каримов Фарход Абдуллаевич", currentGroupName: F.A });
+  await run.page.waitForSelector('[data-testid="assign-current-caption"]');
+  const text = plain(await run.page.textContent('[data-testid="assign-current-caption"]'));
+  assert.ok(!text.startsWith("·") && /^сейчас в «/.test(text), text);
+  const own = await run.page.evaluate(() => { const c = document.querySelector('[data-testid="assign-current-caption"]'); const p = c.previousElementSibling; return c.getBoundingClientRect().top >= p.getBoundingClientRect().bottom - 1; });
+  assert.equal(own, true, "the caption is on its own line");
+  await run.page.close();
+});

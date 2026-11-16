@@ -78,7 +78,7 @@ test("В2: «Перевести в другую группу» - who and from wh
       const lineBox = line.getBoundingClientRect();
       return { text: line.textContent.replace(/\s+/g, " ").trim(), ratios, lineHeight: Math.round(lineBox.height), scrolled: body.scrollTop, listHeight: Math.round(list.getBoundingClientRect().height), rows, blockBottom: Math.round(block.bottom), submitTop: Math.round(submit.getBoundingClientRect().top), submitHeight: Math.round(submit.getBoundingClientRect().height), submitText: submit.textContent.trim(), vh: window.innerHeight };
     });
-    assert.match(facts.text, /^Иванов Иван · сейчас в «Алгебра 7 \(вт\/пт\)»$/, JSON.stringify(facts));
+    assert.match(facts.text, /^Иванов Иван сейчас в «Алгебра 7 \(вт\/пт\)»$/, JSON.stringify(facts));
     assert.ok(facts.ratios.length > 0 && facts.ratios.every((ratio) => ratio >= 4.5), JSON.stringify(facts));
     assert.equal(facts.scrolled, 0, `${width}: the body of the window was not scrolled by the window itself`);
     assert.ok(facts.listHeight <= facts.rows * 150 + 60, `${width}: the list is as tall as its groups, not a fixed box (it was 220 / 340 px with one group): ${JSON.stringify(facts)}`);

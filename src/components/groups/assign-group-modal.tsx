@@ -355,8 +355,9 @@ export function AssignGroupModal({
             <span className="rounded bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600">{studentGrade} класс</span>
           )}
           {((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) && (
-            <span className="text-slate-600">
-              · {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
+            // the caption stands on its own line - never a separator dot at the start of a wrapped line
+            <span className="basis-full text-slate-600" data-testid="assign-current-caption">
+              {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
             </span>
           )}
         </span>
