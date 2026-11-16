@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { addDays, businessNow } from "../support/time";
+import { addDays, businessNow, sharedMonthCharge } from "../support/time";
 import { dm, expectNoHorizontalScroll, fillDate } from "../support/ui";
 
 /**
@@ -62,13 +62,13 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await expect(rowOf("Уехавший Достон")).toHaveCount(0);
   await expect(rowOf("Оставшаяся Малика")).toHaveCount(1);
 
-  // --- no charge for the paused days: the statement names the pause and the other student is charged 500 000, he is not charged
+  // --- no charge for the paused days: the statement names the pause and the other student is charged the SHARE of the month (Money-2 T16: a new centre is «Общий месяц»), he is not charged
   await page.goto(`/owner/payments/statement/${awayMembership}`);
   await expect(page.getByText(new RegExp(`Пауза ${dm(today)}–${dm(last)} — стоимость не считается`))).toBeVisible();
   await expectNoHorizontalScroll(page);
   const paused = await costOf(page, awayMembership);
   const full = await costOf(page, staysMembership);
-  expect(full).toBe(500000);
+  expect(full).toBe(sharedMonthCharge(500000, addDays(today, -10), today)); // charged from ten days ago: the share of the days from then to the end of the month
   expect(paused).toBe(0); // the pause starts on the first day: the period begins after it, the paused days cost nothing
 
   // --- the group roster says who is on a pause

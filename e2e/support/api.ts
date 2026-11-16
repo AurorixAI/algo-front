@@ -350,6 +350,14 @@ export class Org {
   }
 
   /**
+   * Money-2 T16: a NEW centre starts in «Общий месяц» (a calendar month from the 1st, a late joiner owes a share).  A check that is about «Свой месяц у каждого ученика»
+   * (the period from the date of joining, the whole price) puts the centre in that mode FIRST - through the same settings call as the screen, never the database.
+   */
+  async setPersonalPeriod() {
+    return this.setPaymentSettings({ period_mode: "calendar", billing_anchor: "payment_date" });
+  }
+
+  /**
    * A recurring lesson of the group on TODAY's weekday that has already started, for the business clock:
    * start = the current minute, end = start + 10. The API refuses a lesson that starts earlier than "now",
    * and refuses to START one before its time, so "this very minute" is the earliest valid shape. The

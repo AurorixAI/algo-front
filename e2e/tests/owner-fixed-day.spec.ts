@@ -1,13 +1,13 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { businessNow } from "../support/time";
+import { businessNow, sharedMonthCharge } from "../support/time";
 import { dmy, groupedDigits, money, pickOption, toast } from "../support/ui";
 
 /**
  * Owner: settings «Оплаты» -> «Единый день оплаты». LOGIC-A (F12): a change of the mode never touches a running period - the new mode
- * starts for each student at the beginning of his NEXT period (the screen says so before and after saving).  A student who already
- * pays keeps his current period (here the price of the whole period is due, not a part of it); paying it closes the period (no
- * debt) and the statement shows one charge of the same sum.
+ * starts for each student at the beginning of his NEXT period (the screen says so before and after saving).  A new centre is already in «Общий месяц» (day 1,
+ * Money-2 T16), so the owner moves the day to the 2nd.  A student who joined today keeps his current period (the SHARE of the month he owes, not a price of
+ * a month by the new day); paying it closes the period (no debt) and the statement shows one charge of the same sum.
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -17,7 +17,7 @@ test.beforeAll(async () => {
 test("fixed payment day: the new mode waits for the next period; the running one is not touched, and paying it closes it", async ({ signIn }) => {
   const now = businessNow();
   const fee = 900000;
-  const billingDay = now.day === 1 ? 2 : 1;
+  const billingDay = 2;                                                              // a new centre is already in «Общий месяц» with the 1st (Money-2 T16): the owner moves the day
 
   const teacher = await org.addStaff("teacher", "Расписанин");
   const group = await org.createGroup({ name: "Группа Д1", teacherId: teacher.userId });
@@ -32,9 +32,9 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await page.goto("/owner/settings?section=payments");
   const section = page.getByRole("region", { name: "Оплаты" });
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                    // a calm section: the warning is only for a change that is not saved yet
-  await section.getByRole("radio", { name: /Общий месяц для всех/ }).check();
-  await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();   // the screen says when the new mode starts: not for the running periods
+  await expect(section.getByRole("radio", { name: /Общий месяц для всех/ })).toBeChecked();          // the default of a new centre: nothing to choose, only the day
   await pickOption(page, section.getByRole("combobox", { name: "День, с которого начинается общий месяц" }), String(billingDay));
+  await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();   // the screen says when the new mode starts: not for the running periods
   await section.getByRole("button", { name: "Сохранить" }).click();
   // Money-1 B3: a change of the mode is confirmed in the window that shows every student «было → станет»
   await expect(page.getByTestId("regime-confirm")).toBeEnabled();
@@ -45,8 +45,8 @@ test("fixed payment day: the new mode waits for the next period; the running one
 
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                    // saved: the warning is gone
 
-  // --- the running period is not touched: the whole price of the period is due, the amount starts as that
-  const expectedAmount = fee;
+  // --- the running period is not touched: the share of the running month is due, the amount starts as that
+  const expectedAmount = sharedMonthCharge(fee, now.date, now.date);       // the share of the days from today to the end of the month
 
   // Money-1 B7: the period began today - he WAITS for the payment, he is not a debtor: «Должники» says so in its empty state (not a list that failed to load), «Ждём оплату» holds his row
   const split = (await org.owner.api.get("/auth/org/payments/summary")).debt_split;
@@ -56,7 +56,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await expect(page.getByText("Должников нет")).toBeVisible();
   await page.getByRole("tab", { name: /Ждём оплату/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
-  await expect(row).toContainText(new RegExp(`${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум`));
+  await expect(row).toContainText(new RegExp(`${groupedDigits(expectedAmount).replace(/ /g, "\\s")}\\s*сум`));
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
   await expect(dialog.getByTestId("payment-chips")).toContainText(new RegExp(`${groupedDigits(expectedAmount).replace(/ /g, "\\s")}\\s*сум`));

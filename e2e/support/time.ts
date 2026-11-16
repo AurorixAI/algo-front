@@ -81,6 +81,20 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+/**
+ * Money-2 T16, «Общий месяц» (calendar month, payment day the 1st), a group WITHOUT a schedule (so the days of the month count): what a student charged from `from`
+ * owes by the end of the month of `today`.  The first month is a share - price x the days from `from` to the month's end / the days of the month, whole thousands,
+ * a half goes up, never above the price; every later month that has begun costs the whole price.  The oracle of the checks, written from the rule, not read from the API.
+ */
+export function sharedMonthCharge(price: number, from: string, today: string): number {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm] = today.split("-").map(Number);
+  const months = (ty - fy) * 12 + (tm - fm);                                    // whole months after the first one
+  const dim = daysInMonth(fy, fm);
+  const first = fd === 1 ? price : Math.min(price, round1000(price * (dim - fd + 1), dim));
+  return first + Math.max(0, months) * price;
+}
+
 /** Last day of the month of an ISO date. */
 export function monthEnd(iso: string): string {
   const [y, m] = iso.split("-").map(Number);

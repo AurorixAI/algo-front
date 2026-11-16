@@ -14,6 +14,7 @@ import { dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../su
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Оплаты");
+  await org.setPersonalPeriod(); // Money-2 T16: a new centre is «Общий месяц»; this check is about «Свой месяц у каждого ученика» (the period from the day of joining)
 });
 
 test("pay from a debtor row -> «Оплачено» -> history «№ N» -> receipt in words -> void with a reason", async ({ signIn }) => {

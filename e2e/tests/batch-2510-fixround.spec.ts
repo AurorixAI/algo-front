@@ -250,7 +250,9 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expect(line).toContainText(/^ALGO ведёт оплаты центра с \d{2}\.\d{2}\.\d{4}/);
   await expect(section.getByText("Запуск учёта оплат")).toHaveCount(0);
   await expect(section.getByText("Начало учёта оплат")).toHaveCount(0);
-  await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(1);           // only the «?» of the section; no checklist
+  await expect(section.getByTestId("payments-help")).toHaveCount(1); // the «?» of the section; no checklist
+  // a new centre is in «Общий месяц» (recommended): its block with the day has its OWN «Подробнее» (about the day, not a copy of the section's one) - two in all, each in its place
+  await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(2);
   await expect(section.getByTestId("accounting-start-editor")).toHaveCount(0);
   await expect(section.getByRole("radio", { name: /Свой месяц|Общий месяц|Пакет уроков/ })).toHaveCount(3);
   // the cards carry ONE short line each
@@ -286,8 +288,8 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expectNoHorizontalScroll(page);
   await shot(page, `28-settings-payments-calm-package-${project}`);
 
-  // back to the saved mode: the warning goes
-  await section.getByRole("radio", { name: /Свой месяц у каждого ученика/ }).check();
+  // back to the saved mode (a new centre: «Общий месяц», Money-2 T16): the warning goes
+  await section.getByRole("radio", { name: /Общий месяц для всех/ }).check();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);
   await expect(section.getByTestId("centre-cancel-setting")).toBeVisible();
   await section.getByRole("button", { name: "Подробнее" }).first().click();                  // the long words are behind «?»

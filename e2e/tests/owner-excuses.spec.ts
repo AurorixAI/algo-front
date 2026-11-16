@@ -16,6 +16,7 @@ import { deadlineWords, dm, settledBox, toast } from "../support/ui";
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Пропуски");
+  await org.setPersonalPeriod(); // Money-2 T16: a new centre is «Общий месяц»; this check is about «Свой месяц у каждого ученика» (the period from the day of joining)
 });
 
 test("pending excuse shows its deadline and disappears after «Подтвердить»", async ({ signIn }) => {
