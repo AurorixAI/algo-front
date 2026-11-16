@@ -41,12 +41,12 @@ test("Э1 / А7: «Что изменится» is SHORT ROWS «что → зна
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
   assert.deepEqual(await sectionTitles(run.page), [`Перейдёт в «Физика 9»`, `Останется в группе «Алгебра 7»`, "Закончится"]);
   assert.deepEqual(await rows(run.page, "money"), [["Деньги ученика", "440 000 сум"], ["Пауза", "23–26.11"], ["«Оплата с»", "30.11"]]);
-  assert.deepEqual(await rows(run.page, "stays"), [["Долг", "120 000 сум"]]);
+  assert.deepEqual(await rows(run.page, "stays"), [["Аванс", "40 000 сум"]]);
   assert.deepEqual(await rows(run.page, "ends"), [["Индивидуальная цена", "300 000 сум"], ["Цена с 01.12", "250 000 сум"]]);
   const dialog = await visible(run.page);
   assert.ok(!/Старая фраза/.test(dialog), "the sentence of `carried` is not said next to `effects`");
   assert.ok(!/переходят в группу|останется за учеником/.test(dialog), "the whole sentences of the server are folded");
-  assert.equal((dialog.match(/120 000 сум/g) ?? []).length, 1, "the debt is said once");
+  assert.equal((dialog.match(/(?<!\d)40 000 сум/g) ?? []).length, 1, "the advance that stays is said once");
   const block = plain(await run.page.locator('[data-testid="transfer-effects"]').evaluate((el) => el.innerText));
   assert.equal((block.match(/Алгебра 7/g) ?? []).length, 1, "the source group is named once in the block (the title of its part)");
   assert.equal((block.match(/Физика 9/g) ?? []).length, 1, "the target is named once in the block");
@@ -113,7 +113,7 @@ test("И5: a role without the right to money sees the same facts without a sum, 
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
   const text = plain(await run.page.textContent('[data-testid="transfer-effects"]'));
   assert.ok(!/сум/.test(text.replace(/дни паузы/g, "")), text);
-  assert.ok(text.includes("останется долг") && text.includes("Индивидуальная цена в группе"));
+  assert.ok(text.includes("останется аванс") && text.includes("Индивидуальная цена в группе"));
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForSelector('[data-testid="assign-done"]');
   const write = posts(run.calls).filter((call) => !isDry(call))[0];
@@ -127,11 +127,11 @@ test("И5: a role without the right to money sees the same facts without a sum, 
   await empty.page.close();
 });
 
-test("А7: a role without the right to money - the same short rows without a sum: «Долг», «Индивидуальная цена», a pause with its days; no digit of money, no dead end", async () => {
+test("А7: a role without the right to money - the same short rows without a sum: «Аванс», «Индивидуальная цена», a pause with its days; no digit of money, no dead end", async () => {
   const effects = F.transferEffects({ money: false, names: F.SHORT });
   const run = await open(375, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), effects } } : null, F.SHORT), { money: false });
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
-  assert.deepEqual(await rows(run.page, "stays"), [["Долг"]]);
+  assert.deepEqual(await rows(run.page, "stays"), [["Аванс"]]);
   assert.deepEqual((await rows(run.page, "money")).map((row) => row[0]), ["Пауза", "«Оплата с»"]);
   assert.ok(!/сум/.test(await visible(run.page)), "no sum without the right");
   assert.equal(await run.page.locator('[data-testid="assign-submit"]').isDisabled(), false);

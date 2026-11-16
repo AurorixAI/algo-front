@@ -11,8 +11,8 @@ const SHORT = F.SHORT;
 const visible = async (page, selector) => plain(await page.locator(selector).evaluate((el) => el.innerText));
 const rowsOf = async (page, selector) => page.locator(`${selector} [data-testid="effect-row"]`).evaluateAll((items) => items.map((li) => [...li.children].map((child) => child.textContent.replace(/[\s ]+/g, " ").trim())));
 const pause = (id, first, last) => ({ id, membership_id: "m-a", first_day: first, last_day: last, days: 4, reason: null, created_by_name: null, created_at: null, voided_at: null, void_reason: null });
-const OTHER = `В группе «${SHORT.T}» аванс уменьшится на 30 000 сум — до 360 000 сум`;
-const drops = [{ membership_id: "m-b", group_id: "gt", group_name: SHORT.T, amount: 30000, total: 360000 }];
+const OTHER = `В группе «${SHORT.T}» аванс уменьшится на 30 000 сум — до 410 000 сум`;
+const drops = [{ membership_id: "m-b", group_id: "gt", group_name: SHORT.T, amount: 30000, total: 410000 }];
 
 function pauseServer({ money = true } = {}) {
   const future = pause("pf", day(10), day(13));
@@ -61,7 +61,7 @@ async function openRestore(width) {
   await run.page.getByText("Показать отменённые").click();
   await run.page.waitForSelector('[data-testid="statement-restore"]');
   await run.page.getByRole("button", { name: "Восстановить оплату" }).first().click();
-  await run.page.waitForSelector('[data-testid="money-effects"]');
+  await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"]');
   return run;
 }
 
