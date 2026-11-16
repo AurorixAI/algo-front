@@ -62,6 +62,7 @@ body {
 .dt-row-span[data-tone="heading"] { background: theme(colors.slate.100); border-color: transparent; padding: 0.5rem 0.875rem; font-size: 0.875rem; }
 .dt-row-span[data-tone="note"] { border-color: transparent; background: transparent; padding: 0.25rem 0.25rem; font-size: 0.875rem; color: theme(colors.slate.500); }
 .dt-card-hidden { display: none; }
+.dt-cell.dt-card-hidden { display: none; }   /* a labelled cell is flex: the hidden one must still win on a card */
 /* a table of 880 that is still narrow (880-1119): the line under a sum keeps only «было …»; the full text is in its title */
 @container dt (min-width: 880px) and (max-width: 1119px) { .dt-cap-long { display: none; } }
 /* a button of a row in a narrow table is compact (less padding), still a button with its text */

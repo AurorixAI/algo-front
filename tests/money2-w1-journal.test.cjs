@@ -29,23 +29,53 @@ async function open(width, handler = answer) {
   return run;
 }
 
-test("Э7: each new kind says its line in words once; the sum of such a line is not repeated in the sum column; the old row keeps its sum", async () => {
-  const run = await open(1280);
-  const page = F.decisionsPage();
+const LINES = ["в «Физика 9»", "«Алгебра 7»", "№ 1", "в «Физика 9»"];
+const CHIPS = ["Перевод", "Уход отменён", "Оплата восстановлена", "Пауза перенесена"];
+
+test("Э7 / А8: each new kind is a SHORT chip and ONE line from the structure of the row (the group, the receipt); the sum is in its column once; the whole sentence of the server is in the opened row", async () => {
+  const page = F.decisionsPage(F.SHORT);
+  const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
   const rows = run.page.locator('[data-testid="decision-row"]');
   assert.equal(await rows.count(), 5);
   for (let index = 0; index < 4; index += 1) {
-    const text = plain(await rows.nth(index).textContent());
-    const line = plain(page.rows[index].text);
-    assert.equal(text.split(line).length - 1, 1, `${page.rows[index].kind}: ${text}`);
-    assert.ok(text.includes("Каримов Фарход Абдуллаевич") && text.includes("Рустам Каримов"), "who");
-    assert.equal(plain(await rows.nth(index).locator('[data-testid="decision-amount"]').textContent()).includes("сум"), false, "the sum is in the line, not in the column");
+    const text = plain(await rows.nth(index).evaluate((el) => el.innerText));
+    assert.equal(plain(await rows.nth(index).locator('[data-testid="decision-kind"]').textContent()), CHIPS[index]);
+    assert.equal(plain(await rows.nth(index).locator('[data-testid="decision-line"]').textContent()), LINES[index]);
+    const whole = plain(await rows.nth(index).textContent());
+    assert.ok(whole.includes("Каримов Фарход Абдуллаевич") && whole.includes("Рустам Каримов"), "who");
+    assert.ok(!text.includes(plain(page.rows[index].text)), "the whole sentence is not in the line");
   }
+  assert.equal(plain(await rows.nth(0).locator('[data-testid="decision-amount"]').textContent()), "440 000 сум", "the transfer: the carried sum is in the column");
+  assert.equal(plain(await rows.nth(2).locator('[data-testid="decision-amount"]').textContent()), "600 000 сум");
   const old = plain(await rows.nth(4).textContent());
   assert.ok(old.includes("600 000 сум"), old);
   assert.equal(await run.page.locator('[data-testid="decision-line"]').count(), 4, "the old row has no line");
+  await rows.nth(0).click();
+  assert.equal(plain(await run.page.locator('[data-testid="decision-text"]').textContent()), plain(page.rows[0].text), "the whole sentence in the opened row");
   assert.equal(run.errors.length, 0, run.errors.join("|"));
   await run.page.close();
+});
+
+test("А8: without the group in the structure the sentence of the server stands as the line (nothing is guessed)", async () => {
+  const page = F.decisionsPage(F.SHORT);
+  page.rows[0].group_name = null;
+  const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
+  assert.equal(plain(await run.page.locator('[data-testid="decision-line"]').first().textContent()), plain(page.rows[0].text));
+  await run.page.close();
+});
+
+test("Б1 (375): the card shows only the cells that have a value - no «Сумма —», «Долг —», «Кто —»", async () => {
+  const page = F.decisionsPage(F.SHORT);
+  page.rows[1].actor_name = null;
+  const run = await openPage(browser, "money2.entry.tsx", F.baseServer((request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null)), { width: 375, height: 900 });
+  await run.page.evaluate(() => window.mount("decisions", { role: "owner", org_role: "owner" }));
+  await run.page.waitForSelector('[data-testid="decision-row"]');
+  const dashes = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-row"]')].map((row) => [...row.querySelectorAll(".dt-cell")].filter((cell) => getComputedStyle(cell).display !== "none" && /—/.test(cell.textContent ?? "")).map((cell) => cell.getAttribute("data-col"))));
+  assert.deepEqual(dashes, [[], [], [], [], []], JSON.stringify(dashes));
+  await run.page.close();
+  const wide = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
+  assert.ok((await wide.page.locator('[data-testid="decision-row"]').nth(1).locator("[data-testid=decision-debt]").evaluate((el) => el.textContent.includes("—"))), "the table keeps the dash in its column");
+  await wide.page.close();
 });
 
 test("Э7: the filter «Вид» offers the new kinds and sends the `kind` of the server", async () => {

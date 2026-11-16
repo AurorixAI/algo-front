@@ -113,3 +113,26 @@ export function decisionsSinceText(since: string | null | undefined): string {
 
 export const DECISIONS_EMPTY_TEXT = "За этот период денежных решений нет";
 export const DECISIONS_FILTERED_EMPTY_TEXT = "По фильтру ничего нет";
+
+/** Money-2 А8: the short name of the new kinds for the chip (the server's `kind_label` of a transfer is a whole sentence); the older kinds keep the server's label. */
+const SHORT_KIND_LABEL: Record<string, string> = {
+  student_transferred: "Перевод",
+  leave_undone: "Уход отменён",
+  payment_restored: "Оплата восстановлена",
+  pause_moved: "Пауза перенесена",
+};
+export const decisionKindLabel = (row: Pick<DecisionRow, "kind" | "kind_label">): string => SHORT_KIND_LABEL[row.kind] ?? row.kind_label;
+
+/**
+ * Money-2 А8: the second line of a new kind from the STRUCTURAL fields of the row (the group of the record, the receipt): «в «Физика 9»» for a transfer and a moved pause, «№ 1» for a restored payment,
+ * ««Алгебра 7»» for a cancelled leaving.  The sum is in the column «Сумма», the day and the author in their columns: nothing is said twice.  The whole sentence of the server is in the opened row.
+ * When the structure has nothing to say the sentence of the server stands as the line (`null` for the older kinds: their columns say everything).
+ */
+export function decisionSummary(row: Pick<DecisionRow, "kind" | "group_name" | "receipt_no" | "text">): string | null {
+  if (!SHORT_KIND_LABEL[row.kind]) return null;
+  const group = row.group_name ? `«${row.group_name}»` : null;
+  const line = row.kind === "payment_restored" ? (row.receipt_no !== null ? `№ ${row.receipt_no}` : null)
+    : row.kind === "leave_undone" ? group
+    : group ? `в ${group}` : null;
+  return line ?? row.text;
+}

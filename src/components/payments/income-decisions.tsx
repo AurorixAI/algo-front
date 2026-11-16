@@ -6,7 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { basesOfPayments, studentHref } from "@/lib/ia-links";
 import {
-  DECISION_KINDS, DECISIONS_EMPTY_TEXT, DECISIONS_FILTERED_EMPTY_TEXT, DECISIONS_PAGE_SIZE, decisionAmountText, decisionDebtText, decisionsSinceText, decisionTone, decisionWhen,
+  DECISION_KINDS, DECISIONS_EMPTY_TEXT, DECISIONS_FILTERED_EMPTY_TEXT, DECISIONS_PAGE_SIZE, decisionAmountText, decisionDebtText, decisionKindLabel, decisionsSinceText, decisionSummary, decisionTone, decisionWhen,
   type DecisionRow, type DecisionsPage,
 } from "@/lib/payments-decisions";
 import { incomeErrorText, type JournalAuthor, type Period } from "@/lib/payments-income-v2";
@@ -140,6 +140,10 @@ export function IncomeDecisions({ period, authors, paymentsBase, studentProfileB
 
 function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; open: boolean; onToggle: () => void; studentLink: string | null }) {
   const debt = decisionDebtText(row);
+  const summary = decisionSummary(row);
+  // a phone card shows a cell only when it has a value (no «Сумма —»); the table keeps every column
+  const hideEmpty = (empty: boolean) => (empty ? "dt-card-hidden" : undefined);
+  const noAmount = row.amount === 0 && row.new_amount === null;
   return (
     <DataRow
       testId="decision-row"
@@ -147,6 +151,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       expanded={open}
       detail={open && (
         <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
+          {row.text && <p className="break-words font-medium text-slate-900" data-testid="decision-text">{tidyMoneyText(row.text)}</p>}
           {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.consequence && <p className="break-words" data-testid="decision-consequence">{row.consequence}</p>}
@@ -156,19 +161,19 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       )}
     >
       <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
-      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed className="!whitespace-normal" testId="decision-kind">{row.kind_label}</StatusChip></DataCell>
+      <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed className="!whitespace-normal" testId="decision-kind">{decisionKindLabel(row)}</StatusChip></DataCell>
       <DataCell col="who">
         <span className="text-sm font-medium text-slate-900">
           <Words text={row.student_name} />
           {/* the name of the group is ONE piece: «Алгебра 7 (вт/пт)» goes to the next line whole (cut inside only when it is wider than the line) */}
-          {row.group_name && !(row.text ?? "").includes(row.group_name) && <> · <span data-testid="decision-group" className="inline-block max-w-full"><Words text={row.group_name} /></span></>}
+          {row.group_name && summary === null && <> · <span data-testid="decision-group" className="inline-block max-w-full"><Words text={row.group_name} /></span></>}
         </span>
-        {/* Money-2 Э7: a transfer / a restoration / an undone leaving / a moved pause is ONE sentence of the server: from which group to which, the sum, the dates - the columns do not say it again */}
-        {row.text && <span className="mt-0.5 block text-sm text-slate-700 [overflow-wrap:anywhere]" data-testid="decision-line">{tidyMoneyText(row.text)}</span>}
+        {/* Money-2 А8: a transfer / a restoration / an undone leaving / a moved pause: ONE short line from the structure of the row; the whole sentence of the server is in the opened row */}
+        {summary && <span className="mt-0.5 block text-sm text-slate-700 [overflow-wrap:anywhere]" data-testid="decision-line">{tidyMoneyText(summary)}</span>}
       </DataCell>
-      <DataCell col="amount"><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{row.text ? <DataEmpty /> : decisionAmountText(row)}</span></DataCell>
-      <DataCell col="debt"><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
-      <DataCell col="actor"><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>
+      <DataCell col="amount" className={hideEmpty(noAmount)}><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{noAmount ? <DataEmpty /> : decisionAmountText(row)}</span></DataCell>
+      <DataCell col="debt" className={hideEmpty(debt === "—")}><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
+      <DataCell col="actor" className={hideEmpty(!row.actor_name)}><span className="text-sm text-slate-600">{row.actor_name ? <Words text={row.actor_name} /> : <DataEmpty />}</span></DataCell>
       <DataCell col="open"><ChevronDown aria-hidden className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} /></DataCell>
     </DataRow>
   );
