@@ -53,6 +53,9 @@ import { groupHref, studentHref } from "@/lib/ia-links";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
+import { DebtAgeStrip } from "./debt-age-strip";
+import { debtAgeLine, type DebtAge } from "@/lib/debt-ages";
+import { daysLabel } from "@/lib/plural";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -130,6 +133,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const [total, setTotal] = useState(0);
   const urlState = parsePaymentsListQuery(searchParams);
   const [page, setPage] = useState(urlState.page);
+  // Money-2 Т18: the basket of the age of the debt («Должники» only)
+  const [age, setAge] = useState<DebtAge | "">(urlState.age);
+  const debtAges = usePaymentsSummary((state) => state.debtAges);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
@@ -166,11 +172,11 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   // IA audit F34: the tab, the filter, the search and the page are written to the address (the tab itself comes from it)
   const currentQuery = searchParams?.toString() ?? "";
   useEffect(() => {
-    const next = paymentsListQueryString({ bucket, groupId: filter.groupId, teacherId: filter.teacherId, q: debouncedSearch, page });
+    const next = paymentsListQueryString({ bucket, groupId: filter.groupId, teacherId: filter.teacherId, q: debouncedSearch, page, age });
     if (next.slice(1) !== currentQuery) router.replace(next, { scroll: false });
     // `currentQuery` follows from this write; only a change of the page's own state writes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bucket, filter.groupId, filter.teacherId, debouncedSearch, page]);
+  }, [bucket, filter.groupId, filter.teacherId, debouncedSearch, page, age]);
 
   useEffect(() => {
     if (search.trim() === debouncedSearch) return undefined;
@@ -213,6 +219,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         groupId: filter.groupId || undefined,
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
         search: debouncedSearch || undefined,
+        age: age || undefined,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
@@ -232,7 +239,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page, noRight]);
+  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page, age, noRight]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -285,7 +292,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const filtered = Boolean(debouncedSearch || filter.teacherId || filter.groupId);
+  const filtered = Boolean(debouncedSearch || filter.teacherId || filter.groupId || age);
 
   if (denied || noRight) {
     return <MoneyAccessDenied />;
@@ -388,6 +395,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       </div>
 
       {bucket === "debt" && <OpeningsBanner paymentsBase={paymentsBase} />}
+      {bucket === "debt" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0, debtTotal }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
       {bucket === "debt" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}
@@ -512,6 +520,9 @@ function PaymentRow({
   const detail = statusDetail(row);
   const waiting = isWaitingRow(row);
   const reason = bucket === "debt" || bucket === "waiting" ? debtReasonLine(row, chip.label) : "";
+  // Money-2 Т18: «долг 62 дня» - unless the reason line already says these days («Просрочено на 62 дня»): one number once
+  const ageLine = bucket === "debt" ? debtAgeLine(row.debt_age_days) : null;
+  const showAge = ageLine !== null && !`${reason} ${chip.label}`.includes(daysLabel(Math.floor(row.debt_age_days ?? 0)));
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
   const planned = plannedPriceOf(price, scheduledPrice);      // Р4-1: the student's own planned price first, else the group's
@@ -569,6 +580,7 @@ function PaymentRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left sm:flex-col sm:items-start">
           <Chip tone={moneyChipTone(chip.tone)} bleed>{chip.label}</Chip>
           {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
+          {showAge && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-age">{ageLine}</p>}
           {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
           <BalanceNote row={row} className="w-full" />
         </div>

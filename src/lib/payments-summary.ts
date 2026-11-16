@@ -43,6 +43,8 @@ interface PaymentsSummaryState {
   studentsPaused: number | null;
   studentsWithAdvance: number | null;
   priceMissing: number;
+  /** Money-2 Т18: the debtors by the age of the debt (four baskets; empty from an older server). */
+  debtAges: DebtAgeBasket[];
   /**
    * Re-read the summary; a failure never throws.  Without `force`, a call within a second
    * of the previous one is skipped (mount and route change fire together); pass `force`
@@ -57,6 +59,7 @@ interface PaymentsSummaryState {
   reset: () => void;
 }
 
+import { debtAgesOf, type DebtAgeBasket } from "./debt-ages";
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 /** A count the server may leave out: null when it is missing or not a number. */
 const optionalCount = (value: unknown): number | null =>
@@ -87,6 +90,7 @@ const EMPTY = {
   studentsPaused: null as number | null,
   studentsWithAdvance: null as number | null,
   priceMissing: 0,
+  debtAges: [] as DebtAgeBasket[],
 };
 
 let inFlight: Promise<void> | null = null;
@@ -162,6 +166,7 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     studentsPaused: optionalCount(summary?.students_paused),
     studentsWithAdvance: optionalCount(summary?.students_with_advance),
     priceMissing: count(summary?.price_missing),
+    debtAges: debtAgesOf(summary?.debt_ages),
   };
 }
 

@@ -12,6 +12,7 @@ import { formatDateRu } from "./attendance-excuses";
 import { formatDayMonthRu } from "./business-time";
 import { formatMoney, formatMoneyInput, groupDigits } from "./money-format";
 import { CHIP_TONE_CLASS } from "./chip-tone";
+import { parseDebtAge, type DebtAge } from "./debt-ages";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 import { forecastText, type RecalcLine } from "./payf";
@@ -100,6 +101,8 @@ export interface PaymentsSummary {
   price_missing?: number;
   /** Money-1 B7: the debt split by ONE definition - the debtors (the red banner, the card) and «Ждём оплату» (calm, apart); the old fields above keep the old meaning (the waiting ones inside). */
   debt_split?: DebtSplit;
+  /** Money-2 Т18: the real debtors by the age of the debt - four baskets in the order `to_30`, `31_60`, `61_90`, `over_90`. */
+  debt_ages?: Array<{ bucket: string; students: number; memberships: number; debt_total: number }>;
 }
 
 export interface DebtSplit {
@@ -351,6 +354,9 @@ export interface MembershipPaymentRow {
   period_mode?: PeriodMode | null;
   paid_until?: string | null;
   days_overdue?: number | null;
+  /** Money-2 Т18: how many days the debt is old (the pauses are not counted; null - no debt) and its basket. */
+  debt_age_days?: number | null;
+  debt_age_bucket?: string | null;
   days_left?: number | null;
   lessons_total?: number | null;
   lessons_used?: number | null;
@@ -843,6 +849,8 @@ export interface PaymentsListState {
   q: string;
   /** 0-based. */
   page: number;
+  /** Money-2 Т18: the basket of the age of the debt (only «Должники»); "" - all. */
+  age: DebtAge | "";
 }
 
 export function parsePaymentsListQuery(params: { get(name: string): string | null } | null | undefined): PaymentsListState {
@@ -853,6 +861,7 @@ export function parsePaymentsListQuery(params: { get(name: string): string | nul
     teacherId: params?.get("group_id") ? "" : params?.get("teacher_id") ?? "",
     q: (params?.get("q") ?? "").slice(0, 80),
     page: Number.isFinite(page) && page >= 2 ? page - 1 : 0,
+    age: parseBucket(params?.get("bucket")) === "debt" ? parseDebtAge(params?.get("age")) : "",
   };
 }
 
@@ -861,6 +870,7 @@ export function paymentsListQueryString(state: PaymentsListState): string {
   if (state.groupId) params.set("group_id", state.groupId);
   else if (state.teacherId) params.set("teacher_id", state.teacherId);
   if (state.q.trim()) params.set("q", state.q.trim());
+  if (state.bucket === "debt" && state.age) params.set("age", state.age);
   if (state.page > 0) params.set("page", String(state.page + 1));
   return `?${params.toString()}`;
 }
