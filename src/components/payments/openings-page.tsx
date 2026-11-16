@@ -56,6 +56,7 @@ import {
   type OpeningsList,
   type RowDraft,
   OPENING_LOCKED_TEXT,
+  OPENING_REOPEN_ACTION,
   openingLocked,
 } from "@/lib/openings";
 import { formatDateRu } from "@/lib/payments";
@@ -68,6 +69,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   OpeningsBulkBar,
   OpeningsDoneDialog,
+  OpeningsReopenDialog,
   OpeningsExcelDialog,
   OpeningsReviewDialog,
   type ExcelState,
@@ -126,6 +128,9 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   const [doneOpen, setDoneOpen] = useState(false);
   const [doneBusy, setDoneBusy] = useState(false);
   const [doneError, setDoneError] = useState<string | null>(null);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenBusy, setReopenBusy] = useState(false);
+  const [reopenError, setReopenError] = useState<string | null>(null);
   const [busyFile, setBusyFile] = useState<"export" | "import" | null>(null);
   const keyRef = useRef<{ sig: string; key: string } | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -459,13 +464,28 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     try {
       const next = await orgApi.setOpeningsState("done");
       summaryHook.replace(next);
-      setData((previous) => (previous ? { ...previous, state: next.state, can_set_opening: next.can_set_opening } : previous));
+      setData((previous) => (previous ? { ...previous, state: next.state, can_set_opening: next.can_set_opening, launch_closed: next.launch_closed, can_reopen_launch: next.can_reopen_launch } : previous));
       setDoneOpen(false);
       showToast("Готово: учёт оплат идёт с даты начала");
     } catch (cause) {
       setDoneError(classifyOpeningsError(cause, "Не удалось сохранить ответ").message);
     } finally {
       setDoneBusy(false);
+    }
+  };
+
+  // ── «Вернуть запуск учёта» (the server's `can_reopen_launch`; after the answer the page is read again)
+  const reopen = async () => {
+    setReopenBusy(true);
+    setReopenError(null);
+    try {
+      summaryHook.replace(await orgApi.setOpeningsState("pending"));
+      setReopenOpen(false);
+      await load({ silent: true });
+    } catch (cause) {
+      setReopenError(classifyOpeningsError(cause, "Не удалось вернуть запуск учёта").message);
+    } finally {
+      setReopenBusy(false);
     }
   };
 
@@ -539,6 +559,9 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <p className="text-sm font-semibold text-slate-900" data-testid="openings-progress">{progress.text}</p>
                 <p className="text-sm text-slate-500">
+                  {data.can_reopen_launch === true && (
+                    <button type="button" onClick={() => { setReopenError(null); setReopenOpen(true); }} data-testid="openings-reopen" className="mr-3 font-medium text-primary-700 hover:underline">{OPENING_REOPEN_ACTION}</button>
+                  )}
                   {progress.left > 0 ? `осталось ${progress.left}` : doneAll ? "всё заполнено" : ""}
                   {canFinish && (
                     <button type="button" onClick={() => { setDoneError(null); setDoneOpen(true); }} data-testid="openings-finish" className="ml-3 font-medium text-primary-700 hover:underline">Готово — остальным остаток не нужен</button>
@@ -660,6 +683,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
       />
       <OpeningsExcelDialog state={excel} reason={excelReason} onReason={setExcelReason} onApply={() => void applyExcel()} onClose={() => setExcel(null)} />
       <OpeningsDoneDialog open={doneOpen} missing={data?.totals.missing ?? 0} busy={doneBusy} error={doneError} onConfirm={() => void finish()} onClose={() => setDoneOpen(false)} />
+      <OpeningsReopenDialog open={reopenOpen} busy={reopenBusy} error={reopenError} onConfirm={() => void reopen()} onClose={() => setReopenOpen(false)} />
       {toastNode}
     </div>
   );

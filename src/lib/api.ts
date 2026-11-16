@@ -2042,8 +2042,8 @@ export const orgApi = {
   applyOpeningBatch: (body: { items: OpeningBatchItem[]; reason?: string | null; idempotency_key: string; digest: string }) =>
     api<OpeningBatchApplied>("/auth/org/opening-balances/batch", { method: "POST", body: { items: body.items, ...(body.reason ? { reason: body.reason } : {}), idempotency_key: body.idempotency_key, digest: body.digest } })
       .then(normalizeOpeningApplied),
-  /** «Готово» / «Не нужно» of the banner and the checklist (`pending` is set by the release script only). */
-  setOpeningsState: (state: "done" | "skipped") =>
+  /** «Готово» / «Не нужно» of the banner and the checklist (`pending` = «Вернуть запуск учёта», the owner only: the server decides). */
+  setOpeningsState: (state: "done" | "skipped" | "pending") =>
     api<OpeningsSummary>("/auth/org/opening-balances/state", { method: "POST", body: { state } }).then(normalizeOpeningsSummary),
   exportOpenings: (params: { group_id?: string; missing_only?: boolean; q?: string; include_left?: boolean } = {}) => {
     const query = new URLSearchParams();

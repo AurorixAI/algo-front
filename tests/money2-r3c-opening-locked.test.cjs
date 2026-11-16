@@ -116,3 +116,85 @@ test("the refusal in the enrolment window is shown once, in the server's words, 
   assert.equal(await run.page.getByRole("button", { name: "Повторить" }).count(), 0);
   await run.page.close();
 });
+
+// ── round 4: «Вернуть запуск учёта» follows `can_reopen_launch` (the server's field, no role guess); the administrator's «Готово» says what it means
+const CLOSED = { left_available: 1, memberships: 9, missing: 0, needs_review: 0, shown: 0, with_opening: 8 };
+const closedOf = (extra) => ({ ...fixture("O03_summary_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
+const closedList = (extra) => ({ ...fixture("O01_list_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
+const CONSEQUENCE = "После этого остатки на начало вносит и меняет только владелец";
+
+async function pageWith(flags, user, extra = null, base = null) {
+  const answer = (r) => {
+    if (r.method === "GET" && r.path === "/auth/org/opening-balances/summary") return { json: (base || closedOf)(flags) };
+    if (r.method === "GET" && r.path === "/auth/org/opening-balances") return { json: (base === null ? closedList : base)(flags) };
+    if (r.method === "GET" && r.path === "/auth/org/groups") return { json: [] };
+    return extra ? extra(r) : null;
+  };
+  const run = await openPage(browser, "money2.entry.tsx", answer, { width: 375, height: 800 });
+  await run.page.evaluate((u) => window.mount("openings", u, { moneyAvailable: true }), user);
+  await run.page.waitForSelector('[data-testid="openings-progress"]');
+  return run;
+}
+
+test("can_reopen_launch true: the action is offered, one sentence confirms, POST state pending, the page is read again; closed for the administrator: the one line, no action", async () => {
+  let reopened = false;
+  const extra = (r) => {
+    if (r.method === "POST" && r.path === "/auth/org/opening-balances/state") { reopened = true; return { json: { ...closedOf({ can_set_opening: true, can_reopen_launch: false }), state: "pending", launch_closed: false } }; }
+    return null;
+  };
+  const owner = await pageWith({ can_set_opening: true, can_reopen_launch: true }, { role: "owner", org_role: "owner" }, extra);
+  const link = owner.page.locator('[data-testid="openings-reopen"]');
+  assert.equal(await link.count(), 1);
+  assert.equal((await link.innerText()).trim(), "Вернуть запуск учёта");
+  assert.equal(await owner.page.locator('[data-testid="openings-locked"]').count(), 0);
+  const listCalls = () => owner.calls.filter((c) => c.method === "GET" && c.path === "/auth/org/opening-balances").length;
+  const before = listCalls();
+  await link.click();
+  await owner.page.waitForSelector('[data-testid="openings-reopen-confirm"]');
+  assert.ok((await owner.page.locator('[role="dialog"]').innerText()).includes("Администратор снова сможет вносить и менять остатки на начало"));
+  await owner.page.click('[data-testid="openings-reopen-confirm"]');
+  await owner.page.waitForTimeout(500);
+  assert.ok(reopened);
+  const post = owner.calls.find((c) => c.method === "POST" && c.path === "/auth/org/opening-balances/state");
+  assert.deepEqual(typeof post.body === "string" ? JSON.parse(post.body) : post.body, { state: "pending" });
+  assert.ok(listCalls() > before, "the page is read again");
+  await owner.page.close();
+
+  const admin = await pageWith({ can_set_opening: false, can_reopen_launch: false }, { role: "admin", org_role: "admin" });
+  assert.equal(await admin.page.locator('[data-testid="openings-reopen"]').count(), 0);
+  assert.equal(await admin.page.locator('[data-testid="openings-locked"]').innerText(), LOCKED);
+  await admin.page.close();
+
+  const open = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...fixture("O01_list_pending"), ...f }));
+  assert.equal(await open.page.locator('[data-testid="openings-reopen"]').count(), 0);
+  assert.equal(await open.page.locator('[data-testid="openings-locked"]').count(), 0);
+  await open.page.close();
+});
+
+test("a refusal of the return is the server's words, once; «Готово» says what it means", async () => {
+  const words = "Вернуть запуск может только владелец";
+  const extra = (r) => (r.method === "POST" && r.path === "/auth/org/opening-balances/state" ? { status: 403, json: { detail: { code: "OPENING_OWNER_ONLY", message: words } } } : null);
+  const run = await pageWith({ can_set_opening: true, can_reopen_launch: true }, { role: "owner", org_role: "owner" }, extra);
+  await run.page.click('[data-testid="openings-reopen"]');
+  await run.page.click('[data-testid="openings-reopen-confirm"]');
+  await run.page.waitForSelector('[data-testid="openings-reopen-error"]');
+  assert.equal(await run.page.locator('[data-testid="openings-reopen-error"]').count(), 1);
+  assert.equal((await run.page.locator('[data-testid="openings-reopen-error"]').innerText()).trim(), words);
+  await run.page.close();
+
+  const pending = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...fixture("O01_list_pending"), ...f }));
+  await pending.page.click('[data-testid="openings-finish"]');
+  assert.equal((await pending.page.locator('[data-testid="openings-close-consequence"]').innerText()).trim(), CONSEQUENCE);
+  await pending.page.close();
+});
+
+test("the summary keeps launch_closed and can_reopen_launch only when the server sent a boolean", () => {
+  require.extensions[".ts"] = (mod, filename) => {
+    mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText, filename);
+  };
+  const O = require(path.join(root, "src/lib/openings.ts"));
+  const s = O.normalizeSummary(closedOf({ can_reopen_launch: true }));
+  assert.equal(s.launch_closed, true);
+  assert.equal(s.can_reopen_launch, true);
+  assert.equal("can_reopen_launch" in O.normalizeSummary(closedOf({})), false);
+});

@@ -32,6 +32,9 @@ import {
   valueText,
   type OpeningBatchPreview,
   type OpeningsImportPreview,
+  OPENING_CLOSE_CONSEQUENCE,
+  OPENING_REOPEN_ACTION,
+  OPENING_REOPEN_CONFIRM,
 } from "@/lib/openings";
 import { formatDateRu } from "@/lib/payments";
 import { pluralRu } from "@/lib/plural";
@@ -356,7 +359,26 @@ export function OpeningsDoneDialog({ open, missing, busy, error, onConfirm, onCl
       footer={<ConfirmFooter primary="Да, готово" onPrimary={onConfirm} busy={busy} onCancel={onClose} testId="openings-done-confirm" />}
     >
       <p className="text-sm text-slate-700">У {missing} {atStudentsWord(missing)} остаток не заполнен. Если у них до начала учёта не было ни долга, ни оплаты вперёд, можно закончить: напоминание в «Должниках» исчезнет, а долги будут считаться с даты начала учёта.</p>
+      <p className="mt-2 text-sm text-slate-500" data-testid="openings-close-consequence">{OPENING_CLOSE_CONSEQUENCE}</p>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{error}</p>}
+    </Modal>
+  );
+}
+
+/** «Вернуть запуск учёта»: one sentence of what changes; the server decides who may (`can_reopen_launch`). */
+export function OpeningsReopenDialog({ open, busy, error, onConfirm, onClose }: { open: boolean; busy: boolean; error: string | null; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <Modal
+      open={open}
+      title={OPENING_REOPEN_ACTION + "?"}
+      onClose={onClose}
+      busy={busy}
+      size="sm"
+      footerClassName={CONFIRM_FOOTER_CLASS}
+      footer={<ConfirmFooter primary="Да, вернуть" onPrimary={onConfirm} busy={busy} onCancel={onClose} testId="openings-reopen-confirm" />}
+    >
+      <p className="text-sm text-slate-700">{OPENING_REOPEN_CONFIRM}</p>
+      {error && <p role="alert" className="mt-2 text-sm font-medium text-rose-700" data-testid="openings-reopen-error">{error}</p>}
     </Modal>
   );
 }

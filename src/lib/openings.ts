@@ -87,6 +87,10 @@ export interface OpeningsSummary {
   totals: OpeningTotals;
   /** Money-2 R3c Г1: the ASKING user may put / change / cancel an opening balance (the server's answer; the owner always, an administrator until the start is finished).  Absent on an older server: not locked. */
   can_set_opening?: boolean;
+  /** Money-2 round 4: a person closed the start («Готово» / «Не нужно») - the server's fact; absent on an older server. */
+  launch_closed?: boolean;
+  /** Money-2 round 4: the ASKING user may return a closed start (the owner, when it is closed).  The screen never works it out from the role. */
+  can_reopen_launch?: boolean;
 }
 
 export interface OpeningsList extends OpeningsSummary {
@@ -255,6 +259,8 @@ export function normalizeSummary(raw: Raw | null | undefined): OpeningsSummary {
     state: normalizeState(raw?.state),
     totals: normalizeTotals(raw?.totals),
     ...(typeof raw?.can_set_opening === "boolean" ? { can_set_opening: raw.can_set_opening } : {}),
+    ...(typeof raw?.launch_closed === "boolean" ? { launch_closed: raw.launch_closed } : {}),
+    ...(typeof raw?.can_reopen_launch === "boolean" ? { can_reopen_launch: raw.can_reopen_launch } : {}),
   };
 }
 
@@ -419,6 +425,10 @@ export function normalizeImport(raw: Raw | null | undefined): OpeningsImportPrev
 
 export const OPENINGS_TITLE = "Остатки на начало";
 /** Money-2 R3c Г1: once the accounting has started only the owner puts or changes an opening balance (the server's `OPENING_OWNER_ONLY` says the same).  ONE text for the table, the windows and the refusal. */
+/** Under «Готово» / «Не нужно»: what the press means, so it is no surprise. */
+export const OPENING_CLOSE_CONSEQUENCE = "После этого остатки на начало вносит и меняет только владелец";
+export const OPENING_REOPEN_ACTION = "Вернуть запуск учёта";
+export const OPENING_REOPEN_CONFIRM = "Администратор снова сможет вносить и менять остатки на начало.";
 export const OPENING_LOCKED_TEXT = "Учёт запущен — остаток на начало вносит и меняет владелец";
 export const OPENING_OWNER_ONLY_CODE = "OPENING_OWNER_ONLY";
 /** The summary says «not for you» (`can_set_opening` is false); an absent field (an older server) or no summary is NOT a lock - the server still refuses what it must. */
