@@ -5,7 +5,7 @@
 export interface SourceGroup { id: string; name: string }
 
 export const SOURCE_LABEL = "Из какой группы";
-export const SOURCE_PLACEHOLDER = "Выберите группу, из которой переводим";
+export const SOURCE_PLACEHOLDER = "Выберите группу";
 export const SOURCE_WHY = "Выберите, из какой группы перевести ученика";
 
 /** The groups the server names in its refusal `TRANSFER_SOURCE_REQUIRED` (`detail.groups[] = {group_id, group_name}`); null for any other error. */

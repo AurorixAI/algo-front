@@ -24,7 +24,7 @@ const saved = (p, extra = {}) => ({ pause: p, impact: { charged_delta: -80000, p
 const SHOTS = [
   { name: "transfer", mount: ["assign", { role: "owner", org_role: "owner" }, { moneyAvailable: true, sourceGroups: F.SOURCES, excludeGroupIds: ["ga", "gb", "gc"] }],
     server: F.baseServer((r) => r.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(r), effects: F.transferEffects(), leave_undo: UNDO } } : null),
-    steps: async (page) => { await page.click(`text=${F.T.slice(0, 20)}`); await page.locator('[data-testid="assign-current-group"]').count(); const select = page.locator("#assign-source, [data-testid='assign-source']").first(); if (await select.count()) await select.click().catch(() => {}); await page.waitForSelector('[data-testid="transfer-effects"]'); } },
+    steps: async (page) => { await page.click(`text=${F.T.slice(0, 20)}`); await page.locator('[data-testid="assign-current-group"]').count(); await page.click("#assign-group-source"); await page.click(`[role="option"]`.concat(":has-text(\"Геометрия 8\")")); await page.waitForSelector('[data-testid="transfer-effects"]'); } },
   { name: "transfer-source", mount: ["assign", { role: "owner", org_role: "owner" }, { moneyAvailable: true, sourceGroups: F.SOURCES, excludeGroupIds: ["ga", "gb", "gc"] }],
     server: F.baseServer(() => null), steps: async (page) => { await page.click(`text=${F.T.slice(0, 20)}`); await page.waitForTimeout(500); } },
   { name: "transfer-nomoney", mount: ["assign", { role: "admin", org_role: "admin" }, { moneyAvailable: false, sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] }],

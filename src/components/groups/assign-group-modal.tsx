@@ -356,7 +356,7 @@ export function AssignGroupModal({
           )}
           {((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) && (
             <span className="text-slate-600">
-              · {isAdd ? "уже занимается в" : "сейчас в"} «<span className="whitespace-nowrap">{currentGroupLabel || "…"}</span>»
+              · {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
             </span>
           )}
         </span>

@@ -101,3 +101,22 @@ test("Э1: 409 `TRANSFER_SOURCE_GONE` is shown in the words of the server; one g
   assert.equal(posts(one.calls).filter((call) => isDry(call)).pop().body.from_group_id, "ga");
   await one.page.close();
 });
+
+test("Э1 (375): the long name of the only source group wraps under the title, nothing leaves the window; the placeholder of «Из какой группы» fits the field", async () => {
+  const one = await open(375, server(), { sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] });
+  await one.page.click(`text=${F.T.slice(0, 20)}`);
+  await one.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  const cut = await one.page.evaluate(() => {
+    const box = document.querySelector('[role="dialog"]').getBoundingClientRect();
+    const line = document.querySelector('[data-testid="assign-current-group"]');
+    return [...line.querySelectorAll("*")].filter((el) => el.getBoundingClientRect().right > box.right + 1).length;
+  });
+  assert.equal(cut, 0, "a long name of the source group does not leave the window");
+  await one.page.close();
+
+  const many = await open(375, server());
+  await many.page.click(`text=${F.T.slice(0, 20)}`);
+  const field = await many.page.evaluate(() => { const el = document.querySelector("#assign-group-source"); return { cut: el.scrollWidth > el.clientWidth + 1, text: el.textContent }; });
+  assert.equal(field.cut, false, `the placeholder is cut: ${field.text}`);
+  await many.page.close();
+});
