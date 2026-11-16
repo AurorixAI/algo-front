@@ -1525,7 +1525,7 @@ export const orgApi = {
    * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
    * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
-  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null; pay_from?: string | null }) => {
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null; pay_from?: string | null; /** Money-2 T1: the group a transfer leaves (needed when the student has several). */ from_group_id?: string | null; /** Money-2 T5: the sum of `effects.moves[code=money]` of the dry run. */ expected_carried?: number | null }) => {
     const query = options?.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
     // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership ride along (needs access to money).
     // Money-1 B1: `pay_from` («Оплата с») is a day that changes the charge - the money right only.
@@ -1533,6 +1533,8 @@ export const orgApi = {
       ...(options?.price_override ? { price_override: options.price_override } : {}),
       ...(options?.opening_balance ? { opening_balance: options.opening_balance } : {}),
       ...(options?.pay_from ? { pay_from: options.pay_from } : {}),
+      ...(options?.from_group_id ? { from_group_id: options.from_group_id } : {}),
+      ...(typeof options?.expected_carried === "number" ? { expected_carried: options.expected_carried } : {}),
     };
     const body = Object.keys(extra).length > 0 ? extra : undefined;
     return api<{
@@ -1561,10 +1563,12 @@ export const orgApi = {
       method: "POST", body: { student_ids: studentIds, ...(options.pay_from ? { pay_from: options.pay_from } : {}), ...(options.price_override ? { price_override: options.price_override } : {}) }, signal,
     }),
   /** R3 #15: `mode=transfer&dry_run=true` - what a transfer would carry over (`carried: [{code, message}]`, the sums for the money right); nothing is written. */
-  dryRunTransferStudent: (groupId: string, studentId: string, options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
-    api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=transfer&dry_run=true`, {
-      method: "POST", body: options?.price_override ? { price_override: options.price_override } : undefined, signal,
-    }),
+  dryRunTransferStudent: (groupId: string, studentId: string, options?: { price_override?: EnrolPriceOverride | null; from_group_id?: string | null }, signal?: AbortSignal) => {
+    const body = { ...(options?.price_override ? { price_override: options.price_override } : {}), ...(options?.from_group_id ? { from_group_id: options.from_group_id } : {}) };
+    return api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}?mode=transfer&dry_run=true`, {
+      method: "POST", body: Object.keys(body).length > 0 ? body : undefined, signal,
+    });
+  },
   dryRunBulkTransfer: (groupId: string, studentIds: string[], options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
     api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/bulk?mode=transfer&dry_run=true`, {
       method: "POST", body: { student_ids: studentIds, ...(options?.price_override ? { price_override: options.price_override } : {}) }, signal,

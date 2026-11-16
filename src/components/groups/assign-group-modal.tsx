@@ -28,6 +28,7 @@ import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { SOURCE_LABEL, SOURCE_PLACEHOLDER, SOURCE_WHY, sourcesFromError, transferSource, type SourceGroup } from "@/lib/transfer-source";
 import { splitTransferNotes } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -80,6 +81,8 @@ interface AssignGroupModalProps {
   currentGroupName?: string | null;
   /** Every group the student already attends: none of them is a valid destination. */
   excludeGroupIds?: string[];
+  /** Money-2 T1: the active groups a transfer may leave (the caller knows them). Several: the person chooses «Из какой группы»; one: it is the source; none: the server says (422) when it needs the choice. */
+  sourceGroups?: SourceGroup[];
   /** Where the group pages of this workspace live (`/owner/groups`): the link «Задать цену группы» leads there. */
   groupsBasePath?: string;
   onClose: () => void;
@@ -95,6 +98,7 @@ export function AssignGroupModal({
   currentGroupId = null,
   currentGroupName = null,
   excludeGroupIds,
+  sourceGroups,
   groupsBasePath,
   onClose,
   onAssigned,
@@ -130,6 +134,11 @@ export function AssignGroupModal({
   // re-audit 6 (closing): the individual price of the PRESENT group does not move with the student - said only to a student who really has it (the memberships of the student tell it: `price.source`)
   const [hadOverride, setHadOverride] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
+  // Money-2 T1: «Из какой группы» - the groups the transfer may leave (the caller's, or the list of the server's refusal) and the choice (none by default)
+  const [fromGroupId, setFromGroupId] = useState("");
+  const [serverSources, setServerSources] = useState<SourceGroup[] | null>(null);
+  const sources = serverSources ?? sourceGroups ?? (currentGroupId ? [{ id: currentGroupId, name: currentGroupName ?? "" }] : []);
+  const source = isTransfer ? transferSource(sources, fromGroupId) : { needed: false, id: null };
   // Money-1 B1 «Оплата с»: the day the student is charged from in the chosen group ("" until the default of that group arrives); a transfer has no such field
   const [payFrom, setPayFrom] = useState("");
 
@@ -163,6 +172,8 @@ export function AssignGroupModal({
       setOpening(emptyOpeningValues());
       setOpeningNeedsReason(false);
       setPayFrom("");
+      setFromGroupId("");
+      setServerSources(null);
 
       Promise.all([
         orgApi.listGroups(),
@@ -229,7 +240,7 @@ export function AssignGroupModal({
   }, [groups, excluded, selectedTeacherId, search]);
 
   const handleAssign = async () => {
-    if (!selectedGroupId || assigning || !transferAllowed) return;
+    if (!selectedGroupId || assigning || !transferAllowed || (source.needed && !source.id)) return;
     if (excluded.has(selectedGroupId)) {
       setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
@@ -255,6 +266,7 @@ export function AssignGroupModal({
         price_override: exception.request,
         opening_balance: withOpening ? buildOpeningIn(opening) : null,
         pay_from: payBody,
+        from_group_id: source.id,
       });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
@@ -269,6 +281,8 @@ export function AssignGroupModal({
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
+      const askedSources = sourcesFromError(e);
+      if (askedSources) { setServerSources(askedSources); setFromGroupId(""); }
       const failure = logicaError(e);
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
       setAssignmentError(payFromErrorText(failure) || (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message) || (isAdd ? "Не удалось зачислить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
@@ -279,10 +293,13 @@ export function AssignGroupModal({
 
   // R3 #15: «что переедет» - the dry run of the same transfer, asked when the group is chosen; «Перевести» waits for it (a first enrolment carries nothing: no ask)
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
-  const transferKey = isTransfer && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error
-    ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}`
+  const transferKey = isTransfer && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error && !(source.needed && !source.id)
+    ? `${selectedGroupId}|${studentId}|${source.id ?? ""}|${JSON.stringify(dryException.request)}`
     : null;
-  const transferPreview = useFormMoneyPreview(transferKey, (signal) => (selectedGroupId ? orgApi.dryRunTransferStudent(selectedGroupId, studentId, { price_override: dryException.request }, signal) : Promise.reject(new Error("no group"))));
+  const transferPreview = useFormMoneyPreview(transferKey, (signal) => (selectedGroupId ? orgApi.dryRunTransferStudent(selectedGroupId, studentId, { price_override: dryException.request, from_group_id: source.id }, signal) : Promise.reject(new Error("no group"))));
+  // the server asks for the choice (the caller did not know the groups): its list becomes the selector
+  const askedInDryRun = transferPreview.preview.status === "failed" ? sourcesFromError(transferPreview.preview.error) : null;
+  useEffect(() => { if (askedInDryRun) { setServerSources(askedInDryRun); setFromGroupId(""); } }, [askedInDryRun]);
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
 
   // Money-1 B1: «Оплата с» for ADDING (not a transfer): the default of the chosen group; a past day - the dry run says what is charged at once
@@ -323,7 +340,7 @@ export function AssignGroupModal({
           {studentGrade && (
             <span className="rounded bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600">{studentGrade} класс</span>
           )}
-          {(isTransfer || (isAdd && currentGroupLabel)) && (
+          {((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) && (
             <span className="text-slate-600">
               · {isAdd ? "уже занимается в" : "сейчас в"} «<span className="whitespace-nowrap">{currentGroupLabel || "…"}</span>»
             </span>
@@ -350,8 +367,8 @@ export function AssignGroupModal({
           primary={assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}
           onPrimary={() => void handleAssign()}
           busy={assigning}
-          disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null}
-          why={!selectedGroupId ? "Выберите группу" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
+          disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id)}
+          why={source.needed && !source.id ? SOURCE_WHY : !selectedGroupId ? "Выберите группу" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : null}
           whyId="assign-why"
           onCancel={onClose}
           testId="assign-submit"
@@ -410,8 +427,18 @@ export function AssignGroupModal({
         <>
     {/* The current membership is context, not a destination: it stands in the line under the title.  Several current groups: one amber line. */}
     <div className="space-y-2.5 pb-3">
-      {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
-        <p className="text-xs text-amber-800">Членство во всех текущих группах будет закрыто</p>
+      {source.needed && (
+        <div data-testid="assign-source">
+          <label htmlFor="assign-group-source" className="mb-1 block text-xs font-semibold text-slate-600">{SOURCE_LABEL}</label>
+          <Select
+            id="assign-group-source"
+            value={source.id ?? ""}
+            placeholder={SOURCE_PLACEHOLDER}
+            onChange={(e) => { setAssignmentError(null); setFromGroupId(e.target.value); }}
+            options={sources.map((group) => ({ value: group.id, label: group.name }))}
+            buttonClassName="bg-white py-2.5 pl-3.5"
+          />
+        </div>
       )}
       <div className="grid gap-2.5 sm:grid-cols-2">
         {/* Teacher Selector */}

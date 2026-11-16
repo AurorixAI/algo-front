@@ -1069,6 +1069,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           currentGroupId={student.group_id}
           currentGroupName={assignMode === "add" ? memberships.map((item) => item.group_name).join(", ") || null : group?.name || null}
           excludeGroupIds={memberships.map((item) => item.group_id)}
+          sourceGroups={memberships.map((item) => ({ id: item.group_id, name: item.group_name }))}
           groupsBasePath={groupsBasePath}
           onClose={() => setAssignModalOpen(false)}
           onAssigned={() => {
