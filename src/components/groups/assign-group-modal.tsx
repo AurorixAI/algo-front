@@ -250,7 +250,7 @@ export function AssignGroupModal({
     if (exception.error) { setAssignmentError(exception.error); return; }
     if (payProblem) { setAssignmentError(payProblem); return; }
     const todayDate = formatBusinessDate();
-    const withOpening = moneyAvailable && !isTransfer && openingOn;
+    const withOpening = moneyAvailable && !isTransfer && openingOn && leaveUndo?.undone !== true;
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: todayDate, accountingStart, today: todayDate });
       if (problem) { setAssignmentError(problem); return; }
@@ -311,7 +311,9 @@ export function AssignGroupModal({
   const leaveUndo = undoSource?.status === "ready" ? leaveUndoOf(undoSource.answer) : null;
 
   // Money-1 B1: «Оплата с» for ADDING (not a transfer): the default of the chosen group; a past day - the dry run says what is charged at once
-  const payFromAllowed = !isTransfer && Boolean(selectedGroupId) && !(selectedGroupId && excluded.has(selectedGroupId));
+  // Money-2 (server, review): coming back the day of the leaving cancels it - «Оплата с» and the opening balance cannot be set then (the note of the server above says so)
+  const leavingUndone = leaveUndo?.undone === true;
+  const payFromAllowed = !isTransfer && !leavingUndone && Boolean(selectedGroupId) && !(selectedGroupId && excluded.has(selectedGroupId));
   const { def: payDef } = usePayFromDefault(selectedGroupId ?? "", open && payFromAllowed);
   useEffect(() => { setPayFrom(payDef ? payDef.default_pay_from : ""); }, [payDef]);
   // the default is there from the first frame the server answered (no flash of an empty date)
@@ -581,7 +583,7 @@ export function AssignGroupModal({
           onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
           compact
         />
-        {!isTransfer && (
+        {!isTransfer && !leavingUndone && (
           <div className="mt-2 border-t border-slate-200 pt-2">
             <OpeningToggle
               idPrefix="assign-group-opening"

@@ -69,7 +69,8 @@ export function startEffectsRun(run: EffectsRun, timeoutMs: number = EFFECTS_TIM
 /** A refusal the server says in its own words and that «Повторить» cannot change (G3M С1: «Ученик ушёл из группы: при исправлении сумма не может быть больше N сум»). */
 export function refusedInWords(error: unknown): string | null {
   const source = error as { code?: unknown; message?: unknown } | null | undefined;
-  return source?.code === "PAYMENT_EXCEEDS_DEBT" && typeof source.message === "string" && source.message.trim() ? source.message.trim() : null;
+  // Money-2 Т17: «Запись старше 7 дней меняет владелец» - the administrator cannot do it at all: «Повторить» changes nothing
+  return (source?.code === "PAYMENT_EXCEEDS_DEBT" || source?.code === "BACKDATE_OWNER_ONLY") && typeof source.message === "string" && source.message.trim() ? source.message.trim() : null;
 }
 
 export function effectsWhyOff(preview: EffectsPreview): string | null {
