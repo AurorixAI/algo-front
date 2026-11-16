@@ -30,6 +30,8 @@ import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { BulkOutcomePanel } from "./bulk-outcome-panel";
+import { bulkOutcomeOf, type BulkOutcome } from "@/lib/bulk-outcome";
 import { PayFromField } from "./pay-from-field";
 import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
@@ -93,6 +95,8 @@ export function AddStudentDrawer({
   // «из другой группы» hint) when the list reloads under another class filter.
   const [selected, setSelected] = useState<Map<string, Student>>(new Map());
   const [adding, setAdding] = useState(false);
+  // Money-2 Э4: a bulk entry with a refused student stays open as «Записано 3 из 4» + the reason of each refusal; «Готово» hands the result to the page
+  const [outcome, setOutcome] = useState<{ data: BulkOutcome; result: AddStudentsResult } | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
@@ -125,6 +129,7 @@ export function AddStudentDrawer({
   useEffect(() => {
     if (!open) return;
     setMode("transfer");
+    setOutcome(null);
     setExceptionOn(false);
     setExceptionAmount("");
     setExceptionReason("");
@@ -297,13 +302,17 @@ export function AddStudentDrawer({
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
       if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
-      onAdded({
+      const summary: AddStudentsResult = {
         added: result.added,
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
         warnings: notes.warnings,
         infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
-      });
+      };
+      const perStudent = bulkOutcomeOf(result, picked.map((item) => item.id), nameOf);
+      // somebody was refused: the window stays and says it per student (the toast then carries the numbers only); nobody refused: as before
+      if (perStudent.skipped.length > 0) setOutcome({ data: perStudent, result: { ...summary, skippedLines: [] } });
+      else onAdded(summary);
     } catch (e: any) {
       const failure = logicaError(e, "Ошибка добавления учеников");
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
@@ -329,12 +338,14 @@ export function AddStudentDrawer({
       open={open}
       placement="right"
       title={movesOnly && groupNames[groupId] ? `Перевести в «${groupNames[groupId]}»` : ENROL_STUDENTS_TITLE}
-      description={selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
+      description={outcome ? undefined : selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col"
       footerClassName="flex flex-col gap-2 p-3 sm:p-4 sm:gap-3"
-      footer={
+      footer={outcome ? (
+        <ConfirmFooter primary="Готово" onPrimary={() => onAdded(outcome.result)} testId="enrol-done" />
+      ) : (
         <>
         {transfers.length > 0 && !moneyRight && (
           <div role="note" data-testid="enrol-second-group" className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -432,8 +443,9 @@ export function AddStudentDrawer({
           testId="enrol-submit"
         />
         </>
-      }
+      )}
     >
+      {outcome ? <BulkOutcomePanel outcome={outcome.data} verb={movesOnly ? "transfer" : "enrol"} /> : (<>
       {/* Search */}
       <div className="p-4 border-b border-slate-50">
         <div className="relative">
@@ -520,6 +532,7 @@ export function AddStudentDrawer({
         )}
       </div>
 
+      </>)}
     </Modal>
   );
 }

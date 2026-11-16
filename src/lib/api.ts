@@ -1582,7 +1582,9 @@ export const orgApi = {
       added: number;
       skipped: number;
       /** Older servers do not send it. */
-      skipped_details?: Array<{ student_id: string; reason: string }>;
+      skipped_details?: Array<{ student_id: string; reason: string; code?: string }>;
+      /** Money-2 T10: one entry per student in the order of the request - a refusal of one does not stop the others. */
+      results?: Array<{ student_id: string; status: "added" | "skipped"; code?: string | null; reason?: string | null }>;
       /** Hints per student (`student_id` when the server names one). */
       warnings?: Array<PaymentWarning & { student_id?: string }>;
     }>(
