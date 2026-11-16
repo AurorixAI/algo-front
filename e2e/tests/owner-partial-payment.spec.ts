@@ -1,42 +1,33 @@
 import { test, expect } from "../support/fixtures";
 import { readFileSync } from "node:fs";
 import { Org } from "../support/api";
-import { addDays, businessNow, sharedMonthCharge } from "../support/time";
+import { addDays, businessNow } from "../support/time";
 import { readSheet, readZip } from "../support/xlsx-lite";
 import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 
 /**
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
- * due - on the debtors list («Не доплачено за …: 100 000»), on the card, and on the statement: the payment row says
- * «за <период> — <внесено> (осталось 100 000)», the month header «осталось 100 000», the balance «Долг 100 000», «Сходится».
+ * due - on the debtors list («Не доплачено за …: 300 000»), on the card, and on the statement: the payment row says
+ * «за <период> — 200 000 (осталось 300 000)», the month header «осталось 300 000», the balance «Долг 300 000», «Сходится».
  * The rest paid later closes the debt (the row leaves «Должники»; the second payment does not say «осталось»).
  */
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Частичная оплата");
+  await org.setPersonalPeriod(); // «Свой месяц у каждого ученика» BEFORE the first student: in an empty centre the change acts from the very beginning (Money-2 Г3); the default of a new centre is «Общий месяц»
   await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
 // the period of a payment is named «за ноябрь» when it is a whole calendar month and «за 06.10–05.11» otherwise: which one depends on the day the spec runs (rule 106) - both are right
 const MONTHS_NOMINATIVE = "(?:январь|февраль|март|апрель|май|июнь|июль|август|сентябрь|октябрь|ноябрь|декабрь)";
 
-// Money-2 T16: a new centre is «Общий месяц», so a student charged from ten days ago owes the SHARE of the month (not the whole price), and the money covers days of it by that share:
-// 200 000 of a share of 800 000 would pay only the first six days (through the 12th) and he would be «Просрочено», not «Не доплачено».  So the check pays all but a small rest: the
-// days paid reach today and the row says what is missing.  The oracle is the rule, counted by the date the spec runs (the last days of a month are the exception: nothing can reach today then).
-const PRICE = 1_000_000;
-const REST_LEFT = 100000;
-const CHARGED_FROM = () => addDays(businessNow().date, -10);
-const DUE = () => sharedMonthCharge(PRICE, CHARGED_FROM(), businessNow().date);
-const PAID = () => DUE() - REST_LEFT;
-const REST = () => REST_LEFT;
-
 test("partial payment: debtors row -> statement shows the allocation and «осталось» -> the rest closes the debt @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Платёжный");
   const group = await org.createGroup({ name: "Группа ЧО", teacherId: teacher.userId });
   // Money-1 B7: charged from ten days ago - overdue, so the debtors tab (not «Ждём оплату») holds her
-  const student = await org.addStudent(group, "Дилдора", "Частичная", undefined, CHARGED_FROM());
-  await org.setGroupPrice(group.id, PRICE);
-  await org.pay(student.id, PAID(), { method: "cash" });
+  const student = await org.addStudent(group, "Дилдора", "Частичная", undefined, addDays(businessNow().date, -10));
+  await org.setGroupPrice(group.id, 500000);
+  await org.pay(student.id, 200000, { method: "cash" });
   const membership = await org.membershipId(student.id, group.id);
 
   const page = await signIn(org.owner);
@@ -45,12 +36,12 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   // --- «Должники»: the reason line says what is missing in the server's words
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
-  await expect(row()).toContainText(new RegExp(`Не доплачено за [^:]+: ${moneyPattern(REST())}`));
-  await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(REST())}`));
+  await expect(row()).toContainText(new RegExp(`Не доплачено за [^:]+: ${moneyPattern(300000)}`));
+  await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(300000)}`));
 
   // --- the card: the group block carries the debt and the link to the statement
   await page.goto(`/owner/students/${student.id}?tab=payments`);
-  await expect(page.getByText(new RegExp(`Долг ${moneyPattern(REST())}`)).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`Долг ${moneyPattern(300000)}`)).first()).toBeVisible();
   await page.getByRole("link", { name: "Выписка" }).first().click();
   await expect(page).toHaveURL(new RegExp(`/owner/payments/statement/${membership}$`));
 
@@ -58,9 +49,9 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
   await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   const payment = page.getByTestId("statement-row-payment");
-  await expect(payment).toContainText(new RegExp(`за (?:\\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d|${MONTHS_NOMINATIVE}) — ${moneyPattern(PAID())} \\(осталось ${moneyPattern(REST())}\\)`));
+  await expect(payment).toContainText(new RegExp(`за (?:\\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d|${MONTHS_NOMINATIVE}) — ${moneyPattern(200000)} \\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-month")).not.toContainText("стоимость"); // the month row is only the name (owner 23.10): the figures are in the columns
-  await expect(page.getByText(new RegExp(`Долг ${moneyPattern(REST())}`)).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`Долг ${moneyPattern(300000)}`)).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
 
   // --- no «Печать»; the statement opens on the current month and «Все месяцы» is a toggle (owner 23.10)
@@ -68,7 +59,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await expect(page.getByTestId("statement-months")).toContainText(/(январь|февраль|март|апрель|май|июнь|июль|август|сентябрь|октябрь|ноябрь|декабрь) \d{4}/i);
   await expect(page.getByRole("button", { name: "Все месяцы" })).toHaveAttribute("aria-pressed", "false");
   await expect(payment.getByTestId("statement-row-icon")).toHaveAttribute("data-icon", "payment");
-  await expect(payment).toContainText(new RegExp(`\\+${moneyPattern(PAID())}`));
+  await expect(payment).toContainText(new RegExp(`\\+${moneyPattern(200000)}`));
   await page.getByRole("button", { name: "Все месяцы" }).click();
   await expect(page).toHaveURL(/\?month=all$/);
   await expect(page.getByRole("button", { name: "Все месяцы" })).toHaveAttribute("aria-pressed", "true");
@@ -93,17 +84,17 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   expect(paymentRow, "the payment of the page is a row of the file").toBeTruthy();
   const paymentCells = Object.values(paymentRow!.cells);
   expect(paymentCells.some((t) => /^\d+(\.\d+)?$/.test(t)), "a numeric amount cell").toBe(true);
-  expect(paymentCells).toContain(String(PAID())); // a number, not a text with spaces
+  expect(paymentCells).toContain("200000"); // a number, not a text with spaces
   expect(paymentCells.join(" | "), "the method is a Russian word").toMatch(/наличные/i);
   expect(paymentCells.join(" | ")).not.toMatch(/\bcash\b/i);
 
   // --- the rest is paid: the debt is closed, the second payment leaves nothing «осталось»
-  await org.pay(student.id, REST(), { method: "card" });
+  await org.pay(student.id, 300000, { method: "card" });
   await page.reload();
   await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
   await expect(page.getByTestId("statement-row-payment")).toHaveCount(2);
   // the first payment keeps its history («осталось 300 000» was true when it was made); the second one closes the period
-  await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(REST())}\\)`));
+  await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 2" })).not.toContainText("осталось");
   await expect(page.getByTestId("statement-cell-balance").last()).toContainText("0"); // the period is closed: the chip says «0»
   await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");

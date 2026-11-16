@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { addDays, businessNow, sharedMonthCharge } from "../support/time";
-import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
+import { addDays, businessNow } from "../support/time";
+import { expectNoHorizontalScroll } from "../support/ui";
 
 /**
  * «Деньги-1 / Б» (расчёт оплат), the screens against the real server:
@@ -12,6 +12,7 @@ import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Деньги Б");
+  await org.setPersonalPeriod(); // «Свой месяц у каждого ученика» BEFORE the first student: in an empty centre the change acts from the very beginning (Money-2 Г3); the default of a new centre is «Общий месяц»
   await org.setPaymentSettings({ accounting_start_date: addDays(businessNow().date, -60) });
 });
 
@@ -31,12 +32,9 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   await post(`/auth/org/groups/${group.id}/students/${payer.id}`, { pay_from: addDays(today, -1) });
   await org.pay(payer.id, 300000);
 
-  // Money-2 T16: a new centre is «Общий месяц» - a student charged from a day of the month owes the SHARE of it (price x the days left / the days of the month): the oracle is the rule
-  const waiting = sharedMonthCharge(300000, addDays(today, -1), today);
-  const overdue = sharedMonthCharge(300000, addDays(today, -10), today);
   // --- the server's split, the same numbers on the screen
   const summary = await org.owner.api.get("/auth/org/payments/summary");
-  expect(summary.debt_split).toMatchObject({ debtors: 1, waiting_students: 1, debtors_debt_total: overdue, waiting_debt_total: waiting });
+  expect(summary.debt_split).toMatchObject({ debtors: 1, waiting_students: 1, debtors_debt_total: 300000, waiting_debt_total: 300000 });
 
   const page = await signIn(org.owner);
   await page.goto("/owner/payments?bucket=debt");
@@ -45,8 +43,8 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   await expect(tabs.nth(1)).toHaveText("Ждём оплату (1)");
   await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText(/Просрочено|Ещё не платил/);
   await expect(page.getByText("Ждущий Пётр")).toHaveCount(0);       // the waiting student is not a debtor
-  await expect(page.getByTestId("position-debt")).toContainText(new RegExp(`${moneyPattern(overdue)}\\sсум`));
-  await expect(page.getByTestId("position-waiting")).toContainText(new RegExp(`Ждём оплату: ${moneyPattern(waiting)}\\sсум · 1 ученик`));
+  await expect(page.getByTestId("position-debt")).toContainText(/300\s000\sсум/);
+  await expect(page.getByTestId("position-waiting")).toContainText("Ждём оплату: 300 000 сум · 1 ученик");
   await expectNoHorizontalScroll(page);
 
   await page.goto("/owner/payments?bucket=waiting");
@@ -56,10 +54,10 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   await expect(row).not.toContainText("Просрочено");
   await expect(page.getByText("Долгов Иван")).toHaveCount(0);
 
-  // --- the red banner (on the home page) counts the debtors: one student, his share of the month - not the waiting one
+  // --- the red banner (on the home page) counts the debtors: one student, 300 000 сум - not the waiting one
   await page.goto("/owner/dashboard");
   const banner = page.getByTestId("payments-alert-banner");
-  await expect(banner).toContainText(new RegExp(`1 ученик с долгом — ${moneyPattern(overdue)}\\sсум`));
+  await expect(banner).toContainText(/1 ученик с долгом — 300\s000\sсум/);
 
   // --- the price window: every moved student, the next period, in the table «было → станет»
   await page.goto(`/owner/payments/prices?group=${group.id}`);
