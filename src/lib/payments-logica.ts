@@ -8,7 +8,7 @@
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
 import { MONTHS_NOMINATIVE } from "./ru-calendar";
-import { formatMoneyInput } from "./money-format";
+import { formatMoneyInput, tidyMoneyText } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -374,12 +374,21 @@ export interface PauseSaved {
   payroll: { months: string[]; saved_sheets_changed: number } | null;
   dry_run: boolean;
   row: MembershipPaymentRow | null;
+  /** Money-2 T9: what the pause does in the OTHER groups of the student (the sentence of the server; only with the right to money). */
+  other_groups_text?: string | null;
 }
 
 export interface PauseVoided {
   pause: PauseOut;
   impact: ImpactMoney | null;
   row: MembershipPaymentRow | null;
+  other_groups_text?: string | null;
+}
+
+/** Money-2 T9: the sentence of the server about the other groups of the student (null when nothing moves there, and for a role without the right to money). */
+export function otherGroupsLine(saved: { other_groups_text?: string | null } | null | undefined): string | null {
+  const text = typeof saved?.other_groups_text === "string" ? saved.other_groups_text.trim() : "";
+  return text ? tidyMoneyText(text) : null;
 }
 
 export interface PauseFormValues {
@@ -424,7 +433,7 @@ export function buildPauseBody(values: PauseFormValues): { first_day: string; la
  * The calculation under the form (the server's dry run): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется.
  * Оплачено до станет 09.11.» — the money part only for a role that sees money (`impact` is null otherwise).
  */
-export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact"> | null | undefined): string[] {
+export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "other_groups_text"> | null | undefined): string[] {
   if (!saved) return [];
   const { pause, impact } = saved;
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
@@ -435,6 +444,8 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact"> | nul
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
   const balance = impactBalanceLine(impact);
   if (balance) lines.push(balance);
+  const other = otherGroupsLine(saved);
+  if (other) lines.push(other);
   return lines;
 }
 

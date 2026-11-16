@@ -5,6 +5,7 @@ import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
 import { StatementView } from "@/components/payments/statement-view";
+import { PauseDialog } from "@/components/payments/pause-dialog";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
@@ -29,6 +30,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "statement":
       w.__params = { id: props.membershipId ?? "m-a" };
       root.render(<StatementView paymentsHref="/owner/payments" />);
+      break;
+    case "pause":
+      root.render(<PauseDialog open membershipId="m-a" studentName="Каримов Фарход" groupName={props.groupName ?? "Алгебра"} onClose={() => log("close")} onChanged={(_row, text) => log(`changed:${text}`)} />);
       break;
     default:
       break;

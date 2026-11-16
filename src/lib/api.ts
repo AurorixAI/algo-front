@@ -2062,8 +2062,9 @@ export const orgApi = {
   patchPause: (pauseId: string, body: { first_day?: string | null; last_day?: string | null; reason?: string | null }, options?: { dryRun?: boolean }) =>
     api<PauseSaved>(`/auth/org/pauses/${encodePathId(pauseId)}${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PATCH", body })
       .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
-  voidPause: (pauseId: string, reason: string) =>
-    api<PauseVoided>(`/auth/org/pauses/${encodePathId(pauseId)}/void`, { method: "POST", body: { reason } })
+  /** `dryRun` (Money-2 T9): what the cancel does in the other groups of the student - nothing is written. */
+  voidPause: (pauseId: string, reason: string, options?: { dryRun?: boolean }) =>
+    api<PauseVoided>(`/auth/org/pauses/${encodePathId(pauseId)}/void${options?.dryRun ? "?dry_run=true" : ""}`, { method: "POST", body: { reason } })
       .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
   /** What leaving the group would leave on the account of the student (`money` is null for a role without access to money). */
   getLeavePreview: (groupId: string, studentId: string) =>

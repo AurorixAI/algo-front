@@ -12,6 +12,7 @@ import {
   emptyPauseValues,
   isReasonRequired,
   livePauses,
+  otherGroupsLine,
   logicaError,
   PAUSE_BACKDATE_HINT,
   pauseCalcLines,
@@ -30,6 +31,7 @@ import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
 import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
+import { DRY_RUN_REASON } from "@/lib/dry-run";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
@@ -71,6 +73,8 @@ export function PauseDialog({
   const [cancelReason, setCancelReason] = useState("");
   /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
   const [endNeedsReason, setEndNeedsReason] = useState(false);
+  /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the sentence about the other groups, or the refusal of the server (`blocked`: «PAUSE_BREAKS_REFUND» - nothing can be done here). */
+  const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; text: string | null } | { status: "failed"; message: string; blocked: boolean } | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const sequence = useRef(createRequestSequence());
 
@@ -119,6 +123,30 @@ export function PauseDialog({
     // `values` is a new object on every render; `key` stands for its content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, membershipId, ready, key, calcNonce]);
+
+  // Money-2 T9: the ending and the cancel of a pause move money in the groups tied by a transfer - the server's dry run says it BEFORE the button
+  const actingId = acting?.pause.id ?? null;
+  const actingAction = acting?.action ?? null;
+  useEffect(() => {
+    if (!open || !actingId || !actingAction) { setActPreview(null); return undefined; }
+    let current = true;
+    setActPreview({ status: "loading" });
+    const asked = actingAction === "end"
+      ? orgApi.patchPause(actingId, { last_day: pauseEndDay(today) }, { dryRun: true })
+      : orgApi.voidPause(actingId, DRY_RUN_REASON, { dryRun: true });
+    asked
+      .then((result) => { if (current) setActPreview({ status: "ready", text: otherGroupsLine(result) }); })
+      .catch((cause) => {
+        if (!current) return;
+        const failure = logicaError(cause, "Не удалось посчитать, что изменится");
+        // «укажите причину» is asked by the real press (the field opens there); it is not a refusal
+        if (isReasonRequired(failure)) { setEndNeedsReason(true); setActPreview({ status: "ready", text: null }); return; }
+        setActPreview({ status: "failed", message: failure.message, blocked: failure.code === "PAUSE_BREAKS_REFUND" });
+      });
+    return () => { current = false; };
+    // `today` is fixed for an open dialog
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, actingId, actingAction]);
 
   const save = async () => {
     // the button of the footer waits for the calculation; the form must wait for it too (a submit from elsewhere - Enter in a field, a window inside it - is not a press of the button)
@@ -264,11 +292,14 @@ export function PauseDialog({
                           ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
                           : "Пауза ещё не началась: она будет отменена, дни останутся платными."}
                       </p>
+                      {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
+                      {actPreview?.status === "ready" && actPreview.text && <p data-testid="pause-act-effects" className="text-slate-800">{actPreview.text}</p>}
+                      {actPreview?.status === "failed" && <p role="alert" data-testid="pause-act-effects" className="font-medium text-rose-700">{actPreview.message}</p>}
                       {(acting?.action === "cancel" || endNeedsReason) && (
                         <input aria-label={acting?.action === "cancel" ? "Причина отмены паузы" : "Причина изменения паузы"} value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Причина отмены" : "Причина изменения"} className={PRICE_FIELD} autoComplete="off" />
                       )}
                       <div className="flex gap-2">
-                        <Button type="button" onClick={() => void finish()} disabled={busy} variant="primary" size="sm">
+                        <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="primary" size="sm">
                           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           {acting?.action === "end" ? "Закончить паузу" : "Отменить паузу"}
                         </Button>
