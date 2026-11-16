@@ -665,8 +665,6 @@ export function settledLines(settled: SettledOut[] | null | undefined, groupName
     });
 }
 
-/** «Индивидуальная цена закончится: в этой группе ученик вернётся по цене группы» (F13). */
-export const INDIVIDUAL_PRICE_ENDS_TEXT = "Индивидуальная цена закончится вместе с группой: при возвращении ученик платит по цене группы";
 
 // ── A payment of a student who has left (S-5): at most the debt ────────────
 

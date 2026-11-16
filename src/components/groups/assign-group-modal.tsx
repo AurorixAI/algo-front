@@ -138,8 +138,6 @@ export function AssignGroupModal({
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
   const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // re-audit 6 (closing): the individual price of the PRESENT group does not move with the student - said only to a student who really has it (the memberships of the student tell it: `price.source`)
-  const [hadOverride, setHadOverride] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   // Money-2 T1: «Из какой группы» - the groups the transfer may leave (the caller's, or the list of the server's refusal) and the choice (none by default)
   const [fromGroupId, setFromGroupId] = useState("");
@@ -150,16 +148,6 @@ export function AssignGroupModal({
   const source = isTransfer ? transferSource(sources, fromGroupId) : { needed: false, id: null };
   // Money-1 B1 «Оплата с»: the day the student is charged from in the chosen group ("" until the default of that group arrives); a transfer has no such field
   const [payFrom, setPayFrom] = useState("");
-
-  useEffect(() => {
-    setHadOverride(false);
-    if (!open || !moneyAvailable || !studentId) return undefined;
-    let cancelled = false;
-    orgApi.getStudentMemberships(studentId)
-      .then((rows) => { if (!cancelled) setHadOverride(rows.some((row) => row.is_active !== false && row.price?.source === "override")); })
-      .catch(() => { /* quiet: the sentence is only an addition */ });
-    return () => { cancelled = true; };
-  }, [open, moneyAvailable, studentId]);
 
   // Load groups & teachers when opened
   useEffect(() => {
@@ -581,7 +569,6 @@ export function AssignGroupModal({
             {selectedPriceNote && <p className="mt-0.5 text-slate-600">{selectedPriceNote}</p>}
           </div>
         )}
-        {isTransfer && hadOverride && <p className="mb-2 text-slate-600" data-testid="assign-override-lost">Индивидуальная цена ученика в прежней группе не переносится: он платит по цене новой группы.</p>}
         <EnrolPriceToggle
           idPrefix="assign-group-price"
           enabled={exceptionOn}

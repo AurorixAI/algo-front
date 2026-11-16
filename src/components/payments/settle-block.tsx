@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { METHODS } from "@/lib/payments-ledger";
 import { REASON_MAX } from "@/lib/payments";
 import {
   applyFreshBalances,
   buildSettle,
   defaultSettleChoice,
-  INDIVIDUAL_PRICE_ENDS_TEXT,
   logicaError,
   SETTLE_LABEL,
   settleHeadline,
@@ -187,14 +186,7 @@ function MembershipSettle({
         </div>
       )}
 
-      {membership.effects ? (
-        <EffectsSections effects={endsOnly(membership.effects)} testId="settle-effects" />
-      ) : money?.individual_price_ends && (
-        <p className="flex items-start gap-1.5 text-xs text-amber-800">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span>{INDIVIDUAL_PRICE_ENDS_TEXT}</span>
-        </p>
-      )}
+      {membership.effects && <EffectsSections effects={endsOnly(membership.effects)} testId="settle-effects" />}
     </div>
   );
 }

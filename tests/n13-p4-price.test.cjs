@@ -541,8 +541,9 @@ test("the student card shows the price in one line with no field to type it; the
   assert.doesNotMatch(plain(migrated), /Цена до введения цены группы/);
   // the note «Индивидуальная цена закончится вместе с группой» is not on the card (the leave dialog says it)
   assert.doesNotMatch(plain(html(priceRow({ price: { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "x" }, price_ends_on_leave: true }))), /закончится вместе с группой/);
-  assert.doesNotMatch(read("src/components/payments/membership-payments.tsx"), /INDIVIDUAL_PRICE_ENDS_TEXT/);
-  assert.match(read("src/components/payments/settle-block.tsx"), /individual_price_ends[\s\S]{0,200}INDIVIDUAL_PRICE_ENDS_TEXT/);
+  // Money-2 wave 2 (Б3): the own sentence about the price that ends is gone - the server's `effects` say it (a second source of text about money is forbidden)
+  assert.doesNotMatch(read("src/components/payments/membership-payments.tsx") + read("src/components/payments/settle-block.tsx") + read("src/lib/payments-logica.ts"), /INDIVIDUAL_PRICE_ENDS_TEXT|закончится вместе с группой/);
+  assert.doesNotMatch(read("src/components/groups/assign-group-modal.tsx"), /assign-override-lost|hadOverride/, "the transfer window has no own sentence about the individual price: `effects.ends` says it");
 
   const none = html(priceRow({ price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, monthly_fee: null }));
   assert.match(textOf(none), /Цена группы не задана/);

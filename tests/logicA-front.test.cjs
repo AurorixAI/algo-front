@@ -290,8 +290,7 @@ test("leave dialog and settle block draw the blocks of the spec", () => {
   for (const part of ["После ухода у ученика аванс 135 000 сум. Что сделать?", "Вернуть 135 000 сум", "Оставить аванс на счёте", "Как вернули", "Наличные"]) assert.ok(body.includes(part), part);
   const debt = text(React.createElement(SettleBlock, { preview: G.normalizeLeavePreview(named("A11_")), choices: {}, onChoice: () => undefined }));
   for (const part of ["После ухода у ученика долг 347 000 сум.", "Оставить долг — оплатить его можно и после ухода", "Простить долг"]) assert.ok(debt.includes(part), part);
-  const ends = text(React.createElement(SettleBlock, { preview: G.normalizeLeavePreview(named("A12_")), choices: {}, onChoice: () => undefined }));
-  assert.ok(ends.includes("Индивидуальная цена закончится"));
+  // Money-2 wave 2 (Б3): no own sentence about the individual price - the server's `effects.ends` say it (tests of the window: money2-w1-leave)
   assert.match(html(React.createElement(SettleBlock, { preview, choices: {}, onChoice: () => undefined })), /Расчёты при уходе/);
   // the table opens the leave dialog (owner / admin); a teacher keeps the plain confirmation
   const table = read("src/components/groups/group-student-table.tsx");
