@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Disclosure } from "@/components/ui/disclosure";
 import { bulkHeadline, type BulkOutcome } from "@/lib/bulk-outcome";
+import { SOURCE_REQUIRED_HINT } from "@/lib/transfer-source";
 
 /** Money-2 Э4: «Записано 3 из 4»; every refused student with the reason of the server; the ones who got in are under «Подробнее». */
 export function BulkOutcomePanel({ outcome, verb = "enrol" }: { outcome: BulkOutcome; verb?: "enrol" | "transfer" }) {
@@ -19,6 +20,7 @@ export function BulkOutcomePanel({ outcome, verb = "enrol" }: { outcome: BulkOut
             <li key={row.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
               <p className="font-medium text-slate-900 [overflow-wrap:anywhere]">{row.name}</p>
               <p className="mt-0.5 text-amber-900 [overflow-wrap:anywhere]" data-testid="bulk-outcome-reason">{row.reason}</p>
+              {row.code === "TRANSFER_SOURCE_REQUIRED" && <p className="mt-0.5 text-xs text-amber-800 [overflow-wrap:anywhere]" data-testid="bulk-outcome-hint">{SOURCE_REQUIRED_HINT}</p>}
             </li>
           ))}
         </ul>

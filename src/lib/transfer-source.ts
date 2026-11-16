@@ -24,3 +24,20 @@ export function transferSource(sources: SourceGroup[], chosen: string): { needed
   if (sources.length > 1) return { needed: true, id: sources.some((group) => group.id === chosen) ? chosen : null };
   return { needed: false, id: sources[0]?.id ?? null };
 }
+
+/**
+ * Money-2 fix 3 / п.1: a BULK transfer names the source of every student: `sources: {student_id: group_id}`.  Only a student with exactly ONE active group is named
+ * (the group the list gives); a student with two or more groups is never guessed - he stays out of `sources` and the server answers his row with `TRANSFER_SOURCE_REQUIRED`.
+ */
+export function bulkSources(students: ReadonlyArray<{ id: string; group_id?: string | null; groups_count?: number | null; current_group_id?: string | null }>, targetGroupId: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of students) {
+    const many = typeof s.groups_count === "number" && s.groups_count > 1;
+    const from = typeof s.groups_count === "number" ? s.current_group_id : s.group_id;
+    if (!many && from && from !== targetGroupId) out[s.id] = from;
+  }
+  return out;
+}
+
+/** The one hint of the action under a refusal `TRANSFER_SOURCE_REQUIRED` of a bulk row (the words of the reason are the server's). */
+export const SOURCE_REQUIRED_HINT = "переведите его отдельно — нужно выбрать группу";

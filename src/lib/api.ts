@@ -1569,14 +1569,14 @@ export const orgApi = {
       method: "POST", body: Object.keys(body).length > 0 ? body : undefined, signal,
     });
   },
-  dryRunBulkTransfer: (groupId: string, studentIds: string[], options?: { price_override?: EnrolPriceOverride | null }, signal?: AbortSignal) =>
+  dryRunBulkTransfer: (groupId: string, studentIds: string[], options?: { price_override?: EnrolPriceOverride | null; sources?: Record<string, string> }, signal?: AbortSignal) =>
     api<unknown>(`/auth/org/groups/${encodePathId(groupId)}/students/bulk?mode=transfer&dry_run=true`, {
-      method: "POST", body: { student_ids: studentIds, ...(options?.price_override ? { price_override: options.price_override } : {}) }, signal,
+      method: "POST", body: { student_ids: studentIds, ...(options?.price_override ? { price_override: options.price_override } : {}), ...(options?.sources && Object.keys(options.sources).length > 0 ? { sources: options.sources } : {}) }, signal,
     }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}`, { method: "DELETE" }),
   /** One `price_override` (sum + reason) for everybody added, or none: the students follow the price of the group. */
-  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; pay_from?: string | null }) =>
+  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; pay_from?: string | null; sources?: Record<string, string> }) =>
     api<{
       group_id: string;
       added: number;
@@ -1596,6 +1596,8 @@ export const orgApi = {
           ...(options?.price_override ? { price_override: options.price_override } : {}),
           // Money-1 B1: one «Оплата с» for everybody added (the money right only)
           ...(options?.pay_from ? { pay_from: options.pay_from } : {}),
+          // Money-2 fix 3: a bulk TRANSFER names the group each student leaves (only those with one active group)
+          ...(options?.mode === "transfer" && options?.sources && Object.keys(options.sources).length > 0 ? { sources: options.sources } : {}),
         },
       }
     ),

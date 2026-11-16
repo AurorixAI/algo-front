@@ -31,6 +31,7 @@ import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
 import { BulkOutcomePanel } from "./bulk-outcome-panel";
+import { bulkSources } from "@/lib/transfer-source";
 import { bulkOutcomeOf, type BulkOutcome } from "@/lib/bulk-outcome";
 import { PayFromField } from "./pay-from-field";
 import { canManageMoney } from "@/lib/money-effects";
@@ -239,10 +240,12 @@ export function AddStudentDrawer({
   // UX pack №15: every chosen student is moved from another group (the mode «Перевести в эту группу») - the button says so, not «Зачислить»
   const movesOnly = transfers.length > 0 && transfers.length === selected.size && mode === "transfer" && moneyRight;
   const transferIds = Array.from(selected.keys()).sort();
+  // Money-2 fix 3: the group each moved student leaves (one active group only; with two or more the server asks)
+  const transferSources = bulkSources(Array.from(selected.values()).filter((s) => transfers.some((t) => t.id === s.id)), groupId);
   const transferKey = open && transfers.length > 0 && mode === "transfer" && !dryException.error
-    ? `${groupId}|${transferIds.join(",")}|${JSON.stringify(dryException.request)}`
+    ? `${groupId}|${transferIds.join(",")}|${JSON.stringify(dryException.request)}|${JSON.stringify(transferSources)}`
     : null;
-  const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request }, signal));
+  const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request, sources: transferSources }, signal));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
   // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
   const pickedIds = Array.from(selected.keys()).sort();
@@ -298,6 +301,7 @@ export function AddStudentDrawer({
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           pay_from: payBody,
+          sources: mode === "transfer" ? transferSources : undefined,
         });
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
