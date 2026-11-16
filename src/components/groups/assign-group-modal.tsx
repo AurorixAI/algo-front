@@ -28,6 +28,8 @@ import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { GroupPickCard } from "./group-pick-card";
+import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
 import { LeaveUndoNote } from "@/components/money/effects-sections";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
@@ -60,6 +62,8 @@ export interface GroupInfo {
   students_count?: number;
   /** The price of the group today; the key is absent for a role that does not see money. */
   price_current?: GroupPriceBrief | null;
+  /** The weekly schedule of the group (the list of the groups sends it): the card shows it as one line. */
+  schedule?: ReadonlyArray<ScheduleSlotLike> | null;
 }
 
 interface TeacherInfo {
@@ -548,82 +552,17 @@ export function AssignGroupModal({
             <span>Заполняемость</span>
           </div>
 
-          {filteredGroups.map((g) => {
-            const isSelected = selectedGroupId === g.id;
-            const count = g.student_count ?? g.students_count ?? 0;
-            const max = g.max_students || 30;
-            const isGradeMatch = studentGrade && g.class_level === studentGrade;
-
-            return (
-              <div
-                key={g.id}
-                onClick={() => {
-                  setSelectedGroupId(g.id);
-                  setAssignmentError(null);
-                }}
-                className={`group relative flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? "bg-primary-50/80 border-primary-400 shadow-sm ring-2 ring-primary-500/20"
-                    : "bg-white border-slate-200/90 hover:border-primary-300 hover:bg-white hover:shadow-card"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0 pr-3">
-                  {/* Selection indicator */}
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      isSelected
-                        ? "border-primary-600 bg-primary-600 text-white shadow-card"
-                        : "border-slate-300 bg-white group-hover:border-primary-400 text-transparent"
-                    }`}
-                  >
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p
-                        className={`text-sm font-bold truncate ${
-                          isSelected ? "text-primary-950" : "text-slate-900"
-                        }`}
-                      >
-                        {g.name}
-                      </p>
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-                        {g.class_level} класс
-                      </span>
-                      {isGradeMatch && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                          <Sparkles className="w-2.5 h-2.5" />
-                          Подходит по классу
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-slate-500">
-                      <span>
-                        {g.teacher_name ? `Преподаватель: ${g.teacher_name}` : "Преподаватель не назначен"}
-                      </span>
-                      {moneyAvailable && g.price_current !== undefined && (
-                        <span className={g.price_current || scheduledPrices[g.id] ? "font-medium text-slate-700" : "font-medium text-amber-700"}>
-                          {g.price_current ? formatPrice(g.price_current.amount, priceLabel) : priceNotInForceText(scheduledPrices[g.id], "цена не задана")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Capacity tag */}
-                <div className="flex-shrink-0 text-right">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 text-xs font-semibold text-slate-700">
-                    <Users className="w-3.5 h-3.5 text-slate-500" />
-                    <span>
-                      {count} <span className="text-slate-500 font-normal">/ {max}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredGroups.map((g) => (
+            <GroupPickCard
+              key={g.id}
+              group={g}
+              selected={selectedGroupId === g.id}
+              gradeMatch={Boolean(studentGrade && g.class_level === studentGrade)}
+              priceText={moneyAvailable && g.price_current !== undefined ? (g.price_current ? formatPrice(g.price_current.amount, priceLabel) : priceNotInForceText(scheduledPrices[g.id], "цена не задана")) : ""}
+              priceMissing={!g.price_current && !scheduledPrices[g.id]}
+              onSelect={() => { setSelectedGroupId(g.id); setAssignmentError(null); }}
+            />
+          ))}
         </div>
       )}
     </div>

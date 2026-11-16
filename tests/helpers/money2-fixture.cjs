@@ -10,12 +10,23 @@ const GROUPS = [
   { id: "gt", name: T, class_level: 9, status: "active", teacher_id: "t1", teacher_name: "Камол Эргашев", price_current: { amount: 400000, label: "x" } },
 ];
 const SOURCES = [{ id: "ga", name: A }, { id: "gb", name: B }, { id: "gc", name: C }];
+// the ordinary short names (the set by which the readability is judged); LONG is the set for the wraps only
+const LONG = { A, B, C, T };
+const SHORT = { A: "Алгебра 7", B: "Геометрия 8", C: "Английский 6", T: "Физика 9" };
+const sourcesOf = (names) => [{ id: "ga", name: names.A }, { id: "gb", name: names.B }, { id: "gc", name: names.C }];
+const SLOTS = {
+  ga: [{ id: "s1", dayOfWeek: 2, startTime: "16:00", endTime: "17:00" }, { id: "s2", dayOfWeek: 5, startTime: "16:00", endTime: "17:00" }],
+  gb: [{ id: "s3", dayOfWeek: 1, startTime: "16:00", endTime: "17:00", room: "Каб. 12" }, { id: "s4", dayOfWeek: 3, startTime: "17:30", endTime: "18:30", room: "Каб. 12" }],
+  gc: [],
+  gt: [{ id: "s5", dayOfWeek: 1, startTime: "16:00", endTime: "17:00", format: "online" }, { id: "s6", dayOfWeek: 3, startTime: "16:00", endTime: "17:00", format: "online" }, { id: "s7", dayOfWeek: 5, startTime: "16:00", endTime: "17:00", format: "online" }],
+};
+const groupsOf = (names) => GROUPS.map((group) => ({ ...group, name: names[{ ga: "A", gb: "B", gc: "C", gt: "T" }[group.id]], schedule: SLOTS[group.id] }));
 const MEMBERS = [{ id: "t1", user_id: "t1", org_role: "teacher", first_name: "Эргашев", last_name: "К." }];
 
 /** The common answers of the windows (the lists); `rest` answers the rest. */
-function baseServer(rest) {
+function baseServer(rest, names = LONG) {
   return (request) => {
-    if (request.method === "GET" && request.path === "/auth/org/groups") return { json: GROUPS };
+    if (request.method === "GET" && request.path === "/auth/org/groups") return { json: groupsOf(names) };
     if (request.method === "GET" && request.path === "/auth/org/members") return { json: MEMBERS };
     return rest(request);
   };
@@ -23,7 +34,8 @@ function baseServer(rest) {
 
 // Money-2 T3: the transfer of the student from «Алгебра…» to «Физика…»: money, a pause and «Оплата с» go along; a debt stays; an individual price and a planned price end.
 const nbsp = (text) => text.replace(/(\d) (?=\d{3}(?!\d))/g, "$1\u00a0").replace(/(\d) (?=сум)/g, "$1\u00a0");
-function transferEffects({ money = true, carried = 440000, packageText = null } = {}) {
+function transferEffects({ money = true, carried = 440000, packageText = null, names = LONG } = {}) {
+  const { A, T } = names;
   const base = { membership_id: "m-a", group_id: "ga", group_name: A };
   const sum = (n) => (money ? { amount: n } : {});
   return {
@@ -44,8 +56,8 @@ function transferEffects({ money = true, carried = 440000, packageText = null } 
 }
 
 // Money-2 T3: the leaving / archiving of one stay of the student: a debt stays; an individual price, a planned price and a pause end.  `money` false: the same facts without a sum.
-function leaveMembership(index, { money = true, kind = "leave" } = {}) {
-  const name = [A, B, C][index];
+function leaveMembership(index, { money = true, kind = "leave", names = LONG } = {}) {
+  const name = [names.A, names.B, names.C][index];
   const id = `m-${index}`;
   const base = { membership_id: id, group_id: ["ga", "gb", "gc"][index], group_name: name };
   const rub = (n) => `${String(n).replace(/\B(?=(\d{3})+$)/g, "\u00a0")}\u00a0сум`;
@@ -65,11 +77,12 @@ function leaveMembership(index, { money = true, kind = "leave" } = {}) {
   };
 }
 
-module.exports = { leaveMembership, transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };
+module.exports = { leaveMembership, transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer, LONG, SHORT, sourcesOf, groupsOf, SLOTS };
 
 // Money-2 T7 / Э3: the statement of a student who left, with the worst real case - one cancelled payment that can be restored, one that was ALREADY restored (nothing to press), the restoration itself.
 const MEMBERSHIP = "m-a";
-function statementWithVoided() {
+function statementWithVoided(names = LONG) {
+  const { A } = names;
   const details = (extra) => ({ segment: null, method: "cash", created_by_name: "Рустам Каримов", note: null, allocations: [], writeoff_id: null, refund_id: null, reason: null, from_group_name: null, from_membership_id: null, to_group_name: null, to_membership_id: null, replaces_receipt_no: null, replaces_amount: null, replaced_by_receipt_no: null, ...extra });
   const row = (seq, date, title, credit, extra, over = {}) => ({ seq, date, type: "payment", title, debit: 0, credit, outflow: 0, balance_after: 0, balance_text: "", voided_at: null, void_reason: null, voided_by_name: null, ...over, details: details(extra) });
   return {
@@ -94,7 +107,8 @@ module.exports.paymentsList = paymentsList;
 module.exports.MEMBERSHIP = MEMBERSHIP;
 
 // Money-2 Э7: the journal of decisions - the four new kinds, the worst case: long names of the groups, the same student, a payment restored the day it was cancelled.
-function decisionsPage() {
+function decisionsPage(names = LONG) {
+  const { A, T } = names;
   const base = { student_id: "st1", student_name: "Каримов Фарход Абдуллаевич", actor_name: "Рустам Каримов", new_amount: null, debt_before: null, debt_after: null, consequence: null, reason: null, receipt_no: null, amount: 0, group_name: A };
   const rows = [
     { ...base, id: "d1", at: "2026-11-22T09:00:00", kind: "student_transferred", kind_label: "Ученик переведён: деньги перенесены в новую группу", amount: 440000, group_name: T, text: `Перевод из «${A}» в «${T}»: перенесено 440 000 сум` },
