@@ -128,7 +128,8 @@ test("the dialog «Преподаватель урока»: roles, the reason in
   await shot(mine, `18-teacher-requests-chain-${project}`);
 });
 
-test("a day off: the dry run lists the lessons «группа · дата · время»; the days off are «Действующие» and «Отменённые и прошедшие» @mobile", async ({ signIn }, info) => {
+// @exam: the preview asks exam-service whether a lesson has an exam; without it the server answers «сервис экзаменов недоступен» and lists nothing to cancel (not a matter of the date or the order)
+test("a day off: the dry run lists the lessons «группа · дата · время»; the days off are «Действующие» and «Отменённые и прошедшие» @mobile @exam", async ({ signIn }, info) => {
   test.setTimeout(240_000);
   const project = info.project.name;
   const org = await Org.create("Выходные 25.10");
