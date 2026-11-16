@@ -23,13 +23,13 @@ function baseServer(rest) {
 
 // Money-2 T3: the transfer of the student from «Алгебра…» to «Физика…»: money, a pause and «Оплата с» go along; a debt stays; an individual price and a planned price end.
 const nbsp = (text) => text.replace(/(\d) (?=\d{3}(?!\d))/g, "$1\u00a0").replace(/(\d) (?=сум)/g, "$1\u00a0");
-function transferEffects({ money = true, carried = 440000 } = {}) {
+function transferEffects({ money = true, carried = 440000, packageText = null } = {}) {
   const base = { membership_id: "m-a", group_id: "ga", group_name: A };
   const sum = (n) => (money ? { amount: n } : {});
   return {
     kind: "transfer",
     moves: [
-      ...(money ? [{ ...base, code: "money", amount: carried, text: `Деньги ученика — ${nbsp(String(carried).replace(/\B(?=(\d{3})+$)/g, " "))} сум — переходят в группу «${T}»; аванс останется 40 000 сум` }] : []),
+      ...(money ? [{ ...base, code: "money", amount: carried, text: packageText ?? `Деньги ученика — ${nbsp(String(carried).replace(/\B(?=(\d{3})+$)/g, " "))} сум — переходят в группу «${T}»; аванс останется 40 000 сум` }] : []),
       { ...base, code: "pause", first_day: "2026-11-23", last_day: "2026-11-26", text: `Пауза 23.11–26.11 перейдёт в группу «${T}»: дни паузы там не начисляются` },
       { ...base, code: "billing_from", date: "2026-11-30", text: `«Оплата с 30.11.2026» перейдёт в группу «${T}»: начисление там начнётся с этого дня` },
     ],
