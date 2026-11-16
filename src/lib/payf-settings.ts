@@ -27,6 +27,14 @@ export const PAYMENT_MODEL_SHORT_HINT: Record<"payment_date" | "fixed_day" | "le
   lessons: "Оплата закрывает N проведённых уроков",
 };
 
+/**
+ * Money-2 Э9 (Т16): the order of the three ways in the settings of a centre - «Общий месяц» FIRST with the mark «рекомендуем» (a new centre is created with it).  The dictionary `PAYMENT_MODELS` keeps its order
+ * (it mirrors the server's names); only the screen reorders.
+ */
+export const PAYMENT_MODEL_ORDER: ReadonlyArray<"payment_date" | "fixed_day" | "lessons"> = ["fixed_day", "payment_date", "lessons"];
+export const RECOMMENDED_MODEL = "fixed_day" as const;
+export const RECOMMENDED_LABEL = "рекомендуем";
+
 /** The accounting start is one quiet line at the top of the section; «Изменить» opens the date with its hint. */
 export function accountingLineText(date: string): string {
   return `ALGO ведёт оплаты центра с ${date}`;

@@ -56,6 +56,7 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { savedPaymentDetails, savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { useToast } from "@/components/ui/toast";
 import { PaymentDialog, type EditablePayment } from "./payment-dialog";
+import { enteredLaterMark } from "@/lib/entered-later";
 import { PaymentVoidModal, paymentRestoreTarget, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
@@ -139,6 +140,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   const [voidRecord, setVoidRecord] = useState<VoidTarget | null>(null);
   // Money-2 T7: the cancelled payments the server lets be restored (`restorable` of the list of payments of the membership; the rows of the statement do not carry it)
   const [restorable, setRestorable] = useState<ReadonlySet<string>>(new Set());
+  const [entered, setEntered] = useState<ReadonlyMap<string, string>>(new Map());
 
   // The whole statement is read once: the month is cut here, so the balance after every row stays the server's.
   const load = useCallback(async (silent = false) => {
@@ -148,11 +150,13 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
     try {
       const [data, payments] = await Promise.all([
         orgApi.getStatement(membershipId, { include_voided: withVoided }),
-        withVoided ? orgApi.listMembershipPayments(membershipId, true).catch(() => []) : Promise.resolve([]),
+        orgApi.listMembershipPayments(membershipId, true).catch(() => []),
       ]);
       if (!requests.current.isCurrent(token)) return;
       setStatement(data);
       setRestorable(new Set(payments.filter((payment) => payment.restorable === true).map((payment) => payment.id)));
+      // Money-2 Э9: the payments entered later than their day carry «внесено ДД.ММ»
+      setEntered(new Map(payments.map((payment) => [payment.id, enteredLaterMark(payment.created_at, payment.paid_on)] as const).filter((pair): pair is [string, string] => pair[1] !== null)));
     } catch (cause) {
       if (!requests.current.isCurrent(token)) return;
       const status = (cause as { status?: number } | null)?.status;
@@ -357,7 +361,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
             </label>
           </div>
 
-          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? cheques.filesOf(entry.raw.details.payment_id) : null)} withVoided={withVoided} month={month}
+          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? <>{entered.get(entry.raw.details.payment_id ?? "") && <span data-testid="entered-later" className="mt-0.5 block text-xs font-medium text-amber-800">{entered.get(entry.raw.details.payment_id ?? "")}</span>}{cheques.filesOf(entry.raw.details.payment_id)}</> : null)} withVoided={withVoided} month={month}
             restorable={restorable}
             onRestore={(payment) => setVoidRecord(paymentRestoreTarget(payment, m?.student_name, () => { showToast("Оплата восстановлена", "success"); changed(); void cheques.reload(); }, () => { changed(); }))} />
         </>

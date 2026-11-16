@@ -44,7 +44,7 @@ import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpenin
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { AccountingStartLine } from "@/components/payments/accounting-start-line";
 import { HelpToggle } from "@/components/ui/help-toggle";
-import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMENT_MODEL_SHORT_HINT, BILLING_DAY_SHORT_HINT } from "@/lib/payf-settings";
+import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMENT_MODEL_ORDER, PAYMENT_MODEL_SHORT_HINT, RECOMMENDED_LABEL, RECOMMENDED_MODEL, BILLING_DAY_SHORT_HINT } from "@/lib/payf-settings";
 import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
@@ -306,6 +306,9 @@ function NumberField({
 }
 
 /** «Оплаты»: how the center counts the paid period and whether administrators may enter payments. */
+// Money-2 Э9: «Общий месяц» first, with «рекомендуем»
+const shownModels = PAYMENT_MODEL_ORDER.map((key) => PAYMENT_MODELS.find((option) => option.key === key)!);
+
 function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   const { form, loaded, saves } = draft;
   const accountingChanged = Boolean(form.accounting_start_date) && form.accounting_start_date !== loaded.accounting_start_date;
@@ -363,11 +366,11 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           Как считать оплату
           <HelpToggle label={HELP_LABEL} testId="payments-help">
             <span className="block">{PAYMENTS_SECTION_HELP} {CANCELLED_LESSON_TEXT}</span>
-            {PAYMENT_MODELS.map((option) => <span key={option.key} className="mt-0.5 block"><b className="font-semibold">{option.title}.</b> {option.hint}</span>)}
+            {shownModels.map((option) => <span key={option.key} className="mt-0.5 block"><b className="font-semibold">{option.title}.</b> {option.hint}</span>)}
           </HelpToggle>
         </legend>
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-3">
-          {PAYMENT_MODELS.map((option) => (
+          {shownModels.map((option) => (
             <label
               key={option.key}
               className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${model === option.key ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
@@ -379,7 +382,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
                 className="mt-0.5"
               />
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
+                <span className="block text-sm font-semibold text-slate-900">{option.title}{option.key === RECOMMENDED_MODEL && <span data-testid="model-recommended" className="ml-2 inline-block rounded-full bg-emerald-50 px-2 py-0.5 align-middle text-[11px] font-semibold text-emerald-800">{RECOMMENDED_LABEL}</span>}</span>
                 <span className="block text-xs text-slate-500">{PAYMENT_MODEL_SHORT_HINT[option.key]}</span>
               </span>
             </label>
