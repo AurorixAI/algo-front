@@ -112,11 +112,12 @@ function decisionsPage(names = LONG) {
   const { A, T } = names;
   const base = { student_id: "st1", student_name: "Каримов Фарход Абдуллаевич", actor_name: "Рустам Каримов", new_amount: null, debt_before: null, debt_after: null, consequence: null, reason: null, receipt_no: null, amount: 0, group_name: A };
   const rows = [
-    { ...base, id: "d1", at: "2026-11-22T09:00:00", kind: "student_transferred", kind_label: "Ученик переведён: деньги перенесены в новую группу", amount: 440000, group_name: T, text: `Перевод из «${A}» в «${T}»: перенесено 440 000 сум` },
-    { ...base, id: "d2", at: "2026-11-22T10:00:00", kind: "leave_undone", kind_label: "Уход отменён", text: "Ученик вернулся в день ухода: уход отменён, цены и паузы возвращены (3)" },
-    { ...base, id: "d3", at: "2026-11-22T11:00:00", kind: "payment_restored", kind_label: "Оплата восстановлена", amount: 600000, receipt_no: 1, reason: "Отменили по ошибке", text: "Оплата № 1 на 600 000 сум от 22.11.2026 восстановлена как № 2" },
-    { ...base, id: "d4", at: "2026-11-22T12:00:00", kind: "pause_moved", kind_label: "Пауза перенесена в новую группу", group_name: T, text: `Пауза 23.11.2026–26.11.2026 перенесена в группу «${T}» вместе с учеником` },
+    { ...base, id: "d1", at: "2026-11-22T09:00:00", kind: "student_transferred", kind_label: "Ученик переведён: деньги перенесены в новую группу", amount: 440000, group_name: T, from_group_name: A, to_group_name: T, carried_pay_from: "2026-11-25", text: `Перевод из «${A}» в «${T}»: перенесено 440 000 сум; «Оплата с 25.11.2026» перенесена вместе с учеником` },
+    { ...base, id: "d2", at: "2026-11-22T10:00:00", kind: "leave_undone", kind_label: "Уход отменён", restored: { individual_price: 1, scheduled_price: 1, pause: 2 }, text: "Ученик вернулся в день ухода: уход отменён, цены и паузы возвращены (3)" },
+    { ...base, id: "d3", at: "2026-11-22T11:00:00", kind: "payment_restored", kind_label: "Оплата восстановлена", amount: 600000, receipt_no: 1, new_receipt_no: 2, paid_on: "2026-11-02", reason: "Отменили по ошибке", text: "Оплата № 1 на 600 000 сум от 22.11.2026 восстановлена как № 2" },
+    { ...base, id: "d4", at: "2026-11-22T12:00:00", kind: "pause_moved", kind_label: "Пауза перенесена в новую группу", group_name: T, from_group_name: A, to_group_name: T, first_day: "2026-11-23", last_day: "2026-11-26", text: `Пауза 23.11.2026–26.11.2026 перенесена в группу «${T}» вместе с учеником` },
     { ...base, id: "d5", at: "2026-11-21T12:00:00", kind: "payment_void", kind_label: "Оплата отменена", amount: 600000, receipt_no: 1, reason: "Ошибка кассира", text: null },
+    { ...base, id: "d6", at: "2026-11-20T12:00:00", kind: "payment_refund", kind_label: "Аванс возвращён", amount: 120000, paid_on: "2026-11-12", reason: "Ученик ушёл", text: null },
   ];
   return { as_of: "2026-11-22", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: rows.length, pages: 1, since: "2026-11-01", rows };
 }

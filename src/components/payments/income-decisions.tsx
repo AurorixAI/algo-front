@@ -6,7 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { basesOfPayments, studentHref } from "@/lib/ia-links";
 import {
-  DECISION_KINDS, DECISIONS_EMPTY_TEXT, DECISIONS_FILTERED_EMPTY_TEXT, DECISIONS_PAGE_SIZE, decisionAmountText, decisionDebtText, decisionKindLabel, decisionsSinceText, decisionSummary, decisionTone, decisionWhen,
+  DECISION_KINDS, DECISIONS_EMPTY_TEXT, DECISIONS_FILTERED_EMPTY_TEXT, DECISIONS_PAGE_SIZE, decisionAmountText, decisionDebtText, decisionKindLabel, decisionsSinceText, decisionSummary, decisionPaidOn, decisionCarriedPayFrom, decisionRestoredText, decisionTone, decisionWhen,
   type DecisionRow, type DecisionsPage,
 } from "@/lib/payments-decisions";
 import { incomeErrorText, type JournalAuthor, type Period } from "@/lib/payments-income-v2";
@@ -155,12 +155,15 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
           {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.consequence && <p className="break-words" data-testid="decision-consequence">{row.consequence}</p>}
+          {decisionRestoredText(row) && <p className="break-words" data-testid="decision-restored">{decisionRestoredText(row)}</p>}
+          {decisionCarriedPayFrom(row) && <p className="break-words" data-testid="decision-carried">{decisionCarriedPayFrom(row)}</p>}
           {row.receipt_no !== null && <p>Квитанция № {row.receipt_no}</p>}
           {studentLink && <Link href={studentLink} className="inline-flex min-h-10 items-center font-medium text-primary-700 hover:underline">Оплаты ученика</Link>}
         </div>
       )}
     >
-      <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span></DataCell>
+      <DataCell col="when"><span className="text-sm tabular-nums text-slate-500" data-testid="decision-when">{decisionWhen(row.at)}</span>
+        {decisionPaidOn(row) && <span className="ml-1.5 whitespace-nowrap text-xs text-slate-500 sm:ml-0 sm:block" data-testid="decision-paid-on">{decisionPaidOn(row)}</span>}</DataCell>
       <DataCell col="kind"><StatusChip tone={decisionTone(row.kind)} bleed className="!whitespace-normal" testId="decision-kind">{decisionKindLabel(row)}</StatusChip></DataCell>
       <DataCell col="who">
         <span className="text-sm font-medium text-slate-900">

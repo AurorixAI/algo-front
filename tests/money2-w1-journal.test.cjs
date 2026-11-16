@@ -29,14 +29,14 @@ async function open(width, handler = answer) {
   return run;
 }
 
-const LINES = ["в «Физика 9»", "«Алгебра 7»", "оплата № 1", "в «Физика 9»"];
+const LINES = ["Алгебра 7 → Физика 9", "«Алгебра 7»", "оплата № 1 → № 2", "Алгебра 7 → Физика 9 · 23–26.11"];
 const CHIPS = ["Перевод", "Уход отменён", "Оплата восстановлена", "Пауза перенесена"];
 
 test("Э7 / А8: each new kind is a SHORT chip and ONE line from the structure of the row (the group, the receipt); the sum is in its column once; the whole sentence of the server is in the opened row", async () => {
   const page = F.decisionsPage(F.SHORT);
   const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
   const rows = run.page.locator('[data-testid="decision-row"]');
-  assert.equal(await rows.count(), 5);
+  assert.equal(await rows.count(), 6);
   for (let index = 0; index < 4; index += 1) {
     const text = plain(await rows.nth(index).evaluate((el) => el.innerText));
     assert.equal(plain(await rows.nth(index).locator('[data-testid="decision-kind"]').textContent()), CHIPS[index]);
@@ -58,7 +58,7 @@ test("Э7 / А8: each new kind is a SHORT chip and ONE line from the structure o
 
 test("А8: without the group in the structure the sentence of the server stands as the line (nothing is guessed)", async () => {
   const page = F.decisionsPage(F.SHORT);
-  page.rows[0].group_name = null;
+  page.rows[0].group_name = null; page.rows[0].from_group_name = null; page.rows[0].to_group_name = null;
   const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
   assert.equal(plain(await run.page.locator('[data-testid="decision-line"]').first().textContent()), plain(page.rows[0].text));
   await run.page.close();
@@ -71,7 +71,7 @@ test("Б1 (375): the card shows only the cells that have a value - no «Сумм
   await run.page.evaluate(() => window.mount("decisions", { role: "owner", org_role: "owner" }));
   await run.page.waitForSelector('[data-testid="decision-row"]');
   const dashes = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-row"]')].map((row) => [...row.querySelectorAll(".dt-cell")].filter((cell) => getComputedStyle(cell).display !== "none" && /—/.test(cell.textContent ?? "")).map((cell) => cell.getAttribute("data-col"))));
-  assert.deepEqual(dashes, [[], [], [], [], []], JSON.stringify(dashes));
+  assert.deepEqual(dashes, [[], [], [], [], [], []], JSON.stringify(dashes));
   await run.page.close();
   const wide = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
   assert.ok((await wide.page.locator('[data-testid="decision-row"]').nth(1).locator("[data-testid=decision-debt]").evaluate((el) => el.textContent.includes("—"))), "the table keeps the dash in its column");
@@ -106,5 +106,39 @@ test("Э7 (375): a long kind label wraps inside the card (the chip never leaves 
   const out = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-row"]')].flatMap((row) => { return [...row.querySelectorAll('[data-testid="decision-kind"]')].filter((chip) => chip.scrollWidth > chip.clientWidth + 1 || chip.getBoundingClientRect().right > chip.parentElement.getBoundingClientRect().right + 1).map((chip) => chip.textContent); }));
   assert.deepEqual(out, [], "a chip leaves its card");
   assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
+  await run.page.close();
+});
+
+test("fix3 п.2: «откуда → куда», дни паузы, два номера оплаты; без названия источника - «в «цель»»; пометка «за ДД.ММ» у времени записи; стрелка не стоит в начале строки", async () => {
+  const page = F.decisionsPage(F.SHORT);
+  page.rows[0].from_group_name = null; // a record without the source name: as before
+  const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: page } : null));
+  const rows = run.page.locator('[data-testid="decision-row"]');
+  assert.equal(plain(await rows.nth(0).locator('[data-testid="decision-line"]').textContent()), "в «Физика 9»");
+  assert.equal(plain(await rows.nth(2).locator('[data-testid="decision-paid-on"]').textContent()), "за 02.11");
+  assert.equal(plain(await rows.nth(5).locator('[data-testid="decision-paid-on"]').textContent()), "за 12.11");
+  assert.equal(await rows.nth(0).locator('[data-testid="decision-paid-on"]').count(), 0, "no paid_on - no mark");
+  assert.ok(!/(^| )→/.test(await rows.nth(3).locator('[data-testid="decision-line"]').evaluate((el) => el.textContent)), "a non-breaking space before the arrow");
+  await run.page.close();
+});
+
+test("fix3 п.2: в раскрытии - что вернулось при отмене ухода (словарь «Что изменится») и «Оплата с» перевода", async () => {
+  const run = await open(1280, (request) => (request.path === "/auth/org/payments/decisions" ? { json: F.decisionsPage(F.SHORT) } : null));
+  const rows = run.page.locator('[data-testid="decision-row"]');
+  await rows.nth(1).click();
+  assert.equal(plain(await run.page.locator('[data-testid="decision-restored"]').textContent()), "Вернулось: индивидуальная цена, цена с даты, пауза ×2");
+  await rows.nth(0).click();
+  assert.equal(plain(await run.page.locator('[data-testid="decision-carried"]').textContent()), "«Оплата с» 25.11 перенесена");
+  await run.page.close();
+});
+
+test("fix3 п.2 (375): длинные названия переносятся целиком, пометка «за ДД.ММ» есть, страница не шире экрана", async () => {
+  const run = await openPage(browser, "money2.entry.tsx", F.baseServer(answer), { width: 375, height: 900 });
+  await run.page.evaluate(() => window.mount("decisions", { role: "owner", org_role: "owner" }));
+  await run.page.waitForSelector('[data-testid="decision-row"]');
+  assert.equal(await run.page.locator('[data-testid="decision-paid-on"]').count(), 2);
+  assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
+  const cut = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="decision-line"]')].filter((el) => el.scrollWidth > el.clientWidth + 1).length);
+  assert.equal(cut, 0, "a line is cut");
   await run.page.close();
 });

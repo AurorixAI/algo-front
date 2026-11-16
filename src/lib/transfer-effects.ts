@@ -31,6 +31,23 @@ export interface LeaveUndo { undone: boolean; text: string; restored: string[] }
 export const SECTION_MONEY = "Перейдёт";
 export const SECTION_ENDS = "Закончится";
 export const staysTitle = (groupName: string) => (groupName ? `Останется в группе «${groupName}»` : "Останется в прошлой группе");
+/** ONE vocabulary of the kinds of things a leaving / a transfer touches: «Что изменится» and the journal (what a cancelled leaving gave back) name them alike. */
+export const KIND_INDIVIDUAL_PRICE = "Индивидуальная цена";
+export const KIND_SCHEDULED_PRICE = "Цена";
+export const KIND_PAUSE = "Пауза";
+/** `restored` of a cancelled leaving ({individual_price: 1, scheduled_price: 1, pause: 2}) as short names: «индивидуальная цена», «цена с даты», «пауза ×2»; an unknown kind is not guessed. */
+export function restoredNames(restored: Record<string, number> | null | undefined): string[] {
+  if (!restored) return [];
+  const times = (name: string, count: number) => (count > 1 ? `${name} ×${count}` : name);
+  const out: string[] = [];
+  for (const [key, count] of Object.entries(restored)) {
+    if (typeof count !== "number" || count <= 0) continue;
+    if (key === "individual_price") out.push(times(KIND_INDIVIDUAL_PRICE.toLowerCase(), count));
+    else if (key === "scheduled_price") out.push(times(`${KIND_SCHEDULED_PRICE.toLowerCase()} с даты`, count));
+    else if (key === "pause") out.push(times(KIND_PAUSE.toLowerCase(), count));
+  }
+  return out;
+}
 export const BALANCE_CHANGED_TEXT = "Данные изменились — проверьте числа";
 
 const items = (value: unknown): EffectItem[] =>
@@ -69,9 +86,9 @@ export function effectRow(item: EffectItem, index: number): EffectRow {
     case "money": return { key, label: "Деньги ученика", value: sum(item.amount) };
     case "debt": return { key, label: "Долг", value: sum(item.amount) };
     case "advance": return { key, label: "Аванс", value: sum(item.amount) };
-    case "individual_price": return { key, label: "Индивидуальная цена", value: sum(item.amount) };
-    case "scheduled_price": { const day = dayOf(item.valid_from); return day ? { key, label: `Цена с ${day}`, value: sum(item.amount) } : { key, label: item.text, value: null }; }
-    case "pause": { const period = periodShort(item.first_day, item.last_day); return period ? { key, label: "Пауза", value: period } : { key, label: item.text, value: null }; }
+    case "individual_price": return { key, label: KIND_INDIVIDUAL_PRICE, value: sum(item.amount) };
+    case "scheduled_price": { const day = dayOf(item.valid_from); return day ? { key, label: `${KIND_SCHEDULED_PRICE} с ${day}`, value: sum(item.amount) } : { key, label: item.text, value: null }; }
+    case "pause": { const period = periodShort(item.first_day, item.last_day); return period ? { key, label: KIND_PAUSE, value: period } : { key, label: item.text, value: null }; }
     case "billing_from": { const day = dayOf(item.date); return day ? { key, label: "«Оплата с»", value: day } : { key, label: item.text, value: null }; }
     default: return { key, label: item.text, value: null };
   }

@@ -1,8 +1,9 @@
 // Money-1 V2: «Денежные решения» - who cancelled or corrected a payment, forgave a debt, gave an advance back (and cancelled that), with the reason.  The server (`GET /org/payments/decisions`) says every word;
 // this file only reads the answer, names the filter and draws the numbers of a row in one line.
 import { formatMoney } from "./money-format";
-import { formatDateRu, formatUtcNaiveAsBusinessDateTime } from "./business-time";
+import { formatDateRu, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime } from "./business-time";
 import type { ChipTone } from "./chip-tone";
+import { periodShort, restoredNames } from "./transfer-effects";
 
 export const DECISIONS_PAGE_SIZE = 25;
 
@@ -27,6 +28,16 @@ export interface DecisionRow {
   consequence: string | null;
   /** Money-2 Э7: the line of a transfer / a restored payment / a cancelled leaving / a moved pause in the server's words (who is the actor, the date and the sum are in the row); null for the older kinds. */
   text: string | null;
+  /** Money-2 fix 3: the structure of a transfer / a moved pause: where from and where to (names), the days of the pause, the numbers of a restored payment, the day of the operation itself, the «Оплата с» that went along, what a cancelled leaving gave back. */
+  from_group_name: string | null;
+  to_group_name: string | null;
+  first_day: string | null;
+  last_day: string | null;
+  new_receipt_no: number | null;
+  /** The day of the operation itself - only when it is not the day of the record. */
+  paid_on: string | null;
+  carried_pay_from: string | null;
+  restored: Record<string, number> | null;
 }
 
 export interface DecisionsPage {
@@ -60,6 +71,9 @@ export function normalizeDecisions(raw: Partial<DecisionsPage> | null | undefine
       student_name: textOf(row?.student_name), group_name: textOrNull(row?.group_name), amount: num(row?.amount), new_amount: numOrNull(row?.new_amount),
       receipt_no: numOrNull(row?.receipt_no), reason: textOrNull(row?.reason), actor_name: textOrNull(row?.actor_name),
       debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after), consequence: textOrNull(row?.consequence), text: textOrNull(row?.text),
+      from_group_name: textOrNull(row?.from_group_name), to_group_name: textOrNull(row?.to_group_name), first_day: textOrNull(row?.first_day), last_day: textOrNull(row?.last_day),
+      new_receipt_no: numOrNull(row?.new_receipt_no), paid_on: textOrNull(row?.paid_on), carried_pay_from: textOrNull(row?.carried_pay_from),
+      restored: row?.restored && typeof row.restored === "object" && !Array.isArray(row.restored) ? (row.restored as Record<string, number>) : null,
     })),
   };
 }
@@ -123,16 +137,41 @@ const SHORT_KIND_LABEL: Record<string, string> = {
 };
 export const decisionKindLabel = (row: Pick<DecisionRow, "kind" | "kind_label">): string => SHORT_KIND_LABEL[row.kind] ?? row.kind_label;
 
+/** A non-breaking space before the arrow: the arrow never starts a line alone. */
+const NB = "\u00A0";
+
 /**
- * Money-2 А8: the second line of a new kind from the STRUCTURAL fields of the row (the group of the record, the receipt): «в «Физика 9»» for a transfer and a moved pause, «№ 1» for a restored payment,
- * ««Алгебра 7»» for a cancelled leaving.  The sum is in the column «Сумма», the day and the author in their columns: nothing is said twice.  The whole sentence of the server is in the opened row.
- * When the structure has nothing to say the sentence of the server stands as the line (`null` for the older kinds: their columns say everything).
+ * Money-2 А8 + fix 3: the second line of a new kind from the STRUCTURAL fields of the row only: a transfer «Алгебра 7 → Физика 9» (no source name: «в «Физика 9»»), a moved pause the same plus the days «· 25–28.11»,
+ * a restored payment «оплата № 41 → № 44», a cancelled leaving the group.  The sum is in the column «Сумма», the day and the author in their columns: nothing is said twice.  The whole sentence of the server is in
+ * the opened row.  When the structure has nothing to say the sentence of the server stands as the line (`null` for the older kinds: their columns say everything).
  */
-export function decisionSummary(row: Pick<DecisionRow, "kind" | "group_name" | "receipt_no" | "text">): string | null {
+export function decisionSummary(row: Pick<DecisionRow, "kind" | "group_name" | "receipt_no" | "text"> & Partial<Pick<DecisionRow, "from_group_name" | "to_group_name" | "first_day" | "last_day" | "new_receipt_no">>): string | null {
   if (!SHORT_KIND_LABEL[row.kind]) return null;
+  const target = row.to_group_name ?? row.group_name;
   const group = row.group_name ? `«${row.group_name}»` : null;
-  const line = row.kind === "payment_restored" ? (row.receipt_no !== null ? `оплата № ${row.receipt_no}` : null)
-    : row.kind === "leave_undone" ? group
-    : group ? `в ${group}` : null;
+  const route = row.from_group_name && target ? `${row.from_group_name}${NB}→ ${target}` : target ? `в «${target}»` : null;
+  let line: string | null;
+  if (row.kind === "payment_restored") line = row.receipt_no !== null ? (row.new_receipt_no != null ? `оплата № ${row.receipt_no}${NB}→ № ${row.new_receipt_no}` : `оплата № ${row.receipt_no}`) : null;
+  else if (row.kind === "leave_undone") line = group;
+  else if (row.kind === "pause_moved") { const period = periodShort(row.first_day ?? undefined, row.last_day ?? undefined); line = route ? (period ? `${route} · ${period}` : route) : null; }
+  else line = route;
   return line ?? row.text;
+}
+
+/** «за 02.11»: the day of the operation itself next to the time of the record - only when the server sends it (it differs from the day of the record). */
+export function decisionPaidOn(row: Pick<DecisionRow, "paid_on">): string | null {
+  const day = row.paid_on ? formatDayMonthRu(row.paid_on) : "";
+  return day ? `за ${day}` : null;
+}
+
+/** The opened row of a transfer: «Оплата с» that went along with the student. */
+export function decisionCarriedPayFrom(row: Pick<DecisionRow, "carried_pay_from">): string | null {
+  const day = row.carried_pay_from ? formatDayMonthRu(row.carried_pay_from) : "";
+  return day ? `«Оплата с» ${day} перенесена` : null;
+}
+
+/** The opened row of a cancelled leaving: what came back («индивидуальная цена, пауза ×2»). */
+export function decisionRestoredText(row: Pick<DecisionRow, "restored">): string | null {
+  const names = restoredNames(row.restored);
+  return names.length > 0 ? `Вернулось: ${names.join(", ")}` : null;
 }
