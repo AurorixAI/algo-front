@@ -31,9 +31,10 @@ import {
   restoreTeacherInactive,
   type ArchiveDialogView,
 } from "@/lib/group-archive";
+import { ArchiveOpenBalances } from "./archive-open-balances";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
-import { groupHref } from "@/lib/ia-links";
+import { groupHref, workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,7 @@ export function GroupArchiveDialog({
           onArchiveStudent={(student) => setArchiveStudent(student)}
           journalHref={groupHref(groupsBasePath, group.id, "attendance")}
           onJournal={onClose}
+          paymentsBase={workspaceBases(workspaceOfPath(groupsBasePath)).payments}
         />
       </Modal>
 
@@ -195,7 +197,7 @@ export function GroupArchiveDialog({
 /** The inside of the archive dialog (no shell): hard stops, the choice for the missed lessons, what the archive does by itself. */
 export function ArchiveDialogBody({
   impact, view, loadError, cancelMissed, reason, reasonProblem, busy, error,
-  onRetry, onCancelMissed, onReason, onTransfer, onArchiveStudent, journalHref = null, onJournal,
+  onRetry, onCancelMissed, onReason, onTransfer, onArchiveStudent, journalHref = null, onJournal, paymentsBase = null,
 }: {
   impact: ArchiveImpact | null;
   view: ArchiveDialogView | null;
@@ -213,6 +215,8 @@ export function ArchiveDialogBody({
   /** The journal of the group (UX pack №6: the amber block leads there); without it the link is not drawn. */
   journalHref?: string | null;
   onJournal?: () => void;
+  /** Money-2 Т12: where the statements live (`/owner/payments`): the balances that stop the archive lead there; without it the rows have no links. */
+  paymentsBase?: string | null;
 }) {
   if (loadError) {
     return (
@@ -231,7 +235,8 @@ export function ArchiveDialogBody({
   }
   const studentStop = view.stops.find((stop) => stop.code === "ACTIVE_STUDENTS");
   // the lessons without a mark are told by the amber block below (not by a red stop) - the stop only keeps the button off
-  const otherStops = view.stops.filter((stop) => stop.code !== "ACTIVE_STUDENTS" && stop.code !== "MISSED_LESSONS");
+  const balanceStop = view.stops.find((stop) => stop.code === "OPEN_BALANCES");
+  const otherStops = view.stops.filter((stop) => stop.code !== "ACTIVE_STUDENTS" && stop.code !== "MISSED_LESSONS" && stop.code !== "OPEN_BALANCES");
   const consequence = splitMissedConsequence(view.cancelConsequence);
   return (
     <div className="space-y-4 pb-1">
@@ -260,6 +265,8 @@ export function ArchiveDialogBody({
           </ul>
         </div>
       )}
+
+      {balanceStop && <ArchiveOpenBalances title={balanceStop.text} balances={view.balances} paymentsBase={paymentsBase} />}
 
       {otherStops.map((stop, index) => (
         <p key={`${stop.code}-${index}`} role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3.5 py-3 text-sm font-medium text-rose-900">

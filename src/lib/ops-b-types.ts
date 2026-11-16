@@ -133,7 +133,19 @@ export interface LiveExamDetail extends OpsErrorDetail {
 
 // ── group archive (O4, F2) ──────────────────────────────────────────────────────────────────────
 
-export type ArchiveBlockerCode = "ACTIVE_STUDENTS" | "OPEN_LESSON" | "MISSED_LESSONS" | "LIVE_EXAMS";
+export type ArchiveBlockerCode = "ACTIVE_STUDENTS" | "OPEN_LESSON" | "MISSED_LESSONS" | "LIVE_EXAMS" | "OPEN_BALANCES";
+
+/** Money-2 Т12: a debt or an advance of one stay of the group (left students too) that stops the archive; `actions` lead to the statement of `membership_id` (empty for a role without the right to money). */
+export interface ArchiveBalance {
+  student_id: string;
+  membership_id: string;
+  name: string;
+  left_on?: string | null;
+  kind: "debt" | "advance";
+  amount?: number;
+  text: string;
+  actions?: Array<{ code: string; label: string }>;
+}
 
 export interface ArchiveBlocker {
   code: ArchiveBlockerCode;
@@ -143,6 +155,8 @@ export interface ArchiveBlocker {
   /** Money-1 A6 (П8): `MISSED_LESSONS` only - what «Отменить их при архивации» does to money, said before the confirmation («за них не начислят ученикам и не заплатят преподавателям…»). */
   cancelConsequence?: string | null;
   exams?: Array<{ examId: string; title: string; status: string; lessonDate?: string | null; blockerReason?: string | null }> | null;
+  /** Money-2 Т12: `OPEN_BALANCES` only - the stays of the group with a debt or an advance. */
+  balances?: ArchiveBalance[] | null;
 }
 
 export interface ArchiveAutoAction {

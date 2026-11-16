@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
+import { GroupArchiveDialog } from "@/components/groups/group-archive-dialog";
 import { StatementView } from "@/components/payments/statement-view";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
@@ -23,6 +24,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   switch (name) {
     case "assign":
       root.render(<AssignGroupModal open studentId="st1" studentName="Каримов Фарход" studentGrade={8} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => log("close")} onAssigned={() => log("assigned")} />);
+      break;
+    case "group-archive":
+      root.render(<GroupArchiveDialog open group={{ id: "gz", name: props.groupName ?? "Алгебра 7" }} groupsBasePath={props.groupsBasePath ?? "/owner/groups"} onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);
       break;
     case "leave":
       root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" onClose={() => log("close")} onLeft={() => log("left")} />);

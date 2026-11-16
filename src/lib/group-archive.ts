@@ -5,7 +5,7 @@
 import { formatUtcNaiveAsBusinessDate, formatWeekdayDate } from "./business-time";
 import { tidyMoneyText } from "./money-format";
 import { opsErrorCode, opsErrorDetail } from "./ops-errors";
-import type { ArchiveBlocker, ArchiveBlockerCode, ArchiveImpact, TeacherInactiveDetail } from "./ops-b-types";
+import type { ArchiveBalance, ArchiveBlocker, ArchiveBlockerCode, ArchiveImpact, TeacherInactiveDetail } from "./ops-b-types";
 import { pluralRu } from "./plural";
 import { archiveRequestsText } from "./substitutions";
 
@@ -41,6 +41,7 @@ export const ARCHIVE_WHY: Record<string, string> = {
   OPEN_LESSON: "Идёт урок — завершите или отмените его.",
   MISSED_LESSONS: "Отметьте урок в журнале или поставьте галочку «Урока не было».",
   LIVE_EXAMS: "Идёт экзамен — дождитесь его окончания.",
+  OPEN_BALANCES: "Есть остатки по оплатам — примите оплату, простите долг или верните аванс в выписке.",
 };
 export function archiveWhy(stops: ReadonlyArray<{ code: string }>): string | null {
   const first = stops[0];
@@ -99,6 +100,11 @@ export function archivedBannerText(archivedAt: string | null | undefined): strin
     : "Группа в архиве. Журнал доступен только для чтения.";
 }
 
+/** Money-2 Т12: the title of the stop (a number of stays, no money). */
+export function openBalancesText(count: number): string {
+  return `Закройте остатки по оплатам перед архивом: ${count}`;
+}
+
 export function legacyStudentsBannerText(count: number): string {
   return `В архивной группе остались ученики (${count}). Переведите их в другую группу или отправьте в архив.`;
 }
@@ -126,6 +132,8 @@ export interface ArchiveDialogView {
   missedLessons: string[];
   cancelConsequence: string | null;
   students: Array<{ id: string; name: string; displayId?: string | null }>;
+  /** Money-2 Т12: the stays with a debt or an advance (empty without the blocker). */
+  balances: ArchiveBalance[];
   /** the lines that do not block */
   notes: string[];
   examServiceDown: boolean;
@@ -142,6 +150,10 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
 
   const students = blockerOf(impact, "ACTIVE_STUDENTS");
   if (students) stops.push({ code: "ACTIVE_STUDENTS", text: studentsBlockerText(students.count) });
+
+  // Money-2 Т12: a debt or an advance that nobody settled stops the archive; the rows below lead to the statements
+  const balances = blockerOf(impact, "OPEN_BALANCES");
+  if (balances) stops.push({ code: "OPEN_BALANCES", text: openBalancesText(balances.count || balances.balances?.length || 0) });
 
   if (blockerOf(impact, "OPEN_LESSON")) stops.push({ code: "OPEN_LESSON", text: OPEN_LESSON_TEXT });
 
@@ -172,6 +184,7 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
     missedLessons: missedLessonLines(missed?.lessons ?? [], missedCount),
     cancelConsequence: missed ? tidyMoneyText(missed.cancelConsequence?.trim() || MISSED_CANCEL_CONSEQUENCE) : null,
     students: students?.students ?? [],
+    balances: balances?.balances ?? [],
     notes,
     examServiceDown,
   };
