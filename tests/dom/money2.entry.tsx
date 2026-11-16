@@ -22,7 +22,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   const root = createRoot(document.getElementById("root")!);
   switch (name) {
     case "assign":
-      root.render(<AssignGroupModal open studentId="st1" studentName="Каримов Фарход" studentGrade={8} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} onClose={() => log("close")} onAssigned={() => log("assigned")} />);
+      root.render(<AssignGroupModal open studentId="st1" studentName="Каримов Фарход" studentGrade={8} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => log("close")} onAssigned={() => log("assigned")} />);
       break;
     case "leave":
       root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" onClose={() => log("close")} onLeft={() => log("left")} />);

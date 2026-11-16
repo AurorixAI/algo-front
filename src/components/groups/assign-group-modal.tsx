@@ -32,6 +32,8 @@ import { GroupPickCard } from "./group-pick-card";
 import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
 import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { PastBalancesNote } from "@/components/money/past-balances-note";
+import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
 import { SOURCE_LABEL, SOURCE_PLACEHOLDER, SOURCE_WHY, sourcesFromError, transferSource, type SourceGroup } from "@/lib/transfer-source";
 import { splitTransferNotes } from "@/lib/payments";
@@ -604,6 +606,7 @@ export function AssignGroupModal({
     )}
 
     {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} target={selectedGroup?.name ?? null} className="mt-3" />}
+    {isAdd && addPreview.preview.status === "ready" && <PastBalancesNote answer={addPreview.preview.answer} paymentsBase={groupsBasePath ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null} className="mt-3" />}
     {leaveUndo && <LeaveUndoNote undo={leaveUndo} className="mt-3" />}
     {balanceChanged && <Notice variant="warning" compact testId="transfer-changed" className="mt-3">{BALANCE_CHANGED_TEXT}</Notice>}
 
