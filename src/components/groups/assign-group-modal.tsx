@@ -28,6 +28,9 @@ import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
+import { Notice } from "@/components/ui/notice";
+import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
 import { SOURCE_LABEL, SOURCE_PLACEHOLDER, SOURCE_WHY, sourcesFromError, transferSource, type SourceGroup } from "@/lib/transfer-source";
 import { splitTransferNotes } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -137,6 +140,8 @@ export function AssignGroupModal({
   // Money-2 T1: «Из какой группы» - the groups the transfer may leave (the caller's, or the list of the server's refusal) and the choice (none by default)
   const [fromGroupId, setFromGroupId] = useState("");
   const [serverSources, setServerSources] = useState<SourceGroup[] | null>(null);
+  // Money-2 T5: the server refused the write because the money changed after the dry run (409 BALANCE_CHANGED): the numbers are asked again
+  const [balanceChanged, setBalanceChanged] = useState(false);
   const sources = serverSources ?? sourceGroups ?? (currentGroupId ? [{ id: currentGroupId, name: currentGroupName ?? "" }] : []);
   const source = isTransfer ? transferSource(sources, fromGroupId) : { needed: false, id: null };
   // Money-1 B1 «Оплата с»: the day the student is charged from in the chosen group ("" until the default of that group arrives); a transfer has no such field
@@ -260,6 +265,7 @@ export function AssignGroupModal({
     }
     setAssigning(true);
     setAssignmentError(null);
+    setBalanceChanged(false);
     try {
       const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, {
         mode,
@@ -267,6 +273,8 @@ export function AssignGroupModal({
         opening_balance: withOpening ? buildOpeningIn(opening) : null,
         pay_from: payBody,
         from_group_id: source.id,
+        // T5: the sum the window showed (only with the right to money: without it the server sends no sum)
+        expected_carried: isTransfer && moneyAvailable ? expectedCarriedOf(transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : null,
       });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
@@ -281,6 +289,7 @@ export function AssignGroupModal({
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
+      if (isBalanceChanged(e)) { setBalanceChanged(true); transferPreview.retry(); return; }
       const askedSources = sourcesFromError(e);
       if (askedSources) { setServerSources(askedSources); setFromGroupId(""); }
       const failure = logicaError(e);
@@ -301,6 +310,11 @@ export function AssignGroupModal({
   const askedInDryRun = transferPreview.preview.status === "failed" ? sourcesFromError(transferPreview.preview.error) : null;
   useEffect(() => { if (askedInDryRun) { setServerSources(askedInDryRun); setFromGroupId(""); } }, [askedInDryRun]);
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
+  // Money-2 T6: coming back the day of the leaving - the dry run of the add says whether the leaving is undone (a transfer says it in its own answer)
+  const addKey = isAdd && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}` : null;
+  const addPreview = useFormMoneyPreview(addKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { price_override: dryException.request }, signal));
+  const undoSource = transferKey !== null ? transferPreview.preview : addKey !== null ? addPreview.preview : null;
+  const leaveUndo = undoSource?.status === "ready" ? leaveUndoOf(undoSource.answer) : null;
 
   // Money-1 B1: «Оплата с» for ADDING (not a transfer): the default of the chosen group; a past day - the dry run says what is charged at once
   const payFromAllowed = !isTransfer && Boolean(selectedGroupId) && !(selectedGroupId && excluded.has(selectedGroupId));
@@ -664,6 +678,8 @@ export function AssignGroupModal({
     )}
 
     {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} className="mt-3" />}
+    {leaveUndo && <LeaveUndoNote undo={leaveUndo} className="mt-3" />}
+    {balanceChanged && <Notice variant="warning" compact testId="transfer-changed" className="mt-3">{BALANCE_CHANGED_TEXT}</Notice>}
 
     {assignmentError && (
       <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">

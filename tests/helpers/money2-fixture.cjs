@@ -21,4 +21,26 @@ function baseServer(rest) {
   };
 }
 
-module.exports = { A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };
+// Money-2 T3: the transfer of the student from «Алгебра…» to «Физика…»: money, a pause and «Оплата с» go along; a debt stays; an individual price and a planned price end.
+const nbsp = (text) => text.replace(/(\d) (?=\d{3}(?!\d))/g, "$1\u00a0").replace(/(\d) (?=сум)/g, "$1\u00a0");
+function transferEffects({ money = true, carried = 440000 } = {}) {
+  const base = { membership_id: "m-a", group_id: "ga", group_name: A };
+  const sum = (n) => (money ? { amount: n } : {});
+  return {
+    kind: "transfer",
+    moves: [
+      ...(money ? [{ ...base, code: "money", amount: carried, text: `Деньги ученика — ${nbsp(String(carried).replace(/\B(?=(\d{3})+$)/g, " "))} сум — переходят в группу «${T}»; аванс останется 40 000 сум` }] : []),
+      { ...base, code: "pause", first_day: "2026-11-23", last_day: "2026-11-26", text: `Пауза 23.11–26.11 перейдёт в группу «${T}»: дни паузы там не начисляются` },
+      { ...base, code: "billing_from", date: "2026-11-30", text: `«Оплата с 30.11.2026» перейдёт в группу «${T}»: начисление там начнётся с этого дня` },
+    ],
+    stays: [{ ...base, code: "debt", ...sum(120000), text: money ? `Долг 120\u00a0000\u00a0сум останется за учеником в группе «${A}»: принять или простить его можно в её выписке` : `В группе «${A}» останется долг: принять или простить его можно в её выписке` }],
+    ends: [
+      { ...base, code: "individual_price", ...sum(300000), since: "2026-10-01", reason: money ? "договорённость" : null, text: money ? `Индивидуальная цена 300\u00a0000\u00a0сум в группе «${A}» закончится: в новой группе будет цена этой группы` : `Индивидуальная цена в группе «${A}» закончится: в новой группе будет цена этой группы` },
+      { ...base, code: "scheduled_price", valid_from: "2026-12-01", ...sum(250000), text: `Запланированная с 01.12.2026 индивидуальная цена в группе «${A}» (${money ? "цена 250\u00a0000\u00a0сум" : "новая индивидуальная цена"}) будет отменена` },
+    ],
+    money_text: money ? `Деньги ученика — ${carried} сум — переходят в группу «${T}»` : null,
+    texts: [],
+  };
+}
+
+module.exports = { transferEffects, A, B, C, T, GROUPS, SOURCES, MEMBERS, baseServer };

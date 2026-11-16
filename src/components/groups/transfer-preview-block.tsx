@@ -7,6 +7,8 @@ import { useState } from "react";
 import { Notice } from "@/components/ui/notice";
 import { tidyMoneyText } from "@/lib/money-format";
 import { Button } from "@/components/ui/button";
+import { EffectsSections } from "@/components/money/effects-sections";
+import { effectsEmpty, effectsOfAnswer } from "@/lib/transfer-effects";
 
 /**
  * «Что изменится» before a transfer is confirmed (UX pack №15; the principle of the owner: the window shows only its own - the money OF THE STUDENT): the dry run of the same request
@@ -38,6 +40,17 @@ export function TransferPreviewBlock({ preview, onRetry, names, className = "mx-
           <p className="text-sm font-medium text-amber-900">{effectsFailureText(preview.error)}</p>
           <Button type="button" data-testid="transfer-preview-retry" onClick={onRetry} variant="secondary" size="sm">{EFFECTS_RETRY_LABEL}</Button>
         </div>
+      </section>
+    );
+  }
+  // Money-2 Э1: a server that sends `effects` says «что перейдёт / останется / закончится» itself - the old sentences of `carried` are not said next to it (one fact, once)
+  const effects = effectsOfAnswer(preview.answer);
+  if (effects) {
+    if (effectsEmpty(effects)) return null;
+    return (
+      <section aria-label={EFFECTS_TITLE} data-testid="transfer-preview" data-state="ready" className={shell}>
+        <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
+        <EffectsSections effects={effects} className="mt-1.5" />
       </section>
     );
   }
