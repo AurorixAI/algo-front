@@ -14,6 +14,7 @@ import {
   type ChecklistStep,
   type OpeningsSummary,
   OPENING_CLOSE_CONSEQUENCE,
+  OPENING_OPEN_NOTE,
 } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,7 @@ export function OpeningsBanner({ paymentsBase, summary: given }: { paymentsBase:
           Не нужно
         </Button>
       </div>
-      <p className="basis-full text-xs text-slate-500" data-testid="openings-close-consequence">{OPENING_CLOSE_CONSEQUENCE}</p>
+      <p className="basis-full text-xs text-slate-500" data-testid="openings-close-consequence">{OPENING_OPEN_NOTE} {OPENING_CLOSE_CONSEQUENCE}.</p>
       {failed && <p role="alert" className="basis-full text-xs font-medium text-rose-700">Не удалось сохранить ответ — попробуйте ещё раз</p>}
     </div>
   );

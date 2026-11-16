@@ -198,3 +198,25 @@ test("the summary keeps launch_closed and can_reopen_launch only when the server
   assert.equal(s.can_reopen_launch, true);
   assert.equal("can_reopen_launch" in O.normalizeSummary(closedOf({})), false);
 });
+
+test("two names of the done state: launch_closed true = «Учёт запущен»; state done with launch_closed false = «Список заполнен», the buttons and the one short paragraph stay; the lock line only for can_set_opening false", async () => {
+  const closed = await pageWith({ can_set_opening: true, can_reopen_launch: true }, { role: "owner", org_role: "owner" });
+  assert.ok((await closed.page.locator('[data-testid="openings-state-line"]').innerText()).startsWith("Учёт запущен"));
+  assert.equal(await closed.page.locator('[data-testid="openings-finish"]').count(), 0);
+  assert.equal(await closed.page.locator('[data-testid="openings-close-note"]').count(), 0);
+  await closed.page.close();
+
+  const filled = await pageWith({ can_set_opening: true, launch_closed: false, can_reopen_launch: false }, { role: "admin", org_role: "admin" });
+  assert.equal((await filled.page.locator('[data-testid="openings-state-line"]').innerText()).trim(), "Список заполнен.");
+  assert.equal(await filled.page.locator('[data-testid="openings-finish"]').count(), 1);
+  const note = (await filled.page.locator('[data-testid="openings-close-note"]').innerText()).trim();
+  assert.equal(note, "Пока запуск не завершён, остатки на начало может вносить и администратор. После этого остатки на начало вносит и меняет только владелец.");
+  assert.equal(await filled.page.locator('[data-testid="openings-locked"]').count(), 0);
+  assert.equal(await filled.page.locator('[data-testid="openings-reopen"]').count(), 0);
+  await filled.page.close();
+
+  const lockedAdmin = await pageWith({ can_set_opening: false, launch_closed: false }, { role: "admin", org_role: "admin" });
+  assert.equal(await lockedAdmin.page.locator('[data-testid="openings-locked"]').count(), 1);
+  assert.equal(await lockedAdmin.page.locator('[data-testid="openings-finish"]').count(), 0);
+  await lockedAdmin.page.close();
+});

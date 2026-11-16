@@ -358,7 +358,9 @@ export function OpeningsDoneDialog({ open, missing, busy, error, onConfirm, onCl
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={<ConfirmFooter primary="Да, готово" onPrimary={onConfirm} busy={busy} onCancel={onClose} testId="openings-done-confirm" />}
     >
-      <p className="text-sm text-slate-700">У {missing} {atStudentsWord(missing)} остаток не заполнен. Если у них до начала учёта не было ни долга, ни оплаты вперёд, можно закончить: напоминание в «Должниках» исчезнет, а долги будут считаться с даты начала учёта.</p>
+      {missing === 0 ? <p className="text-sm text-slate-700">Список заполнен. Если всё внесено, можно завершить запуск учёта.</p> : (
+        <p className="text-sm text-slate-700">У {missing} {atStudentsWord(missing)} остаток не заполнен. Если у них до начала учёта не было ни долга, ни оплаты вперёд, можно закончить: напоминание в «Должниках» исчезнет, а долги будут считаться с даты начала учёта.</p>
+      )}
       <p className="mt-2 text-sm text-slate-500" data-testid="openings-close-consequence">{OPENING_CLOSE_CONSEQUENCE}</p>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{error}</p>}
     </Modal>

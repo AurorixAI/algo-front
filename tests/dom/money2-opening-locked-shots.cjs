@@ -20,6 +20,8 @@ const summary = { ...fixture("O03_summary_pending"), state: "done", totals: CLOS
 const list = { ...fixture("O01_list_pending"), state: "done", totals: CLOSED, launch_closed: true, can_set_opening: false, can_reopen_launch: false };
 const OWNER = { role: "owner", org_role: "owner" };
 const ownerSummary = { ...summary, can_set_opening: true, can_reopen_launch: true };
+const filledSummary = { ...summary, launch_closed: false, can_set_opening: true, can_reopen_launch: false };
+const filledList = { ...list, launch_closed: false, can_set_opening: true, can_reopen_launch: false };
 const ownerList = { ...list, can_set_opening: true, can_reopen_launch: true };
 const server = (r) => {
   if (r.method === "GET" && r.path === "/auth/org/opening-balances/summary") return { json: summary };
@@ -34,6 +36,9 @@ const scenes = [
   { name: "reopen", file: "normal-opening-reopen", mount: ["openings", OWNER, { moneyAvailable: true }],
     server: (r) => (r.path === "/auth/org/groups" ? { json: [] } : r.method === "GET" && r.path === "/auth/org/opening-balances/summary" ? { json: ownerSummary } : r.method === "GET" && r.path === "/auth/org/opening-balances" ? { json: ownerList } : null),
     steps: async (page) => { await page.waitForSelector('[data-testid="openings-reopen"]'); } },
+  { name: "filled", file: "normal-opening-filled", mount: ["openings", ADMIN, { moneyAvailable: true }],
+    server: (r) => (r.path === "/auth/org/groups" ? { json: [] } : r.method === "GET" && r.path === "/auth/org/opening-balances/summary" ? { json: filledSummary } : r.method === "GET" && r.path === "/auth/org/opening-balances" ? { json: filledList } : null),
+    steps: async (page) => { await page.waitForSelector('[data-testid="openings-close-note"]'); } },
 ];
 (async () => {
   const browser = await launch();

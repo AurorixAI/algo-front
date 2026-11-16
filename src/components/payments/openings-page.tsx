@@ -56,6 +56,10 @@ import {
   type OpeningsList,
   type RowDraft,
   OPENING_LOCKED_TEXT,
+  OPENING_CLOSE_CONSEQUENCE,
+  OPENING_OPEN_NOTE,
+  OPENING_FILLED_TEXT,
+  OPENING_STARTED_TEXT,
   OPENING_REOPEN_ACTION,
   openingLocked,
 } from "@/lib/openings";
@@ -496,7 +500,8 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
 
   const progress = data ? progressOf(data.totals) : null;
   const doneAll = data ? data.state === "done" || (progress !== null && progress.left === 0 && progress.needed > 0) : false;
-  const canFinish = Boolean(data) && !doneAll && data!.state !== "skipped" && progress !== null && progress.left > 0 && dirtyCount === 0;
+  const filledOpen = Boolean(data) && data!.state === "done" && data!.launch_closed === false;   // the list filled itself: the start is NOT closed yet, the buttons stay
+  const canFinish = Boolean(data) && data!.launch_closed !== true && data!.state !== "skipped" && progress !== null && dirtyCount === 0 && (filledOpen || (!doneAll && progress.left > 0)) && data!.can_set_opening !== false;
   const hasLeft = (data?.totals.left_available ?? 0) > 0 || includeLeft;
   const lessonsCentre = data?.period_mode === "lessons";
   const locked = openingLocked(data);       // Money-2 R3c Г1: the answer of the server (`can_set_opening`) - not a guess by role: the accounting has started and the asking user is not the owner
@@ -564,7 +569,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
                   )}
                   {progress.left > 0 ? `осталось ${progress.left}` : doneAll ? "всё заполнено" : ""}
                   {canFinish && (
-                    <button type="button" onClick={() => { setDoneError(null); setDoneOpen(true); }} data-testid="openings-finish" className="ml-3 font-medium text-primary-700 hover:underline">Готово — остальным остаток не нужен</button>
+                    <button type="button" onClick={() => { setDoneError(null); setDoneOpen(true); }} data-testid="openings-finish" className="ml-3 font-medium text-primary-700 hover:underline">{filledOpen && progress!.left === 0 ? "Готово — завершить запуск" : "Готово — остальным остаток не нужен"}</button>
                   )}
                 </p>
               </div>
@@ -574,7 +579,10 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
               {data.totals.needs_review > 0 && (
                 <p className="mt-2 text-xs text-rose-700" data-testid="openings-needs-review">{needsReviewText(data.totals.needs_review)}</p>
               )}
-              {doneAll && <p className="mt-2 text-xs text-emerald-700">Учёт оплат идёт с {formatDateRu(data.accounting_start)}.</p>}
+              {doneAll && (data.launch_closed === true
+                ? <p className="mt-2 text-xs text-emerald-700" data-testid="openings-state-line">{OPENING_STARTED_TEXT}: учёт оплат идёт с {formatDateRu(data.accounting_start)}.</p>
+                : <p className="mt-2 text-xs text-emerald-700" data-testid="openings-state-line">{OPENING_FILLED_TEXT}</p>)}
+              {canFinish && <p className="mt-2 text-xs text-slate-500" data-testid="openings-close-note">{OPENING_OPEN_NOTE} {OPENING_CLOSE_CONSEQUENCE}.</p>}
             </section>
           )}
 
