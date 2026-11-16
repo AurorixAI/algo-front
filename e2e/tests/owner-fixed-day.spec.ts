@@ -6,7 +6,7 @@ import { dmy, groupedDigits, money, pickOption, toast } from "../support/ui";
 /**
  * Owner: settings «Оплаты» -> «Единый день оплаты». LOGIC-A (F12): a change of the mode never touches a running period - the new mode
  * starts for each student at the beginning of his NEXT period (the screen says so before and after saving).  A new centre is already in «Общий месяц» (day 1,
- * Money-2 T16), so the owner moves the day to the 2nd.  A student who joined today keeps his current period (the SHARE of the month he owes, not a price of
+ * Money-2 T16), so the owner moves the day to the 2nd (the 3rd on the 2nd of a month: never today, never the current day, on any date).  A student who joined today keeps his current period (the SHARE of the month he owes, not a price of
  * a month by the new day); paying it closes the period (no debt) and the statement shows one charge of the same sum.
  */
 let org: Org;
@@ -17,7 +17,8 @@ test.beforeAll(async () => {
 test("fixed payment day: the new mode waits for the next period; the running one is not touched, and paying it closes it", async ({ signIn }) => {
   const now = businessNow();
   const fee = 900000;
-  const billingDay = 2;                                                              // a new centre is already in «Общий месяц» with the 1st (Money-2 T16): the owner moves the day
+  // a new centre is already in «Общий месяц» with the 1st (Money-2 T16): the owner moves the day to one that is neither the 1st nor today (2 or 3, 2 is skipped on the 2nd), so the change is real on any date
+  const billingDay = [2, 3].find((day) => day !== now.day)!;
 
   const teacher = await org.addStaff("teacher", "Расписанин");
   const group = await org.createGroup({ name: "Группа Д1", teacherId: teacher.userId });
