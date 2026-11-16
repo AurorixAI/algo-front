@@ -2,7 +2,7 @@
 
 import { tidyMoneyText } from "@/lib/money-format";
 import { Disclosure } from "@/components/ui/disclosure";
-import { effectFullTexts, effectSections, lonelyMoneyText, type TransferEffects } from "@/lib/transfer-effects";
+import { calmMoneyText, effectFullTexts, effectSections, type TransferEffects } from "@/lib/transfer-effects";
 import type { LeaveUndo } from "@/lib/transfer-effects";
 
 /**
@@ -11,11 +11,11 @@ import type { LeaveUndo } from "@/lib/transfer-effects";
  */
 export function EffectsSections({ effects, target = null, testId = "transfer-effects", className = "" }: { effects: TransferEffects; /** the group the student goes to (a transfer): named once in «Перейдёт в «…»» */ target?: string | null; testId?: string; className?: string }) {
   const sections = effectSections(effects, target);
-  const lonely = lonelyMoneyText(effects);
-  if (sections.length === 0 && !lonely) return null;
+  const calm = calmMoneyText(effects);
+  if (sections.length === 0 && !calm) return null;
   return (
     <div data-testid={testId} className={`space-y-2.5 ${className}`}>
-      {lonely && <p className="text-sm text-slate-700" data-testid="effects-lonely">{tidyMoneyText(lonely)}</p>}
+      {calm && <p className="text-sm text-slate-600" data-testid="effects-calm">{tidyMoneyText(calm)}</p>}
       {sections.map((section) => (
         <section key={section.key} aria-label={section.title}>
           <h4 className="text-xs font-semibold text-slate-600 [overflow-wrap:anywhere]">{section.title}</h4>
