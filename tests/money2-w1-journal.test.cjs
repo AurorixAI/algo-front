@@ -29,7 +29,7 @@ async function open(width, handler = answer) {
   return run;
 }
 
-const LINES = ["в «Физика 9»", "«Алгебра 7»", "№ 1", "в «Физика 9»"];
+const LINES = ["в «Физика 9»", "«Алгебра 7»", "оплата № 1", "в «Физика 9»"];
 const CHIPS = ["Перевод", "Уход отменён", "Оплата восстановлена", "Пауза перенесена"];
 
 test("Э7 / А8: each new kind is a SHORT chip and ONE line from the structure of the row (the group, the receipt); the sum is in its column once; the whole sentence of the server is in the opened row", async () => {

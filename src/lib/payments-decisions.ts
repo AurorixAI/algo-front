@@ -131,7 +131,7 @@ export const decisionKindLabel = (row: Pick<DecisionRow, "kind" | "kind_label">)
 export function decisionSummary(row: Pick<DecisionRow, "kind" | "group_name" | "receipt_no" | "text">): string | null {
   if (!SHORT_KIND_LABEL[row.kind]) return null;
   const group = row.group_name ? `«${row.group_name}»` : null;
-  const line = row.kind === "payment_restored" ? (row.receipt_no !== null ? `№ ${row.receipt_no}` : null)
+  const line = row.kind === "payment_restored" ? (row.receipt_no !== null ? `оплата № ${row.receipt_no}` : null)
     : row.kind === "leave_undone" ? group
     : group ? `в ${group}` : null;
   return line ?? row.text;
