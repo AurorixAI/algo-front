@@ -425,10 +425,8 @@ export function normalizeImport(raw: Raw | null | undefined): OpeningsImportPrev
 
 export const OPENINGS_TITLE = "Остатки на начало";
 /** Money-2 R3c Г1: once the accounting has started only the owner puts or changes an opening balance (the server's `OPENING_OWNER_ONLY` says the same).  ONE text for the table, the windows and the refusal. */
-/** Under «Готово» / «Не нужно»: what the press means, so it is no surprise. */
-export const OPENING_CLOSE_CONSEQUENCE = "После этого остатки на начало вносит и меняет только владелец";
-/** The other half of the same short paragraph: while the start is not closed the administrator may enter openings too. */
-export const OPENING_OPEN_NOTE = "Пока запуск не завершён, остатки на начало может вносить и администратор.";
+/** Under «Готово» / «Не нужно» (the page, the strip and the window): what the press means - ONE short constant for every place (Money-2 fix 5). */
+export const OPENING_CLOSE_NOTE = "Пока запуск не завершён, остатки на начало вносит и администратор. После завершения — только владелец.";
 export const OPENING_FILLED_TEXT = "Список заполнен.";
 export const OPENING_STARTED_TEXT = "Учёт запущен";
 export const OPENING_REOPEN_ACTION = "Вернуть запуск учёта";

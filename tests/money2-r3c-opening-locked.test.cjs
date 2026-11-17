@@ -121,7 +121,7 @@ test("the refusal in the enrolment window is shown once, in the server's words, 
 const CLOSED = { left_available: 1, memberships: 9, missing: 0, needs_review: 0, shown: 0, with_opening: 8 };
 const closedOf = (extra) => ({ ...fixture("O03_summary_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
 const closedList = (extra) => ({ ...fixture("O01_list_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
-const CONSEQUENCE = "После этого остатки на начало вносит и меняет только владелец";
+const CONSEQUENCE = "Пока запуск не завершён, остатки на начало вносит и администратор. После завершения — только владелец.";
 
 async function pageWith(flags, user, extra = null, base = null) {
   const answer = (r) => {
@@ -210,7 +210,7 @@ test("two names of the done state: launch_closed true = «Учёт запуще�
   assert.equal((await filled.page.locator('[data-testid="openings-state-line"]').innerText()).trim(), "Список заполнен.");
   assert.equal(await filled.page.locator('[data-testid="openings-finish"]').count(), 1);
   const note = (await filled.page.locator('[data-testid="openings-close-note"]').innerText()).trim();
-  assert.equal(note, "Пока запуск не завершён, остатки на начало может вносить и администратор. После этого остатки на начало вносит и меняет только владелец.");
+  assert.equal(note, CONSEQUENCE);
   assert.equal(await filled.page.locator('[data-testid="openings-locked"]').count(), 0);
   assert.equal(await filled.page.locator('[data-testid="openings-reopen"]').count(), 0);
   await filled.page.close();

@@ -32,7 +32,7 @@ import {
   valueText,
   type OpeningBatchPreview,
   type OpeningsImportPreview,
-  OPENING_CLOSE_CONSEQUENCE,
+  OPENING_CLOSE_NOTE,
   OPENING_REOPEN_ACTION,
   OPENING_REOPEN_CONFIRM,
 } from "@/lib/openings";
@@ -361,7 +361,7 @@ export function OpeningsDoneDialog({ open, missing, busy, error, onConfirm, onCl
       {missing === 0 ? <p className="text-sm text-slate-700">Список заполнен. Если всё внесено, можно завершить запуск учёта.</p> : (
         <p className="text-sm text-slate-700">У {missing} {atStudentsWord(missing)} остаток не заполнен. Если у них до начала учёта не было ни долга, ни оплаты вперёд, можно закончить: напоминание в «Должниках» исчезнет, а долги будут считаться с даты начала учёта.</p>
       )}
-      <p className="mt-2 text-sm text-slate-500" data-testid="openings-close-consequence">{OPENING_CLOSE_CONSEQUENCE}</p>
+      <p className="mt-2 text-sm text-slate-500" data-testid="openings-close-consequence">{OPENING_CLOSE_NOTE}</p>
       {error && <p role="alert" className="mt-2 text-sm font-medium text-rose-700">{error}</p>}
     </Modal>
   );

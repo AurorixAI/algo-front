@@ -56,8 +56,7 @@ import {
   type OpeningsList,
   type RowDraft,
   OPENING_LOCKED_TEXT,
-  OPENING_CLOSE_CONSEQUENCE,
-  OPENING_OPEN_NOTE,
+  OPENING_CLOSE_NOTE,
   OPENING_FILLED_TEXT,
   OPENING_STARTED_TEXT,
   OPENING_REOPEN_ACTION,
@@ -582,7 +581,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
               {doneAll && (data.launch_closed === true
                 ? <p className="mt-2 text-xs text-emerald-700" data-testid="openings-state-line">{OPENING_STARTED_TEXT}: учёт оплат идёт с {formatDateRu(data.accounting_start)}.</p>
                 : <p className="mt-2 text-xs text-emerald-700" data-testid="openings-state-line">{OPENING_FILLED_TEXT}</p>)}
-              {canFinish && <p className="mt-2 text-xs text-slate-500" data-testid="openings-close-note">{OPENING_OPEN_NOTE} {OPENING_CLOSE_CONSEQUENCE}.</p>}
+              {canFinish && <p className="mt-2 text-xs text-slate-500" data-testid="openings-close-note">{OPENING_CLOSE_NOTE}</p>}
             </section>
           )}
 

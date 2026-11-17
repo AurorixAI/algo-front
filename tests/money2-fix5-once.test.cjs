@@ -134,3 +134,14 @@ test("п.2: шапка окна оплаты - точка не в конце и 
     }
   }
 });
+
+// ----- п.6: ONE short constant under «Готово» / «Не нужно» in every place -----
+test("п.6: строка-последствие у «Готово» - одна константа, во всех местах", () => {
+  const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+  assert.match(read("src/lib/openings.ts"), /OPENING_CLOSE_NOTE = "Пока запуск не завершён, остатки на начало вносит и администратор\. После завершения — только владелец\."/);
+  for (const file of ["src/components/payments/openings-page.tsx", "src/components/payments/openings-widgets.tsx", "src/components/payments/openings-dialogs.tsx"]) {
+    const src = read(file);
+    assert.match(src, /\{OPENING_CLOSE_NOTE\}/, file);
+    assert.doesNotMatch(src, /Пока запуск не завершён|OPENING_OPEN_NOTE|OPENING_CLOSE_CONSEQUENCE/, file);
+  }
+});
