@@ -3,6 +3,7 @@
 import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
 import { useState, useEffect, useCallback } from "react";
+import { tidyMoneyText } from "@/lib/money-format";
 import { Search, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
@@ -39,8 +40,10 @@ import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
-import { LeaveUndoFixed, LeaveUndoNote } from "@/components/money/effects-sections";
-import { useLeaveUndos } from "@/lib/use-leave-undos";
+import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { BulkPastBalancesNote } from "@/components/money/past-balances-note";
+import { leaveUndosOfBulk } from "@/lib/transfer-effects";
+import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 
 interface Student {
   id: string;
@@ -226,21 +229,17 @@ export function AddStudentDrawer({
 
   // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
   const today = formatBusinessDate();
-  // Money-2 fix 7 (T6): who comes back the day of the leaving - his leaving is cancelled; `pay_from`, the opening balance and a price are not for him (the server refuses them)
+  // Money-2 fix 8: ONE bulk dry run of the chosen students (`mode=add`, or `mode=transfer` when somebody is moved) answers for every student: who comes back the day of the leaving (`students[].leave_undo`),
+  // the balances of the last time (`students[].past_balances`) and what a chosen day charges at once.  The screen only shows the words of the server; «Оплата с» / price are not applied to a returning student by the server.
   const movedIds = new Set(mode === "transfer" ? transfers.map((t) => t.id) : []);
-  const askUndoIds = Array.from(selected.keys()).filter((id) => !movedIds.has(id)).sort();
-  const { undone: undoneBy } = useLeaveUndos(groupId, askUndoIds, open);
-  const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
-  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
-  // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there)
-  const payFromAllowed = selected.size > 0 && (transfers.length === 0 || mode === "add") && !allUndone;
-  const { def: payDef } = usePayFromDefault(groupId, open && payFromAllowed);
+  const payFromBase = selected.size > 0 && (transfers.length === 0 || mode === "add");
+  const { def: payDef } = usePayFromDefault(groupId, open && payFromBase);
   useEffect(() => { if (payDef) setPayFrom((current) => current || payDef.default_pay_from); }, [payDef]);
   const payRange = payFromRange(payDef?.today ?? today, accountingStart);
   // the default is there from the first frame the server answered (no flash of an empty date)
   const payFromValue = payFrom || payDef?.default_pay_from || "";
-  const payBody = payFromAllowed ? payFromRequest(payFromValue, payDef, moneyAvailable) : null;
-  const payProblem = payFromAllowed && moneyAvailable ? payFromProblem(payFromValue, payDef, payRange) : null;
+  const payBodyAsked = payFromBase ? payFromRequest(payFromValue, payDef, moneyAvailable) : null;
+  const payProblemAsked = payFromBase && moneyAvailable ? payFromProblem(payFromValue, payDef, payRange) : null;
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
@@ -254,13 +253,21 @@ export function AddStudentDrawer({
     : null;
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request, sources: transferSources }, signal));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
-  // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
-  const pickedIds = Array.from(selected.keys()).filter((id) => !undoneBy.has(id)).sort();
-  const payPreviewKey = open && moneyAvailable && payFromAllowed && payDef !== null && pickedIds.length > 0 && !dryException.error && !payProblem
-    ? `${groupId}|${pickedIds.join(",")}|${payBody ?? ""}|${JSON.stringify(dryException.request)}` : null;
-  const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunBulkAdd(groupId, pickedIds, { pay_from: payBody, price_override: dryException.request }, signal));
+  // Money-1 B1: the same ask in `mode=add` (nobody is moved) also tells what a day in the past charges at once
+  const addProbeKey = open && selected.size > 0 && movedIds.size === 0 && !dryException.error && !payProblemAsked
+    ? `${groupId}|${transferIds.join(",")}|${payBodyAsked ?? ""}|${JSON.stringify(dryException.request)}` : null;
+  const addProbe = usePayFromPreview(addProbeKey, (signal) => orgApi.dryRunBulkAdd(groupId, transferIds, { pay_from: payBodyAsked, price_override: dryException.request }, signal));
+  const probeAnswer: unknown = transferKey !== null ? (transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : (addProbe.status === "ready" ? addProbe.answer : null);
+  const undoneBy = leaveUndosOfBulk(probeAnswer);
+  const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
+  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
+  // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there); not for those who all come back
+  const payFromAllowed = payFromBase && !allUndone;
+  const payBody = payFromAllowed ? payBodyAsked : null;
+  const payProblem = payFromAllowed ? payProblemAsked : null;
+  const payPreview = moneyAvailable ? addProbe : { status: "idle" as const, retry: addProbe.retry };
+  const pastBase = groupsBasePath ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
   const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
-  const pickedNames = new Map(Array.from(selected.values()).filter((s) => !undoneBy.has(s.id)).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
@@ -285,26 +292,12 @@ export function AddStudentDrawer({
         return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
       };
       const openingBody = withOpening ? buildOpeningIn(opening) : null;
-      // Money-2 fix 7: the ones who come back the day of the leaving are written apart and WITHOUT «Оплата с» / opening / price (the server refuses them there); the rest go as before
-      const undonePicked = picked.filter((item) => undoneBy.has(item.id));
-      const rest = picked.filter((item) => !undoneBy.has(item.id));
-      const undoneResult: { added: number; skipped: number; skipped_details: Array<{ student_id: string; reason: string }>; warnings: any[] } = { added: 0, skipped: 0, skipped_details: [], warnings: [] };
-      for (const item of undonePicked) {
-        try {
-          const single = await orgApi.addStudentToGroup(groupId, item.id, { mode: transfers.length > 0 ? mode : undefined });
-          if (single.status === "added") undoneResult.added += 1;
-          else { undoneResult.skipped += 1; undoneResult.skipped_details.push({ student_id: item.id, reason: "уже в этой группе" }); }
-          undoneResult.warnings.push(...(single.warnings ?? []));
-        } catch (e: any) {
-          undoneResult.skipped += 1;
-          undoneResult.skipped_details.push({ student_id: item.id, reason: logicaError(e, "Не удалось записать").message });
-        }
-      }
-      // One student with an opening balance - or with a chosen «Оплата с» - goes through the route that answers `billing` (the server's sentence); the bulk route has no such field.
-      const singleRoute = Boolean(openingBody) || (payBody !== null && rest.length === 1);
+      // One student with an opening balance - or with a chosen «Оплата с» - goes through the route that answers `billing` (the server's sentence).  Otherwise ONE bulk request for everybody:
+      // the server itself applies «Оплата с» / the price to the ones it applies to and leaves a returning student as he was (fix 8, M2).
+      const singleRoute = Boolean(openingBody) || (payBody !== null && picked.length === 1);
       let billingLine: string | null = null;
-      const restResult = rest.length === 0 ? null : singleRoute
-        ? await orgApi.addStudentToGroup(groupId, rest[0].id, {
+      const result = singleRoute
+        ? await orgApi.addStudentToGroup(groupId, picked[0].id, {
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           opening_balance: openingBody,
@@ -314,25 +307,18 @@ export function AddStudentDrawer({
           return {
             added: single.status === "added" ? 1 : 0,
             skipped: single.status === "added" ? 0 : 1,
-            skipped_details: single.status === "added" ? [] : [{ student_id: rest[0].id, reason: "уже в этой группе" }],
+            skipped_details: single.status === "added" ? [] : [{ student_id: picked[0].id, reason: "уже в этой группе" }],
             warnings: single.warnings,
+            results: undefined,
           };
         })
-        : await orgApi.bulkAddStudents(groupId, rest.map((item) => item.id), {
+        : await orgApi.bulkAddStudents(groupId, picked.map((item) => item.id), {
           // The mode only matters for students who are already in another group.
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           pay_from: payBody,
           sources: mode === "transfer" ? transferSources : undefined,
         });
-      const result = restResult === null ? undoneResult : {
-        ...restResult,
-        added: restResult.added + undoneResult.added,
-        skipped: restResult.skipped + undoneResult.skipped,
-        skipped_details: [...(restResult.skipped_details ?? []), ...undoneResult.skipped_details],
-        warnings: [...(restResult.warnings ?? []), ...undoneResult.warnings],
-        results: undefined,
-      };
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
       if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
@@ -428,8 +414,8 @@ export function AddStudentDrawer({
                 {priceHint && transfers.length === 0 && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
               </>
             )}
-            <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
-              {allUndone ? <LeaveUndoFixed /> : <EnrolPriceToggle
+            {!allUndone && <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+              <EnrolPriceToggle
                 idPrefix="add-student-price"
                 enabled={exceptionOn}
                 amount={exceptionAmount}
@@ -439,8 +425,8 @@ export function AddStudentDrawer({
                 onReason={(text) => { setAddError(null); setExceptionReason(text); }}
                 shared={selected.size > 1}
                 compact
-              />}
-            </div>
+              />
+            </div>}
           </div>
         )}
         {openingAllowed && (
@@ -459,18 +445,21 @@ export function AddStudentDrawer({
           </div>
         )}
         {payFromAllowed && (
-          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={pickedNames} />
+          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={nameById} />
         )}
+        <BulkPastBalancesNote answer={probeAnswer} names={nameById} paymentsBase={pastBase} />
         {undoneBy.size > 0 && (selected.size === 1
           ? <LeaveUndoNote undo={Array.from(undoneBy.values())[0]} />
           : (
-            <details data-testid="leave-undo-many" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-800">{undoneBy.size} {undoneBy.size === 1 ? "ученик возвращается" : undoneBy.size < 5 ? "ученика возвращаются" : "учеников возвращаются"} в день ухода — уход отменяется</summary>
-              <ul className="mt-2 space-y-1.5">
-                {Array.from(undoneBy.entries()).map(([id, undo]) => <li key={id} className="text-sm text-slate-700 [overflow-wrap:anywhere]"><span className="font-semibold">{nameById.get(id)}</span>: {undo.text}</li>)}
-              </ul>
-              {!allUndone && <p className="mt-2 text-xs text-slate-600">Для них «Оплата с» и индивидуальная цена не действуют — они записываются отдельно.</p>}
-            </details>
+            <div data-testid="leave-undo-many" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+              <details>
+                <summary className="cursor-pointer text-sm font-medium text-slate-800">{undoneBy.size} {undoneBy.size === 1 ? "ученик возвращается" : undoneBy.size < 5 ? "ученика возвращаются" : "учеников возвращаются"} в день ухода — уход отменяется</summary>
+                <ul className="mt-2 space-y-1.5">
+                  {Array.from(undoneBy.entries()).map(([id, undo]) => <li key={id} className="text-sm text-slate-700 [overflow-wrap:anywhere]"><span className="font-semibold">{nameById.get(id)}</span>: {tidyMoneyText(undo.text)}</li>)}
+                </ul>
+              </details>
+              <p className="mt-2 text-xs text-slate-600 [overflow-wrap:anywhere]">Для них «Оплата с» и индивидуальная цена не действуют — всё остаётся как было</p>
+            </div>
           ))}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (

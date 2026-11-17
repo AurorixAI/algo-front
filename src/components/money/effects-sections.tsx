@@ -38,12 +38,14 @@ export function EffectsSections({ effects, target = null, testId = "transfer-eff
 
 /** Money-2 T6: coming back the day of the leaving - the sentence of the server and what it restored; for an ordinary return the same sentence says why it is ordinary. */
 export function LeaveUndoNote({ undo, className = "" }: { undo: LeaveUndo; className?: string }) {
+  // one plate: the sentence of the server and - for a student whose leaving IS cancelled - the grey line «what does not change» as its LAST line (not a second box that repeats the first)
   return (
     <div data-testid="leave-undo" data-undone={undo.undone ? "yes" : "no"} className={`rounded-xl border px-3.5 py-3 ${undo.undone ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"} ${className}`}>
       <p className="text-sm font-medium text-slate-800 [overflow-wrap:anywhere]">{tidyMoneyText(undo.text)}</p>
       {undo.restored.length > 0 && (
         <ul className="mt-1.5 space-y-1">{undo.restored.map((text, index) => <li key={`${index}-${text}`} className="text-sm text-slate-700 [overflow-wrap:anywhere]">{tidyMoneyText(text)}</li>)}</ul>
       )}
+      {undo.undone && <LeaveUndoFixed className="mt-1.5" />}
     </div>
   );
 }

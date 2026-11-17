@@ -32,7 +32,7 @@ import { TransferPreviewBlock } from "./transfer-preview-block";
 import { GroupPickCard } from "./group-pick-card";
 import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
-import { LeaveUndoFixed, LeaveUndoNote } from "@/components/money/effects-sections";
+import { LeaveUndoNote } from "@/components/money/effects-sections";
 import { PastBalancesNote } from "@/components/money/past-balances-note";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
@@ -583,7 +583,7 @@ export function AssignGroupModal({
             {selectedPriceNote && <p className="mt-0.5 text-slate-600">{selectedPriceNote}</p>}
           </div>
         )}
-        {leavingUndone ? <LeaveUndoFixed /> : <EnrolPriceToggle
+        {!leavingUndone && <EnrolPriceToggle
           idPrefix="assign-group-price"
           enabled={exceptionOn}
           amount={exceptionAmount}

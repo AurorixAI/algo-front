@@ -143,6 +143,19 @@ export function leaveUndoOf(answer: unknown): LeaveUndo | null {
   return { undone: raw.undone === true, text: raw.text, restored };
 }
 
+/** The bulk answer (`students[].leave_undo`, mode add and transfer): the students whose leaving is cancelled, with the words of the server, in the order of the answer. */
+export function leaveUndosOfBulk(answer: unknown): Map<string, LeaveUndo> {
+  const list = (answer as { students?: unknown } | null | undefined)?.students;
+  const out = new Map<string, LeaveUndo>();
+  if (!Array.isArray(list)) return out;
+  list.forEach((item) => {
+    const id = (item as { student_id?: unknown } | null)?.student_id;
+    const undo = leaveUndoOf(item);
+    if (typeof id === "string" && undo?.undone) out.set(id, undo);
+  });
+  return out;
+}
+
 /** A leaving / archiving window says only what ENDS (the debt and the advance that stay are the headline of its block - one number, once). */
 export function endsOnly(effects: TransferEffects): TransferEffects {
   return { ...effects, moves: [], stays: [] };

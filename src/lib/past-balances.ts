@@ -5,10 +5,24 @@
 import { formatDayMonthRu } from "./business-time";
 import { formatMoney } from "./money-format";
 
-export interface PastBalance { key: string; membershipId: string; group: string; leftOn: string | null; kind: "debt" | "advance" | null; value: string | null; text: string }
+export interface PastBalance { key: string; membershipId: string; group: string; leftOn: string | null; kind: "debt" | "advance" | null; value: string | null; text: string; /** the stay in THIS group (the server: `same_group`) - the row says «эта группа» */ sameGroup: boolean }
 
 export function pastBalancesOf(answer: unknown): PastBalance[] {
-  const raw = (answer as { past_balances?: unknown } | null | undefined)?.past_balances;
+  return pastBalanceRows((answer as { past_balances?: unknown } | null | undefined)?.past_balances);
+}
+
+/** The bulk answer (`students[].past_balances`): the rows of each student who has any, in the order of the answer. */
+export function pastBalancesByStudent(answer: unknown): Array<{ studentId: string; rows: PastBalance[] }> {
+  const list = (answer as { students?: unknown } | null | undefined)?.students;
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((item) => {
+    const entry = (item ?? {}) as { student_id?: unknown; past_balances?: unknown };
+    const rows = pastBalanceRows(entry.past_balances);
+    return rows.length > 0 ? [{ studentId: String(entry.student_id ?? ""), rows }] : [];
+  });
+}
+
+function pastBalanceRows(raw: unknown): PastBalance[] {
   if (!Array.isArray(raw)) return [];
   const out: PastBalance[] = [];
   raw.forEach((item, index) => {
@@ -22,15 +36,20 @@ export function pastBalancesOf(answer: unknown): PastBalance[] {
     out.push({
       key: `${index}-${membershipId}-${kind ?? ""}`, membershipId, group, text,
       leftOn: typeof row.left_on === "string" && row.left_on ? formatDayMonthRu(row.left_on) || null : null,
-      kind, value: amount === null ? null : formatMoney(amount),
+      kind, value: amount === null ? null : formatMoney(amount), sameGroup: row.same_group === true,
     });
   });
   return out;
 }
 
-export const PAST_BALANCES_TITLE = "Остатки в прошлых группах";
+export const PAST_BALANCES_TITLE = "Остатки с прошлого раза";
 /** «Долг» / «Аванс» of a row; a row the structure does not explain says the sentence of the server. */
 export function pastBalanceLabel(row: PastBalance): string {
-  if (!row.group || !row.kind) return row.text;
-  return `${row.kind === "debt" ? "Долг" : "Аванс"} · «${row.group}»${row.leftOn ? ` · ушёл ${row.leftOn}` : ""}`;
+  if ((!row.group && !row.sameGroup) || !row.kind) return row.text;
+  return `${row.kind === "debt" ? "Долг" : "Аванс"} · ${row.sameGroup ? "эта группа" : `«${row.group}»`}${row.leftOn ? ` · ушёл ${row.leftOn}` : ""}`;
+}
+
+/** Several students with balances (two or more): «У N учеников остались долги или авансы с прошлого раза». */
+export function pastBalancesManyTitle(count: number): string {
+  return `У ${count} учеников остались долги или авансы с прошлого раза`;
 }

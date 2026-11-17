@@ -179,5 +179,5 @@ test("the drawer shows the quiet «Все классы» switch only for a group
   assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести в эту группу"/);
   assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Зачислить и в эту группу"/);
   assert.match(drawer, /Array\.from\(selected\.values\(\)\)\s*\.filter\(\(s\) => \{ const current = studentGroupId\(s\); return current && current !== groupId; \}\)/);
-  assert.match(drawer, /bulkAddStudents\(groupId, rest\.map\(\(item\) => item\.id\)/);
+  assert.match(drawer, /bulkAddStudents\(groupId, picked\.map\(\(item\) => item\.id\)/);
 });

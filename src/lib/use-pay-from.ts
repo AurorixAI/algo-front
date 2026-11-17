@@ -20,7 +20,7 @@ export function usePayFromDefault(groupId: string, enabled: boolean): { def: Pay
   return state;
 }
 
-export type PayFromPreview = { status: "idle" } | { status: "loading" } | { status: "ready"; immediate: BulkImmediate } | { status: "failed" };
+export type PayFromPreview = { status: "idle" } | { status: "loading" } | { status: "ready"; immediate: BulkImmediate; /** the whole answer of the dry run: `students[].leave_undo` / `past_balances` are read from it */ answer: unknown } | { status: "failed" };
 
 /**
  * What adding ONE student from a past day would charge at once (the dry run of the add; `billing.immediate.text`, the money right only).  Asked once the person stops changing the day;
@@ -41,7 +41,7 @@ export function usePayFromPreview(key: string | null, load: (signal: AbortSignal
     const controller = new AbortController();
     const timer = setTimeout(() => {
       loader.current(controller.signal)
-        .then((answer) => { if (sequence.current.isCurrent(token)) setState({ status: "ready", immediate: normalizeBulkImmediate(answer) }); })
+        .then((answer) => { if (sequence.current.isCurrent(token)) setState({ status: "ready", immediate: normalizeBulkImmediate(answer), answer }); })
         .catch(() => { if (sequence.current.isCurrent(token) && !controller.signal.aborted) setState({ status: "failed" }); });
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); sequence.current.next(); };
