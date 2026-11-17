@@ -119,6 +119,12 @@ body {
   .dt-row[data-min="640"] .dt-cell[data-actions="true"] { margin-top: 0; }
   .dt-row[data-min="640"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="640"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
+  /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
+  .dt-head[data-min="640"] .dt-head-cell[data-numeric], .dt-row[data-min="640"] .dt-cell[data-numeric] { display: flex; align-items: center; justify-content: flex-end; align-self: stretch; border-left: 1px solid theme(colors.slate.200); }
+  .dt-head[data-min="640"] .dt-head-cell[data-numeric] { margin-block: -0.625rem calc(-0.625rem - 1px); padding-block: 0.625rem; }   /* + the border under the header: the line runs through it */
+  .dt-row[data-min="640"] .dt-cell[data-numeric] { margin-block: -0.75rem; padding-block: 0.75rem; }
+  .dt-row[data-min="640"][data-valign="start"] .dt-cell[data-numeric] { align-items: flex-start; }
+  .dt-frame[data-min="640"] :is(.dt-row + .dt-row, .dt-li + .dt-li, .dt-li + .dt-row, .dt-row + .dt-li) .dt-cell[data-numeric] { margin-top: calc(-0.75rem - 1px); }   /* + the 1px line between two rows */
 }
 @container dt (min-width: 760px) {
   /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
@@ -149,6 +155,12 @@ body {
   .dt-row[data-min="760"] .dt-cell[data-actions="true"] { margin-top: 0; }
   .dt-row[data-min="760"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="760"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
+  /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
+  .dt-head[data-min="760"] .dt-head-cell[data-numeric], .dt-row[data-min="760"] .dt-cell[data-numeric] { display: flex; align-items: center; justify-content: flex-end; align-self: stretch; border-left: 1px solid theme(colors.slate.200); }
+  .dt-head[data-min="760"] .dt-head-cell[data-numeric] { margin-block: -0.625rem calc(-0.625rem - 1px); padding-block: 0.625rem; }   /* + the border under the header: the line runs through it */
+  .dt-row[data-min="760"] .dt-cell[data-numeric] { margin-block: -0.75rem; padding-block: 0.75rem; }
+  .dt-row[data-min="760"][data-valign="start"] .dt-cell[data-numeric] { align-items: flex-start; }
+  .dt-frame[data-min="760"] :is(.dt-row + .dt-row, .dt-li + .dt-li, .dt-li + .dt-row, .dt-row + .dt-li) .dt-cell[data-numeric] { margin-top: calc(-0.75rem - 1px); }   /* + the 1px line between two rows */
 }
 @container dt (min-width: 880px) {
   /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
@@ -179,6 +191,12 @@ body {
   .dt-row[data-min="880"] .dt-cell[data-actions="true"] { margin-top: 0; }
   .dt-row[data-min="880"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="880"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
+  /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
+  .dt-head[data-min="880"] .dt-head-cell[data-numeric], .dt-row[data-min="880"] .dt-cell[data-numeric] { display: flex; align-items: center; justify-content: flex-end; align-self: stretch; border-left: 1px solid theme(colors.slate.200); }
+  .dt-head[data-min="880"] .dt-head-cell[data-numeric] { margin-block: -0.625rem calc(-0.625rem - 1px); padding-block: 0.625rem; }   /* + the border under the header: the line runs through it */
+  .dt-row[data-min="880"] .dt-cell[data-numeric] { margin-block: -0.75rem; padding-block: 0.75rem; }
+  .dt-row[data-min="880"][data-valign="start"] .dt-cell[data-numeric] { align-items: flex-start; }
+  .dt-frame[data-min="880"] :is(.dt-row + .dt-row, .dt-li + .dt-li, .dt-li + .dt-row, .dt-row + .dt-li) .dt-cell[data-numeric] { margin-top: calc(-0.75rem - 1px); }   /* + the 1px line between two rows */
 }
 @container dt (min-width: 1040px) {
   /* ONE grid for the whole table: the frame owns the columns, the header, the list, every row and its cells take them over (subgrid), so the widths are counted once, over every row */
@@ -209,6 +227,12 @@ body {
   .dt-row[data-min="1040"] .dt-cell[data-actions="true"] { margin-top: 0; }
   .dt-row[data-min="1040"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="1040"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
+  /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
+  .dt-head[data-min="1040"] .dt-head-cell[data-numeric], .dt-row[data-min="1040"] .dt-cell[data-numeric] { display: flex; align-items: center; justify-content: flex-end; align-self: stretch; border-left: 1px solid theme(colors.slate.200); }
+  .dt-head[data-min="1040"] .dt-head-cell[data-numeric] { margin-block: -0.625rem calc(-0.625rem - 1px); padding-block: 0.625rem; }   /* + the border under the header: the line runs through it */
+  .dt-row[data-min="1040"] .dt-cell[data-numeric] { margin-block: -0.75rem; padding-block: 0.75rem; }
+  .dt-row[data-min="1040"][data-valign="start"] .dt-cell[data-numeric] { align-items: flex-start; }
+  .dt-frame[data-min="1040"] :is(.dt-row + .dt-row, .dt-li + .dt-li, .dt-li + .dt-row, .dt-row + .dt-li) .dt-cell[data-numeric] { margin-top: calc(-0.75rem - 1px); }   /* + the 1px line between two rows */
 }
   /* a secondary column (`priority="low"`) of a table narrower than `lowBelow`: no heading, no cells, no track - the room goes to the free columns */
 @container dt (min-width: 640px) and (max-width: 1039px) {

@@ -69,9 +69,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 const STATEMENT_COLUMNS: DataColumn[] = [
   { key: "date", header: "Дата", width: "max-content" },
   { key: "operation", header: "Операция", width: "minmax(10rem,1fr)" },
-  { key: "charged", header: "Стоимость", align: "end", width: "max-content", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "end", width: "max-content", cardLabel: "Оплачено" },
-  { key: "balance", header: "Остаток", align: "end", width: "max-content", cardLabel: "Остаток" },
+  { key: "charged", header: "Стоимость", align: "end", numeric: true, width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", numeric: true, width: "max-content", cardLabel: "Оплачено" },
+  { key: "balance", header: "Остаток", align: "end", numeric: true, width: "max-content", cardLabel: "Остаток" },
   { key: "menu", header: "", align: "end", width: "max-content", actions: true },
 ];
 
@@ -587,7 +587,10 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
         <div className="flex min-w-0 gap-2.5">
           <StatementRowIcon entry={entry} />
           <div className="min-w-0 flex-1">
-            <p className="break-words text-sm font-medium leading-6 text-slate-900">{entry.title}</p>
+            <p className="break-words text-sm font-medium leading-6 text-slate-900">
+              {entry.title}
+              {entry.tag && <span data-testid="statement-row-tag" className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-xs font-semibold text-slate-600">{entry.tag}</span>}
+            </p>
             {entry.sub && <p className="break-words text-xs text-slate-500">{entry.sub}</p>}
             {entry.replaced && <p className="text-xs font-medium text-amber-800">{entry.replaced}</p>}
             {entry.allocations.length > 0 && (
@@ -601,10 +604,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="charged" testId="statement-cell-charged" className={chargedText ? undefined : "dt-card-hidden"}><span className={STATEMENT_AMOUNT_CLASS}>{chargedText}</span></DataCell>
       <DataCell col="paid" testId="statement-cell-paid" className={paidText ? undefined : "dt-card-hidden"}>
-        <span className="text-sm tabular-nums">
-          <span className={STATEMENT_PAID_CLASS}>{paidText}</span>
-          {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-xs font-semibold text-slate-600">{entry.tag}</span>}
-        </span>
+        <span className={STATEMENT_PAID_CLASS}>{paidText}</span>
       </DataCell>
       <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
       <DataCell col="menu">
