@@ -47,3 +47,9 @@ export function LeaveUndoNote({ undo, className = "" }: { undo: LeaveUndo; class
     </div>
   );
 }
+
+/** Money-2 fix 7: the ONE line for every entrance - what a returning-the-day-of-the-leaving student does not get to set (the server refuses `pay_from` / the opening balance then; the price stays as it was). */
+export const LEAVE_UNDO_FIXED_TEXT = "уход отменяется — дата начала оплаты, остаток и индивидуальная цена не меняются";
+export function LeaveUndoFixed({ className = "" }: { className?: string }) {
+  return <p data-testid="leave-undo-fixed" className={`text-xs text-slate-600 [overflow-wrap:anywhere] ${className}`}>{LEAVE_UNDO_FIXED_TEXT}</p>;
+}

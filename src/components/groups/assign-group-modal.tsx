@@ -32,7 +32,7 @@ import { TransferPreviewBlock } from "./transfer-preview-block";
 import { GroupPickCard } from "./group-pick-card";
 import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
-import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { LeaveUndoFixed, LeaveUndoNote } from "@/components/money/effects-sections";
 import { PastBalancesNote } from "@/components/money/past-balances-note";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
@@ -252,7 +252,7 @@ export function AssignGroupModal({
       setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
     }
-    const exception = moneyAvailable
+    const exception = moneyAvailable && leaveUndo?.undone !== true
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAssignmentError(exception.error); return; }
@@ -271,7 +271,7 @@ export function AssignGroupModal({
     try {
       const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, {
         mode,
-        price_override: exception.request,
+        price_override: leaveUndo?.undone === true ? null : exception.request,
         opening_balance: withOpening ? buildOpeningIn(opening) : null,
         pay_from: payBody,
         from_group_id: source.id,
@@ -314,7 +314,7 @@ export function AssignGroupModal({
   useEffect(() => { if (askedInDryRun) { setServerSources(askedInDryRun); setFromGroupId(""); } }, [askedInDryRun]);
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
   // Money-2 T6: coming back the day of the leaving - the dry run of the add says whether the leaving is undone (a transfer says it in its own answer)
-  const addKey = isAdd && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}` : null;
+  const addKey = !isTransfer && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error ? `${selectedGroupId}|${studentId}|${JSON.stringify(dryException.request)}` : null;
   const addPreview = useFormMoneyPreview(addKey, (signal) => orgApi.dryRunAddStudent(selectedGroupId as string, studentId, { price_override: dryException.request }, signal));
   const undoSource = transferKey !== null ? transferPreview.preview : addKey !== null ? addPreview.preview : null;
   const leaveUndo = undoSource?.status === "ready" ? leaveUndoOf(undoSource.answer) : null;
@@ -583,7 +583,7 @@ export function AssignGroupModal({
             {selectedPriceNote && <p className="mt-0.5 text-slate-600">{selectedPriceNote}</p>}
           </div>
         )}
-        <EnrolPriceToggle
+        {leavingUndone ? <LeaveUndoFixed /> : <EnrolPriceToggle
           idPrefix="assign-group-price"
           enabled={exceptionOn}
           amount={exceptionAmount}
@@ -592,7 +592,7 @@ export function AssignGroupModal({
           onAmount={(text) => { setAssignmentError(null); setExceptionAmount(text); }}
           onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
           compact
-        />
+        />}
         {!isTransfer && !leavingUndone && !openingBlocked && (
           <div className="mt-2 border-t border-slate-200 pt-2">
             <OpeningToggle
@@ -618,7 +618,7 @@ export function AssignGroupModal({
     )}
 
     {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} target={selectedGroup?.name ?? null} className="mt-3" />}
-    {isAdd && addPreview.preview.status === "ready" && <PastBalancesNote answer={addPreview.preview.answer} paymentsBase={groupsBasePath ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null} className="mt-3" />}
+    {!isTransfer && addPreview.preview.status === "ready" && <PastBalancesNote answer={addPreview.preview.answer} paymentsBase={groupsBasePath ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null} className="mt-3" />}
     {leaveUndo && <LeaveUndoNote undo={leaveUndo} className="mt-3" />}
     {balanceChanged && <Notice variant="warning" compact testId="transfer-changed" className="mt-3">{BALANCE_CHANGED_TEXT}</Notice>}
 

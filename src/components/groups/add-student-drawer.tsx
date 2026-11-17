@@ -39,6 +39,8 @@ import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
+import { LeaveUndoFixed, LeaveUndoNote } from "@/components/money/effects-sections";
+import { useLeaveUndos } from "@/lib/use-leave-undos";
 
 interface Student {
   id: string;
@@ -224,9 +226,14 @@ export function AddStudentDrawer({
 
   // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
   const today = formatBusinessDate();
-  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add");
+  // Money-2 fix 7 (T6): who comes back the day of the leaving - his leaving is cancelled; `pay_from`, the opening balance and a price are not for him (the server refuses them)
+  const movedIds = new Set(mode === "transfer" ? transfers.map((t) => t.id) : []);
+  const askUndoIds = Array.from(selected.keys()).filter((id) => !movedIds.has(id)).sort();
+  const { undone: undoneBy } = useLeaveUndos(groupId, askUndoIds, open);
+  const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
+  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
   // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there)
-  const payFromAllowed = selected.size > 0 && (transfers.length === 0 || mode === "add");
+  const payFromAllowed = selected.size > 0 && (transfers.length === 0 || mode === "add") && !allUndone;
   const { def: payDef } = usePayFromDefault(groupId, open && payFromAllowed);
   useEffect(() => { if (payDef) setPayFrom((current) => current || payDef.default_pay_from); }, [payDef]);
   const payRange = payFromRange(payDef?.today ?? today, accountingStart);
@@ -248,15 +255,16 @@ export function AddStudentDrawer({
   const transferPreview = useFormMoneyPreview(transferKey, (signal) => orgApi.dryRunBulkTransfer(groupId, transferIds, { price_override: dryException.request, sources: transferSources }, signal));
   const transferAllowed = formAllowsConfirm(transferKey, transferPreview.preview);
   // Money-1 B1: a day in the past charges the past at once - for ONE student the server's dry run says how much, before the button
-  const pickedIds = Array.from(selected.keys()).sort();
+  const pickedIds = Array.from(selected.keys()).filter((id) => !undoneBy.has(id)).sort();
   const payPreviewKey = open && moneyAvailable && payFromAllowed && payDef !== null && pickedIds.length > 0 && !dryException.error && !payProblem
     ? `${groupId}|${pickedIds.join(",")}|${payBody ?? ""}|${JSON.stringify(dryException.request)}` : null;
   const payPreview = usePayFromPreview(payPreviewKey, (signal) => orgApi.dryRunBulkAdd(groupId, pickedIds, { pay_from: payBody, price_override: dryException.request }, signal));
-  const pickedNames = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
+  const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
+  const pickedNames = new Map(Array.from(selected.values()).filter((s) => !undoneBy.has(s.id)).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
-    const exception = moneyAvailable
+    const exception = moneyAvailable && !allUndone
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAddError(exception.error); return; }
@@ -277,12 +285,26 @@ export function AddStudentDrawer({
         return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
       };
       const openingBody = withOpening ? buildOpeningIn(opening) : null;
-      // One student with an opening balance goes through the route that takes it; the bulk route has no such field.
+      // Money-2 fix 7: the ones who come back the day of the leaving are written apart and WITHOUT «Оплата с» / opening / price (the server refuses them there); the rest go as before
+      const undonePicked = picked.filter((item) => undoneBy.has(item.id));
+      const rest = picked.filter((item) => !undoneBy.has(item.id));
+      const undoneResult: { added: number; skipped: number; skipped_details: Array<{ student_id: string; reason: string }>; warnings: any[] } = { added: 0, skipped: 0, skipped_details: [], warnings: [] };
+      for (const item of undonePicked) {
+        try {
+          const single = await orgApi.addStudentToGroup(groupId, item.id, { mode: transfers.length > 0 ? mode : undefined });
+          if (single.status === "added") undoneResult.added += 1;
+          else { undoneResult.skipped += 1; undoneResult.skipped_details.push({ student_id: item.id, reason: "уже в этой группе" }); }
+          undoneResult.warnings.push(...(single.warnings ?? []));
+        } catch (e: any) {
+          undoneResult.skipped += 1;
+          undoneResult.skipped_details.push({ student_id: item.id, reason: logicaError(e, "Не удалось записать").message });
+        }
+      }
       // One student with an opening balance - or with a chosen «Оплата с» - goes through the route that answers `billing` (the server's sentence); the bulk route has no such field.
-      const singleRoute = Boolean(openingBody) || (payBody !== null && picked.length === 1);
+      const singleRoute = Boolean(openingBody) || (payBody !== null && rest.length === 1);
       let billingLine: string | null = null;
-      const result = singleRoute
-        ? await orgApi.addStudentToGroup(groupId, picked[0].id, {
+      const restResult = rest.length === 0 ? null : singleRoute
+        ? await orgApi.addStudentToGroup(groupId, rest[0].id, {
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           opening_balance: openingBody,
@@ -292,17 +314,25 @@ export function AddStudentDrawer({
           return {
             added: single.status === "added" ? 1 : 0,
             skipped: single.status === "added" ? 0 : 1,
-            skipped_details: single.status === "added" ? [] : [{ student_id: picked[0].id, reason: "уже в этой группе" }],
+            skipped_details: single.status === "added" ? [] : [{ student_id: rest[0].id, reason: "уже в этой группе" }],
             warnings: single.warnings,
           };
         })
-        : await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
+        : await orgApi.bulkAddStudents(groupId, rest.map((item) => item.id), {
           // The mode only matters for students who are already in another group.
           mode: transfers.length > 0 ? mode : undefined,
           price_override: exception.request,
           pay_from: payBody,
           sources: mode === "transfer" ? transferSources : undefined,
         });
+      const result = restResult === null ? undoneResult : {
+        ...restResult,
+        added: restResult.added + undoneResult.added,
+        skipped: restResult.skipped + undoneResult.skipped,
+        skipped_details: [...(restResult.skipped_details ?? []), ...undoneResult.skipped_details],
+        warnings: [...(restResult.warnings ?? []), ...undoneResult.warnings],
+        results: undefined,
+      };
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
       if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
@@ -399,7 +429,7 @@ export function AddStudentDrawer({
               </>
             )}
             <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
-              <EnrolPriceToggle
+              {allUndone ? <LeaveUndoFixed /> : <EnrolPriceToggle
                 idPrefix="add-student-price"
                 enabled={exceptionOn}
                 amount={exceptionAmount}
@@ -409,7 +439,7 @@ export function AddStudentDrawer({
                 onReason={(text) => { setAddError(null); setExceptionReason(text); }}
                 shared={selected.size > 1}
                 compact
-              />
+              />}
             </div>
           </div>
         )}
@@ -431,6 +461,17 @@ export function AddStudentDrawer({
         {payFromAllowed && (
           <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={pickedNames} />
         )}
+        {undoneBy.size > 0 && (selected.size === 1
+          ? <LeaveUndoNote undo={Array.from(undoneBy.values())[0]} />
+          : (
+            <details data-testid="leave-undo-many" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-slate-800">{undoneBy.size} {undoneBy.size === 1 ? "ученик возвращается" : undoneBy.size < 5 ? "ученика возвращаются" : "учеников возвращаются"} в день ухода — уход отменяется</summary>
+              <ul className="mt-2 space-y-1.5">
+                {Array.from(undoneBy.entries()).map(([id, undo]) => <li key={id} className="text-sm text-slate-700 [overflow-wrap:anywhere]"><span className="font-semibold">{nameById.get(id)}</span>: {undo.text}</li>)}
+              </ul>
+              {!allUndone && <p className="mt-2 text-xs text-slate-600">Для них «Оплата с» и индивидуальная цена не действуют — они записываются отдельно.</p>}
+            </details>
+          ))}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
