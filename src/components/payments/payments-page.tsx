@@ -45,6 +45,7 @@ import {
   canRefund,
   canWriteOff,
   savedPaymentToastDetails,
+  balanceView,
 } from "@/lib/payments-ledger";
 import { FREE_WORD, groupPriceHref, plannedPriceOf, priceLabelOf, priceNotInForceText, priceOfRow, priceSourceTag, pricesBaseOf, type GroupPriceScheduled } from "@/lib/group-price";
 import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
@@ -54,7 +55,7 @@ import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
 import { DebtAgeStrip } from "./debt-age-strip";
-import { debtAgeLine, type DebtAge } from "@/lib/debt-ages";
+import { debtAgeDays, debtAgeLine, type DebtAge } from "@/lib/debt-ages";
 import { daysLabel } from "@/lib/plural";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
@@ -395,7 +396,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       </div>
 
       {bucket === "debt" && <OpeningsBanner paymentsBase={paymentsBase} />}
-      {bucket === "debt" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0, debtTotal }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
+      {bucket === "debt" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
       {bucket === "debt" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}
@@ -523,6 +524,8 @@ function PaymentRow({
   // Money-2 Т18: «долг 62 дня» - unless the reason line already says these days («Просрочено на 62 дня»): one number once
   const ageLine = bucket === "debt" ? debtAgeLine(row.debt_age_days) : null;
   const showAge = ageLine !== null && !`${reason} ${chip.label}`.includes(daysLabel(Math.floor(row.debt_age_days ?? 0)));
+  // Money-2 fix 5: with a debt on the row the days stand on the SAME line as the sum («Долг 1 200 000 сум · 78 дней»); a separate line only when there is no sum line
+  const ageInBalance = showAge && balanceView(row).kind === "debt";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
   const planned = plannedPriceOf(price, scheduledPrice);      // Р4-1: the student's own planned price first, else the group's
@@ -580,9 +583,9 @@ function PaymentRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left sm:flex-col sm:items-start">
           <Chip tone={moneyChipTone(chip.tone)} bleed>{chip.label}</Chip>
           {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
-          {showAge && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-age">{ageLine}</p>}
+          {showAge && !ageInBalance && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-age">{ageLine}</p>}
           {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
-          <BalanceNote row={row} className="w-full" />
+          <BalanceNote row={row} className="w-full" age={ageInBalance ? debtAgeDays(row.debt_age_days) : null} />
         </div>
       </DataCell>
       {/* Последняя оплата: money, RIGHT; the date is the quiet line under the amount */}

@@ -33,9 +33,19 @@ export function debtAgesOf(raw: unknown): DebtAgeBasket[] {
   });
 }
 
+/** «4 уч.» of the «Все» chip: the sum stands once, in the card «Долг» above (Money-2 fix 5). */
+export function debtAgeAllLabel(total: { students: number }): string {
+  return `${total.students} уч.`;
+}
+
 /** «3 ученика · 450 000 сум» of a basket. */
 export function debtAgeSummary(basket: Pick<DebtAgeBasket, "students" | "debtTotal">): string {
   return `${basket.students} уч. · ${formatMoney(basket.debtTotal)}`;
+}
+
+/** «62 дня» (the age of the debt for the line with the sum, «Долг 700 000 сум · 62 дня»); null without an age. */
+export function debtAgeDays(days: number | null | undefined): string | null {
+  return typeof days === "number" && Number.isFinite(days) && days >= 0 ? daysLabel(Math.floor(days)) : null;
 }
 
 /** «долг 62 дня»; null without an age. */

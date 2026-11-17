@@ -56,7 +56,7 @@ const statusCalls = (run) => run.calls.filter((call) => call.path === "/auth/org
 
 test("Э8: «Все» and four baskets with the students and the sum of each; an empty basket says «нет»", async () => {
   const run = await open(1280);
-  assert.deepEqual(await chips(run.page), ["Все 4 уч. · 1 500 000 сум", "До 30 дней 2 уч. · 450 000 сум", "31–60 дней нет", "61–90 дней 1 уч. · 450 000 сум", "Старше 90 дней 1 уч. · 600 000 сум"]);
+  assert.deepEqual(await chips(run.page), ["Все 4 уч.", "До 30 дней 2 уч. · 450 000 сум", "31–60 дней нет", "61–90 дней 1 уч. · 450 000 сум", "Старше 90 дней 1 уч. · 600 000 сум"]);
   await run.page.close();
 });
 
@@ -75,7 +75,9 @@ test("Э8: a basket is a filter - the list is asked with `age=`, only its rows s
 test("Э8: «долг N дней» on a row only where the reason line does not already say these days", async () => {
   const run = await open(1280);
   const ages = await run.page.locator('[data-testid="debt-age"]').allTextContents();
-  assert.deepEqual(ages.map(plain), ["долг 62 дня"]);
+  // fix 5: the days stand on the line of the sum - «Долг … · 62 дня» (the word «долг» once)
+  assert.deepEqual(ages.map(plain), ["· 62 дня"]);
+  assert.equal((plain(await run.page.locator('[data-testid="debt-age"]').locator("..").textContent()).match(/олг/g) ?? []).length, 1);
   const body = plain(await run.page.textContent('[data-testid="payments-table"]'));
   assert.equal((body.match(/12 дней/g) ?? []).length, 1, "12 days once");
   await run.page.close();
@@ -99,4 +101,17 @@ test("Э8 (375): the baskets are ONE scrollable row, every chip whole; the page 
 test("Э8: the filter lives in the address (`age=`) only on «Должники»", () => {
   const src = fs.readFileSync(path.join(root, "src/lib/payments.ts"), "utf8");
   assert.match(src, /state\.bucket === "debt" && state\.age/);
+});
+
+test("fix5: the status of a debtor with an age - the chip and ONE line «Долг … · N дней» (1280 and 375)", async () => {
+  for (const width of [1280, 375]) {
+    const run = await open(width);
+    const cell = run.page.locator('[data-testid="status-cell"]', { has: run.page.locator('[data-testid="debt-age"]') });
+    assert.equal(await cell.count(), 1);
+    const lines = await cell.evaluate((el) => [...el.querySelectorAll("p")].map((p) => p.textContent.replace(/[\s ]+/g, " ").trim()));
+    assert.equal(lines.length, 2, JSON.stringify(lines));   // the chip (a status) + ONE line
+    assert.match(lines[1], /^Долг [\d ]+ сум · 62 дня$/);
+    assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
+    await run.page.close();
+  }
 });
