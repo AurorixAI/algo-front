@@ -125,3 +125,19 @@ test("drawer, SEVERAL chosen, all come back the day of the leaving: the summary,
   assert.ok(sent.every((w) => w.body.pay_from === undefined && w.body.price_override === undefined));
   await run.page.close();
 });
+
+// the walk reported: on 375 the first tap on «⋯» of a roster row did not open the menu, the second did - not reproduced (12 touch taps, with and without waiting for the data); the guard stays
+test("375, touch: ONE tap on «⋯» of a roster row opens the menu", async () => {
+  const M = require("./helpers/money2-fix7-menu.cjs");
+  const touch = { newPage: (options) => ctx.browser.newPage({ ...options, hasTouch: true, isMobile: true }) };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const run = await openPage(touch, "money-b.entry.tsx", M.groupServer, { width: 375, height: 812 });
+    await run.page.evaluate(() => window.mount("groupHeader", { role: "owner", org_role: "owner" }, { refresh: true }));
+    const button = run.page.locator('button[aria-label^="Действия: Номер1"]');
+    await button.waitFor({ timeout: 8000 });
+    const box = await button.boundingBox();
+    await run.page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await run.page.waitForSelector('[role="menu"]', { timeout: 2000 });
+    await run.page.close();
+  }
+});
