@@ -101,3 +101,36 @@ test("опись п.1: прощение долга и возврат - отка�
     assert.ok(times(text, WORDS) <= 1, `${name}: ${text}`);
   }
 });
+
+// ----- п.2: the head of a window of money: the dot-separator is never the last or the first thing on a line -----
+async function dotsOf(page) {
+  return page.evaluate(() => [...document.querySelectorAll('[role="dialog"] [data-dot]')].map((dot) => {
+    const piece = dot.closest("[data-dot-piece]");
+    const next = piece.nextElementSibling ? piece.nextElementSibling : null;
+    const nextPiece = next && next.matches("[data-dot-piece]") ? next : piece.parentElement.querySelectorAll("[data-dot-piece]")[[...piece.parentElement.querySelectorAll("[data-dot-piece]")].indexOf(piece) + 1];
+    const d = dot.getBoundingClientRect();
+    const n = nextPiece.getBoundingClientRect();
+    const shown = getComputedStyle(dot).visibility !== "hidden";
+    return { shown, sameLine: n.top < d.bottom - 1, left: d.left - piece.parentElement.getBoundingClientRect().left };
+  }));
+}
+test("п.2: шапка окна оплаты - точка не в конце и не в начале строки (320/375/414/1280)", async () => {
+  const members = [
+    { ...TOSHMATOV, student_name: "М10Б-q1 Тест", group_name: "М10Б В" },
+    { ...TOSHMATOV, student_name: "Абдуллаев Мухаммадалихон Шахзодович", group_name: "Алгебра 7 класс, углублённая программа (вт/пт)" },
+    TOSHMATOV,
+  ];
+  for (const width of [320, 375, 414, 1280]) {
+    for (const membership of members) {
+      const { page } = await openPage(browser, "money.entry.tsx", tillServer(), { width, height: 800 });
+      await page.evaluate(([u, m]) => window.mount("till", u, { membership: m }), [{ role: "admin", org_role: "admin" }, membership]);
+      await page.waitForSelector('[role="dialog"] [data-dot]', { state: "attached" });
+      for (const dot of await dotsOf(page)) {
+        // visible dot -> the next piece is on the same line (the dot is not last); a piece never starts with the dot by construction
+        assert.equal(dot.shown, dot.sameLine, `${width} ${membership.group_name}: dot shown=${dot.shown} sameLine=${dot.sameLine}`);
+        assert.ok(dot.left > 0, `${width} ${membership.group_name}: the dot is at the start of a line (${dot.left})`);
+      }
+      await page.close();
+    }
+  }
+});
