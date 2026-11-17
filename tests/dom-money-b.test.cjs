@@ -189,7 +189,7 @@ test("Б1: an administrator WITHOUT the money right - no date field at all, one 
   await page.click('button:has-text("Зачислить (1)")');
   await page.waitForTimeout(250);
   assert.equal(bulk(calls)[0].body.pay_from, undefined);
-  assert.ok(!calls.some((c) => isDry(c)), "no dry run of the charge without the money right");
+  assert.ok(!calls.some((c) => isDry(c) && (/students\/bulk$/.test(c.path) || (c.body && c.body.pay_from))), "no dry run of the charge without the money right (the one of `leave_undo` - a plain add dry run of one student - is asked: it carries no sum)");
   await page.close();
 });
 

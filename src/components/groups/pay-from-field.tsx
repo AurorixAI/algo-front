@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { PAY_FROM_LABEL, IMMEDIATE_ROUNDING_NOTE, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, IMMEDIATE_ROUNDING_NOTE, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, immediateTitle, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 
 export const PAY_FROM_FAILED_TEXT = "Не удалось посчитать, сколько начислится сразу";
@@ -97,7 +97,7 @@ function ImmediateBlock({ amount, parts, text }: { amount: number; parts: Immedi
     <>
     <div data-testid="pay-from-immediate-block" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-900">Сразу начислится</p>
+        <p className="text-sm font-semibold text-slate-900">{immediateTitle(text)}</p>
         <p data-testid="pay-from-immediate-total-sum" className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-900">{formatMoney(amount)}</p>
       </div>
       <ul className="mt-2 space-y-1" data-testid="pay-from-immediate-parts">

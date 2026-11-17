@@ -141,3 +141,26 @@ test("375, touch: ONE tap on «⋯» of a roster row opens the menu", async () =
     await run.page.close();
   }
 });
+
+// item 4 (server fix MONEY2_FIX_STAGE6): coming back into the SAME group - the row of its debt + «Сразу начислится ещё 187 000 сум (за 5 уроков)»: the word «ещё» and the lessons are the server's
+test("return to the same group: the debt row of the group and the server's «ещё N» reach the screen without being rebuilt from numbers", async () => {
+  const immediate = { amount: 187000, lessons: 5, text: "Сразу начислится ещё 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
+  const server = F.baseServer((request) => {
+    if (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
+    if (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1") {
+      const past = request.body && request.body.pay_from;
+      return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: null, past_balances: BALANCE.slice(0, 1), billing: past ? { pay_from: request.body.pay_from, explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата с 04.11.2026", immediate } : null } };
+    }
+    return null;
+  });
+  const run = await mount(ctx, server, "assign", OWNER, { moneyAvailable: true, mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups" });
+  await pick(run.page);
+  await run.page.waitForSelector('[data-testid="past-balance"]');
+  await run.page.fill("#assign-group-pay-from", "04.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForSelector('[data-testid="pay-from-immediate"]:not(:has-text("Считаем"))');
+  const text = plain(await run.page.locator('[data-testid="pay-from-immediate"]').textContent());
+  assert.match(text, /Сразу начислится ещё/, text);
+  assert.ok(text.includes("187 000"), text);
+  await run.page.close();
+});

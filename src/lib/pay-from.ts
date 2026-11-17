@@ -126,6 +126,12 @@ export function payFromIsPast(value: string, def: PayFromDefault | null): boolea
   return Boolean(def) && isIsoDateString(value) && value < (def as PayFromDefault).today;
 }
 
+/** The words of the server before the sum: «Сразу начислится» / «Сразу начислится ещё» (a return into a stay that already has a charge adds to it) - the screen does not choose the word. */
+export function immediateTitle(serverText: string): string {
+  const head = /^(.*?)\s*\d/.exec(serverText)?.[1]?.trim();
+  return head || "Сразу начислится";
+}
+
 export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начислится";
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
