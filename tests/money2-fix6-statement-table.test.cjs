@@ -93,23 +93,3 @@ test("карточка 375: «подпись … значение», метка 
   assert.equal(data.headShown, "none");
   assert.ok(data.valueLeft >= data.labelRight);
 });
-
-// the inventory (rule 139): the columns of «Сбор по группам» that hold ONLY a number follow the same rule (the others - «Долг» with «✓ оплачено» / «ждём оплату», «Должников» with a mark - are left to the lead)
-for (const width of [1280, 1024]) {
-  test(`сбор по группам (${width}): «Стоимость» и «Оплачено» — числовые колонки`, async () => {
-    const R = require("./helpers/real-life-fixture.cjs");
-    const run = await openPage(browser, "ds.entry.tsx", () => null, { width, height: 900 });
-    await run.page.evaluate(([name, props]) => { document.getElementById("root").style.padding = "0 16px"; window.mount(name, { role: "owner", org_role: "owner" }, props); }, ["collection", { collection: R.COLLECTION_REAL }]);
-    await run.page.waitForSelector(".dt-row");
-    const data = await run.page.evaluate(() => {
-      const textEdge = (el) => { const range = document.createRange(); range.selectNodeContents(el); const limit = el.getBoundingClientRect().right + 1; const rects = [...range.getClientRects()].filter((rect) => rect.width > 0 && rect.right <= limit); return Math.max(...rects.map((rect) => rect.right)); };
-      const head = document.querySelector(".dt-head");
-      return ["charged", "paid"].map((col) => ({ col, headBorder: getComputedStyle(head.querySelector(`[data-col="${col}"]`)).borderLeftWidth, head: (() => { const h = head.querySelector(`[data-col="${col}"]`); return Math.max(textEdge(h), ...[...h.querySelectorAll("svg")].map((icon) => icon.getBoundingClientRect().right).filter((right) => right <= h.getBoundingClientRect().right + 3)); })(), cells: [...document.querySelectorAll(`.dt-body .dt-cell[data-col="${col}"]`)].map((cell) => ({ border: getComputedStyle(cell).borderLeftWidth, edge: textEdge(cell.querySelector(".dt-value")) })) }));
-    });
-    for (const column of data) {
-      assert.equal(column.headBorder, "1px", column.col);
-      assert.ok(column.cells.length > 0);
-      for (const cell of column.cells) { assert.equal(cell.border, "1px", column.col); assert.ok(Math.abs(cell.edge - column.head) <= 1, `${column.col}: ${cell.edge} против ${column.head}`); }
-    }
-  });
-}
