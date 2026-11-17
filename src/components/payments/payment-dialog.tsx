@@ -272,7 +272,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         <ConfirmFooter
           primary={payButtonLabel(kind, amountNow)}
           submitFor="payment-form"
-          disabled={blocker !== null}
+          disabled={blocker !== null || state.refused}
           busy={busy}
           why={blocker}
           whyId="payment-blocker"
@@ -452,7 +452,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           {leftProblem && !error && amountNow !== null && (
             <p role="alert" className="text-xs font-medium text-rose-700">{leftProblem}</p>
           )}
-          {error && <Notice variant="error" compact>{error}</Notice>}
+          {error && error !== state.error && <Notice variant="error" compact>{error}</Notice>}
         </form>
       )}
     </Modal>

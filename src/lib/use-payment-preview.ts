@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { orgApi } from "./api";
 import type { PaymentPreview, PreviewQuery } from "./payments";
 import { payError } from "./payments-ledger";
+import { refusedInWords } from "./money-preview";
 import { createRequestSequence, type RequestSequence } from "./request-sequence";
 
 /** Wait this long after the last keystroke of the amount before asking the server again. */
@@ -18,9 +19,11 @@ export interface PaymentPreviewState {
   loading: boolean;
   /** The last request for the current query failed: the server's own sentence (a wrong amount) or a network message. */
   error: string | null;
+  /** The failure is a refusal in the server's own words that a repeat cannot change («только владелец»): the window keeps its button off until the date or the amount changes. */
+  refused: boolean;
 }
 
-const IDLE: PaymentPreviewState = { preview: null, previewKey: "", loading: false, error: null };
+const IDLE: PaymentPreviewState = { preview: null, previewKey: "", loading: false, error: null, refused: false };
 
 /** Stable text of a query: two requests with the same text ask the same thing. */
 export function previewKey(query: PreviewQuery | null): string {
@@ -39,7 +42,7 @@ export interface PreviewRun {
   /** The key of the form on screen right now: an answer for another one is dropped. */
   currentKey: () => string;
   onPreview: (preview: PaymentPreview, key: string) => void;
-  onFailed: (message: string) => void;
+  onFailed: (message: string, refused?: boolean) => void;
 }
 
 /**
@@ -69,7 +72,7 @@ export function startPreviewRun(run: PreviewRun, timeoutMs: number = PREVIEW_TIM
       .catch((error) => {
         if (!live() || controller.signal.aborted) return;
         clearTimeout(giveUp);
-        run.onFailed(payError(error, "Не удалось посчитать").message);
+        run.onFailed(payError(error, "Не удалось посчитать").message, refusedInWords(error) !== null);
       });
   }, run.delayMs);
   return () => {
@@ -115,10 +118,10 @@ export function usePaymentPreview(input: {
     }
     const current = queryRef.current;
     if (!current) {
-      setState((previous) => (previous.loading || previous.error ? { ...previous, loading: false, error: null } : previous));
+      setState((previous) => (previous.loading || previous.error ? { ...previous, loading: false, error: null, refused: false } : previous));
       return;
     }
-    setState((previous) => ({ ...previous, loading: true, error: null }));
+    setState((previous) => ({ ...previous, loading: true, error: null, refused: false }));
     const immediate = Boolean(input.immediate?.current);
     if (input.immediate) input.immediate.current = false;
     const delayMs = first.current || immediate ? 0 : PREVIEW_DEBOUNCE_MS;
@@ -131,10 +134,10 @@ export function usePaymentPreview(input: {
       fetchPreview: (q, signal) => orgApi.getPaymentPreview(membershipId, q, signal),
       currentKey: () => keyRef.current,
       onPreview: (preview, answeredKey) => {
-        setState({ preview, previewKey: answeredKey, loading: false, error: null });
+        setState({ preview, previewKey: answeredKey, loading: false, error: null, refused: false });
         onPreview.current?.(preview, answeredKey);
       },
-      onFailed: (message) => setState((previous) => ({ ...previous, loading: false, error: message })),
+      onFailed: (message, refused) => setState((previous) => ({ ...previous, loading: false, error: message, refused: refused === true })),
     });
   }, [enabled, membershipId, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
