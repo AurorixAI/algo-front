@@ -62,3 +62,25 @@ test("fix3 п.1: the refusals of the rows are shown in the words of the server; 
   assert.match(plain(await r.page.textContent('[data-testid="bulk-outcome-hint"]')), /переведите его отдельно/);
   await r.page.close();
 });
+
+test("fix5 п.5: ученик в двух группах - в списке «в 2 группах», под выбранным при «перевести» одна строка, кнопка не заблокирована (375)", async () => {
+  const page = await openPage(ctx.browser, "enrol.entry.tsx", server([]), { width: 375, height: 800 });
+  await page.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
+  await page.page.fill('input[placeholder^="Поиск по имени"]', "Кар");
+  await page.page.waitForSelector('button:has-text("Каримов Фарход")');
+  const row = page.page.locator('button:has-text("Каримов Фарход")');
+  assert.match(plain(await row.textContent()), /в 2 группах/);
+  assert.doesNotMatch(plain(await row.textContent()), /сейчас в «/);
+  assert.equal(await page.page.locator('[data-testid="student-many-groups-hint"]').count(), 0, "not before the choice");
+  await row.click();
+  const hint = plain(await page.page.textContent('[data-testid="student-many-groups-hint"]'));
+  assert.equal(hint, "учится в нескольких группах — переведите его отдельно");
+  await page.page.waitForTimeout(500);
+  assert.equal(await page.page.locator('[data-testid="enrol-submit"]').isDisabled(), false);
+  assert.equal(await page.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
+  // a one-group student keeps «сейчас в «…»»
+  await page.page.fill('input[placeholder^="Поиск по имени"]', "Ива");
+  await page.page.waitForSelector('button:has-text("Иванов Иван")');
+  assert.match(plain(await page.page.locator('button:has-text("Иванов Иван")').textContent()), /сейчас в «Алгебра 7»/);
+  await page.page.close();
+});

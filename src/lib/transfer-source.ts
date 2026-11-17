@@ -41,3 +41,13 @@ export function bulkSources(students: ReadonlyArray<{ id: string; group_id?: str
 
 /** The one hint of the action under a refusal `TRANSFER_SOURCE_REQUIRED` of a bulk row (the words of the reason are the server's). */
 export const SOURCE_REQUIRED_HINT = "переведите его отдельно — нужно выбрать группу";
+
+/** Money-2 fix 5: under a chosen student of several groups in the mode «перевести» - before the button, not only in the outcome. */
+export const MANY_GROUPS_TRANSFER_HINT = "учится в нескольких группах — переведите его отдельно";
+
+/** «в 2 группах» for a student of two or more groups (the count is the server's `groups_count`); "" for one group or none. */
+export function inGroupsLabel(groupsCount: number | null | undefined): string {
+  if (typeof groupsCount !== "number" || groupsCount < 2) return "";
+  const n = Math.floor(groupsCount);
+  return `в ${n} ${n % 100 >= 11 && n % 100 <= 14 ? "группах" : n % 10 === 1 ? "группе" : "группах"}`;
+}

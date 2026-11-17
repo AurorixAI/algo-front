@@ -31,7 +31,7 @@ import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
 import { BulkOutcomePanel } from "./bulk-outcome-panel";
-import { bulkSources } from "@/lib/transfer-source";
+import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
 import { bulkOutcomeOf, type BulkOutcome } from "@/lib/bulk-outcome";
 import { PayFromField } from "./pay-from-field";
 import { canManageMoney } from "@/lib/money-effects";
@@ -515,10 +515,15 @@ export function AddStudentDrawer({
                     <p className="text-xs text-slate-500 break-words">
                       {classLabel(s.class_level)}
                       {namesakeDetail(s, available) && <span data-testid="namesake-detail"> · {namesakeDetail(s, available)}</span>}
-                      {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
+                      {inGroupsLabel(s.groups_count) ? (
+                        <span className="text-amber-700" data-testid="student-many-groups"> · {inGroupsLabel(s.groups_count)}</span>
+                      ) : currentGroupOf(s) && currentGroupOf(s) !== groupId && (
                         <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
                       )}
                     </p>
+                    {isSelected && mode === "transfer" && inGroupsLabel(s.groups_count) && (
+                      <p className="mt-0.5 text-xs text-amber-800 [overflow-wrap:anywhere]" data-testid="student-many-groups-hint">{MANY_GROUPS_TRANSFER_HINT}</p>
+                    )}
                   </div>
 
                   <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
