@@ -13,8 +13,8 @@ import { Words } from "@/components/ui/words";
 /** The columns: the group is text (left, wide); the cost, the paid sum and the debt are money (RIGHT); «Собрано» is a bar; the number of debtors is a count (RIGHT). */
 const COLLECTION_COLUMNS: DataColumn[] = [
   { key: "group", header: "Группа", width: "minmax(9rem,1.6fr)" },
-  { key: "charged", header: <>Стоимость <InfoTip className="-mr-0.5" text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></>, align: "end", width: "max-content", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "end", width: "max-content", cardLabel: "Оплачено" },
+  { key: "charged", header: <>Стоимость <InfoTip className="-mr-0.5" text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></>, align: "end", numeric: true, width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", numeric: true, width: "max-content", cardLabel: "Оплачено" },
   { key: "pct", header: "Собрано", width: "minmax(7rem,1.3fr)" },
   { key: "debt", header: "Долг", align: "end", width: "max-content", cardLabel: "Долг" },
   { key: "debtors", header: "Должников", align: "end", width: "max-content", cardLabel: "Должников" },

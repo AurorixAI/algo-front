@@ -713,9 +713,9 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   for (const word of ["Группа", "Стоимость", "Оплачено", "Собрано", "Долг", "Должников"]) assert.ok(headText.includes(word), word);
   assert.ok(!/за месяц|С долгом|\(преподаватель\)/.test(headText), headText);
   // money columns and the count RIGHT (wave 3), the group LEFT; the header like its cells
-  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(head, new RegExp(`data-col="${col}" data-align="end"`), `${col} header`);
+  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(head, new RegExp(`data-col="${col}"( data-numeric="true")? data-align="end"`), `${col} header`);
   assert.match(head, /data-col="group" data-align="start">Группа<\/span>/);
-  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(markup, new RegExp(`class="dt-cell"[^>]*data-col="${col}" data-align="end"`), `${col} cells`);
+  for (const col of ["charged", "paid", "debt", "debtors"]) assert.match(markup, new RegExp(`class="dt-cell"[^>]*data-col="${col}" data-align="end"`), `${col} cells`);  // (a numeric column adds data-numeric after the align)
   assert.ok(!/data-align="center"/.test(markup), "nothing is centred");
   // the cell labels on a phone are the same short words
   const cards = text(el);
@@ -726,7 +726,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   // the ⓘ is the shared Hint (hover, focus, a tap, Escape) with the same text for a screen reader; the header cell has it as a title too
   assert.match(markup, /data-testid="collection-cost-info"[^>]*><span[^>]*role="button"[^>]*aria-describedby=[^>]*>.*?<span class="sr-only">Что значит «Стоимость»<\/span>/);
   assert.ok((markup.match(/<span id="[^"]*" class="sr-only">Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца<\/span>/g) || []).length >= 1);
-  assert.match(markup, /data-col="charged" data-align="end">Стоимость /, "the bubble is the Hint's: no second native title");
+  assert.match(markup, /data-col="charged" data-numeric="true" data-align="end">Стоимость /, "the bubble is the Hint's: no second native title");
   assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
   assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
   // debt 0 → ✓ оплачено (emerald-700 for AA at small size, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
