@@ -610,7 +610,7 @@ test("the dialog: amount first, due block, live calculation from the server, an 
 
 test("the list, the card and the statement: debt / advance shown, actions in «⋯», write-off and refund", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /<BalanceNote row=\{row\} className="w-full" \/>/);
+  assert.match(page, /<BalanceNote row=\{row\} className="w-full"( age=\{[^}]*\})? \/>/);
   assert.match(page, /data-testid="payment-row-statement"/); // IA audit F4: «Выписка» is an icon link of the row, not a menu item
   assert.doesNotMatch(page, /key: "statement"|key: "profile"/);
   assert.match(page, /canWriteOff\(row\)/);

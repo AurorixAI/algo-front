@@ -349,7 +349,7 @@ test("the method is required: Save is off with a hint until one is chosen", () =
   assert.equal(X.payBlocker({ ...form, method: "click" }, "2026-10-22", null), null);
   const dialog = read("src/components/payments/payment-dialog.tsx");
   // rule 3 of the UX pack: ONE footer for every window - the main button is off while the method (or the amount) is missing, and ALWAYS says why (`why`) over the buttons
-  assert.match(dialog, /disabled=\{blocker !== null\}/);
+  assert.match(dialog, /disabled=\{blocker !== null( \|\| state\.refused)?\}/);
   assert.match(dialog, /why=\{blocker\}/);
   assert.match(dialog, /whyId="payment-blocker"/);
 });
