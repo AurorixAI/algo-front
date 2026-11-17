@@ -400,8 +400,8 @@ export function AddStudentDrawer({
             {priceHint && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
           </fieldset>
         )}
-        {moneyAvailable && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+        {moneyAvailable && (Boolean(priceLine) || !allUndone) && (
+          <div data-testid="add-price-settings" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
             {priceLine && (
               <>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">

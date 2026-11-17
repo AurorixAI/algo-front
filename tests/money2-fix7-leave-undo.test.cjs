@@ -205,3 +205,27 @@ test("return to the same group: the debt row of the group and the server's «е�
   assert.ok(text.includes("187 000"), text);
   await run.page.close();
 });
+
+// ---- no empty settings container when the leaving is undone (fix9): nothing to show -> the frame is not drawn
+const EMPTY_FRAMES = () => Array.from(document.querySelectorAll('[role="dialog"] .rounded-xl.border-slate-200.bg-slate-50')).filter((el) => el.textContent.trim() === "" && el.querySelector("input,button,select") === null).length;
+for (const [label, props] of [
+  ["mode add", { mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"] }],
+  ["mode transfer", { mode: "transfer", currentGroupId: null, currentGroupName: "", excludeGroupIds: [], sourceGroups: [] }],
+]) {
+  test(`card, leaving undone (${label}): no empty settings frame above the note`, async () => {
+    const run = await mount(ctx, X.modalServer({ undone: true }), "assign", OWNER, { moneyAvailable: true, groupsBasePath: "/owner/groups", ...props });
+    await pick(run.page);
+    await run.page.waitForSelector('[data-testid="leave-undo"]');
+    assert.equal(await run.page.locator('[data-testid="assign-price"]').count(), 0, "the container of the settings is absent");
+    assert.equal(await run.page.evaluate(EMPTY_FRAMES), 0, "no empty frame");
+    await run.page.close();
+  });
+}
+
+test("drawer, all come back: no empty settings frame above the summary", async () => {
+  const run = await openDrawer(["st9", "st8"], ["Новый Ученик", "Второй Ученик"]);
+  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
+  assert.equal(await run.page.locator('[data-testid="add-price-settings"]').count(), 0, "the container of the settings is absent");
+  assert.equal(await run.page.evaluate(EMPTY_FRAMES), 0, "no empty frame");
+  await run.page.close();
+});

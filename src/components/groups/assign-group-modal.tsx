@@ -570,7 +570,7 @@ export function AssignGroupModal({
     </div>
 
     {/* The price is said ONCE - on the card of the group in the list.  Here: only what changes it (a group without a price; an individual price of the student) */}
-    {moneyAvailable && selectedGroup && (
+    {moneyAvailable && selectedGroup && (selectedGroup.price_current === null || !leavingUndone) && (
       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs" data-testid="assign-price">
         {selectedGroup.price_current === null && (
           <div className="mb-2 border-b border-slate-200 pb-2" data-testid="assign-price-missing">
