@@ -6,21 +6,21 @@ const undoOf = (undone = true, text = UNDO_TEXT) => (undone ? { undone: true, te
 const isDry = (request) => /dry_run=true/.test(request.query);
 
 /** The window of a student with NO groups / with groups: the dry run of `mode=add` of `gt` answers `leave_undo` (and `past_balances` when given). */
-function modalServer({ undone = true, pastBalances = [] } = {}) {
+function modalServer({ undone = true, pastBalances = [], names = F.LONG, immediate = null } = {}) {
   return F.baseServer((request) => (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default"
     ? { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } }
     : request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1"
-    ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), billing: null, leave_undo: undoOf(undone), past_balances: pastBalances } } : null));
+    ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), billing: immediate && request.body && request.body.pay_from ? { pay_from: request.body.pay_from, explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата с выбранного дня", immediate } : null, leave_undo: undoOf(undone), past_balances: pastBalances } } : null), names);
 }
 
 /** The drawer of the group page (`money-b.entry.tsx` -> `addDrawer`): the students `st9` (comes back the day of the leaving) and `st8` (an ordinary one). */
-const STUDENT = (id, last) => ({ id, first_name: "Ученик", last_name: last, full_name: `${last} Ученик`, class_level: 7, status: "new", group_id: null, current_group_id: null, groups_count: 0 });
-function drawerServer(undoneIds, extra = () => null) {
+const STUDENT = (id, last, first = "Ученик") => ({ id, first_name: first, last_name: last, full_name: `${last} ${first}`, class_level: 7, status: "new", group_id: null, current_group_id: null, groups_count: 0 });
+function drawerServer(undoneIds, extra = () => null, long = false) {
   return (request) => {
     const own = extra(request);
     if (own) return own;
-    if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g2", name: "7-Б Геометрия" }] };
-    if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT("st9", "Новый"), STUDENT("st8", "Второй")], total: 2 } };
+    if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g2", name: long ? "7-Б Геометрия, углублённая программа подготовки к олимпиаде (вторник и пятница)" : "7-Б Геометрия" }] };
+    if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT("st9", long ? "Новоиспечённый-Подкрепляющийся" : "Новый", long ? "Мухаммадаминхужа" : "Ученик"), STUDENT("st8", "Второй")], total: 2 } };
     if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
     const one = /^\/auth\/org\/groups\/g2\/students\/(st\d)$/.exec(request.path);
     if (request.method === "POST" && one) return { json: { student_id: one[1], group_id: "g2", status: "added", dry_run: isDry(request), billing: null, leave_undo: undoOf(undoneIds.includes(one[1])) } };
