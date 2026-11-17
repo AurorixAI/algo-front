@@ -51,25 +51,30 @@ export async function loadOpeningsSummary(force: boolean): Promise<OpeningsSumma
   return request;
 }
 
-/** The summary shown by a piece, and what it can do to it.  `summary` is null while unknown, after a refusal and after a failure. */
-export function useOpeningsSummary(): { summary: OpeningsSummary | null; loaded: boolean; refresh: (force?: boolean) => Promise<void>; replace: (next: OpeningsSummary) => void } {
+/**
+ * The summary shown by a piece, and what it can do to it.  `summary` is null while unknown, after a refusal and after a failure.
+ * `enabled` is the right to money the screen already knows (`usePaymentsSummary.available`): without it nothing is asked (no 403 in the network), `summary` stays null.
+ */
+export function useOpeningsSummary(enabled: boolean): { summary: OpeningsSummary | null; loaded: boolean; refresh: (force?: boolean) => Promise<void>; replace: (next: OpeningsSummary) => void } {
   const [summary, setSummary] = useState<OpeningsSummary | null>(cached?.value ?? null);
   const [loaded, setLoaded] = useState(cached !== null);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let alive = true;
     const listener = (value: OpeningsSummary | null) => { if (alive) { setSummary(value); setLoaded(true); } };
     listeners.add(listener);
     loadOpeningsSummary(false).then(listener).catch(() => { if (alive) setLoaded(true); });
     return () => { alive = false; listeners.delete(listener); };
-  }, []);
+  }, [enabled]);
 
   const refresh = useCallback(async (force = true) => {
+    if (!enabled) return;
     try { await loadOpeningsSummary(force); } catch { /* the old figures stay */ }
-  }, []);
+  }, [enabled]);
   const replace = useCallback((next: OpeningsSummary) => {
     cached = { at: Date.now(), value: next };
     listeners.forEach((listener) => listener(next));
   }, []);
-  return { summary, loaded, refresh, replace };
+  return { summary: enabled ? summary : null, loaded, refresh, replace };
 }

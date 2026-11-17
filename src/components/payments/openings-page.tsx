@@ -97,7 +97,7 @@ type Notice = { tone: "info" | "warn"; text: string } | null;
 export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   const { showToast, toastNode } = useToast();
   const studentsBase = basesOfPayments(paymentsHref).students;
-  const summaryHook = useOpeningsSummary();
+  const summaryHook = useOpeningsSummary(true);
 
   // ── the table
   const [data, setData] = useState<OpeningsList | null>(null);

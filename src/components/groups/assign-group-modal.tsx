@@ -142,7 +142,7 @@ export function AssignGroupModal({
   const [exceptionReason, setExceptionReason] = useState("");
   // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership; not with a transfer (the server refuses it).
   // Money-2 R3c Г1: once the accounting has started only the owner puts an opening balance - the summary (shared with the other pieces of the screen: one request) says so, the screen does not guess the role
-  const { summary: openingsSummary } = useOpeningsSummary();
+  const { summary: openingsSummary } = useOpeningsSummary(moneyAvailable);
   const openingBlocked = openingLocked(openingsSummary);
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);

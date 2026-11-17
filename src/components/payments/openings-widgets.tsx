@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
  * «Не нужно».  Shown only while the checklist is open (`pending`) and somebody is still missing; «Не нужно» ends it (state `skipped`).
  */
 export function OpeningsBanner({ paymentsBase, summary: given }: { paymentsBase: string; /** For a page that already read the summary (and for tests); it asks itself otherwise. */ summary?: OpeningsSummary | null }) {
-  const { summary: own, replace } = useOpeningsSummary();
+  const { summary: own, replace } = useOpeningsSummary(true);
   const summary = given !== undefined ? given : own;
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -75,7 +75,7 @@ export function OpeningsBanner({ paymentsBase, summary: given }: { paymentsBase:
 
 /** The button of the header of «Оплаты» (next to «Поступления» and «Цены групп»), with the number of the students still missing. */
 export function OpeningsHeaderLink({ paymentsBase, summary: given }: { paymentsBase: string; summary?: OpeningsSummary | null }) {
-  const { summary: own } = useOpeningsSummary();
+  const { summary: own } = useOpeningsSummary(true);
   const summary = given !== undefined ? given : own;
   const badge = headerBadge(summary);
   return (
@@ -105,7 +105,7 @@ function StepMark({ status }: { status: ChecklistStep["status"] }) {
  * where it is); without it the step has no button.
  */
 export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given, today }: { paymentsBase: string; onChangeDate?: () => void; summary?: OpeningsSummary | null; /** `YYYY-MM-DD`, the business day (tests pin it). */ today?: string }) {
-  const { summary: own } = useOpeningsSummary();
+  const { summary: own } = useOpeningsSummary(true);
   const summary = given !== undefined ? given : own;
   const [expanded, setExpanded] = useState(false);
   if (!summary) return null;

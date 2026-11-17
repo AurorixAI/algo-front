@@ -220,3 +220,20 @@ test("two names of the done state: launch_closed true = «Учёт запуще�
   assert.equal(await lockedAdmin.page.locator('[data-testid="openings-finish"]').count(), 0);
   await lockedAdmin.page.close();
 });
+
+// ── no right to money: the summary of the openings is not asked at all (no 403 in the network); with the right: ONE request per screen
+test("without the right to money the summary of the openings is not requested (enrolment window, row menu); with it - once per screen", async () => {
+  for (const [money, expected] of [[false, 0], [true, 1]]) {
+    const answer = F.baseServer((r) => (r.method === "GET" && r.path === "/auth/org/opening-balances/summary" ? { json: summaryOf(true) } : null), F.SHORT);
+    const modal = await openPage(browser, "money2.entry.tsx", answer, { width: 375, height: 800 });
+    await modal.page.evaluate((m) => window.mount("assign", { role: "teacher", org_role: "teacher" }, { moneyAvailable: m, mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups" }), money);
+    await modal.page.waitForTimeout(500);
+    assert.equal(summaryCalls(modal), expected, `enrolment window, money=${money}`);
+    await modal.page.close();
+    const row = await openPage(browser, "money2.entry.tsx", answer, { width: 375, height: 800 });
+    await row.page.evaluate((m) => window.mount("row-actions", { role: "teacher", org_role: "teacher" }, { moneyAvailable: m }), money);
+    await row.page.waitForTimeout(500);
+    assert.equal(summaryCalls(row), expected, `row menu, money=${money}`);
+    await row.page.close();
+  }
+});

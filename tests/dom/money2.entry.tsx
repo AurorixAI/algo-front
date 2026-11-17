@@ -9,6 +9,7 @@ import { StatementView } from "@/components/payments/statement-view";
 import { WriteoffDialog } from "@/components/payments/writeoff-dialog";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RefundDialog } from "@/components/payments/refund-dialog";
+import { MembershipRowActions } from "@/components/payments/membership-row-actions";
 import { OpeningsPage } from "@/components/payments/openings-page";
 import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { periodOf } from "@/lib/payments-income-v2";
@@ -39,6 +40,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "statement":
       w.__params = { id: props.membershipId ?? "m-a" };
       root.render(<div className="mx-auto max-w-[1100px] p-4"><StatementView paymentsHref="/owner/payments" /></div>);
+      break;
+    case "row-actions":
+      root.render(<MembershipRowActions row={{ membership_id: "m-a", group_id: "ga", group_name: "Алгебра", debt: 0, advance: 0, is_active: true } as never} studentName="Каримов Фарход" periodMode="calendar" onRowChange={() => log("row")} onNotify={() => log("notify")} label="Действия" paymentsBasePath="/owner/payments" />);
       break;
     case "openings":
       root.render(<div className="mx-auto max-w-[1100px] p-4"><OpeningsPage paymentsHref="/owner/payments" /></div>);

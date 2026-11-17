@@ -43,8 +43,9 @@ export interface MembershipRowActionsProps {
 export function MembershipRowActions({ row, studentName, periodMode, archived = false, joinedAt = null, onRowChange, onNotify, label, paymentsBasePath }: MembershipRowActionsProps) {
   const [open, setOpen] = useState<MembershipActionKey | null>(null);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
+  const moneyAvailable = usePaymentsSummary((state) => state.available);
   const close = () => setOpen(null);
-  const { summary: openingsSummary } = useOpeningsSummary();     // Money-2 R3c Г1: the summary of the screen (one request for all rows) says whether this user may put an opening balance
+  const { summary: openingsSummary } = useOpeningsSummary(moneyAvailable);     // Money-2 R3c Г1: the summary of the screen (one request for all rows) says whether this user may put an opening balance
   const keys = membershipActionKeys(row, { archived, openingLocked: openingLocked(openingsSummary) });
   const items: RowMenuItem[] = keys.map((key) => ({
     key,
