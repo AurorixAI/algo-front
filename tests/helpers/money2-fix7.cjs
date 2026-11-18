@@ -1,7 +1,7 @@
 // Money-2 fix 7: the answers of the server for «the student comes back the day of the leaving» (`leave_undo`) and the common start of the tests of the windows of enrolment.
 const F = require("./money2-fixture.cjs");
 
-const UNDO_TEXT = "Ученик вернулся в день ухода — уход отменён: цены и паузы возвращены. Прощение долга, отменённое при уходе, не возвращено — простите заново, если нужно";
+const UNDO_TEXT = "Ученика убрали сегодня — возвращаем как было: индивидуальная цена 300 000 сум. Долг снова за учеником: прощение отменилось при уходе — простите заново, если нужно";
 const undoOf = (undone = true, text = UNDO_TEXT) => (undone ? { undone: true, text, restored: [{ code: "individual_price", text: "Индивидуальная цена 300 000 сум возвращена" }], forgiveness_cancelled: { amount: 120000 } } : null);
 const isDry = (request) => /dry_run=true/.test(request.query);
 

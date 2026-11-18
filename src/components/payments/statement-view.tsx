@@ -65,14 +65,14 @@ import { DataCell, DataRow, DataSpanRow, DataTable, type DataColumn } from "@/co
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
-/** Date · operation · charged · paid · balance: a bank statement.  Text and the date LEFT, the three money columns RIGHT (their headers too), the action column right. */
+/** Date · operation · charged · paid · balance: a bank statement.  Text and the date LEFT, the three money columns CENTRED (their headers too), the actions («⋯») in their own ruled column. */
 const STATEMENT_COLUMNS: DataColumn[] = [
   { key: "date", header: "Дата", width: "max-content" },
   { key: "operation", header: "Операция", width: "minmax(10rem,1fr)" },
-  { key: "charged", header: "Стоимость", align: "end", numeric: true, width: "max-content", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "end", numeric: true, width: "max-content", cardLabel: "Оплачено" },
-  { key: "balance", header: "Остаток", align: "end", numeric: true, width: "max-content", cardLabel: "Остаток" },
-  { key: "menu", header: "", align: "end", width: "max-content", actions: true },
+  { key: "charged", header: "Стоимость", align: "center", numeric: "center", width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "center", numeric: "center", width: "max-content", cardLabel: "Оплачено" },
+  { key: "balance", header: "Остаток", align: "center", numeric: "center", width: "max-content", cardLabel: "Остаток" },
+  { key: "menu", header: "", align: "center", ruled: true, width: "max-content", actions: true },
 ];
 
 const TOTAL_TONE = {
@@ -610,7 +610,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
       <DataCell col="menu">
-        {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${entry.title}`} width={220} /> : null}
+        {menu.length > 0 ? <RowMenu items={menu} label="Действия с записью" width={220} /> : null}
       </DataCell>
     </DataRow>
   );

@@ -60,9 +60,6 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
   });
 }
 
-/** Under the block, only when a month is not whole: the server rounds a part of a month to 1 000 sum. */
-export const IMMEDIATE_ROUNDING_NOTE = "Неполный месяц округляется до 1\u00a0000\u00a0сум";
-
 /** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
@@ -128,10 +125,12 @@ export function payFromIsPast(value: string, def: PayFromDefault | null): boolea
   return Boolean(def) && isIsoDateString(value) && value < (def as PayFromDefault).today;
 }
 
-/** The words of the server before the sum: «Сразу начислится» / «Сразу начислится ещё» (a return into a stay that already has a charge adds to it) - the screen does not choose the word. */
-export function immediateTitle(serverText: string): string {
-  const head = /^(.*?)\s*\d/.exec(serverText)?.[1]?.trim();
-  return head || "Сразу начислится";
+/** Money-2 fix 10: the title of the block of the charge at once (the sentence of the server stays in the older answer without `parts`). */
+export const IMMEDIATE_TITLE = "К оплате сразу";
+export const IMMEDIATE_TOTAL_TITLE = "Всего к оплате сразу";
+/** The «?» of the block: what the sum is; the rounding only for a month that is not whole, the line about the earlier stay only when the student has one in THIS group. */
+export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): string {
+  return ["Столько ученик должен за уроки с даты «Оплата с» до конца оплачиваемого периода. Сумма появится в его долге сразу после записи.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
 }
 
 export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начислится";

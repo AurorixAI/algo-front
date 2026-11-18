@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { PAST_BALANCES_TITLE, pastBalanceLabel, pastBalancesByStudent, pastBalancesManyTitle, pastBalancesOf, type PastBalance } from "@/lib/past-balances";
+import { PAST_BALANCES_HINT, PAST_BALANCES_TITLE, pastBalanceLabel, pastBalancesByStudent, pastBalancesManyTitle, pastBalancesOf, type PastBalance } from "@/lib/past-balances";
 import { statementHref } from "@/lib/payments";
 import { tidyMoneyText } from "@/lib/money-format";
+import { HelpHint } from "@/components/ui/help-hint";
 
 /**
  * Money-2 Э2: before a student is written into a group - the debts and the advances he left in his past groups, each with a link to the statement of that stay (to take the payment, forgive the debt or
@@ -18,7 +19,7 @@ export function PastBalancesNote({ answer, paymentsBase, className = "" }: { ans
 function PlainBox({ rows, paymentsBase, className }: { rows: PastBalance[]; paymentsBase: string | null; className: string }) {
   return (
     <section aria-label={PAST_BALANCES_TITLE} data-testid="past-balances" className={`rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 ${className}`}>
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-amber-900"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{PAST_BALANCES_TITLE}</h3>
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-amber-900"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{PAST_BALANCES_TITLE}{paymentsBase && <HelpHint text={PAST_BALANCES_HINT} testId="past-balances-help" />}</h3>
       <BalanceRows rows={rows} paymentsBase={paymentsBase} className="mt-1.5" />
     </section>
   );
@@ -34,8 +35,9 @@ export function BulkPastBalancesNote({ answer, names, paymentsBase, className = 
   if (groups.length === 1) return <PlainBox rows={groups[0].rows} paymentsBase={paymentsBase} className={className} />;
   return (
     <section aria-label={PAST_BALANCES_TITLE} data-testid="past-balances" className={`rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 ${className}`}>
-      <details>
-        <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-amber-900"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{pastBalancesManyTitle(groups.length)}</summary>
+      <div className="flex items-start justify-between gap-2">
+      <details className="min-w-0 flex-1">
+        <summary className="flex min-w-0 cursor-pointer items-center gap-1.5 text-sm font-medium text-amber-900"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{pastBalancesManyTitle(groups.length)}</summary>
         <div className="mt-2 space-y-2">
           {groups.map((group) => (
             <div key={group.studentId}>
@@ -45,6 +47,8 @@ export function BulkPastBalancesNote({ answer, names, paymentsBase, className = 
           ))}
         </div>
       </details>
+      {paymentsBase && <HelpHint text={PAST_BALANCES_HINT} testId="past-balances-help" />}
+      </div>
     </section>
   );
 }

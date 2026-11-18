@@ -43,7 +43,9 @@ export interface DataColumn {
   /** `low`: a secondary column - in a table narrower than `lowBelow` it is hidden whole (heading and cells) and its room goes to the free columns; a card keeps its value. */
   priority?: "low";
   /** A column of NUMBERS (money): values and heading share ONE right edge (tabular digits, no wrap), the width does not jump from row to row (a floor of `NUMERIC_MIN`), a thin vertical line on its left runs from the header to the last row (LESSONS 142).  Put ONLY the number in its cells: marks and notes live in a text column.  A card has no lines. */
-  numeric?: boolean;
+  numeric?: boolean | "center";
+  /** A narrow column of ROW ACTIONS («⋯») set apart by the same thin vertical line as a numeric column, its content at the centre (Money-2 fix 10: the menu is not a part of the balance). */
+  ruled?: boolean;
   /** The header is a button that sorts by this key (`DataTable` gets `sort` and `onSort`). */
   sortKey?: string;
 }
@@ -92,7 +94,7 @@ export function DataTable({ columns, minWidth = 880, align = "center", children,
         {!hideHeader && (
           <div role="presentation" className="dt-head" data-min={minWidth} data-testid={headTestId}>
             {columns.map((column) => (
-              <span key={column.key} className="dt-head-cell" data-col={column.key} data-low={column.priority === "low" ? "true" : undefined} data-numeric={column.numeric ? "true" : undefined} data-align={ALIGN_ATTR[column.align ?? "start"]} aria-sort={column.sortKey && sort?.key === column.sortKey ? (sort.asc ? "ascending" : "descending") : undefined}>
+              <span key={column.key} className="dt-head-cell" data-col={column.key} data-low={column.priority === "low" ? "true" : undefined} data-numeric={column.numeric ? (column.numeric === "center" ? "center" : "true") : undefined} data-ruled={column.ruled ? "true" : undefined} data-align={ALIGN_ATTR[column.align ?? "start"]} aria-sort={column.sortKey && sort?.key === column.sortKey ? (sort.asc ? "ascending" : "descending") : undefined}>
                 {column.header && column.sortKey && onSort ? (
                   <button type="button" onClick={() => onSort(column.sortKey as string)} aria-label={`Сортировать: ${typeof column.header === "string" ? column.header : column.key}`}
                     className={cn("inline-flex items-center gap-1 rounded text-inherit hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500", column.align === "end" && "flex-row-reverse")}>
@@ -189,7 +191,7 @@ export function DataCell({ col, children, className, testId, title }: { col: str
   const column = ctx?.columns.find((item) => item.key === col);
   const align = column?.align ?? "start";
   return (
-    <div className={cn("dt-cell", className)} data-col={col} data-align={ALIGN_ATTR[align]} data-actions={column?.actions ? "true" : undefined} data-labelled={column?.cardLabel ? "true" : undefined} data-low={column?.priority === "low" ? "true" : undefined} data-numeric={column?.numeric ? "true" : undefined} data-testid={testId} title={title}>
+    <div className={cn("dt-cell", className)} data-col={col} data-align={ALIGN_ATTR[align]} data-actions={column?.actions ? "true" : undefined} data-labelled={column?.cardLabel ? "true" : undefined} data-low={column?.priority === "low" ? "true" : undefined} data-numeric={column?.numeric ? (column.numeric === "center" ? "center" : "true") : undefined} data-ruled={column?.ruled ? "true" : undefined} data-testid={testId} title={title}>
       {column?.cardLabel ? <span className="dt-label">{column.cardLabel}</span> : null}
       <CellColumnContext.Provider value={column ?? null}><div className="dt-value">{children}</div></CellColumnContext.Provider>
     </div>

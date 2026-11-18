@@ -20,6 +20,8 @@ export function Hint({
   className = "",
   side = "above",
   width = 256,
+  label,
+  scrollable = false,
 }: {
   /** The detail; line breaks are kept. */
   text: string;
@@ -30,6 +32,10 @@ export function Hint({
   side?: "above" | "below";
   /** Wanted width of the bubble, px. */
   width?: number;
+  /** The accessible name of the label (a «?» that has no text of its own: «Пояснение»). */
+  label?: string;
+  /** A long text: the bubble takes the pointer and scrolls INSIDE (at most 60% of the screen height) instead of being cut. */
+  scrollable?: boolean;
 }) {
   const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
   const open = isRevealed(reveal);
@@ -51,7 +57,8 @@ export function Hint({
   useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (event: PointerEvent) => {
-      if (!triggerRef.current?.contains(event.target as Node)) hide();
+      const inside = event.target as Node;
+      if (!triggerRef.current?.contains(inside) && !(scrollable && bubbleRef.current?.contains(inside))) hide();
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -64,7 +71,7 @@ export function Hint({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey, true);
     };
-  }, [open, hide]);
+  }, [open, hide, scrollable]);
 
   return (
     <>
@@ -73,6 +80,7 @@ export function Hint({
         role="button"
         tabIndex={0}
         aria-expanded={open}
+        aria-label={label}
         aria-describedby={id}
         onPointerEnter={(event) => dispatch({ type: "pointer-enter", pointerType: event.pointerType })}
         onPointerDown={(event) => dispatch({ type: "pointer-down", pointerType: event.pointerType })}
@@ -107,7 +115,7 @@ export function Hint({
             ref={bubbleRef}
             role="tooltip"
             style={fixedStyle}
-            className="pointer-events-none z-[100002] block whitespace-pre-line rounded-xl border border-white/10 bg-slate-900/95 p-3 text-left text-xs leading-relaxed text-white shadow-xl"
+            className={`${scrollable ? "pointer-events-auto max-h-[60vh] overflow-y-auto overscroll-contain" : "pointer-events-none"} z-[100002] block whitespace-pre-line rounded-xl border border-white/10 bg-slate-900/95 p-3 text-left text-xs leading-relaxed text-white shadow-xl`}
           >
             {text}
           </span>,

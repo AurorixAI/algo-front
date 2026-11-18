@@ -5,6 +5,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { calmMoneyText, effectFullTexts, effectSections, type TransferEffects } from "@/lib/transfer-effects";
 import type { LeaveUndo } from "@/lib/transfer-effects";
 import { pluralRu } from "@/lib/plural";
+import { HelpHint } from "@/components/ui/help-hint";
 
 /**
  * Money-2 Э1 / А7: «Что изменится» of a transfer / leaving / archiving as SHORT ROWS «что → значение» from the structure of the server's `effects` (the sums and the days are the server's); the group
@@ -37,57 +38,51 @@ export function EffectsSections({ effects, target = null, testId = "transfer-eff
   );
 }
 
-/** Money-2 T6: coming back the day of the leaving - the sentence of the server (once); for an ordinary return the same sentence says why it is ordinary. */
+/** The one short line of a student who comes back as he was (his leaving of today is cancelled) - Money-2 fix 10. */
+export const LEAVE_UNDO_ONE_LINE = "Ученика убрали сегодня — вернётся как был";
+/** The grey sentence of the hint: what a returning-as-he-was student does not get to set (the server refuses `pay_from` / the opening balance then; the price stays as it was). */
+export const LEAVE_UNDO_FIXED_TEXT = "Дату оплаты и цену здесь задать нельзя — они остаются прежними";
+/** The hint of several returning students: the common fields do not act on them. */
+export const LEAVE_UNDO_MANY_LINE = "Общие «Оплата с» и цена на них не действуют";
+/** Comes back in the ordinary way / is written anew (the server's `undone = false`): the short line, the server's words are in the «?». */
+export const LEAVE_ORDINARY_ONE_LINE = "Ученик записывается заново";
+
+/**
+ * Money-2 T6 / fix 10: coming back the day of the leaving - ONE short line and a «?» with the sentence of the server (and, for a cancelled leaving, the grey line of what cannot be set).  The screen does not
+ * parse the sentence of the server: «undone» decides the line; the answer has no field that tells «a transfer, go back from there» from «the money forbids the cancel», so every `undone = false` reads as the plain «записывается заново» + the server's words (the sentence itself says which).
+ */
 export function LeaveUndoNote({ undo, className = "" }: { undo: LeaveUndo; className?: string }) {
-  // ONE plate: the sentence of the server (it already says what was given back) and - for a student whose leaving IS cancelled - one grey line «what does not change» as its LAST line
+  const hint = undo.undone ? `${tidyMoneyText(undo.text)}\n${LEAVE_UNDO_FIXED_TEXT}` : tidyMoneyText(undo.text);
   return (
-    <div data-testid="leave-undo" data-undone={undo.undone ? "yes" : "no"} className={`rounded-xl border px-3.5 py-3 ${undo.undone ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"} ${className}`}>
-      <p className="text-sm font-medium text-slate-800 [overflow-wrap:anywhere]">{tidyMoneyText(undo.text)}</p>
-      {undo.undone && <LeaveUndoFixed className="mt-1.5" />}
+    <div data-testid="leave-undo" data-undone={undo.undone ? "yes" : "no"} className={`flex items-start justify-between gap-2 rounded-xl border px-3.5 py-2.5 ${undo.undone ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"} ${className}`}>
+      <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{undo.undone ? LEAVE_UNDO_ONE_LINE : LEAVE_ORDINARY_ONE_LINE}</p>
+      <HelpHint text={hint} testId="leave-undo-help" />
     </div>
   );
 }
 
-/** Money-2 fix 9: the ONE grey line for every entrance - what a returning-the-day-of-the-leaving student does not get to set (the server refuses `pay_from` / the opening balance then; the price stays as it was). */
-export const LEAVE_UNDO_FIXED_TEXT = "Дата начала оплаты, остаток и индивидуальная цена не меняются";
-export function LeaveUndoFixed({ className = "" }: { className?: string }) {
-  return <p data-testid="leave-undo-fixed" className={`text-xs text-slate-600 [overflow-wrap:anywhere] ${className}`}>{LEAVE_UNDO_FIXED_TEXT}</p>;
-}
-
-/** The line under the summary of several returning students: the same words as for one. */
-export const LEAVE_UNDO_MANY_LINE = "Для них «Оплата с» и индивидуальная цена не действуют — всё остаётся как было";
-
 /**
- * The drawer «Зачислить учеников» (one bulk answer): the students whose leaving is cancelled (`undone`) and those who come back in the ordinary way (`ordinary`), each with the sentence of the server.
- * One chosen student - one plate (the card of a student looks the same); several - a summary with a disclosure «имя: слова сервера».  Two kinds at once - two plates.
+ * The drawer «Зачислить учеников» (one bulk answer): the students whose leaving is cancelled (`undone`) and those written anew (`ordinary`).  One chosen student - one line + «?» (the card of a student
+ * looks the same); several - a line with the count + «?» that holds the common sentence and a line «имя: слова сервера» per student.  Two kinds at once - two lines.
  */
 export function BulkLeaveNotes({ undone, ordinary, names, single }: { undone: ReadonlyMap<string, LeaveUndo>; ordinary: ReadonlyMap<string, LeaveUndo>; names: ReadonlyMap<string, string>; single: boolean }) {
   if (undone.size === 0 && ordinary.size === 0) return null;
   if (single) return <LeaveUndoNote undo={Array.from((undone.size > 0 ? undone : ordinary).values())[0]} />;
   // the order the person chose them in (the answer of the server is in the order of the sorted ids)
   const order = Array.from(names.keys());
-  const list = (entries: ReadonlyMap<string, LeaveUndo>) => (
-    <ul className="mt-2 space-y-1.5">
-      {Array.from(entries.entries()).sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([id, undo]) => <li key={id} className="text-sm text-slate-700 [overflow-wrap:anywhere]"><span className="font-semibold">{names.get(id) ?? "Ученик"}</span>: {tidyMoneyText(undo.text)}</li>)}
-    </ul>
-  );
+  const list = (entries: ReadonlyMap<string, LeaveUndo>) => Array.from(entries.entries()).sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([id, undo]) => `${names.get(id) ?? "Ученик"}: ${tidyMoneyText(undo.text)}`);
   return (
     <>
       {undone.size > 0 && (
-        <div data-testid="leave-undo-many" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-          <details>
-            <summary className="cursor-pointer text-sm font-medium text-slate-800">{undone.size} {pluralRu(undone.size, ["ученик возвращается", "ученика возвращаются", "учеников возвращаются"])} в день ухода — уход отменяется</summary>
-            {list(undone)}
-          </details>
-          <p className="mt-2 text-xs text-slate-600 [overflow-wrap:anywhere]">{LEAVE_UNDO_MANY_LINE}</p>
+        <div data-testid="leave-undo-many" className="flex items-start justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+          <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{undone.size} {pluralRu(undone.size, ["ученика", "ученика", "учеников"])} убрали сегодня — вернутся как были</p>
+          <HelpHint text={[LEAVE_UNDO_MANY_LINE, ...list(undone)].join("\n")} testId="leave-undo-help" />
         </div>
       )}
       {ordinary.size > 0 && (
-        <div data-testid="leave-return-many" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
-          <details>
-            <summary className="cursor-pointer text-sm font-medium text-slate-800">{ordinary.size} {pluralRu(ordinary.size, ["ученик возвращается", "ученика возвращаются", "учеников возвращаются"])} в группу после ухода</summary>
-            {list(ordinary)}
-          </details>
+        <div data-testid="leave-return-many" className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+          <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{ordinary.size} {pluralRu(ordinary.size, ["ученика", "ученика", "учеников"])} записываются заново</p>
+          <HelpHint text={list(ordinary).join("\n")} testId="leave-undo-help" />
         </div>
       )}
     </>

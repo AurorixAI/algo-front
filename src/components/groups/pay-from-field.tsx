@@ -3,8 +3,10 @@
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { PAY_FROM_LABEL, IMMEDIATE_ROUNDING_NOTE, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, immediateTitle, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, IMMEDIATE_TITLE, IMMEDIATE_TOTAL_TITLE, immediateHint, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
+import { pastBalancesByStudent, pastBalancesOf } from "@/lib/past-balances";
+import { HelpHint } from "@/components/ui/help-hint";
 
 export const PAY_FROM_FAILED_TEXT = "Не удалось посчитать, сколько начислится сразу";
 import { DateInput } from "@/components/ui/date-input";
@@ -68,7 +70,7 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
         <div className="mt-1 space-y-0.5 text-xs text-slate-800" role="status" data-testid="pay-from-immediate">
           {preview.immediate.students.length === 0 && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
           {/* one student: his line only - the total would say the same again */}
-          {preview.immediate.students.length === 1 && <ImmediateBlock amount={preview.immediate.students[0].amount} parts={preview.immediate.students[0].parts} text={preview.immediate.students[0].text} />}
+          {preview.immediate.students.length === 1 && <ImmediateBlock amount={preview.immediate.students[0].amount} parts={preview.immediate.students[0].parts} text={preview.immediate.students[0].text} sameGroup={sameGroupOf(preview.answer)} />}
           {preview.immediate.students.length > 1 && (
             <>
               <ul className="space-y-0.5" data-testid="pay-from-immediate-students">
@@ -78,7 +80,10 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
                   </ul>
                 )}</li>)}
               </ul>
-              {preview.immediate.total && <p className="font-semibold" data-testid="pay-from-immediate-total">{preview.immediate.total}</p>}
+              <div className="flex items-center justify-between gap-3 font-semibold" data-testid="pay-from-immediate-total">
+                <span className="inline-flex min-w-0 items-center gap-1">{IMMEDIATE_TOTAL_TITLE}<HelpHint testId="pay-from-immediate-help" text={immediateHint({ rounded: preview.immediate.students.some((line) => line.parts.some((part) => !part.whole)), sameGroup: sameGroupOf(preview.answer) })} /></span>
+                <span className="whitespace-nowrap tabular-nums" data-testid="pay-from-immediate-total-sum">{formatMoney(preview.immediate.students.reduce((sum, line) => sum + line.amount, 0))}</span>
+              </div>
             </>
           )}
         </div>
@@ -87,17 +92,22 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   );
 }
 
+/** True when a chosen student has a stay in THIS group behind him (`past_balances[].same_group`) - the answer of one add (top level) and of a bulk one (`students[]`). */
+function sameGroupOf(answer: unknown): boolean {
+  return pastBalancesOf(answer).some((row) => row.sameGroup) || pastBalancesByStudent(answer).some((entry) => entry.rows.some((row) => row.sameGroup));
+}
+
 /**
- * «Сразу начислится» as a BLOCK, like «Что изменится» of the payment window: a light card, the title on the left and the total on the right (bold), under it a row per month - the caption left, the sum right (tabular, never wrapped).
+ * «К оплате сразу» as a BLOCK, like «Что изменится» of the payment window: a light card, the title on the left and the total on the right (bold), under it a row per month - the caption left, the sum right (tabular, never wrapped).
  * Nothing but the sentence of the server when an older server sends no `parts`.
  */
-function ImmediateBlock({ amount, parts, text }: { amount: number; parts: ImmediatePart[]; text: string }) {
+function ImmediateBlock({ amount, parts, text, sameGroup }: { amount: number; parts: ImmediatePart[]; text: string; sameGroup: boolean }) {
   if (parts.length === 0) return <p className="font-medium">{text}</p>;
   return (
     <>
     <div data-testid="pay-from-immediate-block" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-900">{immediateTitle(text)}</p>
+        <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">{IMMEDIATE_TITLE}<HelpHint testId="pay-from-immediate-help" text={immediateHint({ rounded: parts.some((part) => !part.whole), sameGroup })} /></p>
         <p data-testid="pay-from-immediate-total-sum" className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-900">{formatMoney(amount)}</p>
       </div>
       <ul className="mt-2 space-y-1" data-testid="pay-from-immediate-parts">
@@ -109,8 +119,6 @@ function ImmediateBlock({ amount, parts, text }: { amount: number; parts: Immedi
         ))}
       </ul>
     </div>
-    {/* rule 113: «3 урока из 9» of 400 000 is 133 333, the screen says 133 000 - one small line says why (only where a month is not whole) */}
-    {parts.some((part) => !part.whole) && <p data-testid="pay-from-rounding-note" className="mt-1.5 text-xs text-slate-600">{IMMEDIATE_ROUNDING_NOTE}</p>}
     </>
   );
 }
