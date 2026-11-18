@@ -8,7 +8,7 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =
 const SRC = walk(path.join(__dirname, "..", "src")).filter((f) => /\.(tsx?|css)$/.test(f));
 
 test("no old phrases in src/", () => {
-  const bad = /Сразу начислится|начислится ещё|уход отменён|уход отменяется|в день ухода|Возврат обычный|Остатки с прошлого раза|Сразу ничего не начислится/;
+  const bad = /Сразу начислится|начислится ещё|уход отменён|уход отменяется|(?<!Вернули )в день ухода|Возврат обычный|Остатки с прошлого раза|Сразу ничего не начислится/;
   const hits = SRC.filter((f) => bad.test(fs.readFileSync(f, "utf8")));
   assert.deepEqual(hits, []);
 });

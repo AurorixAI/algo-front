@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
-const { setup, plain, OWNER } = require("./helpers/money2-w2.cjs");
+const { setup, plain, mount, OWNER } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const X = require("./helpers/money2-fix7.cjs");
 
@@ -92,7 +92,7 @@ test("the hint of several students: a paragraph per student (the name in bold on
   const tops = await students.evaluateAll((els) => els.map((el) => [el.children[0].getBoundingClientRect().top, el.children[1].getBoundingClientRect().top]));
   assert.ok(tops.every(([name, body]) => body > name + 8), "the name is on its own line over the text");
   assert.ok(tops[1][0] > tops[0][1] + 16, "a gap between the students");
-  const reader = await run.page.locator('[role="button"][aria-label="Пояснение"]').first().getAttribute("aria-describedby");
+  const reader = await run.page.locator('[data-testid="leave-undo-help"] [role="button"]').first().getAttribute("aria-describedby");
   assert.match(await run.page.locator(`[id="${reader}"]`).textContent(), /Второй Ученик: /);
   await run.page.close();
 });
@@ -108,4 +108,59 @@ test("the message of success with the server's words of a returned student stays
   assert.ok(Number(/DETAILS_TOAST_MS = (\d+)/.exec(timing)[1]) >= 6000 && /if \(hasDetails\) return DETAILS_TOAST_MS/.test(timing));
   const toast = fs.readFileSync(path.join(__dirname, "..", "src", "components", "ui", "toast.tsx"), "utf8");
   assert.ok(/role=\{toast\.type === "error" \? "alert" : "status"\}/.test(toast));
+});
+
+// ---- fix 10B, item 6: what does not help to decide or to act is gone
+const HELP = "По умолчанию — первое занятие группы начиная с сегодня. Можно выбрать другую дату: ученик платит с неё.";
+test("«Оплата с»: no two lines under the field, a «?» at the label instead; «Вернуть …» stays when the day is changed (drawer and card)", async () => {
+  const run = await drawer([0]);
+  await run.page.waitForSelector("#add-student-pay-from");
+  assert.equal(await run.page.locator('[data-testid="pay-from-hint"]').count(), 0);
+  const area = plain(await run.page.locator('[data-testid="pay-from"]').evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
+  assert.ok(!/первое занятие|Дату выбрали вы/.test(area), area);
+  assert.equal(plain(await run.page.locator('[data-testid="pay-from-help"] .sr-only').textContent()), HELP);
+  assert.equal(await run.page.locator('[data-testid="pay-from-reset"]').count(), 0);
+  await run.page.fill("#add-student-pay-from", "04.11.2026");
+  await run.page.keyboard.press("Tab");
+  assert.match(plain(await run.page.locator('[data-testid="pay-from-reset"]').textContent()), /^Вернуть 09\.11\.2026$/);
+  await run.page.close();
+  const X2 = require("./helpers/money2-fix7.cjs");
+  const card = await mount(ctx, X2.modalServer({ undone: false }), "assign", OWNER, { moneyAvailable: true, mode: "add", currentGroupName: X2.F.SHORT.A, excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups" });
+  await card.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
+  await card.page.waitForSelector('[data-testid="pay-from"]');
+  assert.equal(await card.page.locator('[data-testid="pay-from-hint"]').count(), 0);
+  assert.equal(plain(await card.page.locator('[data-testid="pay-from-help"] .sr-only').textContent()), HELP);
+  await card.page.close();
+});
+
+test("«К оплате сразу» of one student: the sum once (in the title), one muted period row without a sum; two periods - a sum per period", async () => {
+  const run = await drawer([0]);
+  await pickDay(run.page);
+  const block = run.page.locator('[data-testid="pay-from-immediate-block"]');
+  const text = plain(await block.evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
+  assert.equal(text.split("187 000").length - 1, 1, text);
+  assert.ok(text.includes("Ноябрь, с 04.11 · 5 уроков из 12"));
+  await run.page.close();
+  const two = await drawer([1]);
+  await pickDay(two.page);
+  const text2 = plain(await two.page.locator('[data-testid="pay-from-immediate-block"]').evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
+  assert.ok(text2.includes("89 000") && text2.includes("380 000") && text2.includes("469 000"), text2);
+  await two.page.close();
+});
+
+test("«Зачислить учеников»: no «Выбрано: N» under the title, no «Эту цену получат…», the price of the group and the count on the button stay", async () => {
+  for (const chosen of [[0], [0, 1]]) {
+    const run = await drawer(chosen);
+    await run.page.waitForSelector('[data-testid="add-price-settings"]');
+    const dialog = plain(await run.page.locator('[role="dialog"]').evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
+    assert.ok(!/Выбрано:|Эту цену/.test(dialog), dialog);
+    assert.ok(dialog.includes("Цена группы: 380 000 сум/мес"), dialog);
+    assert.ok(dialog.includes(`Зачислить (${chosen.length})`), dialog);
+    await run.page.close();
+  }
+});
+
+test("the statement: the green «Всё сходится» is not drawn, the red «Не сходится» stays (the source)", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "src", "components", "payments", "statement-view.tsx"), "utf8");
+  assert.ok(!src.includes('"Всё сходится"}') && /\{!reconciles && \(/.test(src) && src.includes("Не сходится: расхождение"));
 });

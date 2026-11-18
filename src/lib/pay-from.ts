@@ -126,6 +126,8 @@ export function payFromIsPast(value: string, def: PayFromDefault | null): boolea
 }
 
 /** Money-2 fix 10: the title of the block of the charge at once (the sentence of the server stays in the older answer without `parts`). */
+/** The «?» of the label «Оплата с» (it replaced two lines under the field: the default day repeated the field, «Дату выбрали вы» was obvious). */
+export const PAY_FROM_HELP = "По умолчанию — первое занятие группы начиная с сегодня. Можно выбрать другую дату: ученик платит с неё.";
 export const IMMEDIATE_TITLE = "К оплате сразу";
 export const IMMEDIATE_TOTAL_TITLE = "Всего к оплате сразу";
 /** The «?» of the block: what the sum is; the rounding only for a month that is not whole, the line about the earlier stay only when the student has one in THIS group. */

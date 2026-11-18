@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { PAY_FROM_LABEL, IMMEDIATE_TITLE, IMMEDIATE_TOTAL_TITLE, immediateHint, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, type BulkImmediate, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, PAY_FROM_HELP, IMMEDIATE_TITLE, IMMEDIATE_TOTAL_TITLE, immediateHint, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, type BulkImmediate, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 import { pastBalancesByStudent, pastBalancesOf } from "@/lib/past-balances";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -40,7 +40,10 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   const said = preview.status === "ready" && preview.immediate.students.length > 0;
   return (
     <div data-testid="pay-from">
-      <label htmlFor={`${idPrefix}-pay-from`} className={PRICE_LABEL}>{PAY_FROM_LABEL}</label>
+      <div className="mb-1 flex items-center gap-1">
+        <label htmlFor={`${idPrefix}-pay-from`} className={PRICE_LABEL.replace("mb-1 block", "block")}>{PAY_FROM_LABEL}</label>
+        <HelpHint text={PAY_FROM_HELP} testId="pay-from-help" />
+      </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <DateInput
           id={`${idPrefix}-pay-from`}
@@ -57,9 +60,6 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
           </button>
         )}
       </div>
-      <p className="mt-1 text-xs text-slate-500" data-testid="pay-from-hint">
-        {changed ? "Дату выбрали вы: ученик платит с неё." : payFromDefaultLine(def)}
-      </p>
       {past && preview.status === "loading" && (
         <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-500" role="status" data-testid="pay-from-immediate"><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />Считаем…</p>
       )}
@@ -98,11 +98,12 @@ function ImmediateBlock({ amount, parts, text, sameGroup }: { amount: number; pa
         <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">{IMMEDIATE_TITLE}<HelpHint testId="pay-from-immediate-help" text={immediateHint({ rounded: parts.some((part) => !part.whole), sameGroup })} /></p>
         <p data-testid="pay-from-immediate-total-sum" className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-900">{formatMoney(amount)}</p>
       </div>
+      {/* one period: its sum is the total above - the row is the caption only; two and more - a sum per period */}
       <ul className="mt-2 space-y-1" data-testid="pay-from-immediate-parts">
-        {immediatePartRows(parts).map((row) => (
-          <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs text-slate-700">
+        {immediatePartRows(parts).map((row, _index, all) => (
+          <li key={row.label} className={`flex items-baseline justify-between gap-3 text-xs ${all.length > 1 ? "text-slate-700" : "text-slate-500"}`}>
             <span className="min-w-0 break-words">{row.label}</span>
-            <span className="whitespace-nowrap tabular-nums">{row.amount}</span>
+            {all.length > 1 && <span className="whitespace-nowrap tabular-nums">{row.amount}</span>}
           </li>
         ))}
       </ul>

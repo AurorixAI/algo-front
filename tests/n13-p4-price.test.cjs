@@ -308,8 +308,8 @@ test("an enrolment says which price the student takes; money roles only", () => 
   assert.equal(plain(G.targetGroupPriceText({ amount: 500000, valid_from: "2026-10-01" }, "Цена в месяц")), "Цена группы: 500 000 сум/мес");
   assert.equal(G.targetGroupPriceText(null, "Цена в месяц"), "Цена группы не задана");
   assert.equal(G.targetGroupPriceText(undefined, "Цена в месяц"), null); // the key is absent: no money to show
-  assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 1), "Эту цену получит ученик");
-  assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 3), "Эту цену получат все добавляемые ученики");
+  assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 1), null, "a price that is in force says nothing more (fix 10B)");
+  assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 3), null);
   assert.match(G.targetGroupPriceHint(null, 1), /не подсказывается/);
   assert.equal(G.targetGroupPriceHint(undefined, 1), null);
 });

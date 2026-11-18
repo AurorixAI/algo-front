@@ -527,14 +527,15 @@ test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (fut
   assert.match(read("src/components/payments/payment-dialog.tsx"), /задать цену группы/);
 });
 
-test("the statement draws E1 with the running balance after every row and the line «Всё сходится»", () => {
+test("the statement draws E1 with the running balance after every row and the red line only for a mismatch", () => {
   const { React, text, html } = renderer();
   const { StatementHeader, StatementTimeline } = require(path.join(root, "src/components/payments/statement-view.tsx"));
   const statement = L.normalizeStatement(fixture("e1_statement_790000"));
   const head = text(React.createElement(StatementHeader, { statement }));
-  for (const part of ["Хасанов Азиз", "Математика 7А", "Стоимость обучения", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Остаток", "Аванс 21 000", "Всё сходится"]) assert.ok(head.includes(part), part);
+  for (const part of ["Хасанов Азиз", "Математика 7А", "Стоимость обучения", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Остаток", "Аванс 21 000"]) assert.ok(head.includes(part), part);
   // nothing forgiven or returned: no tiles for it; «Сходится» has no formula on screen (it is in the hint)
   assert.ok(!head.includes("Прощено") && !head.includes("Возвращено"));
+  assert.ok(!head.includes("Всё сходится") && !head.includes("Не сходится"), "everything adds up: the green line is not drawn (Money-2 fix 10B)");
   const body = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
   for (const part of ["Дата", "Операция", "Стоимость", "Оплачено", "Остаток", "Сентябрь 2026", "Период 15.09–14.10", "цена 500 000 сум в месяц · цена группы",
     "Оплата № 17 · наличные", "231 000", "за 15.09–14.10 — 231 000 (осталось 269 000)", "Долг 269 000", "Октябрь 2026", "Оплата № 18", "аванс на 15.11–14.12 — 21 000", "Аванс 21 000", "Следующие периоды"]) assert.ok(body.includes(part), part);
@@ -628,7 +629,8 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(statement, /orgApi\.exportStatement\(/);
   assert.match(statement, /orgApi\.voidWriteoff\(/);
   assert.match(statement, /orgApi\.voidRefund\(/);
-  assert.match(statement, /Всё сходится/);
+  assert.match(statement, /Не сходится: расхождение/);
+  assert.doesNotMatch(statement, /"Всё сходится"|>Всё сходится</, "the green line is gone");
   // a bank statement: Дата | Операция | Стоимость | Оплачено | Остаток; alignment is pinned in inc13-statement.test.cjs
   assert.match(statement, /key: "date", header: "Дата"/);
   assert.match(statement, /header: "Стоимость"[\s\S]*header: "Оплачено"[\s\S]*header: "Остаток"/);

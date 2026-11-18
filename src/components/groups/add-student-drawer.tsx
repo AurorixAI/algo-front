@@ -383,7 +383,7 @@ export function AddStudentDrawer({
       open={open}
       placement="right"
       title={movesOnly && groupNames[groupId] ? `Перевести в «${groupNames[groupId]}»` : ENROL_STUDENTS_TITLE}
-      description={outcome ? undefined : selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
+      description={outcome || selected.size > 0 ? undefined : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col max-sm:overflow-y-auto max-sm:overscroll-contain"

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, ArrowLeftRight, Ban, CalendarDays, Check, ChevronLeft, ChevronRight, FileSpreadsheet, HeartHandshake, HelpCircle, History, Loader2, PauseCircle, Pencil, PencilLine, Receipt, ScrollText, Undo2, Wallet, XCircle, type LucideIcon } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowLeftRight, Ban, CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, HeartHandshake, HelpCircle, History, Loader2, PauseCircle, Pencil, PencilLine, Receipt, ScrollText, Undo2, Wallet, XCircle, type LucideIcon } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { saveBlobAs } from "@/lib/download";
 import { formatBusinessDate, shiftMonthKey } from "@/lib/business-time";
@@ -454,11 +454,14 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
             </div>
           ))}
         </dl>
-        <p className={`mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs ${reconciles ? "text-emerald-700" : "font-medium text-rose-700"}`} data-testid="statement-reconciles">
-          {reconciles ? <Check className="h-3.5 w-3.5" aria-hidden /> : <AlertCircle className="h-3.5 w-3.5" aria-hidden />}
-          <span className="font-semibold">{reconciles ? "Всё сходится" : `Не сходится: расхождение ${formatMoney(Math.abs(statementDiff(statement.summary)))}`}</span>
-          <Help text={STATEMENT_HINTS.reconciles} label="Как проверяется «Всё сходится»" />
-        </p>
+        {/* «всё сходится» is not said (nothing to decide); only a mismatch is - red, with its «?» */}
+        {!reconciles && (
+          <p className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs font-medium text-rose-700" data-testid="statement-reconciles">
+            <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+            <span className="font-semibold">{`Не сходится: расхождение ${formatMoney(Math.abs(statementDiff(statement.summary)))}`}</span>
+            <Help text={STATEMENT_HINTS.reconciles} label="Как проверяется «Всё сходится»" />
+          </p>
+        )}
       </section>
     </>
   );

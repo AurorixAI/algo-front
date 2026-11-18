@@ -14,10 +14,19 @@ import OwnerSettingsPage from "@/app/owner/settings/page";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useToast } from "@/components/ui/toast";
+import { enrolToast } from "@/lib/group-enrol";
 
 const w = window as any;
 w.__log = [] as string[];
 const log = (text: string) => w.__log.push(text);
+
+/** The message of success of «Зачислить учеников» as the group page shows it: the real `enrolToast` of the summary the drawer handed over + the real toast. */
+function ToastDemo({ summary }: { summary: any }) {
+  const { showToast, toastNode } = useToast();
+  React.useEffect(() => { const toast = enrolToast(summary); showToast(toast.text, toast.type, toast.details); }, []);
+  return toastNode;
+}
 
 w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
   useAuthStore.setState({ user: { id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", ...user } as never, isAuthenticated: true });
@@ -25,6 +34,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   if (props.refresh) void usePaymentsSummary.getState().refresh(true);
   const root = createRoot(document.getElementById("root")!);
   switch (name) {
+    case "toastDemo":
+      root.render(<ToastDemo summary={props.summary} />);
+      break;
     case "addDrawer":
       root.render(<AddStudentDrawer open groupId="g2" groupClassLevel={7} groupPrice={props.groupPrice} groupsBasePath={props.groupsBasePath ?? "/owner/groups"} existingStudentIds={new Set()} onClose={() => log("close")} onAdded={(result) => log(JSON.stringify(result))} />);
       break;

@@ -911,12 +911,12 @@ export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, 
   return price === null ? priceNotInForceText(scheduled, "Цена группы не задана") : `Цена группы: ${formatPrice(price.amount, label)}`;
 }
 
-/** «Цену получат все добавленные ученики» / «Цену получит ученик» for the line under the price of the target group. */
+/** The line under the price of the target group: only when the price is NOT in force (the sum of the payment is not suggested) - a price that is there says nothing more (Money-2 fix 10B: «Эту цену получат…» is gone). */
 export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, students: number, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null;
   if (price === null && scheduled) return "До начала действия цены сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";      // Р4-1: the price is planned, not «не задана»
   if (price === null) return "Пока цена не задана, сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";
-  return students === 1 ? "Эту цену получит ученик" : "Эту цену получат все добавляемые ученики";
+  return null;
 }
 
 // ── The page «Цены групп» (GET /org/group-prices) ───────────────────────────
