@@ -24,7 +24,11 @@ async function open(width) {
   const run = await openPage(browser, "money2.entry.tsx", statementServer(F.SHORT), { width, height: 900 });
   await run.page.evaluate(() => window.mount("statement", { role: "owner", org_role: "owner" }, { moneyAvailable: true }));
   await run.page.waitForSelector('[data-testid="statement-row-transfer_in"]');
+  // 1024 with the side panel open: the working area is 720 px, narrower than the 760 of the table - a card (the walk of M12)
+  if (width === 1024) await run.page.evaluate(() => { document.getElementById("root").style.width = "720px"; });
   await run.page.waitForTimeout(200);
+  const kind = await run.page.evaluate(() => (getComputedStyle(document.querySelector('[data-testid="statement-table"] .dt-head')).display === "none" ? "card" : "table"));
+  assert.equal(kind, width === 1280 ? "table" : "card", `${width}: ${kind}`);
   return run;
 }
 // for each row of the table: the strip under its last VISIBLE content (the padding of the card is 14 px = 0.875rem), and the empty cells of actions with their height and display
