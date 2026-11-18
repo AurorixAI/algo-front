@@ -257,7 +257,14 @@ export function AddStudentDrawer({
   const addProbeKey = open && selected.size > 0 && movedIds.size === 0 && !dryException.error && !payProblemAsked
     ? `${groupId}|${transferIds.join(",")}|${payBodyAsked ?? ""}|${JSON.stringify(dryException.request)}` : null;
   const addProbe = usePayFromPreview(addProbeKey, (signal) => orgApi.dryRunBulkAdd(groupId, transferIds, { pay_from: payBodyAsked, price_override: dryException.request }, signal));
-  const probeAnswer: unknown = transferKey !== null ? (transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : (addProbe.status === "ready" ? addProbe.answer : null);
+  const freshAnswer: unknown = transferKey !== null ? (transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : (addProbe.status === "ready" ? addProbe.answer : null);
+  // Money-2 fix 9: who comes back the day of the leaving and the balances of the last time depend on the group and the chosen students ONLY - not on the price, the reason or the day.  The key of the probe changes
+  // with every press and is null while the form of the price / the day is half filled, so the answer of the CURRENT key is often not there; the last answer of THIS set stays meanwhile.  Another set: nothing old.
+  const setKey = `${groupId}|${transferIds.join(",")}`;
+  const [held, setHeld] = useState<{ set: string; answer: unknown } | null>(null);
+  useEffect(() => { if (!open) setHeld(null); }, [open]);
+  useEffect(() => { if (freshAnswer) setHeld({ set: setKey, answer: freshAnswer }); }, [freshAnswer, setKey]);
+  const probeAnswer: unknown = freshAnswer ?? (held !== null && held.set === setKey ? held.answer : null);
   const undoneBy = leaveUndosOfBulk(probeAnswer);
   const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
   const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
