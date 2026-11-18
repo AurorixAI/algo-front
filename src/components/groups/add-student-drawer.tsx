@@ -266,7 +266,8 @@ export function AddStudentDrawer({
   const payBody = payFromAllowed ? payBodyAsked : null;
   const payProblem = payFromAllowed ? payProblemAsked : null;
   const payPreview = moneyAvailable ? addProbe : { status: "idle" as const, retry: addProbe.retry };
-  const pastBase = groupsBasePath ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
+  // the link «Выписка» of the balances leads to a page that needs the right to money - the same flag that decides whether the sums are shown
+  const pastBase = groupsBasePath && moneyAvailable ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
   const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
 
   const handleAdd = async () => {

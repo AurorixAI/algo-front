@@ -173,7 +173,9 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   }, [membershipId, withVoided]);
 
   useEffect(() => {
-    if (!membershipId || noRight) return;
+    if (!membershipId) return;
+    // no right: nothing is asked and the loading ENDS (it stayed on «Загрузка…» for ever - the refusal below is drawn only after it)
+    if (noRight) { setLoading(false); return; }
     void load();
     return () => { requests.current.next(); };
   }, [membershipId, noRight, load]);
