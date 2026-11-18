@@ -70,19 +70,27 @@ export function BulkLeaveNotes({ undone, ordinary, names, single }: { undone: Re
   if (single) return <LeaveUndoNote undo={Array.from((undone.size > 0 ? undone : ordinary).values())[0]} />;
   // the order the person chose them in (the answer of the server is in the order of the sorted ids)
   const order = Array.from(names.keys());
-  const list = (entries: ReadonlyMap<string, LeaveUndo>) => Array.from(entries.entries()).sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([id, undo]) => `${names.get(id) ?? "Ученик"}: ${tidyMoneyText(undo.text)}`);
+  const list = (entries: ReadonlyMap<string, LeaveUndo>) => Array.from(entries.entries()).sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([id, undo]) => ({ name: names.get(id) ?? "Ученик", text: tidyMoneyText(undo.text) }));
+  // the sentence for a screen reader keeps «имя: текст»; the bubble shows a paragraph per student: the name in bold on its own line, the server's words under it
+  const plain = (rows: Array<{ name: string; text: string }>, lead?: string) => [lead, ...rows.map((row) => `${row.name}: ${row.text}`)].filter(Boolean).join("\n");
+  const paragraphs = (rows: Array<{ name: string; text: string }>, lead?: string) => (
+    <span className="block space-y-2.5" data-testid="leave-hint-paragraphs">
+      {lead && <span className="block border-b border-white/15 pb-2 text-white/70" data-testid="leave-hint-rule">{lead}</span>}
+      {rows.map((row, index) => <span key={`${row.name}-${index}`} className="block" data-testid="leave-hint-student"><span className="block font-semibold">{row.name}</span><span className="block">{row.text}</span></span>)}
+    </span>
+  );
   return (
     <>
       {undone.size > 0 && (
         <div data-testid="leave-undo-many" className="flex items-start justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
           <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{undone.size} {pluralRu(undone.size, ["ученика", "ученика", "учеников"])} убрали сегодня — вернутся как были</p>
-          <HelpHint text={[LEAVE_UNDO_MANY_LINE, ...list(undone)].join("\n")} testId="leave-undo-help" />
+          <HelpHint text={plain(list(undone), LEAVE_UNDO_MANY_LINE)} content={paragraphs(list(undone), LEAVE_UNDO_MANY_LINE)} testId="leave-undo-help" />
         </div>
       )}
       {ordinary.size > 0 && (
         <div data-testid="leave-return-many" className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
           <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{ordinary.size === 1 ? "1 ученик записывается заново" : `${ordinary.size} ${pluralRu(ordinary.size, ["ученика", "ученика", "учеников"])} записываются заново`}</p>
-          <HelpHint text={list(ordinary).join("\n")} testId="leave-undo-help" />
+          <HelpHint text={plain(list(ordinary))} content={paragraphs(list(ordinary))} testId="leave-undo-help" />
         </div>
       )}
     </>

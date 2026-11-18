@@ -1,4 +1,4 @@
-// Money-2 fix 9 (walk M12, п.7): the row of the break-down «Сразу начислится» for a part from which the earlier charge was taken off: the server sends `from: null`, `whole: false` (MONEY2_FIX_STAGE8).
+// Money-2 fix 9 (walk M12, п.7): the row of the break-down «К оплате сразу» for a part from which the earlier charge was taken off: the server sends `from: null`, `whole: false` (MONEY2_FIX_STAGE8).
 // whole -> «Ноябрь, весь месяц»; not whole and a day -> «Ноябрь, с 17.11 · 5 уроков из 12»; not whole and no day -> «Ноябрь · 5 уроков из 12».  An old answer (`from` filled) is drawn as before.
 const assert = require("node:assert/strict");
 const test = require("node:test");

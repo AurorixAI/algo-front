@@ -14,7 +14,7 @@ const { launch, openPage } = require("../helpers/dom-page.cjs");
 const X = require("../helpers/money2-fix7.cjs");
 const { F } = X;
 const OWNER = { role: "owner", org_role: "owner" };
-const IMMEDIATE = { amount: 187000, lessons: 5, text: "Сразу начислится ещё 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
+const IMMEDIATE = { amount: 187000, lessons: 5, text: "К оплате сразу: 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
 
 (async () => {
   const browser = await launch();

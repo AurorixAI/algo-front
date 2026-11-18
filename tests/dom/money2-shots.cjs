@@ -16,7 +16,7 @@ const F = require("../helpers/money2-fixture.cjs");
 const day = (shift) => new Date(Date.now() + shift * 86400000).toISOString().slice(0, 10);
 const dmy = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const isDry = (r) => /dry_run=true/.test(r.query);
-const UNDO = { undone: true, text: "Ученик вернулся в день ухода — уход отменён: цены и паузы возвращены", restored: [{ code: "individual_price", text: `Индивидуальная цена 300 000 сум в группе «${F.A}» возвращена` }, { code: "pause", text: "Пауза 23.11–26.11 возвращена" }] };
+const UNDO = { undone: true, text: "Ученика убрали сегодня — возвращаем как было: цены и паузы возвращены", restored: [{ code: "individual_price", text: `Индивидуальная цена 300 000 сум в группе «${F.A}» возвращена` }, { code: "pause", text: "Пауза 23.11–26.11 возвращена" }] };
 const OTHER = `В группе «${F.T}» аванс уменьшится на 30 000 сум — до 390 000 сум`;
 const pause = (id, first, last) => ({ id, membership_id: "m-a", first_day: first, last_day: last, days: 4, reason: null, created_by_name: null, created_at: null, voided_at: null, void_reason: null });
 const saved = (p, extra = {}) => ({ pause: p, impact: { charged_delta: -80000, paid_until_before: null, paid_until_after: null, debt_before: 0, debt_after: 0, advance_before: 0, advance_after: 0 }, lessons: { excluded: [], attended: [] }, payroll: null, dry_run: true, row: null, other_groups_text: OTHER, ...extra });

@@ -22,7 +22,7 @@ test("a transfer of a student with ONE group sends `from_group_id` in the dry ru
 });
 
 const OLD = /Оплата с|Оплачено до|Остаток на начало|долг на дату/i;
-const addServer = (undone) => F.baseServer((request) => (request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: undone ? { undone: true, text: "Ученик вернулся в день ухода — уход отменён: «Оплата с» и остаток на начало задать нельзя", restored: [] } : null } } : (request.path.endsWith("/pay-from-default") || /pay-from|billing/.test(request.path) ? { json: { default_pay_from: "2026-11-16", today: "2026-11-16", min: "2026-11-01" } } : null)), F.SHORT);
+const addServer = (undone) => F.baseServer((request) => (request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: undone ? { undone: true, text: "Ученика убрали сегодня — возвращаем как было", restored: [] } : null } } : (request.path.endsWith("/pay-from-default") || /pay-from|billing/.test(request.path) ? { json: { default_pay_from: "2026-11-16", today: "2026-11-16", min: "2026-11-01" } } : null)), F.SHORT);
 
 test("coming back the day of the leaving: «Оплата с» and the opening balance are not offered; an ordinary return offers them", async () => {
   const props = { moneyAvailable: true, mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"] };

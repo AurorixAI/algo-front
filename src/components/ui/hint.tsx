@@ -22,6 +22,7 @@ export function Hint({
   width = 256,
   label,
   scrollable = false,
+  content,
 }: {
   /** The detail; line breaks are kept. */
   text: string;
@@ -36,6 +37,8 @@ export function Hint({
   label?: string;
   /** A long text: the bubble takes the pointer and scrolls INSIDE (at most 60% of the screen height) instead of being cut. */
   scrollable?: boolean;
+  /** The same detail with a layout (a bold name over its paragraph); `text` stays what screen readers read. */
+  content?: ReactNode;
 }) {
   const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
   const open = isRevealed(reveal);
@@ -117,7 +120,7 @@ export function Hint({
             style={fixedStyle}
             className={`${scrollable ? "pointer-events-auto max-h-[60vh] overflow-y-auto overscroll-contain" : "pointer-events-none"} z-[100002] block whitespace-pre-line rounded-xl border border-white/10 bg-slate-900/95 p-3 text-left text-xs leading-relaxed text-white shadow-xl`}
           >
-            {text}
+            {content ?? text}
           </span>,
           document.body,
         )}

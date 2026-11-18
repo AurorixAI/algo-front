@@ -401,7 +401,7 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
   await page.click('[data-testid="pay-from-failed"] button');
   await page.waitForSelector('[data-testid="pay-from-immediate-total"]');
   const text = plain(await page.textContent('[data-testid="pay-from-immediate"]'));
-  assert.match(text, /Ученик Новый: К оплате сразу: 300 000 сум.*Ученик Второй: К оплате сразу: 300 000 сум.*Всего к оплате сразу.*600 000 сум/);
+  assert.match(text, /^Всего к оплате сразу.*600 000 сум.*Ученик Новый.*300 000 сум.*Ученик Второй.*300 000 сум$/);
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(SHOTS, "10-pay-from-bulk-total-1280.png") });
   await page.close();

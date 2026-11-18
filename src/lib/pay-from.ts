@@ -133,11 +133,13 @@ export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): s
   return ["Стоимость уроков с даты «Оплата с» до конца оплачиваемого периода — её ученик платит сейчас.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
 }
 
-export const PAY_FROM_NOTHING_NOW = "К оплате сразу — ничего";
+export const PAY_FROM_NOTHING_NOW = "Сразу платить не нужно";
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 export interface BulkImmediate {
   students: Array<{ studentId: string; text: string; amount: number; parts: ImmediatePart[] }>;
+  /** EVERY chosen student in the order of the answer; `amount: null` - nothing to pay at once (the screen shows «—»).  The screen reads sums and periods from here, never from the sentences. */
+  rows: Array<{ studentId: string; amount: number | null; parts: ImmediatePart[] }>;
   total: string | null;
 }
 
@@ -150,8 +152,13 @@ export function normalizeBulkImmediate(raw: unknown): BulkImmediate {
     const now = normalizeBilling(entry.billing)?.immediate;
     return now?.text ? [{ studentId: String(entry.student_id ?? ""), text: now.text, amount: now.amount, parts: now.parts }] : [];
   });
+  const rows = list.map((item) => {
+    const entry = item as { student_id?: unknown; billing?: unknown };
+    const now = normalizeBilling(entry.billing)?.immediate;
+    return { studentId: String(entry.student_id ?? ""), amount: now?.text ? now.amount : null, parts: now?.text ? now.parts : [] };
+  });
   const total = typeof r.immediate_total?.text === "string" && r.immediate_total.text ? tidyMoneyText(r.immediate_total.text) : null;
-  return { students, total };
+  return { students, rows, total };
 }
 
 /** The field cannot be sent: an empty or impossible date. */

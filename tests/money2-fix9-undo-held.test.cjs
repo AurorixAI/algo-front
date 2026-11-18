@@ -1,4 +1,4 @@
-// Money-2 fix 9 (walk M12, defect 2): the plate «возвращается в день ухода — уход отменяется» of the drawer «Зачислить учеников» was drawn from the answer of the CURRENT key of the probe, and the key changes with every
+// Money-2 fix 9 (walk M12, defect 2): the plate «Ученика убрали сегодня — вернётся как был» of the drawer «Зачислить учеников» was drawn from the answer of the CURRENT key of the probe, and the key changes with every
 // press (price, reason, day) and is null while the form of the price or the day is half filled - so the plate flickered away for the time of each new probe (a slow answer, a field being typed) and a look
 // at the wrong moment saw none.  Who comes back the day of the leaving depends on the group and the chosen students only: the last answer of THIS set stays while a new probe runs or the form is half filled;
 // another set of students - the old plate is not shown.

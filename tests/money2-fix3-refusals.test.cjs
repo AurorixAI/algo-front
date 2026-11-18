@@ -77,7 +77,7 @@ test("п.5: окно перевода — TRANSFER_SOURCE_NOT_MEMBER (422) бе�
 });
 
 test("п.5: окно записи — LEAVE_UNDO_NO_START (422) при записи: слова сервера один раз", async () => {
-  const WORDS = "Ученик возвращается в день ухода — уход отменяется, дата начала оплаты и остаток не меняются";
+  const WORDS = "Ученика убрали сегодня — он возвращается как был. Новую дату оплаты, остаток и цену при этом задать нельзя: цену можно изменить отдельно после возврата";
   const answer = F.baseServer((request) => (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1" && !isDry(request) ? refuse(422, "LEAVE_UNDO_NO_START", WORDS) : null), F.SHORT);
   const run = await openPage(browser, "money2.entry.tsx", answer, { width: 375, height: 800 });
   await run.page.evaluate((p) => window.mount("assign", { role: "owner", org_role: "owner" }, p), { moneyAvailable: true, mode: "add", sourceGroups: [], excludeGroupIds: [] });

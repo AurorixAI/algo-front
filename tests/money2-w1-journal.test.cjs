@@ -1,4 +1,4 @@
-// Money-2 wave 1, Э7: the journal of decisions reads «перевод», «уход отменён», «оплата восстановлена», «пауза перенесена» as a person - the line (`text`) of the server says who/what/from which group to which and
+// Money-2 wave 1, Э7: the journal of decisions reads «перевод», «вернули в день ухода», «оплата восстановлена», «пауза перенесена» as a person - the line (`text`) of the server says who/what/from which group to which and
 // the sum, ONCE (the sum column does not repeat it); the filter «Вид» has the new kinds; an old row keeps its sum and has no line.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -30,7 +30,7 @@ async function open(width, handler = answer) {
 }
 
 const LINES = ["Алгебра 7 → Физика 9", "«Алгебра 7»", "оплата № 1 → № 2", "Алгебра 7 → Физика 9 · 23–26.11"];
-const CHIPS = ["Перевод", "Уход отменён", "Оплата восстановлена", "Пауза перенесена"];
+const CHIPS = ["Перевод", "Вернули в день ухода", "Оплата восстановлена", "Пауза перенесена"];
 
 test("Э7 / А8: each new kind is a SHORT chip and ONE line from the structure of the row (the group, the receipt); the sum is in its column once; the whole sentence of the server is in the opened row", async () => {
   const page = F.decisionsPage(F.SHORT);
@@ -82,7 +82,7 @@ test("Э7: the filter «Вид» offers the new kinds and sends the `kind` of th
   const run = await open(1280);
   await run.page.click('[data-testid="decisions-kind"]');
   const options = (await run.page.locator('[role="option"]').allTextContents()).map(plain);
-  for (const label of ["Перевод", "Уход отменён", "Оплата восстановлена", "Пауза перенесена"]) assert.ok(options.some((item) => item.includes(label)), `${label} in ${options.join("|")}`);
+  for (const label of ["Перевод", "Вернули в день ухода", "Оплата восстановлена", "Пауза перенесена"]) assert.ok(options.some((item) => item.includes(label)), `${label} in ${options.join("|")}`);
   await run.page.locator('[role="option"]', { hasText: "Оплата восстановлена" }).click();
   await run.page.waitForFunction(() => true);
   await run.page.waitForTimeout(300);

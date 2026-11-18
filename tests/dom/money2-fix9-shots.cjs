@@ -14,7 +14,7 @@ const X = require("../helpers/money2-fix7.cjs");
 const { F } = X;
 const { statementServer } = require("../helpers/statement-all-kinds.cjs");
 
-const ORDINARY = "Возврат обычный, а не отмена ухода: ученик ушёл раньше. Цена и паузы не восстанавливаются";
+const ORDINARY = "Сегодня ученика перевели в группу «Физика». Чтобы вернуть всё как было, переведите его обратно из этой группы";
 const PEOPLE = [["st9", "Новый"], ["st8", "Второй"], ["st7", "Третий"]];
 const SAME = { group_id: "g2", group_name: "7-Б Геометрия", membership_id: "m-same", left_on: "2026-11-17", kind: "debt", amount: 38000, same_group: true, text: "В этой группе с прошлого раза остался долг 38 000 сум" };
 const NO_SUM = { ...SAME }; delete NO_SUM.amount; NO_SUM.text = "В этой группе с прошлого раза остался долг";
@@ -72,9 +72,9 @@ async function snap(page, file, el = '[role="dialog"]') {
       await snap(page, `card-undo-plate-${width}`);
       await page.close();
     }
-    // the debtor: a debt of this group + «Сразу начислится ещё …» and the row «Ноябрь · 5 уроков из 12» (the server sends `from: null`)
+    // the debtor: a debt of this group + «К оплате сразу: …» and the row «Ноябрь · 5 уроков из 12» (the server sends `from: null`)
     for (const [file, from] of [["card-debtor-more-nofrom", null], ["card-debtor-more-from", "2026-11-17"]]) {
-      const immediate = { amount: 187000, lessons: 5, text: "Сразу начислится ещё 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from, amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
+      const immediate = { amount: 187000, lessons: 5, text: "К оплате сразу: 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from, amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
       const server = F.baseServer((request) => {
         if (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
         if (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1") {

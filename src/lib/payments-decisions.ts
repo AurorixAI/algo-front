@@ -89,7 +89,7 @@ export const DECISION_KINDS: Array<{ value: string; label: string }> = [
   { value: "payment_refund_void", label: "Возврат отменён" },
   // Money-2 Э7
   { value: "student_transferred", label: "Перевод" },
-  { value: "leave_undone", label: "Уход отменён" },
+  { value: "leave_undone", label: "Вернули в день ухода" },
   { value: "payment_restored", label: "Оплата восстановлена" },
   { value: "pause_moved", label: "Пауза перенесена" },
 ];
@@ -131,7 +131,7 @@ export const DECISIONS_FILTERED_EMPTY_TEXT = "По фильтру ничего �
 /** Money-2 А8: the short name of the new kinds for the chip (the server's `kind_label` of a transfer is a whole sentence); the older kinds keep the server's label. */
 const SHORT_KIND_LABEL: Record<string, string> = {
   student_transferred: "Перевод",
-  leave_undone: "Уход отменён",
+  leave_undone: "Вернули в день ухода",
   payment_restored: "Оплата восстановлена",
   pause_moved: "Пауза перенесена",
 };

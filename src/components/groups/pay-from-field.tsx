@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { PAY_FROM_LABEL, IMMEDIATE_TITLE, IMMEDIATE_TOTAL_TITLE, immediateHint, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
+import { PAY_FROM_LABEL, IMMEDIATE_TITLE, IMMEDIATE_TOTAL_TITLE, immediateHint, immediatePartRows, type ImmediatePart, PAY_FROM_NOTHING_NOW, type BulkImmediate, payFromDefaultLine, payFromIsPast, payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import type { PayFromPreview } from "@/lib/use-pay-from";
 import { pastBalancesByStudent, pastBalancesOf } from "@/lib/past-balances";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -70,21 +70,9 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
         <div className="mt-1 space-y-0.5 text-xs text-slate-800" role="status" data-testid="pay-from-immediate">
           {preview.immediate.students.length === 0 && <p className="font-medium">{PAY_FROM_NOTHING_NOW}</p>}
           {/* one student: his line only - the total would say the same again */}
-          {preview.immediate.students.length === 1 && <ImmediateBlock amount={preview.immediate.students[0].amount} parts={preview.immediate.students[0].parts} text={preview.immediate.students[0].text} sameGroup={sameGroupOf(preview.answer)} />}
-          {preview.immediate.students.length > 1 && (
-            <>
-              <ul className="space-y-0.5" data-testid="pay-from-immediate-students">
-                {preview.immediate.students.map((line) => <li key={line.studentId} className="break-words">{names?.get(line.studentId) ? `${names.get(line.studentId)}: ` : ""}{line.text}{line.parts.length > 0 && (
-                  <ul className="mt-0.5 space-y-0.5 text-slate-700" data-testid="pay-from-immediate-parts">
-                    {immediatePartRows(line.parts).map((row) => <li key={row.label} className="flex justify-between gap-3"><span className="min-w-0 break-words">{row.label}</span><span className="whitespace-nowrap tabular-nums">{row.amount}</span></li>)}
-                  </ul>
-                )}</li>)}
-              </ul>
-              <div className="flex items-center justify-between gap-3 font-semibold" data-testid="pay-from-immediate-total">
-                <span className="inline-flex min-w-0 items-center gap-1">{IMMEDIATE_TOTAL_TITLE}<HelpHint testId="pay-from-immediate-help" text={immediateHint({ rounded: preview.immediate.students.some((line) => line.parts.some((part) => !part.whole)), sameGroup: sameGroupOf(preview.answer) })} /></span>
-                <span className="whitespace-nowrap tabular-nums" data-testid="pay-from-immediate-total-sum">{formatMoney(preview.immediate.students.reduce((sum, line) => sum + line.amount, 0))}</span>
-              </div>
-            </>
+          {preview.immediate.students.length > 0 && preview.immediate.rows.length <= 1 && <ImmediateBlock amount={preview.immediate.students[0].amount} parts={preview.immediate.students[0].parts} text={preview.immediate.students[0].text} sameGroup={sameGroupOf(preview.answer)} />}
+          {preview.immediate.students.length > 0 && preview.immediate.rows.length > 1 && (
+            <ImmediateManyBlock rows={preview.immediate.rows} names={names} sameGroup={sameGroupOf(preview.answer)} />
           )}
         </div>
       )}
@@ -120,5 +108,47 @@ function ImmediateBlock({ amount, parts, text, sameGroup }: { amount: number; pa
       </ul>
     </div>
     </>
+  );
+}
+
+/**
+ * «Всего к оплате сразу» for SEVERAL students: the same card as the block of one student - the title with «?» and the total (bold) on top, under it a row per student: the name (cut with «…», the whole in `title`),
+ * the sum on the right (the same right edge), under the name the period in muted grey («Ноябрь, с 04.11 · 5 уроков из 12»); a student with two periods has a muted row with a sum per period.  Nothing to pay - «—».
+ * Over six students the list scrolls inside (the block stays about 260 px: 204 of the list + the title and the padding).  Sums and periods are the fields of the answer, not the sentences of the server.
+ */
+function ImmediateManyBlock({ rows, names, sameGroup }: { rows: BulkImmediate["rows"]; names?: ReadonlyMap<string, string> | null; sameGroup: boolean }) {
+  const total = rows.reduce((sum, row) => sum + (row.amount ?? 0), 0);
+  const rounded = rows.some((row) => row.parts.some((part) => !part.whole));
+  return (
+    <div data-testid="pay-from-immediate-block" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-baseline justify-between gap-3" data-testid="pay-from-immediate-total">
+        <p className="inline-flex min-w-0 items-center gap-1 text-sm font-semibold text-slate-900">{IMMEDIATE_TOTAL_TITLE}<HelpHint testId="pay-from-immediate-help" text={immediateHint({ rounded, sameGroup })} /></p>
+        <p data-testid="pay-from-immediate-total-sum" className="whitespace-nowrap text-sm font-semibold tabular-nums text-slate-900">{formatMoney(total)}</p>
+      </div>
+      <ul className="mt-2 max-h-[204px] space-y-2 overflow-y-auto overscroll-contain" data-testid="pay-from-immediate-students">
+        {rows.map((row, index) => {
+          const name = names?.get(row.studentId) || "Ученик";
+          const periods = immediatePartRows(row.parts);
+          return (
+            <li key={`${row.studentId}-${index}`} data-testid="pay-from-immediate-student">
+              <div className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="min-w-0 flex-1 truncate font-medium text-slate-900" title={name} data-testid="pay-from-immediate-name">{name}</span>
+                <span className="whitespace-nowrap font-medium tabular-nums text-slate-900" data-testid="pay-from-immediate-student-sum">{row.amount === null ? "—" : formatMoney(row.amount)}</span>
+              </div>
+              {periods.length > 0 && (
+                <ul className="mt-0.5 space-y-0.5 text-slate-500" data-testid="pay-from-immediate-parts">
+                  {periods.map((period) => (
+                    <li key={period.label} className="flex items-baseline justify-between gap-3 text-xs">
+                      <span className="min-w-0 break-words">{period.label}</span>
+                      {periods.length > 1 && <span className="whitespace-nowrap tabular-nums">{period.amount}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

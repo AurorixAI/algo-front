@@ -91,19 +91,19 @@ test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHAN
 });
 
 test("Т6: coming back the day of the leaving - `leave_undo` in the words of the server: the leaving is undone and what is restored; the same in the transfer and in the add", async () => {
-  const undo = { undone: true, text: "Ученик вернулся в день ухода — уход отменён: цены и паузы возвращены", restored: [{ code: "individual_price", text: "Индивидуальная цена 300 000 сум возвращена" }, { code: "pause", text: "Пауза 23.11–26.11 возвращена" }] };
+  const undo = { undone: true, text: "Ученика убрали сегодня — возвращаем как было: цены и паузы возвращены", restored: [{ code: "individual_price", text: "Индивидуальная цена 300 000 сум возвращена" }, { code: "pause", text: "Пауза 23.11–26.11 возвращена" }] };
   const answer = (extra) => F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), leave_undo: undo, ...extra } } : null);
   for (const mode of ["transfer", "add"]) {
     const run = await open(1280, answer(mode === "transfer" ? { effects: F.transferEffects() } : {}), { props: mode === "add" ? { mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"] } : {} });
     await run.page.waitForSelector('[data-testid="leave-undo"]');
     const text = plain(await run.page.textContent('[data-testid="leave-undo"]'));
-    assert.ok(text.includes("уход отменён: цены и паузы возвращены") && !text.includes("Индивидуальная цена 300 000 сум возвращена") && !text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
+    assert.ok(text.includes("возвращаем как было: цены и паузы возвращены") && !text.includes("Индивидуальная цена 300 000 сум возвращена") && !text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
     await run.page.close();
   }
-  const plainReturn = { undone: false, text: "Ученик вернулся не в день ухода: возврат обычный — ученика перевели в «Физика»; отменить перевод можно обратным переводом", restored: [] };
+  const plainReturn = { undone: false, text: "Сегодня ученика перевели в группу «Физика». Чтобы вернуть всё как было, переведите его обратно из этой группы", restored: [] };
   const run = await open(1280, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: plainReturn } } : null), { props: { mode: "add", currentGroupName: "Алгебра" } });
   await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.ok(plain(await run.page.textContent('[data-testid="leave-undo"]')).includes("возврат обычный"));
+  assert.ok(plain(await run.page.textContent('[data-testid="leave-undo"]')).includes("переведите его обратно из этой группы"));
   await run.page.close();
 });
 
