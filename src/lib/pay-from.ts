@@ -41,7 +41,7 @@ export interface BillingBrief {
   immediate: { amount: number; lessons: number; text: string; parts: ImmediatePart[] } | null;
 }
 
-/** One month (or a part of it) of what is charged at once: «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9».  The server adds `parts` to `immediate`; an older server sends none (the sentence alone is shown). */
+/** One month (or a part of it) of what is charged at once: «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» (`from` "": the server sent none - «Ноябрь — 187 000 сум · 5 уроков из 12»).  The server adds `parts` to `immediate`; an older server sends none (the sentence alone is shown). */
 export interface ImmediatePart {
   label: string;
   from: string;
@@ -66,22 +66,24 @@ export const IMMEDIATE_ROUNDING_NOTE = "Неполный месяц округл
 /** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
-    label: part.whole || !part.from ? `${capital(part.label)}, весь месяц` : `${capital(part.label)}, с ${formatDayMonthRu(part.from)} · ${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`,
+    label: part.whole ? `${capital(part.label)}, весь месяц` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} · ${lessonsOf(part)}`,
     amount: formatMoney(part.amount),
   }));
 }
 
 /** The lines of the break-down: «Ноябрь, весь месяц — 400 000 сум» for a whole month, «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» for a part. */
+/** «5 уроков из 12». */
+const lessonsOf = (part: ImmediatePart): string => `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
+
 /** The server sends the month in lower case («ноябрь»); a caption of a row starts with a capital. */
 const capital = (text: string): string => text.charAt(0).toLocaleUpperCase("ru") + text.slice(1);
 
 export function immediatePartLines(parts: ImmediatePart[]): string[] {
   return parts.map((part) => {
     const sum = formatMoney(part.amount);
-    if (part.whole || !part.from) return `${capital(part.label)}, весь месяц — ${sum}`;
-    const day = formatDayMonthRu(part.from);
-    const lessons = `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
-    return `${capital(part.label)}, с ${day} — ${sum} · ${lessons}`;
+    if (part.whole) return `${capital(part.label)}, весь месяц — ${sum}`;
+    // a part with no day (`from: null`: the earlier charge was taken off the month) has no «с …» - the lessons say how much of the month it is
+    return `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} — ${sum} · ${lessonsOf(part)}`;
   });
 }
 
