@@ -40,9 +40,9 @@ import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
-import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { BulkLeaveNotes } from "@/components/money/effects-sections";
 import { BulkPastBalancesNote } from "@/components/money/past-balances-note";
-import { leaveUndosOfBulk } from "@/lib/transfer-effects";
+import { leaveReturnsOfBulk } from "@/lib/transfer-effects";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 
 interface Student {
@@ -265,7 +265,7 @@ export function AddStudentDrawer({
   useEffect(() => { if (!open) setHeld(null); }, [open]);
   useEffect(() => { if (freshAnswer) setHeld({ set: setKey, answer: freshAnswer }); }, [freshAnswer, setKey]);
   const probeAnswer: unknown = freshAnswer ?? (held !== null && held.set === setKey ? held.answer : null);
-  const undoneBy = leaveUndosOfBulk(probeAnswer);
+  const { undone: undoneBy, ordinary: ordinaryBy } = leaveReturnsOfBulk(probeAnswer);
   const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
   const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
   // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there); not for those who all come back
@@ -408,7 +408,7 @@ export function AddStudentDrawer({
             {priceHint && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
           </fieldset>
         )}
-        {moneyAvailable && (Boolean(priceLine) || !allUndone) && (
+        {moneyAvailable && !allUndone && (
           <div data-testid="add-price-settings" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
             {priceLine && (
               <>
@@ -422,7 +422,7 @@ export function AddStudentDrawer({
                 {priceHint && transfers.length === 0 && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
               </>
             )}
-            {!allUndone && <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+            <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
               <EnrolPriceToggle
                 idPrefix="add-student-price"
                 enabled={exceptionOn}
@@ -434,7 +434,7 @@ export function AddStudentDrawer({
                 shared={selected.size > 1}
                 compact
               />
-            </div>}
+            </div>
           </div>
         )}
         {openingAllowed && (
@@ -456,19 +456,7 @@ export function AddStudentDrawer({
           <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={nameById} />
         )}
         <BulkPastBalancesNote answer={probeAnswer} names={nameById} paymentsBase={pastBase} />
-        {undoneBy.size > 0 && (selected.size === 1
-          ? <LeaveUndoNote undo={Array.from(undoneBy.values())[0]} />
-          : (
-            <div data-testid="leave-undo-many" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-              <details>
-                <summary className="cursor-pointer text-sm font-medium text-slate-800">{undoneBy.size} {undoneBy.size === 1 ? "ученик возвращается" : undoneBy.size < 5 ? "ученика возвращаются" : "учеников возвращаются"} в день ухода — уход отменяется</summary>
-                <ul className="mt-2 space-y-1.5">
-                  {Array.from(undoneBy.entries()).map(([id, undo]) => <li key={id} className="text-sm text-slate-700 [overflow-wrap:anywhere]"><span className="font-semibold">{nameById.get(id)}</span>: {tidyMoneyText(undo.text)}</li>)}
-                </ul>
-              </details>
-              <p className="mt-2 text-xs text-slate-600 [overflow-wrap:anywhere]">Для них «Оплата с» и индивидуальная цена не действуют — всё остаётся как было</p>
-            </div>
-          ))}
+        <BulkLeaveNotes undone={undoneBy} ordinary={ordinaryBy} names={nameById} single={selected.size === 1} />
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         {addError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>

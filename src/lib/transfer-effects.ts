@@ -143,15 +143,18 @@ export function leaveUndoOf(answer: unknown): LeaveUndo | null {
   return { undone: raw.undone === true, text: raw.text, restored };
 }
 
-/** The bulk answer (`students[].leave_undo`, mode add and transfer): the students whose leaving is cancelled, with the words of the server, in the order of the answer. */
-export function leaveUndosOfBulk(answer: unknown): Map<string, LeaveUndo> {
+/**
+ * The bulk answer (`students[].leave_undo`, mode add and transfer), in the order of the answer: the students whose leaving is cancelled (`undone`) and those who come back in the ordinary way
+ * (`ordinary`: `undone` false with the sentence of the server why - nothing is restored).
+ */
+export function leaveReturnsOfBulk(answer: unknown): { undone: Map<string, LeaveUndo>; ordinary: Map<string, LeaveUndo> } {
   const list = (answer as { students?: unknown } | null | undefined)?.students;
-  const out = new Map<string, LeaveUndo>();
+  const out = { undone: new Map<string, LeaveUndo>(), ordinary: new Map<string, LeaveUndo>() };
   if (!Array.isArray(list)) return out;
   list.forEach((item) => {
     const id = (item as { student_id?: unknown } | null)?.student_id;
     const undo = leaveUndoOf(item);
-    if (typeof id === "string" && undo?.undone) out.set(id, undo);
+    if (typeof id === "string" && undo) (undo.undone ? out.undone : out.ordinary).set(id, undo);
   });
   return out;
 }

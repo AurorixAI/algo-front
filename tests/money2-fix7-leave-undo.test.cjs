@@ -10,7 +10,7 @@ const { F } = X;
 
 const ctx = setup(test);
 const FIXED = '[data-testid="leave-undo-fixed"]';
-const FIXED_TEXT = "Уход отменяется — дата начала оплаты, остаток и индивидуальная цена не меняются";
+const FIXED_TEXT = "Дата начала оплаты, остаток и индивидуальная цена не меняются";
 const pick = (page) => page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
 const posts = (calls) => calls.filter((c) => c.method === "POST" && !X.isDry(c));
 const ADMIN_FIELDS = /Оплата с|Остаток на начало|Индивидуальная цена|Своя цена/i;

@@ -97,7 +97,7 @@ test("Т6: coming back the day of the leaving - `leave_undo` in the words of the
     const run = await open(1280, answer(mode === "transfer" ? { effects: F.transferEffects() } : {}), { props: mode === "add" ? { mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"] } : {} });
     await run.page.waitForSelector('[data-testid="leave-undo"]');
     const text = plain(await run.page.textContent('[data-testid="leave-undo"]'));
-    assert.ok(text.includes("уход отменён: цены и паузы возвращены") && text.includes("Индивидуальная цена 300 000 сум возвращена") && text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
+    assert.ok(text.includes("уход отменён: цены и паузы возвращены") && !text.includes("Индивидуальная цена 300 000 сум возвращена") && !text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
     await run.page.close();
   }
   const plainReturn = { undone: false, text: "Ученик вернулся не в день ухода: возврат обычный — ученика перевели в «Физика»; отменить перевод можно обратным переводом", restored: [] };
