@@ -610,7 +610,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
       <DataCell col="menu">
-        {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${entry.title}`} width={220} /> : <span className="hidden h-8 w-8 md:block" aria-hidden />}
+        {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${entry.title}`} width={220} /> : null}
       </DataCell>
     </DataRow>
   );

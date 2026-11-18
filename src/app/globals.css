@@ -53,6 +53,8 @@ body {
 .dt-cell[data-labelled="true"] .dt-value { text-align: right; min-width: 0; }
 .dt-label { flex-shrink: 0; font-size: 0.75rem; color: theme(colors.slate.500); }
 .dt-cell[data-actions="true"] { margin-top: 0.25rem; }
+/* Money-2 fix 9: a row without controls leaves its cell of actions empty - on a card it takes no room (no margin, no row gap, no strip at the bottom); a table keeps it as a cell of its column (below) */
+.dt-cell[data-actions="true"]:has(> .dt-value:empty) { display: none; }
 .dt-cell[data-actions="true"] .dt-value { display: flex; align-items: center; justify-content: flex-end; gap: 0.375rem; width: 100%; }
 .dt-cell[data-align="end"] .dt-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dt-li { list-style: none; min-width: 0; }
@@ -117,6 +119,7 @@ body {
   .dt-row[data-min="640"] .dt-card-only { display: none; }
   .dt-row[data-min="640"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="640"] .dt-cell[data-actions="true"] { margin-top: 0; }
+  .dt-row[data-min="640"] .dt-cell[data-actions="true"]:has(> .dt-value:empty) { display: block; }
   .dt-row[data-min="640"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="640"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
   /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
@@ -153,6 +156,7 @@ body {
   .dt-row[data-min="760"] .dt-card-only { display: none; }
   .dt-row[data-min="760"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="760"] .dt-cell[data-actions="true"] { margin-top: 0; }
+  .dt-row[data-min="760"] .dt-cell[data-actions="true"]:has(> .dt-value:empty) { display: block; }
   .dt-row[data-min="760"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="760"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
   /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
@@ -189,6 +193,7 @@ body {
   .dt-row[data-min="880"] .dt-card-only { display: none; }
   .dt-row[data-min="880"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="880"] .dt-cell[data-actions="true"] { margin-top: 0; }
+  .dt-row[data-min="880"] .dt-cell[data-actions="true"]:has(> .dt-value:empty) { display: block; }
   .dt-row[data-min="880"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="880"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
   /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
@@ -225,6 +230,7 @@ body {
   .dt-row[data-min="1040"] .dt-card-only { display: none; }
   .dt-row[data-min="1040"] .dt-cell[data-labelled="true"] { display: block; }
   .dt-row[data-min="1040"] .dt-cell[data-actions="true"] { margin-top: 0; }
+  .dt-row[data-min="1040"] .dt-cell[data-actions="true"]:has(> .dt-value:empty) { display: block; }
   .dt-row[data-min="1040"] .dt-cell[data-actions="true"] .dt-value { justify-content: flex-end; }
   .dt-row[data-min="1040"] .dt-cell[data-labelled="true"] .dt-value { text-align: inherit; }
   /* a column of numbers (LESSONS 142): the cell / heading stretches over the WHOLE height of its row (it eats the padding of the row) so its left line is unbroken from the header to the last row; the number sits at the right edge */
