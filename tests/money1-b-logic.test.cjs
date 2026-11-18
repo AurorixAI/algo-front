@@ -131,7 +131,7 @@ test("Б1: «Оплата с» - without the money right there is no date and no
   assert.equal(F.payFromProblem("2026-12-23", def, F.payFromRange("2026-10-21", null)), "«Оплата с» — от 01.01.2020 до 22.12.2026");
   assert.equal(F.payFromDefaultLine({ ...def, text: "Оплата с 06.11.2026 — первое занятие группы с сегодня" }), "Оплата с 06.11.2026 — первое занятие группы с сегодня", "the sentence of the server wins");
   assert.equal(F.payFromDefaultLine(def), "Оплата считается с 06.11.2026 — с первого занятия группы", "only an older server has none");
-  const bulk = F.normalizeBulkImmediate({ students: [{ student_id: "a", billing: { pay_from: "2026-10-01", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } }, { student_id: "b", billing: { pay_from: "2026-10-01" } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } });
+  const bulk = F.normalizeBulkImmediate({ students: [{ student_id: "a", billing: { pay_from: "2026-10-01", immediate: { amount: 300000, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } } }, { student_id: "b", billing: { pay_from: "2026-10-01" } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } });
   assert.deepEqual(bulk.students.map((x) => x.studentId), ["a"]);
   assert.equal(N(bulk.total), "Всего сразу начислится 300 000 сум (за 14 уроков)");
   assert.deepEqual(F.normalizeBulkImmediate({ students: [{ student_id: "a", billing: { pay_from: "2026-10-01" } }], immediate_total: null }), { students: [], total: null }, "no money right: no sums");
@@ -141,8 +141,8 @@ test("Б1: «Оплата с» - without the money right there is no date and no
   assert.equal(F.payFromErrorText({ code: "PAY_FROM_RANGE", message: "" }), F.PAY_FROM_RANGE_TEXT);
   assert.equal(F.payFromErrorText({ code: "PAY_FROM_NOT_APPLICABLE", message: "Только при добавлении" }), "Только при добавлении");
   assert.equal(F.payFromErrorText({ code: "X", message: "m" }), null);
-  const billing = F.normalizeBilling({ pay_from: "2026-10-01", explicit: true, default_pay_from: "2026-11-06", first_lesson: "2026-11-06", text: "Оплата считается с 01.10.2026: так выбрал сотрудник", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } });
-  assert.equal(N(billing.immediate.text), "Сразу начислится 300 000 сум (за 14 уроков)");
+  const billing = F.normalizeBilling({ pay_from: "2026-10-01", explicit: true, default_pay_from: "2026-11-06", first_lesson: "2026-11-06", text: "Оплата считается с 01.10.2026: так выбрал сотрудник", immediate: { amount: 300000, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } });
+  assert.equal(N(billing.immediate.text), "К оплате сразу: 300 000 сум (за 14 уроков)");
 });
 
 test("Б2: the price of a new group exists only with the money right", () => {

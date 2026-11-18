@@ -27,9 +27,9 @@ test("immediate.parts: the break-down lines in the words of the owner; no parts 
   assert.deepEqual(payFrom.immediatePartLines(payFrom.normalizeParts(PARTS)).map(nb), ["Октябрь, с 27.10 — 89 000 сум · 2 урока из 9", "Ноябрь, весь месяц — 400 000 сум"]);
   assert.match(nb(payFrom.immediatePartLines([{ ...PARTS[0], lessons: 5 }])[0]), /5 уроков из 9/);
   assert.match(nb(payFrom.immediatePartLines([{ ...PARTS[0], lessons: 1 }])[0]), /1 урок из 9/);
-  const withParts = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "Сразу начислится 489 000 сум", parts: PARTS } });
+  const withParts = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате сразу: 489 000 сум", parts: PARTS } });
   assert.equal(withParts.immediate.parts.length, 2);
-  const without = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "Сразу начислится 489 000 сум" } });
+  const without = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате сразу: 489 000 сум" } });
   assert.deepEqual(without.immediate.parts, []);
   assert.equal(payFrom.normalizeBulkImmediate({ billing: { pay_from: "2026-10-27", immediate: { amount: 1, lessons: 1, text: "x", parts: PARTS } } }).students[0].parts.length, 2);
   assert.deepEqual(payFrom.normalizeBulkImmediate({ billing: { pay_from: "2026-10-27", immediate: { amount: 1, lessons: 1, text: "x" } } }).students[0].parts, []);
