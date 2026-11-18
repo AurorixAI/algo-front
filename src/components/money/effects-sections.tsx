@@ -81,7 +81,7 @@ export function BulkLeaveNotes({ undone, ordinary, names, single }: { undone: Re
       )}
       {ordinary.size > 0 && (
         <div data-testid="leave-return-many" className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
-          <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{ordinary.size} {pluralRu(ordinary.size, ["ученика", "ученика", "учеников"])} записываются заново</p>
+          <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{ordinary.size === 1 ? "1 ученик записывается заново" : `${ordinary.size} ${pluralRu(ordinary.size, ["ученика", "ученика", "учеников"])} записываются заново`}</p>
           <HelpHint text={list(ordinary).join("\n")} testId="leave-undo-help" />
         </div>
       )}

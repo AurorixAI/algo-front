@@ -369,12 +369,123 @@ export function AddStudentDrawer({
       description={outcome ? undefined : selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
-      bodyClassName="flex-1 min-h-0 flex flex-col"
+      bodyClassName="flex-1 min-h-0 flex flex-col max-sm:overflow-y-auto max-sm:overscroll-contain"
       footerClassName="flex flex-col gap-2 p-3 sm:p-4 sm:gap-3"
       footer={outcome ? (
         <ConfirmFooter primary="Готово" onPrimary={() => onAdded(outcome.result)} testId="enrol-done" />
       ) : (
         <>
+        {addError && (
+          <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
+        )}
+        {/* re-audit В1: the footer of every window of money */}
+        <ConfirmFooter
+          primary={adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
+          onPrimary={() => void handleAdd()}
+          busy={adding}
+          disabled={selected.size === 0 || adding || !transferAllowed || payProblem !== null}
+          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem}
+          whyId="enrol-why"
+          onCancel={onClose}
+          testId="enrol-submit"
+        />
+        </>
+      )}
+    >
+      {outcome ? <BulkOutcomePanel outcome={outcome.data} verb={movesOnly ? "transfer" : "enrol"} /> : (<>
+      {/* Search */}
+      <div className="p-4 border-b border-slate-50">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по имени или ID…"
+            autoFocus
+            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          />
+        </div>
+        {groupClassLevel ? (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allClasses}
+              onClick={() => setAllClasses((value) => !value)}
+              className={`inline-flex items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors max-sm:min-h-10 ${allClasses ? "text-primary-700" : "text-slate-600 hover:text-slate-800"}`}
+            >
+              {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
+              Все классы
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Student list */}
+      <div className="flex-1 overflow-y-auto overscroll-contain max-sm:flex-none max-sm:overflow-visible" data-testid="enrol-list">
+        {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
+          </div>
+        ) : available.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-slate-500">
+            {searching
+              ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
+              : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {available.map((s) => {
+              const isSelected = selected.has(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggle(s)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
+                >
+                  {/* Avatar */}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                    isSelected ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
+                  }`}>
+                    {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {s.full_name || `${s.last_name} ${s.first_name}`}
+                    </p>
+                    <p className="text-xs text-slate-500 break-words">
+                      {classLabel(s.class_level)}
+                      {namesakeDetail(s, available) && <span data-testid="namesake-detail"> · {namesakeDetail(s, available)}</span>}
+                      {inGroupsLabel(s.groups_count) ? (
+                        <span className="text-amber-700" data-testid="student-many-groups"> · {inGroupsLabel(s.groups_count)}</span>
+                      ) : currentGroupOf(s) && currentGroupOf(s) !== groupId && (
+                        <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
+                      )}
+                    </p>
+                    {isSelected && mode === "transfer" && inGroupsLabel(s.groups_count) && (
+                      <p className="mt-0.5 text-xs text-amber-800 [overflow-wrap:anywhere]" data-testid="student-many-groups-hint">{MANY_GROUPS_TRANSFER_HINT}</p>
+                    )}
+                  </div>
+
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
+                    {studentStatusLabel(s)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!loading && totalFound > students.length && (
+          <p className="px-4 py-3 text-xs text-slate-500 text-center">
+            Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
+          </p>
+        )}
+      </div>
+
+      {/* the price / «Оплата с» blocks and the plates: under the list - on a phone the body is ONE scrolling area (search, list, blocks), the buttons stay at the bottom of the window; from 640 px the list scrolls and the blocks stand under it */}
+      <div data-testid="enrol-blocks" className="flex shrink-0 flex-col gap-2 border-t border-slate-100 p-3 empty:hidden sm:gap-3 sm:p-4">
         {transfers.length > 0 && !moneyRight && (
           <div role="note" data-testid="enrol-second-group" className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             {transfers.map((t) => <p key={t.id}>{secondGroupLine(t)}</p>)}
@@ -458,115 +569,7 @@ export function AddStudentDrawer({
         <BulkPastBalancesNote answer={probeAnswer} names={nameById} paymentsBase={pastBase} />
         <BulkLeaveNotes undone={undoneBy} ordinary={ordinaryBy} names={nameById} single={selected.size === 1} />
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
-        {addError && (
-          <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
-        )}
-        {/* re-audit В1: the footer of every window of money */}
-        <ConfirmFooter
-          primary={adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
-          onPrimary={() => void handleAdd()}
-          busy={adding}
-          disabled={selected.size === 0 || adding || !transferAllowed || payProblem !== null}
-          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem}
-          whyId="enrol-why"
-          onCancel={onClose}
-          testId="enrol-submit"
-        />
-        </>
-      )}
-    >
-      {outcome ? <BulkOutcomePanel outcome={outcome.data} verb={movesOnly ? "transfer" : "enrol"} /> : (<>
-      {/* Search */}
-      <div className="p-4 border-b border-slate-50">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по имени или ID…"
-            autoFocus
-            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-          />
-        </div>
-        {groupClassLevel ? (
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={allClasses}
-              onClick={() => setAllClasses((value) => !value)}
-              className={`inline-flex items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors max-sm:min-h-10 ${allClasses ? "text-primary-700" : "text-slate-600 hover:text-slate-800"}`}
-            >
-              {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
-              Все классы
-            </button>
-          </div>
-        ) : null}
       </div>
-
-      {/* Student list */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
-          </div>
-        ) : available.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-slate-500">
-            {searching
-              ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
-              : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-50">
-            {available.map((s) => {
-              const isSelected = selected.has(s.id);
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => toggle(s)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
-                >
-                  {/* Avatar */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                    isSelected ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
-                  }`}>
-                    {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {s.full_name || `${s.last_name} ${s.first_name}`}
-                    </p>
-                    <p className="text-xs text-slate-500 break-words">
-                      {classLabel(s.class_level)}
-                      {namesakeDetail(s, available) && <span data-testid="namesake-detail"> · {namesakeDetail(s, available)}</span>}
-                      {inGroupsLabel(s.groups_count) ? (
-                        <span className="text-amber-700" data-testid="student-many-groups"> · {inGroupsLabel(s.groups_count)}</span>
-                      ) : currentGroupOf(s) && currentGroupOf(s) !== groupId && (
-                        <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
-                      )}
-                    </p>
-                    {isSelected && mode === "transfer" && inGroupsLabel(s.groups_count) && (
-                      <p className="mt-0.5 text-xs text-amber-800 [overflow-wrap:anywhere]" data-testid="student-many-groups-hint">{MANY_GROUPS_TRANSFER_HINT}</p>
-                    )}
-                  </div>
-
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
-                    {studentStatusLabel(s)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {!loading && totalFound > students.length && (
-          <p className="px-4 py-3 text-xs text-slate-500 text-center">
-            Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
-          </p>
-        )}
-      </div>
-
       </>)}
     </Modal>
   );

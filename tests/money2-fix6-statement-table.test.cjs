@@ -34,7 +34,7 @@ for (const [setName, names] of [["short", F.SHORT], ["long", F.LONG]]) for (cons
   test(`таблица (${setName}, ${width}): число под своим заголовком, метка в «Операции», линии на всю высоту`, async () => {
     const { page, errors } = await open(width, names);
     const data = await page.evaluate((cols) => {
-      const textEdge = (el) => { const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((rect) => rect.width > 0); return rects.length ? Math.max(...rects.map((rect) => rect.right)) : null; };
+      const textEdge = (el) => { const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((rect) => rect.width > 0); return rects.length ? (Math.min(...rects.map((rect) => rect.left)) + Math.max(...rects.map((rect) => rect.right))) / 2 : null; };   // fix 10: the money columns are CENTRED - the centre of the text
       const head = document.querySelector(".dt-head");
       const headBox = head.getBoundingClientRect();
       const out = { overflow: document.documentElement.scrollWidth > window.innerWidth + 1, cols: {}, rows: [] };
@@ -66,7 +66,7 @@ for (const [setName, names] of [["short", F.SHORT], ["long", F.LONG]]) for (cons
       for (const cell of c.cells) {
         assert.equal(cell.border, "1px", `${col}: у ячейки левая граница 1px`);
         assert.equal(cell.full, true, `${col}: ячейка на всю высоту строки`);
-        if (cell.edge !== null) assert.ok(Math.abs(cell.edge - c.headEdge) <= 1, `${col}: «${cell.text}» правый край ${cell.edge} против заголовка ${c.headEdge}`);
+        if (cell.edge !== null) assert.ok(Math.abs(cell.edge - c.headEdge) <= 1, `${col}: «${cell.text}» центр ${cell.edge} против заголовка ${c.headEdge}`);
       }
     }
     for (const cell of data.cols.paid.cells) if (cell.text) assert.match(cell.text, SIGNED, `«Оплачено» — только число со знаком: «${cell.text}»`);

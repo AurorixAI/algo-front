@@ -60,7 +60,7 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
   });
 }
 
-/** The rows of the break-down block «Сразу начислится»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
+/** The rows of the break-down block «К оплате сразу»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
     label: part.whole ? `${capital(part.label)}, весь месяц` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} · ${lessonsOf(part)}`,
@@ -130,10 +130,10 @@ export const IMMEDIATE_TITLE = "К оплате сразу";
 export const IMMEDIATE_TOTAL_TITLE = "Всего к оплате сразу";
 /** The «?» of the block: what the sum is; the rounding only for a month that is not whole, the line about the earlier stay only when the student has one in THIS group. */
 export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): string {
-  return ["Столько ученик должен за уроки с даты «Оплата с» до конца оплачиваемого периода. Сумма появится в его долге сразу после записи.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
+  return ["Стоимость уроков с даты «Оплата с» до конца оплачиваемого периода — её ученик платит сейчас.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
 }
 
-export const PAY_FROM_NOTHING_NOW = "Сразу ничего не начислится";
+export const PAY_FROM_NOTHING_NOW = "К оплате сразу — ничего";
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 export interface BulkImmediate {

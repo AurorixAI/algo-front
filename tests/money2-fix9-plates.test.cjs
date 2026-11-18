@@ -9,8 +9,8 @@ const X = require("./helpers/money2-fix7.cjs");
 const { F } = X;
 
 const ctx = setup(test);
-const FIXED_TEXT = "Дата начала оплаты, остаток и индивидуальная цена не меняются";
-const ORDINARY = "Возврат обычный, а не отмена ухода: ученик ушёл раньше. Цена и паузы не восстанавливаются";
+const FIXED_TEXT = "Дату оплаты и цену здесь задать нельзя — они остаются прежними";
+const ORDINARY = "Ученика убрали сегодня, но после этого ему вернули аванс — поэтому он записывается заново: прежние индивидуальная цена и паузы не вернутся";
 const PEOPLE = [["st9", "Новый"], ["st8", "Второй"], ["st7", "Третий"]];
 const pick = (page) => page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
 
@@ -42,8 +42,8 @@ test("card of a student: ONE plate - the sentence of the server once, the grey l
     await pick(run.page);
     await run.page.waitForSelector('[data-testid="leave-undo"]');
     const text = plain(await run.page.locator('[data-testid="leave-undo"]').textContent());
-    assert.equal(text, `${plain(X.UNDO_TEXT)}${FIXED_TEXT}`);
-    assert.deepEqual((await run.page.locator('[data-testid="leave-undo"] > *').allTextContents()).map(plain), [plain(X.UNDO_TEXT), FIXED_TEXT], "two lines: the server's sentence, the grey line");
+    assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученика убрали сегодня — вернётся как был", "ONE line on the screen");
+    assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${X.UNDO_TEXT} ${FIXED_TEXT}`)], "the sentence of the server and the grey words - in the «?»");
     assert.ok(!/Уход отменяется|продолжается|восстановлена|сум возвращена/.test(plain(await run.page.locator('[role="dialog"]').textContent())));
     await run.page.close();
   }
@@ -51,17 +51,19 @@ test("card of a student: ONE plate - the sentence of the server once, the grey l
 test("drawer, one returns: ONE plate - the sentence of the server once and the grey line", async () => {
   const run = await drawer(["Новый"], { undone: ["st9"] });
   await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.deepEqual((await run.page.locator('[data-testid="leave-undo"] > *').allTextContents()).map(plain), [plain(X.UNDO_TEXT), FIXED_TEXT]);
+  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученика убрали сегодня — вернётся как был");
+  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${X.UNDO_TEXT} ${FIXED_TEXT}`)]);
   assert.equal(await run.page.locator('[data-testid="leave-undo-many"]').count(), 0);
   await run.page.close();
 });
-test("drawer, several return: the disclosure holds the name and the sentence of the server, nothing twice", async () => {
+test("drawer, several return: the «?» holds the common words and «name: sentence of the server», nothing twice", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9", "st7"] });
   await run.page.waitForSelector('[data-testid="leave-undo-many"]');
-  await run.page.click('[data-testid="leave-undo-many"] summary');
-  const items = (await run.page.locator('[data-testid="leave-undo-many"] li').allTextContents()).map(plain);
-  assert.deepEqual(items, [`Новый Ученик: ${plain(X.UNDO_TEXT)}`, `Третий Ученик: ${plain(X.UNDO_TEXT)}`]);
-  const all = plain(await run.page.locator('[data-testid="leave-undo-many"]').textContent());
+  assert.equal(await run.page.locator('[data-testid="leave-undo-many"] details').count(), 0, "no disclosure: a «?»");
+  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo-many"]')), "2 ученика убрали сегодня — вернутся как были");
+  const [hint] = await X.hintsOf(run.page.locator('[data-testid="leave-undo-many"]'));
+  assert.equal(hint, plain(`Общие «Оплата с» и цена на них не действуют Новый Ученик: ${X.UNDO_TEXT} Третий Ученик: ${X.UNDO_TEXT}`));
+  const all = hint;
   assert.ok(!/Уход отменяется|продолжается|восстановлена/.test(all), all);
   await run.page.close();
 });
@@ -90,25 +92,25 @@ test("drawer, ONE student returns in the ordinary way: the sentence of the serve
   const run = await drawer(["Второй"], { ordinary: ["st8"] });
   await run.page.waitForSelector('[data-testid="leave-undo"]');
   assert.equal(await run.page.locator('[data-testid="leave-undo"]').getAttribute("data-undone"), "no");
-  assert.equal(plain(await run.page.locator('[data-testid="leave-undo"]').textContent()), plain(ORDINARY));
-  assert.equal(await run.page.locator('[data-testid="leave-undo-fixed"]').count(), 0, "no «не меняются» line - nothing is cancelled");
+  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученик записывается заново");
+  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(ORDINARY)], "the server's words only, no «can not be set» line - nothing is cancelled");
   assert.ok(await run.page.locator('[data-testid="pay-from"]').count() > 0, "an ordinary return keeps «Оплата с»");
   await run.page.close();
 });
-test("drawer, SEVERAL: one ordinary and one cancelling - two plates, each in its place; the ordinary one by student in a disclosure", async () => {
+test("drawer, SEVERAL: one ordinary and one cancelling - two plates, each in its place; the ordinary one by student in its «?»", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
   await run.page.waitForSelector('[data-testid="leave-undo-many"]');
   const ordinary = run.page.locator('[data-testid="leave-return-many"]');
   assert.equal(await ordinary.count(), 1);
-  assert.match(plain(await ordinary.locator("summary").textContent()), /^2 ученика возвращаются в группу после ухода$/);
-  await ordinary.locator("summary").click();
-  assert.deepEqual((await ordinary.locator("li").allTextContents()).map(plain), [`Второй Ученик: ${plain(ORDINARY)}`, `Третий Ученик: ${plain(ORDINARY)}`]);
-  assert.match(plain(await run.page.locator('[data-testid="leave-undo-many"] summary').textContent()), /^1 ученик возвращается в день ухода — уход отменяется$/);
+  assert.equal(await X.shown(ordinary), "2 ученика записываются заново");
+  assert.deepEqual(await X.hintsOf(ordinary), [plain(`Второй Ученик: ${ORDINARY} Третий Ученик: ${ORDINARY}`)]);
+  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo-many"]')), "1 ученика убрали сегодня — вернутся как были");
   await run.page.close();
 });
 test("drawer, a role without the right to money: the sentence comes from the server as it is (no sums are built by the screen)", async () => {
   const run = await drawer(["Второй"], { ordinary: ["st8"], money: false });
   await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.ok(!/\d{2,3}\s?\d{3}/.test(plain(await run.page.locator('[data-testid="leave-undo"]').textContent())));
+  assert.ok(!/\d{2,3}\s?\d{3}/.test(await X.shown(run.page.locator('[data-testid="leave-undo"]'))), "no sum on the screen");
+  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${ORDINARY}.`)], "the sentence of the server as it came");
   await run.page.close();
 });

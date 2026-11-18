@@ -143,7 +143,7 @@ test("inc13-4: balance chip: «Долг» rose, «Аванс» emerald, «0» sl
 
 // ── 5. alignment and the band ──────────────────────────────────────────────────────────────────
 
-test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three money columns are RIGHT with tabular digits (their headers too); one DataTable", () => {
+test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three money columns are CENTRED (fix 10) with tabular digits (their headers too); one DataTable", () => {
   assert.equal(L.STATEMENT_ALIGN.date, "text-left");
   assert.equal(L.STATEMENT_ALIGN.operation, "text-left");
   assert.match(L.STATEMENT_ALIGN.money, /text-right/);
@@ -152,11 +152,11 @@ test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three mo
   const cols = src.match(/const STATEMENT_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
   assert.match(cols, /key: "date", header: "Дата", width: "max-content"/);
   assert.match(cols, /key: "operation", header: "Операция"/);
-  for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"], ["balance", "Остаток"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "end"`), word);
+  for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"], ["balance", "Остаток"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "center", numeric: "center"`), word);
   const { React, html } = renderer();
   const markup = html(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }));
   for (const id of ["charged", "paid", "balance"]) {
-    const cells = markup.match(new RegExp(`<div class="dt-cell[^"]*"[^>]*data-align="end"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
+    const cells = markup.match(new RegExp(`<div class="dt-cell[^"]*"[^>]*data-align="center"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
     assert.ok(cells.length >= 4, id);
   }
   assert.match(markup, /data-col="date" data-align="start"[^>]*><div class="dt-value"><span class="text-sm tabular-nums text-slate-700">\d\d\.\d\d\.\d{4}/);

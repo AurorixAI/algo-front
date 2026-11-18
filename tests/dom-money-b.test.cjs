@@ -161,17 +161,17 @@ test("Б1: the owner sees «Оплата с» with the first lesson by default; 
   await page.close();
 });
 
-test("Б1: a day in the past - the dry run says «Сразу начислится N сум (за K уроков)» before the button", async () => {
+test("Б1: a day in the past - the dry run says «К оплате сразу: N сум (за K уроков)» before the button", async () => {
   const server = (request) => {
-    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } } };
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } } };
     return null;
   };
   const { page, calls } = await openDrawer(OWNER, server);
   await page.waitForSelector('[data-testid="pay-from"]');
   await page.fill("#add-student-pay-from", "26.10.2026");
   await page.keyboard.press("Tab");
-  await page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("Сразу начислится")');
-  assert.equal(plain(await page.textContent('[data-testid="pay-from-immediate"]')), "Сразу начислится 300 000 сум (за 14 уроков)", "ONE student: his line, the total would say the same again (R3 №12)");
+  await page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("К оплате сразу")');
+  assert.equal(plain(await page.textContent('[data-testid="pay-from-immediate"]')), "К оплате сразу: 300 000 сум (за 14 уроков)", "ONE student: his line, the total would say the same again (R3 №12)");
   const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
   assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
@@ -383,8 +383,8 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
   const server = (request) => {
     if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) {
       if (fail) return { status: 500, json: { detail: "boom" } };
-      const one = (id, amount) => ({ student_id: id, billing: { pay_from: "2026-10-26", immediate: { amount, lessons: 14, text: "Сразу начислится 300 000 сум (за 14 уроков)" } } });
-      return { json: { students: [one("st9", 300000), one("st8", 300000)], immediate_total: { amount: 600000, lessons: 28, students: 2, text: "Всего сразу начислится 600 000 сум (за 28 уроков)" } } };
+      const one = (id, amount) => ({ student_id: id, billing: { pay_from: "2026-10-26", immediate: { amount, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } } });
+      return { json: { students: [one("st9", 300000), one("st8", 300000)], immediate_total: { amount: 600000, lessons: 28, students: 2, text: "Всего к оплате сразу: 600 000 сум (за 28 уроков)" } } };
     }
     return null;
   };
@@ -401,7 +401,7 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
   await page.click('[data-testid="pay-from-failed"] button');
   await page.waitForSelector('[data-testid="pay-from-immediate-total"]');
   const text = plain(await page.textContent('[data-testid="pay-from-immediate"]'));
-  assert.match(text, /Ученик Новый: Сразу начислится 300 000 сум.*Ученик Второй: Сразу начислится 300 000 сум.*Всего сразу начислится 600 000 сум \(за 28 уроков\)/);
+  assert.match(text, /Ученик Новый: К оплате сразу: 300 000 сум.*Ученик Второй: К оплате сразу: 300 000 сум.*Всего к оплате сразу.*600 000 сум/);
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(SHOTS, "10-pay-from-bulk-total-1280.png") });
   await page.close();
@@ -473,13 +473,13 @@ test("RB Д1: the window of the mode - the footer under the table agrees with it
   }, "RBfix-07-regime-footer");
 });
 
-test("RB Д3: «Оплата с» = today and a lesson today - the window says «Сразу начислится…» whenever the server sent it (no sentence when it sent none)", async () => {
+test("RB Д3: «Оплата с» = today and a lesson today - the window says «К оплате сразу…» whenever the server sent it (no sentence when it sent none)", async () => {
   const dry = (billing) => (request) => (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)
     ? { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing }] } } : null);
   const today = { pay_from: "2026-11-09", explicit: false, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x" };
-  let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "Сразу начислится 350 000 сум (за 7 уроков)" } }));
-  await ctx.page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("Сразу начислится")');
-  assert.equal(plain(await ctx.page.textContent('[data-testid="pay-from-immediate"]')), "Сразу начислится 350 000 сум (за 7 уроков)");
+  let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "К оплате сразу: 350 000 сум (за 7 уроков)" } }));
+  await ctx.page.waitForSelector('[data-testid="pay-from-immediate"]:has-text("К оплате сразу")');
+  assert.equal(plain(await ctx.page.textContent('[data-testid="pay-from-immediate"]')), "К оплате сразу: 350 000 сум (за 7 уроков)");
   assert.equal(await ctx.page.inputValue("#add-student-pay-from"), "09.11.2026", "the default day, not a changed one");
   assert.equal(ctx.calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path)).pop().body.pay_from, undefined, "the default day is not sent");
   await ctx.page.close();

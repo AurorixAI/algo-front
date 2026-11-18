@@ -36,7 +36,7 @@ test("immediate.parts: the break-down lines in the words of the owner; no parts 
   assert.deepEqual(payFrom.normalizeParts("junk"), []);
 });
 
-test("the block «Сразу начислится»: rows with the caption on the left and the sum on the right; the line beside the big number of a sheet is short and says больше / меньше", () => {
+test("the block «К оплате сразу»: rows with the caption on the left and the sum on the right; the line beside the big number of a sheet is short and says больше / меньше", () => {
   const rows = payFrom.immediatePartRows(payFrom.normalizeParts(PARTS)).map((r) => ({ label: nb(r.label), amount: nb(r.amount) }));
   assert.deepEqual(rows, [{ label: "Октябрь, с 27.10 · 2 урока из 9", amount: "89 000 сум" }, { label: "Ноябрь, весь месяц", amount: "400 000 сум" }]);
   const Y = require(src("lib/payroll-logica.ts"));
@@ -54,9 +54,12 @@ test("the server sends the month in lower case («ноябрь»): the caption o
 });
 
 test("the rounding line exists for a part of a month and says 1 000 сум", () => {
-  assert.equal(nb(payFrom.IMMEDIATE_ROUNDING_NOTE), "Неполный месяц округляется до 1 000 сум");
+  // fix 10: the line is under the «?» of the block «К оплате сразу», not on the screen
+  assert.match(nb(payFrom.immediateHint({ rounded: true, sameGroup: false })), /Неполный месяц округляется до 1 000 сум\.$/);
+  assert.doesNotMatch(payFrom.immediateHint({ rounded: false, sameGroup: false }), /округляется/);
   const text = fs.readFileSync(src("components/groups/pay-from-field.tsx"), "utf8");
-  assert.match(text, /parts\.some\(\(part\) => !part\.whole\) && <p data-testid="pay-from-rounding-note"/, "only where a month is not whole");
+  assert.match(text, /rounded: parts\.some\(\(part\) => !part\.whole\)/, "only where a month is not whole");
+  assert.doesNotMatch(text, /pay-from-rounding-note/, "no line of its own on the screen");
 });
 
 test("namesakes: the day added is `created_at` of the answer (the first), `joined_at` only when there is none", () => {

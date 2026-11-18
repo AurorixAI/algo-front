@@ -219,7 +219,8 @@ const TABLE_FACTS = `(() => {
   const gaps = [], dashes = [];
   for (const row of rows) {
     const cells = [...row.querySelectorAll(":scope > .dt-cell")].filter((c) => c.offsetParent !== null).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-    for (let i = 1; i < cells.length; i++) gaps.push(Math.round(cells[i].getBoundingClientRect().left - cells[i - 1].getBoundingClientRect().right));
+    const inner = (cell) => { const box = cell.getBoundingClientRect(), css = getComputedStyle(cell); return { left: box.left + parseFloat(css.paddingLeft), right: box.right - parseFloat(css.paddingRight) }; };   // a centred / ruled column reaches the middle of the gap: its CONTENT box is what must keep 24 px
+    for (let i = 1; i < cells.length; i++) gaps.push(Math.round(inner(cells[i]).left - inner(cells[i - 1]).right));
     for (const dash of row.querySelectorAll(".dt-empty")) {
       const head = document.querySelector('.dt-head [data-col="' + dash.closest(".dt-cell").dataset.col + '"]');
       const r = document.createRange(); r.selectNodeContents(dash); const hr = document.createRange(); hr.selectNodeContents(head); const d = r.getBoundingClientRect(), h = hr.getBoundingClientRect();

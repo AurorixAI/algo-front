@@ -10,7 +10,7 @@ import { Hint } from "@/components/ui/hint";
 export function HelpHint({ text, className = "", width = 300, testId }: { text: string; className?: string; width?: number; testId?: string }) {
   return (
     <span data-testid={testId} className="inline-flex shrink-0 align-middle">
-      <Hint text={text} label="Пояснение" scrollable width={width} className={`inline-flex min-h-6 min-w-6 items-center justify-center text-slate-500 hover:text-slate-800 max-sm:min-h-10 max-sm:min-w-10 ${className}`}>
+      <Hint text={text} label="Пояснение" scrollable width={width} className={`inline-flex -my-1 min-h-6 min-w-6 items-center justify-center text-slate-500 hover:text-slate-800 max-sm:-my-3 max-sm:min-h-10 max-sm:min-w-10 ${className}`}>
         <HelpCircle className="h-4 w-4" aria-hidden="true" />
       </Hint>
     </span>

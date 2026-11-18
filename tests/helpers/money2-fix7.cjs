@@ -34,4 +34,9 @@ function drawerServer(undoneIds, extra = () => null, long = false, balancesBy = 
 }
 const bulkProbes = (calls) => calls.filter((c) => c.method === "POST" && /\/students\/bulk$/.test(c.path) && isDry(c));
 const singleProbes = (calls) => calls.filter((c) => c.method === "POST" && /\/students\/st\d$/.test(c.path) && isDry(c));
-module.exports = { STUDENT, bulkProbes, singleProbes, F, UNDO_TEXT, undoOf, isDry, modalServer, drawerServer };
+const plainText = (text) => String(text ?? "").replace(/[\s\u00a0]+/g, " ").trim();
+/** What a person SEES inside the element: the text without the `sr-only` copies (the words of a «?» are read by screen readers but are not on the screen). */
+const shown = async (locator) => plainText(await locator.evaluate((el) => { const copy = el.cloneNode(true); copy.querySelectorAll(".sr-only").forEach((node) => node.remove()); return copy.textContent; }));
+/** The words inside the «?» of the element (the text a screen reader gets with `aria-describedby`). */
+const hintsOf = async (locator) => (await locator.locator(".sr-only").allTextContents()).map(plainText);
+module.exports = { shown, hintsOf, plainText, STUDENT, bulkProbes, singleProbes, F, UNDO_TEXT, undoOf, isDry, modalServer, drawerServer };
