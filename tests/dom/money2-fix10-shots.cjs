@@ -31,7 +31,7 @@ function drawerServer(undone, ordinary, balances = {}) {
   return (request) => {
     if (request.method === "POST" && /\/students\/bulk$/.test(request.path) && X.isDry(request)) {
       const ids = request.body.student_ids;
-      return { json: { group_id: "g2", added: ids.length, skipped: 0, skipped_details: [], warnings: [], dry_run: true, students: ids.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: null, past_balances: balances[id] || [], leave_undo: undone.includes(id) ? X.undoOf(true) : ordinary.includes(id) ? { undone: false, text: ORDINARY, restored: [] } : null })) } };
+      return { json: { group_id: "g2", added: ids.length, skipped: 0, skipped_details: [], warnings: [], dry_run: true, students: ids.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: request.body.pay_from ? { pay_from: request.body.pay_from, explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата с выбранного дня", immediate: { amount: 187000, lessons: 5, text: "К оплате сразу: 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] } } : null, past_balances: balances[id] || [], leave_undo: undone.includes(id) ? X.undoOf(true) : ordinary.includes(id) ? { undone: false, text: ORDINARY, restored: [] } : null })) } };
     }
     return base(request);
   };
@@ -115,6 +115,25 @@ const SUF = LONG ? "-long" : "";
       await shot(page, `card-debtor-open-${width}${SUF}`);
       const h = await page.evaluate(() => { const d = document.querySelector('[role="dialog"]'); const sc = [...d.querySelectorAll("*")].find((el) => el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)); const foot = d.querySelector('[data-modal-part="footer"]'); return { footer: foot ? Math.round(foot.getBoundingClientRect().height) : null, scroller: sc ? Math.round(sc.clientHeight) : null, dialog: Math.round(d.getBoundingClientRect().height) }; });
       console.log(`debtor card ${width}${SUF}`, JSON.stringify(h));
+      await page.close();
+    }
+  }
+  // «К оплате сразу» in the drawer: a new student, a debtor with a stay in this group, a batch of three (hint closed / open)
+  for (const width of [1280, 375]) {
+    const size = { width, height: width === 375 ? 812 : 900 };
+    for (const [file, chosen, balances] of [["immediate-new", [0], {}], ["immediate-debtor", [0], { st9: [SAME] }], ["immediate-three", [0, 1, 2], { st9: [SAME], st8: [OTHER] }]]) {
+      const { page } = await openPage(browser, "money-b.entry.tsx", drawerServer([], [], balances), size);
+      await page.evaluate(() => window.mount("addDrawer", { role: "owner", org_role: "owner" }, { summary: { accountingStart: "2026-09-01" }, refresh: false, groupPrice: { amount: 380000, valid_from: "2026-09-01" } }));
+      await page.fill('input[placeholder^="Поиск по имени"]', "Уч");
+      for (const i of chosen) await page.click(`button:has-text("${PEOPLE[i][1]}")`);
+      await page.fill("#add-student-pay-from", "04.11.2026");
+      await page.keyboard.press("Tab");
+      await page.waitForSelector('[data-testid="pay-from-immediate-help"]');
+      await page.waitForTimeout(500);
+      await scrollDown(page); await page.waitForTimeout(200);
+      await shot(page, `${file}-${width}${SUF}-closed`);
+      await page.locator('[data-testid="pay-from-immediate-help"] [role="button"]').first().click(); await page.waitForTimeout(250);
+      await shot(page, `${file}-${width}${SUF}-open`);
       await page.close();
     }
   }

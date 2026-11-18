@@ -61,7 +61,7 @@ function BalanceRows({ rows, paymentsBase, className }: { rows: PastBalance[]; p
           <span className="min-w-0 [overflow-wrap:anywhere]">{tidyMoneyText(pastBalanceLabel(row))}</span>
           <span className="flex shrink-0 items-baseline gap-x-3">
             {row.value && <span className="whitespace-nowrap font-semibold tabular-nums">{row.value}</span>}
-            {paymentsBase && <Link href={statementHref(paymentsBase, row.membershipId)} className="inline-flex min-h-10 items-center text-xs font-semibold text-primary-700 hover:underline sm:min-h-0" data-testid="past-balance-link">Выписка</Link>}
+            {paymentsBase && <Link href={statementHref(paymentsBase, row.membershipId)} className="inline-flex min-h-10 items-center text-xs font-semibold text-primary-700 hover:underline max-sm:-my-2 sm:min-h-0" data-testid="past-balance-link">Выписка</Link>}
           </span>
         </li>
       ))}
