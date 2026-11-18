@@ -80,29 +80,32 @@ test("eight students (two long names, one with nothing to pay): names cut with �
   }
 });
 
-test("the hint of several students: a paragraph per student (the name in bold on its own line), the rule line apart; the text for a screen reader keeps «имя: текст»", async () => {
-  for (const [undone, ordinary, rule] of [[["st9", "st7"], [], true], [[], ["st8", "st7"], false]]) {
-    const run = await drawer(rule ? [0, 1, 2] : [1, 2], { undone, ordinary, width: 375 });
-    await run.page.waitForSelector('[data-testid="leave-undo-many"], [data-testid="leave-return-many"]');
-    await run.page.locator('[data-testid="leave-undo-help"] [role="button"]').first().click();
-    const tip = run.page.locator('[role="tooltip"]');
-    await tip.waitFor();
-    const students = tip.locator('[data-testid="leave-hint-student"]');
-    assert.equal(await students.count(), 2);
-    const first = students.first();
-    assert.equal(await first.locator("span.font-semibold").count(), 1);
-    assert.equal(await tip.locator('[data-testid="leave-hint-rule"]').count(), rule ? 1 : 0);
-    if (rule) assert.equal(plain(await tip.locator('[data-testid="leave-hint-rule"]').textContent()), "Общие «Оплата с» и цена на них не действуют");
-    const tops = await students.evaluateAll((els) => els.map((el) => [el.children[0].getBoundingClientRect().top, el.children[1].getBoundingClientRect().top]));
-    assert.ok(tops.every(([name, body]) => body > name + 8), "the name is on its own line over the text");
-    const reader = await run.page.locator('[role="button"][aria-label="Пояснение"]').first().getAttribute("aria-describedby");
-    assert.match(await run.page.locator(`[id="${reader}"]`).textContent(), /Второй Ученик: |Новый Ученик: /);
-    await run.page.close();
-  }
+test("the hint of several students: a paragraph per student (the name in bold on its own line); the text for a screen reader keeps «имя: текст»", async () => {
+  const run = await drawer([1, 2], { ordinary: ["st8", "st7"], width: 375 });
+  await run.page.waitForSelector('[data-testid="leave-return-many"]');
+  await run.page.locator('[data-testid="leave-undo-help"] [role="button"]').first().click();
+  const tip = run.page.locator('[role="tooltip"]');
+  await tip.waitFor();
+  const students = tip.locator('[data-testid="leave-hint-student"]');
+  assert.equal(await students.count(), 2);
+  assert.equal(await students.first().locator("span.font-semibold").count(), 1);
+  const tops = await students.evaluateAll((els) => els.map((el) => [el.children[0].getBoundingClientRect().top, el.children[1].getBoundingClientRect().top]));
+  assert.ok(tops.every(([name, body]) => body > name + 8), "the name is on its own line over the text");
+  assert.ok(tops[1][0] > tops[0][1] + 16, "a gap between the students");
+  const reader = await run.page.locator('[role="button"][aria-label="Пояснение"]').first().getAttribute("aria-describedby");
+  assert.match(await run.page.locator(`[id="${reader}"]`).textContent(), /Второй Ученик: /);
+  await run.page.close();
 });
 
 test("«Сразу платить не нужно» replaces «К оплате сразу — ничего»", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "pay-from.ts"), "utf8");
   assert.ok(src.includes('PAY_FROM_NOTHING_NOW = "Сразу платить не нужно"'));
   assert.ok(!src.includes("К оплате сразу — ничего"));
+});
+
+test("the message of success with the server's words of a returned student stays at least 6 s (details toast) and is read by a screen reader (role=status)", () => {
+  const timing = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "toast-timing.ts"), "utf8");
+  assert.ok(Number(/DETAILS_TOAST_MS = (\d+)/.exec(timing)[1]) >= 6000 && /if \(hasDetails\) return DETAILS_TOAST_MS/.test(timing));
+  const toast = fs.readFileSync(path.join(__dirname, "..", "src", "components", "ui", "toast.tsx"), "utf8");
+  assert.ok(/role=\{toast\.type === "error" \? "alert" : "status"\}/.test(toast));
 });

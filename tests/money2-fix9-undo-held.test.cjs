@@ -1,4 +1,4 @@
-// Money-2 fix 9 (walk M12, defect 2): the plate «Ученика убрали сегодня — вернётся как был» of the drawer «Зачислить учеников» was drawn from the answer of the CURRENT key of the probe, and the key changes with every
+// Money-2 fix 9 (walk M12, defect 2): the line «На N ученика общие цена и дата не действуют» (Money-2 fix 10B: it replaced the plate «Ученика убрали сегодня — вернётся как был», which is gone) of the drawer «Зачислить учеников» was drawn from the answer of the CURRENT key of the probe, and the key changes with every
 // press (price, reason, day) and is null while the form of the price or the day is half filled - so the plate flickered away for the time of each new probe (a slow answer, a field being typed) and a look
 // at the wrong moment saw none.  Who comes back the day of the leaving depends on the group and the chosen students only: the last answer of THIS set stays while a new probe runs or the form is half filled;
 // another set of students - the old plate is not shown.
@@ -9,7 +9,7 @@ const { openPage } = require("./helpers/dom-page.cjs");
 const X = require("./helpers/money2-fix7.cjs");
 
 const ctx = setup(test);
-const PLATE = '[data-testid="leave-undo"], [data-testid="leave-undo-many"]';
+const PLATE = '[data-testid="leave-shared-note"]';
 const PEOPLE = [["st9", "Новый"], ["st8", "Второй"], ["st7", "Третий"], ["st6", "Четвёртый"]];
 const SLOW_MS = 700;
 
@@ -29,54 +29,61 @@ async function open(undoneIds, chosen) {
   await run.page.fill('input[placeholder^="Поиск по имени"]', "");
   await run.page.fill('input[placeholder^="Поиск по имени"]', "ов");
   for (const last of chosen) await run.page.click(`button:has-text("${last} Ученик")`);
-  await run.page.waitForSelector(PLATE, { timeout: 4000 });
+  for (let i = 0; i < 60 && X.bulkProbes(run.calls).length < 1; i += 1) await run.page.waitForTimeout(100);
+  await run.page.waitForTimeout(SLOW_MS + 300);
   return run;
 }
 const plates = (page) => page.locator(PLATE).count();
 
-test("the plate stays while the price form is filled (the key changes on every press and is null while the reason is empty)", async () => {
+test("the line stays while the price form is filled: a valid price shows it at once from the last answer of this set, the new probe does not blink it", async () => {
   const run = await open(["st9"], ["Новый", "Второй", "Третий", "Четвёртый"]);
+  assert.equal(await plates(run.page), 0, "nothing common entered: no line");
   const before = X.bulkProbes(run.calls).length;
   await run.page.click('button[role="switch"]:has-text("Индивидуальная цена")');
-  assert.equal(await plates(run.page), 1, "the form of the price opened (the key is null)");
   await run.page.fill("#add-student-price-amount", "380000");
-  assert.equal(await plates(run.page), 1, "an amount without a reason (the key is null)");
+  assert.equal(await plates(run.page), 0, "an amount without a reason is not a price yet");
   await run.page.locator("#add-student-price-reason").pressSequentially("Скидка", { delay: 40 });
-  await run.page.waitForTimeout(350);
-  assert.equal(await plates(run.page), 1, "the new probe is running (the key changed)");
+  await run.page.waitForTimeout(150);
+  assert.equal(await plates(run.page), 1, "the new probe is running (the key changed): the line is from the last answer");
   await run.page.waitForTimeout(SLOW_MS + 300);
   assert.equal(await plates(run.page), 1, "the new answer came");
   assert.equal(X.bulkProbes(run.calls).length - before, 1, "ONE probe for the finished form, none for the half filled one");
   await run.page.fill("#add-student-price-reason", "");
-  assert.equal(await plates(run.page), 1, "the reason erased");
+  assert.equal(await plates(run.page), 0, "the reason erased: no common price - no line");
   assert.equal(X.singleProbes(run.calls).length, 0);
   await run.page.close();
 });
 
-test("the plate stays while «Оплата с» is retyped (a half typed day is not a day: the key is null)", async () => {
+test("the line follows «Оплата с»: a changed day shows it, a half typed or the default day does not", async () => {
   const run = await open(["st9"], ["Новый", "Второй", "Третий"]);
   await run.page.waitForSelector("#add-student-pay-from");
-  await run.page.fill("#add-student-pay-from", "08.1");
-  assert.equal(await plates(run.page), 1, "half typed day");
-  await run.page.fill("#add-student-pay-from", "");
-  assert.equal(await plates(run.page), 1, "empty day");
   await run.page.fill("#add-student-pay-from", "08.11.2026");
   await run.page.keyboard.press("Tab");
-  await run.page.waitForTimeout(400);
-  assert.equal(await plates(run.page), 1, "a new day, the probe runs");
+  await run.page.waitForTimeout(150);
+  assert.equal(await plates(run.page), 1, "a new day, the probe runs, the line is from the last answer");
   await run.page.waitForTimeout(SLOW_MS + 300);
   assert.equal(await plates(run.page), 1);
+  await run.page.fill("#add-student-pay-from", "08.1");
+  assert.equal(await plates(run.page), 0, "half typed day: not a day");
+  await run.page.fill("#add-student-pay-from", "09.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForTimeout(150);
+  assert.equal(await plates(run.page), 0, "the default day again: nothing common is entered");
   await run.page.close();
 });
 
-test("another set of students: the plate of the old set is NOT shown for the new one; it comes with the answer", async () => {
+test("another set of students: the line of the old set is NOT shown for the new one; it comes with the answer", async () => {
   const run = await open(["st9"], ["Новый", "Второй"]);
+  await run.page.fill("#add-student-pay-from", "08.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForTimeout(SLOW_MS + 300);
+  assert.equal(await plates(run.page), 1);
   await run.page.click('button:has-text("Третий Ученик")');
   assert.equal(await plates(run.page), 0, "the set changed - nothing of the old set is shown while the new probe runs");
   await run.page.waitForSelector(PLATE, { timeout: 4000 });
-  // the one who comes back is taken off: the new set has nobody who comes back - after its answer no plate at all, while it runs none either
+  // the one who comes back is taken off: the new set has nobody who comes back - no line while the probe runs, none after it
   await run.page.click('button:has-text("Новый Ученик")');
-  assert.equal(await plates(run.page), 0, "the set without the returning student: no plate for the time of the probe");
+  assert.equal(await plates(run.page), 0, "the set without the returning student: no line for the time of the probe");
   await run.page.waitForTimeout(SLOW_MS + 600);
   assert.equal(await plates(run.page), 0, "and after the answer");
   await run.page.close();

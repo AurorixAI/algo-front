@@ -35,36 +35,45 @@ async function drawer(chosen, opts, width = 1280) {
   return run;
 }
 
-// ---- 4
-test("card of a student: ONE plate - the sentence of the server once, the grey line without «Уход отменяется —», no list of what was restored", async () => {
+// ---- 4 (fix 10B: no plate BEFORE the action for a student who comes back as he was; the server's words come after it)
+const settled = async (run) => {
+  for (let i = 0; i < 60 && run.calls.filter((c) => c.method === "POST" && X.isDry(c)).length < 1; i += 1) await run.page.waitForTimeout(100);
+  await run.page.waitForTimeout(600);
+};
+test("card of a student: no plate and no «?» before the action; after it the sentence of the server once, no list of what was restored", async () => {
   for (const props of [{ mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"] }, { mode: "transfer", currentGroupId: null, currentGroupName: "", excludeGroupIds: [], sourceGroups: [] }]) {
     const run = await mount(ctx, X.modalServer({ undone: true }), "assign", OWNER, { moneyAvailable: true, groupsBasePath: "/owner/groups", ...props });
     await pick(run.page);
-    await run.page.waitForSelector('[data-testid="leave-undo"]');
-    const text = plain(await run.page.locator('[data-testid="leave-undo"]').textContent());
-    assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученика убрали сегодня — вернётся как был", "ONE line on the screen");
-    assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${X.UNDO_TEXT} ${FIXED_TEXT}`)], "the sentence of the server and the grey words - in the «?»");
-    assert.ok(!/Уход отменяется|продолжается|восстановлена|сум возвращена/.test(plain(await run.page.locator('[role="dialog"]').textContent())));
+    await settled(run);
+    assert.equal(await run.page.locator('[data-testid="leave-undo"]').count(), 0);
+    assert.equal(await run.page.locator('[role="dialog"] [aria-label="Пояснение"]').count(), 0, "no «?» of a plate");
+    await run.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
+    await run.page.click('[data-testid="assign-submit"]');
+    await run.page.waitForSelector('[data-testid="assign-done"]');
+    const text = plain(await run.page.locator('[role="dialog"]').textContent());
+    assert.equal(text.split("Ученика убрали сегодня — возвращаем как было").length - 1, 1, "once");
+    assert.ok(!/Уход отменяется|продолжается|восстановлена|сум возвращена/.test(text));
     await run.page.close();
   }
 });
-test("drawer, one returns: ONE plate - the sentence of the server once and the grey line", async () => {
+test("drawer, one returns: no plate, no «?»", async () => {
   const run = await drawer(["Новый"], { undone: ["st9"] });
-  await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученика убрали сегодня — вернётся как был");
-  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${X.UNDO_TEXT} ${FIXED_TEXT}`)]);
-  assert.equal(await run.page.locator('[data-testid="leave-undo-many"]').count(), 0);
+  await settled(run);
+  assert.equal(await run.page.locator('[data-testid="leave-undo"], [data-testid="leave-undo-many"], [data-testid="leave-shared-note"]').count(), 0);
+  assert.equal(await run.page.locator('[role="dialog"] [aria-label="Пояснение"]').count(), 0);
   await run.page.close();
 });
-test("drawer, several return: the «?» holds the common words and «name: sentence of the server», nothing twice", async () => {
+test("drawer, several return and something common is entered: ONE quiet line under the price and the day, the «?» holds «name» and the sentence of the server per student", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9", "st7"] });
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
-  assert.equal(await run.page.locator('[data-testid="leave-undo-many"] details').count(), 0, "no disclosure: a «?»");
-  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo-many"]')), "2 ученика убрали сегодня — вернутся как были");
-  const [hint] = await X.hintsOf(run.page.locator('[data-testid="leave-undo-many"]'));
-  assert.equal(hint, plain(`Общие «Оплата с» и цена на них не действуют Новый Ученик: ${X.UNDO_TEXT} Третий Ученик: ${X.UNDO_TEXT}`));
-  const all = hint;
-  assert.ok(!/Уход отменяется|продолжается|восстановлена/.test(all), all);
+  await settled(run);
+  assert.equal(await run.page.locator('[data-testid="leave-shared-note"]').count(), 0, "nothing common entered: no line");
+  await run.page.fill("#add-student-pay-from", "08.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForSelector('[data-testid="leave-shared-note"]');
+  assert.equal(await X.shown(run.page.locator('[data-testid="leave-shared-note"]')), "На 2 ученика общие цена и дата не действуют — у них остаются прежние");
+  const [hint] = await X.hintsOf(run.page.locator('[data-testid="leave-shared-note"]'));
+  assert.equal(hint, plain(`Новый Ученик: ${X.UNDO_TEXT} Третий Ученик: ${X.UNDO_TEXT}`));
+  assert.ok(!/Уход отменяется|продолжается|восстановлена/.test(hint), hint);
   await run.page.close();
 });
 
@@ -72,14 +81,14 @@ test("drawer, several return: the «?» holds the common words and «name: sente
 const PRICE_BLOCK = '[data-testid="add-price-settings"]';
 test("drawer, ALL come back: no «Цена группы … Эту цену получат все» block; SOME come back: the block stays", async () => {
   const all = await drawer(["Новый", "Третий"], { undone: ["st9", "st7"] });
-  await all.page.waitForSelector('[data-testid="leave-undo-many"]');
+  await settled(all);
   assert.equal(await all.page.locator(PRICE_BLOCK).count(), 0);
   assert.ok(!/Цена группы|Эту цену получат/.test(plain(await all.page.locator('[role="dialog"]').textContent())));
   await all.page.close();
   const some = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9", "st7"] });
-  await some.page.waitForSelector('[data-testid="leave-undo-many"]');
+  await settled(some);
   const text = plain(await some.page.locator(PRICE_BLOCK).textContent());
-  assert.ok(/Цена группы/.test(text) && /Эту цену получат все добавляемые ученики/.test(text), text);
+  assert.ok(/Цена группы/.test(text), text);
   await some.page.close();
   const none = await drawer(["Второй"], { undone: [] });
   await none.page.waitForSelector(PRICE_BLOCK);
@@ -97,14 +106,14 @@ test("drawer, ONE student returns in the ordinary way: the sentence of the serve
   assert.ok(await run.page.locator('[data-testid="pay-from"]').count() > 0, "an ordinary return keeps «Оплата с»");
   await run.page.close();
 });
-test("drawer, SEVERAL: one ordinary and one cancelling - two plates, each in its place; the ordinary one by student in its «?»", async () => {
+test("drawer, SEVERAL: one ordinary and one cancelling - the grey ordinary line only, by student in its «?»", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
+  await run.page.waitForSelector('[data-testid="leave-return-many"]');
   const ordinary = run.page.locator('[data-testid="leave-return-many"]');
   assert.equal(await ordinary.count(), 1);
   assert.equal(await X.shown(ordinary), "2 ученика записываются заново");
   assert.deepEqual(await X.hintsOf(ordinary), [plain(`Второй Ученик: ${ORDINARY} Третий Ученик: ${ORDINARY}`)]);
-  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo-many"]')), "1 ученика убрали сегодня — вернутся как были");
+  assert.equal(await run.page.locator('[data-testid="leave-undo-many"]').count(), 0, "the returning-as-was one has no plate");
   await run.page.close();
 });
 test("drawer, a role without the right to money: the sentence comes from the server as it is (no sums are built by the screen)", async () => {

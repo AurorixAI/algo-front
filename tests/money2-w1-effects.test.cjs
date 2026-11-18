@@ -95,8 +95,12 @@ test("Т6: coming back the day of the leaving - `leave_undo` in the words of the
   const answer = (extra) => F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), leave_undo: undo, ...extra } } : null);
   for (const mode of ["transfer", "add"]) {
     const run = await open(1280, answer(mode === "transfer" ? { effects: F.transferEffects() } : {}), { props: mode === "add" ? { mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"] } : {} });
-    await run.page.waitForSelector('[data-testid="leave-undo"]');
-    const text = plain(await run.page.textContent('[data-testid="leave-undo"]'));
+    await run.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
+    await run.page.waitForTimeout(600);
+    assert.equal(await run.page.locator('[data-testid="leave-undo"]').count(), 0, `${mode}: no plate before the action`);
+    await run.page.click('[data-testid="assign-submit"]');
+    await run.page.waitForSelector('[data-testid="assign-done"]');
+    const text = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
     assert.ok(text.includes("возвращаем как было: цены и паузы возвращены") && !text.includes("Индивидуальная цена 300 000 сум возвращена") && !text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
     await run.page.close();
   }

@@ -33,9 +33,10 @@ test("coming back the day of the leaving: «Оплата с» and the opening ba
   await ordinary.page.close();
   const undone = await mount(ctx, addServer(true), "assign", OWNER, props);
   await pick(undone.page);
-  await undone.page.waitForSelector('[data-testid="leave-undo"]');
+  await undone.page.waitForSelector('[data-testid="assign-submit"]');
+  await undone.page.waitForTimeout(800);
   const text = plain(await undone.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
-  const withoutNote = text.replace(/Ученик вернулся[^]*?задать нельзя/, "");
-  assert.doesNotMatch(withoutNote, OLD);
+  assert.doesNotMatch(text, OLD);
+  assert.equal(await undone.page.locator('[data-testid="leave-undo"]').count(), 0, "no plate before the action");
   await undone.page.close();
 });

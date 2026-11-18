@@ -33,6 +33,7 @@ import { GroupPickCard } from "./group-pick-card";
 import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
 import { LeaveUndoNote } from "@/components/money/effects-sections";
+import { tidyMoneyText } from "@/lib/money-format";
 import { PastBalancesNote } from "@/components/money/past-balances-note";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
@@ -288,6 +289,9 @@ export function AssignGroupModal({
       // the server's sentence about the day the charge starts (only when the person chose it)
       const billingLine = payBody ? normalizeBilling(result.billing)?.text : "";
       setServerInfos(billingLine ? [...notes.infos, billingLine] : notes.infos);
+      // after the action: the server's words about a student who came back as he was (before it the window says nothing - «как было» is the expected result)
+      const undoDone = leaveUndoOf(result);
+      if (undoDone?.undone) setServerInfos((infos) => [tidyMoneyText(undoDone.text), ...infos]);
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {

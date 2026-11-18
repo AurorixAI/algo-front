@@ -9,6 +9,11 @@ const X = require("./helpers/money2-fix7.cjs");
 const { F } = X;
 
 const ctx = setup(test);
+/** The dry run has been asked and answered (the screen of a returning student has no plate to wait for - Money-2 fix 10B). */
+const settled = async (run, probes = 1) => {
+  for (let i = 0; i < 60 && run.calls.filter((c) => c.method === "POST" && X.isDry(c)).length < probes; i += 1) await run.page.waitForTimeout(100);
+  await run.page.waitForTimeout(600);
+};
 const FIXED = '[data-testid="leave-undo-fixed"]';
 const FIXED_TEXT = "Дату оплаты и цену здесь задать нельзя — они остаются прежними";
 const pick = (page) => page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
@@ -22,13 +27,10 @@ for (const [label, props] of [
   test(`card of a student, ${label}: the note of the server stands, the fields that do not act are not offered, one line says why, nothing of them is sent`, async () => {
     const run = await mount(ctx, X.modalServer({ undone: true }), "assign", OWNER, { moneyAvailable: true, groupsBasePath: "/owner/groups", ...props });
     await pick(run.page);
-    await run.page.waitForSelector('[data-testid="leave-undo"]');
+    await settled(run);
     const dialog = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
-    assert.ok(dialog.includes("Ученика убрали сегодня — возвращаем как было"), "the server's sentence");
-    assert.ok(dialog.includes("Долг снова за учеником"), "the forgiveness is said");
-    assert.equal(plain(await run.page.locator('[data-testid="leave-undo-line"]').textContent()), "Ученика убрали сегодня — вернётся как был", "ONE short line");
-    assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${X.UNDO_TEXT} ${FIXED_TEXT}`)], "the sentence of the server and the grey words are INSIDE the «?»");
-    assert.ok(!(await X.shown(run.page.locator('[data-testid="leave-undo"]'))).includes("Долг снова"), "the full sentence is not on the screen");
+    assert.equal(await run.page.locator('[data-testid="leave-undo"]').count(), 0, "no plate before the action: «как было» is the expected result");
+    assert.ok(!dialog.includes("возвращаем как было") && !dialog.includes("вернётся как был") && !dialog.includes(FIXED_TEXT), dialog);
     assert.equal(await run.page.locator("#assign-group-pay-from, [data-testid=\"pay-from\"]").count(), 0, "no «Оплата с»");
     assert.equal(await run.page.locator('[id^="assign-group-opening"]').count(), 0, "no opening balance");
     assert.equal(await run.page.locator('button[role="switch"]:has-text("Индивидуальная цена")').count(), 0, "no individual price");
@@ -36,6 +38,9 @@ for (const [label, props] of [
     await run.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
     await run.page.click('[data-testid="assign-submit"]');
     await run.page.waitForSelector('[data-testid="assign-done"]');
+    const done = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
+    assert.ok(done.includes("Ученика убрали сегодня — возвращаем как было") && done.includes("Долг снова за учеником"), `after the action the server's words: ${done}`);
+    assert.equal(await run.page.locator('[role="dialog"] [role="status"]').filter({ hasText: "возвращаем как было" }).count(), 1, "read by a screen reader (role=status)");
     const body = posts(run.calls).find((c) => c.path === "/auth/org/groups/gt/students/st1").body ?? {};
     for (const key of ["pay_from", "opening_balance", "price_override"]) assert.equal(body[key], undefined, `${key} is not sent`);
     await run.page.close();
@@ -46,6 +51,7 @@ test("card of a student WITHOUT groups: an ordinary first enrolment keeps «Оп
   const run = await mount(ctx, X.modalServer({ undone: false }), "assign", OWNER, { moneyAvailable: true, mode: "transfer", currentGroupId: null, currentGroupName: "", excludeGroupIds: [], sourceGroups: [] });
   await pick(run.page);
   await run.page.waitForSelector('[data-testid="pay-from"]');
+  await settled(run);
   assert.equal(await run.page.locator('[data-testid="leave-undo"]').count(), 0);
   assert.equal(await run.page.locator(FIXED).count(), 0);
   assert.ok(await run.page.locator('button[role="switch"]:has-text("Индивидуальная цена")').count() > 0);
@@ -74,6 +80,7 @@ async function openDrawer(undoneIds, names, width = 1280, extra, balancesBy = {}
   for (const name of names) await run.page.click(`button:has-text("${name}")`);
   return run;
 }
+const added = async (page) => { await page.waitForFunction(() => window.__log.some((line) => line.startsWith("{")), null, { timeout: 4000 }); return JSON.parse((await page.evaluate(() => window.__log)).filter((line) => line.startsWith("{")).pop()); };
 const writes = (calls) => calls.filter((c) => c.method === "POST" && !X.isDry(c)).map((c) => ({ path: c.path, body: c.body ?? {} }));
 const SERVER_LINE = "Общие «Оплата с» и цена на них не действуют";
 const noFields = async (page) => {
@@ -83,9 +90,8 @@ const noFields = async (page) => {
 
 test("drawer, ONE chosen student who comes back the day of the leaving: the server's note from the ONE bulk probe, no fields, ONE write without them", async () => {
   const run = await openDrawer(["st9"], ["Новый Ученик"]);
-  await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.equal(plain(await run.page.locator('[data-testid="leave-undo-line"]').textContent()), "Ученика убрали сегодня — вернётся как был");
-  assert.ok((await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')))[0].includes(FIXED_TEXT));
+  await settled(run);
+  assert.equal(await run.page.locator('[data-testid="leave-undo"], [data-testid="leave-undo-many"], [data-testid="leave-shared-note"]').count(), 0, "no plate before the action");
   await noFields(run.page);
   assert.equal(X.bulkProbes(run.calls).length, 1, "one bulk probe");
   assert.equal(X.singleProbes(run.calls).length, 0, "no probe per student");
@@ -94,23 +100,31 @@ test("drawer, ONE chosen student who comes back the day of the leaving: the serv
   const sent = writes(run.calls);
   assert.equal(sent.length, 1, JSON.stringify(sent));
   for (const key of ["pay_from", "opening_balance", "price_override"]) assert.equal(sent[0].body[key], undefined, key);
+  const summary = await added(run.page);
+  assert.ok(summary.infos[0].startsWith("Ученика убрали сегодня — возвращаем как было") && summary.infos[0].includes("Долг снова за учеником"), JSON.stringify(summary.infos));
   await run.page.close();
 });
 
 test("drawer, 2 of 3 come back: ONE probe, the summary with the words of the server, the line under it, «Оплата с» stays; ONE write with all three and the common day", async () => {
   const run = await openDrawer(["st9", "st7"], ["Новый Ученик", "Второй Ученик", "Третий Ученик"], 1280, (r) => (r.method === "GET" && r.path === "/auth/org/students" ? { json: { items: [X.STUDENT("st9", "Новый"), X.STUDENT("st8", "Второй"), X.STUDENT("st7", "Третий")], total: 3 } } : null));
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
-  assert.match(plain(await run.page.locator('[data-testid="leave-undo-line"]').first().textContent()), /^2 ученика убрали сегодня — вернутся как были$/);
-  const inside = (await X.hintsOf(run.page.locator('[data-testid="leave-undo-many"]')))[0];
-  assert.ok(inside.includes("Новый Ученик: Ученика убрали сегодня — возвращаем как было") && inside.includes("Третий Ученик"), inside);
-  assert.ok(!inside.includes("Второй Ученик"), "the ordinary one is not listed");
-  assert.ok(inside.includes(SERVER_LINE), inside);
-  assert.ok(!/отдельно/.test(inside), "no word about a separate write");
+  await settled(run);
+  assert.equal(await run.page.locator('[data-testid="leave-undo-many"], [data-testid="leave-shared-note"]').count(), 0, "nothing common entered: no line");
   assert.ok(await run.page.locator('[data-testid="pay-from"]').count() > 0, "the others still have «Оплата с»");
   await run.page.fill("#add-student-pay-from", "08.11.2026");
   await run.page.keyboard.press("Tab");
   await run.page.waitForTimeout(700);
   assert.equal(X.singleProbes(run.calls).length, 0, "no probe per student");
+  await run.page.waitForSelector('[data-testid="leave-shared-note"]');
+  assert.match(plain(await run.page.locator('[data-testid="leave-shared-line"]').textContent()), /^На 2 ученика общие цена и дата не действуют — у них остаются прежние$/);
+  const inside = (await X.hintsOf(run.page.locator('[data-testid="leave-shared-note"]')))[0];
+  assert.ok(inside.includes("Новый Ученик: Ученика убрали сегодня — возвращаем как было") && inside.includes("Третий Ученик") && !inside.includes("Второй Ученик"), inside);
+  await run.page.fill("#add-student-pay-from", "09.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForTimeout(700);
+  assert.equal(await run.page.locator('[data-testid="leave-shared-note"]').count(), 0, "the day is the default again: the line is gone");
+  await run.page.fill("#add-student-pay-from", "08.11.2026");
+  await run.page.keyboard.press("Tab");
+  await run.page.waitForTimeout(700);
   await run.page.click('button:has-text("Зачислить (3)")');
   await run.page.waitForTimeout(400);
   const sent = writes(run.calls);
@@ -118,6 +132,8 @@ test("drawer, 2 of 3 come back: ONE probe, the summary with the words of the ser
   assert.match(sent[0].path, /students\/bulk$/);
   assert.deepEqual([...sent[0].body.student_ids].sort(), ["st7", "st8", "st9"]);
   assert.ok(JSON.stringify(sent[0].body).includes("2026-11-08"), JSON.stringify(sent[0].body));
+  const summary = await added(run.page);
+  assert.ok(summary.infos.some((line) => line.startsWith("Новый Ученик: Ученика убрали сегодня — возвращаем как было")) && summary.infos.some((line) => line.startsWith("Третий Ученик:")), JSON.stringify(summary.infos));
   await run.page.close();
 });
 
@@ -131,15 +147,16 @@ test("drawer, picking three students quickly: exactly ONE bulk probe asked", asy
 
 test("drawer, all come back: the summary, no fields, no «Оплата с» anywhere, ONE write (one request)", async () => {
   const run = await openDrawer(["st9", "st8"], ["Новый Ученик", "Второй Ученик"]);
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
-  assert.match(plain(await run.page.locator('[data-testid="leave-undo-line"]').first().textContent()), /^2 ученика убрали сегодня — вернутся как были$/);
+  await settled(run);
+  assert.equal(await run.page.locator('[data-testid="leave-undo-many"], [data-testid="leave-shared-note"]').count(), 0, "all come back: no plate, no line");
   await noFields(run.page);
-  assert.ok((await X.hintsOf(run.page.locator('[data-testid="leave-undo-many"]')))[0].startsWith(SERVER_LINE));
   await run.page.click('button:has-text("Зачислить (2)")');
   await run.page.waitForTimeout(400);
   const sent = writes(run.calls);
   assert.equal(sent.length, 1, JSON.stringify(sent));
   assert.ok(sent[0].body.pay_from === undefined && sent[0].body.price_override === undefined);
+  const summary = await added(run.page);
+  assert.ok(summary.infos.length === 2 && summary.infos.every((line) => line.includes("возвращаем как было")), JSON.stringify(summary.infos));
   await run.page.close();
 });
 
@@ -214,19 +231,19 @@ for (const [label, props] of [
   ["mode add", { mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"] }],
   ["mode transfer", { mode: "transfer", currentGroupId: null, currentGroupName: "", excludeGroupIds: [], sourceGroups: [] }],
 ]) {
-  test(`card, leaving undone (${label}): no empty settings frame above the note`, async () => {
+  test(`card, leaving undone (${label}): no empty settings frame where the plate was`, async () => {
     const run = await mount(ctx, X.modalServer({ undone: true }), "assign", OWNER, { moneyAvailable: true, groupsBasePath: "/owner/groups", ...props });
     await pick(run.page);
-    await run.page.waitForSelector('[data-testid="leave-undo"]');
+    await settled(run);
     assert.equal(await run.page.locator('[data-testid="assign-price"]').count(), 0, "the container of the settings is absent");
     assert.equal(await run.page.evaluate(EMPTY_FRAMES), 0, "no empty frame");
     await run.page.close();
   });
 }
 
-test("drawer, all come back: no empty settings frame above the summary", async () => {
+test("drawer, all come back: no empty settings frame where the summary was", async () => {
   const run = await openDrawer(["st9", "st8"], ["Новый Ученик", "Второй Ученик"]);
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
+  await settled(run);
   assert.equal(await run.page.locator('[data-testid="add-price-settings"]').count(), 0, "the container of the settings is absent");
   assert.equal(await run.page.evaluate(EMPTY_FRAMES), 0, "no empty frame");
   await run.page.close();

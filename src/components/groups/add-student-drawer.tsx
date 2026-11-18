@@ -40,9 +40,10 @@ import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
-import { BulkLeaveNotes } from "@/components/money/effects-sections";
+import { pluralRu } from "@/lib/plural";
+import { BulkLeaveNotes, SharedTermsNote } from "@/components/money/effects-sections";
 import { BulkPastBalancesNote } from "@/components/money/past-balances-note";
-import { leaveReturnsOfBulk } from "@/lib/transfer-effects";
+import { leaveReturnsOfBulk, leaveUndoOf, type LeaveUndo } from "@/lib/transfer-effects";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 
 interface Student {
@@ -70,6 +71,17 @@ export interface AddStudentsResult {
   warnings: string[];
   /** Calm notes, e.g. "оплата перенесена в новую группу" (N13 P2.1). */
   infos: string[];
+}
+
+/** After the action: the words of the server about the returned «как были» - one or two students by name, more - the count only. */
+function returnedLines(returned: ReadonlyMap<string, LeaveUndo>, onlyOne: boolean, nameOf: (id: string) => string): string[] {
+  const entries = Array.from(returned.entries());
+  if (entries.length === 0) return [];
+  if (entries.length > 2) {
+    const n = entries.length;
+    return [`${n} ${pluralRu(n, ["ученик", "ученика", "учеников"])} ${n % 10 === 1 && n % 100 !== 11 ? "возвращён" : "возвращены"} как были`];
+  }
+  return entries.map(([id, undo]) => (onlyOne ? undo.text : `${nameOf(id)}: ${undo.text}`));
 }
 
 interface AddStudentDrawerProps {
@@ -304,6 +316,8 @@ export function AddStudentDrawer({
       // the server itself applies «Оплата с» / the price to the ones it applies to and leaves a returning student as he was (fix 8, M2).
       const singleRoute = Boolean(openingBody) || (payBody !== null && picked.length === 1);
       let billingLine: string | null = null;
+      // the words of the server about those who came back as they were: from the answer of the WRITE (one student: `leave_undo`; a batch: `students[].leave_undo`)
+      let returned: Map<string, LeaveUndo> = new Map();
       const result = singleRoute
         ? await orgApi.addStudentToGroup(groupId, picked[0].id, {
           mode: transfers.length > 0 ? mode : undefined,
@@ -312,6 +326,8 @@ export function AddStudentDrawer({
           pay_from: payBody,
         }).then((single) => {
           billingLine = payBody ? normalizeBilling(single.billing)?.text || null : null;
+          const undo = leaveUndoOf(single);
+          if (undo?.undone) returned = new Map([[picked[0].id, undo]]);
           return {
             added: single.status === "added" ? 1 : 0,
             skipped: single.status === "added" ? 0 : 1,
@@ -328,6 +344,7 @@ export function AddStudentDrawer({
           sources: mode === "transfer" ? transferSources : undefined,
         });
       setSelected(new Map());
+      if (!singleRoute) returned = leaveReturnsOfBulk(result).undone;
       const notes = splitTransferNotes(result.warnings, nameOf);
       if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
       const summary: AddStudentsResult = {
@@ -335,7 +352,7 @@ export function AddStudentDrawer({
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
         warnings: notes.warnings,
-        infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
+        infos: [...returnedLines(returned, picked.length === 1, nameOf), ...notes.infos, ...(billingLine ? [billingLine] : [])],
       };
       const perStudent = bulkOutcomeOf(result, picked.map((item) => item.id), nameOf);
       // somebody was refused: the window stays and says it per student (the toast then carries the numbers only); nobody refused: as before
@@ -566,8 +583,10 @@ export function AddStudentDrawer({
         {payFromAllowed && (
           <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={nameById} />
         )}
+        {/* some come back as they were and the administrator entered a common price / changed the day: the one quiet line says those do not get them */}
+        {!allUndone && selected.size > 1 && (dryException.request !== null || payBody !== null) && <SharedTermsNote undone={undoneBy} names={nameById} />}
         <BulkPastBalancesNote answer={probeAnswer} names={nameById} paymentsBase={pastBase} />
-        <BulkLeaveNotes undone={undoneBy} ordinary={ordinaryBy} names={nameById} single={selected.size === 1} />
+        <BulkLeaveNotes ordinary={ordinaryBy} names={nameById} single={selected.size === 1} />
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
       </div>
       </>)}

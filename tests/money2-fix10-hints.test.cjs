@@ -32,13 +32,13 @@ const bubble = (page) => page.locator('[role="tooltip"]');
 
 test("«?» of a plate: opens on click, Esc and a press elsewhere close it; the keyboard opens it; the bubble stays inside the window at 375", async () => {
   for (const width of [1280, 375]) {
-    const run = await drawer(["Новый"], { undone: ["st9"], width });
+    const run = await drawer(["Второй"], { ordinary: ["st8"], width });
     const help = run.page.locator('[data-testid="leave-undo-help"] [role="button"]');
     await help.waitFor();
     assert.equal(await help.getAttribute("aria-label"), "Пояснение");
     await help.click();
     await bubble(run.page).waitFor();
-    assert.ok(plain(await bubble(run.page).textContent()).startsWith(plain(X.UNDO_TEXT)), "the sentence of the server inside");
+    assert.ok(plain(await bubble(run.page).textContent()).startsWith(plain(ORDINARY)), "the sentence of the server inside");
     const box = await bubble(run.page).boundingBox();
     assert.ok(box.x >= 0 && box.x + box.width <= width + 0.5, `bubble inside the screen ${JSON.stringify(box)}`);
     await run.page.keyboard.press("Escape");
@@ -53,12 +53,12 @@ test("«?» of a plate: opens on click, Esc and a press elsewhere close it; the 
   }
 });
 
-test("plates: the screen holds ONE short line, no full sentence of the server, no disclosure; ordinary / several / two kinds", async () => {
+test("plates: only the grey ordinary line is on the screen (one short line, no full sentence of the server, no disclosure); a student who comes back as he was has none", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
-  await run.page.waitForSelector('[data-testid="leave-undo-many"]');
+  await run.page.waitForSelector('[data-testid="leave-return-many"]');
   const text = await X.shown(run.page.locator('[role="dialog"]'));
-  assert.ok(text.includes("1 ученика убрали сегодня — вернутся как были") && text.includes("2 ученика записываются заново"), text);
-  assert.ok(!text.includes("простили долг") && !text.includes("Ученика убрали сегодня —  возвращаем") && !text.includes(plain(X.UNDO_TEXT)), "no server sentence on the screen");
+  assert.ok(text.includes("2 ученика записываются заново") && !text.includes("вернутся как были") && !text.includes("убрали сегодня"), text);
+  assert.ok(!text.includes("простили долг") && !text.includes(plain(X.UNDO_TEXT)), "no server sentence on the screen");
   assert.equal(await run.page.locator('[role="dialog"] details').count(), 0);
   assert.ok(!/уход отмен|Возврат обычный|возвращаются в день/i.test(text));
   await run.page.close();
