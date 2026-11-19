@@ -16,7 +16,7 @@ async function open(width, chosen, undone = []) {
   return run;
 }
 const geometry = () => {
-  const box = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
+  const box = (sel) => { const el = document.querySelector(sel); return el && el.getClientRects().length > 0 ? el.getBoundingClientRect() : null; };
   const body = document.querySelector('[role="dialog"] [data-modal-part="body"]');
   const dialog = document.querySelector('[role="dialog"]');
   const search = box('input[aria-label="Поиск по имени или ID"]'), chips = box('[data-testid="picked-chips"]'), list = box('[data-testid="enrol-list"]'), exceptions = box('[data-testid="enrol-exceptions"]'), terms = box('[data-testid="enrol-terms"]');

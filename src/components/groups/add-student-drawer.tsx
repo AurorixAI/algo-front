@@ -557,8 +557,8 @@ export function AddStudentDrawer({
             />
           </div>
         )}
-        {!(termsOpen && selected.size > 0) && (<>
-        <div className="mt-3 flex items-baseline gap-1.5 text-xs text-slate-600" data-testid="enrol-others-title">
+        <div className={`flex flex-col sm:min-h-0 sm:flex-1 ${termsOpen && selected.size > 0 ? "max-sm:hidden" : ""}`}>
+        <div className="mt-3 flex shrink-0 items-baseline gap-1.5 text-xs text-slate-600" data-testid="enrol-others-title">
           <span>{selected.size > 0 ? "Ещё ученики" : classFilterOn ? `Ученики ${groupClassLevel} класса` : "Ученики"}</span>
           {groupClassLevel ? (
             <>
@@ -626,7 +626,7 @@ export function AddStudentDrawer({
             </p>
           )}
         </div>
-        </>)}
+        </div>
       </div>
 
       {/* Special: a row per student who needs a word, only when there is one */}

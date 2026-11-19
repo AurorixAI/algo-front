@@ -380,12 +380,12 @@ test("frame 14: phone with the conditions open - the fields stand one under anot
   const boxes = await p.evaluate(() => ["#add-student-pay-from", "#add-student-price-amount"].map((id) => { const r = document.querySelector(id).getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }; }));
   assert.equal(boxes[0].x, boxes[1].x, "one column"); assert.ok(boxes[1].y > boxes[0].y, "the second field is below the first");
   assert.ok(boxes[0].w > 300, "a field takes the width of the phone");
-  assert.equal(await p.locator('[data-student-row]').count(), 0, "the list is folded up");
+  assert.equal(await p.locator('[data-student-row]:visible').count(), 0, "the list is folded up");
   assert.equal(await p.locator('[data-testid="picked-chip"]').count(), 2);
   assert.equal(await barSum(p), "450 000 сум"); assert.equal(await barLine(p), "по 225 000 · 6 уроков из 12 в ноябре");
   assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
   await p.click('[data-testid="enrol-terms-toggle"]'); await p.waitForTimeout(200);
-  assert.ok(await p.locator('[data-student-row]').count() > 0, "folding the conditions brings the list back");
+  assert.ok(await p.locator('[data-student-row]:visible').count() > 0, "folding the conditions brings the list back");
   noErrors(run);
   await p.close();
 });
@@ -503,6 +503,14 @@ test("the window of a group page: the list of students takes the free height and
     assert.ok(measured.gap <= 24, `${count} chosen: the empty area above the bar is ${measured.gap}px, must be at most 24`);
     assert.equal(measured.scrolls, true, `${count} chosen: the list is longer than its place and scrolls inside`);
     assert.equal(measured.bodyScrolls, false, `${count} chosen: the window itself does not scroll`);
+    await run.page.close();
+  }
+  // the conditions open on a wide window (frames 3 and 9): the list stays and scrolls above the fields, no empty area either
+  for (const frame of [3, 9]) {
+    const run = await FRAMES[frame](ctx, { width: 1280 });
+    const measured = await gap(run.page);
+    assert.ok(measured.gap <= 24, `frame ${frame}: the empty area above the bar is ${measured.gap}px`);
+    assert.equal(measured.scrolls, true, `frame ${frame}: the list stays and scrolls`);
     await run.page.close();
   }
 });
