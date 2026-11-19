@@ -43,15 +43,15 @@ function pastBalanceRows(raw: unknown): PastBalance[] {
 }
 
 export const PAST_BALANCES_TITLE = "Долги и авансы с прошлого раза";
-/** The «?» of the title (only for the right to money - the statement is where it is done). */
-export const PAST_BALANCES_HINT = "Принять оплату, простить долг или вернуть аванс можно в выписке";
 /** «Долг» / «Аванс» of a row; a row the structure does not explain says the sentence of the server. */
 export function pastBalanceLabel(row: PastBalance): string {
   if ((!row.group && !row.sameGroup) || !row.kind) return row.text;
   return `${row.kind === "debt" ? "Долг" : "Аванс"} · ${row.sameGroup ? "в этой же группе" : `«${row.group}»`}${row.leftOn ? ` · ушёл ${row.leftOn}` : ""}`;
 }
 
-/** Several students with balances (two or more): «У N учеников остались долги или авансы с прошлого раза». */
-export function pastBalancesManyTitle(count: number): string {
-  return `У ${count} учеников остались долги или авансы с прошлого раза`;
+/** The note under a student in the summary of the window of an enrolment: «Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19.11» (no sum for a role without money; a row the structure does not explain says the server's sentence). */
+export function pastBalanceNote(row: PastBalance): string {
+  if ((!row.group && !row.sameGroup) || !row.kind) return row.text;
+  const where = row.sameGroup ? "в этой же группе" : `в «${row.group}»`;
+  return `${row.kind === "debt" ? "Долг" : "Аванс"} с прошлого раза${row.value ? ` ${row.value}` : ""} · ${where}${row.leftOn ? `, ушёл ${row.leftOn}` : ""}`;
 }

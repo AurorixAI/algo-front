@@ -38,7 +38,7 @@ async function shot(page, file) {
   if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) console.log(`SUSPECT wide ${file}`);
   await page.screenshot({ path: path.join(out, `${file}.png`) });
 }
-const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[role="dialog"] *').forEach((el) => { if (el.getAttribute('data-testid') !== 'pay-from-immediate-students' && el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight; }));
+const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[role="dialog"] *').forEach((el) => { if (el.getAttribute('data-testid') !== 'enrol-summary-students' && el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight; }));
 
 (async () => {
   const browser = await launch();
@@ -52,13 +52,13 @@ const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[rol
       for (const i of chosen) await page.click(`button:has-text("${PEOPLE[i][1]}")`);
       await page.fill("#add-student-pay-from", "04.11.2026");
       await page.keyboard.press("Tab");
-      await page.waitForSelector('[data-testid="pay-from-immediate-block"]');
+      await page.waitForSelector('[data-testid="enrol-summary"]');
       await page.waitForTimeout(500);
       await scrollDown(page); await page.waitForTimeout(200);
       await shot(page, `${file}-${width}-closed`);
-      const geo = await page.evaluate(() => { const b = document.querySelector('[data-testid="pay-from-immediate-block"]').getBoundingClientRect(); const l = document.querySelector('[data-testid="pay-from-immediate-students"]'); const sums = [...document.querySelectorAll('[data-testid="pay-from-immediate-student-sum"]')].map((e) => Math.round(e.getBoundingClientRect().right)); return { block: Math.round(b.height), list: Math.round(l.getBoundingClientRect().height), listScroll: l.scrollHeight, rights: [...new Set(sums)] }; });
+      const geo = await page.evaluate(() => { const b = document.querySelector('[data-testid="enrol-summary"]').getBoundingClientRect(); const l = document.querySelector('[data-testid="enrol-summary-students"]'); const sums = [...document.querySelectorAll('[data-testid="enrol-summary-sum"]')].map((e) => Math.round(e.getBoundingClientRect().right)); return { block: Math.round(b.height), list: Math.round(l.getBoundingClientRect().height), listScroll: l.scrollHeight, rights: [...new Set(sums)] }; });
       console.log(file, width, JSON.stringify(geo));
-      await page.locator('[data-testid="pay-from-immediate-help"] [role="button"]').first().click(); await page.waitForTimeout(250);
+      await page.locator('[data-testid="enrol-summary-help"] [role="button"]').first().click(); await page.waitForTimeout(250);
       await shot(page, `${file}-${width}-open`);
       await page.close();
     }
@@ -68,7 +68,7 @@ const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[rol
       await page.evaluate((w) => window.mount("addDrawer", w, { summary: { accountingStart: "2026-09-01" }, refresh: false, groupPrice: { amount: 380000, valid_from: "2026-09-01" } }), OWNER);
       await page.fill('input[placeholder^="Поиск по имени"]', "Уч").catch(() => {});
       for (const i of chosen) await page.click(`button:has-text("${PEOPLE[i][1]}")`);
-      await page.waitForSelector('[data-testid="leave-return-many"]');
+      await page.waitForSelector('[data-testid="enrol-note-rewrite"]');
       await page.waitForTimeout(700);
       await scrollDown(page); await page.waitForTimeout(200);
       await shot(page, `${file}-${width}-closed`);
@@ -121,7 +121,7 @@ const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[rol
       const { page } = await openPage(browser, "money-b.entry.tsx", drawerServer([], []), size);
       await OPEN(page, [0]);
       await page.fill("#add-student-pay-from", "04.11.2026"); await page.keyboard.press("Tab");
-      await page.waitForSelector('[data-testid="pay-from-immediate-block"]'); await page.waitForTimeout(500);
+      await page.waitForSelector('[data-testid="enrol-summary"]'); await page.waitForTimeout(500);
       await scrollDown(page); await page.waitForTimeout(200);
       await shot(page, `drawer-one-debtor-${width}`);
       console.log(`drawer-one-debtor ${width}`, JSON.stringify(await page.evaluate(() => { const d = document.querySelector('[role="dialog"]'); const foot = d.querySelector('[data-modal-part="footer"]'); const label = document.querySelector('[data-testid="pay-from"]'); const body = d.querySelector('[data-modal-part="body"]'); const sc = [...d.querySelectorAll("*")].find((el) => el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)); return { dialog: Math.round(d.getBoundingClientRect().height), footer: foot ? Math.round(foot.getBoundingClientRect().height) : null, fromPayFromTopToFooter: foot && label ? Math.round(foot.getBoundingClientRect().top - label.getBoundingClientRect().top) : null, payFromBlock: label ? Math.round(label.getBoundingClientRect().height) : null, scrollerClient: sc ? Math.round(sc.clientHeight) : null, scrollerFull: sc ? sc.scrollHeight : null }; })));
@@ -144,7 +144,7 @@ const scrollDown = (page) => page.evaluate(() => document.querySelectorAll('[rol
       await page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
       await page.waitForSelector('[data-testid="past-balance"]');
       await page.fill("#assign-group-pay-from", "17.11.2026"); await page.keyboard.press("Tab");
-      await page.waitForSelector('[data-testid="pay-from-immediate-block"]'); await page.waitForTimeout(500);
+      await page.waitForSelector('[data-testid="enrol-summary"]'); await page.waitForTimeout(500);
       await scrollDown(page); await page.waitForTimeout(200);
       await shot(page, `card-debtor-${width}`);
       console.log(`card-debtor ${width}`, JSON.stringify(await page.evaluate(() => { const d = document.querySelector('[role="dialog"]'); const foot = d.querySelector('[data-modal-part="footer"]'); const label = document.querySelector('[data-testid="pay-from"]'); const sc = [...d.querySelectorAll("*")].find((el) => el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)); const lower = label ? sc.scrollHeight - (label.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop) : null; return { dialog: Math.round(d.getBoundingClientRect().height), footer: foot ? Math.round(foot.getBoundingClientRect().height) : null, lowerPartFromPayFromToEndOfBody: lower === null ? null : Math.round(lower), scrollerClient: sc ? Math.round(sc.clientHeight) : null, scrollerFull: sc ? sc.scrollHeight : null }; })));

@@ -117,8 +117,13 @@ test("drawer, 2 of 3 come back: ONE probe, the summary with the words of the ser
   assert.equal(X.singleProbes(run.calls).length, 0, "no probe per student");
   await run.page.waitForSelector('[data-testid="leave-shared-note"]');
   assert.match(plain(await run.page.locator('[data-testid="leave-shared-line"]').textContent()), /^На 2 ученика общие цена и дата не действуют — у них остаются прежние$/);
-  const inside = (await X.hintsOf(run.page.locator('[data-testid="leave-shared-note"]')))[0];
-  assert.ok(inside.includes("Новый Ученик: Ученика убрали сегодня — возвращаем как было") && inside.includes("Третий Ученик") && !inside.includes("Второй Ученик"), inside);
+  // the server's words of each student who comes back as he was stand in the «?» of HIS row (the line of the frame has no «?»)
+  const notes = run.page.locator('[data-testid="enrol-note-shared"]');
+  assert.equal(await notes.count(), 2);
+  const mine = (name) => run.page.locator('[data-testid="enrol-summary-student"]', { hasText: name }).locator('[data-testid="enrol-note-shared"]');
+  assert.ok((await X.hintsOf(mine("Новый Ученик")))[0].includes("Ученика убрали сегодня — возвращаем как было"));
+  assert.equal(await mine("Третий Ученик").count(), 1);
+  assert.equal(await mine("Второй Ученик").count(), 0);
   await run.page.fill("#add-student-pay-from", "09.11.2026");
   await run.page.keyboard.press("Tab");
   await run.page.waitForTimeout(700);
@@ -163,23 +168,24 @@ test("drawer, all come back: the summary, no fields, no «Оплата с» anyw
 
 const SAME = { group_id: "g2", group_name: "7-Б Геометрия", membership_id: "m-same", left_on: "2026-11-17", kind: "debt", amount: 38000, same_group: true, text: "Уже был в этой группе, ушёл 17.11.2026 — остался долг 38 000 сум" };
 const OTHER = (n) => ({ group_id: "gx" + n, group_name: "Алгебра " + n, membership_id: "m-x" + n, left_on: "2026-11-1" + n, kind: n === 2 ? "advance" : "debt", amount: 10000 * n, text: "Был в группе «Алгебра " + n + "», ушёл 1" + n + ".11.2026 — остался " + (n === 2 ? "аванс " : "долг ") + 10 * n + " 000 сум" });
-test("drawer, ONE student with a debt of THIS group: the compact row says «в этой же группе», the title is «Долги и авансы с прошлого раза»", async () => {
+test("drawer, ONE student with a debt of THIS group: the note says «в этой же группе» and the sum of the debt, the title is «К оплате сразу»", async () => {
   const run = await openDrawer([], ["Новый Ученик"], 1280, undefined, { st9: [SAME] });
-  await run.page.waitForSelector('[data-testid="past-balance"]');
-  assert.equal(await X.shown(run.page.locator('[data-testid="past-balances"] h3')), "Долги и авансы с прошлого раза");
-  const row = (await run.page.locator('[data-testid="past-balance"]').evaluate((li) => li.innerText)).replace(/\s+/g, " ").trim();
-  assert.match(row, /^Долг · в этой же группе · ушёл 17\.11 38 000 сум( Выписка)?$/);
+  await run.page.waitForSelector('[data-testid="enrol-note-past"]');
+  const row = (await run.page.locator('[data-testid="enrol-note-past"]').evaluate((li) => li.innerText)).replace(/\s+/g, " ").trim();
+  assert.match(row, /^Долг с прошлого раза 38 000 сум · в этой же группе, ушёл 17\.11( Выписка)?$/);
   assert.ok(!row.includes("Геометрия"), row);
   await run.page.close();
 });
 
-test("drawer, THREE students with balances: one summary line, the rows by student under a disclosure", async () => {
+test("drawer, THREE students with balances: a note in the row of each student, no summary line, no disclosure", async () => {
   const run = await openDrawer([], ["Новый Ученик", "Второй Ученик", "Третий Ученик"], 1280, (r) => (r.method === "GET" && r.path === "/auth/org/students" ? { json: { items: [X.STUDENT("st9", "Новый"), X.STUDENT("st8", "Второй"), X.STUDENT("st7", "Третий")], total: 3 } } : null), { st9: [SAME], st8: [OTHER(2)], st7: [OTHER(3)] });
-  await run.page.waitForSelector('[data-testid="past-balances"]');
-  assert.match(plain(await run.page.locator('[data-testid="past-balances"] summary').textContent()), /^У 3 учеников остались долги или авансы с прошлого раза$/);
-  await run.page.click('[data-testid="past-balances"] summary');
-  const text = plain(await run.page.locator('[data-testid="past-balances"]').textContent());
-  assert.ok(text.includes("Новый Ученик") && text.includes("Долг · в этой же группе") && text.includes("Аванс · «Алгебра 2»") && text.includes("Третий Ученик"), text);
+  await run.page.waitForSelector('[data-testid="enrol-note-past"]');
+  assert.equal(await run.page.locator('[data-testid="enrol-note-past"]').count(), 3);
+  assert.equal(await run.page.locator('[data-testid="past-balances"], [data-testid="past-balances"] summary').count(), 0);
+  const of = (name) => run.page.locator('[data-testid="enrol-summary-student"]', { hasText: name }).locator('[data-testid="enrol-note-past"]');
+  assert.match(plain(await of("Новый Ученик").textContent()), /^Долг с прошлого раза 38 000 сум · в этой же группе/);
+  assert.match(plain(await of("Второй Ученик").textContent()), /^Аванс с прошлого раза 20 000 сум · в «Алгебра 2»/);
+  assert.match(plain(await of("Третий Ученик").textContent()), /^Долг с прошлого раза 30 000 сум · в «Алгебра 3»/);
   await run.page.close();
 });
 

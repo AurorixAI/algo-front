@@ -54,8 +54,8 @@ async function snap(page, file, el = '[role="dialog"]') {
       await page.evaluate(([w, m]) => window.mount("addDrawer", w, m ? { summary: { accountingStart: "2026-09-01" }, refresh: false, groupPrice: { amount: 380000, valid_from: "2026-09-01" } } : { refresh: false }), [who, money]);
       await page.fill('input[placeholder^="Поиск по имени"]', "Уч");
       for (const name of chosen) await page.click(`button:has-text("${name} Ученик")`);
-      await page.waitForSelector('[data-testid="leave-undo"], [data-testid="leave-undo-many"], [data-testid="leave-return-many"], [data-testid="past-balances"]');
-      for (const sel of ['[data-testid="leave-undo-many"] summary', '[data-testid="leave-return-many"] summary']) if (await page.locator(sel).count()) await page.click(sel);
+      await page.waitForSelector('[data-testid="leave-undo"], [data-testid="leave-undo-many"], [data-testid="enrol-note-rewrite"], [data-testid="past-balances"]');
+      for (const sel of ['[data-testid="leave-undo-many"] summary', '[data-testid="enrol-note-rewrite"] summary']) if (await page.locator(sel).count()) await page.click(sel);
       await page.waitForTimeout(700);
       await scrollDown(page);
       await page.waitForTimeout(200);

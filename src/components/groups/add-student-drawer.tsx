@@ -2,7 +2,7 @@
 
 import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { tidyMoneyText } from "@/lib/money-format";
 import { Search, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
@@ -18,7 +18,7 @@ import {
 import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
-import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
+import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, ENROL_STUDENTS_TITLE } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -35,15 +35,16 @@ import { TransferPreviewBlock } from "./transfer-preview-block";
 import { BulkOutcomePanel } from "./bulk-outcome-panel";
 import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
 import { bulkOutcomeOf, type BulkOutcome } from "@/lib/bulk-outcome";
-import { PayFromField } from "./pay-from-field";
+import { PayFromField, PayFromStatus, sameGroupOf } from "./pay-from-field";
+import { EnrolSummary, type EnrolSummaryStudent } from "./enrol-summary";
 import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { pluralRu } from "@/lib/plural";
-import { BulkLeaveNotes, SharedTermsNote } from "@/components/money/effects-sections";
-import { BulkPastBalancesNote } from "@/components/money/past-balances-note";
+import { SharedTermsNote } from "@/components/money/effects-sections";
+import { pastBalancesByStudent } from "@/lib/past-balances";
 import { leaveReturnsOfBulk, leaveUndoOf, type LeaveUndo } from "@/lib/transfer-effects";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 
@@ -213,6 +214,7 @@ export function AddStudentDrawer({
   }, [open, loadStudents]);
 
   const toggle = (student: Student) => {
+    lastPicked.current = selected.has(student.id) ? null : student.id;
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(student.id)) next.delete(student.id);
@@ -224,6 +226,14 @@ export function AddStudentDrawer({
   // Students not already in the group; archived ones are never offered, and without a search
   // neither are students of other groups.
   const available = availableStudents(students, existingStudentIds, { ungroupedOnly: !searching });
+
+  // The chosen stand FIRST (in the order they were chosen, even when the search does not match them any more), the rest under them in the order of the server
+  const pickedRows = Array.from(selected.values());
+  const restRows = available.filter((student) => !selected.has(student.id));
+  const rows = [...pickedRows.map((student) => ({ student, isSelected: true })), ...restRows.map((student) => ({ student, isSelected: false }))];
+  const pinned = pickedRows.length;
+  const others = restRows.length;
+  const everyone = rows.map((entry) => entry.student);
 
   // Selected students who are enrolled elsewhere: adding moves them.
   const transfers = Array.from(selected.values())
@@ -289,6 +299,49 @@ export function AddStudentDrawer({
   // the link «Выписка» of the balances leads to a page that needs the right to money - the same flag that decides whether the sums are shown
   const pastBase = groupsBasePath && moneyAvailable ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
   const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
+
+  // fix 10Д: ONE summary under the conditions - a row per chosen student (in the order he was chosen): the sum at once, the balances of the last time, «записывается заново», «общие условия не действуют»
+  const sharedTermsEntered = !allUndone && (dryException.request !== null || payBody !== null);
+  const immediateReady = payPreview.status === "ready" ? payPreview : null;
+  const [lastImmediate, setLastImmediate] = useState<{ set: string; preview: NonNullable<typeof immediateReady> } | null>(null);
+  useEffect(() => { if (immediateReady) setLastImmediate({ set: setKey, preview: immediateReady }); }, [immediateReady, setKey]);
+  useEffect(() => { if (!open) setLastImmediate(null); }, [open]);
+  const sumsOn = moneyAvailable && payFromAllowed && Boolean(payDef);
+  const shownImmediate = !sumsOn ? null : immediateReady ?? ((payPreview.status === "loading" || payPreview.status === "idle") && lastImmediate?.set === setKey ? lastImmediate.preview : null);
+  const amountsState = !sumsOn || !shownImmediate ? "off" : immediateReady ? "ready" : "stale";
+  const immediateOf = new Map((shownImmediate?.immediate.rows ?? []).map((row) => [row.studentId, row]));
+  const pastOf = new Map(pastBalancesByStudent(probeAnswer).map((entry) => [entry.studentId, entry.rows]));
+  const summaryStudents: EnrolSummaryStudent[] = Array.from(selected.values()).map((student) => {
+    const row = immediateOf.get(student.id) ?? (selected.size === 1 ? shownImmediate?.immediate.rows[0] : undefined);
+    return {
+      id: student.id,
+      name: nameById.get(student.id) ?? "Ученик",
+      amount: row?.amount ?? null,
+      parts: row?.parts ?? [],
+      past: pastOf.get(student.id) ?? [],
+      rewrite: ordinaryBy.get(student.id) ?? null,
+      sharedUndone: sharedTermsEntered ? undoneBy.get(student.id) ?? null : null,
+    };
+  });
+  const sharedUndoneNames = summaryStudents.filter((student) => student.sharedUndone !== null).map((student) => student.name);
+  // a picked row moves to the top of the list (the chosen are pinned there): bring it into view - the list to its top on a desktop, the window's body to the row on a phone - and keep it there while the lower part grows
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null);
+  const lastPicked = useRef<string | null>(null);
+  const pickedCount = selected.size;
+  useEffect(() => {
+    const list = listEl;
+    if (!list || !lastPicked.current) return;
+    list.scrollTop = 0;
+    list.querySelector(`[data-student-row="${lastPicked.current}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [listEl, pickedCount]);
+  useEffect(() => {
+    const list = listEl;
+    if (!list || typeof ResizeObserver === "undefined") return undefined;
+    const keep = () => { if (lastPicked.current) list.querySelector(`[data-student-row="${lastPicked.current}"]`)?.scrollIntoView({ block: "nearest" }); };
+    const observer = new ResizeObserver(keep);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [listEl]);
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
@@ -387,7 +440,7 @@ export function AddStudentDrawer({
       description={outcome || selected.size > 0 ? undefined : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
-      bodyClassName="flex-1 min-h-0 flex flex-col max-sm:overflow-y-auto max-sm:overscroll-contain"
+      bodyClassName="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain"
       footerClassName="flex flex-col gap-2 p-3 sm:p-4 sm:gap-3"
       footer={outcome ? (
         <ConfirmFooter primary="Готово" onPrimary={() => onAdded(outcome.result)} testId="enrol-done" />
@@ -440,42 +493,47 @@ export function AddStudentDrawer({
       </div>
 
       {/* Student list */}
-      <div className="flex-1 overflow-y-auto overscroll-contain max-sm:flex-none max-sm:overflow-visible" data-testid="enrol-list">
+      <div ref={setListEl} className="flex-1 overflow-y-auto overscroll-contain sm:min-h-[11.5rem] max-sm:flex-none max-sm:overflow-visible" data-testid="enrol-list">
         {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
           </div>
-        ) : available.length === 0 ? (
+        ) : available.length === 0 && selected.size === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-slate-500">
             {searching
               ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
               : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
           </p>
         ) : (
-          <div className="divide-y divide-slate-50">
-            {available.map((s) => {
-              const isSelected = selected.has(s.id);
+          <div role="group" aria-label="Ученики" data-testid="enrol-rows">
+            {rows.map((entry, index) => {
+              const { student: s, isSelected } = entry;
               return (
+                <Fragment key={s.id}>
+                  {others > 0 && pinned > 0 && index === pinned && (
+                    <p className="border-t border-slate-200 px-4 pb-1 pt-3 text-xs font-medium text-slate-500" data-testid="enrol-others-title">Ещё ученики</p>
+                  )}
                 <button
-                  key={s.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={isSelected}
+                  data-student-row={s.id}
+                  data-selected={isSelected ? "true" : "false"}
                   onClick={() => toggle(s)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
+                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? "bg-primary-50 hover:bg-primary-100/60" : "hover:bg-slate-50"}`}
                 >
-                  {/* Avatar */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                    isSelected ? "bg-primary-600 text-white" : "bg-slate-100 text-slate-600"
-                  }`}>
-                    {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
-                  </div>
+                  <span aria-hidden className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors ${isSelected ? "border-primary-600 bg-primary-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                  </span>
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
+                    <p className="text-sm font-medium text-slate-900 truncate" title={s.full_name || `${s.last_name} ${s.first_name}`}>
                       {s.full_name || `${s.last_name} ${s.first_name}`}
                     </p>
                     <p className="text-xs text-slate-500 break-words">
                       {classLabel(s.class_level)}
-                      {namesakeDetail(s, available) && <span data-testid="namesake-detail"> · {namesakeDetail(s, available)}</span>}
+                      {namesakeDetail(s, everyone) && <span data-testid="namesake-detail"> · {namesakeDetail(s, everyone)}</span>}
                       {inGroupsLabel(s.groups_count) ? (
                         <span className="text-amber-700" data-testid="student-many-groups"> · {inGroupsLabel(s.groups_count)}</span>
                       ) : currentGroupOf(s) && currentGroupOf(s) !== groupId && (
@@ -491,6 +549,7 @@ export function AddStudentDrawer({
                     {studentStatusLabel(s)}
                   </span>
                 </button>
+                </Fragment>
               );
             })}
           </div>
@@ -537,19 +596,27 @@ export function AddStudentDrawer({
           </fieldset>
         )}
         {moneyAvailable && !allUndone && (
-          <div data-testid="add-price-settings" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
-            {priceLine && (
-              <>
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className={`font-semibold ${groupPrice || groupScheduledPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
-                  {groupPrice === null && (
-                    <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</a>
-                  )}
-                </p>
-                {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
-              </>
+          <div data-testid="add-price-settings" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs">
+            {(priceLine || (payFromAllowed && payDef)) && (
+              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+                {priceLine && (
+                  <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 ${payFromAllowed && payDef ? "min-h-10" : ""}`}>
+                    <span className={`font-semibold ${groupPrice || groupScheduledPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
+                    {groupPrice === null && (
+                      <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</a>
+                    )}
+                  </div>
+                )}
+                {payFromAllowed && (
+                  <div className="ml-auto w-44 max-w-full max-sm:ml-0 max-sm:w-full">
+                    <PayFromField bare idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} />
+                  </div>
+                )}
+              </div>
             )}
-            <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+            {payFromAllowed && payDef && <PayFromStatus past={payFromIsPast(payFromValue, payDef)} preview={payPreview} onRetry={payPreview.retry} />}
+            {priceNote && <p className="text-slate-500">{priceNote}</p>}
+            <div className={priceLine || (payFromAllowed && payDef) ? "border-t border-slate-200 pt-1" : ""}>
               <EnrolPriceToggle
                 idPrefix="add-student-price"
                 enabled={exceptionOn}
@@ -562,6 +629,7 @@ export function AddStudentDrawer({
                 compact
               />
             </div>
+            {sharedTermsEntered && <SharedTermsNote names={sharedUndoneNames} />}
           </div>
         )}
         {openingAllowed && (
@@ -579,13 +647,7 @@ export function AddStudentDrawer({
             />
           </div>
         )}
-        {payFromAllowed && (
-          <PayFromField idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} names={nameById} />
-        )}
-        {/* some come back as they were and the administrator entered a common price / changed the day: the one quiet line says those do not get them */}
-        {!allUndone && selected.size > 1 && (dryException.request !== null || payBody !== null) && <SharedTermsNote undone={undoneBy} names={nameById} />}
-        <BulkPastBalancesNote answer={probeAnswer} names={nameById} paymentsBase={pastBase} />
-        <BulkLeaveNotes ordinary={ordinaryBy} names={nameById} single={selected.size === 1} />
+        {selected.size > 0 && <EnrolSummary students={summaryStudents} amounts={amountsState} past={payFromIsPast(payFromValue, payDef)} paymentsBase={pastBase} sameGroup={sameGroupOf(shownImmediate?.answer ?? probeAnswer)} rounded={Boolean(shownImmediate?.immediate.rows.some((row) => row.parts.some((part) => !part.whole)))} />}
         {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
       </div>
       </>)}

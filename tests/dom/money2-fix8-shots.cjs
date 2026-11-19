@@ -41,7 +41,7 @@ const OTHER = (n, name) => ({ group_id: "gx" + n, group_name: name + " " + n, me
         await page.fill('input[placeholder^="Поиск по имени"]', "о");
         for (const [, last] of people.slice(0, chosen)) await page.click(`button:has-text("${last}")`);
         await page.waitForSelector('[data-testid="leave-undo"], [data-testid="leave-undo-many"], [data-testid="past-balances"]');
-        for (const sel of ['[data-testid="leave-undo-many"] summary', '[data-testid="past-balances"] summary']) if (await page.locator(sel).count()) await page.click(sel);
+        for (const sel of ['[data-testid="leave-undo-many"] summary', '[data-testid="enrol-summary"] summary']) if (await page.locator(sel).count()) await page.click(sel);
         await page.waitForTimeout(700);
         if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) console.log(`SUSPECT wide ${file} ${suffix}`);
         await page.evaluate(() => document.querySelectorAll('[role="dialog"] *').forEach((el) => { if (el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight; }));

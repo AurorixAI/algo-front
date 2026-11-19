@@ -45,7 +45,7 @@ for (const [label, money] of [["without the right", false], ["with the right", t
     await run.page.evaluate(([who, on]) => window.mount("addDrawer", who, on ? { summary: { accountingStart: "2026-09-01" }, refresh: false } : { refresh: false }), [money ? OWNER : { role: "admin", org_role: "admin", payments_access: false }, money]);
     await run.page.fill('input[placeholder^="Поиск по имени"]', "Уч");
     await run.page.click('button:has-text("Новый Ученик")');
-    await run.page.waitForSelector('[data-testid="past-balance"]');
+    await run.page.waitForSelector('[data-testid="enrol-note-past"]');
     assert.equal(await run.page.locator('[data-testid="past-balance-link"]').count(), money ? 1 : 0);
     await run.page.close();
   });

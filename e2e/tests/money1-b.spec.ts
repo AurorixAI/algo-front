@@ -102,16 +102,16 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
   await input.press("Tab");
   // «К оплате сразу» is a BLOCK (design system): the title, the total (its own test id) and a row per month - the caption on the left, the sum on the right
-  const immediate = drawer.getByTestId("pay-from-immediate-block");
+  const immediate = drawer.getByTestId("enrol-summary");
   await expect(immediate).toContainText("К оплате сразу");
-  await expect(immediate.getByTestId("pay-from-immediate-total-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
-  const firstRow = immediate.getByTestId("pay-from-immediate-parts").locator("li").first();
+  await expect(immediate.getByTestId("enrol-summary-total")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
+  const firstRow = immediate.getByTestId("enrol-summary-period").locator("li").first();
   await expect(firstRow).toContainText(/^[А-ЯЁ0-9][^,]*, (весь месяц|с \d\d\.\d\d)/);        // the server sends «ноябрь»: the caption starts with a capital
   // one period: its sum is the total above and the row is the caption only; two periods (the past days cross a month): a sum on each row
-  const rows = immediate.getByTestId("pay-from-immediate-parts").locator("li");
+  const rows = immediate.getByTestId("enrol-summary-period").locator("li");
   if ((await rows.count()) > 1) { for (const row of await rows.all()) await expect(row).toContainText(/\d[\d\s\u00a0]*\sсум$/); }
   else await expect(firstRow).not.toContainText(/сум/);
-  await expect(immediate.getByTestId("pay-from-immediate-help")).toBeVisible();   // the «?» of the block
+  await expect(immediate.getByTestId("enrol-summary-help")).toBeVisible();   // the «?» of the block
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
   const membership = await org.membershipId(student.id, group.id);

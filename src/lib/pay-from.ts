@@ -138,6 +138,15 @@ export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): s
 export const PAY_FROM_NOTHING_NOW = "Сразу платить не нужно";
 
 /** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
+/** The period line shared by all the students who pay at once («Ноябрь, с 19.11 · 5 уроков из 12 — каждому 188 000 сум»); null when the periods differ (each row then has its own). */
+export function sharedPeriodLine(partsOf: ImmediatePart[][], everyonePays: boolean): string | null {
+  if (partsOf.length < 2 || partsOf.some((parts) => parts.length !== 1)) return null;
+  const key = (part: ImmediatePart) => `${part.label}|${part.from}|${part.amount}|${part.lessons}|${part.lessons_in_period}|${part.whole}`;
+  if (partsOf.some((parts) => key(parts[0]) !== key(partsOf[0][0]))) return null;
+  const row = immediatePartRows(partsOf[0])[0];
+  return `${row.label} — ${everyonePays ? "каждому" : "по"} ${row.amount}`;
+}
+
 export interface BulkImmediate {
   students: Array<{ studentId: string; text: string; amount: number; parts: ImmediatePart[] }>;
   /** EVERY chosen student in the order of the answer; `amount: null` - nothing to pay at once (the screen shows «—»).  The screen reads sums and periods from here, never from the sentences. */

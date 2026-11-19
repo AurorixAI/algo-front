@@ -63,7 +63,7 @@ test("drawer, one returns: no plate, no «?»", async () => {
   assert.equal(await run.page.locator('[role="dialog"] [aria-label="Пояснение"]').count(), 0);
   await run.page.close();
 });
-test("drawer, several return and something common is entered: ONE quiet line under the price and the day, the «?» holds «name» and the sentence of the server per student", async () => {
+test("drawer, several return and something common is entered: ONE quiet line in the frame of the price and the day; the «?» of each returning student's row holds the server's sentence", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9", "st7"] });
   await settled(run);
   assert.equal(await run.page.locator('[data-testid="leave-shared-note"]').count(), 0, "nothing common entered: no line");
@@ -71,13 +71,15 @@ test("drawer, several return and something common is entered: ONE quiet line und
   await run.page.keyboard.press("Tab");
   await run.page.waitForSelector('[data-testid="leave-shared-note"]');
   assert.equal(await X.shown(run.page.locator('[data-testid="leave-shared-note"]')), "На 2 ученика общие цена и дата не действуют — у них остаются прежние");
-  const [hint] = await X.hintsOf(run.page.locator('[data-testid="leave-shared-note"]'));
-  assert.equal(hint, plain(`Новый Ученик: ${X.UNDO_TEXT} Третий Ученик: ${X.UNDO_TEXT}`));
-  assert.ok(!/Уход отменяется|продолжается|восстановлена/.test(hint), hint);
+  assert.equal(await run.page.locator('[data-testid="leave-shared-note"] [role="button"]').count(), 0, "the line of the frame has no «?»: the words are in the rows");
+  const rows = run.page.locator('[data-testid="enrol-note-shared"]');
+  assert.equal(await rows.count(), 2);
+  for (const hint of await rows.evaluateAll((els) => els.map((el) => [...el.querySelectorAll(".sr-only")].map((n) => n.textContent.replace(/\s+/g, " ").trim()).join(" ")))) {
+    assert.equal(hint, plain(X.UNDO_TEXT));
+    assert.ok(!/Уход отменяется|продолжается|восстановлена/.test(hint), hint);
+  }
   await run.page.close();
 });
-
-// ---- 5
 const PRICE_BLOCK = '[data-testid="add-price-settings"]';
 test("drawer, ALL come back: no «Цена группы … Эту цену получат все» block; SOME come back: the block stays", async () => {
   const all = await drawer(["Новый", "Третий"], { undone: ["st9", "st7"] });
@@ -97,29 +99,29 @@ test("drawer, ALL come back: no «Цена группы … Эту цену по
 });
 
 // ---- 6
-test("drawer, ONE student returns in the ordinary way: the sentence of the server as a grey line (as in the card of the student)", async () => {
+test("drawer, ONE student returns in the ordinary way: the sentence of the server under a grey line of the card", async () => {
   const run = await drawer(["Второй"], { ordinary: ["st8"] });
-  await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.equal(await run.page.locator('[data-testid="leave-undo"]').getAttribute("data-undone"), "no");
-  assert.equal(await X.shown(run.page.locator('[data-testid="leave-undo"]')), "Ученик записывается заново");
-  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(ORDINARY)], "the server's words only, no «can not be set» line - nothing is cancelled");
+  await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
+  const note = run.page.locator('[data-testid="enrol-note-rewrite"]');
+  assert.equal(await X.shown(note), "Записывается заново");
+  assert.deepEqual(await X.hintsOf(note), [plain(ORDINARY)], "the server's words only, no «can not be set» line - nothing is cancelled");
   assert.ok(await run.page.locator('[data-testid="pay-from"]').count() > 0, "an ordinary return keeps «Оплата с»");
   await run.page.close();
 });
-test("drawer, SEVERAL: one ordinary and one cancelling - the grey ordinary line only, by student in its «?»", async () => {
+test("drawer, SEVERAL: one ordinary and one cancelling - the grey line in the row of the ordinary ones only, the words in its «?»", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
-  await run.page.waitForSelector('[data-testid="leave-return-many"]');
-  const ordinary = run.page.locator('[data-testid="leave-return-many"]');
-  assert.equal(await ordinary.count(), 1);
-  assert.equal(await X.shown(ordinary), "2 ученика записываются заново");
-  assert.deepEqual(await X.hintsOf(ordinary), [plain(`Второй Ученик: ${ORDINARY} Третий Ученик: ${ORDINARY}`)]);
-  assert.equal(await run.page.locator('[data-testid="leave-undo-many"]').count(), 0, "the returning-as-was one has no plate");
+  await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
+  const notes = run.page.locator('[data-testid="enrol-note-rewrite"]');
+  assert.equal(await notes.count(), 2);
+  assert.deepEqual(await X.hintsOf(notes.first()), [plain(ORDINARY)]);
+  assert.equal(await run.page.locator('[data-testid="leave-undo-many"], [data-testid="leave-return-many"]').count(), 0, "the returning-as-was one has no plate");
+  assert.equal(await run.page.locator('[data-testid="enrol-summary-student"]', { hasText: "Новый" }).locator('[data-testid="enrol-note-rewrite"]').count(), 0);
   await run.page.close();
 });
 test("drawer, a role without the right to money: the sentence comes from the server as it is (no sums are built by the screen)", async () => {
   const run = await drawer(["Второй"], { ordinary: ["st8"], money: false });
-  await run.page.waitForSelector('[data-testid="leave-undo"]');
-  assert.ok(!/\d{2,3}\s?\d{3}/.test(await X.shown(run.page.locator('[data-testid="leave-undo"]'))), "no sum on the screen");
-  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="leave-undo"]')), [plain(`${ORDINARY}.`)], "the sentence of the server as it came");
+  await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
+  assert.ok(!/\d{2,3}\s?\d{3}/.test(await X.shown(run.page.locator('[data-testid="enrol-summary"]'))), "no sum on the screen");
+  assert.deepEqual(await X.hintsOf(run.page.locator('[data-testid="enrol-note-rewrite"]')), [plain(`${ORDINARY}.`)], "the sentence of the server as it came");
   await run.page.close();
 });

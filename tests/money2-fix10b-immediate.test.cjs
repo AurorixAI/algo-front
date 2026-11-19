@@ -33,69 +33,9 @@ async function drawer(chosen, { undone = [], ordinary = [], width = 1280 } = {})
   for (const i of chosen) await run.page.click(`button:has-text("${PEOPLE[i][1]}")`);
   return run;
 }
-const pickDay = async (page) => { await page.fill("#add-student-pay-from", "04.11.2026"); await page.keyboard.press("Tab"); await page.waitForSelector('[data-testid="pay-from-immediate-block"]'); };
+const pickDay = async (page) => { await page.fill("#add-student-pay-from", "04.11.2026"); await page.keyboard.press("Tab"); await page.waitForSelector('[data-testid="enrol-summary"]'); };
 
-test("three students: the card of one student - the title with «?» and the total first, a row per student, no sentence of the server, periods read from the fields", async () => {
-  for (const width of [1280, 375]) {
-    const run = await drawer([0, 1, 2], { width });
-    await pickDay(run.page);
-    const block = run.page.locator('[data-testid="pay-from-immediate-block"]');
-    const head = plain(await block.locator('[data-testid="pay-from-immediate-total"]').textContent());
-    assert.ok(head.startsWith("Всего к оплате сразу") && head.endsWith("843 000 сум"), head);
-    assert.equal(await block.locator('[data-testid="pay-from-immediate-help"]').count(), 1);
-    const text = plain(await block.textContent());
-    assert.ok(!/К оплате сразу:|за 5 уроков/.test(text), text);
-    assert.equal(await block.locator('[data-testid="pay-from-immediate-student"]').count(), 3);
-    const two = block.locator('[data-testid="pay-from-immediate-student"]', { hasText: "Второй Ученик" });
-    assert.equal(plain(await two.locator('[data-testid="pay-from-immediate-student-sum"]').textContent()), "469 000 сум");
-    const parts = await two.locator('[data-testid="pay-from-immediate-parts"] li span').allTextContents();
-    assert.deepEqual(parts.map(plain), ["Октябрь, с 27.10 · 2 урока из 9", "89 000 сум", "Ноябрь, весь месяц", "380 000 сум"]);
-    const one = block.locator('[data-testid="pay-from-immediate-student"]', { hasText: "Третий Ученик" });
-    assert.equal(plain(await one.locator('[data-testid="pay-from-immediate-parts"]').textContent()), "Ноябрь, с 04.11 · 5 уроков из 12", "one period: the sum is not repeated");
-    assert.ok(await block.locator(".tabular-nums").count() >= 4);
-    assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `no horizontal scroll at ${width}`);
-    await run.page.close();
-  }
-});
-
-test("eight students (two long names, one with nothing to pay): names cut with «…» and whole in `title`, «—», one right edge, the block about 260 px and the list scrolls", async () => {
-  for (const width of [1280, 375]) {
-    const run = await drawer([0, 1, 2, 3, 4, 5, 6, 7], { width });
-    await pickDay(run.page);
-    const geo = await run.page.evaluate(() => {
-      const block = document.querySelector('[data-testid="pay-from-immediate-block"]');
-      const list = document.querySelector('[data-testid="pay-from-immediate-students"]');
-      const rights = [...new Set([...document.querySelectorAll('[data-testid="pay-from-immediate-student-sum"]')].map((el) => Math.round(el.getBoundingClientRect().right)))];
-      const cut = [...document.querySelectorAll('[data-testid="pay-from-immediate-name"]')].filter((el) => el.scrollWidth > el.clientWidth).map((el) => el.getAttribute("title"));
-      const dash = [...document.querySelectorAll('[data-testid="pay-from-immediate-student"]')].filter((el) => /Седьмой/.test(el.textContent)).map((el) => el.querySelector('[data-testid="pay-from-immediate-student-sum"]').textContent);
-      return { block: block.getBoundingClientRect().height, scroll: list.scrollHeight > list.clientHeight + 4, rights, cut, dash, wide: document.documentElement.scrollWidth > window.innerWidth + 1 };
-    });
-    assert.ok(geo.block <= 270, `block ${geo.block}`);
-    assert.equal(geo.scroll, true);
-    assert.equal(geo.rights.length, 1, `one right edge: ${geo.rights}`);
-    assert.ok(geo.cut.includes(LONG), `the long name is cut and whole in the title: ${geo.cut}`);
-    assert.deepEqual(geo.dash, ["—"]);
-    assert.equal(geo.wide, false);
-    await run.page.close();
-  }
-});
-
-test("the hint of several students: a paragraph per student (the name in bold on its own line); the text for a screen reader keeps «имя: текст»", async () => {
-  const run = await drawer([1, 2], { ordinary: ["st8", "st7"], width: 375 });
-  await run.page.waitForSelector('[data-testid="leave-return-many"]');
-  await run.page.locator('[data-testid="leave-undo-help"] [role="button"]').first().click();
-  const tip = run.page.locator('[role="tooltip"]');
-  await tip.waitFor();
-  const students = tip.locator('[data-testid="leave-hint-student"]');
-  assert.equal(await students.count(), 2);
-  assert.equal(await students.first().locator("span.font-semibold").count(), 1);
-  const tops = await students.evaluateAll((els) => els.map((el) => [el.children[0].getBoundingClientRect().top, el.children[1].getBoundingClientRect().top]));
-  assert.ok(tops.every(([name, body]) => body > name + 8), "the name is on its own line over the text");
-  assert.ok(tops[1][0] > tops[0][1] + 16, "a gap between the students");
-  const reader = await run.page.locator('[data-testid="leave-undo-help"] [role="button"]').first().getAttribute("aria-describedby");
-  assert.match(await run.page.locator(`[id="${reader}"]`).textContent(), /Второй Ученик: /);
-  await run.page.close();
-});
+// the card of several students (title + total, a row per student, the notes, eight students) and the hints per student moved to money2-fix10e-summary.test.cjs
 
 test("«Сразу платить не нужно» replaces «К оплате сразу — ничего»", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "pay-from.ts"), "utf8");
@@ -136,14 +76,14 @@ test("«Оплата с»: no two lines under the field, a «?» at the label in
 test("«К оплате сразу» of one student: the sum once (in the title), one muted period row without a sum; two periods - a sum per period", async () => {
   const run = await drawer([0]);
   await pickDay(run.page);
-  const block = run.page.locator('[data-testid="pay-from-immediate-block"]');
+  const block = run.page.locator('[data-testid="enrol-summary"]');
   const text = plain(await block.evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
   assert.equal(text.split("187 000").length - 1, 1, text);
   assert.ok(text.includes("Ноябрь, с 04.11 · 5 уроков из 12"));
   await run.page.close();
   const two = await drawer([1]);
   await pickDay(two.page);
-  const text2 = plain(await two.page.locator('[data-testid="pay-from-immediate-block"]').evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
+  const text2 = plain(await two.page.locator('[data-testid="enrol-summary"]').evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".sr-only").forEach((n) => n.remove()); return c.textContent; }));
   assert.ok(text2.includes("89 000") && text2.includes("380 000") && text2.includes("469 000"), text2);
   await two.page.close();
 });

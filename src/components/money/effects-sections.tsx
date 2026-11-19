@@ -56,48 +56,12 @@ export function LeaveUndoNote({ undo, className = "" }: { undo: LeaveUndo; class
   );
 }
 
-type NamedText = { name: string; text: string };
-/** The sentence for a screen reader keeps «имя: текст»; the bubble shows a paragraph per student: the name in bold on its own line, the server's words under it. */
-const plainOf = (rows: NamedText[]) => rows.map((row) => `${row.name}: ${row.text}`).join("\n");
-const paragraphsOf = (rows: NamedText[]) => (
-  <span className="block space-y-2.5" data-testid="leave-hint-paragraphs">
-    {rows.map((row, index) => <span key={`${row.name}-${index}`} className="block" data-testid="leave-hint-student"><span className="block font-semibold">{row.name}</span><span className="block">{row.text}</span></span>)}
-  </span>
-);
-const namedList = (entries: ReadonlyMap<string, LeaveUndo>, names: ReadonlyMap<string, string>): NamedText[] => {
-  // the order the person chose them in (the answer of the server is in the order of the sorted ids)
-  const order = Array.from(names.keys());
-  return Array.from(entries.entries()).sort(([a], [b]) => order.indexOf(a) - order.indexOf(b)).map(([id, undo]) => ({ name: names.get(id) ?? "Ученик", text: tidyMoneyText(undo.text) }));
-};
-
-/**
- * The drawer «Зачислить учеников»: those who come back in the ordinary way (`ordinary`, the server's `undone = false`).  One chosen student - the line + «?» (the card of a student looks the same); several - a line
- * with the count + «?» with a paragraph per student.
- */
-export function BulkLeaveNotes({ ordinary, names, single }: { ordinary: ReadonlyMap<string, LeaveUndo>; names: ReadonlyMap<string, string>; single: boolean }) {
-  if (ordinary.size === 0) return null;
-  if (single) return <LeaveUndoNote undo={Array.from(ordinary.values())[0]} />;
-  const rows = namedList(ordinary, names);
-  return (
-    <div data-testid="leave-return-many" className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
-      <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{ordinary.size === 1 ? "1 ученик записывается заново" : `${ordinary.size} ${pluralRu(ordinary.size, ["ученика", "ученика", "учеников"])} записываются заново`}</p>
-      <HelpHint text={plainOf(rows)} content={paragraphsOf(rows)} testId="leave-undo-help" />
-    </div>
-  );
-}
-
 /**
  * Several students, some of them come back as they were: a quiet line right under the fields of the price / the day, ONLY when the administrator really entered a common price or changed «Оплата с» (there is a
- * difference to be surprised at); the «?» holds the server's words per student.  Nothing common entered - no line; all come back - the fields are hidden, no line.
+ * difference to be surprised at); the server's words per student are in the summary under the list.  Nothing common entered - no line; all come back - the fields are hidden, no line.
  */
-export function SharedTermsNote({ undone, names }: { undone: ReadonlyMap<string, LeaveUndo>; names: ReadonlyMap<string, string> }) {
-  if (undone.size === 0) return null;
-  const rows = namedList(undone, names);
-  const line = rows.length === 1 ? `На ${rows[0].name} общие цена и дата не действуют — остаются прежние` : `На ${rows.length} ${pluralRu(rows.length, ["ученика", "ученика", "учеников"])} общие цена и дата не действуют — у них остаются прежние`;
-  return (
-    <div data-testid="leave-shared-note" className="flex items-start justify-between gap-2 px-1 text-xs text-slate-500">
-      <p className="min-w-0 [overflow-wrap:anywhere]" data-testid="leave-shared-line">{line}</p>
-      <HelpHint text={plainOf(rows)} content={paragraphsOf(rows)} testId="leave-undo-help" />
-    </div>
-  );
+export function SharedTermsNote({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  const line = names.length === 1 ? `На ${names[0]} общие цена и дата не действуют — остаются прежние` : `На ${names.length} ${pluralRu(names.length, ["ученика", "ученика", "учеников"])} общие цена и дата не действуют — у них остаются прежние`;
+  return <p data-testid="leave-shared-note" className="text-xs text-slate-500 [overflow-wrap:anywhere]"><span data-testid="leave-shared-line">{line}</span></p>;
 }
