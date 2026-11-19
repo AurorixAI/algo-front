@@ -15,6 +15,19 @@ import { IncomeDecisions } from "@/components/payments/income-decisions";
 import { periodOf } from "@/lib/payments-income-v2";
 import { useAuthStore } from "@/lib/store";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useToast } from "@/components/ui/toast";
+
+/** The window as the pages mount it: after a successful write it closes itself and the page shows ONE message (the real toast) - `[data-tone]`. */
+function AssignDemo(props: any) {
+  const { showToast, toastNode } = useToast();
+  const [open, setOpen] = React.useState(true);
+  return (
+    <>
+      <AssignGroupModal open={open} studentId="st1" studentName={props.studentName ?? "Каримов Фарход"} studentGrade={props.studentGrade === undefined ? 8 : props.studentGrade} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => { log("close"); if (props.closeOnDone) setOpen(false); }} onAssigned={(_group, done) => { log("assigned"); if (done) showToast(done.text, done.type, done.details); }} />
+      {toastNode}
+    </>
+  );
+}
 
 const w = window as any;
 w.__log = [] as string[];
@@ -26,7 +39,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   const root = createRoot(document.getElementById("root")!);
   switch (name) {
     case "assign":
-      root.render(<AssignGroupModal open studentId="st1" studentName="Каримов Фарход" studentGrade={8} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => log("close")} onAssigned={() => log("assigned")} />);
+      root.render(<AssignDemo {...props} />);
       break;
     case "group-archive":
       root.render(<GroupArchiveDialog open group={{ id: "gz", name: props.groupName ?? "Алгебра 7" }} groupsBasePath={props.groupsBasePath ?? "/owner/groups"} onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);

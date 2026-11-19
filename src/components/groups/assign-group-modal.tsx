@@ -3,7 +3,6 @@
 import { isStaleRefusal, REFRESH_LABEL } from "@/lib/money-preview";
 import { Select } from "@/components/ui/select";
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
 import {
   X,
   Search,
@@ -11,8 +10,6 @@ import {
   Loader2,
   Check,
   GraduationCap,
-  Sparkles,
-  CheckCircle2,
   RotateCcw,
 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
@@ -33,7 +30,7 @@ import { GroupPickCard } from "./group-pick-card";
 import type { ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { Notice } from "@/components/ui/notice";
 import { LeaveUndoNote } from "@/components/money/effects-sections";
-import { tidyMoneyText } from "@/lib/money-format";
+import { assignDoneToast, type EnrolToast } from "@/lib/group-enrol";
 import { PastBalancesNote } from "@/components/money/past-balances-note";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
@@ -44,7 +41,7 @@ import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
-import { openingLocked } from "@/lib/openings";
+import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -99,7 +96,8 @@ interface AssignGroupModalProps {
   /** Where the group pages of this workspace live (`/owner/groups`): the link «Задать цену группы» leads there. */
   groupsBasePath?: string;
   onClose: () => void;
-  onAssigned: (group?: GroupInfo | null) => void;
+  /** The window closes itself after a successful write: the caller shows `done` as its ordinary message (toast). */
+  onAssigned: (group?: GroupInfo | null, done?: EnrolToast) => void;
 }
 
 export function AssignGroupModal({
@@ -126,13 +124,9 @@ export function AssignGroupModal({
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [assignedSuccessGroup, setAssignedSuccessGroup] = useState<GroupInfo | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   // Money-2 fix 3: 409 `TRANSFER_SOURCE_GONE` - the words of the server once and one action, «Обновить»
   const [assignmentStale, setAssignmentStale] = useState(false);
-  const [serverWarnings, setServerWarnings] = useState<string[]>([]);
-  // Calm notes of the server, e.g. "оплата перенесена в новую группу" (N13 P2.1).
-  const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const scheduledPrices = useScheduledGroupPrices(open && moneyAvailable && groups.some((g) => g.price_current === null));      // G3M Ф6: a price planned from a day is not «не задана»
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
@@ -144,7 +138,7 @@ export function AssignGroupModal({
   // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership; not with a transfer (the server refuses it).
   // Money-2 R3c Г1: once the accounting has started only the owner puts an opening balance - the summary (shared with the other pieces of the screen: one request) says so, the screen does not guess the role
   const { summary: openingsSummary } = useOpeningsSummary(moneyAvailable);
-  const openingBlocked = openingLocked(openingsSummary);
+  const openingShown = openingOffered(moneyAvailable, openingsSummary);
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
   const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
@@ -166,9 +160,6 @@ export function AssignGroupModal({
       let cancelled = false;
       setLoading(true);
       setSelectedGroupId(null);
-      setAssignedSuccessGroup(null);
-      setServerWarnings([]);
-      setServerInfos([]);
       setAssignmentError(null);
       setLoadError(null);
       setSearch("");
@@ -259,7 +250,7 @@ export function AssignGroupModal({
     if (exception.error) { setAssignmentError(exception.error); return; }
     if (payProblem) { setAssignmentError(payProblem); return; }
     const todayDate = formatBusinessDate();
-    const withOpening = moneyAvailable && !openingBlocked && !isTransfer && openingOn && leaveUndo?.undone !== true;
+    const withOpening = openingShown && !isTransfer && openingOn && leaveUndo?.undone !== true;
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: todayDate, accountingStart, today: todayDate });
       if (problem) { setAssignmentError(problem); return; }
@@ -285,15 +276,23 @@ export function AssignGroupModal({
         return;
       }
       const notes = splitTransferNotes(result.warnings);
-      setServerWarnings(notes.warnings);
       // the server's sentence about the day the charge starts (only when the person chose it)
       const billingLine = payBody ? normalizeBilling(result.billing)?.text : "";
-      setServerInfos(billingLine ? [...notes.infos, billingLine] : notes.infos);
       // after the action: the server's words about a student who came back as he was (before it the window says nothing - «как было» is the expected result)
       const undoDone = leaveUndoOf(result);
-      if (undoDone?.undone) setServerInfos((infos) => [tidyMoneyText(undoDone.text), ...infos]);
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
-      setAssignedSuccessGroup(targetGroup);
+      // Money-2 fix10В: no second window - the window closes and the page shows ONE message (a headline and, only when there is something to say, a second line)
+      const done = assignDoneToast({
+        studentName,
+        groupName: targetGroup?.name ?? "",
+        transfer: isTransfer,
+        undoText: undoDone?.undone ? undoDone.text : null,
+        stays: isAdd ? (sourceGroups ?? []).filter((g) => g.id !== selectedGroupId).map((g) => g.name).filter(Boolean) : [],
+        warnings: notes.warnings,
+        infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
+      });
+      onAssigned(targetGroup, done);
+      onClose();
     } catch (e: any) {
       if (isBalanceChanged(e)) { setBalanceChanged(true); transferPreview.retry(); return; }
       const askedSources = sourcesFromError(e);
@@ -340,23 +339,13 @@ export function AssignGroupModal({
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
   const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1, scheduledPrices[selectedGroup.id]) : null;
 
-  const closeAfterSuccess = () => {
-    if (assignedSuccessGroup) onAssigned(assignedSuccessGroup);
-    onClose();
-  };
-
-  const successTitle = isAdd ? "Ученик зачислен в группу" : isTransfer ? "Ученик переведён" : "Ученик зачислен";
   const formTitle = enrolDialogTitle(isAdd ? "add" : "transfer", isTransfer);
 
   return (
     <Modal
       open={open}
-      title={assignedSuccessGroup ? successTitle : formTitle}
-      description={assignedSuccessGroup ? (
-        <span className="font-semibold text-emerald-700">
-          {isAdd ? "Прежние группы сохранены" : isTransfer ? "Текущая группа и журнал обновлены" : "Успешно распределен в группу"}
-        </span>
-      ) : (
+      title={formTitle}
+      description={(
         // re-audit В2: who and from where on ONE line under the title (the card «Текущая группа» that scrolled out of sight is gone)
         <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" data-testid="assign-current-group">
           <span className="font-semibold text-slate-800">{studentName}</span>{" "}
@@ -371,21 +360,12 @@ export function AssignGroupModal({
           )}
         </span>
       )}
-      onClose={closeAfterSuccess}
+      onClose={onClose}
       busy={assigning}
       size="md"
       bodyClassName="px-5 sm:px-6 pt-2 pb-4 overflow-y-auto overscroll-contain min-h-0"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={assignedSuccessGroup ? (
-        <ConfirmFooter
-          primary="Отлично, закрыть"
-          onPrimary={() => {
-            onAssigned(assignedSuccessGroup);
-            onClose();
-          }}
-          testId="assign-done"
-        />
-      ) : (
+      footer={(
         // re-audit В1: the footer of every window of money; «почему» stands over the off button
         <ConfirmFooter
           primary={assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}
@@ -399,55 +379,6 @@ export function AssignGroupModal({
         />
       )}
     >
-      {assignedSuccessGroup ? (
-        <div className="flex flex-col">
-  <div className="py-10 px-6 sm:px-8 space-y-5 flex flex-col items-center text-center">
-    {/* Animated clean badge */}
-    <motion.div
-      initial={{ scale: 0.4, rotate: -10 }}
-      animate={{ scale: 1, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 18 }}
-      className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center text-white"
-    >
-      <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
-    </motion.div>
-
-    <div className="space-y-2 max-w-sm">
-      <motion.h3
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="text-xl font-bold text-slate-900"
-      >
-        {isTransfer ? "Перевод подтверждён!" : "Зачисление подтверждено!"}
-      </motion.h3>
-      <motion.p
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="text-sm text-slate-500 leading-relaxed"
-      >
-        {isAdd
-          ? "Ученик занимается и в прежних группах; основная группа не изменилась."
-          : isTransfer
-            ? "Предыдущая группа сохранена в истории, а ученик добавлен в журнал новой группы."
-            : "Ученик успешно зачислен в группу и добавлен в журнал занятий."}
-      </motion.p>
-      {serverInfos.length > 0 && (
-        <ul role="status" className="mt-3 list-disc space-y-0.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 pl-8 text-left text-xs text-emerald-900">
-          {serverInfos.map((text, index) => <li key={index}>{text}</li>)}
-        </ul>
-      )}
-      {serverWarnings.length > 0 && (
-        <ul role="status" className="mt-3 list-disc space-y-0.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 pl-8 text-left text-xs text-amber-900">
-          {serverWarnings.map((text, index) => <li key={index}>{text}</li>)}
-        </ul>
-      )}
-    </div>
-  </div>
-
-        </div>
-      ) : (
         <>
     {/* The current membership is context, not a destination: it stands in the line under the title.  Several current groups: one amber line. */}
     <div className="space-y-2.5 pb-3">
@@ -563,7 +494,7 @@ export function AssignGroupModal({
               key={g.id}
               group={g}
               selected={selectedGroupId === g.id}
-              gradeMatch={Boolean(studentGrade && g.class_level === studentGrade)}
+              gradeMismatch={Boolean(studentGrade && g.class_level && g.class_level !== studentGrade)}
               priceText={moneyAvailable && g.price_current !== undefined ? (g.price_current ? formatPrice(g.price_current.amount, priceLabel) : priceNotInForceText(scheduledPrices[g.id], "цена не задана")) : ""}
               priceMissing={!g.price_current && !scheduledPrices[g.id]}
               onSelect={() => { setSelectedGroupId(g.id); setAssignmentError(null); }}
@@ -597,7 +528,7 @@ export function AssignGroupModal({
           onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
           compact
         />}
-        {!isTransfer && !leavingUndone && !openingBlocked && (
+        {!isTransfer && !leavingUndone && openingShown && (
           <div className="mt-2 border-t border-slate-200 pt-2">
             <OpeningToggle
               idPrefix="assign-group-opening"
@@ -635,7 +566,6 @@ export function AssignGroupModal({
     )}
 
         </>
-      )}
     </Modal>
   );
 }

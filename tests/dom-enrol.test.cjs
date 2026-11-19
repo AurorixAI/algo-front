@@ -113,7 +113,8 @@ test("R3 item 6: «Перевести» of the card of a student (the window «�
   await run.page.waitForSelector('[data-testid="transfer-carried"]');
   assert.equal(await confirm.isDisabled(), false);
   await confirm.click();
-  await run.page.waitForFunction(() => document.body.textContent.includes("Перевод подтверждён"));
+  await run.page.waitForFunction(() => window.__log.includes("assigned"));   // fix10В: no success window - the window closes and tells the page
+  assert.equal(await run.page.evaluate(() => document.body.textContent.includes("Перевод подтверждён")), false);
   const sent = run.calls.filter((call) => call.method === "POST" && call.path === "/auth/org/groups/g2/students/st1");
   assert.deepEqual(sent.map((call) => /dry_run=true/.test(call.query)), [true, false]);
   assert.match(sent[1].query, /mode=transfer/);

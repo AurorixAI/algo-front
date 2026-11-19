@@ -8,7 +8,6 @@ import { Search, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
-  enrolPriceHint,
   groupPriceHref,
   priceLabelOf,
   targetGroupPriceHint,
@@ -28,6 +27,8 @@ import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/stude
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
+import { openingOffered } from "@/lib/openings";
+import { useOpeningsSummary } from "@/lib/openings-summary";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
@@ -125,6 +126,7 @@ export function AddStudentDrawer({
   const mode = effectiveEnrolMode(chosenMode, moneyRight);
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const { summary: openingsSummary } = useOpeningsSummary(moneyAvailable);
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   // The center's mode names the price («Цена в месяц» / «Цена пакета»).
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
@@ -234,7 +236,6 @@ export function AddStudentDrawer({
 
   // Shown only to users who see money, and only for «Перевести в эту группу».
   // A NEW student (no previous group) has nothing to carry over: the one line «Цена группы: …» is enough; the sentence about the previous group only for a real transfer.
-  const priceHint = mode === "transfer" && transfers.length === 0 ? null : enrolPriceHint({ transfer: mode === "transfer", moneyAvailable });
   // The price of this group, shown to money roles only (the key is absent for the others).
   const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel, groupScheduledPrice) : null;
   const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size, groupScheduledPrice) : null;
@@ -279,7 +280,7 @@ export function AddStudentDrawer({
   const probeAnswer: unknown = freshAnswer ?? (held !== null && held.set === setKey ? held.answer : null);
   const { undone: undoneBy, ordinary: ordinaryBy } = leaveReturnsOfBulk(probeAnswer);
   const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
-  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
+  const openingAllowed = openingOffered(moneyAvailable, openingsSummary) && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
   // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there); not for those who all come back
   const payFromAllowed = payFromBase && !allUndone;
   const payBody = payFromAllowed ? payBodyAsked : null;
@@ -533,7 +534,6 @@ export function AddStudentDrawer({
             <p className="mt-1 text-xs text-slate-500">
               {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
             </p>
-            {priceHint && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
           </fieldset>
         )}
         {moneyAvailable && !allUndone && (
@@ -547,7 +547,6 @@ export function AddStudentDrawer({
                   )}
                 </p>
                 {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
-                {priceHint && transfers.length === 0 && <p className="mt-0.5 text-xs text-slate-500">{priceHint}</p>}
               </>
             )}
             <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>

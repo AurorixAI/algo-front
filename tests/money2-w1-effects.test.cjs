@@ -82,10 +82,10 @@ test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHAN
   assert.equal(plain(await run.page.textContent('[data-testid="transfer-changed"]')), "Данные изменились — проверьте числа");
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[0].body.expected_carried, 440000);
   await run.page.waitForFunction(() => /465 000/.test(document.querySelector('[data-testid="effects-money"]')?.textContent ?? ""));
-  assert.equal(await run.page.locator('[data-testid="assign-done"]').count(), 0, "nothing is written, the window stays");
+  assert.equal(await run.page.locator('[data-tone]').count(), 0, "nothing is written, the window stays");
   assert.ok(posts(run.calls).filter((call) => isDry(call)).length >= 2, "the dry run is asked again");
   await run.page.click('[data-testid="assign-submit"]');
-  await run.page.waitForSelector('[data-testid="assign-done"]');
+  await run.page.waitForSelector('[data-tone]');
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[1].body.expected_carried, 465000);
   await run.page.close();
 });
@@ -99,8 +99,8 @@ test("Т6: coming back the day of the leaving - `leave_undo` in the words of the
     await run.page.waitForTimeout(600);
     assert.equal(await run.page.locator('[data-testid="leave-undo"]').count(), 0, `${mode}: no plate before the action`);
     await run.page.click('[data-testid="assign-submit"]');
-    await run.page.waitForSelector('[data-testid="assign-done"]');
-    const text = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
+    await run.page.waitForSelector('[data-tone]');
+    const text = plain(await run.page.locator('[data-tone]').evaluate((el) => el.innerText));
     assert.ok(text.includes("возвращаем как было: цены и паузы возвращены") && !text.includes("Индивидуальная цена 300 000 сум возвращена") && !text.includes("Пауза 23.11–26.11 возвращена"), `${mode}: ${text}`);
     await run.page.close();
   }
@@ -119,7 +119,7 @@ test("И5: a role without the right to money sees the same facts without a sum, 
   assert.ok(!/сум/.test(text.replace(/дни паузы/g, "")), text);
   assert.ok(text.includes("останется аванс") && text.includes("Индивидуальная цена в группе"));
   await run.page.click('[data-testid="assign-submit"]');
-  await run.page.waitForSelector('[data-testid="assign-done"]');
+  await run.page.waitForSelector('[data-tone]');
   const write = posts(run.calls).filter((call) => !isDry(call))[0];
   assert.ok(!write.body || !("expected_carried" in write.body));
   await run.page.close();

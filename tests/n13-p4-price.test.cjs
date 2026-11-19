@@ -300,11 +300,8 @@ test("the audit shapes are typed in api.ts and rendered by the screens, with not
 
 // ── group-price.ts: enrolment and transfer ──────────────────────────────────────────────────────────────────
 
-test("an enrolment says which price the student takes; money roles only", () => {
-  assert.equal(G.enrolPriceHint({ transfer: true, moneyAvailable: false }), null);
-  assert.equal(G.enrolPriceHint({ transfer: false, moneyAvailable: false }), null);
-  assert.equal(G.enrolPriceHint({ transfer: true, moneyAvailable: true }), "Ученик берёт цену новой группы; индивидуальная цена прежней группы не переносится");
-  assert.equal(G.enrolPriceHint({ transfer: false, moneyAvailable: true }), "В новой группе ученик берёт цену этой группы");
+test("an enrolment says nothing about the expected price (fix10В: enrolPriceHint is gone); the price of the target group is one line", () => {
+  assert.equal(G.enrolPriceHint, undefined);
   assert.equal(plain(G.targetGroupPriceText({ amount: 500000, valid_from: "2026-10-01" }, "Цена в месяц")), "Цена группы: 500 000 сум/мес");
   assert.equal(G.targetGroupPriceText(null, "Цена в месяц"), "Цена группы не задана");
   assert.equal(G.targetGroupPriceText(undefined, "Цена в месяц"), null); // the key is absent: no money to show

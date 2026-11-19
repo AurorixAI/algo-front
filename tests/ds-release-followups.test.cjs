@@ -97,9 +97,9 @@ test("namesakes get a telling detail: the end of the phone when the ends differ;
   assert.equal(namesakeDetail(z, [z, w]), "ID AL15-007");
 });
 
-test("a NEW student gets no sentence about the previous group (only a real transfer does)", () => {
+test("no sentence about the price the student takes under the choice or the price of the group (fix10В)", () => {
   const text = fs.readFileSync(src("components/groups/add-student-drawer.tsx"), "utf8");
-  assert.match(text, /mode === "transfer" && transfers\.length === 0 \? null : enrolPriceHint/);
+  assert.doesNotMatch(text, /enrolPriceHint|priceHint/);
 });
 
 test("the owner's panel shows a skeleton until the centre is known - no made-up name, status or type; no dark glass block", () => {

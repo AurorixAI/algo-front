@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Sparkles, Users } from "lucide-react";
+import { Check, Users } from "lucide-react";
 import { Disclosure } from "@/components/ui/disclosure";
 import { groupPlaceLine, groupScheduleLine, type ScheduleSlotLike } from "@/lib/group-schedule-line";
 
@@ -19,10 +19,11 @@ export interface GroupPickCardGroup {
  * Money-2 А6: the card of a group to enrol / transfer into.  In view only what the choice is made by: the name (wraps, never cut), ONE line of the schedule, the filling; teacher, class, price and
  * room / format are under «Подробнее».  `priceText` is the caption the window already builds ("" for a role without money; the amber one when the price is not in force).
  */
-export function GroupPickCard({ group, selected, gradeMatch, priceText, priceMissing, onSelect }: {
+export function GroupPickCard({ group, selected, gradeMismatch, priceText, priceMissing, onSelect }: {
   group: GroupPickCardGroup;
   selected: boolean;
-  gradeMatch: boolean;
+  /** the group is for another class than the student: the deviation is shown, the ordinary case («подходит») is not (LESSONS 148) */
+  gradeMismatch: boolean;
   priceText: string;
   priceMissing: boolean;
   onSelect: () => void;
@@ -47,10 +48,9 @@ export function GroupPickCard({ group, selected, gradeMatch, priceText, priceMis
         <div className="min-w-0 flex-1">
           <p data-testid="group-card-name" className={`text-sm font-bold leading-snug [overflow-wrap:anywhere] ${selected ? "text-primary-950" : "text-slate-900"}`}>{group.name}</p>
           <p data-testid="group-schedule-line" className="mt-0.5 text-xs font-medium tabular-nums text-slate-700 [overflow-wrap:anywhere]">{groupScheduleLine(group.schedule)}</p>
-          {gradeMatch && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
-              <Sparkles className="h-2.5 w-2.5" />
-              Подходит по классу
+          {gradeMismatch && (
+            <span data-testid="group-grade-chip" className="mt-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              Другой класс
             </span>
           )}
           <Disclosure testId="group-card-more" className="mt-0.5">

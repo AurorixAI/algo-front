@@ -437,6 +437,13 @@ export const OPENING_OWNER_ONLY_CODE = "OPENING_OWNER_ONLY";
 export function openingLocked(summary: Pick<OpeningsSummary, "can_set_opening"> | null | undefined): boolean {
   return summary?.can_set_opening === false;
 }
+/**
+ * ONE rule for every window that offers «Остаток на начало учёта» while a student is put into a group (the card of the student and «Зачислить учеников»):
+ * the toggle is shown only to a person who may use it - with the right to money and not locked by the started accounting (LESSONS 148 p.5).
+ */
+export function openingOffered(moneyAvailable: boolean, summary: Pick<OpeningsSummary, "can_set_opening"> | null | undefined): boolean {
+  return moneyAvailable && !openingLocked(summary);
+}
 export const OPENINGS_SHOW_LEFT = "Показать ушедших";
 export const OPENINGS_ONLY_MISSING = "Только незаполненные";
 export const OPENINGS_LEFT_NOTE = "Ушедшим можно внести только долг на начало.";

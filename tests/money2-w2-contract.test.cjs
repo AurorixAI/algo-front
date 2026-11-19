@@ -13,7 +13,7 @@ test("a transfer of a student with ONE group sends `from_group_id` in the dry ru
   await pick(run.page);
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
   await run.page.click('[data-testid="assign-submit"]');
-  await run.page.waitForSelector('[data-testid="assign-done"]');
+  await run.page.waitForSelector('[data-tone]');
   const sent = posts(run);
   assert.ok(sent.length >= 2);
   assert.ok(sent.every((call) => call.body.from_group_id === "ga"), JSON.stringify(sent.map((call) => call.body)));

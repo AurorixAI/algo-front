@@ -37,10 +37,11 @@ for (const [label, props] of [
     assert.doesNotMatch(dialog.replace(FIXED_TEXT, ""), /Оплата с|Остаток на начало/);
     await run.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
     await run.page.click('[data-testid="assign-submit"]');
-    await run.page.waitForSelector('[data-testid="assign-done"]');
-    const done = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
+    await run.page.waitForSelector('[data-tone]');
+    const done = plain(await run.page.locator('[data-tone]').evaluate((el) => el.innerText));
     assert.ok(done.includes("Ученика убрали сегодня — возвращаем как было") && done.includes("Долг снова за учеником"), `after the action the server's words: ${done}`);
-    assert.equal(await run.page.locator('[role="dialog"] [role="status"]').filter({ hasText: "возвращаем как было" }).count(), 1, "read by a screen reader (role=status)");
+    assert.equal(await run.page.locator('[data-tone][role="status"]').filter({ hasText: "возвращаем как было" }).count(), 1, "read by a screen reader (role=status); no second window");
+    assert.equal(await run.page.locator('[data-testid="assign-done"]').count(), 0, "no success window (fix10В)");
     const body = posts(run.calls).find((c) => c.path === "/auth/org/groups/gt/students/st1").body ?? {};
     for (const key of ["pay_from", "opening_balance", "price_override"]) assert.equal(body[key], undefined, `${key} is not sent`);
     await run.page.close();

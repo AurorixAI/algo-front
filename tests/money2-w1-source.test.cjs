@@ -62,7 +62,7 @@ test("Э1: the chosen source rides in `from_group_id` of the dry run and of the 
   assert.ok(dry.length >= 1);
   assert.equal(dry[dry.length - 1].body.from_group_id, "gb");
   await run.page.click('[data-testid="assign-submit"]');
-  await run.page.waitForSelector('[data-testid="assign-done"]');
+  await run.page.waitForSelector('[data-tone]');
   const real = posts(run.calls).filter((call) => !isDry(call));
   assert.equal(real.length, 1);
   assert.equal(real[0].body.from_group_id, "gb");

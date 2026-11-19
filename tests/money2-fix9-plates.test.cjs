@@ -49,8 +49,8 @@ test("card of a student: no plate and no «?» before the action; after it the s
     assert.equal(await run.page.locator('[role="dialog"] [aria-label="Пояснение"]').count(), 0, "no «?» of a plate");
     await run.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
     await run.page.click('[data-testid="assign-submit"]');
-    await run.page.waitForSelector('[data-testid="assign-done"]');
-    const text = plain(await run.page.locator('[role="dialog"]').textContent());
+    await run.page.waitForSelector('[data-tone]');
+    const text = plain(await run.page.locator('[data-tone]').textContent());
     assert.equal(text.split("Ученика убрали сегодня — возвращаем как было").length - 1, 1, "once");
     assert.ok(!/Уход отменяется|продолжается|восстановлена|сум возвращена/.test(text));
     await run.page.close();

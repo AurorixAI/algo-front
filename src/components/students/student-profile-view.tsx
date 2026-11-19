@@ -1072,9 +1072,10 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           sourceGroups={memberships.map((item) => ({ id: item.group_id, name: item.group_name }))}
           groupsBasePath={groupsBasePath}
           onClose={() => setAssignModalOpen(false)}
-          onAssigned={() => {
+          onAssigned={(_group, done) => {
             setAssignModalOpen(false);
             loadProfile();
+            if (done) showToast(done.text, done.type, done.details);
           }}
         />
       )}

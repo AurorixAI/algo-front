@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AlertCircle, AlertTriangle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
 import { orgApi, opsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { errorMessageOf, opsErrorCode, warningTexts } from "@/lib/ops-errors";
 import { substitutionErrorText } from "@/lib/substitutions";
 import type { ArchiveImpact } from "@/lib/ops-b-types";
@@ -62,6 +63,7 @@ export function GroupArchiveDialog({
   onClose: () => void;
   onArchived: (message: string) => void;
 }) {
+  const { showToast, toastNode } = useToast();
   const [impact, setImpact] = useState<ArchiveImpact | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cancelMissed, setCancelMissed] = useState(false);
@@ -178,7 +180,7 @@ export function GroupArchiveDialog({
         excludeGroupIds={[group.id]}
         groupsBasePath={groupsBasePath}
         onClose={() => setTransfer(null)}
-        onAssigned={() => { setTransfer(null); void load(); }}
+        onAssigned={(_group, done) => { setTransfer(null); void load(); if (done) showToast(done.text, done.type, done.details); }}
       />
 
       <StudentArchiveModal
@@ -190,6 +192,7 @@ export function GroupArchiveDialog({
         onArchived={() => { setArchiveStudent(null); void load(); }}
         onStale={() => { setArchiveStudent(null); void load(); }}
       />
+      {toastNode}
     </>
   );
 }

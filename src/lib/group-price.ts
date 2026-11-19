@@ -897,14 +897,6 @@ export function overrideRowText(row: PriceOverrideRow, label: string): string {
 
 // ── Enrolment / transfer ────────────────────────────────────────────────────
 
-/** Said under the choice «Перевести» / «Добавить»: the student takes the price of the new group (money roles only). */
-export function enrolPriceHint(input: { transfer: boolean; moneyAvailable: boolean }): string | null {
-  if (!input.moneyAvailable) return null;
-  return input.transfer
-    ? "Ученик берёт цену новой группы; индивидуальная цена прежней группы не переносится"
-    : "В новой группе ученик берёт цену этой группы";
-}
-
 /** «Цена группы: 500 000 сум/мес» / «Цена группы не задана»; null for a role that does not see money (`price` undefined). */
 export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, label: string, scheduled?: GroupPriceScheduled | null): string | null {
   if (price === undefined) return null;
