@@ -639,6 +639,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
             open={addOpen}
             groupId={groupId}
             groupClassLevel={group.class_level}
+            groupName={group.name}
             groupPrice={group.price_current}
             groupScheduledPrice={scheduledPrice ?? null}
             groupsBasePath={paths.groups}

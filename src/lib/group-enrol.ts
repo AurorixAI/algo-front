@@ -12,6 +12,11 @@ export interface EnrolSummary {
   skippedLines: string[];
   warnings: string[];
   infos: string[];
+  /** The group they were put into and who got in: «Трое зачислены в «М11 БС»». */
+  groupName?: string;
+  addedNames?: string[];
+  /** «К оплате 600 000 сум — на странице «Оплаты»» (a role that sees money); the first line under the headline. */
+  payNowLine?: string | null;
 }
 
 export interface EnrolToast {
@@ -20,12 +25,24 @@ export interface EnrolToast {
   details?: string[];
 }
 
+const COUNT_NOMINATIVE: Record<number, string> = { 2: "Двое", 3: "Трое", 4: "Четверо" };
+
+/** «Анвар Каримов зачислен в «М11 БС»» / «Трое зачислены в «М11 БС»» / «Зачислено 8 учеников в «М11 БС»»; without the group's name the old «Зачислено учеников: N». */
+function enrolHeadline(result: EnrolSummary): string {
+  if (!result.groupName) return `Зачислено учеников: ${result.added}`;
+  const into = `в «${result.groupName}»`;
+  if (result.added === 1 && result.addedNames?.length === 1) return `${result.addedNames[0]} зачислен ${into}`;
+  if (COUNT_NOMINATIVE[result.added]) return `${COUNT_NOMINATIVE[result.added]} зачислены ${into}`;
+  return `Зачислено ${result.added} ${result.added % 10 === 1 && result.added % 100 !== 11 ? "ученик" : result.added % 10 >= 2 && result.added % 10 <= 4 && (result.added % 100 < 12 || result.added % 100 > 14) ? "ученика" : "учеников"} ${into}`;
+}
+
 export function enrolToast(result: EnrolSummary): EnrolToast {
   const infos = result.infos ?? [];
   if (result.added > 0 && result.skipped === 0) {
-    const text = `Зачислено учеников: ${result.added}`;
-    if (result.warnings.length > 0) return { text, type: "warning", details: [...result.warnings, ...infos] };
-    if (infos.length > 0) return { text, type: "success", details: infos };
+    const text = enrolHeadline(result);
+    const lines = [...(result.payNowLine ? [result.payNowLine] : []), ...infos];
+    if (result.warnings.length > 0) return { text, type: "warning", details: [...result.warnings, ...lines] };
+    if (lines.length > 0) return { text, type: "success", details: lines };
     return { text, type: "success" };
   }
   const notes = [...result.skippedLines, ...result.warnings];

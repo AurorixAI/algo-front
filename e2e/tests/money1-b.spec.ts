@@ -87,31 +87,30 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await page.getByRole("button", { name: /Добавить ученика|Зачислить/ }).first().click();
   const drawer = page.getByRole("dialog");
   await drawer.getByPlaceholder(/Поиск по имени/).fill("Нов");
-  await drawer.getByRole("button", { name: /Новая Ольга/ }).click();
+  await drawer.getByRole("checkbox", { name: /Новая Ольга/ }).check();   // a row of the list is a label with a box; the chosen one becomes a label with a cross under the search
+  // the conditions are ONE line («Оплата с 19 ноября, по цене группы»); the date opens under «Изменить»
+  await expect(drawer.getByTestId("enrol-terms-line")).toContainText(/^Оплата с \d{1,2} [а-яё]+, по цене группы/);
+  await drawer.getByTestId("enrol-terms-toggle").click();
   const field = drawer.getByTestId("pay-from");
   await expect(field).toBeVisible();
   await expect(field.getByLabel("Оплата с")).toHaveValue(/\d\d\.\d\d\.\d{4}/);
-  // the line under the field is gone (owner 18.11, LESSONS 148): the DEFAULT day is proved by the value of the field = the day the server names, the sentence is the server's, the reason sits in the «?»
+  // the DEFAULT day is proved by the value of the field = the day the server names; the sentence is the server's (the reason is shown muted under the line), no «?» in the window
   const def = await org.owner.api.get(`/auth/org/groups/${group.id}/pay-from-default`);
   expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — /);   // the sentence of the server (first lesson from today)
   await expect(field.getByLabel("Оплата с")).toHaveValue(def.default_pay_from.split("-").reverse().join("."));
-  await expect(field.getByTestId("pay-from-help")).toBeVisible();   // the «?» by the caption
-  await expect(drawer.getByTestId("pay-from-hint")).toHaveCount(0);   // no explanation line under the field
-  // a day in the past: the server says how much is charged at once, before the button
+  await expect(field).toContainText("По умолчанию");
+  await expect(drawer.getByLabel("Пояснение")).toHaveCount(0);
+  // a day in the past: the server says how much is charged at once, in the bar before the button
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
   await input.press("Tab");
-  // «К оплате сразу» is a BLOCK (design system): the title, the total (its own test id) and a row per month - the caption on the left, the sum on the right
-  const immediate = drawer.getByTestId("enrol-summary");
-  await expect(immediate).toContainText("К оплате сразу");
-  await expect(immediate.getByTestId("enrol-summary-total")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
-  const firstRow = immediate.getByTestId("enrol-summary-period").locator("li").first();
-  await expect(firstRow).toContainText(/^[А-ЯЁ0-9][^,]*, (весь месяц|с \d\d\.\d\d)/);        // the server sends «ноябрь»: the caption starts with a capital
-  // one period: its sum is the total above and the row is the caption only; two periods (the past days cross a month): a sum on each row
-  const rows = immediate.getByTestId("enrol-summary-period").locator("li");
-  if ((await rows.count()) > 1) { for (const row of await rows.all()) await expect(row).toContainText(/\d[\d\s\u00a0]*\sсум$/); }
-  else await expect(firstRow).not.toContainText(/сум/);
-  await expect(immediate.getByTestId("enrol-summary-help")).toBeVisible();   // the «?» of the block
+  // «К оплате сразу» is the BAR under the window: the caption, ONE big sum (its own test id) and one line that explains it, made of the fields of the server's answer
+  const bar = drawer.getByTestId("summary-bar");
+  await expect(bar).toContainText("К оплате сразу");
+  await expect(bar.getByTestId("summary-bar-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
+  // one period: «5 уроков из 12 в ноябре»; the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line)
+  await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) из \d+ (в [а-яё]+|за период)|^за [а-яё]+( и [а-яё]+)?)/);
+  await expect(drawer.getByTestId("enrol-submit")).toBeEnabled();
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
   const membership = await org.membershipId(student.id, group.id);

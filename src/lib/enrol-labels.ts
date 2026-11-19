@@ -9,13 +9,12 @@ export const TRANSFER_ACTION_LABEL = "Перевести в другую гру�
 /** UX pack №7: the button is not hidden from an administrator without the money access - it is off, with the reason (a transfer carries the money of the student). */
 export const TRANSFER_NO_RIGHT_TEXT = "Переводить может владелец или администратор с доступом к деньгам.";
 
-/** Group page: the button over the roster and the title of the side sheet (one or several students of a class are enrolled). */
+/** Group page: the button over the roster (the title of the sheet names the group: «Зачислить в «М11 БС»»). */
 export const ENROL_STUDENTS_BUTTON_LABEL = "Зачислить учеников";
-export const ENROL_STUDENTS_TITLE = "Зачислить учеников в группу";
 
 /** Group page, a student who is already in another group: the two choices of the sheet. */
-export const ENROL_HERE_TRANSFER_LABEL = "Перевести в эту группу";
-export const ENROL_HERE_ADD_LABEL = "Зачислить и в эту группу";
+export const ENROL_HERE_TRANSFER_LABEL = "Перевести сюда";
+export const ENROL_HERE_ADD_LABEL = "Оставить в обеих";
 
 /** Titles and button texts of the dialog of the card (mode «add» = one more group, «transfer» = move; no current group = first enrolment). */
 export function enrolDialogTitle(mode: "add" | "transfer", hasCurrentGroup: boolean): string {

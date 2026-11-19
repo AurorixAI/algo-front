@@ -2,48 +2,53 @@
 
 import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
-import { Fragment, useState, useEffect, useCallback, useRef } from "react";
-import { tidyMoneyText } from "@/lib/money-format";
-import { Search, Check, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
   groupPriceHref,
   priceLabelOf,
+  priceNotInForceText,
   targetGroupPriceHint,
-  targetGroupPriceText,
   type GroupPriceBrief,
   type GroupPriceScheduled,
 } from "@/lib/group-price";
 import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
-import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest } from "@/lib/pay-from";
+import { formatMoney } from "@/lib/money-format";
+import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
-import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, ENROL_STUDENTS_TITLE } from "@/lib/enrol-labels";
+import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
-import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
-import { EnrolPriceToggle } from "@/components/payments/price-fields";
-import { OpeningToggle } from "@/components/payments/opening-balance-fields";
+import { studentGroupId } from "@/lib/student-status";
 import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
-import { BulkOutcomePanel } from "./bulk-outcome-panel";
+import { BulkOutcomePanel, type BulkOutcomeRow } from "./bulk-outcome-panel";
+import { EnrolTerms } from "./enrol-terms";
+import { EnrolExceptions, EnrolNoteRows, ExceptionRow, type EnrolNote } from "./enrol-exceptions";
 import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
-import { bulkOutcomeOf, type BulkOutcome } from "@/lib/bulk-outcome";
-import { PayFromField, PayFromStatus, sameGroupOf } from "./pay-from-field";
-import { EnrolSummary, type EnrolSummaryStudent } from "./enrol-summary";
+import { bulkHeadline, bulkOutcomeOf } from "@/lib/bulk-outcome";
+import { enrolBarOf, enrolButtonLabel, type EnrolBarRow } from "@/lib/enrol-bar";
+import { isOwnPrice, priceInWords } from "@/lib/enrol-terms";
+import { groupScheduleLine, type ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
 import { Modal } from "@/components/ui/modal";
-import { ConfirmFooter } from "@/components/money/dialog-footer";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tag } from "@/components/ui/chip";
+import { PickedChips } from "@/components/ui/picked-chips";
+import { SegmentedControl } from "@/components/ui/radio";
+import { SummaryBar } from "@/components/ui/summary-bar";
 import { pluralRu } from "@/lib/plural";
-import { SharedTermsNote } from "@/components/money/effects-sections";
 import { pastBalancesByStudent } from "@/lib/past-balances";
 import { leaveReturnsOfBulk, leaveUndoOf, type LeaveUndo } from "@/lib/transfer-effects";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
@@ -73,6 +78,11 @@ export interface AddStudentsResult {
   warnings: string[];
   /** Calm notes, e.g. "оплата перенесена в новую группу" (N13 P2.1). */
   infos: string[];
+  /** The group they were put into and the names of those who got in: the message of success says «Трое зачислены в «…»». */
+  groupName?: string;
+  addedNames?: string[];
+  /** The line about what is to be paid at once («К оплате 600 000 сум — на странице «Оплаты»»), only for a role that sees money. */
+  payNowLine?: string | null;
 }
 
 /** After the action: the words of the server about the returned «как были» - one or two students by name, more - the count only. */
@@ -90,6 +100,8 @@ interface AddStudentDrawerProps {
   open: boolean;
   groupId: string;
   groupClassLevel?: number | null;
+  /** The name of the group for the title (the list of the groups gives it too, a moment later). */
+  groupName?: string;
   /**
    * The price of this group today (`price_current` of the group): `null` - not set, `undefined` - the role does not
    * see money (the key is absent).  The students added here take it.
@@ -104,8 +116,13 @@ interface AddStudentDrawerProps {
   onAdded: (result: AddStudentsResult) => void;
 }
 
+/** A list of students shows this many rows before «и ещё N»; the rest opens on request (a search finds anybody). */
+const LIST_PREVIEW = 5;
+
+const nameOfStudent = (student: Student) => student.full_name || `${student.last_name} ${student.first_name}`.trim();
+
 export function AddStudentDrawer({
-  open, groupId, groupClassLevel, groupPrice, groupScheduledPrice, groupsBasePath, existingStudentIds, onClose, onAdded,
+  open, groupId, groupClassLevel, groupName, groupPrice, groupScheduledPrice, groupsBasePath, existingStudentIds, onClose, onAdded,
 }: AddStudentDrawerProps) {
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
@@ -116,10 +133,13 @@ export function AddStudentDrawer({
   const [selected, setSelected] = useState<Map<string, Student>>(new Map());
   const [adding, setAdding] = useState(false);
   // Money-2 Э4: a bulk entry with a refused student stays open as «Записано 3 из 4» + the reason of each refusal; «Готово» hands the result to the page
-  const [outcome, setOutcome] = useState<{ data: BulkOutcome; result: AddStudentsResult } | null>(null);
+  const [outcome, setOutcome] = useState<{ rows: BulkOutcomeRow[]; headline: string; bar: ReturnType<typeof enrolBarOf>; result: AddStudentsResult } | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
+  const [groupSchedule, setGroupSchedule] = useState<ReadonlyArray<ScheduleSlotLike> | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  // a refusal of the price / the day / the opening balance opens the conditions in place (the number only says «again»)
+  const [termsSignal, setTermsSignal] = useState(0);
   // Students already in another group: move them here or keep both groups.
   const [chosenMode, setMode] = useState<GroupJoinMode>("transfer");
   // R3 M2: a transfer moves money - the money right only; without it the mode is «add» and the switch is not there
@@ -131,10 +151,11 @@ export function AddStudentDrawer({
   const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   // The center's mode names the price («Цена в месяц» / «Цена пакета»).
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
-  // An individual price is an exception: off by default, a sum and a reason when on (one for everybody added now).
-  const [exceptionOn, setExceptionOn] = useState(false);
+  // An individual price is an exception: a sum that is not the price of the group, and then a reason (one for everybody added now).
   const [exceptionAmount, setExceptionAmount] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
+  const groupAmount = groupPrice ? groupPrice.amount : null;
+  const exceptionOn = isOwnPrice(exceptionAmount, groupAmount);
   // LOGIC-A decision 1: what the student had before ALGO («оплачено до» / «долг на дату»); one student at a time, never with a transfer.
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
@@ -143,25 +164,32 @@ export function AddStudentDrawer({
   const [payFrom, setPayFrom] = useState("");
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
+  // the list shows a few rows; «и ещё N» opens all of them
+  const [listOpen, setListOpen] = useState(false);
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
   // must not replace the list of the current one.
   const [listSeq] = useState(() => createRequestSequence());
+  // «По ученикам» of the bar
+  const [byStudent, setByStudent] = useState(false);
+  // the fields of the conditions are open: the list of students is folded up to the labels
+  const [termsOpen, setTermsOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setMode("transfer");
     setOutcome(null);
-    setExceptionOn(false);
     setExceptionAmount("");
     setExceptionReason("");
     setOpeningOn(false);
     setOpening(emptyOpeningValues());
     setOpeningNeedsReason(false);
     setAllClasses(false);
+    setListOpen(false);
+    setByStudent(false);
     setPayFrom("");
   }, [open]);
 
-  // Group names for the "currently in ..." hints; a failure only drops the hints.
+  // Names and schedules of the groups: for the title / the line under it and the «currently in ...» tags; a failure only drops them.
   useEffect(() => {
     if (!open) return;
     setAddError(null);
@@ -171,10 +199,11 @@ export function AddStudentDrawer({
         if (cancelled) return;
         const items = Array.isArray(list) ? list : (list as any)?.items || [];
         setGroupNames(Object.fromEntries(items.map((g: any) => [g.id, g.name])));
+        setGroupSchedule(items.find((g: any) => g.id === groupId)?.schedule ?? null);
       })
-      .catch(() => { if (!cancelled) setGroupNames({}); });
+      .catch(() => { if (!cancelled) { setGroupNames({}); setGroupSchedule(null); } });
     return () => { cancelled = true; };
-  }, [open]);
+  }, [open, groupId]);
 
   // Debounce search
   useEffect(() => {
@@ -188,7 +217,6 @@ export function AddStudentDrawer({
   const searching = searchTerm !== "";
   // One typed character is too little to search: say so instead of silently showing the free students.
   const tooShort = !searching && debouncedSearch.trim() !== "";
-  const currentGroupOf = (s: Student) => studentGroupId(s);
 
   const loadStudents = useCallback(async () => {
     const token = listSeq.next();
@@ -214,7 +242,6 @@ export function AddStudentDrawer({
   }, [open, loadStudents]);
 
   const toggle = (student: Student) => {
-    lastPicked.current = selected.has(student.id) ? null : student.id;
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(student.id)) next.delete(student.id);
@@ -224,30 +251,23 @@ export function AddStudentDrawer({
   };
 
   // Students not already in the group; archived ones are never offered, and without a search
-  // neither are students of other groups.
+  // neither are students of other groups.  The chosen are the labels above, so the list holds the rest only.
   const available = availableStudents(students, existingStudentIds, { ungroupedOnly: !searching });
-
-  // The chosen stand FIRST (in the order they were chosen, even when the search does not match them any more), the rest under them in the order of the server
-  const pickedRows = Array.from(selected.values());
   const restRows = available.filter((student) => !selected.has(student.id));
-  const rows = [...pickedRows.map((student) => ({ student, isSelected: true })), ...restRows.map((student) => ({ student, isSelected: false }))];
-  const pinned = pickedRows.length;
-  const others = restRows.length;
-  const everyone = rows.map((entry) => entry.student);
+  const everyone = [...Array.from(selected.values()), ...restRows];
+  const shownRows = listOpen ? restRows : restRows.slice(0, LIST_PREVIEW);
+  const hiddenRows = restRows.length - shownRows.length;
 
   // Selected students who are enrolled elsewhere: adding moves them.
   const transfers = Array.from(selected.values())
     .filter((s) => { const current = studentGroupId(s); return current && current !== groupId; })
     .map((s) => ({
       id: s.id,
-      name: s.full_name || `${s.last_name} ${s.first_name}`.trim(),
+      name: nameOfStudent(s),
       from: groupNames[studentGroupId(s) as string] || "другой группы",
     }));
 
-  // Shown only to users who see money, and only for «Перевести в эту группу».
-  // A NEW student (no previous group) has nothing to carry over: the one line «Цена группы: …» is enough; the sentence about the previous group only for a real transfer.
-  // The price of this group, shown to money roles only (the key is absent for the others).
-  const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel, groupScheduledPrice) : null;
+  // The price of this group, said to money roles only (the key is absent for the others).
   const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size, groupScheduledPrice) : null;
 
   // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
@@ -266,7 +286,7 @@ export function AddStudentDrawer({
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
   const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
-  // UX pack №15: every chosen student is moved from another group (the mode «Перевести в эту группу») - the button says so, not «Зачислить»
+  // UX pack №15: every chosen student is moved from another group (the mode «Перевести сюда») - the button says so, not «Зачислить»
   const movesOnly = transfers.length > 0 && transfers.length === selected.size && mode === "transfer" && moneyRight;
   const transferIds = Array.from(selected.keys()).sort();
   // Money-2 fix 3: the group each moved student leaves (one active group only; with two or more the server asks)
@@ -298,64 +318,50 @@ export function AddStudentDrawer({
   const payPreview = moneyAvailable ? addProbe : { status: "idle" as const, retry: addProbe.retry };
   // the link «Выписка» of the balances leads to a page that needs the right to money - the same flag that decides whether the sums are shown
   const pastBase = groupsBasePath && moneyAvailable ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
-  const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, s.full_name || `${s.last_name} ${s.first_name}`.trim()]));
+  const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, nameOfStudent(s)]));
 
-  // fix 10Д: ONE summary under the conditions - a row per chosen student (in the order he was chosen): the sum at once, the balances of the last time, «записывается заново», «общие условия не действуют»
+  // the sum at once: the answer of the probe; while the next one is coming, the previous one of the SAME set stays, faded
   const sharedTermsEntered = !allUndone && (dryException.request !== null || payBody !== null);
   const immediateReady = payPreview.status === "ready" ? payPreview : null;
   const [lastImmediate, setLastImmediate] = useState<{ set: string; preview: NonNullable<typeof immediateReady> } | null>(null);
-  useEffect(() => { if (immediateReady) setLastImmediate({ set: setKey, preview: immediateReady }); }, [immediateReady, setKey]);
+  // the answer of the probe is the dependency (its object is stable); the status object is new on every render
+  const readyAnswer = immediateReady?.answer;
+  useEffect(() => { if (immediateReady) setLastImmediate({ set: setKey, preview: immediateReady }); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyAnswer, setKey]);
   useEffect(() => { if (!open) setLastImmediate(null); }, [open]);
   const sumsOn = moneyAvailable && payFromAllowed && Boolean(payDef);
-  const shownImmediate = !sumsOn ? null : immediateReady ?? ((payPreview.status === "loading" || payPreview.status === "idle") && lastImmediate?.set === setKey ? lastImmediate.preview : null);
-  const amountsState = !sumsOn || !shownImmediate ? "off" : immediateReady ? "ready" : "stale";
+  const counting = sumsOn && payPreview.status === "loading";
+  const shownImmediate = !sumsOn ? null : immediateReady ?? (counting && lastImmediate?.set === setKey ? lastImmediate.preview : null);
+  const amountsState: "off" | "ready" | "stale" = !shownImmediate ? "off" : immediateReady ? "ready" : "stale";
   const immediateOf = new Map((shownImmediate?.immediate.rows ?? []).map((row) => [row.studentId, row]));
   const pastOf = new Map(pastBalancesByStudent(probeAnswer).map((entry) => [entry.studentId, entry.rows]));
-  const summaryStudents: EnrolSummaryStudent[] = Array.from(selected.values()).map((student) => {
+  const barRows: EnrolBarRow[] = Array.from(selected.values()).map((student) => {
     const row = immediateOf.get(student.id) ?? (selected.size === 1 ? shownImmediate?.immediate.rows[0] : undefined);
-    return {
-      id: student.id,
-      name: nameById.get(student.id) ?? "Ученик",
-      amount: row?.amount ?? null,
-      parts: row?.parts ?? [],
-      past: pastOf.get(student.id) ?? [],
-      rewrite: ordinaryBy.get(student.id) ?? null,
-      sharedUndone: sharedTermsEntered ? undoneBy.get(student.id) ?? null : null,
-    };
+    return { id: student.id, name: nameById.get(student.id) ?? "Ученик", amount: row?.amount ?? null, parts: row?.parts ?? [] };
   });
-  const sharedUndoneNames = summaryStudents.filter((student) => student.sharedUndone !== null).map((student) => student.name);
-  // a picked row moves to the top of the list (the chosen are pinned there): bring it into view - the list to its top on a desktop, the window's body to the row on a phone - and keep it there while the lower part grows
-  const [listEl, setListEl] = useState<HTMLDivElement | null>(null);
-  const lastPicked = useRef<string | null>(null);
-  const pickedCount = selected.size;
-  useEffect(() => {
-    const list = listEl;
-    if (!list || !lastPicked.current) return;
-    list.scrollTop = 0;
-    list.querySelector(`[data-student-row="${lastPicked.current}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [listEl, pickedCount]);
-  useEffect(() => {
-    const list = listEl;
-    if (!list || typeof ResizeObserver === "undefined") return undefined;
-    const keep = () => { if (lastPicked.current) list.querySelector(`[data-student-row="${lastPicked.current}"]`)?.scrollIntoView({ block: "nearest" }); };
-    const observer = new ResizeObserver(keep);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [listEl]);
+  const bar = amountsState === "off" ? null : enrolBarOf(barRows);
+  const notes: EnrolNote[] = Array.from(selected.values()).map((student) => ({
+    id: student.id,
+    name: selected.size === 1 ? null : nameOfStudent(student),
+    past: pastOf.get(student.id) ?? [],
+    rewrite: ordinaryBy.get(student.id) ?? null,
+    undone: undoneBy.get(student.id) ?? null,
+    sharedUndone: sharedTermsEntered,
+  }));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed) return;
     const exception = moneyAvailable && !allUndone
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
-    if (exception.error) { setAddError(exception.error); return; }
-    if (payProblem) { setAddError(payProblem); return; }
+    if (exception.error) { setAddError(exception.error); setTermsSignal((n) => n + 1); return; }
+    if (payProblem) { setAddError(payProblem); setTermsSignal((n) => n + 1); return; }
     const withOpening = openingAllowed && openingOn;
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: today, accountingStart, today });
-      if (problem) { setAddError(problem); return; }
+      if (problem) { setAddError(problem); setTermsSignal((n) => n + 1); return; }
       const reasonProblem = openingNeedsReason ? validateOpeningReason(opening.reason) : null;
-      if (reasonProblem) { setAddError(reasonProblem); return; }
+      if (reasonProblem) { setAddError(reasonProblem); setTermsSignal((n) => n + 1); return; }
     }
     setAdding(true);
     setAddError(null);
@@ -363,7 +369,7 @@ export function AddStudentDrawer({
       const picked = Array.from(selected.values());
       const nameOf = (id: string) => {
         const s = picked.find((item) => item.id === id);
-        return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
+        return s ? nameOfStudent(s) : "Ученик";
       };
       const openingBody = withOpening ? buildOpeningIn(opening) : null;
       // One student with an opening balance - or with a chosen «Оплата с» - goes through the route that answers `billing` (the server's sentence).  Otherwise ONE bulk request for everybody:
@@ -401,255 +407,298 @@ export function AddStudentDrawer({
       if (!singleRoute) returned = leaveReturnsOfBulk(result).undone;
       const notes = splitTransferNotes(result.warnings, nameOf);
       if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
+      const perStudent = bulkOutcomeOf(result, picked.map((item) => item.id), nameOf);
+      const skippedIds = new Set(perStudent.skipped.map((row) => row.id));
+      // what the ones who got in pay at once: the sums of the probe, none for a role without money / a transfer
+      const paidRows = barRows.filter((row) => !skippedIds.has(row.id));
+      const paid = bar ? enrolBarOf(paidRows) : null;
       const summary: AddStudentsResult = {
         added: result.added,
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
         warnings: notes.warnings,
         infos: [...returnedLines(returned, picked.length === 1, nameOf), ...notes.infos, ...(billingLine ? [billingLine] : [])],
+        groupName: groupName ?? groupNames[groupId],
+        addedNames: perStudent.addedNames,
+        payNowLine: paid && paid.total ? `К оплате ${formatMoney(paid.total)} — на странице «Оплаты»` : null,
       };
-      const perStudent = bulkOutcomeOf(result, picked.map((item) => item.id), nameOf);
       // somebody was refused: the window stays and says it per student (the toast then carries the numbers only); nobody refused: as before
-      if (perStudent.skipped.length > 0) setOutcome({ data: perStudent, result: { ...summary, skippedLines: [] } });
-      else onAdded(summary);
+      if (perStudent.skipped.length > 0) {
+        const rows: BulkOutcomeRow[] = picked.map((item) => {
+          const refused = perStudent.skipped.find((row) => row.id === item.id);
+          return { id: item.id, name: nameOf(item.id), ok: !refused, reason: refused?.reason ?? null, code: refused?.code ?? null };
+        });
+        setOutcome({ rows, headline: bulkHeadline(perStudent, movesOnly ? "transfer" : "enrol"), bar: paid ?? enrolBarOf([]), result: { ...summary, skippedLines: [], payNowLine: null } });
+      } else onAdded(summary);
     } catch (e: any) {
       const failure = logicaError(e, "Ошибка добавления учеников");
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
-      setAddError(payFromErrorText(failure) ?? (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message));
+      const fieldError = payFromErrorText(failure) ?? (isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : null);
+      if (fieldError) setTermsSignal((n) => n + 1);
+      setAddError(fieldError ?? failure.message);
     } finally {
       setAdding(false);
     }
   };
 
-  const statusColors: Record<string, string> = {
-    new:       "bg-blue-50 text-blue-700",
-    diagnosed: "bg-amber-50 text-amber-700",
-    active:    "bg-emerald-50 text-emerald-700",
-    archived:  "bg-slate-100 text-slate-500",
-    no_group:  "bg-slate-100 text-slate-600",
-  };
-
   // The class filter is on: the group has a class and «Все классы» is off.
   const classFilterOn = Boolean(groupClassLevel) && !allClasses;
+  const nameOfGroup = groupName ?? groupNames[groupId] ?? "";
+
+  // under the title: the schedule and, for the money roles, the price - what the choice of the students is made by
+  const priceWords = !moneyAvailable || groupPrice === undefined
+    ? null
+    : groupPrice === null ? priceNotInForceText(groupScheduledPrice, "цена не задана") : priceInWords(groupPrice.amount, priceLabel);
+  const scheduleText = groupScheduleLine(groupSchedule);
+  const description = (
+    <span data-testid="enrol-group-line">{[scheduleText.charAt(0).toLocaleUpperCase("ru") + scheduleText.slice(1), priceWords].filter(Boolean).join(" · ")}</span>
+  );
+
+  // the special rows exist only when there is something to say (no empty block)
+  const exceptionsShown = selected.size > 0 && (
+    (moneyAvailable && groupPrice === null && Boolean(priceNote)) || transfers.length > 0 || transferKey !== null
+    || notes.some((note) => note.past.length > 0 || note.rewrite !== null || note.undone !== null)
+  );
+
+  // the bar: the sum, the line under it, the button
+  const noPrice = moneyAvailable && groupPrice === null;
+  const failed = sumsOn && payPreview.status === "failed";
+  const firstCount = counting && amountsState === "off";
+  const calculating = counting;
+  const stale = amountsState === "stale";
+  const idle = selected.size === 0
+    ? "Выберите учеников"
+    : noPrice ? "Сумма появится, когда у группы будет цена"
+    : failed ? "Не удалось посчитать, сколько начислится сразу"
+    : firstCount ? "Считаем…"
+    : bar && bar.total === null && amountsState === "ready" ? PAY_FROM_NOTHING_NOW
+    : null;
+  const whyOff = !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
+  const line = stale ? "считаем…" : failed
+    ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
+    : whyOff ? <span id="enrol-why" data-testid="enrol-why">{whyOff}</span>
+    : bar && bar.total !== null && (bar.line || bar.expandable) ? (
+      <>
+        {bar.line}
+        {bar.expandable && (
+          <>{" "}<button type="button" aria-expanded={byStudent} onClick={() => setByStudent((value) => !value)} data-testid="enrol-by-student-toggle" className="inline-flex min-h-6 items-center font-semibold text-primary-700 hover:underline max-sm:min-h-10">{byStudent ? "Свернуть" : "По ученикам"}</button></>
+        )}
+      </>
+    ) : null;
+  const buttonText = adding ? (movesOnly ? "Перевод…" : "Зачисление…") : enrolButtonLabel(selected.size, movesOnly ? "transfer" : "enrol");
+  const submitOff = selected.size === 0 || adding || !transferAllowed || payProblem !== null || calculating;
+
+  const title = outcome ? outcome.headline : nameOfGroup ? `${movesOnly ? "Перевести" : "Зачислить"} в «${nameOfGroup}»` : movesOnly ? "Перевести в группу" : "Зачислить в группу";
+  const removeLabel = (label: string) => `Убрать: ${label}`;
 
   return (
     <Modal
       open={open}
       placement="right"
-      title={movesOnly && groupNames[groupId] ? `Перевести в «${groupNames[groupId]}»` : ENROL_STUDENTS_TITLE}
-      description={outcome || selected.size > 0 ? undefined : "Выберите учеников для зачисления"}
+      title={title}
+      description={outcome ? (nameOfGroup ? `«${nameOfGroup}» · ${scheduleText}` : undefined) : description}
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain"
-      footerClassName="flex flex-col gap-2 p-3 sm:p-4 sm:gap-3"
+      footerClassName="flex flex-col"
       footer={outcome ? (
-        <ConfirmFooter primary="Готово" onPrimary={() => onAdded(outcome.result)} testId="enrol-done" />
+        <SummaryBar
+          label="К оплате"
+          amount={outcome.bar.total !== null ? outcome.bar.totalText : null}
+          unit={outcome.bar.unit}
+          line={outcome.bar.line}
+          action={<Button type="button" size="lg" onClick={() => onAdded(outcome.result)} data-testid="enrol-done">Готово</Button>}
+        />
       ) : (
         <>
-        {addError && (
-          <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
-        )}
-        {/* re-audit В1: the footer of every window of money */}
-        <ConfirmFooter
-          primary={adding ? (movesOnly ? "Перевод…" : "Зачисление…") : `${movesOnly ? "Перевести" : "Зачислить"}${selected.size > 0 ? ` (${selected.size})` : ""}`}
-          onPrimary={() => void handleAdd()}
-          busy={adding}
-          disabled={selected.size === 0 || adding || !transferAllowed || payProblem !== null}
-          why={selected.size === 0 ? "Выберите учеников" : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem}
-          whyId="enrol-why"
-          onCancel={onClose}
-          testId="enrol-submit"
-        />
+          {addError && (
+            <p role="alert" data-testid="enrol-error" className="mx-5 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 max-sm:mx-4">{addError}</p>
+          )}
+          <SummaryBar
+            label="К оплате сразу"
+            amount={bar && bar.total !== null ? bar.totalText : null}
+            unit={bar?.unit}
+            dim={stale}
+            idle={idle}
+            line={line}
+            action={<Button type="button" size="lg" onClick={() => void handleAdd()} disabled={submitOff} loading={adding} data-testid="enrol-submit" aria-describedby={selected.size > 0 && whyOff ? "enrol-why" : undefined}>{buttonText}</Button>}
+          >
+            {bar?.expandable && byStudent && (
+              <ul className="mt-2 grid max-h-40 gap-2 overflow-y-auto overscroll-contain text-sm" data-testid="enrol-by-student">
+                {barRows.filter((row) => row.amount !== null).map((row) => (
+                  <li key={row.id} className="flex items-baseline justify-between gap-3" data-testid="enrol-by-student-row">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{row.name}
+                      {row.parts.length > 1 && <span className="block text-xs text-slate-600">{row.parts.map((part) => `${part.label} ${formatMoney(part.amount)}`).join(" + ")}</span>}
+                    </span>
+                    <span className="whitespace-nowrap font-medium tabular-nums">{formatMoney(row.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SummaryBar>
         </>
       )}
     >
-      {outcome ? <BulkOutcomePanel outcome={outcome.data} verb={movesOnly ? "transfer" : "enrol"} /> : (<>
-      {/* Search */}
-      <div className="p-4 border-b border-slate-50">
+      {outcome ? <BulkOutcomePanel rows={outcome.rows} /> : (<>
+      {/* Who: the search, the chosen as labels, the rest as a short list */}
+      <div className="px-5 pb-2 pt-1 max-sm:px-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по имени или ID…"
+            aria-label="Поиск по имени или ID"
             autoFocus
-            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary-500"
           />
         </div>
-        {groupClassLevel ? (
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={allClasses}
-              onClick={() => setAllClasses((value) => !value)}
-              className={`inline-flex items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors max-sm:min-h-10 ${allClasses ? "text-primary-700" : "text-slate-600 hover:text-slate-800"}`}
-            >
-              {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
-              Все классы
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Student list */}
-      <div ref={setListEl} className="flex-1 overflow-y-auto overscroll-contain sm:min-h-[11.5rem] max-sm:flex-none max-sm:overflow-visible" data-testid="enrol-list">
-        {tooShort && <p className="px-4 pt-3 text-xs text-slate-500">Введите минимум 2 символа</p>}
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-5 h-5 text-slate-500 animate-spin" />
-          </div>
-        ) : available.length === 0 && selected.size === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-slate-500">
-            {searching
-              ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
-              : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
-          </p>
-        ) : (
-          <div role="group" aria-label="Ученики" data-testid="enrol-rows">
-            {rows.map((entry, index) => {
-              const { student: s, isSelected } = entry;
-              return (
-                <Fragment key={s.id}>
-                  {others > 0 && pinned > 0 && index === pinned && (
-                    <p className="border-t border-slate-200 px-4 pb-1 pt-3 text-xs font-medium text-slate-500" data-testid="enrol-others-title">Ещё ученики</p>
-                  )}
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={isSelected}
-                  data-student-row={s.id}
-                  data-selected={isSelected ? "true" : "false"}
-                  onClick={() => toggle(s)}
-                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? "bg-primary-50 hover:bg-primary-100/60" : "hover:bg-slate-50"}`}
-                >
-                  <span aria-hidden className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors ${isSelected ? "border-primary-600 bg-primary-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                  </span>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate" title={s.full_name || `${s.last_name} ${s.first_name}`}>
-                      {s.full_name || `${s.last_name} ${s.first_name}`}
-                    </p>
-                    <p className="text-xs text-slate-500 break-words">
-                      {classLabel(s.class_level)}
-                      {namesakeDetail(s, everyone) && <span data-testid="namesake-detail"> · {namesakeDetail(s, everyone)}</span>}
-                      {inGroupsLabel(s.groups_count) ? (
-                        <span className="text-amber-700" data-testid="student-many-groups"> · {inGroupsLabel(s.groups_count)}</span>
-                      ) : currentGroupOf(s) && currentGroupOf(s) !== groupId && (
-                        <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
-                      )}
-                    </p>
-                    {isSelected && mode === "transfer" && inGroupsLabel(s.groups_count) && (
-                      <p className="mt-0.5 text-xs text-amber-800 [overflow-wrap:anywhere]" data-testid="student-many-groups-hint">{MANY_GROUPS_TRANSFER_HINT}</p>
-                    )}
-                  </div>
-
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
-                    {studentStatusLabel(s)}
-                  </span>
-                </button>
-                </Fragment>
-              );
-            })}
-          </div>
-        )}
-        {!loading && totalFound > students.length && (
-          <p className="px-4 py-3 text-xs text-slate-500 text-center">
-            Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
-          </p>
-        )}
-      </div>
-
-      {/* the price / «Оплата с» blocks and the plates: under the list - on a phone the body is ONE scrolling area (search, list, blocks), the buttons stay at the bottom of the window; from 640 px the list scrolls and the blocks stand under it */}
-      <div data-testid="enrol-blocks" className="flex shrink-0 flex-col gap-2 border-t border-slate-100 p-3 empty:hidden sm:gap-3 sm:p-4">
-        {transfers.length > 0 && !moneyRight && (
-          <div role="note" data-testid="enrol-second-group" className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            {transfers.map((t) => <p key={t.id}>{secondGroupLine(t)}</p>)}
-          </div>
-        )}
-        {transfers.length > 0 && moneyRight && (
-          <fieldset>
-            <legend className="mb-1 text-xs font-semibold text-slate-600">
-              {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}
-            </legend>
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
-              {([
-                ["transfer", ENROL_HERE_TRANSFER_LABEL],
-                ["add", ENROL_HERE_ADD_LABEL],
-              ] as const).map(([value, title]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === value}
-                  onClick={() => setMode(value)}
-                  className={`rounded-lg px-2 py-1.5 text-xs font-semibold leading-tight transition-all ${mode === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                >
-                  {title}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
-            </p>
-          </fieldset>
-        )}
-        {moneyAvailable && !allUndone && (
-          <div data-testid="add-price-settings" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs">
-            {(priceLine || (payFromAllowed && payDef)) && (
-              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-                {priceLine && (
-                  <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 ${payFromAllowed && payDef ? "min-h-10" : ""}`}>
-                    <span className={`font-semibold ${groupPrice || groupScheduledPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
-                    {groupPrice === null && (
-                      <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">{groupScheduledPrice ? "Цена группы" : "Задать цену группы"}</a>
-                    )}
-                  </div>
-                )}
-                {payFromAllowed && (
-                  <div className="ml-auto w-44 max-w-full max-sm:ml-0 max-sm:w-full">
-                    <PayFromField bare idPrefix="add-student" moneyRight={moneyAvailable} def={payDef} value={payFromValue} onChange={(next) => { setAddError(null); setPayFrom(next); }} accountingStart={accountingStart} preview={payPreview} onRetry={payPreview.retry} />
-                  </div>
-                )}
-              </div>
-            )}
-            {payFromAllowed && payDef && <PayFromStatus past={payFromIsPast(payFromValue, payDef)} preview={payPreview} onRetry={payPreview.retry} />}
-            {priceNote && <p className="text-slate-500">{priceNote}</p>}
-            <div className={priceLine || (payFromAllowed && payDef) ? "border-t border-slate-200 pt-1" : ""}>
-              <EnrolPriceToggle
-                idPrefix="add-student-price"
-                enabled={exceptionOn}
-                amount={exceptionAmount}
-                reason={exceptionReason}
-                onEnabled={(value) => { setAddError(null); setExceptionOn(value); }}
-                onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
-                onReason={(text) => { setAddError(null); setExceptionReason(text); }}
-                shared={selected.size > 1}
-                compact
-              />
-            </div>
-            {sharedTermsEntered && <SharedTermsNote names={sharedUndoneNames} />}
-          </div>
-        )}
-        {openingAllowed && (
-          <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
-            <OpeningToggle
-              idPrefix="add-student-opening"
-              enabled={openingOn}
-              onEnabled={(value) => { setAddError(null); setOpeningOn(value); }}
-              values={opening}
-              onChange={(next) => { setAddError(null); setOpening(next); }}
-              enrolDate={today}
-              today={today}
-              accountingStart={accountingStart}
-              needsReason={openingNeedsReason}
+        {selected.size > 0 && (
+          <div className="mt-3">
+            <PickedChips
+              items={Array.from(selected.values()).map((student) => ({ id: student.id, label: nameOfStudent(student) }))}
+              onRemove={(id) => setSelected((prev) => { const next = new Map(prev); next.delete(id); return next; })}
+              removeLabel={removeLabel}
             />
           </div>
         )}
-        {selected.size > 0 && <EnrolSummary students={summaryStudents} amounts={amountsState} past={payFromIsPast(payFromValue, payDef)} paymentsBase={pastBase} sameGroup={sameGroupOf(shownImmediate?.answer ?? probeAnswer)} rounded={Boolean(shownImmediate?.immediate.rows.some((row) => row.parts.some((part) => !part.whole)))} />}
-        {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
+        {!(termsOpen && selected.size > 0) && (<>
+        <div className="mt-3 flex items-baseline gap-1.5 text-xs text-slate-600" data-testid="enrol-others-title">
+          <span>{selected.size > 0 ? "Ещё ученики" : classFilterOn ? `Ученики ${groupClassLevel} класса` : "Ученики"}</span>
+          {groupClassLevel ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={allClasses}
+                onClick={() => setAllClasses((value) => !value)}
+                data-testid="enrol-all-classes"
+                className={`inline-flex min-h-8 items-center rounded-md font-semibold transition-colors max-sm:min-h-10 ${allClasses ? "text-primary-800 underline" : "text-primary-700 hover:underline"}`}
+              >
+                все классы
+              </button>
+            </>
+          ) : null}
+        </div>
+        <div data-testid="enrol-list" className="max-sm:overflow-visible">
+          {tooShort && <p className="pt-2 text-xs text-slate-600">Введите минимум 2 символа</p>}
+          {loading ? (
+            <div className="flex h-24 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-500" aria-hidden="true" />
+            </div>
+          ) : restRows.length === 0 && selected.size === 0 ? (
+            <p className="px-2 py-8 text-center text-sm text-slate-600">
+              {searching
+                ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
+                : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
+            </p>
+          ) : (
+            <ul role="group" aria-label="Ученики" data-testid="enrol-rows">
+              {shownRows.map((s) => {
+                const current = studentGroupId(s);
+                const elsewhere = current && current !== groupId;
+                const status = inGroupsLabel(s.groups_count) || (elsewhere ? `в «${groupNames[current as string] || "другой группе"}»` : "без группы");
+                const detail = namesakeDetail(s, everyone);
+                return (
+                  <li key={s.id} className="border-t border-slate-100 first:border-t-0">
+                    <label data-student-row={s.id} className="flex cursor-pointer items-center gap-3 py-2.5">
+                      <Checkbox checked={false} onChange={() => toggle(s)} aria-label={nameOfStudent(s)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-900" title={nameOfStudent(s)}>{nameOfStudent(s)}</span>
+                        <span className="block text-xs text-slate-600 [overflow-wrap:anywhere]">
+                          {classLabel(s.class_level)}
+                          {detail && <span data-testid="namesake-detail"> · {detail}</span>}
+                        </span>
+                      </span>
+                      <Tag testId={inGroupsLabel(s.groups_count) ? "student-many-groups" : undefined} className="max-w-[45%] shrink-0 truncate">{status}</Tag>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!loading && hiddenRows > 0 && (
+            <button type="button" onClick={() => setListOpen(true)} data-testid="enrol-list-more" className="inline-flex min-h-8 items-center text-sm text-slate-600 hover:text-slate-900 hover:underline max-sm:min-h-10">
+              и ещё {hiddenRows} {pluralRu(hiddenRows, ["ученик", "ученика", "учеников"])}
+            </button>
+          )}
+          {!loading && totalFound > students.length && (
+            <p className="py-2 text-xs text-slate-600">
+              Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
+            </p>
+          )}
+        </div>
+        </>)}
       </div>
+
+      {/* Special: a row per student who needs a word, only when there is one */}
+      {exceptionsShown && (
+        <EnrolExceptions>
+          {moneyAvailable && groupPrice === null && priceNote && (
+            <ExceptionRow
+              tone="warn"
+              testId="enrol-note-price"
+              aside={<a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="inline-flex min-h-8 items-center text-sm font-semibold text-primary-700 hover:underline max-sm:min-h-10">{groupScheduledPrice ? "Цена группы" : "Задать цену"}</a>}
+            >
+              {priceNote}
+            </ExceptionRow>
+          )}
+          {transfers.length > 0 && !moneyRight && transfers.map((t) => (
+            <ExceptionRow key={t.id} tone="muted" testId="enrol-second-group">{secondGroupLine(t)}</ExceptionRow>
+          ))}
+          {transfers.length > 0 && moneyRight && (
+            <ExceptionRow tone="info" testId="enrol-transfer-choice">
+              <span id="enrol-transfer-label">
+                <span className="font-semibold text-slate-900">{transfers.length === 1 ? transfers[0].name : `Уже в другой группе: ${transfers.length}`}</span>
+                {transfers.length === 1 && <span className="text-slate-600"> сейчас в «{transfers[0].from}»</span>}
+              </span>
+              <div className="mt-2">
+                <SegmentedControl
+                  ariaLabelledBy="enrol-transfer-label"
+                  testId="enrol-mode"
+                  value={mode}
+                  onChange={(next) => setMode(next as GroupJoinMode)}
+                  options={[{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL }, { value: "add", label: ENROL_HERE_ADD_LABEL }]}
+                  className="inline-grid grid-flow-col auto-cols-max"
+                  buttonClassName="px-3 font-medium"
+                />
+              </div>
+              {transfers.length > 1 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-slate-600" data-testid="enrol-transfer-names">
+                  {transfers.map((t) => <li key={t.id}>{t.name} — сейчас в «{t.from}»</li>)}
+                </ul>
+              )}
+              {mode === "transfer" && Array.from(selected.values()).filter((s) => inGroupsLabel(s.groups_count)).map((s) => (
+                <p key={s.id} className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{nameOfStudent(s)} — {MANY_GROUPS_TRANSFER_HINT}</p>
+              ))}
+            </ExceptionRow>
+          )}
+          {notes.map((note) => <EnrolNoteRows key={note.id} note={note} paymentsBase={pastBase} />)}
+          {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
+        </EnrolExceptions>
+      )}
+      {/* Conditions: one line, the rare fields open in place; a role without money has none */}
+      {moneyAvailable && !allUndone && selected.size > 0 && (
+        <EnrolTerms
+          idPrefix="add-student"
+          payDef={payFromAllowed ? payDef : null}
+          showPayFrom={payFromAllowed}
+          payFrom={payFromValue}
+          onPayFrom={(next) => { setAddError(null); setPayFrom(next); }}
+          accountingStart={accountingStart}
+          priceLabel={priceLabel}
+          groupAmount={groupAmount}
+          amount={exceptionAmount}
+          reason={exceptionReason}
+          onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
+          onReason={(text) => { setAddError(null); setExceptionReason(text); }}
+          openSignal={termsSignal}
+          onOpenChange={setTermsOpen}
+          opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}
+        />
+      )}
+
       </>)}
     </Modal>
   );
