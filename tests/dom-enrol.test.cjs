@@ -87,8 +87,10 @@ test("R3 item 6: «Что изменится» is asked when somebody from anoth
   await run.page.waitForSelector('[data-testid="transfer-preview-retry"]');
   assert.equal(await run.page.isDisabled('[data-testid="enrol-submit"]'), true, "a failure holds it too");
   await run.page.click('[data-testid="transfer-preview-retry"]');
-  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
-  assert.match(await run.page.textContent('[data-testid="transfer-none"], [data-testid="transfer-carried-none"]'), /Деньги не изменятся: в прошлой группе у ученика нет оплат и долга/);
+  await run.page.waitForFunction(() => { const b = document.querySelector('[data-testid="enrol-submit"]'); return b && !b.disabled; });
+  // the server's answer carries nothing about the money: the window says NOTHING about it (the phrase «Деньги не изменятся…» was the screen's own claim - Money-2 fix 11, F1)
+  assert.equal(await run.page.locator('[data-testid="transfer-preview"]').count(), 0, "the failure block is gone and no words stand in its place");
+  assert.doesNotMatch(await run.page.textContent('[role="dialog"]'), /Деньги не изменятся/);
   assert.equal(await run.page.isDisabled('[data-testid="enrol-submit"]'), false);
   await run.page.close();
 });
@@ -105,7 +107,8 @@ test("R3 item 6: «Перевести» of the card of a student (the window «�
     return null;
   });
   await run.page.evaluate(() => window.mount("assign"));
-  await run.page.click('text=7-Б Геометрия');
+  // the card of the group shows the name with the non-breaking hyphen (Money-2 fix 11, F8): the person clicks the card, the name is the same word
+  await run.page.click('text=7\u2011Б Геометрия');
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="loading"]');
   const confirm = run.page.getByRole("button", { name: /Перевести/ }).last();
   assert.equal(await confirm.isDisabled(), true, "the answer is not here: the button waits");

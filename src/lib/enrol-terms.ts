@@ -4,7 +4,8 @@
  */
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import { formatMoney, formatMoneyInput } from "./money-format";
-import { isLessonsPriceLabel } from "./group-price";
+import { checkEnrolOverride, isLessonsPriceLabel, reasonProblem, type EnrolOverrideValues, type EnrolPriceOverride, type FormCheck } from "./group-price";
+import { DRY_RUN_REASON } from "./dry-run";
 
 /** «19 ноября»; with the year («19 ноября 2025») when it is not the year of `todayIso`; "" for anything but a real ISO date. */
 export function dayMonthWords(iso: string | null | undefined, todayIso?: string | null): string {
@@ -17,8 +18,8 @@ export function dayMonthWords(iso: string | null | undefined, todayIso?: string 
 }
 
 /**
- * The reason of the day, as the server states it («Оплата с 19.11.2026 — первое занятие группы с сегодня» -> «первое занятие группы с сегодня»): the sentence repeats the date that the line already
- * says, so only its second half is shown; a sentence without a dash is shown whole.
+ * The reason of the day, as the server states it («Оплата с 19.11.2026 — сегодня у группы занятие» -> «сегодня у группы занятие»; «… — ближайшее занятие группы» -> «ближайшее занятие группы»): the sentence
+ * repeats the date that the line already says, so only its second half is shown; a sentence without a dash is shown whole.
  */
 export function payFromReason(text: string | null | undefined): string | null {
   const full = (text ?? "").trim();
@@ -68,3 +69,29 @@ export function priceInWords(amount: number, label: string): string {
   if (amount === 0) return "бесплатно";
   return `${formatMoney(amount)} ${isLessonsPriceLabel(label) ? "за пакет" : "в месяц"}`;
 }
+
+/**
+ * The own price for the PROBE (the dry run): a price entered without its reason is asked with the stand-in reason of a dry run (as the cancel of a payment does), so the sum of the bar follows the price on the
+ * screen at once; the real write is checked by `checkEnrolOverride` and never goes without the reason (Money-2 fix 11, F5).  A reason that is long enough is sent as it is.
+ */
+export function dryRunOverride(values: EnrolOverrideValues): FormCheck<EnrolPriceOverride | null> {
+  if (!values.enabled) return { error: null, request: null };
+  return checkEnrolOverride({ ...values, reason: reasonProblem(values.reason) ? DRY_RUN_REASON : values.reason });
+}
+
+export interface OwnPriceError {
+  /** the field the refusal stands at */
+  field: "amount" | "reason";
+  text: string;
+}
+
+/** What is wrong with the own price entered, and in WHICH field (the error stands at that field, not in a plate far from it); null - nothing wrong or no own price. */
+export function ownPriceError(values: EnrolOverrideValues): OwnPriceError | null {
+  const amount = dryRunOverride(values);
+  if (amount.error) return { field: "amount", text: amount.error };
+  const full = checkEnrolOverride(values);
+  return full.error ? { field: "reason", text: full.error } : null;
+}
+
+/** «Начисление начнётся 21 ноября»: the muted line of the bar when nobody pays at once because the day of the charge is still ahead (the day is the server's `pay_from`). */
+export const payStartsLine = (iso: string, todayIso?: string | null): string => `Начисление начнётся ${dayMonthWords(iso, todayIso)}`;

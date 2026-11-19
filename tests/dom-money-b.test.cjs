@@ -121,7 +121,7 @@ const drawerServer = (extra) => (request) => {
   if (own) return own;
   if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g2", name: "7-Б Геометрия" }] };
   if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT, STUDENT2], total: 2 } };
-  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
+  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — ближайшее занятие группы" } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/st9" && !isDry(request)) return { json: { status: "added", billing: { pay_from: "2026-11-12", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата считается с 12.11.2026: так выбрал сотрудник" } } };
   if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk") return { json: { group_id: "g2", added: 1, skipped: 0, skipped_details: [], warnings: [] } };
   return null;
@@ -506,7 +506,9 @@ test("RB Д3: «Оплата с» = today and a lesson today - the window says �
   ctx = await openDrawer(OWNER, dry(today));
   await openTerms(ctx.page);
   await ctx.page.waitForTimeout(900);
-  assert.equal(await ctx.page.locator('[data-testid="summary-bar-sum"], [data-testid="summary-bar-idle"], [data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no sum, no «ничего не начислится» on the default day");
+  assert.equal(await ctx.page.locator('[data-testid="summary-bar-sum"], [data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no sum, no «ничего не начислится» on the default day");
+  // the default day (9 November) is AHEAD of today (6 November): the muted line says when the charge starts - the day of the server (Money-2 fix 11, F10)
+  assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-idle"]')), "Начисление начнётся 9 ноября");
   // the same answer for a day in the past: THERE the window says that nothing is to be paid at once
   await ctx.page.fill("#add-student-pay-from", "05.11.2026"); await ctx.page.keyboard.press("Tab");
   await ctx.page.waitForSelector('[data-testid="summary-bar-idle"]');

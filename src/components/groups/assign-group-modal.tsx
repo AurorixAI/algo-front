@@ -31,14 +31,16 @@ import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
-import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
-import { EnrolExceptions, EnrolNoteRows, ExceptionRow } from "./enrol-exceptions";
+import { EnrolExceptions, EnrolNoteRows, EnrolRefusedRow, ExceptionRow } from "./enrol-exceptions";
 import { enrolBarOf, enrolIntoLabel } from "@/lib/enrol-bar";
-import { isOwnPrice } from "@/lib/enrol-terms";
-import { enrolCardTitle } from "@/lib/enrol-labels";
+import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, type OwnPriceError } from "@/lib/enrol-terms";
+import { probeRefusalOfError } from "@/lib/bulk-outcome";
+import { formatMoney } from "@/lib/money-format";
+import { enrolCardTitle, groupNameShown } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -110,6 +112,8 @@ export function AssignGroupModal({
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   // a refusal of the price / the day / the opening balance opens the conditions in place
   const [termsSignal, setTermsSignal] = useState(0);
+  // the refusal of the own price stands AT its field (the panel opens itself); an edit of the field takes it away
+  const [priceError, setPriceError] = useState<OwnPriceError | null>(null);
   // Money-2 fix 3: 409 `TRANSFER_SOURCE_GONE` - the words of the server once and one action, «Обновить»
   const [assignmentStale, setAssignmentStale] = useState(false);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
@@ -151,6 +155,7 @@ export function AssignGroupModal({
       setSearch("");
       setExceptionAmount("");
       setExceptionReason("");
+      setPriceError(null);
       setOpeningOn(false);
       setOpening(emptyOpeningValues());
       setOpeningNeedsReason(false);
@@ -211,6 +216,9 @@ export function AssignGroupModal({
       setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
     }
+    // an own price without its reason: the error stands at that field (the conditions open by themselves), nothing is sent
+    const priceProblem = moneyAvailable && leaveUndo?.undone !== true ? ownPriceError({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : null;
+    if (priceProblem) { setPriceError(priceProblem); setTermsSignal((n) => n + 1); return; }
     const exception = moneyAvailable && leaveUndo?.undone !== true
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
@@ -254,6 +262,8 @@ export function AssignGroupModal({
         groupName: targetGroup?.name ?? "",
         transfer: isTransfer,
         undoText: undoDone?.undone ? undoDone.text : null,
+        // the sum of the last probe, as the window of a group says it (only for a role that sees money; no sum - no line)
+        payNowLine: bar && bar.total ? `К оплате ${formatMoney(bar.total)} — на странице «Оплаты»` : null,
         stays: isAdd ? (sourceGroups ?? []).filter((g) => g.id !== selectedGroupId).map((g) => g.name).filter(Boolean) : [],
         warnings: notes.warnings,
         infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
@@ -279,7 +289,8 @@ export function AssignGroupModal({
   const groupAmount = selectedGroup?.price_current ? selectedGroup.price_current.amount : null;
   const exceptionOn = isOwnPrice(exceptionAmount, groupAmount);
   // R3 #15: «что переедет» - the dry run of the same transfer, asked when the group is chosen; «Перевести» waits for it (a first enrolment carries nothing: no ask)
-  const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
+  // an own price without its reason is asked with the stand-in reason of a dry run, so the sum follows the price on the screen; the real write never goes without it
+  const dryException = moneyAvailable ? dryRunOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
   const transferKey = isTransfer && selectedGroupId && !excluded.has(selectedGroupId) && !dryException.error && !(source.needed && !source.id)
     ? `${selectedGroupId}|${studentId}|${source.id ?? ""}|${JSON.stringify(dryException.request)}`
     : null;
@@ -316,25 +327,30 @@ export function AssignGroupModal({
   // the sum at once (one student, a first enrolment or one more group): the fields of the probe, the words are arranged in `enrolBarOf`
   const sums = moneyAvailable && payFromAllowed && Boolean(payDef);
   const counting = sums && payPreview.status === "loading";
-  const failed = sums && payPreview.status === "failed";
+  // a refusal of the probe in the server's words (a full group, a day before his last stay): said before the button as the student who will not be written; any other failure is «Повторить»
+  const refusedWords = sums && payPreview.status === "failed" ? probeRefusalOfError(payPreview.error) : null;
+  const failed = sums && payPreview.status === "failed" && refusedWords === null;
   const ready = sums && payPreview.status === "ready" ? payPreview : null;
   const row = ready?.immediate.rows[0];
   const barRows = [{ id: studentId, name: studentName, amount: row?.amount ?? null, parts: row?.parts ?? [] }];
   const bar = ready ? enrolBarOf(barRows) : null;
   const noPrice = moneyAvailable && selectedGroup !== null && selectedGroup.price_current === null;
   const whyOff = source.needed && !source.id ? SOURCE_WHY : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
+  // nobody pays at once because the day of the charge is ahead: the muted line says when it starts (the day is the server's `pay_from`)
+  const payStart = ready ? payStartOf(ready.answer) : null;
   const idle = !selectedGroupId ? "Выберите группу"
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : counting ? "Считаем…"
     : bar && bar.total === null && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
+    : bar && bar.total === null && payStart && payStart > (payDef?.today ?? formatBusinessDate()) ? payStartsLine(payStart, payDef?.today ?? formatBusinessDate())
     : null;
   const line = failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
     : whyOff ? <span id="assign-why" data-testid="assign-why">{whyOff}</span>
     : bar && bar.total !== null && (bar.line || bar.expandable) ? <>{bar.line}{bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={periodsOpen} onToggle={() => setPeriodsOpen((value) => !value)} /></>}</> : null;
   const buttonText = assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : selectedGroup ? enrolIntoLabel(selectedGroup.name, verb) : isTransfer ? "Перевести" : "Зачислить";
-  const submitOff = !selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id) || counting;
+  const submitOff = !selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id) || counting || refusedWords !== null;
   const notes = addPreview.preview.status === "ready" ? pastBalancesOf(addPreview.preview.answer) : [];
   const undoNote = leaveUndo ? { id: studentId, name: null, past: notes, rewrite: leaveUndo.undone ? null : leaveUndo, undone: leaveUndo.undone ? leaveUndo : null } : { id: studentId, name: null, past: notes, rewrite: null, undone: null };
   const needsNotes = notes.length > 0 || leaveUndo !== null;
@@ -350,7 +366,7 @@ export function AssignGroupModal({
           {studentGrade ? <><span data-testid="assign-grade">{studentGrade} класс</span>{((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) ? "\u00a0· " : ""}</> : null}
           {((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) && (
             <span data-testid="assign-current-caption">
-              {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
+              {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel ? groupNameShown(currentGroupLabel) : "…"}</span>»
             </span>
           )}
         </span>
@@ -369,6 +385,8 @@ export function AssignGroupModal({
               {assignmentStale && <Button type="button" variant="secondary" size="sm" data-testid="assign-refresh" onClick={() => { onClose(); window.location.reload(); }}>{REFRESH_LABEL}</Button>}
             </div>
           )}
+          {/* «По периодам»: opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
+          {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
           <SummaryBar
             label="К оплате сразу"
             amount={bar && bar.total !== null ? bar.totalText : null}
@@ -413,7 +431,8 @@ export function AssignGroupModal({
           )}
         </div>
 
-        <div className="mt-3" data-testid="assign-groups" role="radiogroup" aria-label="Группа">
+        {/* a minimal height of the list (two or three cards: the common results of a search; one card is not a tall empty box): the window does not jump while the person types in the search and the found cards come and go */}
+        <div className="mt-3 min-h-[13rem]" data-testid="assign-groups" role="radiogroup" aria-label="Группа">
           {loading ? (
             <div className="flex min-h-[120px] flex-col items-center justify-center text-slate-600">
               <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" aria-hidden="true" />
@@ -462,8 +481,9 @@ export function AssignGroupModal({
       </div>
 
       {/* Special: only when there is something to say about THIS student and THIS group */}
-      {selectedGroup && (noPrice || needsNotes || transferKey !== null || balanceChanged) && (
+      {selectedGroup && (noPrice || needsNotes || transferKey !== null || balanceChanged || refusedWords !== null) && (
         <EnrolExceptions>
+          {refusedWords !== null && <EnrolRefusedRow id={studentId} name={studentName} reason={refusedWords} />}
           {noPrice && (
             <ExceptionRow
               tone="warn"
@@ -493,13 +513,13 @@ export function AssignGroupModal({
           groupAmount={groupAmount}
           amount={exceptionAmount}
           reason={exceptionReason}
-          onAmount={(text) => { setAssignmentError(null); setExceptionAmount(text); }}
-          onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
+          onAmount={(text) => { setAssignmentError(null); setPriceError(null); setExceptionAmount(text); }}
+          onReason={(text) => { setAssignmentError(null); setPriceError(null); setExceptionReason(text); }}
+          priceError={priceError}
           openSignal={termsSignal}
           opening={!isTransfer && openingShown ? { on: openingOn, onChange: (value) => { setAssignmentError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAssignmentError(null); setOpening(next); }, today: formatBusinessDate(), accountingStart, needsReason: openingNeedsReason } : null}
         />
       )}
-      {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
     </Modal>
   );
 }

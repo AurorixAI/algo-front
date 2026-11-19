@@ -100,7 +100,7 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await expect(field.getByLabel("Оплата с")).toHaveValue(/\d\d\.\d\d\.\d{4}/);
   // the DEFAULT day is proved by the value of the field = the day the server names; the sentence is the server's (the reason is shown muted under the line), no «?» in the window
   const def = await org.owner.api.get(`/auth/org/groups/${group.id}/pay-from-default`);
-  expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — /);   // the sentence of the server (first lesson from today)
+  expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — (сегодня у группы занятие|ближайшее занятие группы)$/);   // the sentence of the server: the day is today / the day is ahead (fix 11, S2)
   await expect(field.getByLabel("Оплата с")).toHaveValue(def.default_pay_from.split("-").reverse().join("."));
   await expect(field).toContainText("По умолчанию");
   await expect(drawer.getByLabel("Пояснение")).toHaveCount(0);
@@ -112,8 +112,8 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const bar = drawer.getByTestId("summary-bar");
   await expect(bar).toContainText("К оплате сразу");
   await expect(bar.getByTestId("summary-bar-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
-  // one period: «5 уроков из 12 в ноябре»; the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line)
-  await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) из \d+ (в [а-яё]+|за период)|^за [а-яё]+( и [а-яё]+)?)/);
+  // one period: «5 уроков из 12 в ноябре» (a whole period by dates: «13 уроков · весь период 20.11–19.12»); the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line)
+  await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) (из \d+ (в [а-яё]+|за период)|· весь период)|^за [а-яё]+( и [а-яё]+)?)/);
   await expect(drawer.getByTestId("enrol-submit")).toBeEnabled();
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);

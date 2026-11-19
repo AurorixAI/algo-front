@@ -34,7 +34,7 @@ const drawerServer = (request) => {
     const items = STUDENTS.filter((st) => !q || st.full_name.toLowerCase().includes(q));
     return { json: { items, total: items.length } };
   }
-  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
+  if (request.method === "GET" && request.path === "/auth/org/groups/g2/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — ближайшее занятие группы" } };
   if (request.method === "POST" && /\/groups\/g2\/students\//.test(request.path) && isDry(request)) {
     const from = (request.body && request.body.pay_from) || "2026-11-09";
     const past = from < "2026-11-06";

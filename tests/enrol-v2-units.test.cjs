@@ -76,7 +76,9 @@ test("the conditions line: the day in words, the price of the group or an own pr
 });
 
 test("the reason of the day is the server's own words without the date the line already says", () => {
-  assert.equal(T.payFromReason("Оплата с 19.11.2026 — первое занятие группы с сегодня"), "первое занятие группы с сегодня");
+  // both phrases of the server (S2): the day is today / the day is ahead
+  assert.equal(T.payFromReason("Оплата с 19.11.2026 — сегодня у группы занятие"), "сегодня у группы занятие");
+  assert.equal(T.payFromReason("Оплата с 21.11.2026 — ближайшее занятие группы"), "ближайшее занятие группы");
   assert.equal(T.payFromReason("Оплата считается с 19.11.2026: у группы нет занятий в ближайшие дни"), "у группы нет занятий в ближайшие дни");
   assert.equal(T.payFromReason("первое занятие"), "первое занятие"); assert.equal(T.payFromReason(""), null); assert.equal(T.payFromReason(null), null);
 });

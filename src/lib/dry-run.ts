@@ -56,8 +56,6 @@ export function carriedOf(answer: unknown, names?: ReadonlyMap<string, string> |
   });
 }
 
-export const CARRIED_NONE_TEXT = "Деньги не изменятся: в прошлой группе у ученика нет оплат и долга.";
-
 /**
  * One sentence of the server about a transfer as ROWS (re-audit В2: «абзац 15 px, а не строки»): its parts divided by «; » are lines of their own («…пойдут на остаток месяца» / «аванс останется 360 000 сум»).
  * The words are the server's; only the line breaks are ours.
@@ -105,9 +103,10 @@ export const CLOSING_PRICES_SHOWN = 5;
 
 /**
  * What the dry run of a transfer says about the money, per student, as the server's sentences (the window puts each under the row of its student).  Key = the student the sentence is about; "" = a sentence
- * with no student (a single transfer, or a server that does not name them).  `effects` (the new structure) says it all, then the old `carried` is not said next to it.  Nothing at all - `none`.
+ * with no student (a single transfer, or a server that does not name them).  `effects` (the new structure) says it all, then the old `carried` is not said next to it.  When the server says nothing there is
+ * NOTHING here: the screen never claims what the server did not say («Деньги не изменятся…» was a phrase of the screen - Money-2 fix 11, F1; LESSONS 143).  A sentence of the old `carried` is shown WHOLE with its «;» (F9).
  */
-export function transferWordsOf(answer: unknown): { byStudent: Map<string, string[]>; none: boolean } {
+export function transferWordsOf(answer: unknown): { byStudent: Map<string, string[]> } {
   const byStudent = new Map<string, string[]>();
   const add = (id: string, text: string) => { byStudent.set(id, [...(byStudent.get(id) ?? []), text]); };
   const top = effectsOfAnswer(answer);
@@ -119,9 +118,9 @@ export function transferWordsOf(answer: unknown): { byStudent: Map<string, strin
   if (top || own.length > 0) {
     if (top && !effectsEmpty(top)) effectFullTexts(top).forEach((text) => add("", tidyMoneyText(text)));
     for (const entry of own) effectFullTexts(entry.effects).forEach((text) => add(entry.id, tidyMoneyText(text)));
-    return { byStudent, none: false };
+    return { byStudent };
   }
-  for (const line of carriedOf(answer, null)) carriedRows(line.message).forEach((row) => add(line.studentId ?? "", tidyMoneyText(row)));
+  for (const line of carriedOf(answer, null)) add(line.studentId ?? "", tidyMoneyText(line.message));
   for (const line of closingPricesOf(answer, null)) add(line.studentId ?? "", line.text);
-  return { byStudent, none: byStudent.size === 0 };
+  return { byStudent };
 }

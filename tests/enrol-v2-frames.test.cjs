@@ -78,7 +78,7 @@ test("frame 2: three chosen - labels with a cross under the search, the rest bel
     assert.equal(await p.locator('[data-testid="enrol-list"] [data-student-row]').filter({ hasText: "Каримов" }).count(), 0, "a chosen one is not in the list again");
     assert.equal(await p.locator('[data-testid="enrol-exceptions"]').count(), 0, "nothing special: no block");
     assert.equal(await text(p, '[data-testid="enrol-terms-line"]'), "Оплата с 19 ноября, по цене группы");
-    assert.equal(await text(p, '[data-testid="enrol-terms-why"]'), "первое занятие группы с сегодня", "the reason of the day is the server's");
+    assert.equal(await text(p, '[data-testid="enrol-terms-why"]'), "сегодня у группы занятие", "the reason of the day is the server's");
     assert.equal(await text(p, '[data-testid="summary-bar"] p'), "К оплате сразу");
     assert.equal(await barSum(p), "564 000 сум");
     assert.equal(await barLine(p), "по 188 000 · 5 уроков из 12 в ноябре");
@@ -427,7 +427,8 @@ test("frame 15: the keyboard moves the choice between the groups; the write is O
   await p.click('[data-testid="assign-submit"]'); await closed(p);
   const written = writes(run.calls);
   assert.equal(written.length, 1); assert.match(written[0].path, /\/groups\/gt\/students\/st1$/);
-  assert.equal(await text(p, '[role="status"]'), "Анвар Каримов зачислен в «Физика 7» В «Алгебра 7» тоже остаётся");
+  // the message names the sum of the last probe, as the window of a group does (Money-2 fix 11, F11)
+  assert.equal(await text(p, '[role="status"]'), "Анвар Каримов зачислен в «Физика 7» К оплате 231 000 сум — на странице «Оплаты» В «Алгебра 7» тоже остаётся");
   await p.close();
 });
 

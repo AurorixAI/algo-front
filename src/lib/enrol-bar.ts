@@ -4,6 +4,7 @@
  */
 import { formatMoney } from "./money-format";
 import { pluralRu } from "./plural";
+import { groupNameShown } from "./enrol-labels";
 import type { ImmediatePart } from "./pay-from";
 
 /** The server names the month in the nominative («ноябрь»); a sentence about lessons wants «в ноябре». */
@@ -20,9 +21,15 @@ export function periodIn(label: string): string {
   return prepositional ? `в ${prepositional}` : `за период ${label.trim()}`;
 }
 
-/** «5 уроков из 12 в ноябре». */
+/**
+ * «5 уроков из 12 в ноябре».  A period given by DATES that is charged whole (the server sends `whole` and no count of the lessons of the period) is «13 уроков · весь период 20.11–19.12» - never «из 0» (Money-2 fix 11, F4).
+ * A calendar month keeps «из N в ноябре» (the month has its full number of lessons).
+ */
 export function lessonsLine(part: ImmediatePart): string {
-  return `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period} ${periodIn(part.label)}`;
+  const lessons = `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])}`;
+  if (/\d/.test(part.label) && (part.whole || !part.lessons_in_period)) return `${lessons} · весь период ${part.label.trim()}`;
+  if (!part.lessons_in_period) return `${lessons} ${periodIn(part.label)}`;
+  return `${lessons} из ${part.lessons_in_period} ${periodIn(part.label)}`;
 }
 
 /** «за октябрь и ноябрь» / «за октябрь, ноябрь и декабрь» from the period labels in the order the server gave them. */
@@ -46,7 +53,7 @@ export function enrolButtonLabel(count: number, verb: "enrol" | "transfer" = "en
 
 /** The button of the window of a student's card: «Зачислить в «Физика 7»» / «Перевести в «Физика 7»». */
 export function enrolIntoLabel(groupName: string, verb: "enrol" | "transfer" = "enrol"): string {
-  return `${verb === "transfer" ? "Перевести" : "Зачислить"} в «${groupName}»`;
+  return `${verb === "transfer" ? "Перевести" : "Зачислить"} в «${groupNameShown(groupName)}»`;
 }
 
 export interface EnrolBarRow {

@@ -26,7 +26,7 @@ test("Э2: a debt and an advance of past groups - a row each with the sum and a 
   assert.match(found[1].text, /^Аванс с прошлого раза 80 000 сум · в «Английский 6», ушёл 28\.10\s+Выписка$/);
   assert.equal(found[1].href, "/owner/payments/statement/m-old-2");
   assert.equal((plain(await run.page.locator('[data-testid="enrol-exceptions"]').evaluate((el) => el.innerText)).match(/120 000/g) ?? []).length, 1, "one sum once");
-  assert.equal(await run.page.locator('[data-testid="enrol-note-past"]').first().evaluate((el) => el.getAttribute("data-row-tone")), "warn", "a debt is told in the amber row");
+  assert.equal(await run.page.locator('[data-testid="enrol-note-past"]').first().evaluate((el) => el.closest("[data-row-tone]").getAttribute("data-row-tone")), "warn", "a debt is told in the amber row (the row of the student: Money-2 fix 11, F7)");
   await run.page.close();
 });
 

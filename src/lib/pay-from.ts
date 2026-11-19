@@ -19,7 +19,7 @@ export interface PayFromDefault {
   today: string;
   first_lesson: string | null;
   default_pay_from: string;
-  /** The server's one sentence: «Оплата с 09.11.2026 — первое занятие группы с сегодня» (null from an older server). */
+  /** The server's one sentence: «Оплата с 09.11.2026 — ближайшее занятие группы» / «… — сегодня у группы занятие» (null from an older server). */
   text: string | null;
 }
 
@@ -145,6 +145,17 @@ export function normalizeBulkImmediate(raw: unknown): BulkImmediate {
   });
   const total = typeof r.immediate_total?.text === "string" && r.immediate_total.text ? tidyMoneyText(r.immediate_total.text) : null;
   return { students, rows, total };
+}
+
+/**
+ * The day the charge starts, from the answer of a dry run (`students[].billing.pay_from`, or `billing.pay_from` of a single add): the server's own day.  Several students with DIFFERENT days (somebody comes back
+ * as he was) - null: the screen does not pick one for the server.
+ */
+export function payStartOf(answer: unknown): string | null {
+  const r = (answer ?? {}) as { students?: unknown; billing?: unknown };
+  const list = Array.isArray(r.students) ? r.students.map((item) => (item as { billing?: unknown } | null)?.billing) : [r.billing];
+  const days = Array.from(new Set(list.flatMap((billing) => { const day = normalizeBilling(billing)?.pay_from; return day ? [day] : []; })));
+  return days.length === 1 ? days[0] : null;
 }
 
 /** The field cannot be sent: an empty or impossible date. */

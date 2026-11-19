@@ -1,6 +1,7 @@
 "use client";
 
 import { Radio } from "@/components/ui/radio";
+import { groupNameShown } from "@/lib/enrol-labels";
 import { groupScheduleLine, type ScheduleSlotLike } from "@/lib/group-schedule-line";
 
 export interface GroupPickCardGroup {
@@ -38,7 +39,7 @@ export function GroupPickCard({ group, selected, gradeMismatch, priceText, price
     >
       <Radio name="assign-group" checked={selected} onChange={onSelect} aria-label={group.name} className="mt-0.5" />
       <span className="min-w-0 flex-1">
-        <span data-testid="group-card-name" className="block text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{group.name}</span>
+        <span data-testid="group-card-name" className="block text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{groupNameShown(group.name)}</span>
         <span className="mt-0.5 block text-xs text-slate-600 [overflow-wrap:anywhere]">
           <span data-testid="group-schedule-line" className="tabular-nums">{groupScheduleLine(group.schedule)}</span>
           {group.teacher_name && <span data-testid="group-pick-teacher"> · {group.teacher_name}</span>}

@@ -2,7 +2,7 @@
 
 import { EFFECTS_LOADING_TEXT, EFFECTS_TITLE, effectsFailureText, EFFECTS_RETRY_LABEL } from "@/lib/money-effects";
 import type { EffectsPreview } from "@/lib/money-preview";
-import { CARRIED_NONE_TEXT, carriedOf, carriedRows, CLOSING_PRICES_SHOWN, closingPricesOf } from "@/lib/dry-run";
+import { carriedOf, carriedRows, CLOSING_PRICES_SHOWN, closingPricesOf } from "@/lib/dry-run";
 import { useState } from "react";
 import { Notice } from "@/components/ui/notice";
 import { tidyMoneyText } from "@/lib/money-format";
@@ -58,12 +58,12 @@ export function TransferPreviewBlock({ preview, onRetry, onRefresh, names, targe
   }
   const carried = carriedOf(preview.answer, names);
   const closing = closingPricesOf(preview.answer, names);
+  // the server said nothing about the money of this move: the window says nothing too (it never claims what the server did not - LESSONS 143)
+  if (carried.length === 0 && closing.length === 0) return null;
   return (
     <section aria-label={EFFECTS_TITLE} data-testid="transfer-preview" data-state="ready" className={shell}>
       <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
-      {carried.length === 0 ? (
-        <p className="mt-1.5 text-sm text-slate-700" data-testid="transfer-carried-none">{CARRIED_NONE_TEXT}</p>
-      ) : (
+      {carried.length > 0 && (
         <ul className="mt-1.5 space-y-1" data-testid="transfer-carried">
           {carried.flatMap((line, index) => carriedRows(line.message).map((row, part) => <li key={`${line.code}-${index}-${part}`} className="text-sm text-slate-800">{tidyMoneyText(row)}</li>))}
         </ul>

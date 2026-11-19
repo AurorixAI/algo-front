@@ -20,3 +20,9 @@ export const ENROL_HERE_ADD_LABEL = "Оставить в обеих";
 export function enrolCardTitle(transfer: boolean, studentName: string): string {
   return `${transfer ? "Перевести" : "Зачислить"}: ${studentName}`;
 }
+
+/**
+ * The name of a group as a window says it (title, button, card, message): a hyphen inside a name («М11 Г Пн-Ср-Пт») is the NON-BREAKING one (U+2011), so a line never breaks the name in the middle of a word
+ * («Пн-Ср-⏎Пт»).  Only for showing: the name that goes to the server or is compared stays as it is (Money-2 fix 11, F8).
+ */
+export const groupNameShown = (name: string): string => name.replace(/-/g, "\u2011");

@@ -172,7 +172,7 @@ test("С5: the note of an administrator without the money access is neutral (gre
 
 test("С15: the bulk window of a transfer names the group in the heading and does not say «from» twice; the individual price of the old group is told only to a student who had one", () => {
   const drawer = src("components/groups/add-student-drawer.tsx");
-  assert.match(drawer, /\$\{movesOnly \? "Перевести" : "Зачислить"\} в «\$\{nameOfGroup\}»/);
+  assert.match(drawer, /\$\{movesOnly \? "Перевести" : "Зачислить"\} в «\$\{groupNameShown\(nameOfGroup\)\}»/);
   assert.doesNotMatch(drawer, /— из «\$\{t\.from\}»/);
   // Money-2 wave 2: the window of a single transfer has no sentence of its own about the old individual price - `effects.ends` of the server says it (tests: money2-w1-effects, money2-w1-leave)
   assert.doesNotMatch(src("components/groups/assign-group-modal.tsx"), /hadOverride/);

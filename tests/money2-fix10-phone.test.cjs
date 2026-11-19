@@ -1,4 +1,4 @@
-// Money-2 fix 10 (п.4) in the form of the mock-up of 19.11: «Зачислить в группу» at 375 - the body is ONE scrolling area (search, labels, list, special rows, conditions), the bottom bar with the button stays at the bottom;
+// Money-2 fix 10 (п.4) in the form of the mock-up of 19.11: «Зачислить в группу» at 375 - the body is ONE scrolling area (search, labels, special rows, list, conditions), the bottom bar with the button stays at the bottom;
 // nothing lies over anything at 0 / 1 / 4 chosen, with the conditions open and with special rows; every tap target is 40 px.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -27,13 +27,14 @@ const geometry = () => {
 };
 
 for (const [label, chosen, undone, terms] of [["0 chosen", [], [], false], ["1 chosen", [0], [], false], ["4 chosen", [0, 1, 2, 3], [], false], ["4 chosen, conditions open", [0, 1, 2, 3], [], true], ["4 chosen, two come back", [0, 1, 2, 3], ["st9", "st7"], false]]) {
-  test(`phone 375, ${label}: one scrolling body, the search over the labels over the list over the special rows over the conditions, the bar at the bottom, nothing overlaps`, async () => {
+  test(`phone 375, ${label}: one scrolling body, the search over the labels over the special rows over the list over the conditions, the bar at the bottom, nothing overlaps`, async () => {
     const run = await open(375, chosen, undone);
     if (terms) { await run.page.click('[data-testid="enrol-terms-toggle"]'); await run.page.waitForTimeout(250); }
     const g = await run.page.evaluate(geometry);
     if (terms) assert.equal(g.listTop, null, "the conditions are open: the list is folded up to the labels");
     if (g.chipsTop !== null) { assert.ok(g.chipsTop >= g.searchBottom - 1, `the labels under the search ${JSON.stringify(g)}`); if (g.listTop !== null) assert.ok(g.listTop >= g.chipsBottom - 1, "the list under the labels"); } else assert.ok(g.listTop >= g.searchBottom - 1, `the list under the search ${JSON.stringify(g)}`);
-    if (g.exceptionsTop !== null) assert.ok(g.exceptionsTop >= (g.listBottom ?? g.chipsBottom) - 1, `the special rows under the list ${JSON.stringify(g)}`);
+    // Money-2 fix 11 (F6b): on a phone the special rows stand right under the labels, BEFORE the list of the rest - they are seen without scrolling
+    if (g.exceptionsTop !== null) { assert.ok(g.exceptionsTop >= (g.chipsBottom ?? g.searchBottom) - 1, `the special rows under the labels ${JSON.stringify(g)}`); if (g.listTop !== null) assert.ok(g.listTop >= g.exceptionsTop, `and over the list ${JSON.stringify(g)}`); }
     if (g.termsTop !== null && g.exceptionsTop !== null) assert.ok(g.termsTop >= g.exceptionsTop, "the conditions after the special rows");
     assert.ok(g.footTop >= g.bodyBottom - 1, "the bar is under the body");
     assert.ok(Math.abs(g.barBottom - g.vh) <= 1, "and pinned to the bottom of the screen");

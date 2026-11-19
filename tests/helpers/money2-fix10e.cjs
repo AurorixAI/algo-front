@@ -17,7 +17,7 @@ const nameOf = ([, last, first = "Ученик"]) => `${last} ${first}`;
 function server({ people, immediate = {}, past = {}, ordinary = [], undone = [], today = "2026-11-19" } = {}) {
   const base = X.drawerServer(undone, (r) => {
     if (r.method === "GET" && r.path === "/auth/org/students") return { json: { items: people.map(([id, last, first]) => X.STUDENT(id, last, first)), total: people.length } };
-    if (r.method === "GET" && r.path === "/auth/org/groups/g2/pay-from-default") return { json: { today, first_lesson: today, default_pay_from: today, text: `Оплата с 19.11.2026 — первое занятие группы с сегодня` } };
+    if (r.method === "GET" && r.path === "/auth/org/groups/g2/pay-from-default") return { json: { today, first_lesson: today, default_pay_from: today, text: `Оплата с 19.11.2026 — сегодня у группы занятие` } };
     if (r.method === "POST" && /\/students\/bulk$/.test(r.path) && X.isDry(r)) {
       const ids = r.body.student_ids;
       const from = r.body.pay_from || today;

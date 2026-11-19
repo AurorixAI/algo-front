@@ -53,7 +53,9 @@ function server(o = {}) {
   const leaveOf = (id) => (undone.includes(id) ? { undone: true, text: UNDO, restored: [] } : ordinary.includes(id) ? { undone: false, text: REWRITE, restored: [] } : null);
   const billingOf = (id, body) => {
     const p = parts(id, body);
-    return p ? { pay_from: body.pay_from || today, explicit: Boolean(body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с", immediate: { amount: sumOf(p), lessons: p.reduce((s, x) => s + x.lessons, 0), text: "К оплате сразу", parts: p } } : null;
+    // the day of the charge is AHEAD (`defaultPayFrom` after today): nothing is charged at once, the answer still says the day (`pay_from`)
+    if (!body.pay_from && o.defaultPayFrom && o.defaultPayFrom > today) return { pay_from: o.defaultPayFrom, explicit: false, default_pay_from: o.defaultPayFrom, first_lesson: o.defaultPayFrom, text: "Оплата с", immediate: null };
+    return p ? { pay_from: body.pay_from || today, explicit: Boolean(body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с", immediate: { amount: sumOf(p), lessons: p.reduce((s, x) => s + x.lessons, 0), text: o.immediateText ? o.immediateText(id, p) : "К оплате сразу", parts: p } } : null;
   };
   return (r) => {
     calls.push(r);
@@ -67,12 +69,20 @@ function server(o = {}) {
       items = items.slice(0, o.pageLimit ?? 500);
       return { json: { items, total } };
     }
-    if (r.method === "GET" && /\/pay-from-default$/.test(r.path)) return { json: { today, first_lesson: today, default_pay_from: today, text: o.payText ?? "Оплата с 19.11.2026 — первое занятие группы с сегодня" } };
+    if (r.method === "GET" && /\/pay-from-default$/.test(r.path)) return { json: { today, first_lesson: today, default_pay_from: o.defaultPayFrom ?? today, text: o.payText ?? (o.defaultPayFrom && o.defaultPayFrom > today ? `Оплата с ${o.defaultPayFrom.slice(8, 10)}.${o.defaultPayFrom.slice(5, 7)}.${o.defaultPayFrom.slice(0, 4)} — ближайшее занятие группы` : today === TODAY ? "Оплата с 19.11.2026 — сегодня у группы занятие" : `Оплата с ${today.slice(8, 10)}.${today.slice(5, 7)}.${today.slice(0, 4)} — ближайшее занятие группы`) } };
     if (r.method === "POST" && /\/groups\/g2\/students\/bulk$/.test(r.path)) {
       const ids = r.body.student_ids;
       if (/dry_run=true/.test(r.query)) {
         const transfer = /mode=transfer/.test(r.query);
-        return { json: { group_id: "g2", added: ids.length, skipped: 0, skipped_details: [], warnings: [], dry_run: true, ...(transfer ? { carried: o.transferCarried ?? [{ code: "payment_carried_over", message: "Из «Алгебра 7» перейдёт 555 000 сум: 188 000 — за ноябрь здесь, 367 000 — аванс" }] } : {}), students: ids.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: transfer ? null : billingOf(id, r.body), past_balances: past[id] || [], leave_undo: leaveOf(id) })) } };
+        // the students the server will not write (Money-2 fix 11, F3): `refuse` {id: {reason, code}} - they are in `skipped_details`, not in `students[]`
+        const refused = o.refuse ?? {};
+        const okIds = ids.filter((id) => !refused[id]);
+        // a student of another group is MOVED by a transfer: his money is told in `effects`, he pays nothing at once; a new one gets `billing` (his sum at once is in `immediate_total`)
+        const moved = (id) => { const one = people.find((x) => x.id === id); return Boolean(one && one.groups_count > 0); };
+        const rows = okIds.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: transfer && moved(id) ? null : billingOf(id, r.body), past_balances: past[id] || [], leave_undo: leaveOf(id), effects: transfer && moved(id) && o.effectsOf ? o.effectsOf(id) : null }));
+        const charged = rows.map((row) => row.billing && row.billing.immediate).filter(Boolean);
+        const immediateTotal = charged.length === 0 ? null : { amount: charged.reduce((sum, one) => sum + one.amount, 0), lessons: charged.reduce((sum, one) => sum + one.lessons, 0), students: charged.length, text: "К оплате сразу" };
+        return { json: { group_id: "g2", added: okIds.length, skipped: ids.length - okIds.length, skipped_details: ids.filter((id) => refused[id]).map((id) => ({ student_id: id, reason: refused[id].reason, code: refused[id].code ?? "refused" })), warnings: [], dry_run: true, ...(transfer && !o.effectsOf ? { carried: o.transferCarried ?? [{ code: "payment_carried_over", message: "Из «Алгебра 7» перейдёт 555 000 сум: 188 000 — за ноябрь здесь, 367 000 — аванс" }] } : {}), students: rows, immediate_total: immediateTotal } };
       }
       const results = o.writeResults ? o.writeResults(ids, r.body) : ids.map((id) => ({ student_id: id, status: "added" }));
       const skipped = results.filter((x) => x.status === "skipped");
@@ -83,6 +93,8 @@ function server(o = {}) {
       const dry = /dry_run=true/.test(r.query);
       const transfer = /mode=transfer/.test(r.query);
       const body = r.body || {};
+      // a refusal of the probe of ONE student in the words of the server (a full group): the window of the card says it before the button (F3)
+      if (dry && o.refuseSingle) return { status: 400, json: { detail: { code: "GROUP_FULL", message: o.refuseSingle } } };
       const answer = { student_id: one[2], group_id: one[1], status: "added", dry_run: dry, leave_undo: leaveOf(one[2]), past_balances: (o.pastByGroup ? (o.pastByGroup[one[1]] || {})[one[2]] : past[one[2]]) || [], warnings: [], billing: transfer ? null : billingOf(one[2], body) };
       if (transfer) Object.assign(answer, { carried: o.transferCarried ?? [{ code: "payment_carried_over", message: "Из «Алгебра 7» перейдёт 555 000 сум" }] });
       return { json: answer };

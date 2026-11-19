@@ -76,10 +76,10 @@ test("the notes stand in the row of THEIR student: the debt of this group, the a
   const run = await drawer({ people: THREE, imm: { st1: NOV, st2: NOV, st3: NOV }, past: { st2: [DEBT_SAME], st3: [ADVANCE_OTHER] }, ordinary: ["st2"] });
   const p = run.page;
   const two = rowOf(p, "М14-2-а");
-  assert.equal(await two.count(), 2, "the debt and «записывается заново» are two rows of his");
+  assert.equal(await two.count(), 1, "ONE row of his (Money-2 fix 11, F7): the debt and «записывается заново» stand on lines of their own in it");
   assert.match(plain(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-2-а" }).innerText()), /^М14-2-а СцМ14 — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19\.11 Выписка$/);
   assert.equal(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-2-а" }).getByRole("link", { name: "Выписка" }).count(), 1);
-  assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "записывается заново");
+  assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Записывается заново", "the second thing of the row: a line of its own, with a capital");
   assert.ok(plain(await p.locator('[data-testid="enrol-note-rewrite"]').innerText()).includes(H.REWRITE), "the server's words are under the line, as they are");
   assert.match(plain(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-н6" }).innerText()), /^М14-н6 СцМ14 — Аванс с прошлого раза 40 000 сум · в «Физика 9», ушёл 17\.11 Выписка$/);
   assert.equal(await rowOf(p, "М14-н7").count(), 0);
@@ -88,14 +88,17 @@ test("the notes stand in the row of THEIR student: the debt of this group, the a
   await p.close();
 });
 
-test("a common price is entered and a student comes back as he was: his row says so; the others have nothing; the probe is asked once the form is whole", async () => {
+test("a common price is entered and a student comes back as he was: his row says so; the others have nothing; the probe follows the price at once (a stand-in reason until the real one is typed)", async () => {
   const run = await drawer({ people: THREE, imm: { st1: NOV, st2: NOV, st3: NOV }, undone: ["st2"] });
   const p = run.page;
   assert.equal(await p.locator('[data-testid="enrol-note-shared"]').count(), 0, "nothing common entered - nothing said");
   await p.click('[data-testid="enrol-terms-toggle"]');
   const before = run.calls.filter((c) => /students\/bulk$/.test(c.path) && /dry_run=true/.test(c.query)).length;
   await p.fill("#add-student-price-amount", "300000"); await p.waitForTimeout(700);
-  assert.equal(run.calls.filter((c) => /students\/bulk$/.test(c.path) && /dry_run=true/.test(c.query)).length, before, "an own price without its reason asks nothing");
+  // Money-2 fix 11 (F5): a price without its reason is asked at once with the stand-in reason of a dry run (the sum follows the price); the real write waits for the reason
+  const asked = run.calls.filter((c) => /students\/bulk$/.test(c.path) && /dry_run=true/.test(c.query));
+  assert.ok(asked.length > before, "an own price without its reason is asked with the stand-in reason");
+  assert.deepEqual(asked[asked.length - 1].body.price_override, { amount: 300000, reason: "Проверка последствий" });
   await p.fill("#add-student-price-reason", "Договорённость"); await p.waitForTimeout(900);
   assert.match(plain(await p.locator('[data-testid="enrol-note-undone"]', { hasText: "М14-2-а" }).innerText()), new RegExp(`${H.UNDO.slice(0, 20)}`));
   assert.equal(await p.locator('[data-testid="enrol-note-shared"]').count(), 1);
@@ -171,17 +174,19 @@ test("1280x900, the chosen stay on the screen: the labels of the last chosen are
   await run.page.close();
 });
 
-test("typing a common price: the bar does not jump - while the form is half filled the previous sum stays (faded) and the line says what is missing; the height is the same", async () => {
+test("typing a common price: the bar does not jump - the probe carries the price at once (a stand-in reason until the real one is typed), the sum follows the screen, nothing is said in the bar; the height is the same", async () => {
   const run = await drawer({ people: THREE, imm: { st1: NOV, st2: NOV, st3: NOV } });
   const p = run.page;
   await p.click('[data-testid="enrol-terms-toggle"]'); await p.waitForTimeout(400);
   const height = () => bar(p).evaluate((el) => Math.round(el.getBoundingClientRect().height));
   const before = await height();
-  await p.fill("#add-student-price-amount", "300000"); await p.waitForTimeout(500);
-  assert.equal(await height(), before, "half filled: same bar");
+  await p.fill("#add-student-price-amount", "300000"); await p.waitForTimeout(900);
+  assert.equal(await height(), before, "the price without a reason: the same bar");
   assert.equal(await sum(p), "564 000 сум");
-  assert.match(await bar(p).locator('[data-testid="summary-bar-sum"]').getAttribute("class"), /opacity-50/, "the previous sum is faded");
-  assert.match(await line(p), /Укажите причину/);
+  assert.doesNotMatch(await bar(p).locator('[data-testid="summary-bar-sum"]').getAttribute("class"), /opacity-50/, "not faded: the probe was asked with the price on the screen");
+  const probe = run.calls.filter((c) => c.method === "POST" && /\/students\/bulk$/.test(c.path) && /dry_run=true/.test(c.query)).pop();
+  assert.deepEqual(probe.body.price_override, { amount: 300000, reason: "Проверка последствий" });
+  assert.doesNotMatch(await line(p), /Укажите причину/, "the missing reason is said at its field when the person presses the button, not in the bar");
   await p.fill("#add-student-price-reason", "Договорённость"); await p.waitForTimeout(900);
   assert.equal(await height(), before);
   assert.doesNotMatch(await bar(p).locator('[data-testid="summary-bar-sum"]').getAttribute("class"), /opacity-50/);

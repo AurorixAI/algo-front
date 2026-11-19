@@ -23,6 +23,9 @@ const plain = (text) => text.replace(/\s+/g, " ").trim();
 const isDry = (request) => /dry_run=true/.test(request.query);
 const posts = (calls) => calls.filter((call) => call.method === "POST" && /\/groups\/gt\/students\/st1/.test(call.path));
 
+/** the dry run has answered: the server said nothing about the money of this move, so no block stands - the button is the sign (Money-2 fix 11, F1) */
+const ready = (page) => page.waitForFunction(() => { const b = document.querySelector('[data-testid="assign-submit"]'); return b && !b.disabled; });
+
 const server = (overrides = {}) => F.baseServer((request) => {
   if (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1") {
     if (overrides.post) { const answer = overrides.post(request); if (answer) return answer; }
@@ -57,7 +60,7 @@ test("Э1: the chosen source rides in `from_group_id` of the dry run and of the 
   await run.page.click(`text=${F.T.slice(0, 20)}`);
   await run.page.click("#assign-group-source");
   await run.page.click(`[role="option"]:has-text("Геометрия 8")`);
-  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  await ready(run.page);
   const dry = posts(run.calls).filter((call) => isDry(call));
   assert.ok(dry.length >= 1);
   assert.equal(dry[dry.length - 1].body.from_group_id, "gb");
@@ -78,7 +81,7 @@ test("Э1: a caller that did not know the groups - the 422 `TRANSFER_SOURCE_REQU
   await run.page.click("#assign-group-source");
   assert.equal(await run.page.locator('[role="option"]').count(), 2);
   await run.page.click(`[role="option"]:has-text("Английский")`);
-  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  await ready(run.page);
   await run.page.close();
 });
 
@@ -88,7 +91,7 @@ test("Э1: 409 `TRANSFER_SOURCE_GONE` is shown in the words of the server; one g
   await run.page.click(`text=${F.T.slice(0, 20)}`);
   await run.page.click("#assign-group-source");
   await run.page.click(`[role="option"]:has-text("Алгебра")`);
-  await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  await ready(run.page);
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForSelector('[role="alert"]');
   const alert = plain(await run.page.textContent('[role="alert"]'));
@@ -97,7 +100,7 @@ test("Э1: 409 `TRANSFER_SOURCE_GONE` is shown in the words of the server; one g
 
   const one = await open(1280, server(), { sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] });
   await one.page.click(`text=${F.T.slice(0, 20)}`);
-  await one.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  await ready(one.page);
   assert.equal(await one.page.locator('[data-testid="assign-source"]').count(), 0);
   assert.equal(posts(one.calls).filter((call) => isDry(call)).pop().body.from_group_id, "ga");
   await one.page.close();
@@ -106,7 +109,7 @@ test("Э1: 409 `TRANSFER_SOURCE_GONE` is shown in the words of the server; one g
 test("Э1 (375): the long name of the only source group wraps under the title, nothing leaves the window; the placeholder of «Из какой группы» fits the field", async () => {
   const one = await open(375, server(), { sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] });
   await one.page.click(`text=${F.T.slice(0, 20)}`);
-  await one.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  await ready(one.page);
   const cut = await one.page.evaluate(() => {
     const box = document.querySelector('[role="dialog"]').getBoundingClientRect();
     const line = document.querySelector('[data-testid="assign-current-group"]');

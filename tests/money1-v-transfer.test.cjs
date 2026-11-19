@@ -33,9 +33,11 @@ test("a single transfer: the sentence of the server stands as ONE amber line und
 
 test("no closing_prices (or an empty list): no line and no «цен нет»", async () => {
   for (const answer of [{ carried: [] }, { carried: [], closing_prices: [] }]) {
-    const { page } = await block(ready(answer));
-    assert.equal(await page.locator('[data-testid="transfer-closing-prices"]').count(), 0);
-    assert.doesNotMatch(plain(await page.textContent("body")), /цен нет|нет индивидуальной/i);
+    // the server said nothing about the money of this move: no block at all (the screen never claims what the server did not say - Money-2 fix 11, F1)
+    const { page } = await open(browser, "money-v.entry.tsx", "transferBlock", { width: 1280, props: { preview: ready(answer) } });
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('[data-testid="transfer-closing-prices"], [data-testid="transfer-preview"]').count(), 0);
+    assert.doesNotMatch(plain(await page.textContent("body")), /цен нет|нет индивидуальной|Деньги не изменятся/i);
     await page.close();
   }
 });

@@ -18,9 +18,9 @@ import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
-import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
-import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL } from "@/lib/enrol-labels";
+import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { usePayFromDefault, usePayFromPreview, type PayFromPreview } from "@/lib/use-pay-from";
+import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, groupNameShown } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -33,15 +33,16 @@ import { EnrolTransferRows } from "./enrol-transfer-rows";
 import { BulkOutcomePanel, type BulkOutcomeRow } from "./bulk-outcome-panel";
 import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
-import { EnrolExceptions, EnrolNoteRows, ExceptionRow, type EnrolNote } from "./enrol-exceptions";
+import { EnrolExceptions, EnrolNoteRows, EnrolRefusedAllRow, EnrolRefusedRow, ExceptionRow, type EnrolNote } from "./enrol-exceptions";
 import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
-import { bulkHeadline, bulkOutcomeOf } from "@/lib/bulk-outcome";
+import { bulkHeadline, bulkOutcomeOf, probeRefusalsOf, sameRefusalForAll } from "@/lib/bulk-outcome";
 import { enrolBarOf, enrolButtonLabel, type EnrolBarRow } from "@/lib/enrol-bar";
-import { isOwnPrice, priceInWords } from "@/lib/enrol-terms";
+import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, priceInWords, type OwnPriceError } from "@/lib/enrol-terms";
 import { groupScheduleLine, type ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { canManageMoney } from "@/lib/money-effects";
 import { effectiveEnrolMode, secondGroupLine } from "@/lib/enrol-mode";
 import { useAuthStore } from "@/lib/store";
+import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,6 +141,10 @@ export function AddStudentDrawer({
   const [addError, setAddError] = useState<string | null>(null);
   // a refusal of the price / the day / the opening balance opens the conditions in place (the number only says «again»)
   const [termsSignal, setTermsSignal] = useState(0);
+  // the refusal of the own price stands AT its field (the panel opens itself); an edit of the field takes it away
+  const [priceError, setPriceError] = useState<OwnPriceError | null>(null);
+  // a phone: the special rows stand right under the labels of the chosen, before the list of the rest (F6)
+  const phone = useMediaQuery(PHONE_QUERY);
   // Students already in another group: move them here or keep both groups.
   const [chosenMode, setMode] = useState<GroupJoinMode>("transfer");
   // R3 M2: a transfer moves money - the money right only; without it the mode is «add» and the switch is not there
@@ -190,6 +195,7 @@ export function AddStudentDrawer({
     setListOpen(false);
     setByStudent(false);
     setPayFrom("");
+    setPriceError(null);
   }, [open]);
 
   // Names and schedules of the groups: for the title / the line under it and the «currently in ...» tags; a failure only drops them.
@@ -293,7 +299,8 @@ export function AddStudentDrawer({
   const payProblemAsked = payFromBase && moneyAvailable ? payFromProblem(payFromValue, payDef, payRange) : null;
 
   // R3 #15: «что переедет» - the dry run of the same bulk transfer (`mode=transfer&dry_run=true`), asked when somebody from another group is chosen; «Зачислить» waits for it
-  const dryException = moneyAvailable ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
+  // an own price without its reason is asked with the stand-in reason of a dry run, so the sum follows the price on the screen; the real write never goes without it (F5)
+  const dryException = moneyAvailable ? dryRunOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : { error: null, request: null };
   // UX pack №15: every chosen student is moved from another group (the mode «Перевести сюда») - the button says so, not «Зачислить»
   const movesOnly = transfers.length > 0 && transfers.length === selected.size && mode === "transfer" && moneyRight;
   const transferIds = Array.from(selected.keys()).sort();
@@ -323,7 +330,14 @@ export function AddStudentDrawer({
   const payFromAllowed = payFromBase && !allUndone;
   const payBody = payFromAllowed ? payBodyAsked : null;
   const payProblem = payFromAllowed ? payProblemAsked : null;
-  const payPreview = moneyAvailable ? addProbe : { status: "idle" as const, retry: addProbe.retry };
+  // F2: somebody is MOVED and somebody comes NEW («Перевести сюда»): the probe of the transfer is the one that answers, and it says what the new ones pay at once (`students[].billing.immediate`); the moved ones add nothing
+  // to the sum (their money is told in their rows).  A failure of that probe is told in the transfer row with its own «Повторить», not twice.
+  const mixedMove = moneyAvailable && transferKey !== null && transfers.length < selected.size;
+  const tp = transferPreview.preview;
+  const movePay: PayFromPreview & { retry: () => void } | null = !mixedMove ? null
+    : tp.status === "ready" ? { status: "ready", immediate: normalizeBulkImmediate(tp.answer), answer: tp.answer, retry: transferPreview.retry }
+    : tp.status === "loading" ? { status: "loading", retry: transferPreview.retry } : { status: "idle", retry: transferPreview.retry };
+  const payPreview = movePay ?? (moneyAvailable ? addProbe : { status: "idle" as const, retry: addProbe.retry });
   // the link «Выписка» of the balances leads to a page that needs the right to money - the same flag that decides whether the sums are shown
   const pastBase = groupsBasePath && moneyAvailable ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
   const nameById = new Map(Array.from(selected.values()).map((s) => [s.id, nameOfStudent(s)]));
@@ -337,7 +351,7 @@ export function AddStudentDrawer({
   useEffect(() => { if (immediateReady) setLastImmediate({ set: setKey, preview: immediateReady }); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyAnswer, setKey]);
   useEffect(() => { if (!open) setLastImmediate(null); }, [open]);
-  const sumsOn = moneyAvailable && payFromAllowed && Boolean(payDef);
+  const sumsOn = moneyAvailable && ((payFromAllowed && Boolean(payDef)) || mixedMove);
   const counting = sumsOn && payPreview.status === "loading";
   // a half-filled form (an own price without its reason, a day that is not a date) asks nothing: the previous sum of the SAME students stays, faded, and the line under it says what is missing - the bar does not jump
   const incomplete = sumsOn && (dryException.error !== null || payProblem !== null);
@@ -359,8 +373,19 @@ export function AddStudentDrawer({
     sharedUndone: sharedTermsEntered,
   }));
 
+  // F3: the students the server will NOT write (the probe says so before the button); the button counts those who go through
+  const refusals = probeRefusalsOf(probeAnswer).filter((row) => selected.has(row.id));
+  const refusedIds = new Set(refusals.map((row) => row.id));
+  const refusedForAll = sameRefusalForAll(refusals, selected.size);
+  const passing = selected.size - refusedIds.size;
+  // «Оставить в обеих»: the words of the server about what each student pays at once here (the probe of the mode `add`; nothing when it says none)
+  const keptWords = new Map((mode === "add" ? shownImmediate?.immediate.students ?? [] : []).map((row) => [row.studentId, row.text]));
+
   const handleAdd = async () => {
-    if (selected.size === 0 || !transferAllowed) return;
+    if (selected.size === 0 || !transferAllowed || passing === 0) return;
+    // an own price without its reason: the error stands at that field (the conditions open by themselves), nothing is sent
+    const priceProblem = moneyAvailable && !allUndone ? ownPriceError({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason }) : null;
+    if (priceProblem) { setPriceError(priceProblem); setTermsSignal((n) => n + 1); return; }
     const exception = moneyAvailable && !allUndone
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
@@ -467,7 +492,7 @@ export function AddStudentDrawer({
   // the special rows exist only when there is something to say (no empty block)
   const exceptionsShown = selected.size > 0 && (
     (moneyAvailable && groupPrice === null && Boolean(priceNote)) || transfers.length > 0 || transferKey !== null
-    || notes.some((note) => note.past.length > 0 || note.rewrite !== null || note.undone !== null)
+    || notes.some((note) => note.past.length > 0 || note.rewrite !== null || note.undone !== null) || refusals.length > 0
   );
 
   // the bar: the sum, the line under it, the button
@@ -476,15 +501,18 @@ export function AddStudentDrawer({
   const firstCount = counting && amountsState === "off";
   const calculating = counting;
   const stale = amountsState === "stale";
+  // F10: nobody pays at once because the day of the charge is ahead: the muted line says when it starts (the day is the server's `pay_from`)
+  const payStart = shownImmediate ? payStartOf(shownImmediate.answer) : null;
   const idle = selected.size === 0
     ? "Выберите учеников"
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : firstCount ? "Считаем…"
     : bar && bar.total === null && amountsState === "ready" && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
+    : bar && bar.total === null && amountsState === "ready" && refusals.length === 0 && payStart && payStart > (payDef?.today ?? today) ? payStartsLine(payStart, payDef?.today ?? today)
     : null;
   const whyOff = !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
-  const line = stale ? (incomplete ? <span data-testid="enrol-why">{dryException.error ?? payProblem}</span> : "считаем…") : failed
+  const line = stale ? (incomplete ? (payProblem ? <span data-testid="enrol-why">{payProblem}</span> : null) : "считаем…") : failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
     : whyOff ? <span id="enrol-why" data-testid="enrol-why">{whyOff}</span>
     : bar && bar.total !== null && (bar.line || bar.expandable) ? (
@@ -493,18 +521,48 @@ export function AddStudentDrawer({
         {bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={byStudent} onToggle={() => setByStudent((value) => !value)} /></>}
       </>
     ) : null;
-  const buttonText = adding ? (movesOnly ? "Перевод…" : "Зачисление…") : enrolButtonLabel(selected.size, movesOnly ? "transfer" : "enrol");
-  const submitOff = selected.size === 0 || adding || !transferAllowed || payProblem !== null || calculating;
+  const buttonText = adding ? (movesOnly ? "Перевод…" : "Зачисление…") : enrolButtonLabel(passing, movesOnly ? "transfer" : "enrol");
+  const submitOff = selected.size === 0 || passing === 0 || adding || !transferAllowed || payProblem !== null || calculating;
 
-  const title = outcome ? outcome.headline : nameOfGroup ? `${movesOnly ? "Перевести" : "Зачислить"} в «${nameOfGroup}»` : movesOnly ? TRANSFER_ACTION_LABEL : ENROL_ACTION_LABEL;
+  const title = outcome ? outcome.headline : nameOfGroup ? `${movesOnly ? "Перевести" : "Зачислить"} в «${groupNameShown(nameOfGroup)}»` : movesOnly ? TRANSFER_ACTION_LABEL : ENROL_ACTION_LABEL;
   const removeLabel = (label: string) => `Убрать: ${label}`;
+
+  // the special rows: only when there is something to say (no empty block); the same block stands under the labels on a phone and under the list on a wide window
+  const exceptionsBlock = exceptionsShown && (
+    <EnrolExceptions>
+          {refusedForAll !== null ? <EnrolRefusedAllRow reason={refusedForAll} /> : refusals.map((row) => <EnrolRefusedRow key={row.id} id={row.id} name={nameById.get(row.id) ?? "Ученик"} reason={row.reason} />)}
+          {moneyAvailable && groupPrice === null && priceNote && (
+            <ExceptionRow
+              tone="warn"
+              testId="enrol-note-price"
+              aside={<a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="inline-flex min-h-8 items-center text-sm font-semibold text-primary-700 hover:underline max-sm:min-h-10">{groupScheduledPrice ? "Цена группы" : "Задать цену"}</a>}
+            >
+              {priceNote}
+            </ExceptionRow>
+          )}
+          {transfers.length > 0 && !moneyRight && transfers.map((t) => (
+            <ExceptionRow key={t.id} tone="muted" testId="enrol-second-group">{secondGroupLine(t)}</ExceptionRow>
+          ))}
+          {transfers.length > 0 && moneyRight && (
+            <EnrolTransferRows
+              students={transfers.map((t) => ({ ...t, hint: inGroupsLabel(selected.get(t.id)?.groups_count) ? MANY_GROUPS_TRANSFER_HINT : null }))}
+              mode={mode}
+              onMode={setMode}
+              preview={transferKey !== null ? transferPreview.preview : { status: "idle" }}
+              onRetry={transferPreview.retry}
+              addWords={keptWords}
+            />
+          )}
+          {notes.map((note) => <EnrolNoteRows key={note.id} note={note} paymentsBase={pastBase} />)}
+    </EnrolExceptions>
+  );
 
   return (
     <Modal
       open={open}
       placement="right"
       title={title}
-      description={outcome ? (nameOfGroup ? `«${nameOfGroup}» · ${scheduleText}` : undefined) : description}
+      description={outcome ? (nameOfGroup ? `«${groupNameShown(nameOfGroup)}» · ${scheduleText}` : undefined) : description}
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain"
@@ -522,6 +580,8 @@ export function AddStudentDrawer({
           {addError && (
             <p role="alert" data-testid="enrol-error" className="mx-5 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 max-sm:mx-4">{addError}</p>
           )}
+          {/* «По ученикам»: the list opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
+          {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
           <SummaryBar
             label="К оплате сразу"
             amount={bar && bar.total !== null ? bar.totalText : null}
@@ -535,8 +595,8 @@ export function AddStudentDrawer({
       )}
     >
       {outcome ? <BulkOutcomePanel rows={outcome.rows} /> : (<>
-      {/* Who: the search, the chosen as labels, the rest as a short list */}
-      <div className="flex flex-col px-5 pb-2 pt-1 max-sm:px-4 sm:min-h-0 sm:flex-1">
+      {/* Who: the search and the chosen as labels */}
+      <div className="flex flex-col px-5 pt-1 max-sm:px-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
           <input
@@ -557,7 +617,11 @@ export function AddStudentDrawer({
             />
           </div>
         )}
-        <div className={`flex flex-col sm:min-h-0 sm:flex-1 ${termsOpen && selected.size > 0 ? "max-sm:hidden" : ""}`}>
+      </div>
+      {/* a phone: what the server says about the chosen stands right under their labels, so it is seen without scrolling (a wide window keeps it under the list) */}
+      {phone && exceptionsBlock}
+      {/* the rest as a short list */}
+      <div className={`flex flex-col px-5 pb-2 max-sm:px-4 sm:min-h-0 sm:flex-1 ${termsOpen && selected.size > 0 ? "max-sm:hidden" : ""}`}>
         <div className="mt-3 flex shrink-0 items-baseline gap-1.5 text-xs text-slate-600" data-testid="enrol-others-title">
           <span>{selected.size > 0 ? "Ещё ученики" : classFilterOn ? `Ученики ${groupClassLevel} класса` : "Ученики"}</span>
           {groupClassLevel ? (
@@ -626,36 +690,8 @@ export function AddStudentDrawer({
             </p>
           )}
         </div>
-        </div>
       </div>
-
-      {/* Special: a row per student who needs a word, only when there is one */}
-      {exceptionsShown && (
-        <EnrolExceptions>
-          {moneyAvailable && groupPrice === null && priceNote && (
-            <ExceptionRow
-              tone="warn"
-              testId="enrol-note-price"
-              aside={<a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="inline-flex min-h-8 items-center text-sm font-semibold text-primary-700 hover:underline max-sm:min-h-10">{groupScheduledPrice ? "Цена группы" : "Задать цену"}</a>}
-            >
-              {priceNote}
-            </ExceptionRow>
-          )}
-          {transfers.length > 0 && !moneyRight && transfers.map((t) => (
-            <ExceptionRow key={t.id} tone="muted" testId="enrol-second-group">{secondGroupLine(t)}</ExceptionRow>
-          ))}
-          {transfers.length > 0 && moneyRight && (
-            <EnrolTransferRows
-              students={transfers.map((t) => ({ ...t, hint: inGroupsLabel(selected.get(t.id)?.groups_count) ? MANY_GROUPS_TRANSFER_HINT : null }))}
-              mode={mode}
-              onMode={setMode}
-              preview={transferKey !== null ? transferPreview.preview : { status: "idle" }}
-              onRetry={transferPreview.retry}
-            />
-          )}
-          {notes.map((note) => <EnrolNoteRows key={note.id} note={note} paymentsBase={pastBase} />)}
-        </EnrolExceptions>
-      )}
+      {!phone && exceptionsBlock}
       {/* Conditions: one line, the rare fields open in place; a role without money has none */}
       {moneyAvailable && !allUndone && selected.size > 0 && (
         <EnrolTerms
@@ -669,15 +705,15 @@ export function AddStudentDrawer({
           groupAmount={groupAmount}
           amount={exceptionAmount}
           reason={exceptionReason}
-          onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
-          onReason={(text) => { setAddError(null); setExceptionReason(text); }}
+          onAmount={(text) => { setAddError(null); setPriceError(null); setExceptionAmount(text); }}
+          onReason={(text) => { setAddError(null); setPriceError(null); setExceptionReason(text); }}
+          priceError={priceError}
           openSignal={termsSignal}
           onOpenChange={setTermsOpen}
           opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}
         />
       )}
 
-      {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
       </>)}
     </Modal>
   );

@@ -48,13 +48,13 @@ test("D-6 single: the window «Перевести в другую группу»
     return null;
   });
   await run.page.evaluate(() => window.mount("assign"));
-  await run.page.click("text=7-Б Геометрия");
+  await run.page.click("text=7\u2011Б Геометрия");   // the card of the group shows the name with the non-breaking hyphen (fix 11, F8)
   await run.page.waitForSelector('[data-testid="transfer-carried"]');
   assert.equal(await sentence(run.page), AFTER_TEXT);
   await run.page.close();
 });
 
-test("D-6: a transfer with nothing to carry still says so (nothing invented)", async () => {
+test("D-6: a transfer with nothing from the server about the money says nothing about it (the screen never claims what the server did not say - Money-2 fix 11, F1)", async () => {
   const run = await openPage(browser, "enrol.entry.tsx", (request) => {
     if (request.method === "GET" && request.path === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра" }, { id: "g2", name: "7-Б Геометрия" }] };
     if (request.method === "GET" && request.path === "/auth/org/students") return { json: { items: [STUDENT], total: 1 } };
@@ -64,6 +64,8 @@ test("D-6: a transfer with nothing to carry still says so (nothing invented)", a
   await run.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
   await run.page.click('label:has-text("Иванов Иван")');
-  await run.page.waitForSelector('[data-testid="transfer-carried-none"]');
+  await run.page.waitForFunction(() => { const b = document.querySelector('[data-testid="enrol-submit"]'); return b && !b.disabled; });
+  assert.equal(await run.page.locator('[data-testid="transfer-carried-none"], [data-testid="transfer-preview"]').count(), 0);
+  assert.doesNotMatch(await run.page.textContent('[role="dialog"]'), /Деньги не изменятся/);
   await run.page.close();
 });

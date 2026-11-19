@@ -4,7 +4,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { formatDateRu, formatDayMonthRu } from "@/lib/business-time";
 import { formatMoneyInput } from "@/lib/money-format";
 import { payFromRange, type PayFromDefault } from "@/lib/pay-from";
-import { isOwnPrice, payFromReason, termsLine } from "@/lib/enrol-terms";
+import { isOwnPrice, payFromReason, termsLine, type OwnPriceError } from "@/lib/enrol-terms";
 import { TAP_ZONE } from "@/lib/tap-zone";
 import { DateInput } from "@/components/ui/date-input";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "@/components/payments/price-fields";
@@ -26,7 +26,7 @@ export interface EnrolTermsOpening {
  * «Оплата с» (with «По умолчанию 19.11» as the way back), «Цена в месяц» (an own price) and, only when the price differs from the group's, the required «Почему своя цена»; the opening balance only where
  * it is offered.  After a change the line says the new state and the button stays.  A role without the right to money never gets this block (its caller draws nothing).
  */
-export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingStart, priceLabel, groupAmount, amount, reason, onAmount, onReason, opening = null, openSignal = 0, onOpenChange, showPayFrom = true }: {
+export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingStart, priceLabel, groupAmount, amount, reason, onAmount, onReason, priceError = null, opening = null, openSignal = 0, onOpenChange, showPayFrom = true }: {
   idPrefix: string;
   /** the server's day by default; null while it is not known (the line then has no day) */
   payDef: PayFromDefault | null;
@@ -41,6 +41,8 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
   reason: string;
   onAmount: (text: string) => void;
   onReason: (text: string) => void;
+  /** the refusal of the own price: stands AT the field it is about (the panel opens itself and the field takes the focus) */
+  priceError?: OwnPriceError | null;
   opening?: EnrolTermsOpening | null;
   /** a refusal of one of these fields changes this number: the panel opens so the field is in view */
   openSignal?: number;
@@ -54,6 +56,11 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
   useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
   useEffect(() => () => onOpenChange?.(false), [onOpenChange]);
   const panelId = useId();
+  // a refused own price: the field is in view and ready to be typed in
+  useEffect(() => {
+    if (!priceError || !open) return;
+    document.getElementById(`${idPrefix}-price-${priceError.field === "reason" ? "reason" : "amount"}`)?.focus();
+  }, [priceError, open, idPrefix]);
   const own = isOwnPrice(amount, groupAmount);
   const dayKnown = showPayFrom && payDef !== null;
   const changed = dayKnown && payFrom !== (payDef as PayFromDefault).default_pay_from;
@@ -95,12 +102,12 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
             </div>
           )}
           <div>
-            <MoneyField id={`${idPrefix}-price-amount`} label={priceLabel} value={amount} onChange={onAmount} placeholder={groupAmount !== null ? formatMoneyInput(groupAmount) : "Сумма"} />
+            <MoneyField id={`${idPrefix}-price-amount`} label={priceLabel} value={amount} onChange={onAmount} placeholder={groupAmount !== null ? formatMoneyInput(groupAmount) : "Сумма"} error={priceError?.field === "amount" ? priceError.text : null} />
             <p className="mt-1.5 text-xs text-slate-600">{groupAmount !== null ? `Цена группы — ${formatMoneyInput(groupAmount)}` : "У группы нет цены"}</p>
           </div>
           {own && (
             <div className="col-span-full">
-              <ReasonField id={`${idPrefix}-price-reason`} value={reason} onChange={onReason} label="Почему своя цена" />
+              <ReasonField id={`${idPrefix}-price-reason`} value={reason} onChange={onReason} label="Почему своя цена" error={priceError?.field === "reason" ? priceError.text : null} />
             </div>
           )}
           {opening && (

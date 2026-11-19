@@ -217,7 +217,7 @@ test("375, touch: ONE tap on «⋯» of a roster row opens the menu", async () =
 test("return to the same group: the debt row of the group and the sum of the server reach the screen without being rebuilt from numbers", async () => {
   const immediate = { amount: 187000, lessons: 5, text: "К оплате сразу: 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
   const server = F.baseServer((request) => {
-    if (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — первое занятие группы с сегодня" } };
+    if (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — ближайшее занятие группы" } };
     if (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1") {
       const past = request.body && request.body.pay_from;
       return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: null, past_balances: BALANCE.slice(0, 1), billing: past ? { pay_from: request.body.pay_from, explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "Оплата с 04.11.2026", immediate } : null } };

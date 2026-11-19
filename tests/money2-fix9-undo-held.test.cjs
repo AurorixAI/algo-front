@@ -32,13 +32,14 @@ async function open(undoneIds, chosen) {
 }
 const plates = (page) => page.locator(PLATE).count();
 
-test("the remark stays while the price form is filled: a valid price shows it at once from the last answer of this set, the new probe does not blink it", async () => {
+test("the remark stays while the price form is filled: a price entered shows it at once from the last answer of this set, the new probe does not blink it", async () => {
   const run = await open(["st9"], NAMES);
   assert.equal(await plates(run.page), 0, "nothing common entered: no remark");
   assert.equal(await run.page.locator('[data-testid="enrol-note-undone"]').count(), 1, "the row of the returning student is there all the time");
   const before = X.bulkProbes(run.calls).length;
   await run.page.fill("#add-student-price-amount", "380000");
-  assert.equal(await plates(run.page), 0, "an amount without a reason is not a price yet");
+  // Money-2 fix 11 (F5): a price entered without its reason is asked at once (stand-in reason) and IS a common price on the screen: the remark is there, from the last answer of this set
+  assert.equal(await plates(run.page), 1, "an amount is a price entered: the remark stays from the last answer of this set");
   await run.page.locator("#add-student-price-reason").pressSequentially("Скидка", { delay: 40 });
   await run.page.waitForTimeout(150);
   assert.equal(await plates(run.page), 1, "the new probe is running (the key changed): the remark is from the last answer");
@@ -47,7 +48,9 @@ test("the remark stays while the price form is filled: a valid price shows it at
   assert.equal(await plates(run.page), 1, "the new answer came");
   assert.equal(X.bulkProbes(run.calls).length - before, 1, "ONE probe for the finished form, none for the half filled one");
   await run.page.fill("#add-student-price-reason", "");
-  assert.equal(await plates(run.page), 0, "the reason erased: no common price - no remark");
+  assert.equal(await plates(run.page), 1, "the reason erased: the price is still entered - the remark stays (the write will ask for the reason at its field)");
+  await run.page.fill("#add-student-price-amount", "");
+  assert.equal(await plates(run.page), 0, "the price erased: no common price - no remark");
   assert.equal(X.singleProbes(run.calls).length, 0);
   await run.page.close();
 });

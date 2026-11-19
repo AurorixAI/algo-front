@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/radio";
-import { transferWordsOf, CARRIED_NONE_TEXT } from "@/lib/dry-run";
+import { transferWordsOf } from "@/lib/dry-run";
 import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL } from "@/lib/enrol-labels";
 import { EFFECTS_LOADING_TEXT, EFFECTS_RETRY_LABEL, effectsFailureText } from "@/lib/money-effects";
 import { isStaleRefusal, refusedInWords, REFRESH_LABEL, type EffectsPreview } from "@/lib/money-preview";
@@ -19,7 +19,7 @@ export interface EnrolTransferStudent {
 }
 
 /** The words of the server about the money of the move, in the row of the student they are about: plain muted text, no frame and no title.  A skeleton of one line while it is asked; a failure says it and offers «Повторить». */
-function Words({ preview, lines, none, onRetry }: { preview: EffectsPreview; lines: string[]; none: boolean; onRetry: () => void }) {
+function Words({ preview, lines, onRetry }: { preview: EffectsPreview; lines: string[]; onRetry: () => void }) {
   if (preview.status === "idle") return null;
   if (preview.status === "loading") {
     return (
@@ -39,12 +39,12 @@ function Words({ preview, lines, none, onRetry }: { preview: EffectsPreview; lin
       </div>
     );
   }
-  const shown = none ? [CARRIED_NONE_TEXT] : lines;
-  if (shown.length === 0) return null;
+  // the server said nothing about the money of this move: nothing is said here (the screen never claims what the server did not - LESSONS 143)
+  if (lines.length === 0) return null;
   return (
     <div data-testid="transfer-preview" data-state="ready" className="mt-1.5 space-y-0.5 text-xs text-slate-600">
-      <ul data-testid={none ? "transfer-carried-none" : "transfer-carried"} className="space-y-0.5">
-        {shown.map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{text}</li>)}
+      <ul data-testid="transfer-carried" className="space-y-0.5">
+        {lines.map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{text}</li>)}
       </ul>
     </div>
   );
@@ -54,8 +54,9 @@ function Words({ preview, lines, none, onRetry }: { preview: EffectsPreview; lin
  * Students who are in another group (Money-2, frame 5): ONE switch «Перевести сюда / Оставить в обеих» for all of them (the server's rule is one mode per request) and a row per student with the place he is
  * in now and the server's words about the money of his move right under it.  One student - the switch stands in his own row.
  */
-export function EnrolTransferRows({ students, mode, onMode, preview, onRetry }: { students: readonly EnrolTransferStudent[]; mode: GroupJoinMode; onMode: (next: GroupJoinMode) => void; preview: EffectsPreview; onRetry: () => void }) {
-  const words = preview.status === "ready" ? transferWordsOf(preview.answer) : { byStudent: new Map<string, string[]>(), none: false };
+export function EnrolTransferRows({ students, mode, onMode, preview, onRetry, addWords }: { students: readonly EnrolTransferStudent[]; mode: GroupJoinMode; onMode: (next: GroupJoinMode) => void; preview: EffectsPreview; onRetry: () => void; /** «Оставить в обеих»: what the server says the student pays at once in THIS group (`billing.immediate.text` of the probe `mode=add`), by student; nothing when it says none */ addWords?: ReadonlyMap<string, string> }) {
+  const words = preview.status === "ready" ? transferWordsOf(preview.answer) : { byStudent: new Map<string, string[]>() };
+  const keptWords = (id: string): ReactNode => (mode === "add" && addWords?.get(id) ? <p className="mt-1.5 text-xs text-slate-600" data-testid="enrol-add-words">{addWords.get(id)}</p> : null);
   const single = students.length === 1;
   const hintOf = (student: EnrolTransferStudent): ReactNode => (mode === "transfer" && student.hint
     ? <p className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{student.name} — {student.hint}</p>
@@ -85,8 +86,9 @@ export function EnrolTransferRows({ students, mode, onMode, preview, onRetry }: 
           <span className="text-slate-600"> сейчас в «{only.from}»</span>
         </span>
         {switcher}
+        {keptWords(only.id)}
         {hintOf(only)}
-        <Words preview={preview} lines={lonely(only.id)} none={words.none} onRetry={onRetry} />
+        <Words preview={preview} lines={lonely(only.id)} onRetry={onRetry} />
       </ExceptionRow>
     );
   }
@@ -101,14 +103,15 @@ export function EnrolTransferRows({ students, mode, onMode, preview, onRetry }: 
           <span className="font-semibold text-slate-900">{student.name}</span>
           <span className="text-slate-600"> сейчас в «{student.from}»</span>
           {hintOf(student)}
-          {preview.status === "ready" && <Words preview={preview} lines={words.byStudent.get(student.id) ?? []} none={false} onRetry={onRetry} />}
+          {keptWords(student.id)}
+          {preview.status === "ready" && <Words preview={preview} lines={words.byStudent.get(student.id) ?? []} onRetry={onRetry} />}
         </ExceptionRow>
       ))}
-      {preview.status === "ready" && (general.length > 0 || words.none) && (
-        <ExceptionRow tone="muted" testId="enrol-transfer-general"><Words preview={preview} lines={general} none={words.none} onRetry={onRetry} /></ExceptionRow>
+      {preview.status === "ready" && general.length > 0 && (
+        <ExceptionRow tone="muted" testId="enrol-transfer-general"><Words preview={preview} lines={general} onRetry={onRetry} /></ExceptionRow>
       )}
       {(preview.status === "loading" || preview.status === "failed") && (
-        <ExceptionRow tone="muted" testId="enrol-transfer-state"><Words preview={preview} lines={[]} none={false} onRetry={onRetry} /></ExceptionRow>
+        <ExceptionRow tone="muted" testId="enrol-transfer-state"><Words preview={preview} lines={[]} onRetry={onRetry} /></ExceptionRow>
       )}
     </>
   );
