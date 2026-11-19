@@ -87,7 +87,11 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await page.getByRole("button", { name: /Добавить ученика|Зачислить/ }).first().click();
   const drawer = page.getByRole("dialog");
   await drawer.getByPlaceholder(/Поиск по имени/).fill("Нов");
-  await drawer.getByRole("checkbox", { name: /Новая Ольга/ }).check();   // a row of the list is a label with a box; the chosen one becomes a label with a cross under the search
+  // a row of the list is a label with a box that is never ticked: the click takes the student out of the list into a label with a cross under the search - so the click, then the label and the bar prove the choice (a box that vanishes cannot be «checked»)
+  await drawer.getByRole("checkbox", { name: /Новая Ольга/ }).click();
+  await expect(drawer.getByTestId("picked-chips")).toContainText("Новая Ольга");
+  await expect(drawer.getByRole("button", { name: /^Убрать: Новая Ольга/ })).toBeVisible();
+  await expect(drawer.getByRole("checkbox", { name: /Новая Ольга/ })).toHaveCount(0);
   // the conditions are ONE line («Оплата с 19 ноября, по цене группы»); the date opens under «Изменить»
   await expect(drawer.getByTestId("enrol-terms-line")).toContainText(/^Оплата с \d{1,2} [а-яё]+, по цене группы/);
   await drawer.getByTestId("enrol-terms-toggle").click();

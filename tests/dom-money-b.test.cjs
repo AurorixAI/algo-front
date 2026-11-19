@@ -28,6 +28,8 @@ const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN_NO_MONEY = { role: "admin", org_role: "admin", payments_access: false };
 const ADMIN_MONEY = { role: "admin", org_role: "admin", payments_access: true };
 const isDry = (r) => /dry_run=(true|1)/.test(r.query);
+/** Waits (up to 5 s) until `check()` holds - a probe is sent after a pause, so a test asks for the probe it needs instead of reading the list at once. */
+const until = async (check, what) => { const end = Date.now() + 5000; while (Date.now() < end) { if (check()) return; await new Promise((r) => setTimeout(r, 50)); } assert.fail(`waited 5 s: ${what}`); };
 
 async function probe(page, selector, label) {
   const result = await page.evaluate(layoutProbe, selector);
@@ -179,7 +181,8 @@ test("Б1: a day in the past - the card says «К оплате сразу» and 
   assert.equal(await page.locator('[data-testid="enrol-by-student-toggle"], [data-testid="enrol-by-student"]').count(), 0);
   const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
-  assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
+  // the probe that carries the chosen day is asked for by its field (a later probe of the form, once it has settled, may carry none)
+  await until(() => calls.some((c) => isDry(c) && /students\/bulk$/.test(c.path) && c.body && c.body.pay_from === "2026-10-26"), "a dry run with pay_from 2026-10-26");
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(SHOTS, "09-pay-from-past-immediate-1280.png") });
   await page.close();
@@ -495,7 +498,10 @@ test("RB Д3: «Оплата с» = today and a lesson today - the window says �
   assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-sum"]')), "350 000 сум");
   await openTerms(ctx.page);
   assert.equal(await ctx.page.inputValue("#add-student-pay-from"), "09.11.2026", "the default day, not a changed one");
-  assert.equal(ctx.calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path)).pop().body.pay_from, undefined, "the default day is not sent");
+  await ctx.page.waitForTimeout(600);   // the form settles: every probe it will send is in the list
+  const probesSent = ctx.calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
+  assert.ok(probesSent.length >= 1, "the bar came from a probe");
+  assert.ok(probesSent.every((c) => c.body.pay_from === undefined), "the default day is not sent by any probe");
   await ctx.page.close();
   ctx = await openDrawer(OWNER, dry(today));
   await openTerms(ctx.page);

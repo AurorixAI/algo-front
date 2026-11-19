@@ -108,6 +108,7 @@ test("frame 3: «Изменить» opens the day, the price and - only for a pr
   assert.equal(await barSum(p), "600 000 сум");
   assert.equal(await barLine(p), "по 200 000 · 6 уроков из 12 в ноябре");
   // the last probe carries what is on the screen, nothing else
+  await p.waitForTimeout(600);   // the form settles: the last probe is the one that was sent after the pause
   const last = probes(run.calls).pop();
   assert.equal(last.body.pay_from, "2026-11-17"); assert.deepEqual(last.body.price_override, { amount: 400000, reason: "Скидка: брат и сёстры" });
   assert.ok(probes(run.calls).length <= 6, `a probe per change, not per key: ${probes(run.calls).length}`);
