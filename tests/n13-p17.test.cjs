@@ -75,8 +75,8 @@ test("the drawer keeps the owner's wording and the transfer / add-more choice", 
   assert.match(drawer, /placeholder="Поиск по имени или ID…"/);
   assert.match(drawer, /const searching = searchTerm !== "";/);
   assert.match(drawer, /в «\$\{groupNames\[current as string\] \|\| "другой группе"\}»/);
-  assert.match(drawer, /\{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL \}/);
-  assert.match(drawer, /\{ value: "add", label: ENROL_HERE_ADD_LABEL \}/);
+  assert.match(read("components/groups/enrol-transfer-rows.tsx"), /\{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL \}/); // the switch lives in the rows of the students from other groups
+  assert.match(read("components/groups/enrol-transfer-rows.tsx"), /\{ value: "add", label: ENROL_HERE_ADD_LABEL \}/);
   assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести сюда"/);
   assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Оставить в обеих"/);
   // the tag of a row is made of the facts about the groups (one helper for several groups), not of a local table of statuses

@@ -65,7 +65,8 @@ test("the search never hides a chosen student: his label stays although he does 
 test("one and four chosen: their labels are on the screen without scrolling (1280x900 and 375x812) even when the list was opened wide and scrolled before choosing", async () => {
   for (const width of [1280, 375]) {
     const run = await open(width);
-    await run.page.click('[data-testid="enrol-list-more"]');
+    // a phone folds the list to five rows and opens the rest with «и ещё N»; a wide window holds all the rows and scrolls them inside
+    if (width === 375) await run.page.click('[data-testid="enrol-list-more"]');
     await run.page.evaluate(() => document.querySelectorAll('[data-testid="enrol-list"], [role="dialog"] *').forEach((el) => { if (el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = el.scrollHeight; }));
     await H.pick(run.page, "Сц11");
     assert.deepEqual(await inView(run.page, '[data-testid="picked-chip"]'), [true], `one chosen at ${width}`);
@@ -83,8 +84,7 @@ test("the same list is used by the mass transfer: the chosen from another group 
   const run = await open(1280);
   await H.pick(run.page, "Сц04", "Сц01");
   assert.deepEqual(await chips(run.page), ["Сц04", "Сц01"]);
-  assert.equal(await run.page.locator('[data-testid="enrol-list"] input[type="checkbox"]').count(), 5, "five rows are shown, the rest opens on request");
-  await run.page.click('[data-testid="enrol-list-more"]');
-  assert.equal(await run.page.locator('[data-testid="enrol-list"] input[type="checkbox"]').count(), PEOPLE.length - 2);
+  assert.equal(await run.page.locator('[data-testid="enrol-list"] li:visible input[type="checkbox"]').count(), PEOPLE.length - 2, "a wide window shows every row of the list (it scrolls inside)");
+  assert.equal(await run.page.locator('[data-testid="enrol-list-more"]:visible').count(), 0, "no «и ещё N»");
   await run.page.close();
 });

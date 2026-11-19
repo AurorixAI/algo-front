@@ -31,19 +31,27 @@ test("frame 1: nobody chosen - the group, its days and price under the title, th
     assert.match(await text(p, '[data-testid="enrol-group-line"]'), /^Вт · Чт · Сб · 16:00–17:00 · 450 000 сум в месяц$/);
     assert.equal(await p.getByLabel("Поиск по имени или ID").count(), 1);
     assert.equal(await text(p, '[data-testid="enrol-others-title"]'), "Ученики 7 класса · все классы");
-    assert.equal(await p.locator('[data-testid="enrol-list"] input[type="checkbox"]').count(), 5, "the list is short: five rows");
+    const rowsShown = () => p.locator('[data-testid="enrol-list"] li:visible input[type="checkbox"]').count();
+    // a wide window holds the WHOLE list and scrolls it inside (no «и ещё N»); a phone has one scroll for the window, so its list is folded to five rows
+    assert.equal(await rowsShown(), width === 375 ? 5 : 27, width === 375 ? "a phone: five rows" : "a wide window: every row");
     assert.equal(await p.locator('[data-testid="enrol-list"] input[type="checkbox"]:checked').count(), 0);
     assert.match(await text(p, '[data-testid="enrol-list"] li'), /Анвар Каримов 7 класс без группы/);
-    assert.match(await text(p, '[data-testid="enrol-list-more"]'), /^и ещё 22 ученика$/);
+    if (width === 375) assert.match(await text(p, '[data-testid="enrol-list-more"]'), /^и ещё 22 ученика$/);
+    else assert.equal(await p.locator('[data-testid="enrol-list-more"]:visible').count(), 0, "the list scrolls to its end: no «и ещё N»");
     // nothing else: no labels, no conditions, no special rows, no sum, no «?»
     for (const absent of ["picked-chips", "enrol-terms", "enrol-exceptions", "summary-bar-sum"]) assert.equal(await p.locator(`[data-testid="${absent}"]`).count(), 0, absent);
     assert.equal(await hints(p), 0);
     assert.equal(await text(p, '[data-testid="summary-bar-idle"]'), "Выберите учеников");
     assert.equal(await buttonOf(p).isDisabled(), true);
     assert.equal(plain(await buttonOf(p).innerText()), "Зачислить");
-    // the rest of the list opens on request
-    await p.click('[data-testid="enrol-list-more"]');
-    assert.equal(await p.locator('[data-testid="enrol-list"] input[type="checkbox"]').count(), 27);
+    if (width === 1280) {
+      const box = await p.locator('[data-testid="enrol-list"]').evaluate((el) => ({ scrolls: el.scrollHeight > el.clientHeight + 1, overflowY: getComputedStyle(el).overflowY }));
+      assert.deepEqual(box, { scrolls: true, overflowY: "auto" }, "the list scrolls inside the window");
+    } else {
+      // the rest of the list opens on request
+      await p.click('[data-testid="enrol-list-more"]');
+      assert.equal(await rowsShown(), 27);
+    }
     noErrors(run);
     await p.close();
   }
@@ -163,6 +171,13 @@ test("frame 5: a student of another group - the choice «Перевести сю
   const here = group.getByRole("radio", { name: "Перевести сюда" }); const both = group.getByRole("radio", { name: "Оставить в обеих" });
   assert.equal(await here.getAttribute("aria-checked"), "true"); assert.equal(await both.getAttribute("aria-checked"), "false");
   assert.match(await text(p, '[data-testid="transfer-preview"]'), /Из «Алгебра 7» перейдёт 555 000 сум: 188 000 — за ноябрь здесь, 367 000 — аванс/);
+  // plain muted words in his row: no grey frame, no title «Что изменится»
+  const words = p.locator('[data-testid="enrol-transfer-choice"] [data-testid="transfer-preview"]');
+  assert.equal(await words.count(), 1, "the server's line stands in the row of the student, under the choice");
+  assert.equal(await p.locator('[data-testid="transfer-preview"] h3, [role="dialog"] >> text="Что изменится"').count(), 0, "no title");
+  assert.deepEqual(await words.evaluate((el) => { const css = getComputedStyle(el); return { border: css.borderTopWidth, background: css.backgroundColor }; }), { border: "0px", background: "rgba(0, 0, 0, 0)" }, "no frame");
+  const order = await p.evaluate(() => { const row = document.querySelector('[data-testid="enrol-transfer-choice"]'); return row.querySelector('[data-testid="enrol-mode"]').getBoundingClientRect().bottom <= row.querySelector('[data-testid="transfer-preview"]').getBoundingClientRect().top; });
+  assert.equal(order, true, "the words are under the switch");
   assert.equal(plain(await buttonOf(p).innerText()), "Зачислить двоих");
   // the keyboard: an arrow moves and chooses
   await here.focus(); await p.keyboard.press("ArrowRight"); await p.waitForTimeout(500); await H.settled(p);
@@ -232,6 +247,13 @@ test("frame 7: the sums differ - the bar says the periods in one short line and 
   assert.equal(await barSum(p), "1 128 000 сум");
   assert.match(await barLine(p), /^за октябрь и ноябрь Свернуть$/);
   assert.equal(await p.locator('[data-testid="enrol-by-student-toggle"]').getAttribute("aria-expanded"), "true");
+  // the list opens ABOVE the bar, in the zone of the special rows: the bar itself keeps its height (the sum, the button, one line)
+  assert.equal(await p.locator('[data-testid="summary-bar"] [data-testid="enrol-by-student"]').count(), 0, "not inside the bar");
+  const places = await p.evaluate(() => { const list = document.querySelector('[data-testid="enrol-by-student-box"]').getBoundingClientRect(); const bar = document.querySelector('[data-testid="summary-bar"]').getBoundingClientRect(); const terms = document.querySelector('[data-testid="enrol-terms"]').getBoundingClientRect(); return { aboveBar: list.bottom <= bar.top + 1, belowTerms: list.top >= terms.bottom - 1, barHeight: Math.round(bar.height) }; });
+  assert.equal(places.aboveBar && places.belowTerms, true, "the list is between the conditions and the bar");
+  await p.click('[data-testid="enrol-by-student-toggle"]');
+  assert.equal(await p.locator('[data-testid="summary-bar"]').evaluate((el) => Math.round(el.getBoundingClientRect().height)), places.barHeight, "the bar has the same height closed and open");
+  await p.click('[data-testid="enrol-by-student-toggle"]');
   const rows = await p.locator('[data-testid="enrol-by-student-row"]').allInnerTexts();
   assert.deepEqual(rows.map(plain), ["Анвар Каримов Октябрь, с 27.10 · 2 урока из 9 89 000 сум Ноябрь, весь месяц 400 000 сум 489 000 сум", "Лола Юсупова Октябрь, с 27.10 · 2 урока из 9 89 000 сум Ноябрь, весь месяц 400 000 сум 489 000 сум", "Тимур Рашидов 150 000 сум"]);
   await p.click('[data-testid="enrol-by-student-toggle"]');
@@ -457,4 +479,52 @@ test("layout: in every frame, with ordinary and with the longest names, at 1280 
     }
   }
   assert.deepEqual(failures, [], failures.join("\n"));
+});
+
+test("the window of a group page: the list of students takes the free height and scrolls inside - with 0, 1, 3 and 8 chosen there is no empty area above the bar (1280x900)", async () => {
+  // the empty area = from the lowest thing the window shows (the conditions, the special rows, the details of the sum, or the last visible row of the list) to the top of the bar
+  const gap = (page) => page.evaluate(() => {
+    const footTop = document.querySelector('[data-modal-part="footer"]').getBoundingClientRect().top;
+    const list = document.querySelector('[data-testid="enrol-list"]');
+    const bottoms = ['[data-testid="enrol-terms"]', '[data-testid="enrol-exceptions"]', '[data-testid="enrol-by-student-box"]'].map((sel) => document.querySelector(sel)?.getBoundingClientRect().bottom ?? 0);
+    if (list) {
+      const rows = [...list.querySelectorAll("li")].filter((li) => li.offsetParent !== null);
+      bottoms.push(Math.min(list.getBoundingClientRect().bottom, rows.length ? rows[rows.length - 1].getBoundingClientRect().bottom : 0));
+    }
+    return { gap: Math.round(footTop - Math.max(...bottoms)), scrolls: list ? list.scrollHeight > list.clientHeight + 1 : null, bodyScrolls: (() => { const b = document.querySelector('[data-modal-part="body"]'); return b.scrollHeight > b.clientHeight + 1; })() };
+  });
+  const cases = { 0: (ctx0) => FRAMES[1](ctx0, { width: 1280 }), 1: async (ctx0) => { const r = await FRAMES[1](ctx0, { width: 1280 }); await H.pick(r.page, "Каримов"); await H.settled(r.page); return r; }, 3: (ctx0) => FRAMES[2](ctx0, { width: 1280 }), 8: (ctx0) => FRAMES[8](ctx0, { width: 1280 }) };
+  for (const [count, open] of Object.entries(cases)) {
+    const run = await open(ctx);
+    // the labels fold to two lines («ещё N») when there are many, so the count is read from the button
+    const want = { 0: "Зачислить", 1: "Зачислить", 3: "Зачислить троих", 8: "Зачислить 8" }[count];
+    assert.equal(plain(await run.page.locator('[data-testid="enrol-submit"]').innerText()), want, `${count} chosen`);
+    const measured = await gap(run.page);
+    assert.ok(measured.gap <= 24, `${count} chosen: the empty area above the bar is ${measured.gap}px, must be at most 24`);
+    assert.equal(measured.scrolls, true, `${count} chosen: the list is longer than its place and scrolls inside`);
+    assert.equal(measured.bodyScrolls, false, `${count} chosen: the window itself does not scroll`);
+    await run.page.close();
+  }
+});
+
+test("frame 5 with two students from other groups: ONE switch over the rows, a row per student with HIS server line under it (not «Уже в другой группе: N»)", async () => {
+  const people = H.PEOPLE.map((one) => (one.id === "st5" ? H.STUDENT("st5", "Дильноза", "Ахмедова", H.IN_ALGEBRA) : one));
+  const carried = [
+    { code: "payment_carried_over", student_id: "st4", message: "Из «Алгебра 7» перейдёт 555 000 сум" },
+    { code: "payment_carried_over", student_id: "st5", message: "Из «Алгебра 7» перейдёт 120 000 сум" },
+  ];
+  const run = await H.openDrawer(ctx, H.server({ people, transferCarried: carried }), { props: { groupName: "М11 БС" } });
+  const p = run.page;
+  await H.search(p, "Назаров"); await H.pick(p, "Назаров");
+  await H.search(p, "Ахмедова"); await H.pick(p, "Ахмедова");
+  await p.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
+  assert.equal(await p.getByRole("radiogroup", { name: "Ученики из других групп" }).count(), 1, "one switch for everybody, named for them");
+  assert.equal(await p.locator('[data-testid="enrol-mode"]').count(), 1);
+  assert.equal(await p.getByText(/Уже в другой группе: \d/).count(), 0);
+  const rows = await p.locator('[data-testid="enrol-transfer-student"]').allInnerTexts();
+  assert.deepEqual(rows.map(plain), ["Саид Назаров сейчас в «Алгебра 7» Из «Алгебра 7» перейдёт 555 000 сум", "Дильноза Ахмедова сейчас в «Алгебра 7» Из «Алгебра 7» перейдёт 120 000 сум"]);
+  assert.equal(await p.getByText("Что изменится").count(), 0, "no frame, no title");
+  // the switch is above the rows
+  assert.equal(await p.evaluate(() => document.querySelector('[data-testid="enrol-mode"]').getBoundingClientRect().bottom <= document.querySelector('[data-testid="enrol-transfer-student"]').getBoundingClientRect().top), true);
+  await p.close();
 });

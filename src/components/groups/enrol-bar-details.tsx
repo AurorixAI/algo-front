@@ -16,12 +16,18 @@ export function BarMoreButton({ rows, open, onToggle }: { rows: readonly EnrolBa
   );
 }
 
-/** What the sum is made of: a row per student (name, his periods when there are two, his sum); one student - a row per period («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»).  The numbers and the periods are the server's, nothing is recounted. */
+/** What the sum is made of, in the zone of the special rows ABOVE the bar (the bar keeps its height): a row per student (name, his periods when there are two, his sum); one student - a row per period («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»).  The numbers and the periods are the server's, nothing is recounted. */
 export function BarDetails({ rows }: { rows: readonly EnrolBarRow[] }) {
+  return (
+    <section aria-label="Из чего сумма" data-testid="enrol-by-student-box" className="border-t border-slate-100 px-5 py-3 max-sm:px-4"><BarList rows={rows} /></section>
+  );
+}
+
+function BarList({ rows }: { rows: readonly EnrolBarRow[] }) {
   const payers = rows.filter((row) => row.amount !== null);
   const single = payers.length === 1 ? payers[0] : null;
   return (
-    <ul className="mt-2 grid max-h-40 gap-2 overflow-y-auto overscroll-contain text-sm" data-testid="enrol-by-student">
+    <ul className="grid max-h-40 gap-2 overflow-y-auto overscroll-contain text-sm" data-testid="enrol-by-student">
       {single
         ? immediatePartRows(single.parts).map((part) => (
           <li key={part.label} className="flex items-baseline justify-between gap-3" data-testid="enrol-by-student-row">

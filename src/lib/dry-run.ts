@@ -4,6 +4,7 @@
  */
 import { CARRY_OVER_CODE, PAID_DAYS_CARRIED_CODE, TRANSFER_BALANCE_CODE } from "./payments";
 import { tidyMoneyText } from "./money-format";
+import { effectFullTexts, effectsEmpty, effectsOfAnswer } from "./transfer-effects";
 
 /** A dry run of a cancel needs a reason too (the server checks it like the real one); the person has not typed it yet. */
 export const DRY_RUN_REASON = "Проверка последствий";
@@ -101,3 +102,26 @@ export function closingPricesOf(answer: unknown, names?: ReadonlyMap<string, str
 
 /** How many lines of the warnings stand open before «и ещё N». */
 export const CLOSING_PRICES_SHOWN = 5;
+
+/**
+ * What the dry run of a transfer says about the money, per student, as the server's sentences (the window puts each under the row of its student).  Key = the student the sentence is about; "" = a sentence
+ * with no student (a single transfer, or a server that does not name them).  `effects` (the new structure) says it all, then the old `carried` is not said next to it.  Nothing at all - `none`.
+ */
+export function transferWordsOf(answer: unknown): { byStudent: Map<string, string[]>; none: boolean } {
+  const byStudent = new Map<string, string[]>();
+  const add = (id: string, text: string) => { byStudent.set(id, [...(byStudent.get(id) ?? []), text]); };
+  const top = effectsOfAnswer(answer);
+  const students = Array.isArray((answer as { students?: unknown } | null)?.students) ? ((answer as { students: Array<{ student_id?: unknown; effects?: unknown } | null> }).students) : [];
+  const own = students.flatMap((item) => {
+    const effects = effectsOfAnswer({ effects: item?.effects });
+    return effects && typeof item?.student_id === "string" ? [{ id: item.student_id, effects }] : [];
+  });
+  if (top || own.length > 0) {
+    if (top && !effectsEmpty(top)) effectFullTexts(top).forEach((text) => add("", tidyMoneyText(text)));
+    for (const entry of own) effectFullTexts(entry.effects).forEach((text) => add(entry.id, tidyMoneyText(text)));
+    return { byStudent, none: false };
+  }
+  for (const line of carriedOf(answer, null)) carriedRows(line.message).forEach((row) => add(line.studentId ?? "", tidyMoneyText(row)));
+  for (const line of closingPricesOf(answer, null)) add(line.studentId ?? "", line.text);
+  return { byStudent, none: byStudent.size === 0 };
+}

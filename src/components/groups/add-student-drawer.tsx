@@ -20,7 +20,7 @@ import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
 import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
-import { ENROL_ACTION_LABEL, ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, TRANSFER_ACTION_LABEL } from "@/lib/enrol-labels";
+import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -29,7 +29,7 @@ import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { formAllowsConfirm } from "@/lib/money-preview";
 import { useFormMoneyPreview } from "@/lib/use-money-preview";
-import { TransferPreviewBlock } from "./transfer-preview-block";
+import { EnrolTransferRows } from "./enrol-transfer-rows";
 import { BulkOutcomePanel, type BulkOutcomeRow } from "./bulk-outcome-panel";
 import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
@@ -47,7 +47,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tag } from "@/components/ui/chip";
 import { PickedChips } from "@/components/ui/picked-chips";
-import { SegmentedControl } from "@/components/ui/radio";
 import { SummaryBar } from "@/components/ui/summary-bar";
 import { pluralRu } from "@/lib/plural";
 import { pastBalancesByStudent } from "@/lib/past-balances";
@@ -117,7 +116,7 @@ interface AddStudentDrawerProps {
   onAdded: (result: AddStudentsResult) => void;
 }
 
-/** A list of students shows this many rows before «и ещё N»; the rest opens on request (a search finds anybody). */
+/** On a phone a list of students shows this many rows before «и ещё N»; the rest opens on request (a search finds anybody).  A wide window scrolls the whole list inside. */
 const LIST_PREVIEW = 5;
 
 const nameOfStudent = (student: Student) => student.full_name || `${student.last_name} ${student.first_name}`.trim();
@@ -264,8 +263,8 @@ export function AddStudentDrawer({
   const available = availableStudents(students, existingStudentIds, { ungroupedOnly: !searching });
   const restRows = available.filter((student) => !selected.has(student.id));
   const everyone = [...Array.from(selected.values()), ...restRows];
-  const shownRows = listOpen ? restRows : restRows.slice(0, LIST_PREVIEW);
-  const hiddenRows = restRows.length - shownRows.length;
+  // a desktop list scrolls inside the window and holds every row; a phone has ONE scroll for the whole window, so there the list is folded to a few rows (CSS: `max-sm:hidden`)
+  const hiddenRows = listOpen ? 0 : Math.max(0, restRows.length - LIST_PREVIEW);
 
   // Selected students who are enrolled elsewhere: adding moves them.
   const transfers = Array.from(selected.values())
@@ -531,15 +530,13 @@ export function AddStudentDrawer({
             idle={idle}
             line={line}
             action={<Button type="button" size="lg" onClick={() => void handleAdd()} disabled={submitOff} loading={adding} data-testid="enrol-submit" aria-describedby={selected.size > 0 && whyOff ? "enrol-why" : undefined}>{buttonText}</Button>}
-          >
-            {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
-          </SummaryBar>
+          />
         </>
       )}
     >
       {outcome ? <BulkOutcomePanel rows={outcome.rows} /> : (<>
       {/* Who: the search, the chosen as labels, the rest as a short list */}
-      <div className="px-5 pb-2 pt-1 max-sm:px-4">
+      <div className="flex flex-col px-5 pb-2 pt-1 max-sm:px-4 sm:min-h-0 sm:flex-1">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
           <input
@@ -579,7 +576,7 @@ export function AddStudentDrawer({
             </>
           ) : null}
         </div>
-        <div data-testid="enrol-list" className="max-sm:overflow-visible">
+        <div data-testid="enrol-list" className="sm:min-h-24 sm:flex-1 sm:overflow-y-auto sm:overscroll-contain">
           {tooShort && <p className="pt-2 text-xs text-slate-600">Введите минимум 2 символа</p>}
           {loading ? (
             <div className="flex h-24 items-center justify-center">
@@ -591,15 +588,17 @@ export function AddStudentDrawer({
                 ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
                 : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
             </p>
+          ) : restRows.length === 0 ? (
+            <p data-testid="enrol-list-rest-empty" className="pt-3 text-xs text-slate-600">{searching ? "Других учеников по этому поиску нет" : "Других учеников без группы нет"}</p>
           ) : (
             <ul role="group" aria-label="Ученики" data-testid="enrol-rows">
-              {shownRows.map((s) => {
+              {restRows.map((s, index) => {
                 const current = studentGroupId(s);
                 const elsewhere = current && current !== groupId;
                 const status = inGroupsLabel(s.groups_count) || (elsewhere ? `в «${groupNames[current as string] || "другой группе"}»` : "без группы");
                 const detail = namesakeDetail(s, everyone);
                 return (
-                  <li key={s.id} className="border-t border-slate-100 first:border-t-0">
+                  <li key={s.id} className={`border-t border-slate-100 first:border-t-0 ${!listOpen && index >= LIST_PREVIEW ? "max-sm:hidden" : ""}`}>
                     <label data-student-row={s.id} className="flex cursor-pointer items-center gap-3 py-2.5">
                       <Checkbox checked={false} onChange={() => toggle(s)} aria-label={nameOfStudent(s)} />
                       <span className="min-w-0 flex-1">
@@ -617,7 +616,7 @@ export function AddStudentDrawer({
             </ul>
           )}
           {!loading && hiddenRows > 0 && (
-            <button type="button" onClick={() => setListOpen(true)} data-testid="enrol-list-more" className="inline-flex min-h-8 items-center text-sm text-slate-600 hover:text-slate-900 hover:underline max-sm:min-h-10">
+            <button type="button" onClick={() => setListOpen(true)} data-testid="enrol-list-more" className="inline-flex sm:hidden min-h-8 items-center text-sm text-slate-600 hover:text-slate-900 hover:underline max-sm:min-h-10">
               и ещё {hiddenRows} {pluralRu(hiddenRows, ["ученик", "ученика", "учеников"])}
             </button>
           )}
@@ -646,34 +645,15 @@ export function AddStudentDrawer({
             <ExceptionRow key={t.id} tone="muted" testId="enrol-second-group">{secondGroupLine(t)}</ExceptionRow>
           ))}
           {transfers.length > 0 && moneyRight && (
-            <ExceptionRow tone="info" testId="enrol-transfer-choice">
-              <span id="enrol-transfer-label">
-                <span className="font-semibold text-slate-900">{transfers.length === 1 ? transfers[0].name : `Уже в другой группе: ${transfers.length}`}</span>
-                {transfers.length === 1 && <span className="text-slate-600"> сейчас в «{transfers[0].from}»</span>}
-              </span>
-              <div className="mt-2">
-                <SegmentedControl
-                  ariaLabelledBy="enrol-transfer-label"
-                  testId="enrol-mode"
-                  value={mode}
-                  onChange={(next) => setMode(next as GroupJoinMode)}
-                  options={[{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL }, { value: "add", label: ENROL_HERE_ADD_LABEL }]}
-                  className="inline-grid grid-flow-col auto-cols-max"
-                  buttonClassName="px-3 font-medium"
-                />
-              </div>
-              {transfers.length > 1 && (
-                <ul className="mt-2 space-y-0.5 text-xs text-slate-600" data-testid="enrol-transfer-names">
-                  {transfers.map((t) => <li key={t.id}>{t.name} — сейчас в «{t.from}»</li>)}
-                </ul>
-              )}
-              {mode === "transfer" && Array.from(selected.values()).filter((s) => inGroupsLabel(s.groups_count)).map((s) => (
-                <p key={s.id} className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{nameOfStudent(s)} — {MANY_GROUPS_TRANSFER_HINT}</p>
-              ))}
-            </ExceptionRow>
+            <EnrolTransferRows
+              students={transfers.map((t) => ({ ...t, hint: inGroupsLabel(selected.get(t.id)?.groups_count) ? MANY_GROUPS_TRANSFER_HINT : null }))}
+              mode={mode}
+              onMode={setMode}
+              preview={transferKey !== null ? transferPreview.preview : { status: "idle" }}
+              onRetry={transferPreview.retry}
+            />
           )}
           {notes.map((note) => <EnrolNoteRows key={note.id} note={note} paymentsBase={pastBase} />)}
-          {transferKey !== null && <TransferPreviewBlock className="" preview={transferPreview.preview} onRetry={transferPreview.retry} names={new Map(transfers.map((student) => [student.id, student.name]))} />}
         </EnrolExceptions>
       )}
       {/* Conditions: one line, the rare fields open in place; a role without money has none */}
@@ -697,6 +677,7 @@ export function AddStudentDrawer({
         />
       )}
 
+      {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
       </>)}
     </Modal>
   );

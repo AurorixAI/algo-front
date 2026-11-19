@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * (a phone: the sum, the line, then the button across the whole width).  `dim`: the sum is the previous one and is being counted again - it fades, nothing moves.  No sum (`amount` empty): `idle`
  * says what is missing («Выберите учеников»).  The bar brings its own tone and padding; the window gives it the whole footer.
  */
-export function SummaryBar({ label, amount, unit, dim = false, idle, line, action, children, testId = "summary-bar" }: {
+export function SummaryBar({ label, amount, unit, dim = false, idle, line, action, testId = "summary-bar" }: {
   label: string;
   amount?: string | null;
   unit?: string;
@@ -15,8 +15,6 @@ export function SummaryBar({ label, amount, unit, dim = false, idle, line, actio
   /** the one line under the sum and the button */
   line?: ReactNode;
   action: ReactNode;
-  /** an extra part under the line (the list «По ученикам») */
-  children?: ReactNode;
   testId?: string;
 }) {
   return (
@@ -35,7 +33,6 @@ export function SummaryBar({ label, amount, unit, dim = false, idle, line, actio
       </div>
       <div className="max-sm:row-start-3 max-sm:mt-3 max-sm:[&>button]:w-full">{action}</div>
       {line ? <div data-testid="summary-bar-line" className="col-span-full mt-1.5 min-h-[1.25rem] text-xs text-slate-600 [overflow-wrap:anywhere]">{line}</div> : null}
-      {children ? <div className="col-span-full">{children}</div> : null}
     </div>
   );
 }

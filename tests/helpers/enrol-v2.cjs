@@ -107,8 +107,8 @@ async function openDrawer(ctx, handler, { width = 1280, user = OWNER, props = {}
 async function pick(page, ...names) {
   for (const name of names) {
     const row = page.locator(`[data-testid="enrol-list"] label:has-text("${name}")`).first();
-    // the list shows five rows; the rest opens with «и ещё N» (the person can also search)
-    if ((await row.count()) === 0 && (await page.locator('[data-testid="enrol-list-more"]').count()) > 0) await page.click('[data-testid="enrol-list-more"]');
+    // a phone shows five rows and the rest opens with «и ещё N» (a wide window scrolls the whole list inside; the person can also search)
+    if (!(await row.isVisible()) && (await page.locator('[data-testid="enrol-list-more"]').isVisible())) await page.click('[data-testid="enrol-list-more"]');
     await row.click();
     await page.waitForTimeout(80);
   }

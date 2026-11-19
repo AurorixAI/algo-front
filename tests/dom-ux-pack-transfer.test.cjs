@@ -110,10 +110,11 @@ async function openDrawer(width, user = { role: "owner", org_role: "owner" }) {
 }
 
 for (const width of [1280, 375]) {
-  test(`${width}: the drawer «Зачислить учеников»: the mode «Перевести» - the button says «Перевести», one title «Что изменится», the sentence of the server, no salary; nothing leaves its box`, async () => {
+  test(`${width}: the drawer «Зачислить учеников»: the mode «Перевести» - the button says «Перевести», the sentence of the server in the row of the student (no frame, no title), no salary; nothing leaves its box`, async () => {
     const { page } = await openDrawer(width);
     assert.equal(plain(await page.textContent('[data-testid="enrol-submit"]')), "Перевести");
-    assert.equal(plain(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится");
+    assert.equal(await page.locator('[data-testid="transfer-preview"] h3').count(), 0, "no title: the words stand plain under the switch of the student");
+    assert.equal(await page.locator('[data-testid="enrol-transfer-choice"] [data-testid="transfer-preview"]').count(), 1);
     assert.equal(await rowsText(page.locator('[data-testid="transfer-carried"] li')), SENTENCE);
     assert.ok(!/зарплат|Каримова К\./i.test(plain(await page.textContent('[data-testid="transfer-preview"]'))));
     assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);

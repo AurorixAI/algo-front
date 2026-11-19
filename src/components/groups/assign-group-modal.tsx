@@ -375,7 +375,6 @@ export function AssignGroupModal({
             unit={bar?.unit}
             idle={idle}
             line={line}
-            children={bar?.expandable && periodsOpen ? <BarDetails rows={barRows} /> : undefined}
             action={<Button type="button" size="lg" onClick={() => void handleAssign()} disabled={submitOff} loading={assigning} data-testid="assign-submit" title={buttonText} aria-describedby={selectedGroupId && whyOff ? "assign-why" : undefined} className="h-auto max-w-[18rem] whitespace-normal text-center max-sm:max-w-full"><span className="line-clamp-2 [overflow-wrap:anywhere]">{buttonText}</span></Button>}
           />
         </>
@@ -500,6 +499,7 @@ export function AssignGroupModal({
           opening={!isTransfer && openingShown ? { on: openingOn, onChange: (value) => { setAssignmentError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAssignmentError(null); setOpening(next); }, today: formatBusinessDate(), accountingStart, needsReason: openingNeedsReason } : null}
         />
       )}
+      {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
     </Modal>
   );
 }

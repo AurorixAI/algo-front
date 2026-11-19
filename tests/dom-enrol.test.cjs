@@ -53,7 +53,8 @@ test("M2: an administrator with `payments_access` and the owner keep the switch 
     assert.equal(await page.locator('[data-testid="enrol-second-group"]').count(), 0);
     await page.waitForSelector('[data-testid="transfer-carried"]');
     assert.match((await page.textContent('[data-testid="transfer-carried"]')).replace(/\s+/g, " "), /Оплата 300 000 сум перенесётся/);
-    assert.equal(plainText(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится", "ONE title of the block");
+    assert.equal(await page.locator('[data-testid="transfer-preview"] h3').count(), 0, "the words of the server stand in the row of the student: no frame, no title");
+    assert.equal(await page.locator('[data-testid="enrol-transfer-choice"] [data-testid="transfer-preview"]').count(), 1, "under the switch of the student");
     assert.equal(plainText(await page.textContent('[data-testid="enrol-submit"]')), "Перевести", "the button names the action of the mode, not «Зачислить»");
     assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0, "the window is about the money of the student: no salary block");
     assert.ok(!/зарплат/i.test(await page.textContent('[data-testid="transfer-preview"]')), "no line about the salary");

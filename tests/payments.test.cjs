@@ -353,8 +353,8 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   const drawer = read("src/components/groups/add-student-drawer.tsx");
   assert.match(drawer, /moneyAvailable &&/);
   assert.match(drawer, /mode: transfers\.length > 0 \? mode : undefined/);
-  assert.match(drawer, /ENROL_HERE_TRANSFER_LABEL/);
-  assert.match(drawer, /ENROL_HERE_ADD_LABEL/);
+  assert.match(read("src/components/groups/enrol-transfer-rows.tsx"), /ENROL_HERE_TRANSFER_LABEL/);
+  assert.match(read("src/components/groups/enrol-transfer-rows.tsx"), /ENROL_HERE_ADD_LABEL/);
   // the owner settings block belongs to the owner only
   assert.match(read("src/app/owner/settings/page.tsx"), /visibleSettingsSections\(\{ isOwner, paymentSettingsReadable/);
   // the quiet style of the attendance section: no select-all, no bulk actions on the list
