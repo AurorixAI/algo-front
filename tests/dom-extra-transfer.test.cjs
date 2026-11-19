@@ -28,7 +28,7 @@ test("D-6 bulk: «Что переедет» of «Добавить ученика
   });
   await run.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
-  await run.page.click('button:has-text("Иванов Иван")');
+  await run.page.click('label:has-text("Иванов Иван")');
   await run.page.waitForSelector('[data-testid="transfer-carried"]');
   const text = await sentence(run.page);
   assert.equal(text, AFTER_TEXT);
@@ -63,7 +63,7 @@ test("D-6: a transfer with nothing to carry still says so (nothing invented)", a
   });
   await run.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Ив");
-  await run.page.click('button:has-text("Иванов Иван")');
+  await run.page.click('label:has-text("Иванов Иван")');
   await run.page.waitForSelector('[data-testid="transfer-carried-none"]');
   await run.page.close();
 });

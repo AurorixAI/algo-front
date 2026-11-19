@@ -171,13 +171,13 @@ test("the drawer shows the quiet «Все классы» switch only for a group
   assert.match(drawer, /availableStudents\(students, existingStudentIds, \{ ungroupedOnly: !searching \}\)/);
   assert.match(drawer, /\{groupClassLevel \? \(/);
   assert.match(drawer, /role="switch"/);
-  assert.match(drawer, /Все классы\n/);
+  assert.match(drawer, /все классы\n/);
   assert.match(drawer, /setAllClasses\(false\);/); // the default is restored on every opening
   // transfer / add-more behaviour and the picked students survive a class switch
-  assert.match(drawer, /\["transfer", ENROL_HERE_TRANSFER_LABEL\]/);
-  assert.match(drawer, /\["add", ENROL_HERE_ADD_LABEL\]/);
-  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести в эту группу"/);
-  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Зачислить и в эту группу"/);
+  assert.match(drawer, /\{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL \}/);
+  assert.match(drawer, /\{ value: "add", label: ENROL_HERE_ADD_LABEL \}/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести сюда"/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Оставить в обеих"/);
   assert.match(drawer, /Array\.from\(selected\.values\(\)\)\s*\.filter\(\(s\) => \{ const current = studentGroupId\(s\); return current && current !== groupId; \}\)/);
   assert.match(drawer, /bulkAddStudents\(groupId, picked\.map\(\(item\) => item\.id\)/);
 });

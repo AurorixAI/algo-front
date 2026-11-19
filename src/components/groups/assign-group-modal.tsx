@@ -31,12 +31,14 @@ import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
-import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { EnrolTerms } from "./enrol-terms";
+import { BarDetails, BarMoreButton } from "./enrol-bar-details";
 import { EnrolExceptions, EnrolNoteRows, ExceptionRow } from "./enrol-exceptions";
 import { enrolBarOf, enrolIntoLabel } from "@/lib/enrol-bar";
 import { isOwnPrice } from "@/lib/enrol-terms";
+import { enrolCardTitle } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -131,6 +133,8 @@ export function AssignGroupModal({
   const [serverSources, setServerSources] = useState<SourceGroup[] | null>(null);
   // Money-2 T5: the server refused the write because the money changed after the dry run (409 BALANCE_CHANGED): the numbers are asked again
   const [balanceChanged, setBalanceChanged] = useState(false);
+  // «По периодам» of the bar
+  const [periodsOpen, setPeriodsOpen] = useState(false);
   const sources = serverSources ?? sourceGroups ?? (currentGroupId ? [{ id: currentGroupId, name: currentGroupName ?? "" }] : []);
   const source = isTransfer ? transferSource(sources, fromGroupId) : { needed: false, id: null };
   // Money-1 B1 «Оплата с»: the day the student is charged from in the chosen group ("" until the default of that group arrives); a transfer has no such field
@@ -308,25 +312,27 @@ export function AssignGroupModal({
   const paymentsBase = groupsBasePath && moneyAvailable ? workspaceBases(workspaceOfPath(groupsBasePath)).payments : null;
 
   const verb = isTransfer ? "transfer" : "enrol";
-  const formTitle = `${isTransfer ? "Перевести" : "Зачислить"}: ${studentName}`;
+  const formTitle = enrolCardTitle(isTransfer, studentName);
   // the sum at once (one student, a first enrolment or one more group): the fields of the probe, the words are arranged in `enrolBarOf`
   const sums = moneyAvailable && payFromAllowed && Boolean(payDef);
   const counting = sums && payPreview.status === "loading";
   const failed = sums && payPreview.status === "failed";
   const ready = sums && payPreview.status === "ready" ? payPreview : null;
   const row = ready?.immediate.rows[0];
-  const bar = ready ? enrolBarOf([{ id: studentId, name: studentName, amount: row?.amount ?? null, parts: row?.parts ?? [] }]) : null;
+  const barRows = [{ id: studentId, name: studentName, amount: row?.amount ?? null, parts: row?.parts ?? [] }];
+  const bar = ready ? enrolBarOf(barRows) : null;
   const noPrice = moneyAvailable && selectedGroup !== null && selectedGroup.price_current === null;
   const whyOff = source.needed && !source.id ? SOURCE_WHY : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
   const idle = !selectedGroupId ? "Выберите группу"
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : counting ? "Считаем…"
-    : bar && bar.total === null ? PAY_FROM_NOTHING_NOW
+    : bar && bar.total === null && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
     : null;
   const line = failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
-    : whyOff ? <span id="assign-why" data-testid="assign-why">{whyOff}</span> : (bar && bar.total !== null ? bar.line : null);
+    : whyOff ? <span id="assign-why" data-testid="assign-why">{whyOff}</span>
+    : bar && bar.total !== null && (bar.line || bar.expandable) ? <>{bar.line}{bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={periodsOpen} onToggle={() => setPeriodsOpen((value) => !value)} /></>}</> : null;
   const buttonText = assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : selectedGroup ? enrolIntoLabel(selectedGroup.name, verb) : isTransfer ? "Перевести" : "Зачислить";
   const submitOff = !selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id) || counting;
   const notes = addPreview.preview.status === "ready" ? pastBalancesOf(addPreview.preview.answer) : [];
@@ -340,10 +346,11 @@ export function AssignGroupModal({
       description={(
         // who and from where on ONE line under the title
         <span data-testid="assign-current-group">
-          {studentGrade ? <span data-testid="assign-grade">{studentGrade} класс</span> : null}
+          {/* the dot stays with the class (a non-breaking space before it): a wrapped line never starts with it */}
+          {studentGrade ? <><span data-testid="assign-grade">{studentGrade} класс</span>{((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) ? "\u00a0· " : ""}</> : null}
           {((isTransfer && !source.needed) || (isAdd && currentGroupLabel)) && (
             <span data-testid="assign-current-caption">
-              {studentGrade ? " · " : ""}{isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
+              {isAdd ? "уже занимается в" : "сейчас в"} «<span className="[overflow-wrap:anywhere]">{currentGroupLabel || "…"}</span>»
             </span>
           )}
         </span>
@@ -368,7 +375,8 @@ export function AssignGroupModal({
             unit={bar?.unit}
             idle={idle}
             line={line}
-            action={<Button type="button" size="lg" onClick={() => void handleAssign()} disabled={submitOff} loading={assigning} data-testid="assign-submit" title={buttonText} aria-describedby={selectedGroupId && whyOff ? "assign-why" : undefined} className="max-w-[18rem] max-sm:max-w-full"><span className="truncate">{buttonText}</span></Button>}
+            children={bar?.expandable && periodsOpen ? <BarDetails rows={barRows} /> : undefined}
+            action={<Button type="button" size="lg" onClick={() => void handleAssign()} disabled={submitOff} loading={assigning} data-testid="assign-submit" title={buttonText} aria-describedby={selectedGroupId && whyOff ? "assign-why" : undefined} className="h-auto max-w-[18rem] whitespace-normal text-center max-sm:max-w-full"><span className="line-clamp-2 [overflow-wrap:anywhere]">{buttonText}</span></Button>}
           />
         </>
       )}

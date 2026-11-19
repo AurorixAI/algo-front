@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { TAP_ZONE, TAP_ZONE_ROWS } from "@/lib/tap-zone";
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -10,16 +11,16 @@ export interface PickedChip {
   label: string;
 }
 
-/** One chosen thing as a label with a cross: the cross is a button named by `removeLabel`; a long name is cut and keeps a title. */
+/** One chosen thing as a label with a cross: the cross is a button named by `removeLabel`; a long name wraps inside the label (names are never cut). */
 export function RemovableChip({ label, onRemove, removeLabel, testId }: { label: string; onRemove: () => void; removeLabel: string; testId?: string }) {
   return (
-    <span data-testid={testId} data-kind="removable-chip" className="inline-flex min-h-[30px] max-w-full items-center gap-1.5 rounded-full bg-primary-50 py-0.5 pl-3 pr-1 text-sm font-medium text-primary-900">
-      <span className="min-w-0 truncate" title={label}>{label}</span>
+    <span data-testid={testId} data-kind="removable-chip" className="inline-flex min-h-[30px] max-w-full items-center gap-1.5 rounded-2xl bg-primary-50 py-0.5 pl-3 pr-1 text-sm font-medium text-primary-900">
+      <span className="min-w-0 [overflow-wrap:anywhere]" title={label}>{label}</span>
       <button
         type="button"
         aria-label={removeLabel}
         onClick={onRemove}
-        className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-800 outline-none hover:bg-primary-200 focus-visible:ring-2 focus-visible:ring-primary-500 max-sm:after:absolute max-sm:after:-inset-2.5 max-sm:after:content-['']"
+        className={`${TAP_ZONE} inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-800 outline-none hover:bg-primary-200 focus-visible:ring-2 focus-visible:ring-primary-500`}
       >
         <X className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
       </button>
@@ -65,7 +66,7 @@ export function PickedChips({ items, onRemove, removeLabel, maxRows = 2, testId 
 
   const hidden = items.length - shown;
   return (
-    <div ref={box} data-testid={testId} role="list" aria-label="Выбранные" className={`flex flex-wrap gap-1.5 ${open ? "max-h-44 overflow-y-auto overscroll-contain" : ""}`}>
+    <div ref={box} data-testid={testId} role="list" aria-label="Выбранные" className={`flex flex-wrap gap-1.5 ${TAP_ZONE_ROWS} ${open ? "max-h-44 overflow-y-auto overscroll-contain" : ""}`}>
       {items.slice(0, shown).map((item) => (
         <div key={item.id} role="listitem" className="max-w-full">
           <RemovableChip label={item.label} removeLabel={removeLabel(item.label)} onRemove={() => onRemove(item.id)} testId="picked-chip" />

@@ -42,13 +42,6 @@ function pastBalanceRows(raw: unknown): PastBalance[] {
   return out;
 }
 
-export const PAST_BALANCES_TITLE = "Долги и авансы с прошлого раза";
-/** «Долг» / «Аванс» of a row; a row the structure does not explain says the sentence of the server. */
-export function pastBalanceLabel(row: PastBalance): string {
-  if ((!row.group && !row.sameGroup) || !row.kind) return row.text;
-  return `${row.kind === "debt" ? "Долг" : "Аванс"} · ${row.sameGroup ? "в этой же группе" : `«${row.group}»`}${row.leftOn ? ` · ушёл ${row.leftOn}` : ""}`;
-}
-
 /** The note under a student in the summary of the window of an enrolment: «Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19.11» (no sum for a role without money; a row the structure does not explain says the server's sentence). */
 export function pastBalanceNote(row: PastBalance): string {
   if ((!row.group && !row.sameGroup) || !row.kind) return row.text;

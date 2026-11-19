@@ -129,31 +129,34 @@ async function openDrawer(user, server) {
   await ctx.page.evaluate(([u]) => window.mount("addDrawer", u, { summary: u.payments_access === false ? undefined : { accountingStart: "2026-09-01" }, refresh: false }), [user]);
   if (user.payments_access !== false) await ctx.page.evaluate(() => 0);
   await ctx.page.fill('input[placeholder^="Поиск по имени"]', "Ув");
-  await ctx.page.click('button:has-text("Ученик Новый")');
+  await ctx.page.click('label:has-text("Ученик Новый")');
   return ctx;
 }
+/** the day, the price and the opening balance live under «Изменить» of the conditions line */
+const openTerms = async (page) => { await page.waitForSelector('[data-testid="enrol-terms-toggle"]'); if (!(await page.locator('[data-testid="enrol-terms-edit"]').count())) await page.click('[data-testid="enrol-terms-toggle"]'); await page.waitForSelector('[data-testid="pay-from"]'); };
 const bulk = (calls) => calls.filter((c) => c.method === "POST" && c.path === "/auth/org/groups/g2/students/bulk" && !isDry(c));
 const single = (calls) => calls.filter((c) => c.method === "POST" && c.path === "/auth/org/groups/g2/students/st9" && !isDry(c));
 
 test("Б1: the owner sees «Оплата с» with the first lesson by default; the default is NOT sent; a changed day is sent", async () => {
   for (const user of [OWNER, ADMIN_MONEY]) {
     const { page, calls } = await openDrawer(user);
-    await page.waitForSelector('[data-testid="pay-from"]');
+    await openTerms(page);
     assert.equal(await page.inputValue("#add-student-pay-from"), "09.11.2026");
     assert.equal(await page.locator('[data-testid="pay-from-hint"]').count(), 0, "no line under the field (Money-2 fix 10B)");
-    assert.equal(await page.locator('[data-testid="pay-from-help"] [role="button"]').count(), 1, "the «?» at the label instead");
-    await page.click('button:has-text("Зачислить (1)")');
+    assert.match(plain(await page.textContent('[data-testid="pay-from"]')), /По умолчанию 09\.11$/, "the default day is said under the field, there is no «?» in the window");
+    assert.equal(await page.getByLabel("Пояснение").count(), 0, "no «?»");
+    await page.click('[data-testid="enrol-submit"]');
     await page.waitForTimeout(250);
     assert.equal(bulk(calls).length, 1);
     assert.equal(bulk(calls)[0].body.pay_from, undefined, "the default day is not sent");
     await page.close();
   }
   const { page, calls } = await openDrawer(OWNER);
-  await page.waitForSelector('[data-testid="pay-from"]');
+  await openTerms(page);
   await page.fill("#add-student-pay-from", "12.11.2026");
   await page.keyboard.press("Tab");
   await page.waitForSelector('[data-testid="pay-from-reset"]');
-  await page.click('button:has-text("Зачислить (1)")');
+  await page.click('[data-testid="enrol-submit"]');
   await page.waitForTimeout(250);
   assert.equal(bulk(calls).length, 0);
   assert.equal(single(calls)[0].body.pay_from, "2026-11-12", "a chosen day goes through the route that answers the server's sentence");
@@ -168,12 +171,12 @@ test("Б1: a day in the past - the card says «К оплате сразу» and 
     return null;
   };
   const { page, calls } = await openDrawer(OWNER, server);
-  await page.waitForSelector('[data-testid="pay-from"]');
+  await openTerms(page);
   await page.fill("#add-student-pay-from", "26.10.2026");
   await page.keyboard.press("Tab");
-  await page.waitForSelector('[data-testid="enrol-summary-total"]');
-  assert.equal(plain(await page.textContent('[data-testid="enrol-summary-total"]')), "300 000 сум", "ONE student: the total of the card in the title (R3 №12), no row with his name");
-  assert.equal(await page.locator('[data-testid="enrol-summary-student"]').count(), 0);
+  await page.waitForSelector('[data-testid="summary-bar-sum"]');
+  assert.equal(plain(await page.textContent('[data-testid="summary-bar-sum"]')), "300 000 сум", "ONE student: the total in the bar (R3 №12), no list with his name");
+  assert.equal(await page.locator('[data-testid="enrol-by-student-toggle"], [data-testid="enrol-by-student"]').count(), 0);
   const dry = calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path));
   assert.equal(dry.length >= 1, true);
   assert.equal(dry[dry.length - 1].body.pay_from, "2026-10-26");
@@ -184,12 +187,13 @@ test("Б1: a day in the past - the card says «К оплате сразу» and 
 
 test("Б1: an administrator WITHOUT the money right - no date field and no line about the day (fix10В), no pay_from and no sum in the request or on the screen", async () => {
   const { page, calls } = await openDrawer(ADMIN_NO_MONEY);
-  await page.waitForSelector('button:has-text("Зачислить (1)")');
+  await page.waitForSelector('[data-testid="enrol-submit"]');
   await page.waitForTimeout(300);
   assert.equal(await page.locator("#add-student-pay-from").count(), 0, "not blocked - absent");
   assert.equal(await page.locator('[data-testid="pay-from-line"]').count(), 0, "the day sentence gives a role without money nothing to decide");
   assert.ok(!/сум/.test(await page.textContent('[role="dialog"]')), "no sum");
-  await page.click('button:has-text("Зачислить (1)")');
+  assert.equal(await page.locator('[data-testid="enrol-terms"]').count(), 0, "no conditions line: nothing of money to decide");
+  await page.click('[data-testid="enrol-submit"]');
   await page.waitForTimeout(250);
   assert.equal(bulk(calls)[0].body.pay_from, undefined);
   assert.ok(!calls.some((c) => isDry(c) && c.body && c.body.pay_from), "no dry run of the charge without the money right: the probe of `leave_undo` (a plain add of one student, once the form has settled) carries no day and no sum")
@@ -200,10 +204,10 @@ test("Б1: PAY_FROM_RANGE is told in words under the form", async () => {
   const server = (request) => (request.method === "POST" && request.path === "/auth/org/groups/g2/students/st9" && !isDry(request)
     ? { status: 422, json: { detail: { code: "PAY_FROM_RANGE", message: "«Оплата с» — не раньше начала учёта центра (01.09.2026) и не позже чем через 62 дня от сегодня" } } } : null);
   const { page } = await openDrawer(OWNER, server);
-  await page.waitForSelector('[data-testid="pay-from"]');
+  await openTerms(page);
   await page.fill("#add-student-pay-from", "12.11.2026");
   await page.keyboard.press("Tab");
-  await page.click('button:has-text("Зачислить (1)")');
+  await page.click('[data-testid="enrol-submit"]');
   await page.waitForSelector('[role="alert"]');
   assert.match(plain(await page.textContent('[role="alert"]')), /«Оплата с» — не раньше начала учёта центра \(01\.09\.2026\) и не позже чем через 62 дня от сегодня/);
   await page.waitForTimeout(600);
@@ -216,8 +220,8 @@ test("Б1 screens: the field of the owner on 1280 / 1024 / 375", async () => {
     const ctx = await openPage(browser, "money-b.entry.tsx", drawerServer(), { width, height });
     await ctx.page.evaluate(([u]) => window.mount("addDrawer", u, { summary: { accountingStart: "2026-09-01" } }), [OWNER]);
     await ctx.page.fill('input[placeholder^="Поиск по имени"]', "Ув");
-    await ctx.page.click('button:has-text("Ученик Новый")');
-    await ctx.page.waitForSelector('[data-testid="pay-from"]');
+    await ctx.page.click('label:has-text("Ученик Новый")');
+    await openTerms(ctx.page);
     await ctx.page.waitForTimeout(700);      // the drawer slides in
     await probe(ctx.page, '[role="dialog"]', `add ${width}`);
     await ctx.page.screenshot({ path: path.join(SHOTS, `03-add-student-pay-from-${width}.png`) });
@@ -392,19 +396,23 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
     return null;
   };
   const { page } = await openDrawer(OWNER, server);
-  await page.click('button:has-text("Ученик Второй")');
-  await page.waitForSelector('[data-testid="pay-from"]');
+  await page.click('label:has-text("Ученик Второй")');
+  await openTerms(page);
   await page.fill("#add-student-pay-from", "26.10.2026");
   await page.keyboard.press("Tab");
-  await page.waitForSelector('[data-testid="pay-from-failed"]');
-  const failed = plain(await page.textContent('[data-testid="pay-from-failed"]'));
-  assert.match(failed, /Не удалось посчитать, сколько начислится сразу Повторить/);
+  await page.waitForSelector('[data-testid="pay-from-retry"]');
+  const failed = plain(await page.textContent('[data-testid="summary-bar"]'));
+  assert.match(failed, /Не удалось посчитать, сколько начислится сразу.*Повторить/);
   assert.equal(await page.locator('[data-testid="pay-from-immediate"]').count(), 0, "never «ничего не начислится» after a failure");
+  assert.equal(await page.locator('[data-testid="summary-bar-sum"]').count(), 0, "no sum after a failure");
+  assert.ok(!/Сразу платить не нужно/.test(failed), "a failure is not «nothing to pay»");
   fail = false;
-  await page.click('[data-testid="pay-from-failed"] button');
-  await page.waitForSelector('[data-testid="enrol-summary-total"]');
-  const text = plain(await page.textContent('[data-testid="enrol-summary"]'));
-  assert.match(text, /^Всего к оплате сразу.*600 000 сум.*Ученик Новый.*300 000 сум.*Ученик Второй.*300 000 сум$/);
+  await page.click('[data-testid="pay-from-retry"]');
+  await page.waitForSelector('[data-testid="summary-bar-sum"]');
+  assert.equal(plain(await page.textContent('[data-testid="summary-bar-sum"]')), "600 000 сум");
+  await page.click('[data-testid="enrol-by-student-toggle"]');
+  const rows = (await page.locator('[data-testid="enrol-by-student-row"]').allInnerTexts()).map(plain);
+  assert.deepEqual(rows, ["Ученик Новый 300 000 сум", "Ученик Второй 300 000 сум"], "several students: a row each under «По ученикам»");
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(SHOTS, "10-pay-from-bulk-total-1280.png") });
   await page.close();
@@ -412,9 +420,11 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
 
 test("R3 №22: no flash of «Укажите дату» before the default of the server arrives", async () => {
   const { page } = await openDrawer(OWNER);
-  await page.waitForSelector('[data-testid="pay-from"]');
+  await openTerms(page);
   assert.equal(await page.locator('[data-testid="enrol-why"]').count(), 0);
-  assert.equal(await page.locator('button:has-text("Зачислить")').first().isDisabled(), false);
+  assert.ok(!/Укажите дату/.test(await page.textContent('[role="dialog"]')), "no premature «Укажите дату»");
+  await page.waitForFunction(() => !document.querySelector('[data-testid="enrol-submit"]').disabled);
+  assert.equal(await page.locator('[data-testid="enrol-submit"]').isDisabled(), false);
   await page.close();
 });
 
@@ -481,15 +491,20 @@ test("RB Д3: «Оплата с» = today and a lesson today - the window says �
     ? { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing }] } } : null);
   const today = { pay_from: "2026-11-09", explicit: false, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x" };
   let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "К оплате сразу: 350 000 сум (за 7 уроков)" } }));
-  await ctx.page.waitForSelector('[data-testid="enrol-summary-total"]');
-  assert.equal(plain(await ctx.page.textContent('[data-testid="enrol-summary-total"]')), "350 000 сум");
+  await ctx.page.waitForSelector('[data-testid="summary-bar-sum"]');
+  assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-sum"]')), "350 000 сум");
+  await openTerms(ctx.page);
   assert.equal(await ctx.page.inputValue("#add-student-pay-from"), "09.11.2026", "the default day, not a changed one");
   assert.equal(ctx.calls.filter((c) => isDry(c) && /students\/bulk$/.test(c.path)).pop().body.pay_from, undefined, "the default day is not sent");
   await ctx.page.close();
   ctx = await openDrawer(OWNER, dry(today));
-  await ctx.page.waitForSelector('[data-testid="pay-from"]');
+  await openTerms(ctx.page);
   await ctx.page.waitForTimeout(900);
-  assert.equal(await ctx.page.locator('[data-testid="enrol-summary"], [data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no line, no «ничего не начислится» on the default day");
+  assert.equal(await ctx.page.locator('[data-testid="summary-bar-sum"], [data-testid="summary-bar-idle"], [data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no sum, no «ничего не начислится» on the default day");
+  // the same answer for a day in the past: THERE the window says that nothing is to be paid at once
+  await ctx.page.fill("#add-student-pay-from", "05.11.2026"); await ctx.page.keyboard.press("Tab");
+  await ctx.page.waitForSelector('[data-testid="summary-bar-idle"]');
+  assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-idle"]')), "Сразу платить не нужно");
   await ctx.page.close();
 });
 

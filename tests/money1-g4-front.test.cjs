@@ -52,10 +52,10 @@ test("Р4-1 lib: все подписи по состояниям (б)(в)(г) �
   assert.equal(plain(g.membershipPriceLine(NONE, label, GROUP_PLAN).text), "Цена " + T_B);
   assert.equal(plain(g.membershipPriceLine(OWN, label, GROUP_PLAN).text), "Цена " + T_V);
   assert.equal(plain(g.membershipPriceLine(NONE, label, null).text), "Цена группы не задана");
-  // окно записи / ящик «Добавить»: группа
-  assert.equal(plain(g.targetGroupPriceText(null, label, GROUP_PLAN)), "Цена " + T_B);
-  assert.equal(plain(g.targetGroupPriceText(null, label, null)), "Цена группы не задана");
-  assert.equal(plain(g.targetGroupPriceText({ amount: 5 }, label, GROUP_PLAN)), "Цена группы: 5 сум/мес");
+  // окно записи «Зачислить в группу»: группа — под названием, строчными («цена с … — …» / «цена не задана» / «5 сум в месяц»)
+  assert.equal(plain(g.priceNotInForceText(GROUP_PLAN, "цена не задана")), "цена " + T_B);
+  assert.equal(plain(g.priceNotInForceText(null, "цена не задана")), "цена не задана");
+  assert.equal(plain(lib("enrol-terms.ts").priceInWords(5, label)), "5 сум в месяц");
   // «Открытие учёта»
   const o = lib("openings.ts");
   const mk = (price) => ({ price, mode: "calendar" });
@@ -153,16 +153,25 @@ for (const [state, price, expected] of CASES) {
   });
 }
 
-test("Р4-1 место 10, ящик «Добавить учеников» (б)(г): «Цена с … — 420 000 сум» без «не задана»; без цены вовсе — «Цена группы не задана» + «Задать»", async () => {
-  const run = await mounted("money-g4.entry.tsx", "drawer", { scheduled: GROUP_PLAN }, server(PRICES, (r) => (/\/groups|students/.test(r.path) ? { json: [] } : null)));
-  await run.page.waitForFunction(() => /Цена с 01\.12/.test(document.body.textContent || ""));
+test("Р4-1 место 10, ящик «Зачислить в группу» (б)(г): «цена с … — 420 000 сум» под названием без «не задана»; без цены вовсе — «цена не задана» + строка «Задать цену»", async () => {
+  const STUDENT = { id: "s1", first_name: "Иван", last_name: "Иванов", full_name: "Иванов Иван", class_level: 7, status: "new", group_id: null, groups_count: 0, current_group_id: null };
+  const answer = (r) => (r.path === "/auth/org/students" ? { json: { items: [STUDENT], total: 1 } } : /\/groups/.test(r.path) ? { json: [] } : null);
+  const run = await mounted("money-g4.entry.tsx", "drawer", { scheduled: GROUP_PLAN }, server(PRICES, answer));
+  await run.page.waitForFunction(() => /цена с 01\.12/.test(document.body.textContent || ""));
   const text = await body(run.page);
-  assert.match(text, /Цена с 01\.12 — 420 000 сум/);
+  assert.match(text, /цена с 01\.12 — 420 000 сум/);
   assert.doesNotMatch(text, /не задана/);
+  await run.page.click('label:has-text("Иванов Иван")');
+  await run.page.waitForSelector('[data-testid="enrol-note-price"]');
+  assert.match(plain(await run.page.textContent('[data-testid="enrol-note-price"]')), /До начала действия цены сумма оплаты не подсказывается/);
+  assert.equal(await run.page.getByRole("link", { name: "Цена группы" }).count(), 1, "a planned price leads to the page of the prices, not to «Задать»");
   await run.page.close();
-  const none = await mounted("money-g4.entry.tsx", "drawer", {}, server(NO_PRICES, (r) => (/\/groups|students/.test(r.path) ? { json: [] } : null)));
-  await none.page.waitForFunction(() => /Цена группы не задана/.test(document.body.textContent || ""));
-  assert.match(await body(none.page), /Задать цену группы/);
+  const none = await mounted("money-g4.entry.tsx", "drawer", {}, server(NO_PRICES, answer));
+  await none.page.waitForFunction(() => /цена не задана/.test(document.body.textContent || ""));
+  await none.page.click('label:has-text("Иванов Иван")');
+  await none.page.waitForSelector('[data-testid="enrol-note-price"]');
+  assert.equal(await none.page.getByRole("link", { name: "Задать цену" }).count(), 1);
+  assert.match(plain(await none.page.textContent('[data-testid="enrol-note-price"]')), /Пока цена не задана, сумма оплаты не подсказывается/);
   await none.page.close();
 });
 

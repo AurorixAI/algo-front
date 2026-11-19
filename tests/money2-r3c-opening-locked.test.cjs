@@ -32,6 +32,7 @@ async function enrolWindow(can) {
   await run.page.evaluate(() => window.mount("assign", { role: "owner", org_role: "owner" }, { moneyAvailable: true, mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups" }));
   await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
   await run.page.waitForTimeout(400);
+  await run.page.click('[data-testid="enrol-terms-toggle"]');        // the opening balance lives under «Изменить» of the conditions
   return run;
 }
 const toggle = (run) => run.page.getByRole("switch", { name: /Остаток на начало учёта/ });
@@ -107,6 +108,7 @@ test("the refusal in the enrolment window is shown once, in the server's words, 
   await run.page.evaluate(() => window.mount("assign", { role: "owner", org_role: "owner" }, { moneyAvailable: true, mode: "add", currentGroupName: "Алгебра", excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups" }));
   await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
   await run.page.waitForTimeout(300);
+  await run.page.click('[data-testid="enrol-terms-toggle"]');
   await toggle(run).click();
   await run.page.locator("#assign-group-opening-paid-until").fill("30.11.2026");
   await run.page.getByRole("button", { name: /^(Добавить|Зачислить)/ }).last().click();

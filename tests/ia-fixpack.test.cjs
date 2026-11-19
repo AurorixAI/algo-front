@@ -166,18 +166,21 @@ test("F8: «Убрать из группы…» is on the card of the group in �
 test("F12: one vocabulary of enrolment - «Зачислить в группу» / «Перевести в другую группу» - on the card, in the dialog and on the group page", () => {
   assert.equal(E.ENROL_ACTION_LABEL, "Зачислить в группу");
   assert.equal(E.TRANSFER_ACTION_LABEL, "Перевести в другую группу");
-  assert.equal(E.enrolDialogTitle("add", true), "Зачислить в группу");
-  assert.equal(E.enrolDialogTitle("add", false), "Зачислить в группу");
-  assert.equal(E.enrolDialogTitle("transfer", true), "Перевести в другую группу");
-  assert.equal(E.enrolDialogTitle("transfer", false), "Зачислить в группу");
+  // the window of the card names the person and the action (the group is chosen inside it): one place
+  assert.equal(E.enrolCardTitle(false, "Анвар Каримов"), "Зачислить: Анвар Каримов");
+  assert.equal(E.enrolCardTitle(true, "Анвар Каримов"), "Перевести: Анвар Каримов");
   const blocks = [read("src/components/students/student-groups-block.tsx"), read("src/components/groups/assign-group-modal.tsx"), read("src/components/groups/add-student-drawer.tsx"), read("src/app/owner/groups/[id]/page.tsx"), read("src/app/admin/groups/[id]/page.tsx")];
-  const banned = /Добавить в группу|Добавить в ещё одну группу|Перевести сюда|Перевести в группу|Добавить ученика|Добавить учеников|Добавить ещё и|Зачисление в группу|>\s*Перевести\s*</;
+  const banned = /Добавить в группу|Добавить в ещё одну группу|Перевести в группу|Добавить ученика|Добавить учеников|Добавить ещё и|Зачисление в группу|>\s*Перевести\s*</;
   for (const text of blocks) assert.doesNotMatch(text, banned);
   assert.match(blocks[0], /ENROL_ACTION_LABEL/);
   assert.match(blocks[0], /TRANSFER_ACTION_LABEL/);
-  assert.match(blocks[1], /enrolDialogTitle\(/);
-  // both forms carry the same extras: an individual price and an opening balance (the two shared form blocks)
-  for (const text of [blocks[1], blocks[2]]) { assert.match(text, /<EnrolPriceToggle\b/); assert.match(text, /<OpeningToggle\b/); }
+  assert.match(blocks[1], /enrolCardTitle\(/);
+  // both forms carry the same extras through ONE block of conditions (the mock-up of 19.11): the day, an individual price and its reason, an opening balance
+  for (const text of [blocks[1], blocks[2]]) { assert.match(text, /<EnrolTerms\b/); assert.match(text, /opening=\{/); }
+  const terms = read("src/components/groups/enrol-terms.tsx");
+  assert.match(terms, /<OpeningToggle\b/); assert.match(terms, /<MoneyField\b/); assert.match(terms, /<ReasonField\b/);
+  // the two words of the choice «Перевести сюда» / «Оставить в обеих» are the owner's (the mock-up) and live in ONE place
+  assert.equal(E.ENROL_HERE_TRANSFER_LABEL, "Перевести сюда"); assert.equal(E.ENROL_HERE_ADD_LABEL, "Оставить в обеих");
 });
 
 // ── F20: «Цена» / «Стоимость» ────────────────────────────────────────────────────────────────────────────

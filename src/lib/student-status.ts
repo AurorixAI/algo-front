@@ -1,6 +1,6 @@
 /**
- * Student status as the owner reads it. The stored status «Активный» says nothing about groups:
- * an active student without any active membership is shown as «Без группы».
+ * What the facts of a student say about his groups: is he in a group at all, and which one is «now».  The stored status «Активный» says nothing about groups:
+ * the window of enrolment reads the tag of a row («без группы» / «в «…»» / «в 2 группах») from these facts.
  * Pure: no React and no network, so node:test can load this file.
  */
 
@@ -13,7 +13,7 @@ export interface StudentGroupFacts {
   current_group_id?: string | null;
   /** LOGIC-B (O15): the server's own reading - an active membership in a live group (`has_group`) - when it sends it. */
   has_group?: boolean | null;
-  /** LOGIC-B (O15): the status to show, derived on the server: `new | diagnosed | active | no_group | archived`. */
+  /** LOGIC-B (O15): the server's reading of the status (`new | diagnosed | active | no_group | archived`); the window of enrolment does not show a status, the field stays in the contract. */
   status_view?: string | null;
 }
 
@@ -32,30 +32,4 @@ export function studentHasGroup(student: StudentGroupFacts): boolean {
 export function studentGroupId(student: StudentGroupFacts): string | null {
   if (typeof student.groups_count === "number") return student.current_group_id || null;
   return student.group_id || null;
-}
-
-/** Stored statuses plus «no_group» (active, but in no group). */
-export type StudentStatusKey = "new" | "diagnosed" | "active" | "archived" | "no_group";
-
-export const STUDENT_STATUS_LABELS: Record<StudentStatusKey, string> = {
-  new: "Новый",
-  diagnosed: "Диагностирован",
-  active: "Активный",
-  archived: "Архив",
-  no_group: "Без группы",
-};
-
-/**
- * The status to show: the server's `status_view` when it sends one (LOGIC-B O15: the same reading in every list and card);
- * otherwise an active student without a group becomes «no_group» and other statuses stay as stored.
- */
-export function studentStatusKey(student: StudentGroupFacts & { status: string }): string {
-  if (student.status_view && student.status_view in STUDENT_STATUS_LABELS) return student.status_view;
-  if (student.status === "active" && !studentHasGroup(student)) return "no_group";
-  return student.status;
-}
-
-export function studentStatusLabel(student: StudentGroupFacts & { status: string }): string {
-  const key = studentStatusKey(student);
-  return (STUDENT_STATUS_LABELS as Record<string, string>)[key] ?? key;
 }

@@ -90,13 +90,14 @@ export function enrolBarOf(rows: readonly EnrolBarRow[]): EnrolBar {
   const firstParts = payers[0].parts;
   const identical = payers.every((row) => row.amount === payers[0].amount && sameParts(row.parts, firstParts));
   const periodLine = firstParts.length === 1 ? lessonsLine(firstParts[0]) : null;
-  if (payers.length === 1 && rows.length === 1) return { ...base, line: periodLine, expandable: firstParts.length > 1 };
+  if (payers.length === 1 && rows.length === 1) return { ...base, line: periodLine ?? (periodsOf(firstParts.map((part) => part.label)) || null), expandable: firstParts.length > 1 };
   if (identical && periodLine) {
     const each = splitMoney(payers[0].amount ?? 0);
     const everyone = payers.length === rows.length;
     const who = everyone ? "по" : payers.length === 1 ? `${payers[0].name} —` : `${COUNT_DATIVE[payers.length] ?? `${payers.length} ученикам`} по`;
     return { ...base, line: `${who} ${each.text} · ${periodLine}`, expandable: false };
   }
-  const labels = payers.flatMap((row) => row.parts.map((part) => part.label));
+  // the periods in the order of the longest story (a student with two months says «октябрь, ноябрь»), a new one is added after them
+  const labels = [...payers].sort((a, b) => b.parts.length - a.parts.length).flatMap((row) => row.parts.map((part) => part.label));
   return { ...base, line: periodsOf(labels) || null, expandable: payers.length > 1 || firstParts.length > 1 };
 }

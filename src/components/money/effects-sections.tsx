@@ -3,9 +3,6 @@
 import { tidyMoneyText } from "@/lib/money-format";
 import { Disclosure } from "@/components/ui/disclosure";
 import { calmMoneyText, effectFullTexts, effectSections, type TransferEffects } from "@/lib/transfer-effects";
-import type { LeaveUndo } from "@/lib/transfer-effects";
-import { pluralRu } from "@/lib/plural";
-import { HelpHint } from "@/components/ui/help-hint";
 
 /**
  * Money-2 Э1 / А7: «Что изменится» of a transfer / leaving / archiving as SHORT ROWS «что → значение» from the structure of the server's `effects` (the sums and the days are the server's); the group
@@ -36,32 +33,4 @@ export function EffectsSections({ effects, target = null, testId = "transfer-eff
       </Disclosure>
     </div>
   );
-}
-
-/** Comes back in the ordinary way / is written anew (the server's `undone = false`): the short line, the server's words are in the «?». */
-export const LEAVE_ORDINARY_ONE_LINE = "Ученик записывается заново";
-
-/**
- * Money-2 T6 / fix 10B: a student whose leaving of today is NOT cancelled comes back in the ordinary way - the grey line «Ученик записывается заново» + a «?» with the sentence of the server (it changes what the
- * administrator has to set: the price and the pauses are to be set again).  A student who comes back AS HE WAS has no plate before the action - «всё останется как было» is the expected result; the server's words
- * come after the action, in the message of success.  The screen does not parse the sentence of the server: `undone` decides.
- */
-export function LeaveUndoNote({ undo, className = "" }: { undo: LeaveUndo; className?: string }) {
-  if (undo.undone) return null;
-  return (
-    <div data-testid="leave-undo" data-undone="no" className={`flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 ${className}`}>
-      <p className="min-w-0 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]" data-testid="leave-undo-line">{LEAVE_ORDINARY_ONE_LINE}</p>
-      <HelpHint text={tidyMoneyText(undo.text)} testId="leave-undo-help" />
-    </div>
-  );
-}
-
-/**
- * Several students, some of them come back as they were: a quiet line right under the fields of the price / the day, ONLY when the administrator really entered a common price or changed «Оплата с» (there is a
- * difference to be surprised at); the server's words per student are in the summary under the list.  Nothing common entered - no line; all come back - the fields are hidden, no line.
- */
-export function SharedTermsNote({ names }: { names: string[] }) {
-  if (names.length === 0) return null;
-  const line = names.length === 1 ? `На ${names[0]} общие цена и дата не действуют — остаются прежние` : `На ${names.length} ${pluralRu(names.length, ["ученика", "ученика", "учеников"])} общие цена и дата не действуют — у них остаются прежние`;
-  return <p data-testid="leave-shared-note" className="text-xs text-slate-500 [overflow-wrap:anywhere]"><span data-testid="leave-shared-line">{line}</span></p>;
 }

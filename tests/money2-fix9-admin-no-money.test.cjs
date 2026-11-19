@@ -35,16 +35,16 @@ for (const [label, money] of [["without the right", false], ["with the right", t
   test(`card of a student, balances of the last time, ${label}: the link «Выписка» is ${money ? "there" : "absent"}`, async () => {
     const run = await mount(ctx, X.modalServer({ undone: false, pastBalances: [money ? withSum(ROW) : ROW] }), "assign", money ? OWNER : { role: "admin", org_role: "admin", payments_access: false }, { moneyAvailable: money, mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"], groupsBasePath: money ? "/owner/groups" : "/admin/groups" });
     await pick(run.page);
-    await run.page.waitForSelector('[data-testid="past-balance"]');
+    await run.page.waitForSelector('[data-testid="enrol-note-past"]');
     assert.equal(await run.page.locator('[data-testid="past-balance-link"]').count(), money ? 1 : 0);
-    assert.ok(!/Выписка/.test(plain(await run.page.locator('[data-testid="past-balances"]').textContent())) === !money);
+    assert.ok(!/Выписка/.test(plain(await run.page.locator('[data-testid="enrol-exceptions"]').textContent())) === !money);
     await run.page.close();
   });
   test(`drawer «Зачислить учеников», balances of the last time, ${label}: the link «Выписка» is ${money ? "there" : "absent"}`, async () => {
     const run = await openPage(ctx.browser, "money-b.entry.tsx", X.drawerServer([], undefined, false, { st9: [money ? withSum(ROW) : ROW] }), { width: 1280, height: 900 });
     await run.page.evaluate(([who, on]) => window.mount("addDrawer", who, on ? { summary: { accountingStart: "2026-09-01" }, refresh: false } : { refresh: false }), [money ? OWNER : { role: "admin", org_role: "admin", payments_access: false }, money]);
     await run.page.fill('input[placeholder^="Поиск по имени"]', "Уч");
-    await run.page.click('button:has-text("Новый Ученик")');
+    await run.page.click('label:has-text("Новый Ученик")');
     await run.page.waitForSelector('[data-testid="enrol-note-past"]');
     assert.equal(await run.page.locator('[data-testid="past-balance-link"]').count(), money ? 1 : 0);
     await run.page.close();

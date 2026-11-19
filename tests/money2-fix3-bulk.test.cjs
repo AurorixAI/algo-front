@@ -32,7 +32,7 @@ function server(refuse) {
 async function run(refuse, ids) {
   const page = await openPage(ctx.browser, "enrol.entry.tsx", server(refuse), { width: 1280, height: 900 });
   await page.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
-  for (const id of ids) { const s = STUDENTS.find((x) => x.id === id); await page.page.fill('input[placeholder^="Поиск по имени"]', s.last_name.slice(0, 3)); await page.page.click(`button:has-text("${s.full_name}")`); }
+  for (const id of ids) { const s = STUDENTS.find((x) => x.id === id); await page.page.fill('input[placeholder^="Поиск по имени"]', s.last_name.slice(0, 3)); await page.page.click(`label:has-text("${s.full_name}")`); }
   return page;
 }
 const bulkCalls = (page) => page.calls.filter((c) => c.method === "POST" && c.path === "/auth/org/groups/g2/students/bulk");
@@ -67,20 +67,20 @@ test("fix5 п.5: ученик в двух группах - в списке «в 
   const page = await openPage(ctx.browser, "enrol.entry.tsx", server([]), { width: 375, height: 800 });
   await page.page.evaluate((who) => window.mount(who), { role: "owner", org_role: "owner" });
   await page.page.fill('input[placeholder^="Поиск по имени"]', "Кар");
-  await page.page.waitForSelector('button:has-text("Каримов Фарход")');
-  const row = page.page.locator('button:has-text("Каримов Фарход")');
+  await page.page.waitForSelector('label:has-text("Каримов Фарход")');
+  const row = page.page.locator('label:has-text("Каримов Фарход")');
   assert.match(plain(await row.textContent()), /в 2 группах/);
-  assert.doesNotMatch(plain(await row.textContent()), /сейчас в «/);
+  assert.doesNotMatch(plain(await row.textContent()), /в «/, "two groups: the count, not one of the names");
   assert.equal(await page.page.locator('[data-testid="student-many-groups-hint"]').count(), 0, "not before the choice");
   await row.click();
   const hint = plain(await page.page.textContent('[data-testid="student-many-groups-hint"]'));
-  assert.equal(hint, "учится в нескольких группах — переведите его отдельно");
+  assert.equal(hint, "Каримов Фарход — учится в нескольких группах — переведите его отдельно", "the hint stands in the row of HIS choice, with his name");
   await page.page.waitForTimeout(500);
   assert.equal(await page.page.locator('[data-testid="enrol-submit"]').isDisabled(), false);
   assert.equal(await page.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
-  // a one-group student keeps «сейчас в «…»»
+  // a one-group student keeps the name of his group in the tag of his row
   await page.page.fill('input[placeholder^="Поиск по имени"]', "Ива");
-  await page.page.waitForSelector('button:has-text("Иванов Иван")');
-  assert.match(plain(await page.page.locator('button:has-text("Иванов Иван")').textContent()), /сейчас в «Алгебра 7»/);
+  await page.page.waitForSelector('label:has-text("Иванов Иван")');
+  assert.match(plain(await page.page.locator('label:has-text("Иванов Иван")').textContent()), /в «Алгебра 7»/);
   await page.page.close();
 });

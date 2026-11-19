@@ -12,7 +12,7 @@ const DOT: Record<"warn" | "muted" | "info", string> = { warn: "bg-warning-600",
 /** One row of the special things: a coloured dot (amber - somebody has to know, grey - for information, blue - a choice), the text, and an action at the right edge («Выписка», «Задать цену»). */
 export function ExceptionRow({ tone, children, aside, testId }: { tone: "warn" | "muted" | "info"; children: ReactNode; aside?: ReactNode; testId?: string }) {
   return (
-    <div data-testid={testId} data-tone={tone} className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-baseline gap-x-2.5 text-sm text-slate-800">
+    <div data-testid={testId} data-row-tone={tone} className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-baseline gap-x-2.5 text-sm text-slate-800">
       <span aria-hidden="true" className={`h-2 w-2 -translate-y-px rounded-full ${DOT[tone]}`} />
       <div className="min-w-0 [overflow-wrap:anywhere]">{children}</div>
       {aside ? <div className="shrink-0">{aside}</div> : <span />}

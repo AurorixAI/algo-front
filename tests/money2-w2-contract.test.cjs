@@ -28,8 +28,9 @@ test("coming back the day of the leaving: «Оплата с» and the opening ba
   const props = { moneyAvailable: true, mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"] };
   const ordinary = await mount(ctx, addServer(false), "assign", OWNER, props);
   await pick(ordinary.page);
-  await ordinary.page.waitForSelector('[data-testid="assign-price"]');
-  assert.match(plain(await ordinary.page.locator('[role="dialog"]').evaluate((el) => el.innerText)), OLD, "baseline: the fields are there");
+  await ordinary.page.waitForSelector('[data-testid="enrol-terms"]');
+  await ordinary.page.waitForFunction(() => /Оплата с/.test(document.querySelector('[data-testid="enrol-terms-line"]').textContent));
+  assert.match(plain(await ordinary.page.locator('[role="dialog"]').evaluate((el) => el.innerText)), OLD, "baseline: the conditions («Оплата с …») are there");
   await ordinary.page.close();
   const undone = await mount(ctx, addServer(true), "assign", OWNER, props);
   await pick(undone.page);

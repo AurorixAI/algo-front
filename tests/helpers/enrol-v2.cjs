@@ -106,7 +106,10 @@ async function openDrawer(ctx, handler, { width = 1280, user = OWNER, props = {}
 /** chooses students by name through the list (the way a person does) */
 async function pick(page, ...names) {
   for (const name of names) {
-    await page.locator(`[data-testid="enrol-list"] label:has-text("${name}")`).first().click();
+    const row = page.locator(`[data-testid="enrol-list"] label:has-text("${name}")`).first();
+    // the list shows five rows; the rest opens with «и ещё N» (the person can also search)
+    if ((await row.count()) === 0 && (await page.locator('[data-testid="enrol-list-more"]').count()) > 0) await page.click('[data-testid="enrol-list-more"]');
+    await row.click();
     await page.waitForTimeout(80);
   }
 }

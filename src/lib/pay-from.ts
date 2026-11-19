@@ -10,7 +10,6 @@ import { pluralRu } from "./plural";
 
 const isIsoDateString = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-export const PAY_FROM_LABEL = "Оплата с";
 /** The day of the field never goes further into the future than the server allows. */
 export const PAY_FROM_MAX_AHEAD_DAYS = 62;
 /** The oldest day when the centre has not said when its accounting starts (the server's own floor is the start of the accounting). */
@@ -115,36 +114,9 @@ export function payFromRequest(value: string, def: PayFromDefault | null, moneyR
   return value;
 }
 
-/** The quiet line for a role without money, and under the field for the others: «Оплата считается с 06.11.2026 — с первого занятия группы» (the words of the server's `billing.text`). */
-export function payFromDefaultLine(def: PayFromDefault | null): string | null {
-  if (!def) return null;
-  if (def.text) return def.text;       // the sentence of the server; ours below only for an older server
-  const when = formatDateRu(def.default_pay_from);
-  return def.first_lesson === null ? `Оплата считается с ${when}: у группы нет занятий в ближайшие дни` : `Оплата считается с ${when} — с первого занятия группы`;
-}
-
 /** A chosen day before today charges the days of the past AT ONCE: the dry run says how much (a single student). */
 export function payFromIsPast(value: string, def: PayFromDefault | null): boolean {
   return Boolean(def) && isIsoDateString(value) && value < (def as PayFromDefault).today;
-}
-
-/** Money-2 fix 10: the title of the block of the charge at once (the sentence of the server stays in the older answer without `parts`). */
-/** The «?» of the label «Оплата с» (it replaced two lines under the field: the default day repeated the field, «Дату выбрали вы» was obvious). */
-export const PAY_FROM_HELP = "По умолчанию — первое занятие группы начиная с сегодня. Можно выбрать другую дату: ученик платит с неё.";
-export const IMMEDIATE_TITLE = "К оплате сразу";
-export const IMMEDIATE_TOTAL_TITLE = "Всего к оплате сразу";
-/** The «?» of the block: what the sum is; the rounding only for a month that is not whole, the line about the earlier stay only when the student has one in THIS group. */
-export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): string {
-  return ["Стоимость уроков с даты «Оплата с» до конца оплачиваемого периода — её ученик платит сейчас.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
-}
-
-/** The period line shared by all the students who pay at once («Ноябрь, с 19.11 · 5 уроков из 12 — каждому 188 000 сум»); null when the periods differ (each row then has its own). */
-export function sharedPeriodLine(partsOf: ImmediatePart[][], everyonePays: boolean): string | null {
-  if (partsOf.length < 2 || partsOf.some((parts) => parts.length !== 1)) return null;
-  const key = (part: ImmediatePart) => `${part.label}|${part.from}|${part.amount}|${part.lessons}|${part.lessons_in_period}|${part.whole}`;
-  if (partsOf.some((parts) => key(parts[0]) !== key(partsOf[0][0]))) return null;
-  const row = immediatePartRows(partsOf[0])[0];
-  return `${row.label} — ${everyonePays ? "каждому" : "по"} ${row.amount}`;
 }
 
 export const PAY_FROM_NOTHING_NOW = "Сразу платить не нужно";

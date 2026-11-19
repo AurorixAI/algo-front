@@ -55,7 +55,7 @@ test("the team page and every staff-name render go through staffDisplayName, nev
 
   const renders = [
     "app/owner/teachers/page.tsx", "components/groups/group-detail-view.tsx", "components/groups/groups-list-view.tsx",
-    "components/layout/sidebar.tsx", "components/ui/cascading-filter.tsx", "components/groups/assign-group-modal.tsx",
+    "components/layout/sidebar.tsx", "components/ui/cascading-filter.tsx",
     "components/groups/group-create-modal.tsx", "app/teacher/dashboard/page.tsx", "app/teacher/exams/new/page.tsx",
   ];
   for (const file of renders) {

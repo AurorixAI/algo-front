@@ -53,13 +53,12 @@ test("the server sends the month in lower case («ноябрь»): the caption o
   assert.match(nb(payFrom.immediatePartLines(lower)[0]), /^Октябрь, с 27\.10/);
 });
 
-test("the rounding line exists for a part of a month and says 1 000 сум", () => {
-  // fix 10: the line is under the «?» of the block «К оплате сразу», not on the screen
-  assert.match(nb(payFrom.immediateHint({ rounded: true, sameGroup: false })), /Неполный месяц округляется до 1 000 сум\.$/);
-  assert.doesNotMatch(payFrom.immediateHint({ rounded: false, sameGroup: false }), /округляется/);
-  const text = fs.readFileSync(src("components/groups/pay-from-field.tsx"), "utf8");
-  assert.match(text, /rounded: parts\.some\(\(part\) => !part\.whole\)/, "only where a month is not whole");
-  assert.doesNotMatch(text, /pay-from-rounding-note/, "no line of its own on the screen");
+test("no rounding sentence and no «?» of «К оплате сразу» on the screen (the mock-up of 19.11): the sum is the server's, the bar says the lessons", () => {
+  assert.equal(payFrom.immediateHint, undefined);
+  for (const file of ["components/groups/add-student-drawer.tsx", "components/groups/assign-group-modal.tsx", "components/groups/enrol-bar-details.tsx", "components/ui/summary-bar.tsx"]) {
+    const text = fs.readFileSync(src(file), "utf8");
+    assert.doesNotMatch(text, /Неполный месяц округляется|pay-from-rounding-note|HelpHint/, file);
+  }
 });
 
 test("namesakes: the day added is `created_at` of the answer (the first), `joined_at` only when there is none", () => {

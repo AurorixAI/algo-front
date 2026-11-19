@@ -67,6 +67,14 @@ test("the buttons of the footer of a window of money are only from ConfirmFooter
   for (const file of MONEY) {
     if (rel(file) === "components/money/dialog-footer.tsx") continue;
     for (const footer of footerExpressions(read(file))) {
+      // the bottom bar of the windows of enrolment (the mock-up of 19.11): ONE main button per bar through `SummaryBar action=`, and only a small secondary button (an action in an alert) besides it
+      if (/<SummaryBar\b/.test(footer)) {
+        const buttons = footer.match(/<Button\b[^>]*>/g) ?? [];
+        const main = buttons.filter((button) => !/variant="secondary"/.test(button));
+        const bars = (footer.match(/<SummaryBar\b/g) ?? []).length;
+        if (main.length !== bars || (footer.match(/action=\{<Button\b/g) ?? []).length !== bars || /variant="(ghost|danger)"/.test(footer)) bad.push(`${rel(file)} (SummaryBar): one main button in action= expected: ${footer.replace(/\s+/g, " ").slice(0, 120)}`);
+        continue;
+      }
       const shared = /ConfirmFooter|CONFIRM_PRIMARY_CLASS/.test(footer);
       // a segmented choice inside the footer (`role="radio"`) is a choice, not an action button
       const raw = (footer.replace(/CONFIRM_PRIMARY_CLASS[^>]*>/g, "").match(/<(Button|button)\b/g) ?? []).length > (footer.match(/role="radio"/g) ?? []).length;
@@ -75,6 +83,17 @@ test("the buttons of the footer of a window of money are only from ConfirmFooter
     }
   }
   assert.deepEqual(bad, [], bad.join("\n"));
+});
+
+test("the bottom bar (SummaryBar) is flat like the footer: no gradient, no shadow, no glass; the windows of enrolment use it and nothing else under the list", () => {
+  const bar = read(path.join(root, "components/ui/summary-bar.tsx"));
+  assert.doesNotMatch(bar, /gradient|shadow|backdrop|blur/);
+  assert.match(bar, /bg-slate-50/);
+  for (const file of ["components/groups/assign-group-modal.tsx", "components/groups/add-student-drawer.tsx"]) {
+    const text = read(path.join(root, file));
+    assert.match(text, /<SummaryBar\b/, file);
+    assert.doesNotMatch(text, /<ConfirmFooter\b/, `${file}: one footer per window`);
+  }
 });
 
 test("the shared footer itself: a FLAT main button (primary blue or danger) in one line, «Отмена» a ghost button, the keyboard's focus ring only; the Button under it has no gradient and no glow", () => {

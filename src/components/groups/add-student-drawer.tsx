@@ -2,7 +2,7 @@
 
 import { classLabel } from "@/lib/class-label";
 import { namesakeDetail } from "@/lib/student-namesake";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
@@ -18,9 +18,9 @@ import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { normalizeBilling, payFromErrorText, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
-import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL } from "@/lib/enrol-labels";
+import { ENROL_ACTION_LABEL, ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, TRANSFER_ACTION_LABEL } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -32,6 +32,7 @@ import { useFormMoneyPreview } from "@/lib/use-money-preview";
 import { TransferPreviewBlock } from "./transfer-preview-block";
 import { BulkOutcomePanel, type BulkOutcomeRow } from "./bulk-outcome-panel";
 import { EnrolTerms } from "./enrol-terms";
+import { BarDetails, BarMoreButton } from "./enrol-bar-details";
 import { EnrolExceptions, EnrolNoteRows, ExceptionRow, type EnrolNote } from "./enrol-exceptions";
 import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
 import { bulkHeadline, bulkOutcomeOf } from "@/lib/bulk-outcome";
@@ -173,6 +174,9 @@ export function AddStudentDrawer({
   const [byStudent, setByStudent] = useState(false);
   // the fields of the conditions are open: the list of students is folded up to the labels
   const [termsOpen, setTermsOpen] = useState(false);
+  // a student is chosen far down the list: the labels (their list) come into view, the page does not leave the person looking at a row that has just moved away
+  const chipsBox = useRef<HTMLDivElement | null>(null);
+  const chosenBefore = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -240,6 +244,11 @@ export function AddStudentDrawer({
   useEffect(() => {
     if (open) loadStudents();
   }, [open, loadStudents]);
+
+  useEffect(() => {
+    if (selected.size > chosenBefore.current) chipsBox.current?.scrollIntoView({ block: "nearest" });
+    chosenBefore.current = selected.size;
+  }, [selected.size]);
 
   const toggle = (student: Student) => {
     setSelected((prev) => {
@@ -331,7 +340,9 @@ export function AddStudentDrawer({
   useEffect(() => { if (!open) setLastImmediate(null); }, [open]);
   const sumsOn = moneyAvailable && payFromAllowed && Boolean(payDef);
   const counting = sumsOn && payPreview.status === "loading";
-  const shownImmediate = !sumsOn ? null : immediateReady ?? (counting && lastImmediate?.set === setKey ? lastImmediate.preview : null);
+  // a half-filled form (an own price without its reason, a day that is not a date) asks nothing: the previous sum of the SAME students stays, faded, and the line under it says what is missing - the bar does not jump
+  const incomplete = sumsOn && (dryException.error !== null || payProblem !== null);
+  const shownImmediate = !sumsOn ? null : immediateReady ?? ((counting || incomplete) && lastImmediate?.set === setKey ? lastImmediate.preview : null);
   const amountsState: "off" | "ready" | "stale" = !shownImmediate ? "off" : immediateReady ? "ready" : "stale";
   const immediateOf = new Map((shownImmediate?.immediate.rows ?? []).map((row) => [row.studentId, row]));
   const pastOf = new Map(pastBalancesByStudent(probeAnswer).map((entry) => [entry.studentId, entry.rows]));
@@ -471,24 +482,22 @@ export function AddStudentDrawer({
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : firstCount ? "Считаем…"
-    : bar && bar.total === null && amountsState === "ready" ? PAY_FROM_NOTHING_NOW
+    : bar && bar.total === null && amountsState === "ready" && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
     : null;
   const whyOff = !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
-  const line = stale ? "считаем…" : failed
+  const line = stale ? (incomplete ? <span data-testid="enrol-why">{dryException.error ?? payProblem}</span> : "считаем…") : failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
     : whyOff ? <span id="enrol-why" data-testid="enrol-why">{whyOff}</span>
     : bar && bar.total !== null && (bar.line || bar.expandable) ? (
       <>
         {bar.line}
-        {bar.expandable && (
-          <>{" "}<button type="button" aria-expanded={byStudent} onClick={() => setByStudent((value) => !value)} data-testid="enrol-by-student-toggle" className="inline-flex min-h-6 items-center font-semibold text-primary-700 hover:underline max-sm:min-h-10">{byStudent ? "Свернуть" : "По ученикам"}</button></>
-        )}
+        {bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={byStudent} onToggle={() => setByStudent((value) => !value)} /></>}
       </>
     ) : null;
   const buttonText = adding ? (movesOnly ? "Перевод…" : "Зачисление…") : enrolButtonLabel(selected.size, movesOnly ? "transfer" : "enrol");
   const submitOff = selected.size === 0 || adding || !transferAllowed || payProblem !== null || calculating;
 
-  const title = outcome ? outcome.headline : nameOfGroup ? `${movesOnly ? "Перевести" : "Зачислить"} в «${nameOfGroup}»` : movesOnly ? "Перевести в группу" : "Зачислить в группу";
+  const title = outcome ? outcome.headline : nameOfGroup ? `${movesOnly ? "Перевести" : "Зачислить"} в «${nameOfGroup}»` : movesOnly ? TRANSFER_ACTION_LABEL : ENROL_ACTION_LABEL;
   const removeLabel = (label: string) => `Убрать: ${label}`;
 
   return (
@@ -523,18 +532,7 @@ export function AddStudentDrawer({
             line={line}
             action={<Button type="button" size="lg" onClick={() => void handleAdd()} disabled={submitOff} loading={adding} data-testid="enrol-submit" aria-describedby={selected.size > 0 && whyOff ? "enrol-why" : undefined}>{buttonText}</Button>}
           >
-            {bar?.expandable && byStudent && (
-              <ul className="mt-2 grid max-h-40 gap-2 overflow-y-auto overscroll-contain text-sm" data-testid="enrol-by-student">
-                {barRows.filter((row) => row.amount !== null).map((row) => (
-                  <li key={row.id} className="flex items-baseline justify-between gap-3" data-testid="enrol-by-student-row">
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{row.name}
-                      {row.parts.length > 1 && <span className="block text-xs text-slate-600">{row.parts.map((part) => `${part.label} ${formatMoney(part.amount)}`).join(" + ")}</span>}
-                    </span>
-                    <span className="whitespace-nowrap font-medium tabular-nums">{formatMoney(row.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
           </SummaryBar>
         </>
       )}
@@ -554,7 +552,7 @@ export function AddStudentDrawer({
           />
         </div>
         {selected.size > 0 && (
-          <div className="mt-3">
+          <div className="mt-3" ref={chipsBox}>
             <PickedChips
               items={Array.from(selected.values()).map((student) => ({ id: student.id, label: nameOfStudent(student) }))}
               onRemove={(id) => setSelected((prev) => { const next = new Map(prev); next.delete(id); return next; })}
@@ -605,7 +603,7 @@ export function AddStudentDrawer({
                     <label data-student-row={s.id} className="flex cursor-pointer items-center gap-3 py-2.5">
                       <Checkbox checked={false} onChange={() => toggle(s)} aria-label={nameOfStudent(s)} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-slate-900" title={nameOfStudent(s)}>{nameOfStudent(s)}</span>
+                        <span className="block text-sm font-medium text-slate-900 [overflow-wrap:anywhere]">{nameOfStudent(s)}</span>
                         <span className="block text-xs text-slate-600 [overflow-wrap:anywhere]">
                           {classLabel(s.class_level)}
                           {detail && <span data-testid="namesake-detail"> · {detail}</span>}

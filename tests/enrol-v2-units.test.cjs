@@ -42,11 +42,15 @@ test("the bar: different sums or periods - a short line «за октябрь и
   assert.equal(flat(mixed.totalText), "1 128 000"); assert.equal(flat(mixed.line), "за октябрь и ноябрь"); assert.equal(mixed.expandable, true);
   const two = B.enrolBarOf([row("a", "А", 188000), row("b", "Б", 150000)]);
   assert.equal(flat(two.line), "за ноябрь"); assert.equal(two.expandable, true, "the sums differ: the list is offered");
+  const oneStudent = B.enrolBarOf([row("a", "А", 489000, [oct, whole])]);
+  assert.equal(flat(oneStudent.line), "за октябрь и ноябрь"); assert.equal(oneStudent.expandable, true, "one student with two periods: the periods are offered");
   const nobody = B.enrolBarOf([row("a", "А", null)]);
   assert.equal(nobody.total, null); assert.equal(nobody.line, null);
   const dates = B.enrolBarOf([row("a", "А", 100, [{ label: "19.11–18.12", from: "", amount: 100, lessons: 6, lessons_in_period: 12, whole: false }])]);
   assert.equal(flat(dates.line), "6 уроков из 12 за период 19.11–18.12", "a period given by dates is not a month");
   assert.equal(B.periodsOf(["октябрь", "ноябрь", "декабрь"]), "за октябрь, ноябрь и декабрь");
+  const swapped = B.enrolBarOf([row("a", "А", 188000), row("b", "Б", 489000, [oct, whole])]);
+  assert.equal(flat(swapped.line), "за октябрь и ноябрь", "the order of the longest story, not of the choosing");
   assert.equal(B.lessonsLine({ label: "март", from: "", amount: 1, lessons: 1, lessons_in_period: 22, whole: false }), "1 урок из 22 в марте");
   assert.equal(B.lessonsLine({ label: "май", from: "", amount: 1, lessons: 3, lessons_in_period: 22, whole: false }), "3 урока из 22 в мае");
 });

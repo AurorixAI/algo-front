@@ -5,6 +5,7 @@ import { formatDateRu, formatDayMonthRu } from "@/lib/business-time";
 import { formatMoneyInput } from "@/lib/money-format";
 import { payFromRange, type PayFromDefault } from "@/lib/pay-from";
 import { isOwnPrice, payFromReason, termsLine } from "@/lib/enrol-terms";
+import { TAP_ZONE } from "@/lib/tap-zone";
 import { DateInput } from "@/components/ui/date-input";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
@@ -86,7 +87,7 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
               <p className="mt-1.5 text-xs text-slate-600">
                 По умолчанию{" "}
                 {changed ? (
-                  <button type="button" data-testid="pay-from-reset" aria-label={`Вернуть дату по умолчанию ${formatDateRu((payDef as PayFromDefault).default_pay_from)}`} onClick={() => onPayFrom((payDef as PayFromDefault).default_pay_from)} className="font-semibold text-primary-700 hover:underline">
+                  <button type="button" data-testid="pay-from-reset" aria-label={`Вернуть дату по умолчанию ${formatDateRu((payDef as PayFromDefault).default_pay_from)}`} onClick={() => onPayFrom((payDef as PayFromDefault).default_pay_from)} className={`${TAP_ZONE} font-semibold text-primary-700 hover:underline`}>
                     {formatDayMonthRu((payDef as PayFromDefault).default_pay_from)}
                   </button>
                 ) : <span className="font-semibold text-slate-800">{formatDayMonthRu((payDef as PayFromDefault).default_pay_from)}</span>}

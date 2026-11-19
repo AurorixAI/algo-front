@@ -16,14 +16,7 @@ export const ENROL_STUDENTS_BUTTON_LABEL = "Зачислить учеников"
 export const ENROL_HERE_TRANSFER_LABEL = "Перевести сюда";
 export const ENROL_HERE_ADD_LABEL = "Оставить в обеих";
 
-/** Titles and button texts of the dialog of the card (mode «add» = one more group, «transfer» = move; no current group = first enrolment). */
-export function enrolDialogTitle(mode: "add" | "transfer", hasCurrentGroup: boolean): string {
-  if (mode === "add") return ENROL_ACTION_LABEL;
-  return hasCurrentGroup ? TRANSFER_ACTION_LABEL : ENROL_ACTION_LABEL;
-}
-
-/** The main button: the title already says «в другую группу», so the button of a transfer is «Перевести» (re-audit В2); an enrolment keeps its title. */
-export const TRANSFER_SUBMIT_LABEL = "Перевести";
-export function enrolSubmitLabel(mode: "add" | "transfer", hasCurrentGroup: boolean): string {
-  return mode === "transfer" && hasCurrentGroup ? TRANSFER_SUBMIT_LABEL : enrolDialogTitle(mode, hasCurrentGroup);
+/** The title of the window of the student's card: «Зачислить: Анвар Каримов» / «Перевести: Анвар Каримов» (the group is chosen in the window, so the title names the person). */
+export function enrolCardTitle(transfer: boolean, studentName: string): string {
+  return `${transfer ? "Перевести" : "Зачислить"}: ${studentName}`;
 }

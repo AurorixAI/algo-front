@@ -196,9 +196,9 @@ test("frame 6: a debt of the last time, «записывается заново�
   for (const width of [1280, 375]) {
     const run = await FRAMES[6](ctx, { width });
     const p = run.page;
-    const rows = p.locator('[data-testid="enrol-exceptions"] > [data-tone]');
+    const rows = p.locator('[data-testid="enrol-exceptions"] > [data-row-tone]');
     assert.equal(await rows.count(), 3);
-    assert.equal(await rows.nth(0).getAttribute("data-tone"), "warn");
+    assert.equal(await rows.nth(0).getAttribute("data-row-tone"), "warn");
     assert.match(plain(await rows.nth(0).innerText()), /^Лола Юсупова — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19\.11 Выписка$/);
     const link = rows.nth(0).getByRole("link", { name: "Выписка" });
     assert.match(await link.getAttribute("href"), /\/owner\/payments\/statement\/m-same$/);
@@ -233,7 +233,7 @@ test("frame 7: the sums differ - the bar says the periods in one short line and 
   assert.match(await barLine(p), /^за октябрь и ноябрь Свернуть$/);
   assert.equal(await p.locator('[data-testid="enrol-by-student-toggle"]').getAttribute("aria-expanded"), "true");
   const rows = await p.locator('[data-testid="enrol-by-student-row"]').allInnerTexts();
-  assert.deepEqual(rows.map(plain), ["Анвар Каримов октябрь 89 000 сум + ноябрь 400 000 сум 489 000 сум", "Лола Юсупова октябрь 89 000 сум + ноябрь 400 000 сум 489 000 сум", "Тимур Рашидов 150 000 сум"]);
+  assert.deepEqual(rows.map(plain), ["Анвар Каримов Октябрь, с 27.10 · 2 урока из 9 89 000 сум Ноябрь, весь месяц 400 000 сум 489 000 сум", "Лола Юсупова Октябрь, с 27.10 · 2 урока из 9 89 000 сум Ноябрь, весь месяц 400 000 сум 489 000 сум", "Тимур Рашидов 150 000 сум"]);
   await p.click('[data-testid="enrol-by-student-toggle"]');
   assert.equal(await p.locator('[data-testid="enrol-by-student"]').count(), 0);
   assert.equal(plain(await p.locator('[data-testid="enrol-by-student-toggle"]').innerText()), "По ученикам");
@@ -438,4 +438,23 @@ test("a11y: the search has the focus on opening, Esc closes the window, the boxe
   const fresh = await FRAMES[1](ctx);
   assert.equal(await fresh.page.evaluate(() => document.activeElement && document.activeElement.getAttribute("aria-label")), "Поиск по имени или ID", "the search takes the focus");
   await fresh.page.close();
+});
+
+const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
+test("layout: in every frame, with ordinary and with the longest names, at 1280 and 375, nothing leaves its box, the page does not scroll sideways, every tap target is 40 px on a phone", async () => {
+  const failures = [];
+  for (const long of [false, true]) {
+    for (const n of Object.keys(FRAMES).map(Number)) {
+      if (n === 4) continue;                                   // the window is closed: only the message
+      for (const width of n === 13 || n === 14 ? [375] : [1280, 375]) {
+        const run = await FRAMES[n](ctx, { width, long });
+        await run.page.waitForTimeout(700);                    // the window slides in
+        const facts = await run.page.evaluate(layoutProbe, '[role="dialog"]');
+        const small = width === 375 ? await run.page.evaluate(touchTargets, '[role="dialog"]') : [];
+        if (facts.bad.length || facts.scroll > 0 || small.length) failures.push(`frame ${n} ${width}${long ? " long" : ""}: ${JSON.stringify([...facts.bad, ...small]).slice(0, 220)}`);
+        await run.page.close();
+      }
+    }
+  }
+  assert.deepEqual(failures, [], failures.join("\n"));
 });

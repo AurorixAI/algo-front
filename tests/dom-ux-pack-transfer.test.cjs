@@ -72,18 +72,19 @@ test("В2: «Перевести в другую группу» - who and from wh
       const ratios = [...line.querySelectorAll("span")].filter((el) => el.children.length === 0 && el.textContent.trim()).map((el) => { const a = lum(parse(getComputedStyle(el).color)), b = lum({ r: 255, g: 255, b: 255 }); return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 10) / 10; });
       const body = dialog.querySelector('[data-modal-part="body"]');
       const list = document.querySelector('[data-testid="assign-groups"]');
-      const rows = list.querySelectorAll(':scope > div > div[class*="cursor-pointer"]').length;
+      const rows = list.querySelectorAll('[data-testid="assign-group-card"]').length;
       const block = document.querySelector('[data-testid="transfer-preview"]').getBoundingClientRect();
       const submit = document.querySelector('[data-testid="assign-submit"]');
       const lineBox = line.getBoundingClientRect();
       return { text: line.textContent.replace(/\s+/g, " ").trim(), ratios, lineHeight: Math.round(lineBox.height), scrolled: body.scrollTop, listHeight: Math.round(list.getBoundingClientRect().height), rows, blockBottom: Math.round(block.bottom), submitTop: Math.round(submit.getBoundingClientRect().top), submitHeight: Math.round(submit.getBoundingClientRect().height), submitText: submit.textContent.trim(), vh: window.innerHeight };
     });
-    assert.match(facts.text, /^Иванов Иван сейчас в «Алгебра 7 \(вт\/пт\)»$/, JSON.stringify(facts));
+    assert.match(facts.text, /^сейчас в «Алгебра 7 \(вт\/пт\)»$/, JSON.stringify(facts));
+    assert.equal(await page.getByRole("dialog", { name: "Перевести: Иванов Иван" }).count(), 1, "who - in the title, from where - in the line under it");
     assert.ok(facts.ratios.length > 0 && facts.ratios.every((ratio) => ratio >= 4.5), JSON.stringify(facts));
     assert.equal(facts.scrolled, 0, `${width}: the body of the window was not scrolled by the window itself`);
     assert.ok(facts.listHeight <= facts.rows * 150 + 60, `${width}: the list is as tall as its groups, not a fixed box (it was 220 / 340 px with one group): ${JSON.stringify(facts)}`);
     assert.ok(facts.blockBottom <= facts.submitTop + 1, `${width}: «Что изменится» is above the button: ${JSON.stringify(facts)}`);
-    assert.equal(facts.submitText, "Перевести");
+    assert.match(facts.submitText, /^Перевести в «/, "the button names the action and the group");
     assert.ok(facts.submitHeight <= 48, `${width}: one line: ${JSON.stringify(facts)}`);
     await page.close();
   }
@@ -103,25 +104,24 @@ async function openDrawer(width, user = { role: "owner", org_role: "owner" }) {
   const run = await openPage(browser, "enrol.entry.tsx", server, { width, height: 900 });
   await run.page.evaluate((who) => window.mount(who), user);
   await run.page.fill('input[placeholder^="Поиск по имени"]', "Кари");
-  await run.page.click('button:has-text("Каримов Фарход")');
+  await run.page.click('label:has-text("Каримов Фарход")');
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
   return run;
 }
 
 for (const width of [1280, 375]) {
-  test(`${width}: the drawer «Зачислить учеников»: the mode «Перевести» - the button says «Перевести (1)», one title «Что изменится», the sentence of the server, no salary; nothing leaves its box`, async () => {
+  test(`${width}: the drawer «Зачислить учеников»: the mode «Перевести» - the button says «Перевести», one title «Что изменится», the sentence of the server, no salary; nothing leaves its box`, async () => {
     const { page } = await openDrawer(width);
-    assert.equal(plain(await page.textContent('button:has-text("Перевести (1)")')), "Перевести (1)");
-    assert.equal(await page.locator('button:has-text("Зачислить (1)")').count(), 0);
+    assert.equal(plain(await page.textContent('[data-testid="enrol-submit"]')), "Перевести");
     assert.equal(plain(await page.textContent('[data-testid="transfer-preview"] h3')), "Что изменится");
     assert.equal(await rowsText(page.locator('[data-testid="transfer-carried"] li')), SENTENCE);
     assert.ok(!/зарплат|Каримова К\./i.test(plain(await page.textContent('[data-testid="transfer-preview"]'))));
     assert.equal(await page.locator('[data-testid="money-effects"]').count(), 0);
     // the other mode of the same window keeps «Зачислить»
-    await page.click('[role="radio"]:has-text("Зачислить и в эту группу")');
-    await page.waitForSelector('button:has-text("Зачислить (1)")');
+    await page.click('[role="radio"]:has-text("Оставить в обеих")');
+    await page.waitForFunction(() => document.querySelector('[data-testid="enrol-submit"]').textContent.trim() === "Зачислить");
     assert.equal(await page.locator('[data-testid="transfer-preview"]').count(), 0, "adding to a second group moves no money");
-    await page.click('[role="radio"]:has-text("Перевести в эту группу")');
+    await page.click('[role="radio"]:has-text("Перевести сюда")');
     await page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
     const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));

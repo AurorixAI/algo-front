@@ -897,11 +897,6 @@ export function overrideRowText(row: PriceOverrideRow, label: string): string {
 
 // ── Enrolment / transfer ────────────────────────────────────────────────────
 
-/** «Цена группы: 500 000 сум/мес» / «Цена группы не задана»; null for a role that does not see money (`price` undefined). */
-export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, label: string, scheduled?: GroupPriceScheduled | null): string | null {
-  if (price === undefined) return null;
-  return price === null ? priceNotInForceText(scheduled, "Цена группы не задана") : `Цена группы: ${formatPrice(price.amount, label)}`;
-}
 
 /** The line under the price of the target group: only when the price is NOT in force (the sum of the payment is not suggested) - a price that is there says nothing more (Money-2 fix 10B: «Эту цену получат…» is gone). */
 export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, students: number, scheduled?: GroupPriceScheduled | null): string | null {

@@ -41,12 +41,12 @@ export function GroupPickCard({ group, selected, gradeMismatch, priceText, price
         <span data-testid="group-card-name" className="block text-sm font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{group.name}</span>
         <span className="mt-0.5 block text-xs text-slate-600 [overflow-wrap:anywhere]">
           <span data-testid="group-schedule-line" className="tabular-nums">{groupScheduleLine(group.schedule)}</span>
-          {group.teacher_name && <span data-testid="group-card-teacher"> · {group.teacher_name}</span>}
-          {priceText && <span data-testid="group-card-price" className={priceMissing ? "font-medium text-warning-800" : undefined}> · {priceText}</span>}
+          {group.teacher_name && <span data-testid="group-pick-teacher"> · {group.teacher_name}</span>}
+          {priceText && <span data-testid="group-pick-price" className={priceMissing ? "font-medium text-warning-800" : undefined}> · {priceText}</span>}
           {gradeMismatch && <span data-testid="group-grade-chip"> · другой класс</span>}
         </span>
       </span>
-      <span data-testid="group-card-fill" className="shrink-0 whitespace-nowrap text-xs text-slate-600">{count} из {max}</span>
+      <span data-testid="group-pick-fill" className="shrink-0 whitespace-nowrap text-xs text-slate-600">{count} из {max}</span>
     </label>
   );
 }

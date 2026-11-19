@@ -113,19 +113,20 @@ async function drawerWith(summary, user) {
   const base = X.drawerServer([], (r) => (r.method === "GET" && r.path === "/auth/org/students" ? { json: { items: PEOPLE.map(([id, last]) => X.STUDENT(id, last)), total: 1 } } : r.method === "GET" && r.path === "/auth/org/opening-balances/summary" ? { json: summary } : null));
   const run = await openPage(ctx.browser, "money-b.entry.tsx", base, { width: 1280, height: 900 });
   await run.page.evaluate(([w]) => window.mount("addDrawer", w, { summary: { accountingStart: "2026-09-01" }, refresh: false, groupPrice: { amount: 380000, valid_from: "2026-09-01" } }), [user]);
-  await run.page.click('button:has-text("Новый")');
-  await run.page.waitForSelector('[data-testid="add-price-settings"]');
+  await run.page.click('label:has-text("Новый")');
+  await run.page.waitForSelector('[data-testid="enrol-terms"]');
+  await run.page.click('[data-testid="enrol-terms-toggle"]');
   await run.page.waitForTimeout(600);
   return run;
 }
-test("2. «Зачислить учеников»: the owner before the launch is closed sees the toggle; an administrator after it does not (and the frame of the price is not touched)", async () => {
+test("2. «Зачислить учеников»: the owner before the launch is closed sees the toggle; an administrator after it does not (and the price field of the conditions is not touched)", async () => {
   const open = await drawerWith(OPEN_SUMMARY(true), OWNER);
   assert.equal(await open.page.locator('button[role="switch"]:has-text("Остаток на начало")').count() === 1, true, "the owner has the toggle");
   await open.page.close();
   const locked = await drawerWith(OPEN_SUMMARY(false), ADMIN);
   assert.equal(await locked.page.locator('button[role="switch"]:has-text("Остаток на начало")').count(), 0);
   assert.doesNotMatch(plain(await locked.page.locator('[role="dialog"]').innerText()), /Остаток на начало/);
-  assert.equal(await locked.page.locator('button[role="switch"]:has-text("Индивидуальная цена")').count(), 1, "the price switch stays");
+  assert.equal(await locked.page.locator("#add-student-price-amount").count(), 1, "the price field stays");
   await locked.page.close();
 });
 test("2. the card of the student: the same rule - owner yes, administrator after the launch no; no divider left in the frame", async () => {
@@ -133,12 +134,14 @@ test("2. the card of the student: the same rule - owner yes, administrator after
   const props = { moneyAvailable: true, groupsBasePath: "/owner/groups", mode: "transfer", currentGroupId: null, currentGroupName: "", excludeGroupIds: [], sourceGroups: [] };
   const owner = await mount(ctx, server(OPEN_SUMMARY(true)), "assign", OWNER, props);
   await pick(owner.page); await owner.page.waitForTimeout(700);
+  await owner.page.click('[data-testid="enrol-terms-toggle"]');
   assert.equal(await owner.page.locator('button[role="switch"]:has-text("Остаток на начало")').count() === 1, true);
   await owner.page.close();
   const admin = await mount(ctx, server(OPEN_SUMMARY(false)), "assign", ADMIN, props);
   await pick(admin.page); await admin.page.waitForTimeout(700);
+  await admin.page.click('[data-testid="enrol-terms-toggle"]');
   assert.equal(await admin.page.locator('button[role="switch"]:has-text("Остаток на начало")').count(), 0);
-  assert.equal(await admin.page.locator('[data-testid="assign-price"] .border-t').count(), 0, "no divider without the second switch");
+  assert.equal(await admin.page.locator('[data-testid="enrol-terms-opening"]').count(), 0, "no block of the opening balance (and no divider for it)");
   await admin.page.close();
 });
 test("2. one function decides for both windows (no copy of the rule)", () => {
@@ -150,12 +153,12 @@ test("2. one function decides for both windows (no copy of the rule)", () => {
 });
 
 // ── 3. the chip of the class ─────────────────────────────────────────────────────────────────────────
-test("3. cards: a group that fits the class has no chip; another class - «Другой класс» (muted); no class of the student - no chip at all", async () => {
+test("3. cards: a group that fits the class has no chip; another class - «другой класс» (in the line of the card, muted); no class of the student - no chip at all", async () => {
   const props = { moneyAvailable: true, groupsBasePath: "/owner/groups", mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"], sourceGroups: [{ id: "ga", name: F.SHORT.A }] };
   const run = await mount(ctx, F.baseServer(() => null, F.SHORT), "assign", OWNER, props);
   await run.page.waitForSelector('[data-testid="assign-group-card"]');
-  const chips = await run.page.$$eval('[data-testid="assign-group-card"]', (cards) => cards.map((card) => ({ group: card.getAttribute("data-group"), chip: card.querySelector('[data-testid="group-grade-chip"]')?.textContent?.trim() ?? null })));
-  assert.deepEqual(chips, [{ group: "gb", chip: null }, { group: "gc", chip: null }, { group: "gt", chip: "Другой класс" }]);
+  const chips = await run.page.$$eval('[data-testid="assign-group-card"]', (cards) => cards.map((card) => ({ group: card.getAttribute("data-group"), chip: card.querySelector('[data-testid="group-grade-chip"]')?.textContent?.replace(/^[\s·]+/, "").trim() ?? null })));
+  assert.deepEqual(chips, [{ group: "gb", chip: null }, { group: "gc", chip: null }, { group: "gt", chip: "другой класс" }]);
   assert.doesNotMatch(plain(await run.page.locator("body").innerText()), /Подходит по классу/);
   await run.page.close();
   const none = await mount(ctx, F.baseServer(() => null, F.SHORT), "assign", OWNER, { ...props, studentGrade: 0 });

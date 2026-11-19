@@ -13,11 +13,8 @@ test("no old phrases in src/", () => {
   assert.deepEqual(hits, []);
 });
 
-test("the «?» text of «К оплате сразу»: base sentence, rounding only for an incomplete month, the same-group line only with a stay in this group", () => {
+test("the «?» text of «К оплате сразу» is gone from src/ (the mock-up of 19.11 has no «?» in the windows): no sentence, no function", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "pay-from.ts"), "utf8");
-  assert.ok(src.includes("Стоимость уроков с даты «Оплата с» до конца оплачиваемого периода — её ученик платит сейчас."));
-  assert.ok(src.includes("opts.rounded ?") && src.includes("Неполный месяц округляется до 1\\u00a0000\\u00a0сум."));
-  assert.ok(src.includes("opts.sameGroup ?") && src.includes("Долг или аванс с прошлого раза сюда не входит — он показан ниже."));
-  const sentence = /immediateHint[\s\S]*?\n}/.exec(src)[0];
-  assert.ok(!/Столько ученик должен|в его долге/.test(sentence), "the sum is not a debt");
+  assert.ok(!src.includes("immediateHint") && !src.includes("Стоимость уроков с даты «Оплата с»") && !src.includes("Неполный месяц округляется"));
+  assert.ok(!src.includes("Долг или аванс с прошлого раза сюда не входит"), "the debt is a row of its own, the sum is not explained by a sentence");
 });

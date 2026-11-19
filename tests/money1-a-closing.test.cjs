@@ -172,7 +172,7 @@ test("С5: the note of an administrator without the money access is neutral (gre
 
 test("С15: the bulk window of a transfer names the group in the heading and does not say «from» twice; the individual price of the old group is told only to a student who had one", () => {
   const drawer = src("components/groups/add-student-drawer.tsx");
-  assert.match(drawer, /Перевести в «\$\{groupNames\[groupId\]\}»/);
+  assert.match(drawer, /\$\{movesOnly \? "Перевести" : "Зачислить"\} в «\$\{nameOfGroup\}»/);
   assert.doesNotMatch(drawer, /— из «\$\{t\.from\}»/);
   // Money-2 wave 2: the window of a single transfer has no sentence of its own about the old individual price - `effects.ends` of the server says it (tests: money2-w1-effects, money2-w1-leave)
   assert.doesNotMatch(src("components/groups/assign-group-modal.tsx"), /hadOverride/);
@@ -192,6 +192,6 @@ test("Н3 Н4 Н5 Н8 Н10 Н11 Н13: the small texts", () => {
   assert.match(src("components/attendance/cancellation-kind-field.tsx"), /grid grid-cols-1 gap-2">/);
   assert.match(src("components/payments/refund-dialog.tsx"), /Возврат можно отменить\./);
   assert.match(src("components/payments/refund-dialog.tsx"), /Можно вернуть: <span className="font-semibold tabular-nums text-slate-900" data-testid="refund-refundable">/);
-  assert.match(src("components/groups/assign-group-modal.tsx"), /pt-2 pb-4 overflow-y-auto/);
+  assert.match(src("components/groups/assign-group-modal.tsx"), /bodyClassName="overflow-y-auto[^"]*"[\s\S]*px-5 pb-2 pt-1/, "the body scrolls itself and its first block has a top and a bottom padding");
   assert.match(src("components/payments/money-access-denied.tsx"), /h-10 w-10/);
 });

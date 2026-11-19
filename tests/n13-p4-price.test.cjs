@@ -300,11 +300,13 @@ test("the audit shapes are typed in api.ts and rendered by the screens, with not
 
 // ── group-price.ts: enrolment and transfer ──────────────────────────────────────────────────────────────────
 
-test("an enrolment says nothing about the expected price (fix10В: enrolPriceHint is gone); the price of the target group is one line", () => {
+test("an enrolment says nothing about the expected price (fix10В: enrolPriceHint is gone); the price of the target group is a few words under the title of the window", () => {
   assert.equal(G.enrolPriceHint, undefined);
-  assert.equal(plain(G.targetGroupPriceText({ amount: 500000, valid_from: "2026-10-01" }, "Цена в месяц")), "Цена группы: 500 000 сум/мес");
-  assert.equal(G.targetGroupPriceText(null, "Цена в месяц"), "Цена группы не задана");
-  assert.equal(G.targetGroupPriceText(undefined, "Цена в месяц"), null); // the key is absent: no money to show
+  const T = require(path.join(root, "src/lib/enrol-terms.ts"));
+  assert.equal(plain(T.priceInWords(500000, "Цена в месяц")), "500 000 сум в месяц");
+  assert.equal(plain(T.priceInWords(500000, "Цена пакета")), "500 000 сум за пакет");
+  assert.equal(G.priceNotInForceText(null, "цена не задана"), "цена не задана");
+  assert.equal(G.targetGroupPriceText, undefined, "the sentence «Цена группы: …» is gone: the window says the price in its heading line");
   assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 1), null, "a price that is in force says nothing more (fix 10B)");
   assert.equal(G.targetGroupPriceHint({ amount: 1, valid_from: "2026-10-01" }, 3), null);
   assert.match(G.targetGroupPriceHint(null, 1), /не подсказывается/);
@@ -880,7 +882,7 @@ test("a price of 0 is «бесплатно»: never «0 сум/мес», never �
   assert.equal(own.value, "бесплатно");
   assert.equal(plain(own.text), "Индивидуальная цена: бесплатно · Стипендия (цена группы 500 000 сум)");
   assert.equal(G.membershipPriceView({ amount: 400000, source: "override", valid_from: null, group_amount: 0, reason: "Договорённость" }, "Цена в месяц").note, "Договорённость · цена группы — бесплатно");
-  assert.equal(G.targetGroupPriceText({ amount: 0, valid_from: "2026-10-01" }, "Цена в месяц"), "Цена группы: бесплатно");
+  assert.equal(require(path.join(root, "src/lib/enrol-terms.ts")).priceInWords(0, "Цена в месяц"), "бесплатно");
   // the list card and the history
   const { GroupCard } = require(path.join(root, "src/components/groups/group-card.tsx"));
   const base = { id: "g1", org_id: "o", name: "Алгебра", class_level: 8, teacher_id: "t", teacher_name: "Иванов", description: null, status: "active", max_students: 20, student_count: 5, created_at: null };

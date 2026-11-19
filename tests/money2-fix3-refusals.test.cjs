@@ -107,13 +107,14 @@ test("п.5: BACKDATE_OWNER_ONLY в окне паузы — слова серве
   await run.page.close();
 });
 
-test("п.6 (375): подпись «сейчас в «…»» в шапке окна — на своей строке, без точки в начале", async () => {
+test("п.6 (375): подпись «сейчас в «…»» под названием окна — без точки в начале строки (точка стоит за классом и не отрывается от него); имя ученика — в самом названии", async () => {
   const run = await openPage(browser, "money2.entry.tsx", F.baseServer(() => null, F.SHORT), { width: 375, height: 800 });
   await run.page.evaluate((p) => window.mount("assign", { role: "owner", org_role: "owner" }, p), { moneyAvailable: true, sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"], studentName: "Каримов Фарход Абдуллаевич", currentGroupName: F.A });
   await run.page.waitForSelector('[data-testid="assign-current-caption"]');
   const text = plain(await run.page.textContent('[data-testid="assign-current-caption"]'));
   assert.ok(!text.startsWith("·") && /^сейчас в «/.test(text), text);
-  const own = await run.page.evaluate(() => { const c = document.querySelector('[data-testid="assign-current-caption"]'); const p = c.previousElementSibling; return c.getBoundingClientRect().top >= p.getBoundingClientRect().bottom - 1; });
-  assert.equal(own, true, "the caption is on its own line");
+  const line = await run.page.evaluate(() => document.querySelector('[data-testid="assign-current-group"]').textContent);
+  assert.match(line, /^8 класс\u00a0· сейчас в «/, "the dot is glued to the class by a non-breaking space");
+  assert.equal(await run.page.getByRole("dialog", { name: "Перевести: Каримов Фарход Абдуллаевич" }).count(), 1);
   await run.page.close();
 });

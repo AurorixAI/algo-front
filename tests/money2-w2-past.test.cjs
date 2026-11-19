@@ -13,19 +13,20 @@ const BALANCES = (money) => [
 const server = (pastBalances) => F.baseServer((request) => (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), past_balances: pastBalances, leave_undo: null } } : null), F.SHORT);
 const props = (extra = {}) => ({ moneyAvailable: true, mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"], groupsBasePath: "/owner/groups", ...extra });
 const pick = (page) => page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
-const rows = (page) => page.locator('[data-testid="past-balance"]').evaluateAll((items) => items.map((li) => ({ text: li.innerText.replace(/\s+/g, " ").trim(), href: li.querySelector("a")?.getAttribute("href") ?? null })));
+const rows = (page) => page.locator('[data-testid="enrol-note-past"]').evaluateAll((items) => items.map((li) => ({ text: li.innerText.replace(/\s+/g, " ").trim(), href: li.querySelector("a")?.getAttribute("href") ?? null })));
 
 test("Э2: a debt and an advance of past groups - a row each with the sum and a link to its statement", async () => {
   const run = await mount(ctx, server(BALANCES(true)), "assign", OWNER, props());
   await pick(run.page);
-  await run.page.waitForSelector('[data-testid="past-balances"]');
+  await run.page.waitForSelector('[data-testid="enrol-note-past"]');
   const found = await rows(run.page);
   assert.equal(found.length, 2);
-  assert.match(found[0].text, /^Долг · «Геометрия 8» · ушёл 10\.11\s+120 000 сум\s+Выписка$/);
+  assert.match(found[0].text, /^Долг с прошлого раза 120 000 сум · в «Геометрия 8», ушёл 10\.11\s+Выписка$/);
   assert.equal(found[0].href, "/owner/payments/statement/m-old-1");
-  assert.match(found[1].text, /^Аванс · «Английский 6» · ушёл 28\.10\s+80 000 сум\s+Выписка$/);
+  assert.match(found[1].text, /^Аванс с прошлого раза 80 000 сум · в «Английский 6», ушёл 28\.10\s+Выписка$/);
   assert.equal(found[1].href, "/owner/payments/statement/m-old-2");
-  assert.equal((plain(await run.page.locator('[data-testid="past-balances"]').evaluate((el) => el.innerText)).match(/120 000/g) ?? []).length, 1, "one sum once");
+  assert.equal((plain(await run.page.locator('[data-testid="enrol-exceptions"]').evaluate((el) => el.innerText)).match(/120 000/g) ?? []).length, 1, "one sum once");
+  assert.equal(await run.page.locator('[data-testid="enrol-note-past"]').first().evaluate((el) => el.getAttribute("data-row-tone")), "warn", "a debt is told in the amber row");
   await run.page.close();
 });
 
@@ -33,11 +34,11 @@ test("Э2: nothing left behind - nothing is drawn; the admin workspace links int
   const empty = await mount(ctx, server([]), "assign", OWNER, props());
   await pick(empty.page);
   await empty.page.waitForSelector('[data-testid="assign-submit"]:not([disabled])');
-  assert.equal(await empty.page.locator('[data-testid="past-balances"]').count(), 0);
+  assert.equal(await empty.page.locator('[data-testid="enrol-note-past"], [data-testid="enrol-exceptions"]').count(), 0, "nothing left behind - no row and no block");
   await empty.page.close();
   const admin = await mount(ctx, server(BALANCES(true)), "assign", OWNER, props({ groupsBasePath: "/admin/groups" }));
   await pick(admin.page);
-  await admin.page.waitForSelector('[data-testid="past-balances"]');
+  await admin.page.waitForSelector('[data-testid="enrol-note-past"]');
   assert.equal((await rows(admin.page))[0].href, "/admin/payments/statement/m-old-1");
   await admin.page.close();
 });
@@ -45,7 +46,7 @@ test("Э2: nothing left behind - nothing is drawn; the admin workspace links int
 test("Э2: a role without the right to money - the same rows without a sum; the button is not stopped", async () => {
   const run = await mount(ctx, server(BALANCES(false)), "assign", ADMIN, props({ moneyAvailable: false }));
   await pick(run.page);
-  await run.page.waitForSelector('[data-testid="past-balances"]');
+  await run.page.waitForSelector('[data-testid="enrol-note-past"]');
   const found = await rows(run.page);
   assert.equal(found.length, 2);
   assert.ok(found.every((row) => !/сум/.test(row.text)), JSON.stringify(found));
@@ -56,7 +57,7 @@ test("Э2: a role without the right to money - the same rows without a sum; the 
 test("Э2 (375): the block fits, no horizontal scroll", async () => {
   const run = await mount(ctx, server(BALANCES(true)), "assign", OWNER, props(), 375);
   await pick(run.page);
-  await run.page.waitForSelector('[data-testid="past-balances"]');
+  await run.page.waitForSelector('[data-testid="enrol-note-past"]');
   const facts = await run.page.evaluate(layoutProbe, '[role="dialog"]');
   assert.equal(facts.scroll, 0);
   assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));

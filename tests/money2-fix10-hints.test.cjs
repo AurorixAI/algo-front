@@ -1,85 +1,77 @@
-// Money-2 fix 10 (дополнение А-Г): the explanations live under a «?» (one Hint component): mouse, keyboard, a tap at 375, Esc, a press elsewhere; the long sentences of the server are not on the screen; the block of the past
-// balances is compact + a «?» only for the right to money; «К оплате сразу».
+// Money-2 fix 10 (дополнение А-Г) in the form of the mock-up of 19.11: there is NO «?» in the windows of enrolment - what a student's row has to say is a row with his name and the words of the server UNDER it (they wrap inside the
+// window at 375, they are not cut and not hidden); the balances of the last time are rows with «Выписка» only for the right to money.  The component of the «?» itself is tested where it still stands (the statement: money2-fix10-statement).
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { setup, plain, mount, OWNER } = require("./helpers/money2-w2.cjs");
-const { openPage } = require("./helpers/dom-page.cjs");
-const X = require("./helpers/money2-fix7.cjs");
-const { F } = X;
+const { setup, plain } = require("./helpers/money2-w2.cjs");
+const H = require("./helpers/enrol-v2.cjs");
 
 const ctx = setup(test);
 const NO_MONEY = { role: "admin", org_role: "admin", payments_access: false };
 const ORDINARY = "Ученика убрали сегодня, но после этого ему простили долг 15 000 сум — поэтому он записывается заново: прежние индивидуальная цена и паузы не вернутся";
+const UNDO_TEXT = "Ученика убрали сегодня — возвращаем как было: индивидуальная цена 300 000 сум. Долг снова за учеником";
 const SAME = { group_id: "g2", group_name: "7-Б Геометрия", membership_id: "m-same", left_on: "2026-11-17", kind: "debt", amount: 38000, same_group: true, text: "Уже был в этой группе, ушёл 17.11.2026 — остался долг 38 000 сум" };
+const PEOPLE = [H.STUDENT("st9", "Новый", "Ученик"), H.STUDENT("st8", "Второй", "Ученик"), H.STUDENT("st7", "Третий", "Ученик")];
 
-async function drawer(chosen, { undone = [], ordinary = [], balances = {}, who = OWNER, width = 1280 } = {}) {
-  const base = X.drawerServer(undone, (r) => (r.method === "GET" && r.path === "/auth/org/students" ? { json: { items: [X.STUDENT("st9", "Новый"), X.STUDENT("st8", "Второй"), X.STUDENT("st7", "Третий")], total: 3 } } : null), false, balances);
-  const server = (r) => {
-    if (r.method === "POST" && /\/students\/bulk$/.test(r.path) && X.isDry(r)) {
-      const res = base(r);
-      res.json.students.forEach((s) => { if (ordinary.includes(s.student_id)) s.leave_undo = { undone: false, text: ORDINARY, restored: [] }; });
-      return res;
+async function drawer(chosen, { undone = [], ordinary = [], balances = {}, who = H.OWNER, width = 1280 } = {}) {
+  const inner = H.server({ people: PEOPLE, past: balances, undone: [], ordinary: [] });
+  const handler = (r) => {
+    const res = inner(r);
+    if (r.method === "POST" && /\/students\/bulk$/.test(r.path) && /dry_run=true/.test(r.query) && res) {
+      res.json.students.forEach((s) => { s.leave_undo = undone.includes(s.student_id) ? { undone: true, text: UNDO_TEXT, restored: [] } : ordinary.includes(s.student_id) ? { undone: false, text: ORDINARY, restored: [] } : null; });
     }
-    return base(r);
+    return res;
   };
-  const run = await openPage(ctx.browser, "money-b.entry.tsx", server, { width, height: width === 375 ? 812 : 900 });
-  await run.page.evaluate(([w, m]) => window.mount("addDrawer", w, m ? { summary: { accountingStart: "2026-09-01" }, refresh: false, groupPrice: { amount: 380000, valid_from: "2026-09-01" } } : { refresh: false }), [who, who === OWNER]);
-  await run.page.fill('input[placeholder^="Поиск по имени"]', "Уч");
-  for (const last of chosen) await run.page.click(`button:has-text("${last} Ученик")`);
+  const run = await H.openDrawer(ctx, handler, { width, user: who, props: { money: who === H.OWNER } });
+  for (const first of chosen) await H.pick(run.page, first);
   return run;
 }
-const bubble = (page) => page.locator('[role="tooltip"]');
+const hintsIn = (page) => page.locator('[role="dialog"] [aria-label="Пояснение"], [role="tooltip"]').count();
 
-test("«?» of a plate: opens on click, Esc and a press elsewhere close it; the keyboard opens it; the bubble stays inside the window at 375", async () => {
+test("«записывается заново»: the line in the row of the student and the server's sentence under it, whole - no «?», no bubble; it stays inside the window at 375", async () => {
   for (const width of [1280, 375]) {
     const run = await drawer(["Второй"], { ordinary: ["st8"], width });
-    const help = run.page.locator('[data-testid="leave-undo-help"] [role="button"]');
-    await help.waitFor();
-    assert.equal(await help.getAttribute("aria-label"), "Пояснение");
-    await help.click();
-    await bubble(run.page).waitFor();
-    assert.ok(plain(await bubble(run.page).textContent()).startsWith(plain(ORDINARY)), "the sentence of the server inside");
-    const box = await bubble(run.page).boundingBox();
-    assert.ok(box.x >= 0 && box.x + box.width <= width + 0.5, `bubble inside the screen ${JSON.stringify(box)}`);
-    await run.page.keyboard.press("Escape");
-    assert.equal(await bubble(run.page).count(), 0, "Esc closes");
-    await help.focus();
-    await run.page.keyboard.press("Enter");
-    assert.equal(await bubble(run.page).count(), 1, "Enter opens");
-    await run.page.mouse.click(width / 2, 4);
-    await run.page.waitForTimeout(150);
-    assert.equal(await bubble(run.page).count(), 0, "a press elsewhere closes");
-    await run.page.close();
+    const p = run.page;
+    await p.locator('[data-testid="enrol-note-rewrite"]').waitFor();
+    assert.equal(await hintsIn(p), 0, "no «?»");
+    assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Записывается заново", "one student: his name is in the title, not in the row");
+    assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-text"]').innerText()), plain(ORDINARY), "the sentence of the server as it is");
+    const box = await p.locator('[data-testid="enrol-note-rewrite"]').boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= width + 0.5, `the row is inside the screen ${JSON.stringify(box)}`);
+    assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+    await p.close();
   }
 });
 
-test("plates: «Записывается заново» is a grey line in the row of its student (no full sentence of the server on the screen, no disclosure); a student who comes back as he was has none", async () => {
+test("rows: «записывается заново» and «вернётся как был» are rows with the NAME of their student and the words of the server; a student with nothing special has no row; no disclosure, no «?»", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
-  await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
-  const text = await X.shown(run.page.locator('[role="dialog"]'));
-  assert.equal(await run.page.locator('[data-testid="enrol-note-rewrite"]').count(), 2);
-  assert.ok(!text.includes("вернутся как были") && !text.includes("убрали сегодня"), text);
-  assert.ok(!text.includes("простили долг") && !text.includes(plain(X.UNDO_TEXT)), "no server sentence on the screen");
-  assert.equal(await run.page.locator('[role="dialog"] details').count(), 0);
-  assert.equal(await run.page.locator('[data-testid="enrol-summary-student"]', { hasText: "Новый" }).locator('[data-testid="enrol-note-rewrite"]').count(), 0);
-  assert.ok(!/уход отмен|Возврат обычный|возвращаются в день/i.test(text));
-  await run.page.close();
+  const p = run.page;
+  await p.waitForSelector('[data-testid="enrol-note-rewrite"]');
+  assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]').count(), 2);
+  assert.equal(await p.locator('[data-testid="enrol-note-undone"]').count(), 1);
+  assert.match(plain(await p.locator('[data-testid="enrol-note-undone"]').innerText()), new RegExp(`^Новый Ученик — ${plain(UNDO_TEXT).slice(0, 30)}`));
+  assert.match(plain(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Второй" }).innerText()), /^Второй Ученик — записывается заново Ученика убрали сегодня, но после этого/);
+  assert.equal(await p.locator('[role="dialog"] details').count(), 0);
+  assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Новый" }).count(), 0, "a student who comes back as he was is not «записывается заново»");
+  assert.equal(await hintsIn(p), 0);
+  assert.ok(!/уход отмен|Возврат обычный|возвращаются в день/i.test(plain(await p.getByRole("dialog").innerText())), "none of the old plates' sentences");
+  await p.close();
 });
 
-test("past balances: a note in the row of the student, no «?» about the statement (the link says it); without it - no sums, no link, no «?»", async () => {
+test("past balances: a row of the student with the sum and «Выписка»; without the right to money - no sums, no link", async () => {
   const run = await drawer(["Новый"], { balances: { st9: [SAME] } });
-  const box = run.page.locator('[data-testid="enrol-summary"]');
-  await box.waitFor();
-  assert.equal((await X.shown(box.locator('[data-testid="enrol-note-past"]'))).replace(/\s/g, ""), "Долгспрошлогораза38000сум·вэтойжегруппе,ушёл17.11Выписка");
-  assert.ok(!(await X.hintsOf(box.locator('[data-testid="enrol-summary-help"]'))).join(" ").includes("в выписке"), "the link «Выписка» says it; no second «?» about the statement");
-  assert.ok(!/остался долг/.test(await X.shown(box)), "the server's text is not put into the rows");
+  const row = run.page.locator('[data-testid="enrol-note-past"]');
+  await row.waitFor();
+  assert.equal(plain(await row.innerText()).replace(/\s/g, ""), "Долгспрошлогораза38000сум·вэтойжегруппе,ушёл17.11Выписка");
+  assert.equal(await row.getByRole("link", { name: "Выписка" }).count(), 1);
+  assert.ok(!/остался долг/.test(plain(await row.innerText())), "the server's text is not put into the row: the row is built from the fields");
+  assert.equal(await hintsIn(run.page), 0);
   await run.page.close();
   const bare = { ...SAME }; delete bare.amount; bare.text = "Уже был в этой группе, ушёл 17.11.2026 — остался долг";
   const poor = await drawer(["Новый"], { balances: { st9: [bare] }, who: NO_MONEY });
-  const pbox = poor.page.locator('[data-testid="enrol-summary"]');
-  await pbox.waitFor();
-  assert.equal(await pbox.locator('[data-testid="enrol-summary-help"], [data-testid="past-balance-link"]').count(), 0);
-  assert.ok(!/\d{2,3} \d{3}/.test(await X.shown(pbox)));
+  const prow = poor.page.locator('[data-testid="enrol-note-past"]');
+  await prow.waitFor();
+  assert.equal(await poor.page.getByRole("link", { name: "Выписка" }).count(), 0);
+  assert.ok(!/\d{2,3} \d{3}/.test(plain(await poor.page.getByRole("dialog").innerText())), "no sum on the screen");
   await poor.page.close();
 });
 
@@ -87,6 +79,6 @@ test("an old answer without `text` in the rows still draws (the compact row is b
   const old = { ...SAME }; delete old.text;
   const run = await drawer(["Новый"], { balances: { st9: [old] }, undone: [] });
   await run.page.locator('[data-testid="enrol-note-past"]').waitFor();
-  assert.match(await X.shown(run.page.locator('[data-testid="enrol-note-past"]')), /^Долг с прошлого раза 38 000 сум · в этой же группе/);
+  assert.match(plain(await run.page.locator('[data-testid="enrol-note-past"]').innerText()), /^Долг с прошлого раза 38 000 сум · в этой же группе/);
   await run.page.close();
 });

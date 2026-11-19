@@ -74,14 +74,14 @@ test("the drawer keeps the owner's wording and the transfer / add-more choice", 
   assert.match(drawer, /Нет учеников без группы\. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу\./);
   assert.match(drawer, /placeholder="Поиск по имени или ID…"/);
   assert.match(drawer, /const searching = searchTerm !== "";/);
-  assert.match(drawer, /сейчас в «\{groupNames\[currentGroupOf\(s\) as string\] \|\| "другой группе"\}»/);
-  assert.match(drawer, /\["transfer", ENROL_HERE_TRANSFER_LABEL\]/);
-  assert.match(drawer, /\["add", ENROL_HERE_ADD_LABEL\]/);
-  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести в эту группу"/);
-  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Зачислить и в эту группу"/);
-  // status pill goes through the shared helper, not a local table
-  assert.match(drawer, /studentStatusLabel\(s\)/);
-  assert.doesNotMatch(drawer, /statusLabels/);
+  assert.match(drawer, /в «\$\{groupNames\[current as string\] \|\| "другой группе"\}»/);
+  assert.match(drawer, /\{ value: "transfer", label: ENROL_HERE_TRANSFER_LABEL \}/);
+  assert.match(drawer, /\{ value: "add", label: ENROL_HERE_ADD_LABEL \}/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести сюда"/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Оставить в обеих"/);
+  // the tag of a row is made of the facts about the groups (one helper for several groups), not of a local table of statuses
+  assert.match(drawer, /inGroupsLabel\(s\.groups_count\) \|\| \(elsewhere/);
+  assert.doesNotMatch(drawer, /statusLabels|statusColors/);
 });
 
 test("an empty search says what to try, a one-character query says how many characters are needed", () => {
@@ -97,22 +97,19 @@ test("an empty search says what to try, a one-character query says how many char
 
 // ---- 2. «Без группы» is a status of its own, and a tab -------------------------------------------
 
-test("an active student with no group shows «Без группы», everything else keeps its label", () => {
-  const label = status.studentStatusLabel;
-  assert.equal(label({ status: "active", group_id: null }), "Без группы");
-  assert.equal(label({ status: "active" }), "Без группы");
-  assert.equal(label({ status: "active", group_id: null, groups_count: 0 }), "Без группы");
-  assert.equal(label({ status: "active", group_id: "g1" }), "Активный");                   // an older server: only group_id is known
-  assert.equal(label({ status: "active", group_id: "g1", groups_count: 1, current_group_id: "g1" }), "Активный");
-  assert.equal(label({ status: "active", group_id: null, groups_count: 2, current_group_id: "g2" }), "Активный"); // a live membership is enough
-  assert.equal(label({ status: "active", groups_count: 1 }), "Активный");
-  assert.equal(label({ status: "active", group_id: "stale", groups_count: 0, current_group_id: null }), "Без группы"); // stale primary group
-  assert.equal(label({ status: "new" }), "Новый");
-  assert.equal(label({ status: "diagnosed", group_id: null }), "Диагностирован");
-  assert.equal(label({ status: "archived", group_id: null }), "Архив");
-  assert.equal(label({ status: "mystery" }), "mystery");
-  assert.equal(status.studentStatusKey({ status: "active" }), "no_group");
-  assert.equal(status.studentStatusKey({ status: "new" }), "new");
+test("«Без группы» is not a status but a fact about the groups: the tag of a row says «без группы» / «в «…»» / «в 2 группах» from the same facts", () => {
+  const has = status.studentHasGroup;
+  assert.equal(has({ group_id: null }), false);
+  assert.equal(has({}), false);
+  assert.equal(has({ group_id: null, groups_count: 0 }), false);
+  assert.equal(has({ group_id: "g1" }), true);                                                  // an older server: only group_id is known
+  assert.equal(has({ group_id: "g1", groups_count: 1, current_group_id: "g1" }), true);
+  assert.equal(has({ group_id: null, groups_count: 2, current_group_id: "g2" }), true);        // a live membership is enough
+  assert.equal(has({ groups_count: 1 }), true);
+  assert.equal(has({ group_id: "stale", groups_count: 0, current_group_id: null }), false);    // stale primary group
+  assert.equal(status.studentGroupId({ group_id: "g1" }), "g1");
+  assert.equal(status.studentGroupId({ group_id: "stale", groups_count: 1, current_group_id: "g2" }), "g2", "the memberships win over the stored primary group");
+  assert.equal(status.studentGroupId({ group_id: "stale", groups_count: 0, current_group_id: null }), null);
   // «in a group» = an active membership in a live group (the server's has_group), the three edge states:
   assert.equal(status.studentHasGroup({ group_id: "stale", groups_count: 0 }), false);                       // stale students.group_id
   assert.equal(status.studentHasGroup({ group_id: "archived-group", groups_count: 0, current_group_id: null }), false); // archived group only

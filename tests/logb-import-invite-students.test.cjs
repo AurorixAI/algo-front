@@ -135,22 +135,16 @@ test("[O10.R1][O10.R9] the refusals of «Принять приглашение»
 
 // ── O12 / O15 / F7: students ───────────────────────────────────────────────────────────────────
 
-test("[O15.R1] «Без группы» comes from the server's `status_view`; the old client logic stays for an older server", () => {
+test("[O15.R1] «Без группы» comes from the server's `has_group` / `status_view`; the old client logic stays for an older server (the window of enrolment says it in the tag of a row: «без группы», «в «…»», «в 2 группах»)", () => {
   const student = fixture("x_student_no_group");
   assert.equal(student.status, "active");
   assert.equal(student.status_view, "no_group");
-  assert.equal(St.studentStatusKey(student), "no_group");
-  assert.equal(St.studentStatusLabel(student), "Без группы");
   assert.equal(St.studentHasGroup(student), false);
-  // the server's word wins over the stored status
-  assert.equal(St.studentStatusLabel({ status: "active", status_view: "active", has_group: true }), "Активный");
-  assert.equal(St.studentStatusLabel({ status: "active", status_view: "archived" }), "Архив");
-  assert.equal(St.studentStatusLabel({ status: "new", status_view: "new" }), "Новый");
-  assert.equal(St.studentStatusLabel({ status: "diagnosed", status_view: "diagnosed" }), "Диагностирован");
-  // an older server: no status_view, no has_group
-  assert.equal(St.studentStatusLabel({ status: "active", group_id: null }), "Без группы");
-  assert.equal(St.studentStatusLabel({ status: "active", group_id: "g" }), "Активный");
-  assert.equal(St.studentStatusLabel({ status: "active", groups_count: 0 }), "Без группы");
+  assert.equal(St.studentGroupId(student), null);
+  // an older server: no status_view, no has_group - only group_id / groups_count are known
+  assert.equal(St.studentHasGroup({ status: "active", group_id: null }), false);
+  assert.equal(St.studentHasGroup({ status: "active", group_id: "g" }), true);
+  assert.equal(St.studentHasGroup({ status: "active", groups_count: 0 }), false);
   // `has_group` is the server's own verdict, a stale `group_id` does not make a student «in a group»
   assert.equal(St.studentHasGroup({ has_group: false, group_id: "stale" }), false);
   assert.equal(St.studentHasGroup({ has_group: true }), true);
