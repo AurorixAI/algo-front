@@ -181,16 +181,17 @@ test("Б1: a day in the past - the dry run says «К оплате сразу: N 
   await page.close();
 });
 
-test("Б1: an administrator WITHOUT the money right - no date field at all, one quiet line, no pay_from and no sum in the request or on the screen", async () => {
+test("Б1: an administrator WITHOUT the money right - no date field and no line about the day (fix10В), no pay_from and no sum in the request or on the screen", async () => {
   const { page, calls } = await openDrawer(ADMIN_NO_MONEY);
-  await page.waitForSelector('[data-testid="pay-from-line"]');
+  await page.waitForSelector('button:has-text("Зачислить (1)")');
+  await page.waitForTimeout(300);
   assert.equal(await page.locator("#add-student-pay-from").count(), 0, "not blocked - absent");
-  assert.equal(plain(await page.textContent('[data-testid="pay-from-line"]')), "Оплата с 09.11.2026 — первое занятие группы с сегодня");
+  assert.equal(await page.locator('[data-testid="pay-from-line"]').count(), 0, "the day sentence gives a role without money nothing to decide");
   assert.ok(!/сум/.test(await page.textContent('[role="dialog"]')), "no sum");
   await page.click('button:has-text("Зачислить (1)")');
   await page.waitForTimeout(250);
   assert.equal(bulk(calls)[0].body.pay_from, undefined);
-  assert.ok(!calls.some((c) => isDry(c) && (/students\/bulk$/.test(c.path) || (c.body && c.body.pay_from))), "no dry run of the charge without the money right (the one of `leave_undo` - a plain add dry run of one student - is asked: it carries no sum)");
+  assert.ok(!calls.some((c) => isDry(c) && c.body && c.body.pay_from), "no dry run of the charge without the money right: the probe of `leave_undo` (a plain add of one student, once the form has settled) carries no day and no sum")
   await page.close();
 });
 

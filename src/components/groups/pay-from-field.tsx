@@ -30,9 +30,8 @@ export function PayFromField({ idPrefix, moneyRight, def, value, onChange, accou
   names?: ReadonlyMap<string, string> | null;
 }) {
   if (!def) return null;
-  if (!moneyRight) {
-    return <p className="text-xs text-slate-600" data-testid="pay-from-line">{payFromDefaultLine(def)}</p>;
-  }
+  // a role without the right to money sees no money and cannot choose the day: the sentence would give it nothing to decide (LESSONS 148 p.5)
+  if (!moneyRight) return null;
   const range = payFromRange(def.today, accountingStart);
   const past = payFromIsPast(value, def);
   const changed = value !== def.default_pay_from;
