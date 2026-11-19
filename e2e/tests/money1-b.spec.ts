@@ -100,7 +100,7 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await expect(field.getByLabel("Оплата с")).toHaveValue(/\d\d\.\d\d\.\d{4}/);
   // the DEFAULT day is proved by the value of the field = the day the server names; the sentence is the server's (the reason is shown muted under the line), no «?» in the window
   const def = await org.owner.api.get(`/auth/org/groups/${group.id}/pay-from-default`);
-  expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — (сегодня у группы занятие|ближайшее занятие группы)$/);   // the sentence of the server: the day is today / the day is ahead (fix 11, S2)
+  expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — (сегодня у группы занятие|ближайшее занятие группы|у группы нет занятий в ближайшие дни|начало учёта центра)$/);   // one of the four sentences of the server (`billing_start.default_text`; fix 11, S2); which one depends on the schedule of the group on the day of the run
   await expect(field.getByLabel("Оплата с")).toHaveValue(def.default_pay_from.split("-").reverse().join("."));
   await expect(field).toContainText("По умолчанию");
   await expect(drawer.getByLabel("Пояснение")).toHaveCount(0);
