@@ -91,7 +91,12 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const field = drawer.getByTestId("pay-from");
   await expect(field).toBeVisible();
   await expect(field.getByLabel("Оплата с")).toHaveValue(/\d\d\.\d\d\.\d{4}/);
-  await expect(drawer.getByTestId("pay-from-hint")).toContainText(/Оплата с \d\d\.\d\d\.\d{4} — /);   // the sentence of the server
+  // the line under the field is gone (owner 18.11, LESSONS 148): the DEFAULT day is proved by the value of the field = the day the server names, the sentence is the server's, the reason sits in the «?»
+  const def = await org.owner.api.get(`/auth/org/groups/${group.id}/pay-from-default`);
+  expect(def.text).toMatch(/^Оплата с \d\d\.\d\d\.\d{4} — /);   // the sentence of the server (first lesson from today)
+  await expect(field.getByLabel("Оплата с")).toHaveValue(def.default_pay_from.split("-").reverse().join("."));
+  await expect(field.getByTestId("pay-from-help")).toBeVisible();   // the «?» by the caption
+  await expect(drawer.getByTestId("pay-from-hint")).toHaveCount(0);   // no explanation line under the field
   // a day in the past: the server says how much is charged at once, before the button
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
@@ -102,7 +107,11 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   await expect(immediate.getByTestId("pay-from-immediate-total-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
   const firstRow = immediate.getByTestId("pay-from-immediate-parts").locator("li").first();
   await expect(firstRow).toContainText(/^[А-ЯЁ0-9][^,]*, (весь месяц|с \d\d\.\d\d)/);        // the server sends «ноябрь»: the caption starts with a capital
-  await expect(firstRow).toContainText(/\d[\d\s\u00a0]*\sсум$/);
+  // one period: its sum is the total above and the row is the caption only; two periods (the past days cross a month): a sum on each row
+  const rows = immediate.getByTestId("pay-from-immediate-parts").locator("li");
+  if ((await rows.count()) > 1) { for (const row of await rows.all()) await expect(row).toContainText(/\d[\d\s\u00a0]*\sсум$/); }
+  else await expect(firstRow).not.toContainText(/сум/);
+  await expect(immediate.getByTestId("pay-from-immediate-help")).toBeVisible();   // the «?» of the block
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
   const membership = await org.membershipId(student.id, group.id);

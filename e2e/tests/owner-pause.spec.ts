@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dm, expectNoHorizontalScroll, fillDate } from "../support/ui";
+import { dm, expectNoHorizontalScroll, expectStatementReconciles, fillDate } from "../support/ui";
 
 /**
  * LOGIC-A «Пауза»: «Пауза…» in the menu of a group of the «Обучение» tab (IA audit 22.10: a pause is a property of the enrolment, not of the
@@ -19,7 +19,7 @@ test.beforeAll(async () => {
 const costOf = async (page: import("@playwright/test").Page, membership: string): Promise<number> => {
   await page.goto(`/owner/payments/statement/${membership}`);
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
-  await expect(page.getByTestId("statement-reconciles")).toBeVisible();
+  await expectStatementReconciles(page);
   const text = (await page.locator("body").innerText()).replace(/ /g, " ");
   const match = /Стоимость обучения\s+([\d ]+) сум/.exec(text);
   if (!match) throw new Error("no «Стоимость обучения» on the statement");

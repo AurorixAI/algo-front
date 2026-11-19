@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type StudentInfo } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { dm, dmy, expectDate, expectNoHorizontalScroll, fillDate, moneyPattern, pickOption, toast } from "../support/ui";
+import { dm, dmy, expectStatementReconciles, expectDate, expectNoHorizontalScroll, fillDate, moneyPattern, pickOption, toast } from "../support/ui";
 import { readSheet, readZip, setCellText, writeZip } from "../support/xlsx-lite";
 
 /**
@@ -110,7 +110,7 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   const opening = page.getByTestId("statement-row-opening_paid_until");
   await expect(opening).toBeVisible();
   await expect(opening).toContainText(dm(paidUntil));
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
+  await expectStatementReconciles(page);
   await expect.poll(async () => (await org.owner.api.get(`/auth/org/memberships/${memberships[0]}/statement`)).rows.some((r: any) => r.type === "opening_paid_until")).toBe(true);
 });
 

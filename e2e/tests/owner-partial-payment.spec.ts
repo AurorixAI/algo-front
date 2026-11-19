@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
 import { readSheet, readZip } from "../support/xlsx-lite";
-import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
+import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern } from "../support/ui";
 
 /**
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
@@ -47,7 +47,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
 
   // --- the statement: the allocation of the payment and what is left
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
+  await expectStatementReconciles(page);
   const payment = page.getByTestId("statement-row-payment");
   await expect(payment).toContainText(new RegExp(`за (?:\\d\\d\\.\\d\\d–\\d\\d\\.\\d\\d|${MONTHS_NOMINATIVE}) — ${moneyPattern(200000)} \\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-month")).not.toContainText("стоимость"); // the month row is only the name (owner 23.10): the figures are in the columns
@@ -91,13 +91,13 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   // --- the rest is paid: the debt is closed, the second payment leaves nothing «осталось»
   await org.pay(student.id, 300000, { method: "card" });
   await page.reload();
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
+  await expectStatementReconciles(page);
   await expect(page.getByTestId("statement-row-payment")).toHaveCount(2);
   // the first payment keeps its history («осталось 300 000» was true when it was made); the second one closes the period
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 2" })).not.toContainText("осталось");
   await expect(page.getByTestId("statement-cell-balance").last()).toContainText("0"); // the period is closed: the chip says «0»
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
+  await expectStatementReconciles(page);
 
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();

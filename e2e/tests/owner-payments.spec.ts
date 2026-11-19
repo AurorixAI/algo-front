@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
+import { dmy, expectNoHorizontalScroll, expectStatementReconciles, statementRowMenu, money, moneyPattern, toast } from "../support/ui";
 
 /**
  * Owner: «Оплаты» (PAY-2: a payment is money; the server distributes it).  A brand-new student of a group WITHOUT a price is
@@ -93,13 +93,13 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(paymentRow).toContainText(`№ ${payment.receipt_no}`);
   await expect(paymentRow).toContainText(/наличные/i); // the method
   await expect(paymentRow.getByRole("list", { name: "Куда пошли деньги" })).toBeVisible(); // where the money went
-  await expect(page.getByTestId("statement-reconciles")).toContainText("Всё сходится");
+  await expectStatementReconciles(page);
   // the statement leads on: the student's «Оплаты» tab and the group
   await expect(page.getByTestId("statement-student-link")).toHaveAttribute("href", new RegExp(`/owner/students/${student.id}\\?tab=payments$`));
   await expect(page.getByTestId("statement-group-link")).toHaveAttribute("href", new RegExp(`/owner/groups/${group.id}$`));
 
   // --- the receipt: amount in words, who, what
-  await paymentRow.getByRole("button", { name: /^Действия:/ }).click();
+  await statementRowMenu(paymentRow).click();
   await page.getByRole("menuitem", { name: "Квитанция" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const receipt = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
   await expect(receipt).toBeVisible();
@@ -115,7 +115,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   // --- void (from the statement): a reason of 3+ characters is mandatory
   await page.getByRole("button", { name: "Назад" }).click();
   await expect(page).toHaveURL(new RegExp(`/owner/payments/statement/${membership}$`));
-  await page.getByTestId("statement-row-payment").getByRole("button", { name: /^Действия:/ }).click();
+  await statementRowMenu(page.getByTestId("statement-row-payment")).click();
   await page.getByRole("menuitem", { name: "Отменить оплату", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
   await dialog.getByLabel("Причина").fill("ab");

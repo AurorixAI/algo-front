@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { moneyPattern, toast } from "../support/ui";
+import { moneyPattern, statementRowMenu, toast } from "../support/ui";
 
 /**
  * «Деньги-1 / В» (front): the new flows of the money of the students - a refund with a reason and its receipt «В-n», a corrected payment in «Решения», a cancelled payment in the journal of payments,
@@ -55,7 +55,7 @@ test("corrected payment: the reason is required -> the line «Оплата ис�
   await org.pay(student.id, 300000, {}, group.id);
   const page = await signIn(org.owner);
   await page.goto(`/owner/payments/statement/${membership}`);
-  await page.getByTestId("statement-row-payment").getByRole("button", { name: /^Действия:/ }).click();
+  await statementRowMenu(page.getByTestId("statement-row-payment")).click();
   await page.getByRole("menuitem", { name: "Исправить оплату", exact: true }).dispatchEvent("click");
   const dialog = page.getByRole("dialog", { name: "Исправить оплату" });
   await dialog.getByLabel("Сумма", { exact: true }).fill("200000");
@@ -79,7 +79,7 @@ test("cancelled payment: the journal of payments shows it as «отменена�
   await org.pay(student.id, 300000, {}, group.id);
   const page = await signIn(org.owner);
   await page.goto(`/owner/payments/statement/${membership}`);
-  await page.getByTestId("statement-row-payment").getByRole("button", { name: /^Действия:/ }).click();
+  await statementRowMenu(page.getByTestId("statement-row-payment")).click();
   await page.getByRole("menuitem", { name: "Отменить оплату", exact: true }).dispatchEvent("click");
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
   await dialog.getByLabel(/^Причина/).fill("Внесена по ошибке");

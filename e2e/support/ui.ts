@@ -192,3 +192,17 @@ export async function lessonMenuItem(page: Page, name: string | RegExp) {
   const menu = await openLessonMenu(page);
   await menu.getByRole("menuitem", { name }).click();
 }
+
+/**
+ * The statement says «Всё сходится» no more (owner 18.11: only a deviation is shown). Its summary still carries the answer: `data-reconciles="true"` and no red line
+ * «Не сходится…» (LESSONS 144: both halves - the flag alone would pass a screen that lost the red line, the absence alone a screen that lost the summary).
+ */
+export async function expectStatementReconciles(page: Page) {
+  await expect(page.getByTestId("statement-summary")).toHaveAttribute("data-reconciles", "true");
+  await expect(page.getByTestId("statement-reconciles")).toHaveCount(0);
+}
+
+/** The «⋯» of a statement row: its name is «Действия с записью: <операция>», unique per row. */
+export function statementRowMenu(row: Locator): Locator {
+  return row.getByRole("button", { name: /^Действия с записью: / });
+}
