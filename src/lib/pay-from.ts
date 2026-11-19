@@ -63,7 +63,7 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
 /** The rows of the break-down block «К оплате сразу»: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
-    label: part.whole ? `${capital(part.label)}, весь месяц` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} · ${lessonsOf(part)}`,
+    label: part.whole ? `${capital(part.label)}, ${wholeWord(part)}` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} · ${lessonsOf(part)}`,
     amount: formatMoney(part.amount),
   }));
 }
@@ -72,13 +72,16 @@ export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string
 /** «5 уроков из 12». */
 const lessonsOf = (part: ImmediatePart): string => `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
 
+/** «весь месяц» for a calendar month («Ноябрь»); a whole period given by DATES («19.11–18.12») is «весь период». */
+const wholeWord = (part: ImmediatePart): string => (/\d/.test(part.label) ? "весь период" : "весь месяц");
+
 /** The server sends the month in lower case («ноябрь»); a caption of a row starts with a capital. */
 const capital = (text: string): string => text.charAt(0).toLocaleUpperCase("ru") + text.slice(1);
 
 export function immediatePartLines(parts: ImmediatePart[]): string[] {
   return parts.map((part) => {
     const sum = formatMoney(part.amount);
-    if (part.whole) return `${capital(part.label)}, весь месяц — ${sum}`;
+    if (part.whole) return `${capital(part.label)}, ${wholeWord(part)} — ${sum}`;
     // a part with no day (`from: null`: the earlier charge was taken off the month) has no «с …» - the lessons say how much of the month it is
     return `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} — ${sum} · ${lessonsOf(part)}`;
   });
@@ -135,9 +138,6 @@ export function immediateHint(opts: { rounded: boolean; sameGroup: boolean }): s
   return ["Стоимость уроков с даты «Оплата с» до конца оплачиваемого периода — её ученик платит сейчас.", opts.rounded ? "Неполный месяц округляется до 1\u00a0000\u00a0сум." : "", opts.sameGroup ? "Долг или аванс с прошлого раза сюда не входит — он показан ниже." : ""].filter(Boolean).join(" ");
 }
 
-export const PAY_FROM_NOTHING_NOW = "Сразу платить не нужно";
-
-/** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 /** The period line shared by all the students who pay at once («Ноябрь, с 19.11 · 5 уроков из 12 — каждому 188 000 сум»); null when the periods differ (each row then has its own). */
 export function sharedPeriodLine(partsOf: ImmediatePart[][], everyonePays: boolean): string | null {
   if (partsOf.length < 2 || partsOf.some((parts) => parts.length !== 1)) return null;
@@ -147,6 +147,9 @@ export function sharedPeriodLine(partsOf: ImmediatePart[][], everyonePays: boole
   return `${row.label} — ${everyonePays ? "каждому" : "по"} ${row.amount}`;
 }
 
+export const PAY_FROM_NOTHING_NOW = "Сразу платить не нужно";
+
+/** What the dry run of a BULK add says about the charge at once: a line per student and the total - all of it the server's sentences (the money right only; otherwise nothing). */
 export interface BulkImmediate {
   students: Array<{ studentId: string; text: string; amount: number; parts: ImmediatePart[] }>;
   /** EVERY chosen student in the order of the answer; `amount: null` - nothing to pay at once (the screen shows «—»).  The screen reads sums and periods from here, never from the sentences. */

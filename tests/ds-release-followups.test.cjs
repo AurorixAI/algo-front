@@ -49,7 +49,7 @@ test("the block «К оплате сразу»: rows with the caption on the lef
 
 test("the server sends the month in lower case («ноябрь»): the caption of a row starts with a capital; a period label «06.10–05.11» is untouched", () => {
   const lower = [{ label: "октябрь", from: "2026-10-27", amount: 89000, lessons: 2, lessons_in_period: 9, whole: false }, { label: "ноябрь", from: "2026-11-01", amount: 400000, lessons: 8, lessons_in_period: 8, whole: true }, { label: "06.10–05.11", from: "2026-10-06", amount: 1000, lessons: 0, lessons_in_period: 0, whole: true }];
-  assert.deepEqual(payFrom.immediatePartRows(lower).map((r) => nb(r.label)), ["Октябрь, с 27.10 · 2 урока из 9", "Ноябрь, весь месяц", "06.10–05.11, весь месяц"]);
+  assert.deepEqual(payFrom.immediatePartRows(lower).map((r) => nb(r.label)), ["Октябрь, с 27.10 · 2 урока из 9", "Ноябрь, весь месяц", "06.10–05.11, весь период"]);
   assert.match(nb(payFrom.immediatePartLines(lower)[0]), /^Октябрь, с 27\.10/);
 });
 

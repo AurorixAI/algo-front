@@ -114,15 +114,13 @@ export function debtBannerCopy(input: DebtBannerInput): BannerCopy {
 }
 
 /**
- * Where the notice of the debt is drawn (UX pack №25): only the pages where it is about what the person is doing - «Главная», «Ученики» and the section «Оплаты» - not over the schedule, the journal, the salary
- * or the settings.  On the list «Оплаты» itself it stays out: the two cards of the page say the same numbers (a fact once).  `paymentsBasePath` is `/owner/payments` or `/admin/payments`; the home of the
- * administrator is `/admin/diagnostics`.
+ * Where the notice of the debt is drawn (fix 10Д): ONLY on the control panel («Главная») and on the page «Оплаты» itself (the list / the tabs) - the two places where the person looks at the debts as a whole.
+ * Not on a statement of one student, a receipt, the pages of the groups and of the students, the schedule or the salary: the notice changes nothing they decide.  One condition here, the pages do not repeat it.
+ * `paymentsBasePath` is `/owner/payments` or `/admin/payments`; the home of the administrator is `/admin/diagnostics`.
  */
 export function bannerShownOn(pathname: string | null | undefined, paymentsBasePath: string): boolean {
   const path = (pathname ?? "").replace(/\/+$/, "");
   const role = paymentsBasePath.replace(/\/payments\/?$/, "");
   const home = role === "/admin" ? "/admin/diagnostics" : `${role}/dashboard`;
-  if (path === home) return true;
-  if (path === `${role}/students` || path.startsWith(`${role}/students/`)) return true;
-  return path.startsWith(`${paymentsBasePath}/`);   // the pages of the section (a statement, a receipt, the prices of the groups), not its list
+  return path === home || path === paymentsBasePath.replace(/\/+$/, "");
 }
