@@ -57,8 +57,8 @@ test("statement 1280: the four lines (charged | paid | balance | menu) are unbro
     assert.ok(breaks.length <= 1 && breaks.every((gap) => gap > 20 && gap < 60), `${col}: line broken, gaps ${JSON.stringify(l.gaps)}`);
   }
   const labels = await run.page.evaluate(() => [...document.querySelectorAll('[data-testid="statement-table"] button[aria-label]')].map((b) => [b.getAttribute("aria-label"), b.getAttribute("title")]));
-  assert.ok(labels.some(([a]) => a === "Действия с записью"));
-  for (const [a, t] of labels.filter(([a]) => /Действия/.test(a))) assert.equal(t, a, "tooltip = aria-label");
+  assert.ok(labels.some(([a]) => /^Действия с записью: /.test(a)));
+  for (const [a, t] of labels.filter(([a]) => /Действия/.test(a))) assert.equal(t, "Действия с записью", "the hover hint is the short one");
   assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "no horizontal scroll");
   await run.page.close();
 });

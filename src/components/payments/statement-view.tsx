@@ -442,7 +442,7 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
         {!m.is_active && <p className="text-xs text-slate-500">Ученик больше не в этой группе</p>}
       </header>
 
-      <section aria-label="Итоги" className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+      <section aria-label="Итоги" data-testid="statement-summary" data-reconciles={reconciles ? "true" : "false"} className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end lg:gap-x-10">
           {totals.map((total) => (
             <div key={total.key} className={total.key === "balance" ? "lg:ml-auto" : ""}>
@@ -613,7 +613,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
       <DataCell col="menu">
-        {menu.length > 0 ? <RowMenu items={menu} label="Действия с записью" width={220} /> : null}
+        {menu.length > 0 ? <RowMenu items={menu} label={`Действия с записью: ${entry.title}`} tooltip="Действия с записью" width={220} /> : null}
       </DataCell>
     </DataRow>
   );

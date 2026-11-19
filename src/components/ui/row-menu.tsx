@@ -27,12 +27,15 @@ type Anchor = { top: number; bottom: number; left: number; right: number };
 export function RowMenu({
   items,
   label = "Действия",
+  tooltip,
   busy = false,
   width = 232,
   triggerClassName = "inline-flex items-center justify-center max-sm:h-10 max-sm:w-10 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50",
 }: {
   items: RowMenuItem[];
   label?: string;
+  /** The hover hint when it should be shorter than the accessible name (a row says «Действия с записью: Оплата № 90» to a screen reader, «Действия с записью» on hover). */
+  tooltip?: string;
   busy?: boolean;
   width?: number;
   /** The look of the «⋯» button (a page that needs a bigger touch target says so); the default is the quiet row button. */
@@ -130,7 +133,7 @@ export function RowMenu({
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={anchor !== null}
-        title={label}
+        title={tooltip ?? label}
         disabled={busy}
         onClick={(event) => {
           if (anchor) { setAnchor(null); return; }

@@ -286,7 +286,7 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/payroll/month-status.tsx"), /label="Ещё: как считается, делитель"/); // the menu of the payroll pages
   assert.match(read("components/students/student-profile-view.tsx"), /label=\{`Действия: \$\{student\.full_name\}`\}/);
   assert.match(read("components/students/student-groups-block.tsx"), /label=\{`Действия по группе: \$\{item\.group_name\}`\}/); // the pause / leaving of a group (IA audit F2, F8)
-  assert.match(read("components/payments/statement-view.tsx"), /label="Действия с записью"/);
+  assert.match(read("components/payments/statement-view.tsx"), /label=\{`Действия с записью: \$\{entry\.title\}`\}/);
   assert.match(read("components/staff/staff-access-menu.tsx"), /label=\{`Действия: \$\{name\}`\}/);   // K2-2: the «⋯» of the staff list
   assert.match(read("components/groups/group-payments-tab.tsx"), /label=\{`Действия по оплате: \$\{view\.name\}`\}/); // passed to the shared MembershipRowActions
   // all ten files that use <RowMenu> are listed above
