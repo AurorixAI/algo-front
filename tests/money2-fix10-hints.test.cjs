@@ -48,7 +48,7 @@ test("rows: «записывается заново» and «вернётся к�
   await p.waitForSelector('[data-testid="enrol-note-rewrite"]');
   assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]').count(), 2);
   assert.equal(await p.locator('[data-testid="enrol-note-undone"]').count(), 1);
-  assert.match(plain(await p.locator('[data-testid="enrol-note-undone"]').innerText()), new RegExp(`^Новый Ученик — ${plain(UNDO_TEXT).slice(0, 30)}`));
+  assert.match(plain(await p.locator('[data-testid="enrol-note-undone"]').innerText()), new RegExp(`^Новый Ученик ${plain(UNDO_TEXT).slice(0, 30)}`));
   assert.match(plain(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Второй" }).innerText()), /^Второй Ученик — записывается заново Ученика убрали сегодня, но после этого/);
   assert.equal(await p.locator('[role="dialog"] details').count(), 0);
   assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Новый" }).count(), 0, "a student who comes back as he was is not «записывается заново»");

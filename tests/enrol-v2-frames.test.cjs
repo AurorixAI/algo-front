@@ -219,7 +219,7 @@ test("frame 6: a debt of the last time, «записывается заново�
     const link = rows.nth(0).getByRole("link", { name: "Выписка" });
     assert.match(await link.getAttribute("href"), /\/owner\/payments\/statement\/m-same$/);
     assert.equal(plain(await rows.nth(1).innerText()), plain(`Тимур Рашидов — записывается заново ${H.REWRITE}`));
-    assert.equal(plain(await rows.nth(2).innerText()), plain(`Мадина Турсунова — ${H.UNDO}`));
+    assert.equal(plain(await rows.nth(2).innerText()), plain(`Мадина Турсунова ${H.UNDO}`));
     assert.equal(await p.locator('[data-testid="enrol-exceptions"]').getByText("Анвар Каримов").count(), 0, "a student with nothing special has no row");
     assert.equal(await barSum(p), "564 000 сум");
     assert.equal(await barLine(p), "троим по 188 000 · 5 уроков из 12 в ноябре");

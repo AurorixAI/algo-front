@@ -93,5 +93,5 @@ export function ownPriceError(values: EnrolOverrideValues): OwnPriceError | null
   return full.error ? { field: "reason", text: full.error } : null;
 }
 
-/** «Начисление начнётся 21 ноября»: the muted line of the bar when nobody pays at once because the day of the charge is still ahead (the day is the server's `pay_from`). */
-export const payStartsLine = (iso: string, todayIso?: string | null): string => `Начисление начнётся ${dayMonthWords(iso, todayIso)}`;
+/** «Начисление с 21 ноября»: the muted line of the bar when nobody pays at once because the day of the charge is still ahead (the day is the server's `pay_from`). */
+export const payStartsLine = (iso: string, todayIso?: string | null): string => `Начисление с ${dayMonthWords(iso, todayIso)}`;

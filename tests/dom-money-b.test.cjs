@@ -508,7 +508,7 @@ test("RB Д3: «Оплата с» = today and a lesson today - the window says �
   await ctx.page.waitForTimeout(900);
   assert.equal(await ctx.page.locator('[data-testid="summary-bar-sum"], [data-testid="pay-from-immediate"]').count(), 0, "nothing charged now: no sum, no «ничего не начислится» on the default day");
   // the default day (9 November) is AHEAD of today (6 November): the muted line says when the charge starts - the day of the server (Money-2 fix 11, F10)
-  assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-idle"]')), "Начисление начнётся 9 ноября");
+  assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-idle"]')), "Начисление с 9 ноября");
   // the same answer for a day in the past: THERE the window says that nothing is to be paid at once
   await ctx.page.fill("#add-student-pay-from", "05.11.2026"); await ctx.page.keyboard.press("Tab");
   await ctx.page.waitForSelector('[data-testid="summary-bar-idle"]');

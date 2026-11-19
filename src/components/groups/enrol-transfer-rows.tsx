@@ -54,9 +54,8 @@ function Words({ preview, lines, onRetry }: { preview: EffectsPreview; lines: st
  * Students who are in another group (Money-2, frame 5): ONE switch «Перевести сюда / Оставить в обеих» for all of them (the server's rule is one mode per request) and a row per student with the place he is
  * in now and the server's words about the money of his move right under it.  One student - the switch stands in his own row.
  */
-export function EnrolTransferRows({ students, mode, onMode, preview, onRetry, addWords }: { students: readonly EnrolTransferStudent[]; mode: GroupJoinMode; onMode: (next: GroupJoinMode) => void; preview: EffectsPreview; onRetry: () => void; /** «Оставить в обеих»: what the server says the student pays at once in THIS group (`billing.immediate.text` of the probe `mode=add`), by student; nothing when it says none */ addWords?: ReadonlyMap<string, string> }) {
+export function EnrolTransferRows({ students, mode, onMode, preview, onRetry }: { students: readonly EnrolTransferStudent[]; mode: GroupJoinMode; onMode: (next: GroupJoinMode) => void; preview: EffectsPreview; onRetry: () => void; /** «Оставить в обеих»: what the server says the student pays at once in THIS group (`billing.immediate.text` of the probe `mode=add`), by student; nothing when it says none */ addWords?: ReadonlyMap<string, string> }) {
   const words = preview.status === "ready" ? transferWordsOf(preview.answer) : { byStudent: new Map<string, string[]>() };
-  const keptWords = (id: string): ReactNode => (mode === "add" && addWords?.get(id) ? <p className="mt-1.5 text-xs text-slate-600" data-testid="enrol-add-words">{addWords.get(id)}</p> : null);
   const single = students.length === 1;
   const hintOf = (student: EnrolTransferStudent): ReactNode => (mode === "transfer" && student.hint
     ? <p className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{student.name} — {student.hint}</p>
@@ -86,7 +85,6 @@ export function EnrolTransferRows({ students, mode, onMode, preview, onRetry, ad
           <span className="text-slate-600"> сейчас в «{only.from}»</span>
         </span>
         {switcher}
-        {keptWords(only.id)}
         {hintOf(only)}
         <Words preview={preview} lines={lonely(only.id)} onRetry={onRetry} />
       </ExceptionRow>
@@ -103,7 +101,6 @@ export function EnrolTransferRows({ students, mode, onMode, preview, onRetry, ad
           <span className="font-semibold text-slate-900">{student.name}</span>
           <span className="text-slate-600"> сейчас в «{student.from}»</span>
           {hintOf(student)}
-          {keptWords(student.id)}
           {preview.status === "ready" && <Words preview={preview} lines={words.byStudent.get(student.id) ?? []} onRetry={onRetry} />}
         </ExceptionRow>
       ))}

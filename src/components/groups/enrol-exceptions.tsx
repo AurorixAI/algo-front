@@ -42,13 +42,18 @@ export interface EnrolNote {
 const Who = ({ name }: { name: string | null }) => (name ? <><b className="font-semibold text-slate-900">{name}</b>{" — "}</> : null);
 
 /** One thing the server says about the student: the SHORT state (stands in the line of the name) and, muted and small under it, the server's detail. */
-function Fact({ testId, name, first, tone, state, detail, aside }: { testId: string; name: string | null; first: boolean; tone?: "warn"; state: ReactNode; detail?: ReactNode; aside?: ReactNode }) {
+function Fact({ testId, name, first, tone, state, phrase, detail, aside }: { testId: string; name: string | null; first: boolean; tone?: "warn"; state?: ReactNode; phrase?: ReactNode; detail?: ReactNode; aside?: ReactNode }) {
+  // the ONE rule: a thing with a short state stands in the line of the name; a thing that is a whole phrase of the server (no short state) - the name alone in bold and the phrase muted and small under it
+  const alone = phrase !== undefined && name !== null;
   return (
     <div data-testid={testId} className={first ? undefined : "mt-1.5"}>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0">{first && <Who name={name} />}<span className={tone === "warn" ? "text-warning-800" : undefined}>{state}</span></span>
-        {aside}
-      </div>
+      {alone ? (first && <b className="block font-semibold text-slate-900">{name}</b>) : (
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0">{first && <Who name={name} />}<span className={tone === "warn" ? "text-warning-800" : undefined}>{state ?? phrase}</span></span>
+          {aside}
+        </div>
+      )}
+      {alone && <span className={MUTED_DETAIL}>{phrase}</span>}
       {detail}
     </div>
   );
@@ -72,7 +77,7 @@ export function EnrolNoteRows({ note, paymentsBase }: { note: EnrolNote; payment
       detail: <span className={MUTED_DETAIL} data-testid="leave-undo-text">{tidyMoneyText(note.rewrite.text)}</span>,
     }] : []),
     ...(note.undone ? [{
-      testId: "enrol-note-undone", state: <span data-testid="leave-undo-text">{tidyMoneyText(note.undone.text)}</span>,
+      testId: "enrol-note-undone", phrase: <span data-testid="leave-undo-text">{tidyMoneyText(note.undone.text)}</span>,
       detail: note.sharedUndone ? <span className={MUTED_DETAIL} data-testid="enrol-note-shared">Общие цена и дата на него не действуют — остаются прежние</span> : undefined,
     }] : []),
   ];

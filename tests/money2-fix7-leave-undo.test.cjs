@@ -123,7 +123,7 @@ test("drawer, 2 of 3 come back: ONE probe, a row each with the words of the serv
   assert.equal(X.singleProbes(run.calls).length, 0, "no probe per student");
   await run.page.waitForSelector('[data-testid="enrol-note-shared"]');
   const mine = (name) => run.page.locator('[data-testid="enrol-note-undone"]', { hasText: name });
-  assert.match(plain(await mine("Новый Ученик").innerText()), new RegExp(`^Новый Ученик — ${UNDO_START}`));
+  assert.match(plain(await mine("Новый Ученик").innerText()), new RegExp(`^Новый Ученик ${UNDO_START}`));
   assert.equal(await mine("Третий Ученик").count(), 1);
   assert.equal(await mine("Второй Ученик").count(), 0);
   assert.equal(await run.page.locator('[data-testid="enrol-note-shared"]').count(), 2, "each of them hears that the common day does not apply");

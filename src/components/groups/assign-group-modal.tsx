@@ -343,7 +343,7 @@ export function AssignGroupModal({
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : counting ? "Считаем…"
     : bar && bar.total === null && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
-    : bar && bar.total === null && payStart && payStart > (payDef?.today ?? formatBusinessDate()) ? payStartsLine(payStart, payDef?.today ?? formatBusinessDate())
+    : bar && bar.total === null && payStart && payStart > (payDef?.today ?? formatBusinessDate()) ? <span className="whitespace-nowrap">{payStartsLine(payStart, payDef?.today ?? formatBusinessDate())}</span>
     : null;
   const line = failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>

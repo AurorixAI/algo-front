@@ -295,6 +295,15 @@ test("F7: one student - one row: the name once in bold, a debt and «запис�
   assert.notEqual(styles.detailColor, styles.stateColor, "the detail is muted");
   assert.notEqual(styles.debtColor, styles.stateColor, "the debt has the colour of a warning, the state of a rewrite does not");
   assert.equal(await run.page.locator('[data-testid="enrol-student-row"]', { hasText: "Тимур Рашидов" }).getAttribute("data-row-tone"), "muted", "only a debt and a refusal are in the warning tone");
+  // F13: a thing that is a whole phrase of the server (no short state) - the name alone in bold, the phrase muted and small UNDER it (not «Name — phrase» in one line)
+  const phrased = await run.page.locator('[data-testid="enrol-student-row"]', { hasText: "Тимур Рашидов" }).evaluate((el) => {
+    const bold = el.querySelector("b"); const phrase = el.querySelector('[data-testid="leave-undo-text"]');
+    const cs = getComputedStyle(phrase);
+    return { name: bold.textContent, nameBottom: bold.getBoundingClientRect().bottom, phraseTop: phrase.getBoundingClientRect().top, size: cs.fontSize, color: cs.color, text: el.innerText.replace(/\s+/g, " ").trim() };
+  });
+  assert.equal(phrased.name, "Тимур Рашидов");
+  assert.ok(phrased.phraseTop >= phrased.nameBottom - 1, "the phrase is under the name");
+  assert.equal(phrased.size, "12px"); assert.ok(!phrased.text.includes("Рашидов —"), "no dash after the name");
   await run.page.close();
 });
 
@@ -338,11 +347,11 @@ test("F9: the sentence of the server about a move is shown WHOLE with its «;» 
 
 // ── F10 ──────────────────────────────────────────────────────────────────────────────────────────────
 
-test("F10: nobody pays at once because the day of the charge is ahead - the bar says «Начисление начнётся 21 ноября» (the day of the server), nothing else; not with a refusal; the reason of the day is the server's new phrase", async () => {
+test("F10: nobody pays at once because the day of the charge is ahead - the bar says «Начисление с 21 ноября» (the day of the server), nothing else; not with a refusal; the reason of the day is the server's new phrase", async () => {
   const future = { defaultPayFrom: "2026-11-21" };
   const run = await H.openDrawer(ctx, H.server(future), { props: { groupName: "М11 БС" } });
   await H.pick(run.page, "Каримов", "Юсупова"); await run.page.waitForTimeout(700); await H.settled(run.page);
-  assert.equal(await text(run.page, '[data-testid="summary-bar-idle"]'), "Начисление начнётся 21 ноября");
+  assert.equal(await text(run.page, '[data-testid="summary-bar-idle"]'), "Начисление с 21 ноября");
   assert.equal(await run.page.locator('[data-testid="summary-bar-sum"]').count(), 0);
   assert.equal(await text(run.page, '[data-testid="enrol-terms-line"]'), "Оплата с 21 ноября, по цене группы");
   assert.equal(await text(run.page, '[data-testid="enrol-terms-why"]'), "ближайшее занятие группы");
@@ -355,7 +364,7 @@ test("F10: nobody pays at once because the day of the charge is ahead - the bar 
   // a role without the right to money has no bar of sums
   const poor = await H.openDrawer(ctx, H.server(future), { user: H.ADMIN_NO_MONEY, props: { groupName: "М11 БС", money: false } });
   await H.pick(poor.page, "Каримов"); await poor.page.waitForTimeout(600);
-  assert.doesNotMatch(plain(await poor.page.locator('[role="dialog"]').innerText()), /Начисление начнётся/);
+  assert.doesNotMatch(plain(await poor.page.locator('[role="dialog"]').innerText()), /Начисление с/);
   await poor.page.close();
   // the day is today: the phrase «сегодня у группы занятие», and a sum at once
   const today = await FRAMES[2](ctx);
@@ -366,7 +375,7 @@ test("F10: nobody pays at once because the day of the charge is ahead - the bar 
   const card = await openCard({ server: future });
   await card.page.getByRole("radio", { name: "М11 БС" }).check(); await card.page.waitForTimeout(700);
   await card.page.waitForFunction(() => !document.querySelector('[data-testid="assign-submit"]').disabled);
-  assert.equal(await text(card.page, '[data-testid="summary-bar-idle"]'), "Начисление начнётся 21 ноября");
+  assert.equal(await text(card.page, '[data-testid="summary-bar-idle"]'), "Начисление с 21 ноября");
   await card.page.close();
 });
 
@@ -407,22 +416,18 @@ test("F11b: the window of the card keeps its height while the person types in th
   }
 });
 
-test("F11c: «Оставить в обеих» - under the switch the sentence of the server about what the student pays at once here (the probe of the mode add); the server says none - nothing", async () => {
+test("F11c: «Оставить в обеих» - the sum at once stands in the bottom bar and the sentence of the server is NOT said again under the switch (one fact once, LESSONS 145); «Перевести сюда» - no such sentence either", async () => {
   const said = "К оплате сразу 188 000 сум (5 уроков)";
   const run = await H.openDrawer(ctx, H.server({ effectsOf: () => DEBT_STAYS, immediateText: () => said }), { props: { groupName: "М11 БС" } });
   await H.search(run.page, "Назаров"); await H.pick(run.page, "Назаров");
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); await H.settled(run.page);
   assert.equal(await run.page.locator('[data-testid="enrol-add-words"]').count(), 0, "«Перевести сюда»: his money is told by the move");
   await run.page.getByRole("radio", { name: "Оставить в обеих" }).click(); await run.page.waitForTimeout(700); await H.settled(run.page);
-  assert.equal(await text(run.page, '[data-testid="enrol-add-words"]'), said);
-  const order = await run.page.evaluate(() => { const row = document.querySelector('[data-testid="enrol-transfer-choice"]'); return row.querySelector('[data-testid="enrol-mode"]').getBoundingClientRect().bottom <= row.querySelector('[data-testid="enrol-add-words"]').getBoundingClientRect().top + 1; });
-  assert.equal(order, true, "under the switch");
+  assert.equal(await run.page.locator('[data-testid="enrol-add-words"]').count(), 0, "under the switch no sentence");
+  assert.equal(await run.page.locator('[data-testid="summary-bar-sum"]').count(), 1, "the sum is in the bar");
+  assert.match(plain(await run.page.locator('[data-testid="summary-bar-sum"]').innerText()), /\d/, "a number");
+  assert.doesNotMatch(plain(await run.page.locator('[data-testid="enrol-transfer-choice"]').innerText()), /К оплате сразу/);
   await run.page.close();
-  const none = await H.openDrawer(ctx, H.server({ parts: () => null }), { props: { groupName: "М11 БС" } });
-  await H.search(none.page, "Назаров"); await H.pick(none.page, "Назаров"); await none.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); await H.settled(none.page);
-  await none.page.getByRole("radio", { name: "Оставить в обеих" }).click(); await none.page.waitForTimeout(700);
-  assert.equal(await none.page.locator('[data-testid="enrol-add-words"]').count(), 0, "no sentence of the server - nothing");
-  await none.page.close();
 });
 
 // ── F12 ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -432,8 +437,8 @@ test("F12: the reason of the day is read from both new phrases of the server; th
   assert.equal(T.payFromReason("Оплата с 19.11.2026 — сегодня у группы занятие"), "сегодня у группы занятие");
   assert.equal(T.payFromReason("Оплата с 21.11.2026 — ближайшее занятие группы"), "ближайшее занятие группы");
   assert.equal(T.payFromReason("Оплата считается с 19.11.2026: у группы нет занятий в ближайшие дни"), "у группы нет занятий в ближайшие дни");
-  assert.equal(T.payStartsLine("2026-11-21", "2026-11-19"), "Начисление начнётся 21 ноября");
-  assert.equal(T.payStartsLine("2027-01-05", "2026-11-19"), "Начисление начнётся 5 января 2027");
+  assert.equal(T.payStartsLine("2026-11-21", "2026-11-19"), "Начисление с 21 ноября");
+  assert.equal(T.payStartsLine("2027-01-05", "2026-11-19"), "Начисление с 5 января 2027");
   assert.deepEqual(T.ownPriceError({ enabled: true, amount: "520 000", reason: "" }), { field: "reason", text: "Укажите причину — от 3 до 200 символов" });
   assert.equal(T.ownPriceError({ enabled: true, amount: "520 000", reason: "Скидка" }), null);
   assert.equal(T.dryRunOverride({ enabled: true, amount: "520 000", reason: "" }).request.reason, "Проверка последствий");

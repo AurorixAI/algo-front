@@ -378,8 +378,6 @@ export function AddStudentDrawer({
   const refusedIds = new Set(refusals.map((row) => row.id));
   const refusedForAll = sameRefusalForAll(refusals, selected.size);
   const passing = selected.size - refusedIds.size;
-  // «Оставить в обеих»: the words of the server about what each student pays at once here (the probe of the mode `add`; nothing when it says none)
-  const keptWords = new Map((mode === "add" ? shownImmediate?.immediate.students ?? [] : []).map((row) => [row.studentId, row.text]));
 
   const handleAdd = async () => {
     if (selected.size === 0 || !transferAllowed || passing === 0) return;
@@ -509,7 +507,7 @@ export function AddStudentDrawer({
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : firstCount ? "Считаем…"
     : bar && bar.total === null && amountsState === "ready" && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
-    : bar && bar.total === null && amountsState === "ready" && refusals.length === 0 && payStart && payStart > (payDef?.today ?? today) ? payStartsLine(payStart, payDef?.today ?? today)
+    : bar && bar.total === null && amountsState === "ready" && refusals.length === 0 && payStart && payStart > (payDef?.today ?? today) ? <span className="whitespace-nowrap">{payStartsLine(payStart, payDef?.today ?? today)}</span>
     : null;
   const whyOff = !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
   const line = stale ? (incomplete ? (payProblem ? <span data-testid="enrol-why">{payProblem}</span> : null) : "считаем…") : failed
@@ -550,7 +548,6 @@ export function AddStudentDrawer({
               onMode={setMode}
               preview={transferKey !== null ? transferPreview.preview : { status: "idle" }}
               onRetry={transferPreview.retry}
-              addWords={keptWords}
             />
           )}
           {notes.map((note) => <EnrolNoteRows key={note.id} note={note} paymentsBase={pastBase} />)}
