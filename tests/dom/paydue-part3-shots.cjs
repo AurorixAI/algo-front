@@ -36,6 +36,8 @@ const SCENES = {
   "f17a-three-one-term": (ctx, width, long) => drawer(ctx, width, long, {}, three),
   "f17b-three-own-terms": async (ctx, width, long) => { const until = { st1: "24.11", st2: "26.11", st3: "26.11" }; const run = await drawer(ctx, width, long, { dueUntil: (id) => until[id] ?? "24.11" }, three); await run.page.click('[data-testid="enrol-by-student-toggle"]'); await run.page.waitForTimeout(250); return run; },
   "f17c-one-debt-and-due": (ctx, width, long) => drawer(ctx, width, long, { immediateLines: () => [`Долг ${P.money(100000)} · срок был 03.11`, `К оплате ${P.money(88000)} до 24.11`] }, one),
+  "f17e-due-today": (ctx, width, long) => drawer(ctx, width, long, { immediateLines: () => [`К оплате сегодня: ${P.money(188000)} (за 4 урока)`] }, one),
+  "f17f-due-tomorrow": (ctx, width, long) => drawer(ctx, width, long, { immediateLines: () => [`К оплате до завтра, 22.11: ${P.money(188000)} (за 4 урока)`] }, one),
   "f17d-one-debt": (ctx, width, long) => drawer(ctx, width, long, { immediateLines: () => P.dueLines(188000, 5, { debt: true, was: "03.11" }) }, one),
   "f18a-leave-only-group": (ctx, width, long) => leave(P.ONLY_GROUP(GROUP(long)))(ctx, width),
   "f18a2-leave-other-group": (ctx, width, long) => leave(P.OTHER_GROUP_LEFT(GROUP(long)))(ctx, width),

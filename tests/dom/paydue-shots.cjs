@@ -64,7 +64,7 @@ const profileServer = (long) => server({
 });
 
 const pk = (id, name, over) => X.base({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, period_mode: "lessons", lessons_total: 8, ...over });
-const SAID = pk("said", "Саид Назаров", { unpaid: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12" });
+const SAID = pk("said", "Саид Назаров", { unpaid: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до следующего урока" });
 const DIL = pk("dil", "Дильноза Ахмедова", { unpaid: 150000, debt_amount: 50000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, debt_lessons: 1, state: "debt", state_text: "Долг 50 000 сум · 1 урок", debt_text: "Долг 50 000 сум · 1 урок", debt_sub: "просрочено 3 дня", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12", debt_also_text: "и долг 50 000 сум · 1 урок · просрочено 3 дня", due_also_text: "и к оплате 100 000 сум · 2 урока · до 04.12" });
 const pkServer = server({
   answer: (r) => {

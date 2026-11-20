@@ -36,6 +36,8 @@ const FRAMES = [
   { name: "x1-statement-advance", ...stmt(S.withAdvance) },
   { name: "x2-statement-mismatch", ...stmt(S.broken) },
   { name: "x3-long-names-debt", ...stmt(() => S.timurTwo(LONG_NAME, LONG_GROUP), true) },
+  { name: "y1-statement-forgiven-recalc", ...stmt(() => S.forgivenRecalc(), true) },
+  { name: "y2-long-names-forgiven-recalc", ...stmt(() => S.forgivenRecalc(LONG_NAME, LONG_GROUP), true) },
   { name: "x4-long-names-window", ...window_(S.timurPreview, 400000, LONG_NAME, LONG_GROUP) },
 ];
 

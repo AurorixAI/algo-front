@@ -167,7 +167,7 @@ test("«Оплаты», tab «Должники»: the debt leads, «просро
 
 test("«Оплаты», a package centre: «К оплате 100 000 сум · 2 урока» + the date, «и долг …» on a second line only for the one with both", async () => {
   const pk = (id, name, over) => X.base({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, period_mode: "lessons", lessons_total: 8, ...over });
-  const SAID = pk("said", "Саид Назаров", { unpaid: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12" });
+  const SAID = pk("said", "Саид Назаров", { unpaid: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до следующего урока" });
   const DIL = pk("dil", "Дильноза Ахмедова", { unpaid: 150000, debt_amount: 50000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, debt_lessons: 1, state: "debt", state_text: "Долг 50 000 сум · 1 урок", debt_text: "Долг 50 000 сум · 1 урок", debt_sub: "просрочено 3 дня", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12", debt_also_text: "и долг 50 000 сум · 1 урок · просрочено 3 дня", due_also_text: "и к оплате 100 000 сум · 2 урока · до 04.12" });
   const answer = server((r) => {
     if (r.path === "/auth/org/payments/summary") return { json: { ...X.SUMMARY, period_mode: "lessons", debt_total: 50000, debtors: 1, due_total: 200000, due_students: 2, buckets: { debtors: 1, to_pay: 2, expiring: 0, active: 0, paused: 0 } } };
@@ -177,7 +177,7 @@ test("«Оплаты», a package centre: «К оплате 100 000 сум · 2 
   const to = await open(1280, 700, answer, ["payments", OWNER, { search: "bucket=to_pay" }]);
   await to.page.waitForSelector('[data-testid="pay-label"]');
   const rows = (await to.page.locator("li").allInnerTexts()).map(plain);
-  assert.match(rows.find((t) => t.includes("Саид")), /К оплате 100 000 сум · 2 урока до 04\.12/);
+  assert.match(rows.find((t) => t.includes("Саид")), /К оплате 100 000 сум · 2 урока до следующего урока/);   // 18Б.3: all the lessons of the limit are used - the term of a package is «до следующего урока» (the server's)
   assert.match(rows.find((t) => t.includes("Дильноза")), /К оплате 100 000 сум · 2 урока до 04\.12 и долг 50 000 сум · 1 урок · просрочено 3 дня/);
   await to.page.close();
   const debt = await open(1280, 700, answer, ["payments", OWNER, { search: "bucket=debtors" }]);
