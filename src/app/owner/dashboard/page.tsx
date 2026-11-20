@@ -18,7 +18,7 @@ import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { orgTypeLabel } from "@/lib/org-type";
 import { formatMoney } from "@/lib/payments";
-import { debtorsHref } from "@/lib/payments-income-v2";
+import { debtorsHref, dueHref } from "@/lib/payments-income-v2";
 import { dashboardKpiHref, dashboardTiles } from "@/lib/owner-dashboard-links";
 import { SkeletonLine } from "@/components/ui/skeleton";
 
@@ -70,7 +70,9 @@ export default function OwnerDashboard() {
 
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const debtTotal = usePaymentsSummary((state) => state.debtTotal);
-  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
+  const debtors = usePaymentsSummary((state) => state.debtors);
+  const dueTotal = usePaymentsSummary((state) => state.dueTotal);
+  const dueStudents = usePaymentsSummary((state) => state.dueStudents);
   const attention = useExcuseBadge(selectBadgeTotal);
   const pendingSubstitutions = useSubstitutionBadge((state) => state.pending);
 
@@ -90,8 +92,8 @@ export default function OwnerDashboard() {
   // The greeting and the date follow the centre's clock (Tashkent), not the browser's.
   const greeting = businessGreeting();
   const tiles = dashboardTiles({
-    moneyAvailable, debtTotal, studentsWithDebt, attention, pendingSubstitutions,
-    format: formatMoney, debtorsHref: debtorsHref("/owner/payments"),
+    moneyAvailable, debtTotal, debtors: debtors ?? 0, dueTotal, dueStudents: dueStudents ?? 0, attention, pendingSubstitutions,
+    format: formatMoney, debtorsHref: debtorsHref("/owner/payments"), dueHref: dueHref("/owner/payments"),
   });
 
   // Average θ over the diagnosed students of all groups; null (shown as «—») when nobody is diagnosed.
@@ -223,7 +225,20 @@ export default function OwnerDashboard() {
           {/* IA audit F27: what needs the owner today - the debt and the attention of the attendance, each one click from its list */}
           {tiles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="dashboard-tiles">
-              {tiles.map((tile) => (
+              {tiles.map((tile) => tile.key === "money" ? (
+                // PAY-DUE 9.9: one tile of the money with two rows; it stands as tall as the two plain tiles beside it
+                <div key="money" data-testid="dashboard-tile-money" className="flex flex-col divide-y divide-slate-200 overflow-hidden rounded-card border border-slate-200 bg-slate-50 sm:row-span-2">
+                  {tile.rows.map((row) => (
+                    <Link key={row.key} href={row.href} data-testid={`dashboard-tile-${row.key}`} className="group flex flex-1 items-center justify-between gap-4 p-5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500">
+                      <div className="min-w-0">
+                        <p className={`text-2xl font-semibold tracking-tight tabular-nums ${row.tone === "alert" ? "text-danger-700" : "text-slate-900"}`}>{row.value}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-600">{row.label}</p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-slate-500 group-hover:text-slate-900" aria-hidden>→</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
                 <Link key={tile.key} href={tile.href} data-testid={`dashboard-tile-${tile.key}`} className="group flex items-center justify-between gap-4 rounded-card border border-slate-200 bg-slate-50 p-5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                   <div className="min-w-0">
                     <p className={`text-2xl font-semibold tracking-tight ${tile.tone === "alert" ? "text-danger-700" : "text-slate-900"}`}>{tile.value}</p>
