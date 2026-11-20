@@ -119,7 +119,8 @@ test("16А.4 the dictionary 3.3 on the screens: «Простить сумму» 
 });
 
 test("16А.5 statement: the term under the title of a charge is the server's `open_sub` («до 19.11» / «срок был 06.11»), before the price; the field is absent - no term", () => {
-  const raw = S.anvarDue();
+  const full = S.anvarDue();
+  const raw = { ...full, rows: full.rows.map((row) => ({ ...row, open_sub: null })) };   // the field is absent (the helper now carries the server's `open_sub`)
   const withSub = { ...raw, rows: raw.rows.map((row) => (row.type === "charge" ? { ...row, open_sub: "до 24.11" } : row)) };
   const subOf = (statement) => L.buildStatementItems(L.normalizeStatement(statement), null).find((item) => item.kind === "row" && item.type === "charge").sub;
   assert.match(plain(subOf(withSub)), /^до 24\.11 · цена /);
