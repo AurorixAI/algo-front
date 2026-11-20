@@ -252,8 +252,10 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expect(section.getByText("Запуск учёта оплат")).toHaveCount(0);
   await expect(section.getByText("Начало учёта оплат")).toHaveCount(0);
   await expect(section.getByTestId("payments-help")).toHaveCount(1); // the «?» of the section; no checklist
-  // a new centre is in «Общий месяц» (recommended): its block with the day has its OWN «Подробнее» (about the day, not a copy of the section's one) - two in all, each in its place
-  await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(2);
+  // a new centre is in «Общий месяц» (recommended): its block with the day has its OWN «Подробнее» (about the day, not a copy of the section's one), and PAY-DUE 4.1 added one more to the block
+  // «Срок оплаты» (the term changes only the NAME of the sum and the lists) - three in all, each in its place; the third must belong to the term block (not a copy of the other two)
+  await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(3);
+  await expect(section.getByTestId("pay-due-block").getByRole("button", { name: "Подробнее" })).toHaveCount(1);
   await expect(section.getByTestId("accounting-start-editor")).toHaveCount(0);
   await expect(section.getByRole("radio", { name: /Свой месяц|Общий месяц|Пакет уроков/ })).toHaveCount(3);
   // the cards carry ONE short line each
