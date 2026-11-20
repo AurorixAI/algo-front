@@ -194,7 +194,7 @@ export function CascadingFilter({ teachers, groups, value, onChange, allLabel = 
             type="button"
             aria-label="Сбросить фильтр"
             title="Сбросить фильтр"
-            className={`${iconOnPhone ? "mr-2 sm:mr-4 hidden sm:inline-flex" : "mr-4"} shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}
+            className={`${iconOnPhone ? "mr-1 sm:mr-3" : "mr-4"} inline-flex shrink-0 items-center justify-center rounded-full transition-colors outline-none hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-primary-500 ${iconOnPhone ? "h-10 w-10 sm:h-auto sm:w-auto sm:p-0.5" : "p-0.5"}`}
             onClick={() => {
               closePanel();
               onChange({ teacherId: "", groupId: "" });

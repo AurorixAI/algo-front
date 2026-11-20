@@ -12,7 +12,7 @@ test.beforeAll(async () => {
   org = await Org.create("Фильтр");
 });
 
-test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher row = all his groups; reset", async ({ signIn }) => {
+test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher row = all his groups; reset", async ({ signIn }, info) => {
   const ivanov = await org.addStaff("teacher", "Иванов");
   const petrov = await org.addStaff("teacher", "Петров");
   const g1 = await org.createGroup({ name: "Алгебра-7", teacherId: ivanov.userId });
@@ -54,7 +54,16 @@ test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher
   await expectNoHorizontalScroll(page);
 
   // --- reset, then pick the TEACHER (= all his groups)
-  await page.getByRole("button", { name: "Сбросить фильтр" }).click();
+  // PAY-DUE 19.5: on a phone the pill is an icon, and its reset stays reachable: visible, inside the viewport, a touch target of at least 40 px
+  const reset = page.getByRole("button", { name: "Сбросить фильтр" });
+  await expect(reset).toBeVisible();
+  await expectWithinViewport(page, reset);
+  if (info.project.name === "mobile") {
+    const box = (await reset.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(40);
+    expect(box.height).toBeGreaterThanOrEqual(40);
+  }
+  await reset.click();
   await expect.poll(visible).toEqual(names);
   await page.getByRole("button", { name: "Все ученики" }).click();
   await panel.getByRole("button", { name: petrovName, exact: true }).click();
