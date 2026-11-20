@@ -79,3 +79,29 @@ test("the term of the centre: forms of the word and silence of the server (nothi
   assert.equal(payDueTermText("lessons", 5, null), null, "a package centre without pay_due_lessons: no term, NOT the days");
   assert.equal(payDueTermText("calendar", null, 2), null);
 });
+
+// ── 20.5: the message after leaving is never empty: the fact + (what was settled) + the sentence of the server about the money that stays, in its words ─────────────────────────────────────────────
+test("20.5: leaveToastLines - every outcome of the window: no money, keep a debt / a sum «к оплате», forgive, refund, advance stays; the server's silence adds nothing", () => {
+  require("./helpers/money1-env.cjs");
+  const G = require(path.join(root, "src/lib/payments-logica.ts"));
+  assert.equal(G.LEFT_GROUP_TEXT, "Ученик убран из группы");
+  const stay = (code, text, extra = {}) => ({ membership_id: "m", group_id: "g", group_name: "Г", code, text, ...extra });
+  const effects = (...stays) => ({ kind: "leave", moves: [], stays, ends: [], money_text: null, texts: [] });
+  const p = (lines) => lines.map(plain);
+  // no money: nothing to add, the title alone says what was done
+  assert.deepEqual(G.leaveToastLines({ message: "x", settled: [], effects: effects() }), []);
+  assert.deepEqual(G.leaveToastLines({ settled: [] }), []);
+  assert.deepEqual(G.leaveToastLines(null), []);
+  // «Оставить как есть», a sum «к оплате» in the only group: the sentence of the server, word for word
+  const only = "К оплате 125 000 сум. Это единственная группа ученика: после ухода сумма станет долгом";
+  assert.deepEqual(G.leaveToastLines({ settled: [{ membership_id: "m", action: "keep", amount: 125000, refund_id: null, writeoff_id: null }], effects: effects(stay("debt", only)) }), [only]);
+  // a debt that stays; a sum «к оплате» with its term
+  assert.deepEqual(G.leaveToastLines({ settled: [], effects: effects(stay("debt", "Долг 165 000 сум останется за учеником")) }), ["Долг 165 000 сум останется за учеником"]);
+  assert.deepEqual(G.leaveToastLines({ settled: [], effects: effects(stay("due", "К оплате 231 000 сум до 24.11, срок не меняется")) }), ["К оплате 231 000 сум до 24.11, срок не меняется"]);
+  // forgiven: the settled line first, then what the server says remains; refund the same; an advance that stays
+  assert.deepEqual(p(G.leaveToastLines({ settled: [{ membership_id: "m", action: "writeoff", amount: 125000, refund_id: null, writeoff_id: "w" }], effects: effects() })), ["Прощено 125 000 сум"]);
+  assert.deepEqual(p(G.leaveToastLines({ settled: [{ membership_id: "m", action: "refund", amount: 200000, refund_id: "r", writeoff_id: null }], effects: effects() })), ["Возвращено 200 000 сум"]);
+  assert.deepEqual(G.leaveToastLines({ settled: [], effects: effects(stay("advance", "Аванс 50 000 сум останется в группе «Г»")) }), ["Аванс 50 000 сум останется в группе «Г»"]);
+  // a sentence without text, or of a code the screen does not know, is not shown
+  assert.deepEqual(G.leaveToastLines({ settled: [], effects: effects(stay("debt", "  "), stay("money_stays", "Деньги остаются")) }), []);
+});

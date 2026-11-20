@@ -2077,7 +2077,7 @@ export const orgApi = {
     api<LeavePreview>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}/leave-preview`).then(normalizeLeavePreview),
   /** Takes the student out of the group and settles the money in one transaction (`settle` per membership); 409 `BALANCE_CHANGED` carries the fresh numbers. */
   leaveStudent: (groupId: string, studentId: string, body: { reason?: string | null; settle?: SettleItem[] }) =>
-    api<{ message: string; settled: SettledOut[] }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}/leave`, { method: "POST", body }),
+    api<{ message: string; settled: SettledOut[]; effects?: unknown }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}/leave`, { method: "POST", body }),
   getArchivePreview: (studentId: string) =>
     api<LeavePreview>(`/auth/org/students/${encodePathId(studentId)}/archive-preview`).then(normalizeLeavePreview),
   /** The archive with the money settled: `reason` + `settle` (the answer is the archived student + `settled`). */

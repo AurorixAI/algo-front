@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { orgApi } from "@/lib/api";
-import { logicaError, settledLines } from "@/lib/payments-logica";
+import { leaveToastLines, logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 import { ModalActions } from "@/components/ui/modal-actions";
@@ -54,7 +54,7 @@ export function LeaveStudentDialog({
     try {
       const names = Object.fromEntries(settle.preview.memberships.map((item) => [item.membership_id, item.group_name]));
       const result = await orgApi.leaveStudent(groupId, studentId, { settle: settle.settle });
-      onLeft(settledLines(result.settled, settle.preview.memberships.length > 1 ? names : {}));
+      onLeft(leaveToastLines(result, settle.preview.memberships.length > 1 ? names : {}));
       onClose();
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось убрать ученика");

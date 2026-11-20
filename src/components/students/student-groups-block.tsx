@@ -9,7 +9,7 @@ import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { studentArchiveAccess } from "@/lib/student-archive";
 import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { END_PAUSE_MENU_LABEL, groupMenuItems, pauseChipOf } from "@/lib/membership-learning";
-import { livePauses, type PauseOut } from "@/lib/payments-logica";
+import { LEFT_GROUP_TEXT, livePauses, type PauseOut } from "@/lib/payments-logica";
 import { LeaveStudentDialog } from "@/components/groups/leave-student-dialog";
 import { PauseDialog } from "@/components/payments/pause-dialog";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -188,7 +188,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
           studentId={profile.student.id}
           studentName={studentName}
           onClose={() => setLeaveFor(null)}
-          onLeft={(lines) => { onNotify?.("Ученик убран из группы", "success", lines); onChanged?.("left"); }}
+          onLeft={(lines) => { onNotify?.(LEFT_GROUP_TEXT, "success", lines); onChanged?.("left"); }}
           onLegacy={async () => { await orgApi.removeStudentFromGroup(leaveFor.group_id, profile.student.id); }}
         />
       )}

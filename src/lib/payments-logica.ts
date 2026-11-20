@@ -663,6 +663,23 @@ export function applyFreshBalances(preview: LeavePreview, fresh: FreshBalance[])
 
 export const BALANCE_CHANGED_TEXT = "Данные оплат изменились — проверьте суммы";
 
+/** The toast after a student left a group (PAY-DUE 20.5): this line always, never an empty message. */
+export const LEFT_GROUP_TEXT = "Ученик убран из группы";
+
+/**
+ * The lines under the toast of a leave: what was settled («Возвращено …», «Прощено …») and the sentence of the server about the money that stays (`effects.stays`: the debt, the sum «к оплате», the advance) in ITS
+ * words.  The server said nothing - no line is made up (LESSONS 151).
+ */
+export function leaveToastLines(answer: { settled?: SettledOut[] | null; effects?: unknown } | null | undefined, groupNames: Record<string, string> = {}): string[] {
+  const lines = settledLines(answer?.settled, groupNames);
+  const stays = effectsOfAnswer({ effects: answer?.effects })?.stays ?? [];
+  for (const item of stays) {
+    const text = typeof item.text === "string" ? item.text.trim() : "";
+    if ((item.code === "debt" || item.code === "due" || item.code === "advance") && text && !lines.includes(text)) lines.push(text);
+  }
+  return lines;
+}
+
 /** «Возвращено 135 000 сум» / «Прощено 120 000 сум» — the toast lines after a settled leave. */
 export function settledLines(settled: SettledOut[] | null | undefined, groupNames: Record<string, string> = {}): string[] {
   return arr<SettledOut>(settled)

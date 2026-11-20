@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { orgApi, GroupDetail, type StudentInGroup } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
+import { LEFT_GROUP_TEXT } from "@/lib/payments-logica";
 import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
 import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, type PaymentsFilter } from "@/lib/group-payments";
@@ -224,7 +225,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
       student_count: prev.student_count - 1,
     } : null);
     setDebtTick((n) => n + 1);
-    showToast("Ученик убран из группы", "success", settled);
+    showToast(LEFT_GROUP_TEXT, "success", settled);
   };
 
   // LOGIC-A F14: the server took the new type (the dialog opened by «Сохранить» of the edit form); the rest of the form is saved next.
