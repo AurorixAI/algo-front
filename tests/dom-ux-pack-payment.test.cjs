@@ -45,7 +45,8 @@ test("the window is about the STUDENT's money: the title, the subtitle, the two 
   await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   assert.equal(await page.textContent('[role="dialog"] h2'), "Внести оплату");
   const text = plain(await page.textContent('[role="dialog"]'));
-  assert.match(text, /Тошматов Бобур · Алгебра 7 \(вт\/пт\) · деньги поступают в центр/);
+  assert.match(text, /Тошматов Бобур · Алгебра 7 \(вт\/пт\)/);
+  assert.ok(!text.includes("деньги поступают в центр"), "frame 14: the subtitle is the student and the group only - the title «Внести оплату» already says whose money it is (148)");
   // 10.10: both sums on top in the server's words - the debt first, then «К оплате»; no quick amounts, no «Долг сейчас» (the screen adds nothing)
   assert.equal(plain(await page.locator('[data-testid="payment-due-debt"]').innerText()), "Долг 800 000 сум просрочено 61 день · оплачено до 31.08");
   assert.equal(plain(await page.locator('[data-testid="payment-due-due"]').innerText()), "К оплате 400 000 сум до сегодня");

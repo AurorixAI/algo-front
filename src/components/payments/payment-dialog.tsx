@@ -253,7 +253,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     <Modal
       open={open}
       title={TITLE[kind]}
-      description={kind === "create" ? `${membership.student_name} · ${membership.group_name} · деньги поступают в центр` : `${membership.student_name} · ${membership.group_name}`}
+      description={`${membership.student_name} · ${membership.group_name}`}
       onClose={onClose}
       busy={busy}
       size="md"
