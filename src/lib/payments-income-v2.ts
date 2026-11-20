@@ -701,9 +701,9 @@ export function flowParts(overview: IncomeOverview): FlowPart[] {
   return present.map((item, index) => ({ key: item.key, label: item.label, amount: item.amount, percent: shares[index], dot: flowDot(item.key) }));
 }
 
-/** «Прощено долгов: 100 000 сум», or «» when nobody was forgiven (nothing is said about zero). */
+/** «Прощено: 100 000 сум», or «» when nobody was forgiven (nothing is said about zero). */
 export function writtenOffText(overview: IncomeOverview): string {
-  return overview.current.written_off > 0 ? `Прощено долгов: ${formatMoney(overview.current.written_off)}` : "";
+  return overview.current.written_off > 0 ? `Прощено: ${formatMoney(overview.current.written_off)}` : "";
 }
 
 // ── «Куда ушли деньги»: the sentence, the kinds that filter the journal, the notice and the chips (INC-16) ──

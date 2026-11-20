@@ -228,7 +228,7 @@ test("the line «Куда ушли деньги»: only the non-zero parts, shar
   assert.deepEqual(V.sharesOf([1, 1, 1]), [34, 33, 33]);
   assert.deepEqual(V.sharesOf([0, 0]), [0, 0]);
   assert.equal(V.sharesOf([333, 333, 334]).reduce((a, b) => a + b, 0), 100);
-  assert.equal(plain(V.writtenOffText(overview("I01_income_month_october"))), "Прощено долгов: 100 000 сум");
+  assert.equal(plain(V.writtenOffText(overview("I01_income_month_october"))), "Прощено: 100 000 сум");
   assert.equal(V.writtenOffText(overview("I03_income_week")), ""); // nothing is said about zero
   const transferred = { ...overview("I03_income_week"), strip: null, current: { ...overview("I03_income_week").current, transferred: 50000 } };
   assert.ok(V.flowParts(transferred).some((p) => p.key === "transferred" && p.label === "переведено в другие группы"));
@@ -555,7 +555,7 @@ test("the month on screen: the sentence of the server, four cards, one line, the
     "Собрано за месяц", "1 900 000 сум", "из 2 500 000 сум · 76%",
     "Долг", "500 000 сум", "3 ученика", "Должники",
     "Аванс", "450 000 сум", "2 ученика оплатили вперёд",
-    "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "за текущий период", "55%", "пока не потрачено (аванс)", "13%", "возвращено", "3%", "Сходится", "Прощено долгов: 100 000 сум",
+    "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "за текущий период", "55%", "пока не потрачено (аванс)", "13%", "возвращено", "3%", "Сходится", "Прощено: 100 000 сум",
     "Пришло по дням", "Чем платили", "Click", "1 250 000 сум", "Наличные", "Перевод", "Карта", "36%", "28%",
   ]) assert.ok(body.includes(piece), piece);
   assert.ok(!body.includes("NaN") && !body.includes("undefined") && !body.includes("null"));

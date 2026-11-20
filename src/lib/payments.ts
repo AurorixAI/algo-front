@@ -1494,8 +1494,8 @@ export function positionCards(summary: {
   ];
 }
 
-/** The toast after a forgiveness: «Прощён долг 300 000 сум за 06.10–05.11» (the period is the server's `closes.label`; without it - no period). */
+/** The toast after a forgiveness: «Прощено 300 000 сум за 06.10–05.11» (the period is the server's `closes.label`; without it - no period). */
 export function writeoffDoneText(result: Pick<WriteoffCreated, "writeoff" | "closes">): string {
   const label = result.closes?.label?.trim();
-  return `Прощён долг ${formatMoney(result.writeoff.amount)}${label ? ` за ${label}` : ""}`;
+  return `Прощено ${formatMoney(result.writeoff.amount)}${label ? ` за ${label}` : ""}`;
 }

@@ -62,7 +62,7 @@ test("the position is the server's debt and «К оплате»; the collection 
 
 test("the toast after a forgiveness names the period of the server and nothing of the teacher", () => {
   const text = (closes) => P.writeoffDoneText({ writeoff: { amount: 300000 }, closes }).replace(/ /g, " ");
-  assert.equal(text({ from: "2026-10-06", to: "2026-11-05", label: "06.10–05.11" }), "Прощён долг 300 000 сум за 06.10–05.11");
-  assert.equal(text(null), "Прощён долг 300 000 сум");
+  assert.equal(text({ from: "2026-10-06", to: "2026-11-05", label: "06.10–05.11" }), "Прощено 300 000 сум за 06.10–05.11");
+  assert.equal(text(null), "Прощено 300 000 сум");
   assert.doesNotMatch(text({ from: "a", to: "b", label: "06.10–05.11" }), /учител|зарплат/i);
 });
