@@ -319,7 +319,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
           payment={null}
           groupsBasePath={groupsBasePath}
           onClose={() => setPayOpen(false)}
-          onSaved={(result: PaymentSaveResult) => { changed(result.row); const note = studentToast(savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); }}
+          onSaved={(result: PaymentSaveResult) => { changed(result.row); const note = studentToast(savedPaymentDetails(result.allocation, result.after_text)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); }}
           onDuplicate={(notice) => { showToast(notice.text, notice.tone); void load(true); }}
         />
       )}

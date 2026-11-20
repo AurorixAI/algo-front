@@ -225,9 +225,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       const result = kind === "replace" && payment
         ? await orgApi.replacePayment(payment.id, { ...body, reason }, idempotencyKey.current)
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);
-      onSaved(result);
+      const withWords: PaymentSaveResult = { ...result, after_text: fresh?.result?.after_text || null };
+      onSaved(withWords);
       const after = warningsAfterSave(result.warnings);
-      if (after.length > 0) setSaved({ warnings: after, details: savedPaymentDetails(result.allocation) });
+      if (after.length > 0) setSaved({ warnings: after, details: savedPaymentDetails(result.allocation, withWords.after_text) });
       else onClose();
     } catch (cause) {
       const failure = payError(cause, "Не удалось сохранить оплату");

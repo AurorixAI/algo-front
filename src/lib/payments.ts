@@ -458,6 +458,8 @@ export interface PaymentSaveResult {
   row: MembershipPaymentRow;
   /** Money-1 A3: the saved payroll sheets this payment touches (`lib/money-effects.ts`); absent from an older server. */
   money_effects?: unknown;
+  /** The state after the payment in the words of the server - the saved answer has none, so the dialog takes it from the probe of the same amount and date (`PaymentPreview.result.after_text`); null when there was no such probe. */
+  after_text?: string | null;
 }
 
 export interface PaymentsStatusList {

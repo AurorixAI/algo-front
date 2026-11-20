@@ -399,7 +399,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         payment={null}
         groupsBasePath={bases.groups}
         onClose={() => setPayOpen(false)}
-        onSaved={(result) => { const note = studentToast(savedPaymentDetails(result.allocation)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); changed(); void cheques.reload(); }}
+        onSaved={(result) => { const note = studentToast(savedPaymentDetails(result.allocation, result.after_text)); showToast(PAYMENT_SAVED_TEXT.create, note.tone, note.details); changed(); void cheques.reload(); }}
         onDuplicate={(notice) => { showToast(notice.text, notice.tone); changed(); }}
       />
       {cheques.dialogs}

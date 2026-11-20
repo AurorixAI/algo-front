@@ -169,16 +169,18 @@ export function balanceAfterText(unpaidAfter: number | null | undefined, advance
   return `Останется неоплаченным ${lead}: ${formatMoney(0)}`;
 }
 
-export function savedPaymentDetails(allocation: AllocationSummary | null | undefined): string[] {
+/** Where the money went, then the state after in the words of the server (`after_text`); the server said nothing - the screen adds nothing (LESSONS 151). */
+export function savedPaymentDetails(allocation: AllocationSummary | null | undefined, afterText?: string | null): string[] {
   if (!allocation) return [];
   const lines = allocationLines(allocation.items).map(allocationText);
-  lines.push(balanceAfterText(allocation.unpaid_after, allocation.advance_after));
+  const after = afterText?.trim();
+  if (after) lines.push(after);
   return lines;
 }
 
 /** The lines under the toast of a saved payment: where the money went; after a CORRECTION also what the server says it did to the debt in other groups and to the pay (Money-1 Г-4б, `money_effects.text`). */
 export function savedPaymentToastDetails(kind: "create" | "replace", result: PaymentSaveResult): string[] {
-  return [...savedPaymentDetails(result.allocation), ...(kind === "replace" ? serverEffectsRows(result) : [])];
+  return [...savedPaymentDetails(result.allocation, result.after_text), ...(kind === "replace" ? serverEffectsRows(result) : [])];
 }
 
 // ── Payment form ───────────────────────────────────────────────────────────

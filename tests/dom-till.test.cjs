@@ -45,6 +45,20 @@ test("«Внести» is held back by nothing but the form: no dry run is asked
   await page.close();
 });
 
+test("18Б.2: the state after the saved payment is the server's `after_text` of the probe of the same amount (not a phrase of the screen)", async () => {
+  const created = fixture("e1_create_300000");
+  const { page, calls } = await openPage(browser, "money.entry.tsx", server(() => ({ status: 201, json: created })));
+  await page.evaluate(() => window.mount("till"));
+  await fill(page, calls);
+  for (let waited = 0; !calls.some((call) => call.path.endsWith("/payments/preview") && /amount=300000/.test(call.query)) && waited < 5000; waited += 25) await page.waitForTimeout(25);
+  await page.waitForFunction(() => document.body.innerText.includes("469"), null, { timeout: 5000 });   // the answer of the probe of 300 000 is drawn: it is the fresh one
+  await page.click(SUBMIT);
+  await page.waitForFunction(() => window.__log.includes("saved"));
+  const log = await page.evaluate(() => window.__log);
+  assert.equal(log.find((line) => line.startsWith("after:")).replace(/\s/g, " "), "after:Останется: долг 469 000 сум", "the words of the server, not «Останется неоплаченным после оплаты»");
+  await page.close();
+});
+
 test("a repeat after a lost answer keeps the SAME Idempotency-Key (one payment, never two)", async () => {
   let attempts = 0;
   const created = fixture("e1_create_300000");

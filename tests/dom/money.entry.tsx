@@ -79,7 +79,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
   const noop = () => {};
   switch (name) {
     case "till":
-      root.render(<PaymentDialog open kind="create" membership={props.membership ?? MEMBERSHIP} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
+      root.render(<PaymentDialog open kind="create" membership={props.membership ?? MEMBERSHIP} onClose={() => log("close")} onSaved={(result) => { log("saved"); log(`after:${result.after_text ?? "null"}`); }} onDuplicate={() => log("duplicate")} />);
       break;
     case "replace":
       root.render(<PaymentDialog open kind="replace" membership={props.membership ?? MEMBERSHIP} payment={props.payment ?? { id: "p1", amount: 400000, paid_on: "2026-11-05", method: "cash", note: null }} onClose={() => log("close")} onSaved={() => log("saved")} onDuplicate={() => log("duplicate")} />);
@@ -129,7 +129,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<GroupArchiveDialog open group={{ id: "g1", name: "Архив-тест 3" }} groupsBasePath="/owner/groups" onClose={() => log("close")} onArchived={(message: string) => log(`archived:${message}`)} />);
       break;
     case "toastPayment": {
-      const note = studentToast(savedPaymentDetails(props.allocation));
+      const note = studentToast(savedPaymentDetails(props.allocation, props.afterText));
       root.render(<ToastProbe text="Оплата внесена" tone={note.tone} details={note.details} />);
       break;
     }

@@ -173,11 +173,15 @@ test("the amount: 1..10^10, the method is chosen, the body is money only", () =>
 
 test("a saved payment says where the money went", () => {
   const created = fixture("e1_create_300000");
-  assert.deepEqual(L.savedPaymentDetails(created.allocation).map(plain), [
+  // 18Б.2: the state after is the server's `after_text` (of the probe of the same amount), not a phrase of the screen; without it - the lines of the allocation only
+  const after = fixture("e1_preview_300000").result.after_text;
+  assert.deepEqual(L.savedPaymentDetails(created.allocation, after).map(plain), [
     "Погашено за 15.09–14.10 · 269 000 сум",
     "На текущий период 15.10–14.11 · 31 000 сум",
-    "Останется неоплаченным после оплаты: 469 000 сум",
+    "Останется: долг 469 000 сум",
   ]);
+  assert.deepEqual(L.savedPaymentDetails(created.allocation).map(plain), ["Погашено за 15.09–14.10 · 269 000 сум", "На текущий период 15.10–14.11 · 31 000 сум"]);
+  assert.deepEqual(L.savedPaymentDetails(created.allocation, "  ").map(plain), ["Погашено за 15.09–14.10 · 269 000 сум", "На текущий период 15.10–14.11 · 31 000 сум"]);
   assert.deepEqual(L.savedPaymentDetails(null), []);
   const replaced = L.normalizeSaveResult(fixture("e8_replace_300000_by_250000"));
   assert.ok(replaced.payment.replaces_payment_id);
