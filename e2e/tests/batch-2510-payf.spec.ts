@@ -228,10 +228,14 @@ test.describe("package centre", () => {
 test.describe("monthly centre", () => {
   test("«Общий месяц» with the recalculation: «по вине центра» -> «Перерасчёт…» and a smaller payment; the teacher has no «праздник»; «Изменить причину» removes the lines @mobile", async ({ signIn }, info) => {
     test.setTimeout(300_000);
+    // The premise of this check is «the common month starts TODAY»: its billing day is today's day of the month, and the centre allows 1..28.  On the 29th-31st the premise
+    // cannot be built (found by the stand clock on 30.11: the student joined the last day of the old month with no lesson left in it, so nothing was charged and
+    // the row never reached «Ждём оплату»).  The check is skipped on those days only; it is not weakened on the others.
+    test.skip(businessNow().day > 28, "the billing day of a centre is 1..28: «the common month starts today» cannot be set on the 29th-31st");
     const project = info.project.name;
     const org = await Org.create("Месяц 25.10");
     const fee = 600000;
-    const billingDay = Math.min(businessNow().day, 28); // the common month starts today: the whole period (4 weeks of lessons) is ahead
+    const billingDay = businessNow().day; // the common month starts today: the whole period (4 weeks of lessons) is ahead
     const teacher = await org.addStaff("teacher", "Месяцев");
     const group = await org.createGroup({ name: "Группа ПФ-2", teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
