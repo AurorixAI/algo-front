@@ -79,7 +79,7 @@ test("frame 2: three chosen - labels with a cross under the search, the rest bel
     assert.equal(await p.locator('[data-testid="enrol-exceptions"]').count(), 0, "nothing special: no block");
     assert.equal(await text(p, '[data-testid="enrol-terms-line"]'), "Оплата с 19 ноября, по цене группы");
     assert.equal(await text(p, '[data-testid="enrol-terms-why"]'), "сегодня у группы занятие", "the reason of the day is the server's");
-    assert.equal(await text(p, '[data-testid="summary-bar"] p'), "К оплате сразу");
+    assert.equal(await text(p, '[data-testid="summary-bar"] p'), "Всего к оплате до 24.11"); // the words of the server (`immediate_total.lines`), the sum is not said twice
     assert.equal(await barSum(p), "564 000 сум");
     assert.equal(await barLine(p), "по 188 000 · 5 уроков из 12 в ноябре");
     assert.equal(plain(await buttonOf(p).innerText()), "Зачислить троих"); assert.equal(await buttonOf(p).isEnabled(), true);
@@ -156,7 +156,7 @@ test("frame 4: written - ONE write, the window closes by itself, the message say
   assert.equal(await p.locator('[role="dialog"]').count(), 0, "the window is closed");
   assert.equal(writes(run.calls).length, 1, "one write");
   assert.deepEqual(writes(run.calls)[0].body.student_ids, ["st1", "st2", "st3"]);
-  assert.equal(await text(p, '[role="status"]'), plain("Трое зачислены в «М11 БС» К оплате 564 000 сум — на странице «Оплаты»"));
+  assert.equal(await text(p, '[role="status"]'), plain("Трое зачислены в «М11 БС» Всего к оплате до 24.11: 564 000 сум (за 15 уроков) — на странице «Оплаты»"));
   const lifetime = require(path.join(__dirname, "..", "src", "lib", "toast-timing.ts"));
   assert.ok(lifetime.toastLifetimeMs("success", true) >= 6000, "a message with details is on the screen at least 6 s");
   noErrors(run);
@@ -344,7 +344,7 @@ test("frame 12: not all written - the window stays with the result per student a
   assert.equal(await p.getByRole("dialog", { name: "Записано 2 из 3" }).count(), 1);
   assert.deepEqual((await p.locator('[data-testid="bulk-outcome"] li').allInnerTexts()).map(plain), ["Анвар Каримов", "Лола Юсупова", "Тимур Рашидов В группе нет мест: 30 из 30. Увеличьте число мест или выберите другую группу"]);
   assert.equal(await p.locator('[data-testid="bulk-outcome-added"]').count(), 2); assert.equal(await p.locator('[data-testid="bulk-outcome-skipped"]').count(), 1);
-  assert.equal(await text(p, '[data-testid="summary-bar"] p'), "К оплате");
+  assert.equal(await text(p, '[data-testid="summary-bar"] p'), "Всего к оплате до 24.11");
   assert.equal(await barSum(p), "376 000 сум"); assert.equal(await barLine(p), "по 188 000 · 5 уроков из 12 в ноябре");
   assert.deepEqual(await p.locator('[data-testid="summary-bar"] button').allInnerTexts(), ["Готово"]);
   assert.equal(writes(run.calls).length, 1, "one write");
@@ -428,7 +428,7 @@ test("frame 15: the keyboard moves the choice between the groups; the write is O
   const written = writes(run.calls);
   assert.equal(written.length, 1); assert.match(written[0].path, /\/groups\/gt\/students\/st1$/);
   // the message names the sum of the last probe, as the window of a group does (Money-2 fix 11, F11)
-  assert.equal(await text(p, '[role="status"]'), "Анвар Каримов зачислен в «Физика 7» К оплате 231 000 сум — на странице «Оплаты» В «Алгебра 7» тоже остаётся");
+  assert.equal(await text(p, '[role="status"]'), "Анвар Каримов зачислен в «Физика 7» К оплате до 24.11: 231 000 сум (за 5 уроков) — на странице «Оплаты» В «Алгебра 7» тоже остаётся");
   await p.close();
 });
 

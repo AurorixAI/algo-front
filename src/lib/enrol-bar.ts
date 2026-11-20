@@ -62,6 +62,8 @@ export interface EnrolBarRow {
   /** null - nothing to pay at once (or not known) */
   amount: number | null;
   parts: ImmediatePart[];
+  /** the sentence of the server about THIS student by name («К оплате до 24.11: 231 000 сум (за 5 уроков)»); empty - the server said none */
+  lines?: readonly string[];
 }
 
 export interface EnrolBar {
@@ -74,6 +76,24 @@ export interface EnrolBar {
   line: string | null;
   /** differing sums / several periods: the line is short and the list «По ученикам» opens the details */
   expandable: boolean;
+  /** the words of the server over the sum, the sum itself cut out of them («К оплате до 24.11», «Долг сразу · срок был 03.11», two lines for a debt and a sum in term); empty - the server said none and the bar names nothing (LESSONS 151) */
+  captions: string[];
+  /** the sentences of the server as they are (with the sum), for the message after the action */
+  words: string[];
+}
+
+/** «К оплате до 24.11: 231 000 сум (за 5 уроков)» → «К оплате до 24.11»; «Долг сразу: 300 000 сум · срок был 03.11» → «Долг сразу · срок был 03.11».  The sum stands big under the words, the lessons are the line under it;
+ * a sentence of another shape (two lines of a debt and a sum in term: «Долг 100 000 сум · срок был 03.11») stays whole - the server's words are never rewritten, only the sum that is drawn apart is not said twice. */
+const SENTENCE = /^(.+?): [\d\s]+\s?сум(?: \(за [^)]*\))?(.*)$/;
+export function captionOf(line: string): string {
+  const match = SENTENCE.exec(line.trim());
+  return match ? `${match[1]}${match[2]}` : line.trim();
+}
+
+/** The same term on every row: «К оплате до 24.11» once; different terms: each student's own is shown in the list «По ученикам». */
+export function captionsDiffer(rows: readonly EnrolBarRow[]): boolean {
+  const own = rows.filter((row) => row.amount !== null).map((row) => (row.lines ?? []).map(captionOf).join(" · "));
+  return own.some((caption) => caption !== own[0]);
 }
 
 const sameParts = (a: ImmediatePart[], b: ImmediatePart[]) => a.length === b.length && a.every((part, i) => `${part.label}|${part.from}|${part.amount}|${part.lessons}|${part.lessons_in_period}|${part.whole}` === `${b[i].label}|${b[i].from}|${b[i].amount}|${b[i].lessons}|${b[i].lessons_in_period}|${b[i].whole}`);
@@ -88,12 +108,14 @@ const splitMoney = (value: number): { text: string; unit: string } => {
  * What the bar says about the students who pay at once: the total and ONE line.  All pay the same - «по 188 000 · 5 уроков из 12 в ноябре»; one student - the lessons only; different sums or several
  * periods - «за октябрь и ноябрь» and the list «По ученикам»; only some of the chosen pay - «троим по 188 000 · …» (or the name when it is one).
  */
-export function enrolBarOf(rows: readonly EnrolBarRow[]): EnrolBar {
+export function enrolBarOf(rows: readonly EnrolBarRow[], totalLines: readonly string[] = []): EnrolBar {
   const payers = rows.filter((row) => row.amount !== null);
-  if (payers.length === 0) return { total: null, totalText: "", unit: "", line: null, expandable: false };
+  if (payers.length === 0) return { total: null, totalText: "", unit: "", line: null, expandable: false, captions: [], words: [] };
   const total = payers.reduce((sum, row) => sum + (row.amount ?? 0), 0);
   const shown = splitMoney(total);
-  const base = { total, totalText: shown.text, unit: shown.unit };
+  // one payer - his own sentence; several - the sentence of the batch (the NEAREST term), and when the server sent none the bar names nothing
+  const words = payers.length === 1 ? [...(payers[0].lines ?? [])] : [...totalLines];
+  const base = { total, totalText: shown.text, unit: shown.unit, captions: words.map(captionOf), words };
   const firstParts = payers[0].parts;
   const identical = payers.every((row) => row.amount === payers[0].amount && sameParts(row.parts, firstParts));
   const periodLine = firstParts.length === 1 ? lessonsLine(firstParts[0]) : null;
@@ -102,7 +124,7 @@ export function enrolBarOf(rows: readonly EnrolBarRow[]): EnrolBar {
     const each = splitMoney(payers[0].amount ?? 0);
     const everyone = payers.length === rows.length;
     const who = everyone ? "по" : payers.length === 1 ? `${payers[0].name} —` : `${COUNT_DATIVE[payers.length] ?? `${payers.length} ученикам`} по`;
-    return { ...base, line: `${who} ${each.text} · ${periodLine}`, expandable: false };
+    return { ...base, line: `${who} ${each.text} · ${periodLine}`, expandable: captionsDiffer(payers) };
   }
   // the periods in the order of the longest story (a student with two months says «октябрь, ноябрь»), a new one is added after them
   const labels = [...payers].sort((a, b) => b.parts.length - a.parts.length).flatMap((row) => row.parts.map((part) => part.label));

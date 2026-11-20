@@ -77,7 +77,7 @@ test("F2: a NEW student and a MOVED one together, «Перевести сюда�
   await H.search(run.page, "Назаров"); await H.pick(run.page, "Назаров");
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); await H.settled(run.page);
   assert.equal(await run.page.getByRole("radio", { name: "Перевести сюда" }).getAttribute("aria-checked"), "true");
-  assert.equal(await text(run.page, '[data-testid="summary-bar"] p'), "К оплате сразу");
+  assert.equal(await text(run.page, '[data-testid="summary-bar"] p'), "К оплате до 24.11"); // ONE of the chosen pays: his own sentence of the server
   assert.equal(await barSum(run.page), "188 000 сум");
   assert.equal(await barLine(run.page), "Анвар Каримов — 188 000 · 5 уроков из 12 в ноябре");
   assert.equal(plain(await buttonOf(run.page).innerText()), "Зачислить двоих");
@@ -384,7 +384,7 @@ test("F10: nobody pays at once because the day of the charge is ahead - the bar 
 test("F11a: the message after enrolment from the card names the sum of the last probe, as the window of a group does; a role without money - no sum", async () => {
   const run = await FRAMES[15](ctx);
   await run.page.click('[data-testid="assign-submit"]'); await closed(run.page);
-  assert.match(await text(run.page, '[role="status"]'), /^Анвар Каримов зачислен в «Физика 7» К оплате 231 000 сум — на странице «Оплаты»/);
+  assert.match(await text(run.page, '[role="status"]'), /^Анвар Каримов зачислен в «Физика 7» К оплате до 24\.11: 231 000 сум \(за 5 уроков\) — на странице «Оплаты»/);
   await run.page.close();
   const poor = await openCard({ user: H.ADMIN_NO_MONEY, props: { money: false } });
   await poor.page.getByRole("radio", { name: "М11 БС" }).check(); await poor.page.waitForTimeout(500);
@@ -417,7 +417,7 @@ test("F11b: the window of the card keeps its height while the person types in th
 });
 
 test("F11c: «Оставить в обеих» - the sum at once stands in the bottom bar and the sentence of the server is NOT said again under the switch (one fact once, LESSONS 145); «Перевести сюда» - no such sentence either", async () => {
-  const said = "К оплате сразу 188 000 сум (5 уроков)";
+  const said = "К оплате до 24.11: 188 000 сум (за 5 уроков)";
   const run = await H.openDrawer(ctx, H.server({ effectsOf: () => DEBT_STAYS, immediateText: () => said }), { props: { groupName: "М11 БС" } });
   await H.search(run.page, "Назаров"); await H.pick(run.page, "Назаров");
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); await H.settled(run.page);
@@ -426,7 +426,7 @@ test("F11c: «Оставить в обеих» - the sum at once stands in the b
   assert.equal(await run.page.locator('[data-testid="enrol-add-words"]').count(), 0, "under the switch no sentence");
   assert.equal(await run.page.locator('[data-testid="summary-bar-sum"]').count(), 1, "the sum is in the bar");
   assert.match(plain(await run.page.locator('[data-testid="summary-bar-sum"]').innerText()), /\d/, "a number");
-  assert.doesNotMatch(plain(await run.page.locator('[data-testid="enrol-transfer-choice"]').innerText()), /К оплате сразу/);
+  assert.doesNotMatch(plain(await run.page.locator('[data-testid="enrol-transfer-choice"]').innerText()), /К оплате до 24\.11|188\s000/);
   await run.page.close();
 });
 

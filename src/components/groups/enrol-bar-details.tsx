@@ -1,7 +1,7 @@
 "use client";
 
 import { formatMoney } from "@/lib/money-format";
-import type { EnrolBarRow } from "@/lib/enrol-bar";
+import { captionOf, captionsDiffer, type EnrolBarRow } from "@/lib/enrol-bar";
 import { immediatePartRows } from "@/lib/pay-from";
 
 /** The words of the button that opens the details of the sum: one student - his periods, several - each student. */
@@ -26,6 +26,8 @@ export function BarDetails({ rows }: { rows: readonly EnrolBarRow[] }) {
 function BarList({ rows }: { rows: readonly EnrolBarRow[] }) {
   const payers = rows.filter((row) => row.amount !== null);
   const single = payers.length === 1 ? payers[0] : null;
+  // every student has his own term: said under his name only when the terms differ (the bar over the list names the nearest one)
+  const ownTerms = captionsDiffer(payers);
   return (
     <ul className="grid max-h-[40vh] gap-2 overflow-y-auto overscroll-contain text-sm" data-testid="enrol-by-student">
       {single
@@ -39,8 +41,9 @@ function BarList({ rows }: { rows: readonly EnrolBarRow[] }) {
           // the name and his total on the first line, his periods under them: the sums of the periods stand in the same right column as the total
           <li key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3" data-testid="enrol-by-student-row">
             <span className="col-start-1 row-start-1 min-w-0 [overflow-wrap:anywhere]">{row.name}</span>
+            {ownTerms && (row.lines?.length ?? 0) > 0 && <span className="col-span-2 row-start-2 text-xs text-slate-600 [overflow-wrap:anywhere]" data-testid="enrol-by-student-term">{(row.lines ?? []).map(captionOf).join(" · ")}</span>}
             {row.parts.length > 1 && (
-              <span className="col-span-2 row-start-2 mt-0.5 grid gap-0.5 text-xs text-slate-600">
+              <span className="col-span-2 row-start-3 mt-0.5 grid gap-0.5 text-xs text-slate-600">
                 {immediatePartRows(row.parts).map((part) => <span key={part.label} className="flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]">{part.label}</span><span className="whitespace-nowrap tabular-nums">{part.amount}</span></span>)}
               </span>
             )}

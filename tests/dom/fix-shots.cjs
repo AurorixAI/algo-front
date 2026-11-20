@@ -39,8 +39,8 @@ const drawerServer = (request) => {
     const from = (request.body && request.body.pay_from) || "2026-11-09";
     const past = from < "2026-11-06";
     const billing = { pay_from: from, explicit: from !== "2026-11-09", default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: `Оплата с ${from.slice(8, 10)}.${from.slice(5, 7)}.${from.slice(0, 4)}`,
-      immediate: past ? { amount: 489000, lessons: 10, text: "К оплате сразу: 489 000 сум (за 10 уроков)", parts: PARTS } : null };
-    if (request.path.endsWith("/bulk")) return { json: { dry_run: true, students: [{ student_id: "a", billing }], immediate_total: past ? { text: "Всего к оплате сразу: 489 000 сум (за 10 уроков)" } : null } };
+      immediate: past ? { amount: 489000, lessons: 10, text: "К оплате до 24.11: 489 000 сум (за 10 уроков)", parts: PARTS } : null };
+    if (request.path.endsWith("/bulk")) return { json: { dry_run: true, students: [{ student_id: "a", billing }], immediate_total: past ? { text: "Всего к оплате до 24.11: 489 000 сум (за 10 уроков)" } : null } };
     return { json: { dry_run: true, billing } };
   }
   return null;

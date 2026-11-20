@@ -6,7 +6,8 @@ import type { ReactNode } from "react";
  * says what is missing («Выберите учеников»).  The bar brings its own tone and padding; the window gives it the whole footer.
  */
 export function SummaryBar({ label, amount, unit, dim = false, idle, line, action, testId = "summary-bar" }: {
-  label: string;
+  /** the words over the sum (one line each; none - nothing is named: the sum is not described in words the window does not have) */
+  label?: string | readonly string[];
   amount?: string | null;
   unit?: string;
   dim?: boolean;
@@ -22,7 +23,7 @@ export function SummaryBar({ label, amount, unit, dim = false, idle, line, actio
       <div className="min-w-0">
         {amount ? (
           <>
-            <p className="text-xs text-slate-600">{label}</p>
+            {(typeof label === "string" ? [label] : label ?? []).map((words) => <p key={words} data-testid="summary-bar-label" className="text-xs text-slate-600">{words}</p>)}
             <p data-testid="summary-bar-sum" className={`mt-0.5 whitespace-nowrap text-2xl font-bold leading-tight tabular-nums text-slate-900 transition-opacity ${dim ? "opacity-50" : ""}`}>
               {amount}{unit && <>{"\u00a0"}<span className="text-base font-semibold text-slate-600">{unit}</span></>}
             </p>

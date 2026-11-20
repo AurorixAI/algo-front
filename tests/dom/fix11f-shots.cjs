@@ -38,7 +38,7 @@ const SCENES = {
   "one-student-two-phrases": async (ctx, width) => { const run = await drawer(ctx, width, { past: { st2: [DEBT] }, ordinary: ["st2"], undone: ["st3"] }); await pick(run.page, FIRST, "Юсупова", "Рашидов"); await run.page.waitForSelector('[data-testid="enrol-note-past"]'); await settled(run.page); return run; },
   "by-student": async (ctx, width) => FRAMES[7](ctx, { width, long: LONG }),
   "keep-in-both": async (ctx, width) => {
-    const run = await drawer(ctx, width, { effectsOf: () => DEBT_STAYS, immediateText: () => "К оплате сразу 188 000 сум (5 уроков)" });
+    const run = await drawer(ctx, width, { effectsOf: () => DEBT_STAYS, immediateText: () => "К оплате до 24.11: 188 000 сум (за 5 уроков)" });
     await search(run.page, "Назаров"); await pick(run.page, "Назаров"); await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]'); await settled(run.page);
     await run.page.getByRole("radio", { name: "Оставить в обеих" }).click(); await run.page.waitForTimeout(800); await settled(run.page);
     return run;

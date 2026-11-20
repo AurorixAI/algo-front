@@ -1,5 +1,6 @@
 // Money-2 fix 10Д: the answers of the server for the drawer «Зачислить учеников» (the dry run of a bulk add always carries `billing.immediate` - the default day is today) and the students of the owner's picture.
 const X = require("./money2-fix7.cjs");
+const { dueLines } = require("./enrol-words.cjs");
 
 const PART = (label, from, amount, lessons, inPeriod, whole = false) => ({ label, from, amount, lessons, lessons_in_period: inPeriod, whole });
 const NOV = [PART("ноябрь", "2026-11-19", 188000, 5, 12)];
@@ -21,8 +22,10 @@ function server({ people, immediate = {}, past = {}, ordinary = [], undone = [],
     if (r.method === "POST" && /\/students\/bulk$/.test(r.path) && X.isDry(r)) {
       const ids = r.body.student_ids;
       const from = r.body.pay_from || today;
-      const billing = (id) => (immediate[id] ? { pay_from: from, explicit: Boolean(r.body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с выбранного дня", immediate: { amount: sumOf(immediate[id]), lessons: 5, text: "К оплате сразу", parts: immediate[id] } } : null);
-      return { json: { group_id: "g2", added: ids.length, skipped: 0, skipped_details: [], warnings: [], dry_run: true, students: ids.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: billing(id), past_balances: past[id] || [], leave_undo: undone.includes(id) ? X.undoOf(true, UNDO) : ordinary.includes(id) ? { undone: false, text: REWRITE, restored: [] } : null })) } };
+      const billing = (id) => (immediate[id] ? { pay_from: from, explicit: Boolean(r.body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с выбранного дня", immediate: { amount: sumOf(immediate[id]), lessons: 5, ...(() => { const lines = dueLines(sumOf(immediate[id]), 5); return { text: lines.join("\n"), lines }; })(), parts: immediate[id] } } : null);
+      const payers = ids.filter((id) => immediate[id]);
+      const totalLines = payers.length === 0 ? null : dueLines(payers.reduce((s, id) => s + sumOf(immediate[id]), 0), 5 * payers.length, { total: true });
+      return { json: { group_id: "g2", added: ids.length, skipped: 0, skipped_details: [], warnings: [], dry_run: true, immediate_total: totalLines && { amount: payers.reduce((s, id) => s + sumOf(immediate[id]), 0), lessons: 5 * payers.length, students: payers.length, text: totalLines.join("\n"), lines: totalLines }, students: ids.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: billing(id), past_balances: past[id] || [], leave_undo: undone.includes(id) ? X.undoOf(true, UNDO) : ordinary.includes(id) ? { undone: false, text: REWRITE, restored: [] } : null })) } };
     }
     return null;
   }, false, {});

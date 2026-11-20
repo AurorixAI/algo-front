@@ -17,7 +17,7 @@ export interface EnrolSummary {
   /** The group they were put into and who got in: «Трое зачислены в «М11 БС»». */
   groupName?: string;
   addedNames?: string[];
-  /** «К оплате 600 000 сум — на странице «Оплаты»» (a role that sees money); the first line under the headline. */
+  /** the sentence of the server about the sum at once + «— на странице «Оплаты»» («К оплате до 24.11: 600 000 сум (за 14 уроков) — на странице «Оплаты»»; a role that sees money); the first line under the headline. */
   payNowLine?: string | null;
 }
 
@@ -68,7 +68,7 @@ export interface AssignDoneInput {
   undoText?: string | null;
   /** the groups the student keeps attending after the action (add mode) */
   stays?: readonly string[];
-  /** «К оплате 600 000 сум — на странице «Оплаты»»: the sum of the last probe, only for a role that sees money (as the window of a group says it) */
+  /** the server's words of the last probe («К оплате до 24.11: 600 000 сум …») and the way to the page, only for a role that sees money (as the window of a group says it) */
   payNowLine?: string | null;
   /** calm notes and real hints of the server (`warnings` of the answer) */
   infos?: readonly string[];

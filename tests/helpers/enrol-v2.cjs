@@ -2,6 +2,7 @@
 // 5 of them from the 19th: 450 000 * 5 / 12 = 187 500 -> 188 000 (rounded up to a thousand, as the server does).
 const path = require("node:path");
 const { openPage } = require("./dom-page.cjs");
+const { dueLines } = require("./enrol-words.cjs");
 
 const TODAY = "2026-11-19";
 const SLOT = (day, start = "16:00", end = "17:00") => ({ id: `s${day}`, dayOfWeek: day, startTime: start, endTime: end });
@@ -55,7 +56,7 @@ function server(o = {}) {
     const p = parts(id, body);
     // the day of the charge is AHEAD (`defaultPayFrom` after today): nothing is charged at once, the answer still says the day (`pay_from`)
     if (!body.pay_from && o.defaultPayFrom && o.defaultPayFrom > today) return { pay_from: o.defaultPayFrom, explicit: false, default_pay_from: o.defaultPayFrom, first_lesson: o.defaultPayFrom, text: "Оплата с", immediate: null };
-    return p ? { pay_from: body.pay_from || today, explicit: Boolean(body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с", immediate: { amount: sumOf(p), lessons: p.reduce((s, x) => s + x.lessons, 0), text: o.immediateText ? o.immediateText(id, p) : "К оплате сразу", parts: p } } : null;
+    return p ? { pay_from: body.pay_from || today, explicit: Boolean(body.pay_from), default_pay_from: today, first_lesson: today, text: "Оплата с", immediate: { amount: sumOf(p), lessons: p.reduce((s, x) => s + x.lessons, 0), ...(() => { const lines = o.immediateText ? [o.immediateText(id, p)] : dueLines(sumOf(p), p.reduce((s, x) => s + x.lessons, 0), { until: o.dueUntil ? o.dueUntil(id) : "24.11" }); return { text: lines.join("\n"), lines }; })(), parts: p } } : null;
   };
   return (r) => {
     calls.push(r);
@@ -81,7 +82,7 @@ function server(o = {}) {
         const moved = (id) => { const one = people.find((x) => x.id === id); return Boolean(one && one.groups_count > 0); };
         const rows = okIds.map((id) => ({ student_id: id, group_id: "g2", status: "added", billing: transfer && moved(id) ? null : billingOf(id, r.body), past_balances: past[id] || [], leave_undo: leaveOf(id), effects: transfer && moved(id) && o.effectsOf ? o.effectsOf(id) : null }));
         const charged = rows.map((row) => row.billing && row.billing.immediate).filter(Boolean);
-        const immediateTotal = charged.length === 0 ? null : { amount: charged.reduce((sum, one) => sum + one.amount, 0), lessons: charged.reduce((sum, one) => sum + one.lessons, 0), students: charged.length, text: "К оплате сразу" };
+        const immediateTotal = charged.length === 0 ? null : { amount: charged.reduce((sum, one) => sum + one.amount, 0), lessons: charged.reduce((sum, one) => sum + one.lessons, 0), students: charged.length, ...(() => { const until = charged.map((one) => /до (\d\d\.\d\d)/.exec(one.text)?.[1]).filter(Boolean).sort((a, b) => a.split(".").reverse().join("").localeCompare(b.split(".").reverse().join(""))); const lines = dueLines(charged.reduce((sum, one) => sum + one.amount, 0), charged.reduce((sum, one) => sum + one.lessons, 0), { until: until[0] ?? null, total: true }); return { text: lines.join("\n"), lines }; })() };
         return { json: { group_id: "g2", added: okIds.length, skipped: ids.length - okIds.length, skipped_details: ids.filter((id) => refused[id]).map((id) => ({ student_id: id, reason: refused[id].reason, code: refused[id].code ?? "refused" })), warnings: [], dry_run: true, ...(transfer && !o.effectsOf ? { carried: o.transferCarried ?? [{ code: "payment_carried_over", message: "Из «Алгебра 7» перейдёт 555 000 сум: 188 000 — за ноябрь здесь, 367 000 — аванс" }] } : {}), students: rows, immediate_total: immediateTotal } };
       }
       const results = o.writeResults ? o.writeResults(ids, r.body) : ids.map((id) => ({ student_id: id, status: "added" }));

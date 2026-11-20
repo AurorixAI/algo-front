@@ -112,9 +112,9 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const input = field.getByLabel("Оплата с");
   await input.fill(addDays(today, -5).split("-").reverse().join("."));
   await input.press("Tab");
-  // «К оплате сразу» is the BAR under the window: the caption, ONE big sum (its own test id) and one line that explains it, made of the fields of the server's answer
+  // the BAR under the window: the words of the server over the sum (PAY-DUE 10.4: «К оплате до ДД.ММ» / «К оплате сегодня» / «Долг сразу · срок был ДД.ММ», by the term of the centre), ONE big sum (its own test id) and one line that explains it, made of the fields of the server's answer
   const bar = drawer.getByTestId("summary-bar");
-  await expect(bar).toContainText("К оплате сразу");
+  await expect(bar.getByTestId("summary-bar-label").first()).toHaveText(/^(К оплате до \d\d\.\d\d|К оплате сегодня|Долг сразу( · срок был \d\d\.\d\d)?|Долг \d.*|К оплате \d.*)$/);
   await expect(bar.getByTestId("summary-bar-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
   // one period: «5 уроков из 12 в ноябре» (a whole period by dates: «13 уроков · весь период 20.11–19.12»); the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line)
   await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) (из \d+ (в [а-яё]+|за период)|· весь период)|^за [а-яё]+( и [а-яё]+)?)/);

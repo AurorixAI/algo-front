@@ -107,12 +107,12 @@ test("a common price is entered and a student comes back as he was: his row says
   await p.close();
 });
 
-test("one student: the same bar - «К оплате сразу», the period in the line, his notes as rows without his name again", async () => {
+test("one student: the same bar - the words of the server «К оплате до 24.11», the period in the line, his notes as rows without his name again", async () => {
   for (const width of [1280, 375]) {
     const run = await H.openDrawer(ctx, H.server({ people: THREE.slice(0, 1), parts: () => NOV, past: { st1: [DEBT_SAME] }, ordinary: ["st1"] }), { width });
     await H.pick(run.page, "М14-н7"); await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]'); await run.page.waitForTimeout(400);
     const p = run.page;
-    assert.equal(await p.locator('[data-testid="summary-bar"] p').first().innerText(), "К оплате сразу");
+    assert.equal(await p.locator('[data-testid="summary-bar"] p').first().innerText(), "К оплате до 24.11");
     assert.equal(await sum(p), "188 000 сум");
     assert.equal(await line(p), "5 уроков из 12 в ноябре");
     assert.equal(await p.locator('[data-testid="enrol-note-past"]').count(), 1);

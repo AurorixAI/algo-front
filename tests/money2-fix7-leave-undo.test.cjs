@@ -173,14 +173,14 @@ test("drawer, all come back: a row each, no fields, no «Оплата с» anywh
 
 const SAME = { group_id: "g2", group_name: "7-Б Геометрия", membership_id: "m-same", left_on: "2026-11-17", kind: "debt", amount: 38000, same_group: true, text: "Уже был в этой группе, ушёл 17.11.2026 — остался долг 38 000 сум" };
 const OTHER = (n) => ({ group_id: "gx" + n, group_name: "Алгебра " + n, membership_id: "m-x" + n, left_on: "2026-11-1" + n, kind: n === 2 ? "advance" : "debt", amount: 10000 * n, text: "Был в группе «Алгебра " + n + "», ушёл 1" + n + ".11.2026 — остался " + (n === 2 ? "аванс " : "долг ") + 10 * n + " 000 сум" });
-test("drawer, ONE student with a debt of THIS group: the row says «в этой же группе» and the sum of the debt, the bar is «К оплате сразу»", async () => {
+test("drawer, ONE student with a debt of THIS group: the row says «в этой же группе» and the sum of the debt, the bar says the term of the server «К оплате до …»", async () => {
   const run = await openDrawer([], ["Новый"], 1280, { st9: [SAME] });
   await run.page.waitForSelector('[data-testid="enrol-note-past"]');
   const row = (await run.page.locator('[data-testid="enrol-note-past"]').evaluate((li) => li.innerText)).replace(/\s+/g, " ").trim();
   assert.match(row, /^Долг с прошлого раза 38 000 сум · в этой же группе, ушёл 17\.11( Выписка)?$/);
   assert.ok(!row.includes("Геометрия"), row);
   await H.settled(run.page);
-  assert.equal(plain(await run.page.locator('[data-testid="summary-bar"] p').first().innerText()), "К оплате сразу");
+  assert.equal(plain(await run.page.locator('[data-testid="summary-bar"] p').first().innerText()), "К оплате до 24.11");
   await run.page.close();
 });
 
@@ -213,9 +213,9 @@ test("375, touch: ONE tap on «⋯» of a roster row opens the menu", async () =
   }
 });
 
-// item 4 (server fix MONEY2_FIX_STAGE6): coming back into the SAME group - the row of its debt + «К оплате сразу: 187 000 сум (за 5 уроков)»: the lessons and the sum are the server's fields, the bar arranges them
+// item 4 (server fix MONEY2_FIX_STAGE6): coming back into the SAME group - the row of its debt + «К оплате до 24.11: 187 000 сум (за 5 уроков)»: the lessons and the sum are the server's fields, the bar arranges them
 test("return to the same group: the debt row of the group and the sum of the server reach the screen without being rebuilt from numbers", async () => {
-  const immediate = { amount: 187000, lessons: 5, text: "К оплате сразу: 187 000 сум (за 5 уроков)", parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
+  const immediate = { amount: 187000, lessons: 5, text: "К оплате до 24.11: 187 000 сум (за 5 уроков)", lines: ["К оплате до 24.11: 187 000 сум (за 5 уроков)"], parts: [{ label: "ноябрь", from: "2026-11-04", amount: 187000, lessons: 5, lessons_in_period: 12, whole: false }] };
   const server = F.baseServer((request) => {
     if (request.method === "GET" && request.path === "/auth/org/groups/gt/pay-from-default") return { json: { today: "2026-11-06", first_lesson: "2026-11-09", default_pay_from: "2026-11-09", text: "Оплата с 09.11.2026 — ближайшее занятие группы" } };
     if (request.method === "POST" && request.path === "/auth/org/groups/gt/students/st1") {
@@ -233,7 +233,7 @@ test("return to the same group: the debt row of the group and the sum of the ser
   await run.page.waitForSelector('[data-testid="summary-bar-sum"]');
   await H.settled(run.page).catch(() => {});
   const bar = plain(await run.page.locator('[data-testid="summary-bar"]').innerText());
-  assert.match(bar, /^К оплате сразу 187 000 сум .*5 уроков из 12 в ноябре$/, bar);
+  assert.match(bar, /^К оплате до 24\.11 187 000 сум .*5 уроков из 12 в ноябре$/, bar);
   assert.ok(!/Сразу начислится|ещё|Неполный месяц/.test(bar), bar);
   const debtRow = plain(await run.page.locator('[data-testid="enrol-note-past"]').innerText());
   assert.ok(debtRow.includes("38 000") && !/187 000/.test(debtRow), "the debt is a row of its own, not part of the sum");

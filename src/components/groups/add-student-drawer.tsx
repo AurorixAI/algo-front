@@ -82,7 +82,7 @@ export interface AddStudentsResult {
   /** The group they were put into and the names of those who got in: the message of success says «Трое зачислены в «…»». */
   groupName?: string;
   addedNames?: string[];
-  /** The line about what is to be paid at once («К оплате 600 000 сум — на странице «Оплаты»»), only for a role that sees money. */
+  /** The line about what is to be paid at once (the server's words «К оплате до 24.11: 600 000 сум …» and the way to the page), only for a role that sees money. */
   payNowLine?: string | null;
 }
 
@@ -361,9 +361,9 @@ export function AddStudentDrawer({
   const pastOf = new Map(pastBalancesByStudent(probeAnswer).map((entry) => [entry.studentId, entry.rows]));
   const barRows: EnrolBarRow[] = Array.from(selected.values()).map((student) => {
     const row = immediateOf.get(student.id) ?? (selected.size === 1 ? shownImmediate?.immediate.rows[0] : undefined);
-    return { id: student.id, name: nameById.get(student.id) ?? "Ученик", amount: row?.amount ?? null, parts: row?.parts ?? [] };
+    return { id: student.id, name: nameById.get(student.id) ?? "Ученик", amount: row?.amount ?? null, parts: row?.parts ?? [], lines: row?.lines ?? [] };
   });
-  const bar = amountsState === "off" ? null : enrolBarOf(barRows);
+  const bar = amountsState === "off" ? null : enrolBarOf(barRows, shownImmediate?.immediate.totalLines);
   const notes: EnrolNote[] = Array.from(selected.values()).map((student) => ({
     id: student.id,
     name: selected.size === 1 ? null : nameOfStudent(student),
@@ -444,7 +444,7 @@ export function AddStudentDrawer({
       const skippedIds = new Set(perStudent.skipped.map((row) => row.id));
       // what the ones who got in pay at once: the sums of the probe, none for a role without money / a transfer
       const paidRows = barRows.filter((row) => !skippedIds.has(row.id));
-      const paid = bar ? enrolBarOf(paidRows) : null;
+      const paid = bar ? enrolBarOf(paidRows, shownImmediate?.immediate.totalLines) : null;
       const summary: AddStudentsResult = {
         added: result.added,
         skipped: result.skipped,
@@ -453,7 +453,7 @@ export function AddStudentDrawer({
         infos: [...returnedLines(returned, picked.length === 1, nameOf), ...notes.infos, ...(billingLine ? [billingLine] : [])],
         groupName: groupName ?? groupNames[groupId],
         addedNames: perStudent.addedNames,
-        payNowLine: paid && paid.total ? `К оплате ${formatMoney(paid.total)} — на странице «Оплаты»` : null,
+        payNowLine: paid && paid.words.length > 0 ? `${paid.words.join(" · ")} — на странице «Оплаты»` : null,
       };
       // somebody was refused: the window stays and says it per student (the toast then carries the numbers only); nobody refused: as before
       if (perStudent.skipped.length > 0) {
@@ -588,7 +588,7 @@ export function AddStudentDrawer({
       footerClassName="flex flex-col"
       footer={outcome ? (
         <SummaryBar
-          label="К оплате"
+          label={outcome.bar.captions}
           amount={outcome.bar.total !== null ? outcome.bar.totalText : null}
           unit={outcome.bar.unit}
           line={outcome.bar.line}
@@ -602,7 +602,7 @@ export function AddStudentDrawer({
           {/* «По ученикам»: the list opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
           <SummaryBar
-            label="К оплате сразу"
+            label={bar?.captions}
             amount={bar && bar.total !== null ? bar.totalText : null}
             unit={bar?.unit}
             dim={stale}

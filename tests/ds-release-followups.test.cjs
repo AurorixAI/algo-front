@@ -29,16 +29,16 @@ test("immediate.parts: the break-down lines in the words of the owner; no parts 
   assert.deepEqual(payFrom.immediatePartLines(payFrom.normalizeParts(PARTS)).map(nb), ["Октябрь, с 27.10 — 89 000 сум · 2 урока из 9", "Ноябрь, весь месяц — 400 000 сум"]);
   assert.match(nb(payFrom.immediatePartLines([{ ...PARTS[0], lessons: 5 }])[0]), /5 уроков из 9/);
   assert.match(nb(payFrom.immediatePartLines([{ ...PARTS[0], lessons: 1 }])[0]), /1 урок из 9/);
-  const withParts = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате сразу: 489 000 сум", parts: PARTS } });
+  const withParts = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате до 24.11: 489 000 сум", parts: PARTS } });
   assert.equal(withParts.immediate.parts.length, 2);
-  const without = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате сразу: 489 000 сум" } });
+  const without = payFrom.normalizeBilling({ pay_from: "2026-10-27", text: "t", immediate: { amount: 489000, lessons: 10, text: "К оплате до 24.11: 489 000 сум" } });
   assert.deepEqual(without.immediate.parts, []);
   assert.equal(payFrom.normalizeBulkImmediate({ billing: { pay_from: "2026-10-27", immediate: { amount: 1, lessons: 1, text: "x", parts: PARTS } } }).students[0].parts.length, 2);
   assert.deepEqual(payFrom.normalizeBulkImmediate({ billing: { pay_from: "2026-10-27", immediate: { amount: 1, lessons: 1, text: "x" } } }).students[0].parts, []);
   assert.deepEqual(payFrom.normalizeParts("junk"), []);
 });
 
-test("the block «К оплате сразу»: rows with the caption on the left and the sum on the right; the line beside the big number of a sheet is short and says больше / меньше", () => {
+test("the block under the sum of the bar: rows with the caption on the left and the sum on the right; the line beside the big number of a sheet is short and says больше / меньше", () => {
   const rows = payFrom.immediatePartRows(payFrom.normalizeParts(PARTS)).map((r) => ({ label: nb(r.label), amount: nb(r.amount) }));
   assert.deepEqual(rows, [{ label: "Октябрь, с 27.10 · 2 урока из 9", amount: "89 000 сум" }, { label: "Ноябрь, весь месяц", amount: "400 000 сум" }]);
   const Y = require(src("lib/payroll-logica.ts"));
@@ -55,7 +55,7 @@ test("the server sends the month in lower case («ноябрь»): the caption o
   assert.match(nb(payFrom.immediatePartLines(lower)[0]), /^Октябрь, с 27\.10/);
 });
 
-test("no rounding sentence and no «?» of «К оплате сразу» on the screen (the mock-up of 19.11): the sum is the server's, the bar says the lessons", () => {
+test("no rounding sentence and no «?» of the sum at once on the screen (the mock-up of 19.11): the sum is the server's, the bar says the lessons", () => {
   assert.equal(payFrom.immediateHint, undefined);
   for (const file of ["components/groups/add-student-drawer.tsx", "components/groups/assign-group-modal.tsx", "components/groups/enrol-bar-details.tsx", "components/ui/summary-bar.tsx"]) {
     const text = fs.readFileSync(src(file), "utf8");

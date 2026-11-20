@@ -272,7 +272,7 @@ export function AssignGroupModal({
         transfer: isTransfer,
         undoText: undoDone?.undone ? undoDone.text : null,
         // the sum of the last probe, as the window of a group says it (only for a role that sees money; no sum - no line)
-        payNowLine: bar && bar.total ? `К оплате ${formatMoney(bar.total)} — на странице «Оплаты»` : null,
+        payNowLine: bar && bar.words.length > 0 ? `${bar.words.join(" · ")} — на странице «Оплаты»` : null,
         stays: isAdd ? (sourceGroups ?? []).filter((g) => g.id !== selectedGroupId).map((g) => g.name).filter(Boolean) : [],
         warnings: notes.warnings,
         infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
@@ -341,7 +341,7 @@ export function AssignGroupModal({
   const failed = sums && payPreview.status === "failed" && refusedWords === null;
   const ready = sums && payPreview.status === "ready" ? payPreview : null;
   const row = ready?.immediate.rows[0];
-  const barRows = [{ id: studentId, name: studentName, amount: row?.amount ?? null, parts: row?.parts ?? [] }];
+  const barRows = [{ id: studentId, name: studentName, amount: row?.amount ?? null, parts: row?.parts ?? [], lines: row?.lines ?? [] }];
   const bar = ready ? enrolBarOf(barRows) : null;
   const noPrice = moneyAvailable && selectedGroup !== null && selectedGroup.price_current === null;
   const whyOff = source.needed && !source.id ? SOURCE_WHY : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
@@ -397,7 +397,7 @@ export function AssignGroupModal({
           {/* «По периодам»: opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
           <SummaryBar
-            label="К оплате сразу"
+            label={bar?.captions}
             amount={bar && bar.total !== null ? bar.totalText : null}
             unit={bar?.unit}
             idle={idle}

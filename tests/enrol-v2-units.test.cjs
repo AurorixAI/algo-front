@@ -85,8 +85,8 @@ test("the reason of the day is the server's own words without the date the line 
 
 test("the message of success: «Трое зачислены в «…»» and the line about what is to be paid; without the group's name the old text", () => {
   const base = { added: 3, skipped: 0, skippedLines: [], warnings: [], infos: [] };
-  const three = E.enrolToast({ ...base, groupName: "М11 БС", addedNames: ["А", "Б", "В"], payNowLine: "К оплате 564 000 сум — на странице «Оплаты»" });
-  assert.equal(three.text, "Трое зачислены в «М11 БС»"); assert.equal(three.type, "success"); assert.deepEqual(three.details, ["К оплате 564 000 сум — на странице «Оплаты»"]);
+  const three = E.enrolToast({ ...base, groupName: "М11 БС", addedNames: ["А", "Б", "В"], payNowLine: "Всего к оплате до 24.11: 564 000 сум (за 15 уроков) — на странице «Оплаты»" });
+  assert.equal(three.text, "Трое зачислены в «М11 БС»"); assert.equal(three.type, "success"); assert.deepEqual(three.details, ["Всего к оплате до 24.11: 564 000 сум (за 15 уроков) — на странице «Оплаты»"]);
   assert.equal(E.enrolToast({ ...base, added: 1, groupName: "М11 БС", addedNames: ["Анвар Каримов"] }).text, "Анвар Каримов зачислен в «М11 БС»");
   assert.equal(E.enrolToast({ ...base, added: 2, groupName: "Г" }).text, "Двое зачислены в «Г»");
   assert.equal(E.enrolToast({ ...base, added: 4, groupName: "Г" }).text, "Четверо зачислены в «Г»");

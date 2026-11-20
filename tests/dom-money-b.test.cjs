@@ -167,9 +167,9 @@ test("Б1: the owner sees «Оплата с» with the first lesson by default; 
   await page.close();
 });
 
-test("Б1: a day in the past - the card says «К оплате сразу» and the sum before the button", async () => {
+test("Б1: a day in the past - the card says the term of the server «К оплате до …» and the sum before the button", async () => {
   const server = (request) => {
-    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } } };
+    if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) return { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing: { pay_from: "2026-10-26", explicit: true, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x", immediate: { amount: 300000, lessons: 14, text: "К оплате до 24.11: 300 000 сум (за 14 уроков)" } } }], immediate_total: { amount: 300000, lessons: 14, students: 1, text: "Всего сразу начислится 300 000 сум (за 14 уроков)" } } };
     return null;
   };
   const { page, calls } = await openDrawer(OWNER, server);
@@ -376,8 +376,8 @@ test("R3 №11/12: a failed calculation of «сразу начислится» s
   const server = (request) => {
     if (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)) {
       if (fail) return { status: 500, json: { detail: "boom" } };
-      const one = (id, amount) => ({ student_id: id, billing: { pay_from: "2026-10-26", immediate: { amount, lessons: 14, text: "К оплате сразу: 300 000 сум (за 14 уроков)" } } });
-      return { json: { students: [one("st9", 300000), one("st8", 300000)], immediate_total: { amount: 600000, lessons: 28, students: 2, text: "Всего к оплате сразу: 600 000 сум (за 28 уроков)" } } };
+      const one = (id, amount) => ({ student_id: id, billing: { pay_from: "2026-10-26", immediate: { amount, lessons: 14, text: "К оплате до 24.11: 300 000 сум (за 14 уроков)" } } });
+      return { json: { students: [one("st9", 300000), one("st8", 300000)], immediate_total: { amount: 600000, lessons: 28, students: 2, text: "Всего к оплате до 24.11: 600 000 сум (за 28 уроков)" } } };
     }
     return null;
   };
@@ -466,11 +466,11 @@ test("RB Д1: the window of the mode - the footer under the table agrees with it
   }, "RBfix-07-regime-footer");
 });
 
-test("RB Д3: «Оплата с» = today and a lesson today - the window says «К оплате сразу…» whenever the server sent it (no sentence when it sent none)", async () => {
+test("RB Д3: «Оплата с» = today and a lesson today - the window says «К оплате до …» (the words of the server) whenever the server sent it (no sentence when it sent none)", async () => {
   const dry = (billing) => (request) => (request.method === "POST" && request.path === "/auth/org/groups/g2/students/bulk" && isDry(request)
     ? { json: { group_id: "g2", dry_run: true, added: 1, skipped: 0, students: [{ student_id: "st9", billing }] } } : null);
   const today = { pay_from: "2026-11-09", explicit: false, default_pay_from: "2026-11-09", first_lesson: "2026-11-09", text: "x" };
-  let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "К оплате сразу: 350 000 сум (за 7 уроков)" } }));
+  let ctx = await openDrawer(OWNER, dry({ ...today, immediate: { amount: 350000, lessons: 7, text: "К оплате до 24.11: 350 000 сум (за 7 уроков)" } }));
   await ctx.page.waitForSelector('[data-testid="summary-bar-sum"]');
   assert.equal(plain(await ctx.page.textContent('[data-testid="summary-bar-sum"]')), "350 000 сум");
   await openTerms(ctx.page);

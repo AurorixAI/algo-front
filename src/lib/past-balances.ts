@@ -5,7 +5,7 @@
 import { formatDayMonthRu } from "./business-time";
 import { formatMoney } from "./money-format";
 
-export interface PastBalance { key: string; membershipId: string; group: string; leftOn: string | null; kind: "debt" | "advance" | null; value: string | null; text: string; /** the stay in THIS group (the server: `same_group`) - the row says «эта группа» */ sameGroup: boolean }
+export interface PastBalance { key: string; membershipId: string; group: string; leftOn: string | null; kind: "debt" | "due" | "advance" | null; /** the last day of «к оплате» (`due_until`, only for `kind: "due"` and a role with money) */ dueUntil: string | null; value: string | null; text: string; /** the stay in THIS group (the server: `same_group`) - the row says «эта группа» */ sameGroup: boolean }
 
 export function pastBalancesOf(answer: unknown): PastBalance[] {
   return pastBalanceRows((answer as { past_balances?: unknown } | null | undefined)?.past_balances);
@@ -31,12 +31,12 @@ function pastBalanceRows(raw: unknown): PastBalance[] {
     const text = typeof row.text === "string" ? row.text.trim() : "";
     const group = typeof row.group_name === "string" ? row.group_name : "";
     if (!membershipId || (!text && !group)) return;
-    const kind = row.kind === "debt" || row.kind === "advance" ? row.kind : null;
+    const kind = row.kind === "debt" || row.kind === "due" || row.kind === "advance" ? row.kind : null;
     const amount = typeof row.amount === "number" && Number.isFinite(row.amount) ? row.amount : null;
     out.push({
       key: `${index}-${membershipId}-${kind ?? ""}`, membershipId, group, text,
       leftOn: typeof row.left_on === "string" && row.left_on ? formatDayMonthRu(row.left_on) || null : null,
-      kind, value: amount === null ? null : formatMoney(amount), sameGroup: row.same_group === true,
+      kind, dueUntil: kind === "due" && typeof row.due_until === "string" && row.due_until ? formatDayMonthRu(row.due_until) || null : null, value: amount === null ? null : formatMoney(amount), sameGroup: row.same_group === true,
     });
   });
   return out;
@@ -46,5 +46,6 @@ function pastBalanceRows(raw: unknown): PastBalance[] {
 export function pastBalanceNote(row: PastBalance): string {
   if ((!row.group && !row.sameGroup) || !row.kind) return row.text;
   const where = row.sameGroup ? "в этой же группе" : `в «${row.group}»`;
-  return `${row.kind === "debt" ? "Долг" : "Аванс"} с прошлого раза${row.value ? ` ${row.value}` : ""} · ${where}${row.leftOn ? `, ушёл ${row.leftOn}` : ""}`;
+  const name = row.kind === "debt" ? "Долг" : row.kind === "due" ? "К оплате" : "Аванс"; // the name of the state is the server's `kind` (the term decides debt or «к оплате»)
+  return `${name} с прошлого раза${row.value ? ` ${row.value}` : ""}${row.dueUntil ? ` до ${row.dueUntil}` : ""} · ${where}${row.leftOn ? `, ушёл ${row.leftOn}` : ""}`;
 }
