@@ -17,8 +17,6 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/logicA", `${name}.json`), "utf8"));
 const pay2 = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/pay2", `${name}.json`), "utf8"));
 const named = (prefix) => fixture(fs.readdirSync(path.join(__dirname, "fixtures/logicA")).find((f) => f.startsWith(prefix)).replace(/\.json$/, ""));
-/** A11 and A12 as the server file has them, with the sum that the file name says: the generator of the server still passes `debt=` to `LeaveMoney` (renamed `unpaid`), so the file says 0 next to `charged_after_leave` 347 000 (found 21.11, reported to the lead; the file is copied as it is). */
-const withUnpaid = (preview, unpaid) => ({ ...preview, memberships: preview.memberships.map((m) => ({ ...m, money: { ...m.money, unpaid } })) });
 const P = require(path.join(root, "src/lib/payments.ts"));
 const L = require(path.join(root, "src/lib/payments-ledger.ts"));
 const SUMM = require(path.join(root, "src/lib/payments-summary.ts"));
@@ -244,7 +242,7 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   assert.deepEqual(G.buildSettle(refund, choices), [{ membership_id: m.membership_id, action: "refund", expected_refundable: 135000, method: "cash" }]);
   assert.deepEqual(G.settledLines(named("A10_").settled).map(plain), ["Возвращено 135 000 сум"]);
   // a debt after leaving (chain 4): keep, or forgive with a reason
-  const archive = G.normalizeLeavePreview(withUnpaid(named("A11_"), 347000));
+  const archive = G.normalizeLeavePreview(named("A11_"));
   const debt = archive.memberships[0];
   // the fixture of the server carries no `effects`: the server is silent, the screen says nothing about what stays (LESSONS 151, PAY-DUE 10.5)
   assert.equal(G.settleHeadline(debt), "");
@@ -294,7 +292,7 @@ test("leave dialog and settle block draw the blocks of the spec", () => {
   const m = preview.memberships[0];
   const body = text(React.createElement(SettleBlock, { preview, choices: { [m.membership_id]: { action: "refund", method: null, reason: "" } }, onChoice: () => undefined }));
   for (const part of ["После ухода у ученика аванс 135 000 сум. Что сделать?", "Вернуть 135 000 сум", "Оставить аванс на счёте", "Как вернули", "Наличные"]) assert.ok(body.includes(part), part);
-  const withWords = G.normalizeLeavePreview(withUnpaid(named("A11_"), 347000));
+  const withWords = G.normalizeLeavePreview(named("A11_"));
   withWords.memberships[0].effects = { kind: "archive", moves: [], ends: [], stays: [{ code: "debt", amount: 347000, text: "Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом" }] };
   const debt = text(React.createElement(SettleBlock, { preview: withWords, choices: {}, onChoice: () => undefined }));
   for (const part of ["Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом", "Оставить как есть — оплатить можно и после ухода", "Простить сумму"]) assert.ok(debt.includes(part), part);
