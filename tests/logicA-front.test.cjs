@@ -369,7 +369,7 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.equal(Y.payoutChip(due).text, "Выплачено полностью");
   assert.equal(Y.payoutChangedBy(due), 125000);
   assert.equal(plain(Y.payoutChangeLine(due).text), "Зарплата изменилась на +125 000 сум");
-  assert.equal(Y.payoutChangeLine(due).title, "После сохранения ведомость изменилась на +125 000. Пересохраните ведомость, чтобы учесть");     // the server's sentence, as it came
+  assert.equal(plain(Y.payoutChangeLine(due).title), "После сохранения зарплата изменилась на +125 000 сум. Сохраните новую сумму, чтобы учесть изменение");     // the server's sentence, as it came
   assert.equal(Y.payoutChangeLine(unpaid), null);
   assert.equal(plain(Y.payoutChangeLine({ changed_by: -50000, change_text: null }).text), "Зарплата изменилась на −50 000 сум");
   assert.deepEqual([lower.state, lower.target, lower.balance, lower.changed_by], ["settled", 600000, 0, -125000]);
@@ -591,7 +591,7 @@ test("payment tabs: the numbers of each tab come from the summary, a tab «На 
   assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);
   assert.equal(opening.find((i) => i.kind === "month").title.includes("2026"), true);
   const info = L.buildStatementItems(L.normalizeStatement(named("A32_")), null).filter((i) => i.kind === "row");
-  assert.deepEqual(info.map((r) => [r.type, r.title, r.charged, r.paid]), [["opening_paid_until", "Остаток на начало: оплачено до 15.11", null, null], ["pause", "Пауза 05.11–20.11 — начислений нет", null, null]]);
+  assert.deepEqual(info.map((r) => [r.type, r.title, r.charged, r.paid]), [["opening_paid_until", "Остаток на начало: оплачено до 15.11", null, null], ["pause", "Пауза 05.11–20.11 — стоимость не считается", null, null]]);
 });
 
 test("an individual price asks the server what it changes (dry run) and shows the same window as the group price", () => {

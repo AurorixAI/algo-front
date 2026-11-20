@@ -1,5 +1,7 @@
 {
   "dry_run": true,
+  "money_effects": null,
+  "teacher_share": null,
   "impact": {
     "students_following": 12,
     "students_with_override": 1,
@@ -12,6 +14,13 @@
       "advance_delta": 0,
       "days_lost_total": 2,
       "backdated": false,
+      "as_of": null,
+      "items_total": 0,
+      "truncated": false,
+      "text": "",
+      "lessons_lost_total": 0,
+      "next_period_students": 0,
+      "next_period_delta_total": 0,
       "items": [
         {
           "membership_id": "00000000-0000-4000-8000-000000000102",
@@ -22,10 +31,22 @@
           "advance_after": 200000,
           "paid_until_before": "2026-11-12",
           "paid_until_after": "2026-11-10",
-          "has_money": true
+          "has_money": true,
+          "charged_before": 0,
+          "charged_after": 0,
+          "lessons_before": null,
+          "lessons_after": null,
+          "next_period": null,
+          "text": ""
         }
-      ]
-    }
+      ],
+      "override_students": [],
+      "override_total": 0,
+      "override_truncated": false
+    },
+    "first_price": null,
+    "warnings": [],
+    "correction": null
   },
   "group_id": null,
   "group_name": null,

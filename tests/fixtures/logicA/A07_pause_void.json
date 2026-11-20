@@ -1,4 +1,8 @@
 {
+  "new_debts": [],
+  "advance_drops": [],
+  "other_gains": [],
+  "other_groups_text": null,
   "pause": {
     "id": "00000000-0000-4000-8000-000000000011",
     "membership_id": "00000000-0000-4000-8000-000000000101",
@@ -23,6 +27,20 @@
     "refundable_after": 0
   },
   "row": {
+    "debt_amount": 20000,
+    "due_amount": 0,
+    "due_until": null,
+    "overdue_days": 1,
+    "due_lessons": null,
+    "debt_lessons": 0,
+    "debt_text": "Долг 20 000 сум",
+    "debt_sub": "просрочено 1 день · оплачено до 30.10",
+    "due_text": null,
+    "due_sub": null,
+    "debt_also_text": null,
+    "due_also_text": null,
+    "state": "debt",
+    "state_text": "Долг 20 000 сум",
     "membership_id": "00000000-0000-4000-8000-000000000101",
     "student_id": "00000000-0000-4000-8000-000000000201",
     "student_name": "Каримов Алишер",
@@ -39,7 +57,9 @@
       "source": "group",
       "valid_from": "2026-01-01",
       "group_amount": 620000,
-      "reason": null
+      "reason": null,
+      "set_by_name": null,
+      "scheduled": null
     },
     "monthly_fee": 620000,
     "status": "active",
@@ -50,10 +70,9 @@
     "lessons_total": null,
     "lessons_used": null,
     "lessons_left": null,
+    "paid_through_forecast": null,
     "last_payment": null,
-    "debt": 20000,
-    "past_debt": 0,
-    "current_due": 20000,
+    "unpaid": 20000,
     "advance": 0,
     "partial_credit": 0,
     "price_missing": false,
@@ -68,8 +87,7 @@
       "debt_on": null
     },
     "price_ends_on_leave": false,
-    "bucket": null,
-    "debt_reason": null,
-    "reason": null
-  }
+    "debt_age_bucket": "to_30"
+  },
+  "dry_run": false
 }

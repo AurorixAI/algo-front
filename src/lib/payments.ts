@@ -553,6 +553,8 @@ export interface PreviewResult {
   price_ahead: PriceAhead[];
   /** The server's sentence BEFORE the button (10.10): «Погасит долг 187 000 сум · к оплате 44 000 сум» - which sum the typed amount closes first, and what is left. */
   summary_text: string;
+  /** The state after the payment in the words of the server (15А.1): «Останется: долг 100 000 сум · к оплате 50 000 сум» / «Оплачено до 15.11» / «Аванс 21 000 сум». It repeats the end of `summary_text`, so the window shows the sentence once. */
+  after_text: string;
 }
 
 export interface PaymentPreview {

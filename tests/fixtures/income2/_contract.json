@@ -92,8 +92,44 @@
           "debt": {
             "default": 0,
             "title": "Debt",
-            "type": "integer",
-            "description": "PAY-DUE 10.2: the parts of the month's unpaid sum whose term has passed"
+            "type": "integer"
+          },
+          "debt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Text"
+          },
+          "debtors": {
+            "default": 0,
+            "title": "Debtors",
+            "type": "integer"
+          },
+          "due": {
+            "default": 0,
+            "title": "Due",
+            "type": "integer"
+          },
+          "due_students": {
+            "default": 0,
+            "title": "Due Students",
+            "type": "integer"
+          },
+          "due_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Text"
           },
           "forgiven": {
             "default": 0,
@@ -164,21 +200,6 @@
               }
             ],
             "title": "Teacher Name"
-          },
-          "due": {
-            "default": 0,
-            "title": "Due",
-            "type": "integer"
-          },
-          "debtors": {
-            "default": 0,
-            "title": "Debtors",
-            "type": "integer"
-          },
-          "due_students": {
-            "default": 0,
-            "title": "Due Students",
-            "type": "integer"
           }
         },
         "required": [
@@ -194,6 +215,8 @@
           "students",
           "debtors",
           "due_students",
+          "debt_text",
+          "due_text",
           "pct"
         ],
         "title": "CollectionRow",
@@ -202,6 +225,16 @@
       "IncomeCash": {
         "description": "«Наличные в кассе за сегодня» - only when the period is one day.",
         "properties": {
+          "cash_cancelled": {
+            "default": 0,
+            "title": "Cash Cancelled",
+            "type": "integer"
+          },
+          "cash_corrected": {
+            "default": 0,
+            "title": "Cash Corrected",
+            "type": "integer"
+          },
           "cash_received": {
             "default": 0,
             "title": "Cash Received",
@@ -262,6 +295,8 @@
           "label",
           "cash_received",
           "cash_refunded",
+          "cash_cancelled",
+          "cash_corrected",
           "expected",
           "payments_count",
           "text",
@@ -633,9 +668,46 @@
             "title": "Advance Total",
             "type": "integer"
           },
+          "debt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Text"
+          },
           "debt_total": {
             "default": 0,
             "title": "Debt Total",
+            "type": "integer"
+          },
+          "debtors": {
+            "default": 0,
+            "title": "Debtors",
+            "type": "integer"
+          },
+          "due_students": {
+            "default": 0,
+            "title": "Due Students",
+            "type": "integer"
+          },
+          "due_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Text"
+          },
+          "due_total": {
+            "default": 0,
+            "title": "Due Total",
             "type": "integer"
           },
           "memberships_with_advance": {
@@ -652,21 +724,6 @@
             "default": 0,
             "title": "Students With Advance",
             "type": "integer"
-          },
-          "due_total": {
-            "default": 0,
-            "title": "Due Total",
-            "type": "integer"
-          },
-          "debtors": {
-            "default": 0,
-            "title": "Debtors",
-            "type": "integer"
-          },
-          "due_students": {
-            "default": 0,
-            "title": "Due Students",
-            "type": "integer"
           }
         },
         "required": [
@@ -677,6 +734,8 @@
           "advance_total",
           "memberships_with_debt",
           "memberships_with_advance",
+          "debt_text",
+          "due_text",
           "students_with_advance"
         ],
         "title": "IncomePosition",
@@ -967,6 +1026,17 @@
             ],
             "title": "Created By Name"
           },
+          "dates_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dates Text"
+          },
           "display_id": {
             "anyOf": [
               {
@@ -1234,6 +1304,7 @@
           "paid_on",
           "paid_time",
           "entered_at_text",
+          "dates_text",
           "created_at",
           "student_id",
           "student_name",
@@ -1436,12 +1507,24 @@
               }
             ],
             "title": "Refundable"
+          },
+          "unpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unpaid"
           }
         },
         "required": [
           "code",
           "message",
           "debt",
+          "unpaid",
           "refundable",
           "payment_id"
         ],

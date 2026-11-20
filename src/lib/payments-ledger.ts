@@ -320,8 +320,6 @@ export interface PreviewView {
   paidUntil: string | null;
   /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
   lessons: string | null;
-  /** The balance after the payment: «Баланс после оплаты: долг 469 000 сум» / «аванс 300 000 сум» / «0». */
-  remaining: { kind: BalanceKind; text: string };
   /** The D8 price-rise sentences. */
   priceAhead: string[];
   warnings: string[];
@@ -343,8 +341,6 @@ export function warningsAfterSave<T extends { code?: string }>(warnings: Readonl
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;
   if (!preview || !result) return null;
-  const unpaidAfter = sum(result.unpaid_after);
-  const advanceAfter = sum(result.advance_after);
   const before = result.paid_until_before;
   const after = result.paid_until_after;
   const lessons = result.lessons;
@@ -358,10 +354,6 @@ export function previewView(preview: PaymentPreview | null | undefined): Preview
     lessons: lessons
       ? `Уроков оплачено: ${sum(lessons.covered_before)} → ${sum(lessons.covered_after)}, осталось ${sum(lessons.left_after)}${sum(lessons.unpaid_after) > 0 ? `, не оплачено ${sum(lessons.unpaid_after)}` : ""}`
       : null,
-    remaining: {
-      kind: unpaidAfter > 0 ? "debt" : advanceAfter > 0 ? "advance" : "none",
-      text: balanceAfterText(unpaidAfter, advanceAfter),
-    },
     priceAhead: ahead,
     warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE && warning.code !== "left_debt_only").map((warning) => warning.message),
     repeated: preview.warnings.find((warning) => warning.code === PAYMENT_REPEATED_CODE)?.message ?? null,
@@ -409,6 +401,7 @@ export function normalizePreview(raw: unknown): PaymentPreview {
           lessons: result.lessons ?? null,
           price_ahead: list(result.price_ahead),
           summary_text: String(result.summary_text ?? ""),
+          after_text: String(result.after_text ?? ""),
         }
       : null,
     warnings: list<PaymentWarning>(data.warnings),

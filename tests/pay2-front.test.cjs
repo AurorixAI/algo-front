@@ -93,25 +93,24 @@ test("E1: previews of 250 000 / 300 000 / 769 000 / 790 000 show exactly where t
   assert.equal(plain(part.headline), "Погасит 250 000 сум из долга 769 000 сум → оплачено до 12.10 · останется 519 000 сум");
   assert.deepEqual(part.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 250000]]);
   assert.equal(part.paidUntil, "Оплачено до: 27.09.2026 → 12.10.2026");
-  assert.deepEqual(part.remaining, { kind: "debt", text: `Останется неоплаченным после оплаты: ${P.formatMoney(519000)}` });
+  assert.equal("remaining" in part, false, "the window composes no sentence of its own about the state after the payment");
+  assert.equal(plain(L.normalizePreview(fixture("e1_preview_250000")).result.after_text), "Останется: долг 519 000 сум"); // the server's words
 
   const mid = view("e1_preview_300000");
   assert.equal(plain(mid.headline), "Погасит 300 000 сум из долга 769 000 сум → оплачено до 15.10 · останется 469 000 сум");
   assert.deepEqual(mid.lines.map((line) => [plain(line.label), line.amount]), [["Погашено за 15.09–14.10", 269000], ["На текущий период 15.10–14.11", 31000]]);
   assert.equal(mid.paidUntil, "Оплачено до: 27.09.2026 → 15.10.2026");
-  assert.equal(mid.remaining.kind, "debt");
-  assert.equal(plain(mid.remaining.text), "Останется неоплаченным после оплаты: 469 000 сум");
+  assert.equal(plain(L.normalizePreview(fixture("e1_preview_300000")).result.after_text), "Останется: долг 469 000 сум");
 
   const full = view("e1_preview_769000");
   assert.equal(plain(full.headline), "Погасит долг 769 000 сум → оплачено до 14.11");
   assert.deepEqual(full.lines.map((line) => line.amount), [269000, 500000]);
-  assert.deepEqual(full.remaining, { kind: "none", text: `Останется неоплаченным после оплаты: ${P.formatMoney(0)}` });
+  assert.equal(plain(L.normalizePreview(fixture("e1_preview_769000")).result.after_text), "Оплачено до 14.11");
   assert.equal(full.paidUntil, "Оплачено до: 27.09.2026 → 14.11.2026");
 
   const over = view("e1_preview_790000");
   assert.deepEqual(over.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 269000], ["current", 500000], ["advance", 21000]]);
-  assert.equal(over.remaining.kind, "advance");
-  assert.equal(plain(over.remaining.text), "Аванс после оплаты: 21 000 сум");
+  assert.equal(plain(L.normalizePreview(fixture("e1_preview_790000")).result.after_text), "Оплачено до 15.11");
   assert.match(plain(over.headline), /Переплата 21 000 сум → аванс на следующий период/); // the server's own words are shown as they come
   // the lines of every preview add up to the amount asked about
   for (const [name, amount] of [["e1_preview_250000", 250000], ["e1_preview_300000", 300000], ["e1_preview_769000", 769000], ["e1_preview_790000", 790000]]) {
@@ -123,12 +122,11 @@ test("E2/E3: a student who joined mid-month pays a part of the period; an overpa
   const e2 = L.normalizePreview(fixture("e2_preview_323000"));
   assert.equal(L.dueBlock(e2).unpaid, 323000);
   assert.deepEqual(L.dueBlock(e2).states.map((state) => state.key), ["debt"]);
-  assert.equal(L.previewView(e2).remaining.kind, "none");
   const e2over = L.previewView(L.normalizePreview(fixture("e2_preview_900000")));
   assert.deepEqual(e2over.lines.map((line) => line.bucket), ["current", "advance"]);
-  assert.equal(plain(e2over.remaining.text), "Аванс после оплаты: 577 000 сум");
+  assert.equal(plain(L.normalizePreview(fixture("e2_preview_900000")).result.after_text), "Оплачено до 28.11");
   const e3 = L.previewView(L.normalizePreview(fixture("e3_preview_100000")));
-  assert.equal(plain(e3.remaining.text), "Останется неоплаченным после оплаты: 113 000 сум");
+  assert.equal(plain(L.normalizePreview(fixture("e3_preview_100000")).result.after_text), "Останется: долг 113 000 сум");
 });
 
 test("E5: the lessons variant: lessons paid, no «оплачено до»", () => {
@@ -404,11 +402,14 @@ test("E4 statements of a transfer: the money leaves one group and arrives in the
   assert.equal(b.rows[0].type, "transfer_in");
   const bItems = L.buildStatementItems(b, null).filter((item) => item.kind === "row");
   assert.deepEqual([bItems[0].paid, bItems[0].tag], [323000, "перенос"]);
-  // the fixture of the server is older than decision 13.2: the transfer IN brought 323 000, 258 000 went to the charge, 65 000 is still an advance of the header - the server's row now says so
+  // decision 13.2: the transfer IN brought 323 000, 258 000 went to the charge, 65 000 is still an advance of the header - the server's row says so
+  const transferIn = b.rows.find((row) => row.type === "transfer_in");
+  assert.deepEqual([transferIn.open_name, transferIn.open_amount, plain(transferIn.open_text)], ["advance", 65000, "Аванс 65 000 сум"]);
+  for (const statement of [a, b]) assert.equal(L.statementReconciles(statement), true);
+  // the same statement with the row that brought money WITHOUT its «Аванс» does not add up to the header: the red line is shown, never hidden
   const rawB = fixture("e4_statement_B");
-  const bNow = L.normalizeStatement({ ...rawB, rows: rawB.rows.map((row) => (row.type === "transfer_in" ? { ...row, open_amount: 65000, open_name: "advance", open_text: "Аванс 65 000 сум", open_parts: [{ name: "advance", amount: 65000, text: "Аванс 65 000 сум" }] } : row)) });
-  for (const statement of [a, bNow]) assert.equal(L.statementReconciles(statement), true);
-  assert.equal(L.statementReconciles(b), false, "the older row without «Аванс» does NOT add up to the header: the red line is shown, never hidden");
+  const bOlder = L.normalizeStatement({ ...rawB, rows: rawB.rows.map((row) => (row.type === "transfer_in" ? { ...row, open_amount: null, open_name: null, open_text: null, open_parts: [] } : row)) });
+  assert.equal(L.statementReconciles(bOlder), false, "the row without «Аванс» does NOT add up to the header: the red line is shown, never hidden");
   // transfers show up in the header only when there are some
   assert.ok(L.statementTotals(a.summary).some((total) => total.key === "transferred_out"));
   assert.ok(L.statementTotals(b.summary).some((total) => total.key === "transferred_in"));
