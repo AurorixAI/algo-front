@@ -44,6 +44,7 @@ import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpenin
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { AccountingStartLine } from "@/components/payments/accounting-start-line";
 import { HelpToggle } from "@/components/ui/help-toggle";
+import { PayDueSetting } from "@/components/settings/pay-due-setting";
 import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMENT_MODEL_ORDER, PAYMENT_MODEL_SHORT_HINT, RECOMMENDED_LABEL, RECOMMENDED_MODEL, BILLING_DAY_SHORT_HINT } from "@/lib/payf-settings";
 import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
@@ -210,7 +211,10 @@ function usePaymentSettingsDraft(enabled: boolean) {
     }
   };
 
-  return { status, form, loaded, saves, patch, save };
+  /** The answer of a change made OUTSIDE the two sections («Срок оплаты» saves on its own) is what is loaded and shown. */
+  const adopt = (next: Partial<PaymentSettings>) => { setLoaded((previous) => ({ ...previous, ...next })); setForm((previous) => ({ ...previous, ...next })); };
+
+  return { status, form, loaded, saves, patch, save, adopt };
 }
 
 type PaymentSettingsDraft = ReturnType<typeof usePaymentSettingsDraft>;
@@ -309,7 +313,7 @@ function NumberField({
 // Money-2 Э9: «Общий месяц» first, with «рекомендуем»
 const shownModels = PAYMENT_MODEL_ORDER.map((key) => PAYMENT_MODELS.find((option) => option.key === key)!);
 
-function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
+function PaymentsSettingsSection({ draft, onNotify }: { draft: PaymentSettingsDraft; onNotify: (text: string) => void }) {
   const { form, loaded, saves } = draft;
   const accountingChanged = Boolean(form.accounting_start_date) && form.accounting_start_date !== loaded.accounting_start_date;
   const [impact, setImpact] = useState<{ date: string; lines: string[]; toReview: number; error: string | null } | null>(null);
@@ -412,6 +416,8 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           </p>
         </div>
       )}
+
+      <PayDueSetting draft={draft} model={model} onNotify={onNotify} />
 
       {model === "lessons" ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -833,7 +839,7 @@ function OwnerSettingsContent() {
             </SettingsSection>
           )}
 
-          {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} />}
+          {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} onNotify={(text) => showToast(text)} />}
           {!waitingForPaymentSettings && section === "attendance" && <AttendanceSettingsSection draft={paymentSettings} />}
           {section === "days_off" && <DaysOffPanel />}
           {section === "payroll" && <PayrollSettingsSection draft={payrollSettings} />}

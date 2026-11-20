@@ -11,6 +11,7 @@ import { ReadonlyEmailField } from "@/components/settings/readonly-email-field";
 import { profileUpdateBody } from "@/lib/profile-form";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { Button } from "@/components/ui/button";
+import { PayDueReadOnly } from "@/components/settings/pay-due-setting";
 
 export default function AdminSettingsPage() {
   const { user, updateUser } = useAuthStore();
@@ -58,6 +59,8 @@ export default function AdminSettingsPage() {
 
       {/* PAY-F: «Выходной день центра» (owner and administrator).  UX pack №7: an administrator WITHOUT the money access can only read it - the card is short and stands below his own settings */}
       {moneyRight && <DaysOffPanel />}
+
+      {moneyRight && <PayDueReadOnly />}
 
       {/* Profile */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
