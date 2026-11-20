@@ -107,7 +107,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
           )}
           <RecalcNote lines={receipt.recalc} testId="receipt-recalc" />
           <div className="mt-2 space-y-0.5 text-xs text-slate-600">
-            {facts.debtBefore && <p>{facts.debtBefore}</p>}
+            {facts.unpaidBefore && <p>{facts.unpaidBefore}</p>}
             {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}
           </div>
         </section>

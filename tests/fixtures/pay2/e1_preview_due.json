@@ -6,12 +6,20 @@
     "source": "group",
     "valid_from": "2026-01-01",
     "group_amount": 500000,
-    "reason": null
+    "reason": null,
+    "set_by_name": null,
+    "scheduled": null
   },
   "due": {
-    "debt": 769000,
-    "past_debt": 269000,
-    "current_due": 500000,
+    "unpaid": 769000,
+    "debt_amount": 769000,
+    "due_amount": 0,
+    "due_until": null,
+    "overdue_days": 32,
+    "debt_text": "Долг 769 000 сум",
+    "debt_sub": "просрочено 32 дня · оплачено до 27.09",
+    "due_text": null,
+    "due_sub": null,
     "advance": 0,
     "segments": [
       {
@@ -26,20 +34,31 @@
           "source": "group",
           "valid_from": "2026-01-01",
           "group_amount": 500000,
-          "reason": null
+          "reason": null,
+          "set_by_name": null,
+          "scheduled": null
         },
         "charge": 500000,
         "basis": "full",
         "lessons": null,
         "paid": 231000,
         "written_off": 0,
+        "recalculated": 0,
         "unpaid": 269000,
         "remaining": 269000,
         "covered_days": 13,
         "covered_through": "2026-09-27",
         "partial_credit": 14334,
         "state": "partial",
-        "bucket": "past_debt"
+        "bucket": "past_debt",
+        "parts": [
+          {
+            "name": "debt",
+            "unpaid": 269000,
+            "due_until": null,
+            "lessons": null
+          }
+        ]
       },
       {
         "id": "seg:0:2026-10-15",
@@ -53,27 +72,38 @@
           "source": "group",
           "valid_from": "2026-01-01",
           "group_amount": 500000,
-          "reason": null
+          "reason": null,
+          "set_by_name": null,
+          "scheduled": null
         },
         "charge": 500000,
         "basis": "full",
         "lessons": null,
         "paid": 0,
         "written_off": 0,
+        "recalculated": 0,
         "unpaid": 500000,
         "remaining": 500000,
         "covered_days": 0,
         "covered_through": null,
         "partial_credit": 0,
         "state": "open",
-        "bucket": "current"
+        "bucket": "current",
+        "parts": [
+          {
+            "name": "debt",
+            "unpaid": 500000,
+            "due_until": null,
+            "lessons": null
+          }
+        ]
       }
     ],
-    "paid_until": "2026-09-27",
-    "days_overdue": 24
+    "paid_until": "2026-09-27"
   },
   "suggested_amount": 769000,
   "amount": null,
   "result": null,
-  "warnings": []
+  "warnings": [],
+  "recalc": []
 }

@@ -66,9 +66,9 @@ test("№13: while the calculation is asked the block «Что изменитс�
   const hold = deferred();
   const { page } = await open(1280, hold);
   await page.waitForSelector('[data-testid="payment-plan-skeleton"]');
-  assert.equal(await page.locator('[data-testid="payment-plan-rows"]').count(), 0);
+  assert.equal(await page.locator('[data-testid="payment-plan-sentence"]').count(), 0);
   hold.open();
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   assert.equal(await page.locator('[data-testid="payment-plan-skeleton"]').count(), 0);
   assert.equal(plain(await page.textContent('button[form="payment-form"]')), "Исправить на 400 000 сум");
   await page.fill("#payment-amount", "200 000");
@@ -80,7 +80,7 @@ test("№13: while the calculation is asked the block «Что изменитс�
 for (const width of [1280, 1024, 375]) {
   test(`${width}: nothing leaves its box, no horizontal scroll; the buttons are at least 40 px on a phone`, async () => {
     const { page } = await open(width);
-    await page.waitForSelector('[data-testid="payment-plan-rows"]');
+    await page.waitForSelector('[data-testid="payment-plan-sentence"]');
     await page.waitForTimeout(450);
     const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));

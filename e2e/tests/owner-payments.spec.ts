@@ -50,11 +50,11 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(row()).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
-  const payDialog = page.getByRole("dialog", { name: "Оплата от ученика" });
-  await expect(payDialog.getByTestId("payment-chips")).toContainText(new RegExp(moneyPattern(450000))); // the quick amount says what is due
+  const payDialog = page.getByRole("dialog", { name: "Внести оплату" });
+  await expect(payDialog.getByTestId("payment-due")).toContainText(new RegExp(`К оплате ${moneyPattern(450000)}`)); // the top block says what is due, in the server's words (PAY-DUE 10.10)
   await expect(payDialog.getByLabel("Сумма", { exact: true })).not.toHaveValue(""); // the amount starts as everything that is due
   await payDialog.getByLabel("Сумма", { exact: true }).fill("450000");
-  await expect(payDialog.getByTestId("payment-plan-rows")).toContainText(/Погасит|Пойдёт|Останется/); // what saving will do to the STUDENT (UX pack §5.1: a table of rows)
+  await expect(payDialog.getByTestId("payment-plan-sentence")).toContainText(/Погасит|Закроет/); // what saving will do to the STUDENT: the server's one sentence (10.10)
   // the method is chosen, not guessed: the button waits for it and says why
   await expect(payDialog.getByRole("button", { name: /^Внести/ })).toBeDisabled();
   await expect(payDialog.getByTestId("payment-blocker")).toContainText("Выберите способ оплаты");

@@ -513,7 +513,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         row={writeoffRow}
         studentName={writeoffRow?.student_name ?? ""}
         onClose={() => setWriteoffRow(null)}
-        onDone={(result) => { const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); showToast(writeoffDoneText(result), note.tone, note.details); afterChange(); }}
+        onDone={(result) => { const note = studentToast([`Было не оплачено ${formatMoney(result.unpaid_before)}, стало ${formatMoney(result.unpaid_after)}`]); showToast(writeoffDoneText(result), note.tone, note.details); afterChange(); }}
         onDuplicate={() => { showToast("Это прощение уже внесено", "success"); afterChange(); }}
       />
       <RefundDialog

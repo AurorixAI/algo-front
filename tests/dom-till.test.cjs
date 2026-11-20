@@ -1,4 +1,4 @@
-// «Деньги-1», пакет А: «Оплата от ученика» in a real DOM - the REAL window, the REAL hooks, the server answered by the test.
+// «Деньги-1», пакет А: «Внести оплату» in a real DOM - the REAL window, the REAL hooks, the server answered by the test.
 // UX pack §5.1-тер (decision of the owner 05.11): the window is about the STUDENT; it does not ask the dry run of the pay of the teachers and is held back by nothing but its form.  The real request has the
 // Idempotency-Key of the window and the body of the form; a repeat after a lost answer keeps THAT key.
 const assert = require("node:assert/strict");
@@ -74,7 +74,7 @@ test("a change of the amount asks the plan of the student again, and only that; 
   assert.equal(await page.isDisabled(SUBMIT), true, "no method yet");
   assert.match(await page.textContent('[data-testid="payment-blocker"]'), /Выберите способ оплаты/);
   await page.click('[data-testid="payment-methods"] >> text=Наличные');
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   await page.fill("#payment-amount", "300000");
   await page.waitForTimeout(700);
   const previews = calls.filter((call) => call.path.endsWith("/payments/preview"));

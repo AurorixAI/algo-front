@@ -21,9 +21,9 @@ const measure = () => {
   const out = {};
   for (const col of ["charged", "paid", "balance"]) {
     const h = head.querySelector(`[data-col="${col}"]`);
-    const rows = [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row .dt-cell[data-col="${col}"]`)].filter((c) => c.textContent.trim() !== "");
+    const rows = [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row .dt-cell[data-col="${col}"]`)].filter((c) => (col === "balance" ? c.querySelector('[data-testid="statement-open"]') : c.textContent.trim() !== ""));
     const cell = h.getBoundingClientRect();
-    out[col] = { head: centre(h), values: rows.map((c) => centre(c.querySelector(".dt-value"))), cellCentre: cell.left + cell.width / 2, chips: rows.filter((c) => c.querySelector('[data-testid="statement-balance-chip"]')).length };
+    out[col] = { head: centre(h), values: rows.map((c) => centre(c.querySelector(".dt-value"))), cellCentre: cell.left + cell.width / 2, chips: rows.filter((c) => c.querySelector('[data-testid="statement-open"]')).length };
   }
   const lines = {};
   for (const col of ["charged", "paid", "balance", "menu"]) {
@@ -39,10 +39,10 @@ test("statement 1280: heading, value and chip stand at ONE centre in every money
   const run = await open(1280);
   const { out } = await run.page.evaluate(measure);
   for (const [col, m] of Object.entries(out)) {
-    assert.ok(m.values.length >= 3, col);
+    assert.ok(m.values.length >= (col === "balance" ? 2 : 3), col);          // «Остаток»: only the rows the server named something for (the two charges)
     for (const v of m.values) assert.ok(Math.abs(v - m.head) <= 1, `${col}: value ${v} heading ${m.head}`);
   }
-  assert.ok(out.balance.chips >= 3, "the chips are measured too");
+  assert.ok(out.balance.chips >= 2, "the cells of «Остаток» (word or chip) are measured too");
   await run.page.close();
 });
 

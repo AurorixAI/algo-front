@@ -33,7 +33,7 @@ function tillServer() {
   };
 }
 
-test("п.1: окно «Оплата от ученика» - отказ пробного расчёта один раз, кнопка выключена, правка суммы её включает (375)", async () => {
+test("п.1: окно «Внести оплату» - отказ пробного расчёта один раз, кнопка выключена, правка суммы её включает (375)", async () => {
   const run = await openPage(browser, "money.entry.tsx", tillServer(), { width: 375, height: 800 });
   const { page, calls } = run;
   await page.evaluate(([u, membership]) => window.mount("till", u, { membership }), [{ role: "admin", org_role: "admin" }, TOSHMATOV]);
@@ -46,7 +46,7 @@ test("п.1: окно «Оплата от ученика» - отказ проб�
   assert.equal(await page.locator('button[form="payment-form"]').isDisabled(), true);
   const posts = calls.filter((call) => call.method === "POST").length;
   await page.fill("#payment-amount", "6000");
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   assert.equal(await page.locator('button[form="payment-form"]').isDisabled(), false);
   assert.equal(calls.filter((call) => call.method === "POST").length, posts);
   await page.close();
@@ -59,7 +59,7 @@ test("п.1: отказ при записи (без отказа пробного
   await page.evaluate(([u, membership]) => window.mount("till", u, { membership }), [{ role: "admin", org_role: "admin" }, TOSHMATOV]);
   for (let waited = 0; !calls.some((call) => call.path.endsWith("/payments/preview")) && waited < 5000; waited += 25) await page.waitForTimeout(25);
   await page.fill("#payment-amount", "7000");
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   await page.click('[data-testid="payment-methods"] >> text=Наличные');
   await page.click('button[form="payment-form"]');
   await page.waitForSelector('[role="dialog"] [role="alert"], [role="dialog"] [role="status"]');

@@ -61,7 +61,7 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
         row={open === "writeoff" ? row : null}
         studentName={studentName}
         onClose={close}
-        onDone={(result) => { onRowChange(result.row, "writeoff"); const note = studentToast([`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); onNotify(writeoffDoneText(result), note.tone, note.details); }}
+        onDone={(result) => { onRowChange(result.row, "writeoff"); const note = studentToast([`Было не оплачено ${formatMoney(result.unpaid_before)}, стало ${formatMoney(result.unpaid_after)}`]); onNotify(writeoffDoneText(result), note.tone, note.details); }}
         onDuplicate={() => { onNotify("Это прощение уже внесено", "success"); void usePaymentsSummary.getState().refresh(true); }}
       />
       <RefundDialog

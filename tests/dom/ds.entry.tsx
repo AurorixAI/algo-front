@@ -72,7 +72,7 @@ function Gallery() {
         footer={<ConfirmFooter primary="Архивировать" tone="danger" onPrimary={() => setOpen(null)} onCancel={() => setOpen(null)} />}>
         <p className="text-sm text-slate-600">Ученики останутся в системе, расписание группы закроется с сегодняшнего дня.</p>
       </Modal>
-      <Modal open={open === "form"} onClose={() => setOpen(null)} title="Оплата от ученика" maxWidthClassName="max-w-[520px]"
+      <Modal open={open === "form"} onClose={() => setOpen(null)} title="Внести оплату" maxWidthClassName="max-w-[520px]"
         footer={<ConfirmFooter primary="Внести 400 000 сум" onPrimary={() => setOpen(null)} onCancel={() => setOpen(null)} />}>
         <label className="block text-sm font-semibold text-slate-700">Сумма
           <input className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" defaultValue="400 000" />

@@ -1,4 +1,4 @@
-// UX pack §5.1 / §5.1-бис in a real browser: the window «Оплата от ученика» with the numbers of the walk of stage.  What a person reads, top to bottom: whose money it is, the debt, the amount, the block
+// UX pack §5.1 / §5.1-бис in a real browser: the window «Внести оплату» with the numbers of the walk of stage.  What a person reads, top to bottom: whose money it is, the debt, the amount, the block
 // «Что изменится» about the STUDENT (a table), then ONE folded line about the pay of the teachers; nothing leaves its box on 1280, 1024 and a phone (tailwind of the project is the CSS).
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -24,7 +24,6 @@ test.after(async () => { await browser.close(); });
 const isDry = (call) => /dry_run=true/.test(call.query);
 const plain = (text) => text.replace(/\s+/g, " ").replace(/ /g, " ").trim();
 /** The rows as a person reads them: the pieces of a row (a name, a number) with a space between. */
-const rowTexts = (locator) => locator.evaluateAll((items) => items.map((item) => [...item.children].map((child) => child.textContent).join(" ")));
 function server(effects, extra = {}) {
   return async (request) => {
     if (request.method === "GET" && request.path === "/auth/org/memberships/m1/payments/preview") return { json: toshmatovPreview(Number(/amount=(\d+)/.exec(request.query)?.[1]) || null) };
@@ -41,21 +40,25 @@ async function open(width, effects = STAGE_EFFECTS, user, extra) {
   return { page, calls, errors };
 }
 
-test("the window is about the STUDENT's money: the title, the subtitle, the debt now, the chips (owner, 1280)", async () => {
+test("the window is about the STUDENT's money: the title, the subtitle, the two sums of the server (debt first), no chips (owner, 1280; frame 14)", async () => {
   const { page } = await open(1280);
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
-  assert.equal(await page.textContent('[role="dialog"] h2'), "Оплата от ученика");
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
+  assert.equal(await page.textContent('[role="dialog"] h2'), "Внести оплату");
   const text = plain(await page.textContent('[role="dialog"]'));
   assert.match(text, /Тошматов Бобур · Алгебра 7 \(вт\/пт\) · деньги поступают в центр/);
-  assert.match(plain(await page.textContent('[data-testid="payment-debt-now"]')), /^Долг сейчас: 1 200 000 сум · из них за прошлые месяцы 800 000 сум$/);
-  assert.deepEqual((await page.locator('[data-testid="payment-chips"] button').allTextContents()).map(plain), ["Прошлые месяцы · 800 000 сум", "Весь долг · 1 200 000 сум"]);
+  // 10.10: both sums on top in the server's words - the debt first, then «К оплате»; no quick amounts, no «Долг сейчас» (the screen adds nothing)
+  assert.equal(plain(await page.locator('[data-testid="payment-due-debt"]').innerText()), "Долг 800 000 сум просрочено 61 день · оплачено до 31.08");
+  assert.equal(plain(await page.locator('[data-testid="payment-due-due"]').innerText()), "К оплате 400 000 сум до сегодня");
+  assert.deepEqual(await page.locator('[data-testid="payment-due"] p').evaluateAll((items) => items.map((item) => item.getAttribute("data-testid"))), ["payment-due-debt", "payment-due-due"]);
+  assert.equal(await page.locator('[data-testid="payment-chips"], [data-testid="payment-debt-now"]').count(), 0);
+  assert.ok(!/Долг сейчас|Весь долг|Прошлые месяцы/.test(text), text);
   assert.equal(plain(await page.textContent('button[form="payment-form"]')), "Внести 400 000 сум");
   await page.close();
 });
 
 test("F1: ONE section - under «Что изменится» there is no sub-label «Долг ученика»", async () => {
   const { page } = await open(1280);
-  await page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await page.waitForSelector('[data-testid="payment-plan-sentence"]');
   const block = plain(await page.textContent('[data-testid="payment-calc"]'));
   assert.ok(!/долг ученика/i.test(block), block);
   assert.equal(await page.locator('[data-testid="payment-calc"] h3').count(), 1);
@@ -63,18 +66,15 @@ test("F1: ONE section - under «Что изменится» there is no sub-labe
   await page.close();
 });
 
-test("the block «Что изменится» is a table about the student: the name on the left, the number on the right; and NO salary anywhere in the window - for any role", async () => {
+test("the block «Что изменится» is the server's one sentence about the student; and NO salary anywhere in the window - for any role", async () => {
   for (const user of [undefined, { role: "admin", org_role: "admin", payments_access: true }]) {
     const { page, calls } = await open(1280, STAGE_EFFECTS, user);
-    await page.waitForSelector('[data-testid="payment-plan-rows"]');
+    await page.waitForSelector('[data-testid="payment-plan-sentence"]');
     await page.waitForTimeout(400);
     const block = page.locator('[data-testid="payment-calc"]');
     assert.match(plain(await block.locator("h3").textContent()), /^Что изменится$/);
-    const rows = (await rowTexts(block.locator('[data-testid="payment-plan-rows"] li'))).map(plain);
-    assert.deepEqual(rows, ["Погасит долг за сентябрь 400 000 сум", "Останется долг 800 000 сум", "из них за прошлые месяцы 400 000 сум"]);
-    // the number is on the right of its row, the name on the left
-    const geometry = await page.evaluate(() => [...document.querySelectorAll('[data-testid="payment-plan-rows"] li')].map((li) => { const [name, number] = li.children; const a = name.getBoundingClientRect(); const b = number.getBoundingClientRect(); return { numberRight: b.left > a.left, aligned: Math.abs(li.getBoundingClientRect().right - b.right) < 2 }; }));
-    assert.ok(geometry.every((item) => item.numberRight && item.aligned), JSON.stringify(geometry));
+    assert.equal(plain(await block.locator('[data-testid="payment-plan-sentence"]').textContent()), "Погасит долг 400 000 сум");
+    assert.equal(await block.locator("li").count(), 0, "no table of rows: the screen counts nothing (143)");
     // the owner's decision of 05.11: nothing about the pay of the teachers - no line, no «Подробнее», no amber sentence about a closed month
     const dialog = plain(await page.textContent('[role="dialog"]'));
     assert.ok(!/зарплат|Эргашев|Мирзаев|Подробнее|закрыт|преподавател/i.test(dialog), dialog);
@@ -113,14 +113,14 @@ test("while the plan of the student is counted: grey rows of the same size", asy
   await run.page.fill("#payment-amount", "400000");
   await run.page.waitForSelector('[data-testid="payment-plan-skeleton"]');
   hold.open();
-  await run.page.waitForSelector('[data-testid="payment-plan-rows"]');
+  await run.page.waitForSelector('[data-testid="payment-plan-sentence"]');
   await run.page.close();
 });
 
 for (const width of [1280, 1024, 375]) {
   test(`${width}: nothing leaves its box, no horizontal scroll, the buttons are at least 40 px high on a phone`, async () => {
     const { page } = await open(width);
-    await page.waitForSelector('[data-testid="payment-plan-rows"]');
+    await page.waitForSelector('[data-testid="payment-plan-sentence"]');
     const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
     assert.equal(facts.scroll, 0);

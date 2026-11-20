@@ -156,10 +156,10 @@ test("3. the deduction: «−46 000 сум: урок 21.10 отменён цен
   assert.deepEqual(F.recalcLines(undefined), { texts: [], total: 0 });
   const summary = { charged: 600000, paid: 0, transferred_in: 0, written_off: 0, recalculated: 46000, refunded: 0, transferred_out: 0, unpaid: 554000, advance: 0, paid_until: null, status: "none", reconciles: true };
   assert.equal(L.statementDiff(summary), 0);                                                         // charged - recalculated = debt
-  assert.equal(L.statementReconciles(summary), true);
-  assert.equal(L.statementReconciles({ ...summary, recalculated: 0 }), false);
+  assert.equal(L.statementReconciles({ summary, rows: [] }), true);
+  assert.equal(L.statementReconciles({ summary: { ...summary, recalculated: 0 }, rows: [] }), false);
   const tiles = L.statementTotals(summary);
-  assert.deepEqual(tiles.map((t) => t.key), ["charged", "paid", "recalculated", "balance"]);
+  assert.deepEqual(tiles.map((t) => t.key), ["charged", "paid", "recalculated"]);          // 14Б.7: the state is on the right of the summary, not a tile
   assert.equal(tiles.find((t) => t.key === "recalculated").label, "Перерасчёт");
   assert.equal(L.statementTotals({ ...summary, recalculated: 0 }).some((t) => t.key === "recalculated"), false);       // only when there is something
   const row = { seq: 2, date: "2026-10-21", type: "recalc", title: "Перерасчёт: урок 21.10 отменён центром", debit: 0, credit: 46000, outflow: 0, balance_after: -554000, balance_text: "Долг 554 000",

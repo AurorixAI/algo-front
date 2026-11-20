@@ -77,7 +77,7 @@ test("sheet: issued date, the state on the day of issue (the server's sentence, 
   assert.match(plain(state), /Состояние на дату выдачиНа 07\.11\.2026: долг 100 000 сум, оплачено до 14\.11/);
   assert.ok(state.includes(`100${NB}000${NB}сум`));
   const text = plain(await page.locator('[aria-label^="Квитанция"]').innerText());
-  assert.match(text, /Остаток долга после оплаты: 800 000 сум/);
+  assert.match(text, /Останется неоплаченным после оплаты: 800 000 сум/);
   assert.equal(plain(await page.textContent('[data-testid="sheet-disclaimer"]')), "Не является фискальным чеком");
   await page.close();
 });

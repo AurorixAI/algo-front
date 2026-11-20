@@ -178,7 +178,7 @@ export async function openPayDialog(page: Page, lastName: string) {
   await page.getByRole("tab", { name: /К оплате/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
   await row.getByRole("button", { name: "Внести оплату" }).click();
-  const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
+  const dialog = page.getByRole("dialog", { name: "Внести оплату" });
   await expect(dialog).toBeVisible();
   const amountNow = async () => Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""));
   await expect.poll(amountNow, { message: "the dialog proposes a sum" }).toBeGreaterThan(0);

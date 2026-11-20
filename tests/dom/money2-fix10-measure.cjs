@@ -19,9 +19,9 @@ const { F } = require("../helpers/money2-fix7.cjs");
     const head = document.querySelector('[data-testid="statement-table"] .dt-head');
     return ["charged", "paid", "balance"].map((col) => {
       const h = head.querySelector(`[data-col="${col}"]`);
-      const cells = [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row .dt-cell[data-col="${col}"]`)].filter((c) => c.textContent.trim() !== "");
+      const cells = [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row .dt-cell[data-col="${col}"]`)].filter((c) => (col === "balance" ? c.querySelector('[data-testid="statement-open"]') : c.textContent.trim() !== ""));
       const hc = centre(h); const vs = cells.map((c) => centre(c.querySelector(".dt-value")));
-      return { col, head: +hc.toFixed(1), valueMin: +Math.min(...vs).toFixed(1), valueMax: +Math.max(...vs).toFixed(1), maxDiff: +Math.max(...vs.map((v) => Math.abs(v - hc))).toFixed(2), rows: vs.length, chips: cells.filter((c) => c.querySelector('[data-testid="statement-balance-chip"]')).length };
+      return { col, head: +hc.toFixed(1), valueMin: +Math.min(...vs).toFixed(1), valueMax: +Math.max(...vs).toFixed(1), maxDiff: +Math.max(...vs.map((v) => Math.abs(v - hc))).toFixed(2), rows: vs.length, chips: cells.filter((c) => c.querySelector('[data-testid="statement-open"]')).length };
     });
   });
   console.log(JSON.stringify(res));

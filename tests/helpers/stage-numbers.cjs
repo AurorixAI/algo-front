@@ -6,12 +6,23 @@ const SEGMENT = (month, bucket, last, paid = 0) => ({
   paid, written_off: 0, unpaid: 400000 - paid, remaining: 400000 - paid, covered_days: 0, covered_through: null, partial_credit: 0, state: "open", bucket,
 });
 
-/** The answer of `payments/preview` for the amount (null: no amount asked). */
+const NBSP = "\u00a0";
+const money = (value) => `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)}${NBSP}сум`;
+
+/**
+ * The answer of `payments/preview` for the amount (null: no amount asked), in the contract of PAY-DUE (10.10): the walk of 05.11 as the server names it with the term of 5 days -
+ * September and October are the DEBT (800 000: their term ended 05.10 and 05.11 - for September 61 days ago), November is «К оплате» (400 000, the term ends TODAY 05.11).
+ * The words are written here by hand (a stand-in for the server's; the screen takes them as they are).
+ */
 function toshmatovPreview(amount) {
   const segments = [SEGMENT("09", "past_debt", "30"), SEGMENT("10", "past_debt", "31"), SEGMENT("11", "current", "30")];
   const base = {
     as_of: "2026-11-05", mode: "calendar", price: { amount: 400000, source: "group", valid_from: "2026-01-01", group_amount: 400000, reason: null },
-    due: { debt: 1200000, past_debt: 800000, current_due: 400000, advance: 0, segments, paid_until: "2026-08-31", days_overdue: 36 },
+    due: {
+      unpaid: 1200000, debt_amount: 800000, due_amount: 400000, due_until: "2026-11-05", overdue_days: 61,
+      debt_text: `Долг ${money(800000)}`, debt_sub: "просрочено 61 день · оплачено до 31.08", due_text: `К оплате ${money(400000)}`, due_sub: "до сегодня",
+      advance: 0, segments, paid_until: "2026-08-31",
+    },
     suggested_amount: 1200000, amount: amount ?? null, result: null, warnings: [],
   };
   if (!amount) return base;
@@ -25,12 +36,17 @@ function toshmatovPreview(amount) {
     after[segment.bucket] = (after[segment.bucket] ?? 0) + (segment.unpaid - part);
     left -= part;
   }
-  const debtAfter = 1200000 - amount;
+  const debtAfter = after.past_debt ?? 0;
+  const dueAfter = after.current ?? 0;
+  const goesToDebt = Math.min(amount, 800000);
+  const goesToDue = Math.max(0, Math.min(amount - 800000, 400000));
   return {
     ...base,
     result: {
-      allocations, debt_after: debtAfter, past_debt_after: after.past_debt ?? 0, current_due_after: after.current ?? 0, advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30",
-      status_after: "expired", days_overdue_after: 5, partial_credit_after: 0, lessons: null, price_ahead: [], summary_text: "Закроет долг",
+      allocations, unpaid_after: 1200000 - amount, debt_amount_after: debtAfter, due_amount_after: dueAfter, due_until_after: dueAfter > 0 ? "2026-11-05" : null, overdue_days_after: debtAfter > 0 ? 61 : null,
+      advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30",
+      status_after: "expired", partial_credit_after: 0, lessons: null, price_ahead: [],
+      summary_text: goesToDue > 0 ? `Погасит долг ${money(goesToDebt)} · к оплате ${money(goesToDue)}` : `Погасит долг ${money(goesToDebt)}`,
     },
   };
 }

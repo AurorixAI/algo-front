@@ -26,7 +26,7 @@ const STUDENT_EXAM_SURFACE = (file) => STUDENT_EXAM_SURFACE_RE.test(file);
 const CEILINGS = {
   // [name, regexp, skip, ceiling]
   tinyText: ["text-[9px|10px|11px] (nothing under 12 px)", /text-\[(9|10|11)px\]/g, undefined, 224],
-  text13: ["text-[13px]", /text-\[13px\]/g, undefined, 37],
+  text13: ["text-[13px]", /text-\[13px\]/g, undefined, 36],
   lightText: ["text-slate-300/400 as a text colour", /\btext-slate-(300|400)\b/g, undefined, 202],
   hexClass: ["a hex colour inside a class", /\b(bg|text|border|ring|from|to|via|fill|stroke|shadow|outline|decoration|divide|placeholder|accent|caret)-\[#[0-9a-fA-F]{3,8}\]/g, undefined, 0],
   gradient: ["bg-gradient-* outside the exam surfaces", /\bbg-gradient-to-[a-z]+\b/g, STUDENT_EXAM_SURFACE, 0],

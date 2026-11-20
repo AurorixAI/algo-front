@@ -508,8 +508,7 @@ test("statement: Стоимость | Оплачено | Остаток, the mon
   const tweaked = { ...statement, rows: statement.rows.map((row, index) => (index === 1 ? { ...row, details: { ...row.details, allocations: [{ ...first, segment_remaining_after: 111000 }] } } : row)) };
   assert.deepEqual(L.buildStatementItems(tweaked, null).filter((i) => i.kind === "row")[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 111 000)"]);
   // the totals and the balance
-  assert.deepEqual(L.statementTotals(statement.summary).map((t) => t.label), ["Стоимость обучения", "Оплачено", "Остаток"]);
-  assert.equal(L.balanceCell(0).text, "0");
+  assert.deepEqual(L.statementTotals(statement.summary).map((t) => t.label), ["Стоимость обучения", "Оплачено"]);       // 14Б.7: the state is on the right of the summary, not a tile
   assert.equal(L.signedBalanceText(0), "0");
 });
 
@@ -543,7 +542,7 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   // «Простить долг» everywhere
   assert.equal(require(path.join(root, "src/components/payments/writeoff-dialog.tsx")).WRITEOFF_ACTION_LABEL, "Простить долг");
   assert.equal(L.validateWriteoff({ amount: "", all: true, reason: "ok ok" }, 0), "Долга нет — прощать нечего");
-  assert.equal(plain(L.balanceAfterText(469000, 0)), "Остаток долга после оплаты: 469 000 сум");
+  assert.equal(plain(L.balanceAfterText(469000, 0)), "Останется неоплаченным после оплаты: 469 000 сум");
 });
 
 test("fix 10Д → PAY-DUE 9.7: the notice of the debt stands NOWHERE (its source test is money2-fix10e-banner.test.cjs); the summary is kept fresh by the shell", () => {

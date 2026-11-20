@@ -1,4 +1,18 @@
 {
+  "debt_amount": 0,
+  "due_amount": 0,
+  "due_until": null,
+  "overdue_days": null,
+  "due_lessons": null,
+  "debt_lessons": 0,
+  "debt_text": null,
+  "debt_sub": null,
+  "due_text": null,
+  "due_sub": null,
+  "debt_also_text": null,
+  "due_also_text": null,
+  "state": "paid",
+  "state_text": "Оплачено до 15.11",
   "membership_id": "00000000-0000-4000-8000-000000000001",
   "student_id": "00000000-0000-4000-8000-000000000101",
   "student_name": "Хасанов Азиз",
@@ -15,7 +29,9 @@
     "source": "group",
     "valid_from": "2026-01-01",
     "group_amount": 500000,
-    "reason": null
+    "reason": null,
+    "set_by_name": null,
+    "scheduled": null
   },
   "monthly_fee": 500000,
   "status": "active",
@@ -26,6 +42,7 @@
   "lessons_total": null,
   "lessons_used": null,
   "lessons_left": null,
+  "paid_through_forecast": null,
   "last_payment": {
     "id": "00000000-0000-4000-8000-000000000018",
     "membership_id": "00000000-0000-4000-8000-000000000001",
@@ -48,7 +65,7 @@
           "days": 17,
           "bucket": "past_debt",
           "closes": true,
-          "label": "Закрыла долг 15.09–14.10",
+          "label": "Погашено за 15.09–14.10",
           "price": 500000,
           "segment_remaining_after": 0
         },
@@ -83,6 +100,9 @@
     },
     "note": "аванс",
     "replaces_payment_id": null,
+    "restored_from_receipt_no": null,
+    "restorable": false,
+    "replaced_by_receipt_no": null,
     "receipt_no": 18,
     "partial_period": false,
     "files": [],
@@ -96,9 +116,7 @@
     "voided_by_name": null,
     "void_reason": null
   },
-  "debt": 0,
-  "past_debt": 0,
-  "current_due": 0,
+  "unpaid": 0,
   "advance": 21000,
   "partial_credit": 4334,
   "price_missing": false,
@@ -108,7 +126,5 @@
   "paused": null,
   "opening": null,
   "price_ends_on_leave": false,
-  "bucket": null,
-  "debt_reason": null,
-  "reason": null
+  "debt_age_bucket": null
 }

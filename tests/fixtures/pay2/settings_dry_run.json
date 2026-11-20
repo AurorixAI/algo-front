@@ -5,9 +5,14 @@
   "lessons_per_payment": 12,
   "expiring_days": 3,
   "expiring_lessons": 3,
+  "pay_due_days": 10,
+  "pay_due_lessons": 2,
+  "pay_due_example": null,
   "excuse_deadline_days": 5,
   "excuse_deadline_lessons": 2,
   "admin_can_manage": true,
+  "centre_cancel_recalc": false,
+  "recalc_hint": null,
   "accounting_start_date": "2026-09-01",
   "updated_by": "00000000-0000-4000-8000-000000000901",
   "updated_at": "2026-10-01T08:00:00",
@@ -17,7 +22,15 @@
     "debt_delta": 5400000,
     "memberships_with_changed_advance": 3,
     "advance_delta": -1200000,
-    "refundable_delta": -900000
+    "refundable_delta": -900000,
+    "openings_to_review": 0
   },
-  "regime_impact": null
+  "regime_impact": null,
+  "pay_due_impact": {
+    "to_due": 3,
+    "to_debt": 0,
+    "texts": [
+      "3 ученика из должников станут «К оплате»"
+    ]
+  }
 }

@@ -113,32 +113,26 @@ test("inc13-3: «Оплачено» is «+600 000» (a refund «−»), «Сто
 
 // ── 4. the balance chip ────────────────────────────────────────────────────────────────────────
 
-test("inc13-4: balance chip: «Долг» rose, «Аванс» emerald, «0» slate, one height for all", () => {
-  assert.match(L.balanceChipClass("debt"), /bg-rose-50 text-rose-700/);
-  assert.match(L.balanceChipClass("advance"), /bg-emerald-50 text-emerald-700/);
-  assert.match(L.balanceChipClass("none"), /bg-slate-100 text-slate-600/);
-  for (const kind of ["debt", "advance", "none"]) {
-    const cls = L.balanceChipClass(kind);
-    assert.match(cls, /\bh-6\b/, kind); // the same height
-    assert.match(cls, /\binline-flex\b/);
-    assert.match(cls, /\bitems-center\b/);
-    assert.match(cls, /\btabular-nums\b/);
-  }
-  const cell = (value) => { const c = L.balanceCell(value); return { kind: c.kind, text: plain(c.text) }; };
-  assert.deepEqual(cell(-92000), { kind: "debt", text: "Долг 92 000" });
-  assert.deepEqual(cell(508000), { kind: "advance", text: "Аванс 508 000" });
-  assert.deepEqual(cell(0), { kind: "none", text: "0" });
+test("inc13-4 (14Б.7): «Остаток» of a row - the debt rose, «К оплате» the calm blue, the advance green, «Оплачено» a quiet word; two parts stand one under another; nothing from the server - no empty pill", () => {
   const { React, html } = renderer();
-  const { BalanceChip } = View();
-  const chip = (balance) => html(React.createElement(BalanceChip, { balance }));
-  assert.match(chip(L.balanceCell(-92000)), /data-tone="debt"[^>]*>Долг 92 000/);
-  assert.match(chip(L.balanceCell(508000)), /data-tone="advance"/);
-  assert.match(chip(L.balanceCell(0)), /data-tone="none"[^>]*>0</);
-  assert.equal(chip({ kind: "none", text: "" }), ""); // nothing to say: no empty pill
-  // in the rows the chip sits in a centred cell
+  const { OpenCell } = View();
+  const cell = (parts) => html(React.createElement(OpenCell, { parts }));
+  assert.match(cell([{ name: "debt", amount: 92000, text: "Долг 92 000 сум" }]), /data-tone="danger"[^>]*data-testid="statement-open-chip"|data-testid="statement-open-chip"[^>]*>|Долг 92 000 сум/);
+  assert.match(cell([{ name: "debt", amount: 92000, text: "Долг 92 000 сум" }]), /data-tone="danger"/);
+  assert.match(cell([{ name: "due", amount: 231000, text: "К оплате 231 000 сум" }]), /data-tone="due"[^>]*>К оплате 231 000 сум/);
+  assert.match(cell([{ name: "advance", amount: 21000, text: "Аванс 21 000 сум" }]), /data-tone="ok"[^>]*>Аванс 21 000 сум/);
+  const paid = cell([{ name: "paid", amount: 0, text: "Оплачено" }]);
+  assert.match(paid, /data-testid="statement-open-paid"[^>]*>Оплачено</);
+  assert.doesNotMatch(paid, /data-kind="status"/, "«Оплачено» is a quiet word, not a pill");
+  const two = cell([{ name: "debt", amount: 50000, text: "Долг 50 000 сум" }, { name: "due", amount: 100000, text: "К оплате 100 000 сум" }]);
+  assert.ok(two.indexOf("Долг 50 000 сум") < two.indexOf("К оплате 100 000 сум"), "the debt first");
+  assert.equal((two.match(/statement-open-chip/g) || []).length, 2);
+  assert.equal(cell([]), "", "nothing from the server: no empty pill");
+  // in the rows the cell sits in the centred column «Остаток»
   const markup = html(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }));
   assert.match(markup, /data-testid="statement-cell-balance"/);
-  assert.ok((markup.match(/data-testid="statement-balance-chip"/g) || []).length >= 4);
+  assert.ok((markup.match(/data-testid="statement-open"/g) || []).length >= 3, "every row the server named something for");
+  assert.doesNotMatch(markup, /statement-balance-chip/);
 });
 
 // ── 5. alignment and the band ──────────────────────────────────────────────────────────────────
@@ -164,52 +158,21 @@ test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three mo
   assert.match(markup, /data-testid="statement-month"[^>]*><div class="dt-span-cell">/);
 });
 
-// ── 6. month rows: only the name; the carry line ───────────────────────────────────────────────
+// ── 6. month rows: only the name; NO carry line (14Б.7) ─────────────────────────────────────────
 
-test("inc13-6: a month row is only «Октябрь 2026»; one month shows «С сентября перенесён долг …», never in «Все месяцы», never when zero", () => {
+test("inc13-6 (14Б.7): a month row is only «Октябрь 2026»; one month shows its rows and NO «С сентября перенесён …» line (it repeated the running total that is gone)", () => {
   const { React, text } = renderer();
   const { StatementTimeline } = View();
   const statement = statementOf();
   const all = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
   assert.ok(all.includes("Сентябрь 2026") && all.includes("Октябрь 2026"));
   assert.ok(!/стоимость \d[\d ]* ·|оплачено \d[\d ]* ·|осталось/.test(all.replace(/\(осталось [\d ]+\)/g, ""))); // no summary on a month row
-  assert.ok(!all.includes("перенесён")); // «Все месяцы»: no carry line
-  // October: 269 000 of debt comes from September
-  const october = L.buildStatementItems(statement, "2026-10");
-  const carry = october.find((item) => item.kind === "carry");
-  assert.equal(plain(carry.text), "С сентября перенесён долг 269 000");
-  assert.equal(carry.balance.kind, "debt");
-  assert.ok(text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" })).includes("С сентября перенесён долг 269 000"));
-  // November: an advance of 21 000 (an empty month says so, quietly)
-  const november = L.buildStatementItems(statement, "2026-11");
-  assert.equal(plain(november.find((item) => item.kind === "carry").text), "С октября перенесён аванс 21 000");
-  assert.equal(november.find((item) => item.kind === "month").empty, true);
-  // the first month of the enrolment: nothing is carried, nothing is drawn
-  assert.equal(L.buildStatementItems(statement, "2026-09").some((item) => item.kind === "carry"), false);
-  // a zero balance is not told
-  assert.equal(L.carryLine("2026-10", L.balanceCell(0)), null);
-  assert.equal(L.carryLine("2026-10", { kind: "none", text: "" }), null);
-  // the money columns stay empty on that line (no amounts, no icon, no date)
-  const { html } = renderer();
-  const line = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" })).match(/<li[^>]*data-testid="statement-carry".*?<\/li>/s)[0];
-  assert.match(line, /dt-row-span/);
-  assert.match(line, /data-tone="note"/);
-  assert.match(line, /text-rose-700[^>]*>долг 269 000/);
-  assert.doesNotMatch(line, /<svg|statement-row-icon|\d\d\.\d\d\.\d{4}|statement-balance-chip/);
-});
-
-test("inc13-7: the month named after «С»: genitive, with the year only when it is another year", () => {
-  const names = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
-  names.forEach((name, index) => {
-    const key = `2026-${String(index + 1).padStart(2, "0")}`;
-    assert.equal(L.monthFromWords(key, key), name, key);
-  });
-  assert.equal(L.monthFromWords("2025-12", "2026-01"), "декабря 2025");
-  const carry = (month, amount) => plain(L.carryLine(month, L.balanceCell(amount)).text);
-  assert.equal(carry("2026-09", 508000), "С августа перенесён аванс 508 000");
-  assert.equal(carry("2026-10", -92000), "С сентября перенесён долг 92 000");
-  assert.equal(carry("2026-01", 1000), "С декабря 2025 перенесён аванс 1 000");
-  assert.equal(carry("2026-12", -5000), "С ноября перенесён долг 5 000");
+  for (const month of [null, "2026-10", "2026-11", "2026-09"]) {
+    assert.equal(L.buildStatementItems(statement, month).some((item) => item.kind === "carry"), false, String(month));
+    assert.ok(!text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month })).includes("перенесён"), String(month));
+  }
+  // November: an empty month says so, quietly
+  assert.equal(L.buildStatementItems(statement, "2026-11").find((item) => item.kind === "month").empty, true);
 });
 
 // ── 8. the month the statement opens on, the deep links ────────────────────────────────────────

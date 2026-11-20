@@ -8,7 +8,7 @@ import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern } fro
 /**
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
  * due - on the debtors list («Долг 300 000 сум · просрочено N дней»), on the card, and on the statement: the payment row says
- * «за <период> — 200 000 (осталось 300 000)», the month header «осталось 300 000», the balance «Долг 300 000», «Сходится».
+ * «за <период> — 200 000 (осталось 300 000)», the month header «осталось 300 000», the «Остаток» of the charge row «Долг 300 000» (the debt of the row itself), «Сходится».
  * The rest paid later closes the debt (the row leaves «Должники»; the second payment does not say «осталось»).
  */
 let org: Org;
@@ -96,7 +96,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   // the first payment keeps its history («осталось 300 000» was true when it was made); the second one closes the period
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(300000)}\\)`));
   await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 2" })).not.toContainText("осталось");
-  await expect(page.getByTestId("statement-cell-balance").last()).toContainText("0"); // the period is closed: the chip says «0»
+  await expect(page.getByTestId("statement-cell-balance").first()).toContainText("Оплачено"); // the period is closed: «Остаток» of its charge row is the quiet word «Оплачено» (10.11)
   await expectStatementReconciles(page);
 
   await page.goto("/owner/payments");

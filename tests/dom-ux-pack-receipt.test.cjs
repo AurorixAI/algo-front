@@ -1,4 +1,4 @@
-// UX pack №14 in a real browser: the RECEIPT (the parent reads it).  «Оплачено до 30.09.2026», «Погашен долг за 01.09–30.09 · 400 000 сум» (the label is the server's), «Остаток долга после оплаты: 800 000 сум»;
+// UX pack №14 in a real browser: the RECEIPT (the parent reads it).  «Оплачено до 30.09.2026», «Погашен долг за 01.09–30.09 · 400 000 сум» (the label is the server's), «Останется неоплаченным после оплаты: 800 000 сум»;
 // no «Цена периода», no «Покрытие»; the ID of the student stays on one line.  The CSS is the project's tailwind.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -32,13 +32,13 @@ async function open(width) {
   return run;
 }
 
-test("№14: «Оплачено до 30.09.2026», the allocation with the label of the server and the sum, «Остаток долга после оплаты: 800 000 сум»; no «Цена периода» and no «Покрытие»", async () => {
+test("№14: «Оплачено до 30.09.2026», the allocation with the label of the server and the sum, «Останется неоплаченным после оплаты: 800 000 сум»; no «Цена периода» and no «Покрытие»", async () => {
   const { page } = await open(1280);
   const text = plain(await page.locator('[aria-label^="Квитанция"]').innerText());
   assert.match(text, /Оплачено до\s*30\.09\.2026/);
   assert.match(text, /Погашен долг за 01\.09–30\.09\s*400\s000\sсум/);
-  assert.match(text, /Остаток долга после оплаты: 800\s000\sсум/);
-  assert.match(text, /Долг до оплаты: 1\s200\s000\sсум/);
+  assert.match(text, /Останется неоплаченным после оплаты: 800\s000\sсум/);
+  assert.match(text, /Было не оплачено: 1\s200\s000\sсум/);
   assert.ok(!/Цена периода|Покрытие|Баланс|Закрыла долг/.test(text), text);
   await page.close();
 });

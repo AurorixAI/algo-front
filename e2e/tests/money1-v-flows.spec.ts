@@ -118,7 +118,7 @@ test("a payment without a method does not go: the button waits and says why; the
   await page.goto(`/owner/students/${student.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
   await page.getByRole("button", { name: "Внести оплату" }).first().click();
-  const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
+  const dialog = page.getByRole("dialog", { name: "Внести оплату" });
   await dialog.getByLabel("Сумма", { exact: true }).fill("100000");
   await expect(dialog.getByRole("radio", { checked: true })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: /^Внести/ })).toBeDisabled();

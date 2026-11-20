@@ -443,8 +443,9 @@ export interface PaymentCreate {
 /** Where the money of a saved payment went (the answer to a create / replace). */
 export interface AllocationSummary {
   items: Allocation[];
-  debt_before: number;
-  debt_after: number;
+  /** Everything unpaid before / after the payment (the server's `unpaid_*`, 14А.6): a sum, never a name. */
+  unpaid_before: number;
+  unpaid_after: number;
   advance_after: number;
   paid_until_before: string | null;
   paid_until_after: string | null;
@@ -502,15 +503,22 @@ export interface Segment {
 }
 
 /** What is due now, for the top block of the payment dialog. */
+/** What the student owes today (before the typed amount), named by the term - the server's words (PAY-DUE 10.2 / 10.10): the old `past_debt` / `current_due` / `days_overdue` are gone. */
 export interface PreviewDue {
-  debt: number;
-  past_debt: number;
-  current_due: number;
+  /** Everything unpaid (`debt_amount + due_amount`). */
+  unpaid: number;
+  debt_amount: number;
+  due_amount: number;
+  due_until: string | null;
+  overdue_days: number | null;
+  debt_text: string | null;
+  debt_sub: string | null;
+  due_text: string | null;
+  due_sub: string | null;
   advance: number;
   /** Segments that have begun and are not paid up. */
   segments: Segment[];
   paid_until: string | null;
-  days_overdue: number | null;
 }
 
 export interface PriceAhead {
@@ -529,19 +537,21 @@ export interface PreviewLessons {
 
 export interface PreviewResult {
   allocations: Allocation[];
-  debt_after: number;
-  past_debt_after: number;
-  current_due_after: number;
+  /** Everything unpaid after the payment (a sum; the names are `debt_amount_after` / `due_amount_after`). */
+  unpaid_after: number;
+  debt_amount_after: number;
+  due_amount_after: number;
+  due_until_after: string | null;
+  overdue_days_after: number | null;
   advance_after: number;
   /** Null in lessons mode. */
   paid_until_before: string | null;
   paid_until_after: string | null;
   status_after: PaymentStatus;
-  days_overdue_after: number | null;
   partial_credit_after: number;
   lessons: PreviewLessons | null;
   price_ahead: PriceAhead[];
-  /** The server's sentence: «Погасит долг 269 000 сум · на текущий период 31 000 сум → оплачено до 15.10 · останется 469 000 сум». */
+  /** The server's sentence BEFORE the button (10.10): «Погасит долг 187 000 сум · к оплате 44 000 сум» - which sum the typed amount closes first, and what is left. */
   summary_text: string;
 }
 
@@ -550,6 +560,7 @@ export interface PaymentPreview {
   mode: PeriodMode;
   price: Partial<PriceInfo>;
   due: PreviewDue;
+  /** The whole unpaid sum (calendar) / to the end of the package (lessons); 0 - nothing is due: the window fills the field with it, the screen counts nothing (10.10). */
   suggested_amount: number;
   /** The amount the preview was asked for; null without it. */
   amount: number | null;
@@ -598,8 +609,9 @@ export interface WriteoffCreated {
   writeoff: WriteoffOut;
   /** Money-1 V9: the period the forgiveness closes (`label` «06.10–05.11»); null - it closes nothing.  Only the student's period is shown, never the pay of the teacher. */
   closes?: { from: string; to: string; label: string } | null;
-  debt_before: number;
-  debt_after: number;
+  /** Everything unpaid before / after the forgiveness (the server's `unpaid_*`). */
+  unpaid_before: number;
+  unpaid_after: number;
   row: MembershipPaymentRow;
   /** Money-1 A3: a forgiven debt is paid to the teacher - the sheets it moves (`lib/money-effects.ts`). */
   money_effects?: unknown;

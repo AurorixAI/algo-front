@@ -19,14 +19,11 @@ import {
 import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import { basesOfPayments, groupHref, queryWith, studentHref } from "@/lib/ia-links";
 import {
-  BALANCE_TEXT_CLASS,
-  balanceChipClass,
   buildStatementItems,
   defaultStatementMonth,
   monthRange,
   parseStatementMonth,
   resolveStatementMonth,
-  STATEMENT_ALIGN,
   STATEMENT_AMOUNT_CLASS,
   STATEMENT_ICON_TONE,
   STATEMENT_PAID_CLASS,
@@ -42,11 +39,13 @@ import {
   statementMonths,
   statementReconciles,
   statementRowView,
+  statementStates,
   statementTotals,
   STATEMENT_HINTS,
   upcomingLine,
   type StatementEntry,
   type StatementItem,
+  type StatementState,
 } from "@/lib/payments-ledger";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, markReceiptNavigation, receiptNavigationMarked } from "@/lib/receipt-nav";
@@ -63,9 +62,12 @@ import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataCell, DataRow, DataSpanRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
+import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PAY_STATE_TONE } from "@/lib/pay-state";
+import type { OpenPart } from "@/lib/payments";
 
-/** Date · operation · charged · paid · balance: a bank statement.  Text and the date LEFT, the three money columns CENTRED (their headers too), the actions («⋯») in their own ruled column. */
+/** Date · operation · charged · paid · «Остаток» (what is open on the row ITSELF today, the server's words): a bank statement.  Text and the date LEFT, the three money columns CENTRED (their headers too), the actions («⋯») in their own ruled column. */
 const STATEMENT_COLUMNS: DataColumn[] = [
   { key: "date", header: "Дата", width: "max-content" },
   { key: "operation", header: "Операция", width: "minmax(10rem,1fr)" },
@@ -75,12 +77,15 @@ const STATEMENT_COLUMNS: DataColumn[] = [
   { key: "menu", header: "", align: "center", ruled: true, width: "max-content", actions: true },
 ];
 
-const TOTAL_TONE = {
+/** The tone of a big word of the state on the right of the summary: the debt is red, «К оплате» plain (the calm blue is the label's, a big blue sum reads as a link), paid and the advance green. */
+const STATE_TONE: Record<StatementState["tone"], string> = {
   debt: "text-rose-700",
+  due: "text-slate-900",
+  paid: "text-emerald-700",
   advance: "text-emerald-700",
-  none: "text-slate-900",
   plain: "text-slate-900",
-} as const;
+};
+const STATE_SUB_TONE: Record<StatementState["tone"], string> = { debt: "text-rose-700", due: "text-slate-500", paid: "text-slate-500", advance: "text-slate-500", plain: "text-slate-500" };
 
 /** One wording of the two actions on a payment, here and in the list of «Оплаты» (IA audit F11). */
 export const CORRECT_PAYMENT_LABEL = "Исправить оплату";
@@ -421,7 +426,8 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
 }) {
   const m = statement.membership;
   const totals = statementTotals(statement.summary);
-  const reconciles = statementReconciles(statement.summary);
+  const states = statementStates(statement.summary);
+  const reconciles = statementReconciles(statement);
   return (
     <>
       <header>
@@ -443,17 +449,30 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
       </header>
 
       <section aria-label="Итоги" data-testid="statement-summary" data-reconciles={reconciles ? "true" : "false"} className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end lg:gap-x-10">
-          {totals.map((total) => (
-            <div key={total.key} className={total.key === "balance" ? "lg:ml-auto" : ""}>
-              <dt className="flex items-center gap-1 text-xs text-slate-500">
-                {total.label}
-                {total.hint && <Help text={total.hint} label={`Что значит «${total.label}»`} />}
-              </dt>
-              <dd className={`tabular-nums ${total.key === "balance" ? "text-lg font-bold" : "text-sm font-semibold"} ${TOTAL_TONE[total.tone]}`}>{total.text}</dd>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-x-10">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end lg:gap-x-10">
+            {totals.map((total) => (
+              <div key={total.key}>
+                <dt className="flex items-center gap-1 text-xs text-slate-500">
+                  {total.label}
+                  {total.hint && <Help text={total.hint} label={`Что значит «${total.label}»`} />}
+                </dt>
+                <dd className="text-sm font-semibold tabular-nums text-slate-900">{total.text}</dd>
+              </div>
+            ))}
+          </dl>
+          {/* the state: ONE big word of the server (or TWO side by side, the debt first) with its quiet line under it; a phone puts it on its own row under a rule (frame 21) */}
+          {states.length > 0 && (
+            <div data-testid="statement-state" className="flex flex-wrap items-start gap-x-8 gap-y-2 border-t border-slate-100 pt-3 lg:justify-end lg:border-0 lg:pt-0 lg:text-right">
+              {states.map((state) => (
+                <div key={state.key} data-testid={`statement-state-${state.key}`}>
+                  <p className={`text-lg font-bold tabular-nums ${STATE_TONE[state.tone]}`}>{state.text}</p>
+                  {state.sub && <p className={`text-xs ${STATE_SUB_TONE[state.tone]}`}>{state.sub}</p>}
+                </div>
+              ))}
             </div>
-          ))}
-        </dl>
+          )}
+        </div>
         {/* «всё сходится» is not said (nothing to decide); only a mismatch is - red, with its «?» */}
         {!reconciles && (
           <p className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs font-medium text-rose-700" data-testid="statement-reconciles">
@@ -556,10 +575,19 @@ export function StatementRowIcon({ entry }: { entry: Pick<StatementEntry, "type"
   );
 }
 
-/** The balance as a chip: the tone says debt / advance / zero, every chip has the same height. */
-export function BalanceChip({ balance }: { balance: { kind: StatementEntry["balance"]["kind"]; text: string } }) {
-  if (!balance.text) return null;
-  return <span data-testid="statement-balance-chip" data-kind="chip" data-tone={balance.kind} className={balanceChipClass(balance.kind)}>{balance.text}</span>;
+/** The tone of a part of «Остаток» by the server's name: the debt red, «К оплате» the calm blue, the advance green; «Оплачено» is a quiet word, not a chip. */
+const OPEN_TONE = { debt: PAY_STATE_TONE.debt, due: PAY_STATE_TONE.to_pay, advance: "ok" } as const;
+
+/** «Остаток» of a row: what is open on the row ITSELF today - one chip, TWO (the debt first) or a quiet «Оплачено»; empty when the server named nothing (a refund, a write-off, a transfer out). */
+export function OpenCell({ parts }: { parts: OpenPart[] }) {
+  if (parts.length === 0) return null;
+  return (
+    <span className="inline-flex flex-col items-center gap-1" data-testid="statement-open">
+      {parts.map((part) => (part.name === "paid"
+        ? <span key={part.name} data-testid="statement-open-paid" className="text-sm text-slate-500">{part.text}</span>
+        : <StatusChip key={part.name} tone={OPEN_TONE[part.name]} testId="statement-open-chip" className="tabular-nums">{part.text}</StatusChip>))}
+    </span>
+  );
 }
 
 function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; menuFor: (entry: StatementEntry) => RowMenuItem[]; extraFor?: (entry: StatementEntry) => ReactNode }) {
@@ -569,14 +597,6 @@ function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; me
         <DataSpanRow testId="statement-month"><span className="font-semibold text-slate-800">{item.title}</span></DataSpanRow>
         {item.empty && <DataSpanRow tone="note" testId="statement-month-empty"><span>В этом месяце записей нет</span></DataSpanRow>}
       </>
-    );
-  }
-  if (item.kind === "carry") {
-    // one quiet line: «С сентября перенесён аванс 508 000» (the amount in its tone); no date, no icon, nothing in the money columns
-    return (
-      <DataSpanRow tone="note" testId="statement-carry">
-        {item.lead} <span className={`font-medium ${BALANCE_TEXT_CLASS[item.balance.kind]}`}>{item.amount}</span>
-      </DataSpanRow>
     );
   }
   return <StatementRowItem entry={item} menu={menuFor(item)} extra={extraFor?.(item) ?? null} />;
@@ -611,7 +631,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       <DataCell col="paid" testId="statement-cell-paid" className={paidText ? undefined : "dt-card-hidden"}>
         <span className={STATEMENT_PAID_CLASS}>{paidText}</span>
       </DataCell>
-      <DataCell col="balance" testId="statement-cell-balance"><BalanceChip balance={entry.balance} /></DataCell>
+      <DataCell col="balance" testId="statement-cell-balance"><OpenCell parts={entry.open} /></DataCell>
       <DataCell col="menu">
         {menu.length > 0 ? <RowMenu items={menu} label={`Действия с записью: ${entry.title}`} tooltip="Действия с записью" width={220} /> : null}
       </DataCell>

@@ -19,7 +19,7 @@ import {
 } from "@/lib/payments";
 import {
   buildPaymentPayload,
-  dueView,
+  dueBlock,
   alreadyVoidedText,
   payError,
   paymentFormFrom,
@@ -36,9 +36,7 @@ import { Notice } from "@/components/ui/notice";
 import { PaymentRepeatedNote } from "./payment-repeated-note";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
-  chipSelected,
   methodChoices,
-  noChipsHint,
   payBlocker,
   payButtonLabel,
   planView,
@@ -47,9 +45,6 @@ import {
   REPLACE_HISTORY_NOTE,
   replaceChangeLine,
   PLAN_LOADING_TEXT,
-  QUICK_AMOUNTS_LABEL,
-  quickAmounts,
-  debtNowLine,
   type PlanView,
 } from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftCapApplies, leftPaymentProblem } from "@/lib/payments-logica";
@@ -61,6 +56,8 @@ import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-f
 import { groupPriceHref } from "@/lib/group-price";
 import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
 import { Modal } from "@/components/ui/modal";
+import { StatusChip } from "@/components/ui/chip";
+import { PAY_STATE_TONE } from "@/lib/pay-state";
 import { DateInput } from "@/components/ui/date-input";
 import { SegmentedControl } from "@/components/ui/radio";
 import { RecalcNote } from "./recalc-note";
@@ -99,9 +96,9 @@ interface PaymentDialogProps {
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
-// UX pack §5.1-бис: the window says whose money it is - the student's, coming INTO the centre (not the salary of a teacher)
+// frame 14 / 15Б.2: the title is the word of the button that opens it («Внести оплату»)
 const TITLE: Record<PaymentFormKind, string> = {
-  create: "Оплата от ученика",
+  create: "Внести оплату",
   replace: "Исправить оплату",
 };
 
@@ -190,18 +187,15 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
   const latest = state.preview;
   const fresh = latest && state.previewKey === key ? latest : null;
-  const due = dueView(latest);
+  const due = dueBlock(latest);
   // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
   const leftOnly = isLeftDebtOnly(latest) && leftCapApplies({ kind, original: payment ?? null, amount: amountNow, paidOn: values.paidOn });      // Р-13: the method alone of a correction takes no money
-  const leftDebt = due?.total ?? 0;
+  const leftDebt = due?.unpaid ?? 0;
   const leftCeiling = kind === "replace" ? latest?.suggested_amount ?? 0 : leftDebt; const leftWords = latest?.warnings.find((warning) => warning.code === "left_debt_only")?.message ?? null;      // К1 круг 3: the server's own sentence, once (the plan does not repeat it)
   const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;      // G3M С1: a correction has no text of its own - its ceiling is the server's (`suggested_amount`), the refusal comes in its words
   const plan = amountNow !== null ? planView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
-  const debtNow = debtNowLine(latest);
-  const chips = kind === "create" ? quickAmounts(latest, { leftOnly }) : [];
-  const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
-  const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
+  const priceNote = due !== null && due.unpaid === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const blocker = payBlocker(values, today, leftProblem, kind) ?? replace.why;
   const methods = methodChoices(kind === "replace" && payment ? paymentFormFrom(payment).method : null);
 
@@ -310,7 +304,17 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
           {/* 1. The amount, and the quick amounts that say what is due */}
           <div>
-            {kind === "create" && debtNow && <p data-testid="payment-debt-now" className="-mt-2 mb-3 text-xs text-slate-600">Долг сейчас: <span className="font-medium tabular-nums">{debtNow.total}</span>{debtNow.past && <> · <span className="tabular-nums">{debtNow.past}</span></>}</p>}
+            {/* what the student owes TODAY, both sums, named by the term in the server's words: «К оплате 231 000 сум · до 24.11» / «Долг 600 000 сум · просрочено 45 дней» (frame 14) */}
+            {kind === "create" && due !== null && due.states.length > 0 && (
+              <div data-testid="payment-due" className="mb-3 space-y-1.5 rounded-xl bg-slate-50 px-3.5 py-2.5">
+                {due.states.map((state) => (
+                  <p key={state.key} data-testid={`payment-due-${state.key}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <StatusChip tone={PAY_STATE_TONE[state.tone === "due" ? "to_pay" : "debt"]} className="tabular-nums">{state.text}</StatusChip>
+                    {state.sub && <span className="text-xs text-slate-600">{state.sub}</span>}
+                  </p>
+                ))}
+              </div>
+            )}
             <label htmlFor="payment-amount" className={LABEL}>Сумма</label>
             <div className="relative">
               <input
@@ -327,24 +331,6 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               />
               <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500">сум</span>
             </div>
-            {chips.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-2" role="group" aria-label={QUICK_AMOUNTS_LABEL} data-testid="payment-chips">
-                {chips.map((chip) => {
-                  const on = chipSelected(chip, amountNow);
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => setAmount(chip.amount)}
-                      aria-pressed={on}
-                      className={`min-h-10 rounded-full border px-3.5 py-1.5 text-left text-xs font-semibold transition-colors sm:min-h-8 ${on ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
             {priceNote && (
               <p className="mt-2.5 text-xs text-slate-600" data-testid="payment-price-note">
                 <span className="font-medium text-amber-800">{priceNote}</span>
@@ -356,7 +342,6 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
                 )}
               </p>
             )}
-            {calmHint && <p className="mt-2.5 text-xs text-slate-500" data-testid="payment-nodebt">{calmHint}</p>}
             {leftOnly && (kind === "replace" ? !replace.refused && !(amountNow !== null && amountNow > leftCeiling) && leftWords !== null && <p className="mt-2.5 text-xs text-slate-600" data-testid="left-debt-only">{leftWords}</p> : (
               <p role="note" className="mt-2.5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -478,15 +463,7 @@ export function ReplaceHead({ payment, values }: { payment: EditablePayment; val
 export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?: boolean }) {
   return (
     <div className={`space-y-2 transition-opacity ${loading ? "opacity-60" : ""}`} data-testid="payment-plan">
-      <ul className="space-y-1" aria-label="Что будет с долгом" data-testid="payment-plan-rows">
-        {plan.rows.map((row) => (
-          <li key={row.key} data-tone={row.tone} className={`flex items-baseline justify-between gap-3 tabular-nums ${row.tone === "strong" ? "text-sm font-semibold text-slate-900" : row.tone === "muted" ? "pl-3 text-xs text-slate-600" : "text-sm text-slate-800"}`}>
-            <span className="min-w-0 break-words">{row.label}</span>
-            {row.amount !== null && <span className="shrink-0 whitespace-nowrap text-right">{formatMoney(row.amount)}</span>}
-          </li>
-        ))}
-      </ul>
-      <p className="sr-only" data-testid="payment-plan-sentence">{plan.sentence}</p>
+      {plan.sentence && <p className="text-sm font-medium text-slate-900" data-testid="payment-plan-sentence">{plan.sentence}</p>}
       {plan.lessons && <p className="text-xs text-slate-600">{plan.lessons}</p>}
       {plan.priceAhead.length > 0 && (
         <div role="note" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">

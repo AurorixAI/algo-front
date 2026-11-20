@@ -1,4 +1,4 @@
-// UX pack §5.1 / §5.1-тер (05.11, the owner's decisions): the window «Оплата от ученика».  The block «Что изменится» is about the STUDENT only (a table: the name on the left, the number on the right);
+// UX pack §5.1 / §5.1-тер (05.11, the owner's decisions): the window «Внести оплату».  The block «Что изменится» is about the STUDENT only (a table: the name on the left, the number on the right);
 // the pay of the teachers is NOT in the windows of a payment at all (nor in their toasts) - it lives in «Зарплата».  The numbers are the walk of stage: Тошматов Бобур owes 1 200 000 (Sept., Oct., Nov. 400 000
 // each) and pays 400 000.
 const assert = require("node:assert/strict");
@@ -18,28 +18,27 @@ const X = require(path.join(root, "src/lib/payment-plan.ts"));
 const E = require(path.join(root, "src/lib/money-effects.ts"));
 const { toshmatovPreview, STAGE_EFFECTS } = require("./helpers/stage-numbers.cjs");
 const plain = (text) => text.replace(/ /g, " ");
-const rowsOf = (amount) => X.planView(toshmatovPreview(amount)).rows.map((row) => [plain(row.label), row.amount, row.tone]);
+const sentenceOf = (amount) => plain(X.planView(toshmatovPreview(amount)).sentence);
 
-test("the student's rows: 400 000 closes September, 800 000 of debt stay, 400 000 of it for the past months (muted)", () => {
-  assert.deepEqual(rowsOf(400000), [
-    ["Погасит долг за сентябрь", 400000, "plain"],
-    ["Останется долг", 800000, "strong"],
-    ["из них за прошлые месяцы", 400000, "muted"],
-  ]);
+// PAY-DUE 10.10 (14Б.8): the table of rows of the screen («Погасит долг за сентябрь / Останется долг / из них за прошлые») is gone - the screen adds, splits and names nothing: under the amount stands
+// the server's ONE sentence «Погасит долг X · к оплате Y» (the money closes the oldest debt first, then what is «К оплате»).  The numbers are the walk of stage, hand-counted: 800 000 of debt (September, October), 400 000 «К оплате» (November).
+test("the sentence under the amount is the server's: the debt is closed first, then «К оплате»", () => {
+  assert.equal(sentenceOf(400000), "Погасит долг 400 000 сум");
+  assert.equal(sentenceOf(800000), "Погасит долг 800 000 сум");
+  assert.equal(sentenceOf(1200000), "Погасит долг 800 000 сум · к оплате 400 000 сум");
+  assert.equal(sentenceOf(1000000), "Погасит долг 800 000 сум · к оплате 200 000 сум");
+  assert.equal(X.planView(toshmatovPreview(400000)).rows, undefined, "the screen builds no rows of its own");
 });
 
-test("the rows follow the amount: two months, the whole debt, a part of a month", () => {
-  assert.deepEqual(rowsOf(800000), [
-    ["Погасит долг за сентябрь", 400000, "plain"], ["Погасит долг за октябрь", 400000, "plain"], ["Останется долг", 400000, "strong"],
-  ], "past debt paid in full: the rest is the running month only, so no «из них за прошлые»");
-  assert.deepEqual(rowsOf(1200000).slice(0, 4), [
-    ["Погасит долг за сентябрь", 400000, "plain"], ["Погасит долг за октябрь", 400000, "plain"], ["Пойдёт в ноябрь", 400000, "plain"], ["Долга не останется", null, "strong"],
-  ], "no debt left: said without a number");
-  assert.deepEqual(rowsOf(150000).slice(0, 3), [["Погасит часть долга за сентябрь", 150000, "plain"], ["Останется долг", 1050000, "strong"], ["из них за прошлые месяцы", 650000, "muted"]]);
+test("the top block names both sums in the server's words, the debt first; the field takes `suggested_amount`", () => {
+  const block = require(path.join(root, "src/lib/payments-ledger.ts")).dueBlock(toshmatovPreview(null));
+  assert.deepEqual(block.states.map((state) => [state.key, plain(state.text), state.sub]), [["debt", "Долг 800 000 сум", "просрочено 61 день · оплачено до 31.08"], ["due", "К оплате 400 000 сум", "до сегодня"]]);
+  assert.equal(block.unpaid, 1200000);
+  assert.equal(toshmatovPreview(null).suggested_amount, 1200000);
 });
 
-test("the rows never carry the pay of the teachers", () => {
-  const all = rowsOf(400000).map((row) => row[0]).join(" ");
+test("the sentence never carries the pay of the teachers", () => {
+  const all = [400000, 800000, 1200000].map(sentenceOf).join(" ");
   assert.ok(!/зарплат|Эргашев/i.test(all), all);
 });
 

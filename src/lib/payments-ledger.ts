@@ -34,6 +34,7 @@ import {
   type RefundCreate,
   type Segment,
   type StatementOut,
+  type OpenPart,
   type StatementRow,
   type StatementRowType,
   type StatementSummary,
@@ -160,18 +161,18 @@ export function allocationText(item: Pick<Allocation, "label" | "amount">): stri
 
 /** Where the money of a saved payment went, for a toast: one line per period and the balance left. */
 /** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 300 000 сум» / «Остаток долга после оплаты: 0 сум» (UX pack §1, №14: the words of the receipt and the toast). */
-export function balanceAfterText(debtAfter: number | null | undefined, advanceAfter: number | null | undefined, lead = "после оплаты"): string {
-  const debt = sum(debtAfter);
+export function balanceAfterText(unpaidAfter: number | null | undefined, advanceAfter: number | null | undefined, lead = "после оплаты"): string {
+  const unpaid = sum(unpaidAfter);
   const advance = sum(advanceAfter);
-  if (debt > 0) return `Остаток долга ${lead}: ${formatMoney(debt)}`;
+  if (unpaid > 0) return `Останется неоплаченным ${lead}: ${formatMoney(unpaid)}`;
   if (advance > 0) return `Аванс ${lead}: ${formatMoney(advance)}`;
-  return `Остаток долга ${lead}: ${formatMoney(0)}`;
+  return `Останется неоплаченным ${lead}: ${formatMoney(0)}`;
 }
 
 export function savedPaymentDetails(allocation: AllocationSummary | null | undefined): string[] {
   if (!allocation) return [];
   const lines = allocationLines(allocation.items).map(allocationText);
-  lines.push(balanceAfterText(allocation.debt_after, allocation.advance_after));
+  lines.push(balanceAfterText(allocation.unpaid_after, allocation.advance_after));
   return lines;
 }
 
@@ -259,84 +260,37 @@ export function validateReason(value: string | null | undefined): string | null 
 
 // ── Preview of a payment: top block and live calculation ──────────────────
 
-export interface DueRow {
-  key: "debt" | "current" | "advance";
-  label: string;
-  /** What the amount is made of: «15.09–14.10, оплачено 231 000 из 500 000». */
-  note: string | null;
-  amount: number;
-}
-
-export interface DueView {
-  /** Debt of past periods + the running period: what the student owes today. */
-  total: number;
-  pastDebt: number;
-  currentDue: number;
-  advance: number;
-  rows: DueRow[];
-  totalLabel: string;
-  /** One line for assistive text / tests: «Долг 269 000 сум (15.09–14.10, оплачено 231 000 из 500 000 сум) · Текущий период 15.10–14.11: 500 000 сум · Всего к оплате 769 000 сум». */
-  text: string;
-}
-
-/** «231 000» - the amount without the unit, for «оплачено 231 000 из 500 000». */
-function digits(value: number): string {
-  return formatMoney(value).replace(/\u00A0сум$/, "");
-}
-
 function periodText(from: string, to: string): string {
   return `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
 }
 
-function segmentName(segment: Segment): string {
-  return segment.kind === "package" ? `пакет ${periodText(segment.period_from, segment.period_to)}` : periodText(segment.period_from, segment.period_to);
+/** One sum on the top of «Внести оплату», named by the term in the SERVER'S words: «Долг 600 000 сум» + «просрочено 45 дней», «К оплате 231 000 сум» + «до 24.11» (PAY-DUE 10.10, frame 14). */
+export interface DueState {
+  key: "debt" | "due";
+  text: string;
+  sub: string | null;
+  tone: "debt" | "due";
 }
 
-/**
- * Splits the segments of `due` into the periods of the debt and the running one by the server's `bucket`.  An older
- * answer without it falls back to the dates: the running period is the begun one that holds `as_of`.
- */
-export function splitDueSegments(preview: Pick<PaymentPreview, "as_of" | "due">): { past: Segment[]; running: Segment | null } {
-  const open = list<Segment>(preview.due?.segments).filter((segment) => sum(segment.unpaid) > 0);
-  if (open.some((segment) => segment.bucket)) {
-    return { past: open.filter((segment) => segment.bucket === "past_debt"), running: open.find((segment) => segment.bucket === "current") ?? null };
-  }
-  if (sum(preview.due?.current_due) <= 0) return { past: open, running: null };
-  const running = [...open].reverse().find((segment) => segment.period_from <= preview.as_of && preview.as_of <= segment.period_to) ?? null;
-  return { past: open.filter((segment) => segment !== running), running };
+export interface DueBlock {
+  /** Everything unpaid (the sum the window may take at most from a student who has left). */
+  unpaid: number;
+  advance: number;
+  /** One or TWO states, the debt first; empty - nothing is due (or the server said nothing: LESSONS 151). */
+  states: DueState[];
 }
 
-/** The block above the amount: «Долг … · Текущий период … · Всего к оплате …». */
-export function dueView(preview: Pick<PaymentPreview, "as_of" | "due"> | null | undefined): DueView | null {
+/** The block above the amount: both sums of the server, named, the debt first.  The screen adds and names nothing. */
+export function dueBlock(preview: Pick<PaymentPreview, "due"> | null | undefined): DueBlock | null {
   if (!preview?.due) return null;
   const due = preview.due;
-  const pastDebt = sum(due.past_debt);
-  const currentDue = sum(due.current_due);
-  const advance = sum(due.advance);
-  const { past, running } = splitDueSegments(preview);
-  const rows: DueRow[] = [];
-  if (pastDebt > 0) {
-    let note: string | null = null;
-    if (past.length === 1) {
-      const only = past[0];
-      note = `${segmentName(only)}${sum(only.paid) > 0 ? `, оплачено ${digits(only.paid)} из ${digits(only.charge)}` : ""}`;
-    } else if (past.length > 1) {
-      note = `${segmentName(past[0])} … ${segmentName(past[past.length - 1])}, ${past.length} ${past.length < 5 ? "периода" : "периодов"}`;
-    }
-    rows.push({ key: "debt", label: "Долг", note, amount: pastDebt });
-  }
-  if (currentDue > 0) {
-    rows.push({ key: "current", label: "Текущий период", note: running ? segmentName(running) : null, amount: currentDue });
-  }
-  if (advance > 0 && pastDebt + currentDue === 0) rows.push({ key: "advance", label: "Аванс", note: null, amount: advance });
-  const total = sum(due.debt);
-  const totalLabel = `Всего к оплате ${formatMoney(total)}`;
-  const parts = rows
-    .filter((row) => row.key !== "advance")
-    .map((row) => (row.key === "debt"
-      ? `Долг ${formatMoney(row.amount)}${row.note ? ` (${row.note})` : ""}`
-      : `Текущий период${row.note ? ` ${row.note}` : ""}: ${formatMoney(row.amount)}`));
-  return { total, pastDebt, currentDue, advance, rows, totalLabel, text: [...parts, totalLabel].join(" · ") };
+  const clean = (value: string | null | undefined) => (typeof value === "string" && value.trim() ? value.trim() : null);
+  const states: DueState[] = [];
+  const debtText = clean(due.debt_text);
+  const dueText = clean(due.due_text);
+  if (sum(due.debt_amount) > 0 && debtText) states.push({ key: "debt", text: debtText, sub: clean(due.debt_sub), tone: "debt" });
+  if (sum(due.due_amount) > 0 && dueText) states.push({ key: "due", text: dueText, sub: clean(due.due_sub), tone: "due" });
+  return { unpaid: sum(due.unpaid), advance: sum(due.advance), states };
 }
 
 /** Under the amount when the group (and the student) has no price: the amount is typed by hand. */
@@ -389,7 +343,7 @@ export function warningsAfterSave<T extends { code?: string }>(warnings: Readonl
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;
   if (!preview || !result) return null;
-  const debtAfter = sum(result.debt_after);
+  const unpaidAfter = sum(result.unpaid_after);
   const advanceAfter = sum(result.advance_after);
   const before = result.paid_until_before;
   const after = result.paid_until_after;
@@ -405,8 +359,8 @@ export function previewView(preview: PaymentPreview | null | undefined): Preview
       ? `Уроков оплачено: ${sum(lessons.covered_before)} → ${sum(lessons.covered_after)}, осталось ${sum(lessons.left_after)}${sum(lessons.unpaid_after) > 0 ? `, не оплачено ${sum(lessons.unpaid_after)}` : ""}`
       : null,
     remaining: {
-      kind: debtAfter > 0 ? "debt" : advanceAfter > 0 ? "advance" : "none",
-      text: balanceAfterText(debtAfter, advanceAfter),
+      kind: unpaidAfter > 0 ? "debt" : advanceAfter > 0 ? "advance" : "none",
+      text: balanceAfterText(unpaidAfter, advanceAfter),
     },
     priceAhead: ahead,
     warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE && warning.code !== "left_debt_only").map((warning) => warning.message),
@@ -424,27 +378,33 @@ export function normalizePreview(raw: unknown): PaymentPreview {
     mode: data.mode === "lessons" ? "lessons" : "calendar",
     price: data.price ?? {},
     due: {
-      debt: sum(due.debt),
-      past_debt: sum(due.past_debt),
-      current_due: sum(due.current_due),
+      unpaid: sum(due.unpaid),
+      debt_amount: sum(due.debt_amount),
+      due_amount: sum(due.due_amount),
+      due_until: due.due_until ?? null,
+      overdue_days: nullableSum(due.overdue_days),
+      debt_text: due.debt_text ?? null,
+      debt_sub: due.debt_sub ?? null,
+      due_text: due.due_text ?? null,
+      due_sub: due.due_sub ?? null,
       advance: sum(due.advance),
       segments: list<Segment>(due.segments),
       paid_until: due.paid_until ?? null,
-      days_overdue: nullableSum(due.days_overdue),
     },
     suggested_amount: sum(data.suggested_amount),
     amount: nullableSum(data.amount),
     result: result
       ? {
           allocations: list<Allocation>(result.allocations),
-          debt_after: sum(result.debt_after),
-          past_debt_after: sum(result.past_debt_after),
-          current_due_after: sum(result.current_due_after),
+          unpaid_after: sum(result.unpaid_after),
+          debt_amount_after: sum(result.debt_amount_after),
+          due_amount_after: sum(result.due_amount_after),
+          due_until_after: result.due_until_after ?? null,
+          overdue_days_after: nullableSum(result.overdue_days_after),
           advance_after: sum(result.advance_after),
           paid_until_before: result.paid_until_before ?? null,
           paid_until_after: result.paid_until_after ?? null,
           status_after: result.status_after ?? "none",
-          days_overdue_after: nullableSum(result.days_overdue_after),
           partial_credit_after: sum(result.partial_credit_after),
           lessons: result.lessons ?? null,
           price_ahead: list(result.price_ahead),
@@ -720,7 +680,7 @@ export function statementRowNotes(row: StatementRow): string[] {
 }
 
 export interface StatementTotal {
-  key: "charged" | "paid" | "written_off" | "recalculated" | "refunded" | "transferred_in" | "transferred_out" | "balance";
+  key: "charged" | "paid" | "written_off" | "recalculated" | "refunded" | "transferred_in" | "transferred_out";
   label: string;
   /** Money; for the balance the signed text is `text`. */
   amount: number;
@@ -736,7 +696,7 @@ export const STATEMENT_HINTS = {
   refunded: "Возвращено — аванс, возвращённый ученику (кнопка «Вернуть аванс»)",
   transferred_in: "Деньги, которые пришли вместе с учеником из другой группы",
   transferred_out: "Деньги, которые ушли вместе с учеником в другую группу",
-  reconciles: "Счёт сходится: стоимость − оплачено − прощено − перерасчёт + возвращено = долг − аванс",
+  reconciles: "Счёт сходится: стоимость − оплачено − прощено − перерасчёт + возвращено = неоплачено − аванс; «Остаток» по строкам складывается в итог вверху (долг, к оплате, аванс)",
 } as const;
 
 /**
@@ -752,9 +712,33 @@ export function statementTotals(summary: StatementSummary | null | undefined): S
   if (sum(summary.recalculated) > 0) out.push(money("recalculated", "Перерасчёт", sum(summary.recalculated), STATEMENT_HINTS.recalculated));
   if (sum(summary.refunded) > 0) out.push(money("refunded", "Возвращено", summary.refunded, STATEMENT_HINTS.refunded));
   if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Деньги в другие группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
-  const left = sum(summary.advance) - sum(summary.unpaid);
-  const cell = balanceCell(left);
-  out.push({ key: "balance", label: "Остаток", amount: Math.abs(left), text: cell.text, tone: cell.kind });
+  return out;
+}
+
+/** One state on the right of the summary: «Долг 600 000 сум» + «просрочено 14 дней», «К оплате 231 000 сум» + «до 24.11», «Оплачено до 30.11»: the server's words, the tone by the name. */
+export interface StatementState {
+  key: "debt" | "due" | "state";
+  text: string;
+  sub: string | null;
+  tone: "debt" | "due" | "paid" | "advance" | "plain";
+}
+
+/**
+ * The state of the statement (PAY-DUE 9.8 / 10.11, frames 11-14): the part whose term has passed (the debt) and the part within it, each with its words and its quiet line - one or TWO, the debt first;
+ * with no unpaid sum - the server's `state_text` of the worst state («Оплачено до 30.11», «Аванс 21 000 сум», «Осталось 7 уроков»).  The server said nothing - nothing is shown (LESSONS 151).
+ */
+export function statementStates(summary: StatementSummary | null | undefined): StatementState[] {
+  if (!summary) return [];
+  const clean = (value: string | null | undefined) => (typeof value === "string" && value.trim() ? value.trim() : null);
+  const out: StatementState[] = [];
+  const debtText = clean(summary.debt_text);
+  const dueText = clean(summary.due_text);
+  if (sum(summary.debt_amount) > 0 && debtText) out.push({ key: "debt", text: debtText, sub: clean(summary.debt_sub), tone: "debt" });
+  if (sum(summary.due_amount) > 0 && dueText) out.push({ key: "due", text: dueText, sub: clean(summary.due_sub), tone: "due" });
+  if (out.length === 0) {
+    const text = clean(summary.state_text);
+    if (text) out.push({ key: "state", text, sub: null, tone: sum(summary.advance) > 0 ? "advance" : summary.state === "paid" ? "paid" : "plain" });
+  }
   return out;
 }
 
@@ -764,27 +748,41 @@ export function statementDiff(summary: StatementSummary): number {
   return left - (sum(summary.unpaid) - sum(summary.advance));
 }
 
-/** «сходится» only when the server and this check agree. */
-export function statementReconciles(summary: StatementSummary | null | undefined): boolean {
-  return Boolean(summary) && summary!.reconciles !== false && statementDiff(summary!) === 0;
+/** What is open on a row, by name: the server's `open_parts` (one or two), else its single `open_name` / `open_text`; a row the server named nothing for has none (PAY-DUE 10.11). */
+export function openParts(row: Pick<StatementRow, "open_parts" | "open_name" | "open_amount" | "open_text">): OpenPart[] {
+  const parts = list<OpenPart>(row.open_parts).filter((part) => part && part.name);
+  if (parts.length > 0) return parts.map((part) => ({ name: part.name, amount: sum(part.amount), text: String(part.text ?? "") }));
+  if (row.open_name && typeof row.open_text === "string" && row.open_text.trim()) return [{ name: row.open_name, amount: sum(row.open_amount), text: row.open_text.trim() }];
+  return [];
 }
 
-/** The balance after the last row must be the balance of the header (advance − debt). */
-export function statementEndsAtBalance(statement: Pick<StatementOut, "rows" | "summary">): boolean {
-  const rows = statement.rows.filter((row) => row.balance_after !== null);
-  if (rows.length === 0) return true;
-  return sum(rows[rows.length - 1].balance_after) === sum(statement.summary.advance) - sum(statement.summary.unpaid);
-}
-
-/** Every `balance_after` equals the previous one plus the effect of the row (rows are in time order). */
-export function statementRunningConsistent(rows: StatementRow[]): boolean {
-  let running: number | null = null;
-  for (const row of rows) {
-    if (row.balance_after === null) continue;
-    if (running !== null && sum(row.balance_after) !== running + effectOf(row)) return false;
-    running = sum(row.balance_after);
+/** The sums of what is open on the rows, by name - the three equalities of the statement (10.11): `due` = «К оплате» of the summary, `debt` = its «Долг», `advance` = its «Аванс». */
+export function openSums(statement: Pick<StatementOut, "rows" | "summary">): { due: number; debt: number; advance: number; paid: number } {
+  const total = { due: 0, debt: 0, advance: 0, paid: 0 };
+  for (const row of statement.rows) {
+    if (row.voided_at) continue;
+    for (const part of openParts(row)) total[part.name] += sum(part.amount);
   }
-  return true;
+  return total;
+}
+
+/** The four checks of the statement: the identity of the summary and the three sums of the rows against the summary at the top. */
+export function statementChecks(statement: Pick<StatementOut, "rows" | "summary"> | null | undefined): { identity: boolean; due: boolean; debt: boolean; advance: boolean } {
+  if (!statement?.summary) return { identity: false, due: false, debt: false, advance: false };
+  const { summary } = statement;
+  const sums = openSums(statement);
+  return {
+    identity: summary.reconciles !== false && statementDiff(summary) === 0,
+    due: sums.due === sum(summary.due_amount),
+    debt: sums.debt === sum(summary.debt_amount),
+    advance: sums.advance === sum(summary.advance),
+  };
+}
+
+/** «сходится» only when the server and every check agree: the identity AND the sums of the «Остаток» of the rows by name (14Б.7; replaces the running total). */
+export function statementReconciles(statement: Pick<StatementOut, "rows" | "summary"> | null | undefined): boolean {
+  const checks = statementChecks(statement);
+  return checks.identity && checks.due && checks.debt && checks.advance;
 }
 
 export function normalizeStatement(raw: StatementOut): StatementOut {
@@ -795,6 +793,10 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
     credit: sum(item.credit),
     outflow: sum(item.outflow),
     balance_after: nullableSum(item.balance_after),
+    open_amount: nullableSum(item.open_amount),
+    open_name: item.open_name ?? null,
+    open_text: item.open_text ?? null,
+    open_parts: list<OpenPart>(item.open_parts).map((part) => ({ name: part.name, amount: sum(part.amount), text: String(part.text ?? "") })),
     details: {
       allocations: list<Allocation>(item.details?.allocations),
       created_by_name: item.details?.created_by_name ?? null,
@@ -878,8 +880,8 @@ export interface ReceiptFacts {
   legacy: boolean;
   method: string | null;
   lines: AllocationLine[];
-  /** «Долг до оплаты: 769 000 сум». */
-  debtBefore: string | null;
+  /** «Было не оплачено: 769 000 сум». */
+  unpaidBefore: string | null;
   /** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 21 000 сум». */
   after: string | null;
   /** «Оплачено до: 15.10.2026 (было 27.09.2026)». */
@@ -898,17 +900,17 @@ export function receiptFacts(receipt: {
   price_snapshot?: { amount: number | null; source: string } | null;
 }): ReceiptFacts {
   const legacy = !Array.isArray(receipt.allocations);
-  if (legacy) return { legacy: true, method: null, lines: [], debtBefore: null, after: null, paidUntil: null };
+  if (legacy) return { legacy: true, method: null, lines: [], unpaidBefore: null, after: null, paidUntil: null };
   const debtAfter = nullableSum(receipt.debt_after);
   const advanceAfter = nullableSum(receipt.advance_after);
   const before = receipt.paid_until_before ?? null;
   const after = receipt.paid_until_after ?? null;
-  const debtBefore = nullableSum(receipt.debt_before);
+  const unpaidBefore = nullableSum(receipt.debt_before);
   return {
     legacy: false,
     method: receipt.method ? methodLabel(receipt.method) : null,
     lines: allocationLines(receipt.allocations),
-    debtBefore: debtBefore !== null && debtBefore > 0 ? `Долг до оплаты: ${formatMoney(debtBefore)}` : null,
+    unpaidBefore: unpaidBefore !== null && unpaidBefore > 0 ? `Было не оплачено: ${formatMoney(unpaidBefore)}` : null,
     after: debtAfter === null && advanceAfter === null ? null : balanceAfterText(debtAfter, advanceAfter),
     paidUntil: after ? `Оплачено до: ${formatDateRu(after)}${before && before !== after ? ` (было ${formatDateRu(before)})` : ""}` : null,
   };
@@ -1051,33 +1053,6 @@ function closedWords(name: string, kind: "period" | "package" | undefined, line:
   return isCalendarMonthPeriod(line.period_from, line.period_to) ? `${name} закрыт` : "период закрыт";
 }
 
-/** The balance cell: «Долг 68 000» / «Аванс 21 000» / «0» (no unit: the header says сум once). */
-export function balanceCell(balance: number | null | undefined): { kind: BalanceKind; text: string } {
-  if (balance === null || balance === undefined) return { kind: "none", text: "" };
-  const value = sum(balance);
-  if (value < 0) return { kind: "debt", text: `Долг ${digitsOf(-value)}` };
-  if (value > 0) return { kind: "advance", text: `Аванс ${digitsOf(value)}` };
-  return { kind: "none", text: "0" };
-}
-
-
-/** «сентября» / «декабря 2025» (the year only when it is not the year of `of`): the month a balance is carried from, after «С». */
-export function monthFromWords(key: string, of: string): string {
-  const name = MONTHS_GENITIVE[Number(key.slice(5, 7)) - 1] ?? key;
-  return key.slice(0, 4) === of.slice(0, 4) ? name : `${name} ${key.slice(0, 4)}`;
-}
-
-/**
- * The quiet line over a month: «С сентября перенесён аванс 508 000» / «С сентября перенесён долг 92 000».
- * null when nothing is carried (a zero balance, the first month of the enrolment): the line is not drawn.
- */
-export function carryLine(month: string, carry: { kind: BalanceKind; text: string }): { lead: string; amount: string; kind: BalanceKind; text: string } | null {
-  if (carry.kind === "none") return null;
-  const lead = `С ${monthFromWords(shiftMonthKey(month, -1), month)} перенесён`;
-  const amount = carry.kind === "debt" ? `долг ${carry.text.replace("Долг ", "")}` : `аванс ${carry.text.replace("Аванс ", "")}`;
-  return { lead, amount, kind: carry.kind, text: `${lead} ${amount}` };
-}
-
 export interface StatementEntry {
   kind: "row";
   seq: number;
@@ -1091,7 +1066,8 @@ export interface StatementEntry {
   charged: number | null;
   /** Money in the «Оплачено» column; negative for a refund or a transfer out. */
   paid: number | null;
-  balance: { kind: BalanceKind; text: string };
+  /** What is open on the row itself, by name, in the server's words (PAY-DUE 10.11): none = the cell is empty. */
+  open: OpenPart[];
   /** «за август — 69 000 (август закрыт)» lines of a payment. */
   allocations: string[];
   /** «исправлена: было 450 000» / «исправление оплаты № 17». */
@@ -1110,18 +1086,7 @@ export interface StatementMonthItem {
   empty: boolean;
 }
 
-export interface StatementCarryItem {
-  kind: "carry";
-  /** «С сентября перенесён аванс 508 000». */
-  text: string;
-  /** «С сентября перенесён» */
-  lead: string;
-  /** «аванс 508 000» (coloured) */
-  amount: string;
-  balance: { kind: BalanceKind; text: string };
-}
-
-export type StatementItem = StatementMonthItem | StatementCarryItem | StatementEntry;
+export type StatementItem = StatementMonthItem | StatementEntry;
 
 // ── Statement: how a row is drawn (icon, amounts, balance chip, alignment) ───────────────────────────────
 
@@ -1172,17 +1137,6 @@ export function statementPaidText(entry: Pick<StatementEntry, "paid">): string {
 /** The amounts are plain slate-800: the colour is only for the balance chip (a green payment next to a green advance read as one thing). */
 export const STATEMENT_AMOUNT_CLASS = "text-sm tabular-nums text-slate-800";
 export const STATEMENT_PAID_CLASS = "text-sm font-medium tabular-nums text-slate-800";
-
-/** The «Баланс» chip: the same height for every row, the tone says debt / advance / zero. */
-export const BALANCE_CHIP_BASE = "inline-flex h-6 items-center justify-center whitespace-nowrap rounded-full px-2.5 text-[13px] font-medium tabular-nums";
-export const BALANCE_CHIP_TONE: Record<BalanceKind, string> = {
-  debt: "bg-rose-50 text-rose-700",
-  advance: "bg-emerald-50 text-emerald-700",
-  none: "bg-slate-100 text-slate-600",
-};
-export function balanceChipClass(kind: BalanceKind): string {
-  return `${BALANCE_CHIP_BASE} ${BALANCE_CHIP_TONE[kind]}`;
-}
 
 /** Alignment of the columns on a desktop (owner 05.11, design system wave 3: text and the date LEFT, money RIGHT over its digits - the digits of «400 000» and «+400 000» and «Долг 1 200 000» line up). */
 export const STATEMENT_ALIGN = {
@@ -1242,16 +1196,6 @@ export function statementMonths(statement: Pick<StatementOut, "rows" | "as_of">)
   return out;
 }
 
-/** The balance before the first day of `month`: the balance after the last earlier row, 0 before the first row. */
-export function openingBalance(rows: StatementRow[], month: string): number {
-  let balance = 0;
-  for (const row of rows) {
-    if (monthKey(row.date) >= month) break;
-    if (row.balance_after !== null) balance = sum(row.balance_after);
-  }
-  return balance;
-}
-
 /** The method inside a sentence: generic words in lower case («наличные», «карта»), brand names keep their capitals («Click», «Payme»). */
 function lowerMethod(method: PayMethod | null | undefined): string {
   const label = methodLabel(method);
@@ -1274,8 +1218,7 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
 
   for (const row of statement.rows) {
     const d = row.details;
-    const balance = balanceCell(row.balance_after);
-    const base = { kind: "row" as const, seq: row.seq, type: row.type, date: row.date, balance, allocations: [] as string[], replaced: null as string | null, cancelled: Boolean(row.voided_at), cancelNote: null as string | null, raw: row };
+    const base = { kind: "row" as const, seq: row.seq, type: row.type, date: row.date, open: openParts(row), allocations: [] as string[], replaced: null as string | null, cancelled: Boolean(row.voided_at), cancelNote: null as string | null, raw: row };
     if (row.type === "charge") {
       const words = d.segment ? chargeWords(d.segment) : { title: row.title, sub: "" };
       entries.push({ ...base, title: words.title, sub: words.sub || null, tag: null, charged: sum(row.debit), paid: null });
@@ -1337,11 +1280,6 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
   for (const key of keys) {
     const inMonth = entries.filter((entry) => monthKey(entry.date) === key);
     items.push({ kind: "month", key, title: monthTitle(key), empty: Boolean(month) && inMonth.length === 0 });
-    if (month) {
-      // only a single month explains where its balance began; every month at once never repeats it, and a zero is not told
-      const line = carryLine(key, balanceCell(openingBalance(statement.rows, key)));
-      if (line) items.push({ kind: "carry", text: line.text, lead: line.lead, amount: line.amount, balance: { kind: line.kind, text: line.amount } });
-    }
     items.push(...inMonth);
   }
   return items;
