@@ -14,14 +14,15 @@ import { readSheet, readZip, setCellText, writeZip } from "../support/xlsx-lite"
  * «оплачено до» is the day before the start.  The banner of «Должники», the checklist of the settings and the button of «Оплаты» are built
  * but wired by the IA pack, so they are not exercised here.
  */
-const today = businessNow().date;
-const start = addDays(today, 7);
-const dayBefore = addDays(start, -1);
+// the stand's «today» is read at the call, never remembered at the top of the file (TIME-TESTS)
+const today = () => businessNow().date;
+const start = () => addDays(today(), 7);
+const dayBefore = () => addDays(start(), -1);
 
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Остатки");
-  await org.setPaymentSettings({ accounting_start_date: start });
+  await org.setPaymentSettings({ accounting_start_date: start() });
 });
 
 const groupBlock = (page: import("@playwright/test").Page, group: GroupInfo) => page.getByTestId("openings-group").filter({ hasText: group.name });
@@ -45,10 +46,10 @@ async function groupWithStudents(name: string, surnames: string[], price = 50000
   const group = await org.createGroup({ name, teacherId: teacher.userId });
   await org.setGroupPrice(group.id, price);
   // Money-1 B1: a student added AFTER the start of the accounting is charged from it and needs no opening: these students joined BEFORE it - the accounting starts a week later, after they are in
-  await org.setPaymentSettings({ accounting_start_date: today });
+  await org.setPaymentSettings({ accounting_start_date: today() });
   const students: StudentInfo[] = [];
   for (const surname of surnames) students.push(await org.addStudent(group, "Анвар", surname));
-  await org.setPaymentSettings({ accounting_start_date: start });
+  await org.setPaymentSettings({ accounting_start_date: start() });
   const memberships = await Promise.all(students.map((student) => org.membershipId(student.id, group.id)));
   return { group, students, memberships };
 }
@@ -66,7 +67,7 @@ test("bulk «оплачено до» for a group → «Проверить» → 
 
   // --- the title, the one sentence with the date, the progress
   await expect(page.getByRole("heading", { name: "Остатки на начало" })).toBeVisible();
-  await expect(page.getByTestId("openings-intro")).toContainText(`до начала учёта ${dmy(start)}`);
+  await expect(page.getByTestId("openings-intro")).toContainText(`до начала учёта ${dmy(start())}`);
   await expect(page.getByTestId("openings-progress")).toContainText(/^Заполнено \d+ из \d+$/);
   const block = await openBlock(page, group);
   await expect(progressOf(block)).toHaveText("заполнено 0 из 3");
@@ -80,9 +81,9 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   await block.getByTestId("openings-group-select").check();
   await expect(page.getByTestId("openings-bulk-count")).toContainText("Выбрано: 3");
   await page.getByTestId("openings-bulk-paid").click();
-  await expect(page.locator(`[data-testid="openings-quick-date"][data-date="${dayBefore}"]`)).toHaveText(`${dm(dayBefore)} (долга нет)`);
+  await expect(page.locator(`[data-testid="openings-quick-date"][data-date="${dayBefore()}"]`)).toHaveText(`${dm(dayBefore())} (долга нет)`);
   await expect(page.getByTestId("openings-quick-date").nth(1)).toContainText("(оплатил ");
-  const paidUntil = addDays(start, 20);
+  const paidUntil = addDays(start(), 20);
   await fillDate(page.getByLabel("Другая дата"), paidUntil);
   await page.getByTestId("openings-bulk-paid-apply").click();
   await expectDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), paidUntil);
@@ -121,7 +122,7 @@ test("«Долга нет» writes «оплачено до» the day before the 
   const block = await openBlock(page, group);
   await block.getByTestId("openings-group-select").check();
   await page.getByTestId("openings-bulk-nodebt").click();
-  await expectDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), dayBefore);
+  await expectDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), dayBefore());
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-parts")).toContainText("2 — долга на начало нет");
@@ -129,7 +130,7 @@ test("«Долга нет» writes «оплачено до» the day before the 
   await expect(toast(page, "Сохранено: 2 ученика")).toBeVisible();
   await expect(rowOf(block, memberships[0]).getByTestId("openings-now")).toHaveText("Долга на начало нет");
   await expect(progressOf(block)).toHaveText("заполнено 2 из 2");
-  expect(await savedOpening(memberships[1])).toMatchObject({ paid_until: dayBefore });
+  expect(await savedOpening(memberships[1])).toMatchObject({ paid_until: dayBefore() });
 });
 
 test("a debt for one student → the effect says a debtor appears → saved → the student is among «Должники»", async ({ signIn }) => {
@@ -141,13 +142,13 @@ test("a debt for one student → the effect says a debtor appears → saved → 
   await row.getByTestId("openings-debt").fill("250000");
   await expect(row.getByTestId("openings-debt")).toHaveValue(/250\s000/);
   // the date of the debt is the floor of the row until the user picks another
-  await expectDate(row.getByTestId("openings-debt-on"), dayBefore);
+  await expectDate(row.getByTestId("openings-debt-on"), dayBefore());
   // a debt that happened before the start: a few days earlier is fine, a day after the start is refused on the spot
-  const debtDay = addDays(today, -10);
+  const debtDay = addDays(today(), -10);
   await fillDate(row.getByTestId("openings-debt-on"), debtDay);
   await expect(page.getByTestId("openings-changed")).toHaveText("Изменено: 1");
-  await fillDate(row.getByTestId("openings-debt-on"), addDays(start, 3));
-  await expect(row.getByTestId("openings-row-problem")).toContainText(`не позже ${dmy(dayBefore)}`);
+  await fillDate(row.getByTestId("openings-debt-on"), addDays(start(), 3));
+  await expect(row.getByTestId("openings-row-problem")).toContainText(`не позже ${dmy(dayBefore())}`);
   await page.getByTestId("openings-check").click();
   await expect(page.getByText(/Исправьте 1 строку/)).toBeVisible();
   await fillDate(row.getByTestId("openings-debt-on"), debtDay);
@@ -199,7 +200,7 @@ test("Excel round trip: the file without edits changes nothing; edited cells cha
 
   // --- three cells edited: «оплачено до» of A, a debt of B, a broken date of C
   const parts = readZip(readFileSync(path));
-  const paidUntil = addDays(start, 25);
+  const paidUntil = addDays(start(), 25);
   const a = byName(students[0].lastName)!;
   const b = byName(students[1].lastName)!;
   const c = byName(students[2].lastName)!;
@@ -244,7 +245,7 @@ test("a student who left before the start: «Показать ушедших» �
   await expect(left.getByTestId("openings-debt")).toBeEnabled();
   await expect(left.getByTestId("openings-row-select")).toBeDisabled();
   await left.getByTestId("openings-debt").fill("300000");
-  await fillDate(left.getByTestId("openings-debt-on"), addDays(today, -20));
+  await fillDate(left.getByTestId("openings-debt-on"), addDays(today(), -20));
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-parts")).toContainText(new RegExp(`1 — долг ${moneyPattern(300000)}\\sсум`));
@@ -262,8 +263,8 @@ test("a conflict: somebody else changed the row between the table and the save �
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
   const block = await openBlock(page, group);
-  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
-  await fillDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start, 11));
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start(), 10));
+  await fillDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start(), 11));
   // «Проверить» is done: the summary is on the screen ...
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
@@ -271,20 +272,20 @@ test("a conflict: somebody else changed the row between the table and the save �
   // ... and another administrator saves the first row meanwhile (the same API the page uses)
   const list = await org.owner.api.get("/auth/org/opening-balances");
   const live = list.groups.flatMap((g: any) => g.memberships).find((m: any) => m.membership_id === memberships[0]);
-  const body = { items: [{ membership_id: memberships[0], version: live.version, paid_until: addDays(start, 5) }] };
+  const body = { items: [{ membership_id: memberships[0], version: live.version, paid_until: addDays(start(), 5) }] };
   const preview = await org.owner.api.post("/auth/org/opening-balances/batch/preview", body);
   await org.owner.api.post("/auth/org/opening-balances/batch", { ...body, idempotency_key: crypto.randomUUID(), digest: preview.digest });
 
   await dialog.getByTestId("openings-review-save").click();
   await expect(page.getByTestId("openings-notice")).toContainText("Кто-то уже изменил 1 строку");
   await expect(page.getByTestId("openings-notice")).toContainText("Остальные ваши правки сохранены");
-  await expect(rowOf(block, memberships[0]).getByTestId("openings-now")).toHaveText(`Оплачено до ${dm(addDays(start, 5))}`);
-  await expectDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start, 11)); // the other edit is kept
+  await expect(rowOf(block, memberships[0]).getByTestId("openings-now")).toHaveText(`Оплачено до ${dm(addDays(start(), 5))}`);
+  await expectDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start(), 11)); // the other edit is kept
   await expect(page.getByTestId("openings-changed")).toHaveText("Изменено: 1");
   await page.getByTestId("openings-check").click();
   await dialog.getByTestId("openings-review-save").click();
   await expect(toast(page, "Сохранено: 1 ученик")).toBeVisible();
-  expect(await savedOpening(memberships[1])).toMatchObject({ paid_until: addDays(start, 11) });
+  expect(await savedOpening(memberships[1])).toMatchObject({ paid_until: addDays(start(), 11) });
 });
 
 test("unsaved edits are guarded: leaving the page asks first, and a phone shows cards without a sideways scroll", async ({ signIn }) => {
@@ -295,7 +296,7 @@ test("unsaved edits are guarded: leaving the page asks first, and a phone shows 
   const block = await openBlock(page, group);
   await expect(block.getByTestId("openings-row")).toHaveCount(1);
   await expectNoHorizontalScroll(page);
-  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start(), 10));
   await expect(page.getByTestId("openings-save-bar")).toBeVisible(); // sticky at the bottom
   await expectNoHorizontalScroll(page);
   // WB-P5 (F-A20): the question is the platform's own dialog, not the browser's confirm
@@ -323,7 +324,7 @@ test.fixme("R3 #2: Back, then Back AGAIN while the question is open: the page st
   await page.getByTestId("openings-header-link").click();
   await expect(page).toHaveURL(/\/owner\/payments\/openings$/);
   const block = await openBlock(page, group);
-  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start(), 10));
   await expect(page.getByTestId("openings-save-bar")).toBeVisible();
   page.on("dialog", (d) => { throw new Error(`a native dialog was opened: ${d.message()}`); });
   await page.goBack();                                                       // the first Back: the question
@@ -342,7 +343,7 @@ test.describe("lessons mode", () => {
   let lessonsOrg: Org;
   test.beforeAll(async () => {
     lessonsOrg = await Org.create("Остатки пакеты");
-    await lessonsOrg.setPaymentSettings({ period_mode: "lessons", lessons_per_payment: 8, accounting_start_date: start });
+    await lessonsOrg.setPaymentSettings({ period_mode: "lessons", lessons_per_payment: 8, accounting_start_date: start() });
   });
 
   test("«осталось уроков» → the server's date is shown → saved as «оплачено до»", async ({ signIn }) => {
@@ -351,7 +352,7 @@ test.describe("lessons mode", () => {
     await lessonsOrg.setGroupPrice(group.id, 800000);
     const student = await lessonsOrg.addStudent(group, "Анвар", "Пакетный");
     // a weekly lesson on tomorrow's weekday: the K-th lesson from the start is a day the schedule knows
-    await lessonsOrg.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(addDays(today, 1)), startTime: "10:00", endTime: "11:00", topic: "E2E" });
+    await lessonsOrg.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(addDays(today(), 1)), startTime: "10:00", endTime: "11:00", topic: "E2E" });
     const membership = await lessonsOrg.membershipId(student.id, group.id);
     const page = await signIn(lessonsOrg.owner);
     await page.goto("/owner/payments/openings");
@@ -391,7 +392,7 @@ test("an administrator without the money right is refused (page and API); with t
   await org.setPaymentSettings({ admin_can_manage: true });
   await page.goto("/admin/payments/openings");
   await expect(page.getByRole("heading", { name: "Остатки на начало" })).toBeVisible();
-  await expect(page.getByTestId("openings-intro")).toContainText(dmy(start));
+  await expect(page.getByTestId("openings-intro")).toContainText(dmy(start()));
   const summary = await admin.api.get("/auth/org/opening-balances/summary");
-  expect(summary.accounting_start).toBe(start);
+  expect(summary.accounting_start).toBe(start());
 });

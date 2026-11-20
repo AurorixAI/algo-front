@@ -5,6 +5,8 @@ const ci = !!process.env.CI;
 
 export default defineConfig({
   testDir: "./tests",
+  // TIME-TESTS: the stand's clock offset is read once into process.env, the workers inherit it
+  globalSetup: "./global-setup.ts",
   outputDir: "./test-results",
   // Every spec file owns a throw-away organisation (support/api.ts: Org.create), so files are independent
   // and may run in parallel; the tests INSIDE a file share that organisation and run in order.
@@ -27,6 +29,15 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
+    },
+    {
+      // «Life of a student by days»: fixed dates in 2028, each test sets its own absolute date and creates its own centre.  The stand clock moves
+      // only forward, so this project goes LAST (e2e/scripts/run.mjs runs it in its own call, one worker) and never gives the time back.
+      name: "days",
+      testDir: "./days",
+      retries: 0,
+      timeout: 180_000,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
     {

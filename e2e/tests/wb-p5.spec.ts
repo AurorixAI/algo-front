@@ -202,12 +202,10 @@ test("exam: remove a participant and finish early through the platform's dialogs
   await shot(sp1, "student-timer-start");
 
   // --- the tab sleeps for 5 minutes: the wall clock moves, no timer fires; then the tab comes back (visibilitychange)
-  await sp1.evaluate(() => {
-    const real = Date.now.bind(Date);
-    (window as any).__shift = 300_000;
-    Date.now = () => real() + (window as any).__shift;
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
+  // (TIME-TESTS: the page's clock is Playwright's `context.clock`; setSystemTime moves the wall clock only - no timer fires - exactly the sleep of a tab)
+  const pageNow = await sp1.evaluate(() => Date.now());
+  await sp1.clock.setSystemTime(pageNow + 300_000);
+  await sp1.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await sp1.waitForTimeout(300);
   const after = await readSeconds();
   console.log(`student timer after 5 minutes asleep: ${after}s (was ${before}s)`);

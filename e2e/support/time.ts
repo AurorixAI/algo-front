@@ -25,7 +25,23 @@ export interface BusinessNow {
   isoWeekday: number;
 }
 
-export function businessNow(at: Date = new Date()): BusinessNow {
+/**
+ * The shift of the stand clock in seconds (TIME-TESTS): `globalSetup` reads it from the stand once into `process.env`, `travel` (support/clock.ts) updates it in the
+ * worker that moved the clock.  Synchronous on purpose - a test reads «today» in the middle of a sentence.
+ */
+export function clockOffsetSeconds(): number {
+  const raw = process.env.E2E_CLOCK_OFFSET_SECONDS;
+  const value = raw === undefined || raw === "" ? 0 : Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** The business time of the stand as a moment: the real clock of this machine plus the shift of the stand clock. */
+export function standNow(): Date {
+  return new Date(Date.now() + clockOffsetSeconds() * 1000);
+}
+
+/** The business clock of the stand (Asia/Tashkent); `at` is a moment to describe (by default - the stand's «now», NOT the clock of the computer). */
+export function businessNow(at: Date = standNow()): BusinessNow {
   const parts = PARTS.formatToParts(at);
   const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value || 0);
   const year = get("year");

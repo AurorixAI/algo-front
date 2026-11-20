@@ -9,6 +9,7 @@
 import { randomBytes } from "node:crypto";
 import type { Cookie } from "@playwright/test";
 import { AUTH_API, AUTH_ORIGIN } from "./env";
+import { clockReaches, serverNow } from "./clock";
 import { businessNow, hhmm } from "./time";
 
 export class ApiError extends Error {
@@ -368,7 +369,7 @@ export class Org {
     for (let attempt = 0; attempt < 4; attempt++) {
       const now = await serverNow();
       if (now.minutes + ahead > 23 * 60 + 45) {
-        throw new Error("Too close to midnight (Asia/Tashkent) for a same-day lesson: rerun the suite in a few minutes");
+        throw new Error("Too close to midnight (Asia/Tashkent) for a same-day lesson: put the stand clock earlier in the day (E2E_CLOCK_AT)");
       }
       const start = now.minutes + ahead;
       const end = Math.min(start + minutes, 23 * 60 + 59);
@@ -380,35 +381,20 @@ export class Org {
           endTime: hhmm(end),
           topic: "E2E",
         });
-        if (ahead === 0) await clockReaches(start); // the server (and this machine) must have reached the lesson's minute: a start before it is refused
+        if (ahead === 0) await clockReaches(start); // the stand must have reached the lesson's minute: a start before it is refused
         return { id: lesson.id, groupId, date: now.date, startTime: hhmm(start), endTime: hhmm(end), startMinutes: start };
       } catch (e) {
         if (!(e instanceof ApiError && /прошедшее время/.test(JSON.stringify(e.detail)))) throw e;
-        // The `Date` header of /health is cached for up to a second: right after a minute boundary it still shows the old minute,
-        // so the start is "in the past" for the server. Retrying at once reads the same stale header; give the cache time to expire.
-        await new Promise((r) => setTimeout(r, 1200));
+        // the minute turned between our read of the stand clock and the request: read it again (the service's own clock has no cache to wait out)
+        await new Promise((r) => setTimeout(r, 300));
       }
     }
     throw new Error("could not create a lesson starting now");
   }
 }
 
-/** The business clock of the SERVER (its `Date` header; the container clock may differ from ours by a moment). */
-export async function serverNow() {
-  const header = await fetch(`${AUTH_ORIGIN}/health`).then((r) => r.headers.get("date")).catch(() => null);
-  return businessNow(header ? new Date(header) : new Date());
-}
-
-/** Wait until server and local clocks both show at least `minutes` (since midnight, business time) - at most `maxSeconds` (70 by default). */
-export async function clockReaches(minutes: number, maxSeconds = 70): Promise<void> {
-  for (let i = 0; i < maxSeconds * 4; i++) {
-    const server = await serverNow();
-    // 1.5 s cushion: the `Date` header is cached by the server for up to a second
-    if (server.minutes >= minutes && businessNow(new Date(Date.now() - 1500)).minutes >= minutes) return;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`clock did not reach ${hhmm(minutes)}`);
-}
+// The stand's business clock (TIME-TESTS) lives in support/clock.ts; re-exported for the tests that import it from here.
+export { serverNow, clockReaches };
 
 /** Start a lesson (no marks yet), as `actor`. */
 export async function startLesson(actor: Session, lesson: LessonInfo): Promise<void> {

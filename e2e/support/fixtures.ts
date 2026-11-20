@@ -1,5 +1,6 @@
 import { test as base, expect, type Page } from "@playwright/test";
 import type { Session } from "./api";
+import { installBrowserClock } from "./clock";
 
 type Fixtures = {
   /**
@@ -13,12 +14,18 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
+  // TIME-TESTS: every browser context lives on the stand's business time from its first page on (the clock keeps running; `travel` moves it)
+  context: async ({ context }, use) => {
+    await installBrowserClock(context);
+    await use(context);
+  },
   signIn: async ({ browser, baseURL, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent, locale, timezoneId }, use) => {
     const contexts: Awaited<ReturnType<typeof browser.newContext>>[] = [];
     await use(async (session) => {
       const context = await browser.newContext({
         baseURL, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent, locale, timezoneId,
       });
+      await installBrowserClock(context);
       await context.addCookies(session.cookies);
       contexts.push(context);
       return context.newPage();
@@ -31,6 +38,7 @@ export const test = base.extend<Fixtures>({
       const context = await browser.newContext({
         baseURL, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent, locale, timezoneId,
       });
+      await installBrowserClock(context);
       contexts.push(context);
       return context.newPage();
     });
