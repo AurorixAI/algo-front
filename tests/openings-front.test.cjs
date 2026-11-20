@@ -317,8 +317,8 @@ test("review: the sentence of the owner from the server's figures (O04)", () => 
   const review = O.reviewParts(preview);
   assert.equal(review.headline, "Изменится 3 ученика");
   assert.deepEqual(review.parts.map(plain), ["1 — долга на начало нет", "1 — оплачено до 30.11", "1 — долг 550 000 сум"]);
-  assert.equal(plain(review.effect), "Должников станет 1, общий долг +550 000 сум");
-  assert.equal(plain(O.reviewSentence(preview)), "Изменится 3 ученика: 1 — долга на начало нет · 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Должников станет 1, общий долг +550 000 сум");
+  assert.equal(plain(review.effect), "Учеников с неоплатой станет 1, неоплаченная сумма +550 000 сум");
+  assert.equal(plain(O.reviewSentence(preview)), "Изменится 3 ученика: 1 — долга на начало нет · 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Учеников с неоплатой станет 1, неоплаченная сумма +550 000 сум");
   assert.deepEqual(review.notes, []);
 });
 
@@ -337,11 +337,11 @@ test("review: 38 students «долга нет» and 4 debts of 1 250 000 in all 
   const review = O.reviewParts(normal);
   assert.equal(review.headline, "Изменится 42 ученика");
   assert.deepEqual(review.parts.map(plain), ["38 — долга на начало нет", "4 — долг 1 250 000 сум"]);
-  assert.equal(plain(review.effect), "Должников станет 12, общий долг +1 250 000 сум");
+  assert.equal(plain(review.effect), "Учеников с неоплатой станет 12, неоплаченная сумма +1 250 000 сум");
   assert.deepEqual(review.notes.map(plain), ["Аванс учеников: −300 000 сум", "Остаток изменится ещё у 2 учеников, связанных переводом"]);
   // nothing moves: the debtors and the debt stay
   const calm = O.normalizePreview({ ...preview, impact: { ...preview.impact, debtors_after: 8, debt_delta: 0, advance_delta: 0, indirect_changed: 0 } });
-  assert.equal(O.reviewParts(calm).effect, "Число должников не изменится, общий долг не изменится");
+  assert.equal(O.reviewParts(calm).effect, "Число учеников с неоплатой не изменится, неоплаченная сумма не изменится");
 });
 
 test("review: errors per row (O05) are put in words, the reason is needed for the rows with money, «Сохранить» follows", () => {
@@ -380,10 +380,10 @@ test("review: a row somebody else changed since the table was read (STALE_VERSIO
 });
 
 test("saved: the toast says how many and what the debt of the centre did (O07, O08)", () => {
-  assert.equal(plain(O.appliedText(O.normalizeApplied(fixture("O07_applied")))), "Сохранено: 2 ученика · долг центра +550 000 сум");
-  assert.equal(plain(O.appliedText(O.normalizeApplied(fixture("O08_applied_replayed")))), "Сохранено: 2 ученика · долг центра +550 000 сум");
+  assert.equal(plain(O.appliedText(O.normalizeApplied(fixture("O07_applied")))), "Сохранено: 2 ученика · неоплаченная сумма центра +550 000 сум");
+  assert.equal(plain(O.appliedText(O.normalizeApplied(fixture("O08_applied_replayed")))), "Сохранено: 2 ученика · неоплаченная сумма центра +550 000 сум");
   assert.equal(O.appliedText({ changed: 0, impact: { debt_delta: 0 } }), "Всё уже было так — менять нечего");
-  assert.equal(plain(O.appliedText({ changed: 5, impact: { debt_delta: -200000 } })), "Сохранено: 5 учеников · долг центра −200 000 сум");
+  assert.equal(plain(O.appliedText({ changed: 5, impact: { debt_delta: -200000 } })), "Сохранено: 5 учеников · неоплаченная сумма центра −200 000 сум");
 });
 
 // ── refusals ─────────────────────────────────────────────────────────────────

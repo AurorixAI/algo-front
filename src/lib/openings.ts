@@ -923,7 +923,7 @@ export interface ReviewParts {
   headline: string;
   /** What is written: «38 — оплачено до 31.10», «4 — долг 1 250 000 сум». */
   parts: string[];
-  /** What happens to the debts: «Должников станет 12, общий долг +1 250 000 сум». */
+  /** What happens to the unpaid sums: «Учеников с неоплатой станет 12, неоплаченная сумма +1 250 000 сум» (the server counts ALL that is unpaid - a debt and «К оплате» - so the word «долг» is not used for it, PAY-DUE 3.3). */
   effect: string;
   /** Lines under it: the advance, the students tied by a transfer. */
   notes: string[];
@@ -952,8 +952,8 @@ export function reviewParts(preview: OpeningBatchPreview): ReviewParts {
 
   const impact = preview.impact;
   const effect = [
-    impact.debtors_after !== impact.debtors_before ? `Должников станет ${impact.debtors_after}` : "Число должников не изменится",
-    impact.debt_delta === 0 ? "общий долг не изменится" : `общий долг ${signed(impact.debt_delta)}`,
+    impact.debtors_after !== impact.debtors_before ? `Учеников с неоплатой станет ${impact.debtors_after}` : "Число учеников с неоплатой не изменится",
+    impact.debt_delta === 0 ? "неоплаченная сумма не изменится" : `неоплаченная сумма ${signed(impact.debt_delta)}`,
   ].join(", ");
   const notes: string[] = [];
   if (impact.advance_delta !== 0) notes.push(`Аванс учеников: ${signed(impact.advance_delta)}`);
@@ -962,7 +962,7 @@ export function reviewParts(preview: OpeningBatchPreview): ReviewParts {
   return { headline: `Изменится ${changed} ${studentsWord(changed)}`, parts, effect, notes };
 }
 
-/** One line: «Изменится 2 ученика: 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Должников станет 1, общий долг +550 000 сум». */
+/** One line: «Изменится 2 ученика: 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Учеников с неоплатой станет 1, неоплаченная сумма +550 000 сум». */
 export function reviewSentence(preview: OpeningBatchPreview): string {
   const review = reviewParts(preview);
   return `${review.headline}${review.parts.length ? `: ${review.parts.join(" · ")}` : ""} · ${review.effect}`;
@@ -1020,11 +1020,11 @@ export function canSave(preview: OpeningBatchPreview | null | undefined, reason:
   return !reasonNeeded(preview) || reasonProblem(reason) === null;
 }
 
-/** «Сохранено: 38 · долг центра +1 250 000 сум». */
+/** «Сохранено: 38 · неоплаченная сумма центра +1 250 000 сум». */
 export function appliedText(applied: OpeningBatchApplied): string {
   const head = applied.changed === 0 ? "Всё уже было так — менять нечего" : `Сохранено: ${applied.changed} ${studentsWord(applied.changed)}`;
   const delta = applied.impact.debt_delta;
-  return delta === 0 ? head : `${head} · долг центра ${signed(delta)}`;
+  return delta === 0 ? head : `${head} · неоплаченная сумма центра ${signed(delta)}`;
 }
 
 // ── Words of the errors ─────────────────────────────────────────────────────

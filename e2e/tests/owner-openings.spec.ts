@@ -97,7 +97,7 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-headline")).toHaveText("Изменится 3 ученика");
   await expect(dialog.getByTestId("openings-review-parts")).toContainText(`3 — оплачено до ${dm(paidUntil)}`);
-  await expect(dialog.getByTestId("openings-review-effect")).toContainText("общий долг не изменится");
+  await expect(dialog.getByTestId("openings-review-effect")).toContainText("неоплаченная сумма не изменится");
   expect(await savedOpening(memberships[0])).toBeNull();
   await dialog.getByTestId("openings-review-save").click();
   await expect(toast(page, "Сохранено: 3 ученика")).toBeVisible();
@@ -157,10 +157,10 @@ test("a debt for one student → the effect says a debtor appears → saved → 
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-parts")).toContainText(new RegExp(`1 — долг ${moneyPattern(250000)}\\sсум`));
-  await expect(dialog.getByTestId("openings-review-effect")).toContainText(/Должников станет \d+/);
-  await expect(dialog.getByTestId("openings-review-effect")).toContainText(new RegExp(`общий долг \\+${moneyPattern(250000)}\\sсум`));
+  await expect(dialog.getByTestId("openings-review-effect")).toContainText(/Учеников с неоплатой станет \d+/);
+  await expect(dialog.getByTestId("openings-review-effect")).toContainText(new RegExp(`неоплаченная сумма \\+${moneyPattern(250000)}\\sсум`));
   await dialog.getByTestId("openings-review-save").click();
-  await expect(toast(page, /Сохранено: 1 ученик · долг центра \+/)).toBeVisible();
+  await expect(toast(page, /Сохранено: 1 ученик · неоплаченная сумма центра \+/)).toBeVisible();
   await expect(row.getByTestId("openings-now")).toContainText(new RegExp(`Долг ${moneyPattern(250000)}\\sсум на ${dm(debtDay)}`));
 
   expect(await savedOpening(memberships[0])).toMatchObject({ debt_amount: 250000, debt_on: debtDay });
