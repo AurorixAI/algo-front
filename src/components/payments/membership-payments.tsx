@@ -8,7 +8,6 @@ import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
   statementHref,
-  membershipChip,
   type MembershipPaymentRow,
   type PaymentSaveResult,
   type PeriodMode,
@@ -21,7 +20,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
 import { Chip } from "@/components/ui/chip";
-import { moneyChipTone } from "@/lib/status-registry";
+import { payLabel } from "@/lib/pay-state";
 import { BalanceNote } from "./balance-note";
 import { MembershipPriceLine } from "./membership-price";
 import { MembershipRowActions } from "./membership-row-actions";
@@ -77,7 +76,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
     onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], note.tone, note.details);
   };
 
-  const chip = membershipChip(row);
+  const chip = payLabel(row, "debtors");
   const due = payIsDue(row);
   const lastLine = lastPaymentLine(row);
   const statement = statementHref(paymentsBasePath, row.membership_id);
@@ -107,7 +106,10 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [grid-area:status] lg:pt-1">
-            <Chip tone={moneyChipTone(chip.tone, true)} title={chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{chip.label}</Chip>
+            {chip.text && <Chip tone={chip.tone} testId="membership-chip" className="whitespace-nowrap tabular-nums">{chip.text}</Chip>}
+            {/* the term / the days overdue and, for a student with both sums, the second one - the server's words */}
+            {chip.sub && <span className="text-xs text-slate-600" data-testid="membership-chip-sub">{chip.sub}</span>}
+            {chip.second && <span className="w-full text-xs text-slate-600" data-testid="membership-chip-second">{chip.second}</span>}
             {/* IA audit F2: a pause is managed in «Обучение»; here it is only the chip «На паузе до …» and the way there */}
             {row.paused && (
               <Link href={`${pathname ?? ""}?tab=learning`} data-testid="membership-pause-link" className="text-[11px] font-semibold text-primary-700 hover:underline">Пауза — в «Обучении»</Link>

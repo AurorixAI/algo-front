@@ -1,46 +1,49 @@
 /**
  * IA audit F35 / F38 / F32: the header of the student's card.  Pure: no React, so node:test loads it.
  */
-import { formatDayMonthRu } from "./business-time";
-import { debtRoleOf, formatMoney, type MembershipPaymentRow } from "./payments";
+import type { ChipTone } from "./chip-tone";
+import { formatMoney, type MembershipPaymentRow } from "./payments";
 import { advanceLabel, rowBalance } from "./payments-ledger";
+import { payLabel, worstRow, type PayFields } from "./pay-state";
 
 export interface StudentMoneyChip {
   label: string;
-  tone: "danger" | "ok" | "muted";
+  tone: ChipTone;
+  /** The quiet words next to the label (the term / the days overdue) - the server's; null when there are none. */
+  sub: string | null;
   /** Groups with a debt (the badge of the tab «Оплаты»). */
   debtGroups: number;
 }
 
+type CardRow = Pick<MembershipPaymentRow, "debt" | "advance" | "is_active" | "paid_until" | "status"> & PayFields;
+
 /**
- * The one chip of the header: «Долг 1 200 000 сум» (all groups, also a group the student has left) or «Оплачено до 15.11» (the nearest end of
- * the paid periods of his running groups); null when there is nothing to say (no groups, never paid, a pause only).  It leads to `?tab=payments`.
+ * The one chip of the header (PAY-DUE 9.10): the WORST state of the student's groups, in the server's words - «Долг 600 000 сум» / «К оплате 231 000 сум» + the term, «Оплачено до 15.11» - or null when the server has nothing to
+ * say (no groups, no price).  The server names the sum of one group; when two groups are in the same worst state the sum of the part is added up here and named by the same word (the numbers are the server's).
+ * It leads to `?tab=payments`.
  */
-export function studentMoneyChip(rows: ReadonlyArray<Pick<MembershipPaymentRow, "debt" | "advance" | "is_active" | "paid_until" | "status"> & Partial<Pick<MembershipPaymentRow, "tab">>> | null | undefined): StudentMoneyChip | null {
+export function studentMoneyChip(rows: ReadonlyArray<CardRow> | null | undefined): StudentMoneyChip | null {
   const list = rows ?? [];
-  let debt = 0;
-  let debtGroups = 0;
-  let waiting = 0;
-  let advance = 0;
-  for (const row of list) {
-    advance += rowBalance(row).advance;
-    const value = rowBalance(row).debt;
-    // Money-1 B7: the debtors and the ones who only wait are counted apart (one question for every screen: `debtRoleOf`)
-    if (debtRoleOf(row) === "debtor") { debt += value; debtGroups += 1; }
-    else if (debtRoleOf(row) === "waiting") waiting += value;
+  const debtGroups = list.filter((row) => (Number(row.debt_amount) || 0) > 0).length;
+  const advance = list.reduce((total, row) => total + rowBalance(row).advance, 0);
+  const worst = worstRow(list);
+  if (!worst) return advance > 0 ? { label: advanceLabel(advance), tone: "ok", sub: null, debtGroups } : null;
+  const label = payLabel(worst);
+  if (!label.text) return null;
+  const same = list.filter((row) => row.state === worst.state);
+  if ((worst.state === "debt" || worst.state === "to_pay") && same.length > 1) {
+    const field = worst.state === "debt" ? "debt_amount" : "due_amount";
+    const total = same.reduce((sum, row) => sum + (Number(row[field]) || 0), 0);
+    return { label: `${worst.state === "debt" ? DEBT_WORD : DUE_WORD} ${formatMoney(total)}`, tone: label.tone, sub: null, debtGroups };
   }
-  if (debt > 0) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", debtGroups };
-  if (waiting > 0) return { label: `Ждём оплату · ${formatMoney(waiting)}`, tone: "muted", debtGroups: 0 };
-  const ends = list
-    .filter((row) => row.is_active && row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) && row.status !== "paused")
-    .map((row) => String(row.paid_until).slice(0, 10))
-    .sort();
-  // Money-1 B walk: the advance is said with the same number as the statement (`rowBalance`), next to the date it pays for
-  const advanceText = advance > 0 ? advanceLabel(advance) : null;
-  if (ends.length === 0) return advanceText ? { label: advanceText, tone: "ok", debtGroups: 0 } : null;
-  const nearest = ends[0];
-  return { label: `Оплачено до ${formatDayMonthRu(nearest)}${advanceText ? ` · ${advanceText}` : ""}`, tone: "ok", debtGroups: 0 };
+  // a paid student: the advance is said with the same number as the statement, next to the date it pays for
+  const tail = (worst.state === "paid" || worst.state === "expiring") && advance > 0 ? ` · ${advanceLabel(advance)}` : "";
+  return { label: `${label.text}${tail}`, tone: label.tone, sub: label.sub, debtGroups };
 }
+
+/** The two names of an unpaid sum - the words of the map of tones; the server's labels carry them for one group, a sum over several groups is named with them. */
+const DEBT_WORD = "Долг";
+const DUE_WORD = "К оплате";
 
 /** The editable fields of «Изменить данные…» and the patch of those that changed (nothing unchanged is sent). */
 export interface StudentDataForm {

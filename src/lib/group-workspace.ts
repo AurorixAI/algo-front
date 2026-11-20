@@ -3,7 +3,7 @@
  * param, like the student card and the payments page.  This module is their pure part (no React, so node:test loads it): the paths of a
  * workspace, the «⋯» of the group header, the roster menu, the list filters with their deep link, the money chips of the header.
  */
-import { formatMoney, waitingLine } from "./payments";
+import { formatMoney } from "./payments";
 import { lacksGroupPrice, formatPrice, type GroupPriceBrief, type GroupPriceScheduled } from "./group-price";
 import { pluralRu } from "./plural";
 import { workspaceBases, type Workspace } from "./ia-links";
@@ -130,31 +130,26 @@ export function rosterMenuKeys(input: { canLeave: boolean; canTransfer: boolean 
 
 // ── money chips of the header ───────────────────────────────────────────────
 
+/** The money of one part of the group, as the server counted it: `students` (distinct) and `amount_total` of `GET payments/status?bucket=…&group_id=` (one row asked for - the screen adds nothing up, PAY-DUE 10.2). */
 export interface GroupDebtSummary {
   count: number;
   total: number;
 }
 
-/** The students of the group who owe, and how much: from the rows of `payments/status?bucket=debt&group_id=`. */
-export function groupDebtSummary(rows: ReadonlyArray<{ debt?: number | null }>): GroupDebtSummary {
-  let count = 0;
-  let total = 0;
-  for (const row of rows) {
-    const debt = Math.round(Number(row.debt) || 0);
-    if (debt > 0) { count += 1; total += debt; }
-  }
-  return { count, total };
+export function groupDebtSummary(page: { students?: number | null; amount_total?: number | null } | null | undefined): GroupDebtSummary {
+  return { count: Math.max(0, Math.floor(Number(page?.students) || 0)), total: Math.max(0, Math.round(Number(page?.amount_total) || 0)) };
 }
 
-/** «Долг 1 200 000 сум · 3 ученика»; null when nobody owes. */
+const studentsWord = (count: number) => `${count} ${pluralRu(count, ["ученик", "ученика", "учеников"])}`;
+
+/** «Долг 1 200 000 сум · 2 ученика»; null when nobody owes. */
 export function groupDebtChipText(summary: GroupDebtSummary): string | null {
-  if (summary.count <= 0) return null;
-  return `Долг ${formatMoney(summary.total)} · ${summary.count} ${pluralRu(summary.count, ["ученик", "ученика", "учеников"])}`;
+  return summary.count > 0 ? `Долг ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
 }
 
-/** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - the SAME sentence as the card of «Оплаты» (`waitingLine`); null when nobody waits.  Calm, never the red of the debt. */
-export function groupWaitingChipText(summary: GroupDebtSummary | null | undefined): string | null {
-  return summary && summary.count > 0 ? waitingLine(summary.total, summary.count) : null;
+/** «К оплате 462 000 сум · 2 ученика» - the sum still within its term; null when there is none.  Calm blue, never the red of the debt. */
+export function groupDueChipText(summary: GroupDebtSummary | null | undefined): string | null {
+  return summary && summary.count > 0 ? `К оплате ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
 }
 
 /** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or the warning «Цена группы не задана»; null: the role has no money or the price is planned from a day. */

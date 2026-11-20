@@ -65,7 +65,7 @@ const MAX_PAGES = 5;
 const EXTRAS_POOL = 4;
 
 /** Every membership of the group the bucket lists, page after page (the group holds at most 200 students: one page in practice). */
-async function fetchAll(bucket: PaymentBucket | "all" | "debt", groupId: string): Promise<MembershipPaymentRow[]> {
+async function fetchAll(bucket: PaymentBucket | "all", groupId: string): Promise<MembershipPaymentRow[]> {
   const out: MembershipPaymentRow[] = [];
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const result = await orgApi.getPaymentsStatus({ bucket, groupId, limit: PAGE, offset: page * PAGE });
@@ -129,7 +129,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     if (!silent) setRows(null);
     setLoadError(null);
     try {
-      const [active, debtors] = await Promise.all([fetchAll("all", groupId), fetchAll("debt", groupId)]);
+      const [active, debtors] = await Promise.all([fetchAll("all", groupId), fetchAll("debtors", groupId)]);
       if (!requests.current.isCurrent(token)) return;
       setRows(active);
       setLeftRows(leftDebtRows(debtors, new Set(active.map((row) => row.membership_id))));
@@ -215,7 +215,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     return <MoneyAccessDenied framed />;
   }
 
-  const filters: PaymentsFilter[] = counts.waiting > 0 || filter === "waiting" ? ["all", "individual", "debt", "waiting"] : ["all", "individual", "debt"];
+  const filters: PaymentsFilter[] = counts.due > 0 || filter === "due" ? ["all", "individual", "debt", "due"] : ["all", "individual", "debt"];
 
   return (
     <div className="space-y-4" data-testid="group-payments-tab">
@@ -333,7 +333,8 @@ function ChipView({ view }: { view: GroupPaymentRowView }) {
   return (
     // the status and the package bar on ONE axis, centred under the «Оплата» header (owner 26.10)
     <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center">
-      <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>
+      {view.chip.label && <Chip tone={view.chip.tone} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>}
+      {view.chip.sub && <p className="text-xs text-slate-600 lg:text-center" data-testid="membership-chip-sub">{view.chip.sub}</p>}
       <PackageProgress row={view.row} variant="compact" className="lg:[&>p]:justify-center" />
     </div>
   );

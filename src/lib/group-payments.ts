@@ -25,7 +25,9 @@ import {
   type PriceSource,
 } from "./group-price";
 import { formatDateRu, formatDayMonthRu } from "./business-time";
-import { debtRoleOf, formatMoney, membershipChip, pluralRu, type MembershipPaymentRow, type PeriodMode, type StatusTone } from "./payments";
+import { formatMoney, pluralRu, type MembershipPaymentRow, type PeriodMode } from "./payments";
+import { payLabel } from "./pay-state";
+import type { ChipTone } from "./chip-tone";
 import type { CollectionRow } from "./payments-income-v2";
 
 // ── Who sees the tab ────────────────────────────────────────────────────────
@@ -60,11 +62,11 @@ export function groupPaymentsAccess(input: { moneyAvailable: boolean; moneyLoade
 
 // ── Filter and deep link ────────────────────────────────────────────────────
 
-export type PaymentsFilter = "all" | "individual" | "debt" | "waiting";
+export type PaymentsFilter = "all" | "individual" | "debt" | "due";
 
 /** `?filter=`; an unknown or missing value is «Все». */
 export function parsePaymentsFilter(value: string | null | undefined): PaymentsFilter {
-  return value === "individual" || value === "debt" || value === "waiting" ? value : "all";
+  return value === "individual" || value === "debt" || value === "due" ? value : "all";
 }
 
 /** `/owner/groups/ID?tab=payments&filter=individual` (no `filter` for «Все»). */
@@ -112,11 +114,14 @@ export interface GroupPaymentRowView {
   /** «с 01.12 — 400 000 сум» (or «… — цена группы»); null when nothing is scheduled. */
   scheduledText: string | null;
   scheduled: PriceScheduledOverride | null;
-  chip: { label: string; tone: StatusTone; title: string | null };
-  debt: number;
+  /** PAY-DUE 9.10: ONE label per student - the worst state, in the server's words (`state_text`); `sub` is the quiet line with the term / the days overdue.  `label` null: the server said nothing. */
+  chip: { label: string | null; tone: ChipTone; sub: string | null };
+  /** The parts of the money by the server's names: the term has passed (`debt_amount`) / still within it (`due_amount`). */
+  debtAmount: number;
+  dueAmount: number;
   hasDebt: boolean;
-  /** Money-1 B7: only waits for the payment of a period that has just begun (not a debtor). */
-  waiting: boolean;
+  /** Has a sum within its term («К оплате»): in the filter of its own, also when the student is a debtor too (the categories overlap). */
+  hasDue: boolean;
   /** The membership is closed (the student has left / is archived): shown only through «Показать ушедших с долгом». */
   left: boolean;
   row: MembershipPaymentRow;
@@ -152,7 +157,9 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
   const missing = price.source === "none" || price.amount === null || price.amount === undefined;
   const own = scheduled && typeof scheduled.amount === "number" ? { amount: scheduled.amount, valid_from: scheduled.valid_from } : null;
   const planned = plannedPriceOf({ ...price, scheduled }, options.groupScheduled);      // К2 / Р4-1: no price in force, one planned - the student's own first, else the group's (one function for every screen)
-  const debt = Math.max(0, Math.round(Number(row.debt) || 0));
+  const debtAmount = Math.max(0, Math.round(Number(row.debt_amount) || 0));
+  const dueAmount = Math.max(0, Math.round(Number(row.due_amount) || 0));
+  const label = payLabel(row);
   return {
     key: row.membership_id,
     membershipId: row.membership_id,
@@ -168,11 +175,12 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     individualHint: individual ? individualHint(price, setBy) : null,
     scheduledText: missing && own !== null ? null : scheduledLine(scheduled, options.today, options.label),      // the own planned price already stands as the price: not twice
     scheduled: scheduled ?? null,
-    chip: membershipChip(row),
-    debt,
-    // Money-1 B7: the same question as the list of «Оплаты» (`debtRoleOf`): a student who only waits is not a debtor
-    hasDebt: debtRoleOf(row) === "debtor",
-    waiting: debtRoleOf(row) === "waiting",
+    chip: { label: label.text, tone: label.tone, sub: label.sub },
+    debtAmount,
+    dueAmount,
+    // PAY-DUE 9.1: the categories overlap - «С долгом» is every membership with a debt part, «К оплате» every one with a part within its term
+    hasDebt: debtAmount > 0,
+    hasDue: dueAmount > 0,
     left: !row.is_active,
     row,
   };
@@ -183,10 +191,10 @@ export function paymentRowViews(rows: ReadonlyArray<MembershipPaymentRow>, optio
   return rows.map((row) => paymentRowView(row, { label, today: options.today, extras: options.extras?.[row.membership_id] ?? null, groupScheduled: options.groupScheduled ?? null }));
 }
 
-export interface PaymentsCounts { all: number; individual: number; debt: number; waiting: number }
+export interface PaymentsCounts { all: number; individual: number; debt: number; due: number }
 
 export function paymentsCounts(views: ReadonlyArray<GroupPaymentRowView>): PaymentsCounts {
-  return { all: views.length, individual: views.filter((view) => view.hasOwnPrice).length, debt: views.filter((view) => view.hasDebt).length, waiting: views.filter((view) => view.waiting).length };
+  return { all: views.length, individual: views.filter((view) => view.hasOwnPrice).length, debt: views.filter((view) => view.hasDebt).length, due: views.filter((view) => view.hasDue).length };
 }
 
 /** The search box appears from this many rows (more than 8, like on «Цены групп»). */
@@ -197,29 +205,29 @@ export function filterPaymentRows(views: ReadonlyArray<GroupPaymentRowView>, fil
   const words = search.toLowerCase().split(/\s+/).filter(Boolean);
   const byName = (a: GroupPaymentRowView, b: GroupPaymentRowView) => a.name.localeCompare(b.name, "ru");
   return views
-    .filter((view) => (filter === "individual" ? view.hasOwnPrice : filter === "debt" ? view.hasDebt : filter === "waiting" ? view.waiting : true))
+    .filter((view) => (filter === "individual" ? view.hasOwnPrice : filter === "debt" ? view.hasDebt : filter === "due" ? view.hasDue : true))
     .filter((view) => words.every((word) => `${view.name} ${view.displayId ?? ""}`.toLowerCase().includes(word)))
-    .sort((a, b) => (filter === "debt" || filter === "waiting" ? b.debt - a.debt || byName(a, b) : byName(a, b)));
+    .sort((a, b) => (filter === "debt" ? b.debtAmount - a.debtAmount || byName(a, b) : filter === "due" ? b.dueAmount - a.dueAmount || byName(a, b) : byName(a, b)));
 }
 
 /** «Все (12)» / «Индивидуальная цена (5)» / «С долгом (3)». */
 export function filterChipLabel(filter: PaymentsFilter, counts: PaymentsCounts): string {
-  return `${filter === "all" ? "Все" : filter === "individual" ? "Индивидуальная цена" : filter === "waiting" ? "Ждём оплату" : "С долгом"} (${counts[filter]})`;
+  return `${filter === "all" ? "Все" : filter === "individual" ? "Индивидуальная цена" : filter === "due" ? "К оплате" : "С долгом"} (${counts[filter]})`;
 }
 
 export function emptyFilterText(filter: PaymentsFilter, search: string): string {
   if (search.trim()) return "Ничего не найдено";
   if (filter === "individual") return "Индивидуальных цен нет: все платят по цене группы";
   if (filter === "debt") return "Долгов нет";
-  if (filter === "waiting") return "Сейчас никого не ждём";
+  if (filter === "due") return "К оплате никого нет";
   return "В группе пока нет учеников";
 }
 
 /** The memberships that owe and are no longer in the group (the debtors list of the group minus the active ones), the biggest debt first. */
 export function leftDebtRows(debtRows: ReadonlyArray<MembershipPaymentRow>, activeIds: ReadonlySet<string>): MembershipPaymentRow[] {
   return debtRows
-    .filter((row) => !activeIds.has(row.membership_id) && (Number(row.debt) || 0) > 0)
-    .sort((a, b) => (Number(b.debt) || 0) - (Number(a.debt) || 0) || a.student_name.localeCompare(b.student_name, "ru"));
+    .filter((row) => !activeIds.has(row.membership_id) && (Number(row.debt_amount) || 0) > 0)
+    .sort((a, b) => (Number(b.debt_amount) || 0) - (Number(a.debt_amount) || 0) || a.student_name.localeCompare(b.student_name, "ru"));
 }
 
 export function leftDebtToggleLabel(count: number, shown: boolean): string {

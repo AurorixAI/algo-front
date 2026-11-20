@@ -45,6 +45,7 @@ import {
   studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
 } from "@/lib/student-archive";
 import { Button } from "@/components/ui/button";
+import { StatusChip } from "@/components/ui/chip";
 
 const TAB_ICON: Record<ProfileTab, typeof Brain> = {
   diagnostics: Brain,
@@ -447,13 +448,12 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 )}
                 {/* IA audit F35: the money of the student in one chip, a link to «Оплаты» */}
                 {moneyChip && paymentsVisible && (
-                  <Link
-                    href={`${pathname}?tab=payments`}
-                    data-testid="student-money-chip"
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold hover:underline ${moneyChip.tone === "danger" ? "bg-rose-100 text-rose-700" : moneyChip.tone === "muted" ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"}`}
-                  >
-                    {moneyChip.label}
-                  </Link>
+                  <>
+                    <Link href={`${pathname}?tab=payments`} data-testid="student-money-chip" className="hover:underline">
+                      <StatusChip tone={moneyChip.tone}>{moneyChip.label}</StatusChip>
+                    </Link>
+                    {moneyChip.sub && <span className="text-xs text-slate-600" data-testid="student-money-sub">{moneyChip.sub}</span>}
+                  </>
                 )}
               </div>
 
