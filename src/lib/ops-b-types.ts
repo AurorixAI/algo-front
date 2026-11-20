@@ -141,7 +141,7 @@ export interface ArchiveBalance {
   membership_id: string;
   name: string;
   left_on?: string | null;
-  kind: "debt" | "advance";
+  kind: "debt" | "due" | "advance";
   amount?: number;
   text: string;
   actions?: Array<{ code: string; label: string }>;
@@ -157,6 +157,8 @@ export interface ArchiveBlocker {
   exams?: Array<{ examId: string; title: string; status: string; lessonDate?: string | null; blockerReason?: string | null }> | null;
   /** Money-2 Т12: `OPEN_BALANCES` only - the stays of the group with a debt or an advance. */
   balances?: ArchiveBalance[] | null;
+  /** PAY-DUE decision 3: `OPEN_BALANCES` only - what the archive does to the unpaid sums, the sentences of the server. */
+  texts?: string[] | null;
 }
 
 export interface ArchiveAutoAction {

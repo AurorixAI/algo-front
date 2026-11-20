@@ -244,9 +244,12 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   // a debt after leaving (chain 4): keep, or forgive with a reason
   const archive = G.normalizeLeavePreview(named("A11_"));
   const debt = archive.memberships[0];
-  assert.equal(plain(G.settleHeadline(debt)), "После ухода у ученика долг 347 000 сум.");
-  assert.equal(plain(G.SETTLE_LABEL.keepDebt), "Оставить долг — оплатить его можно и после ухода");
-  assert.equal(G.SETTLE_LABEL.forgive, "Простить долг");
+  // the fixture of the server carries no `effects`: the server is silent, the screen says nothing about what stays (LESSONS 151, PAY-DUE 10.5)
+  assert.equal(G.settleHeadline(debt), "");
+  const said = { ...debt, effects: { kind: "archive", moves: [], ends: [], stays: [{ code: "debt", amount: 347000, text: "Долг 347 000 сум останется за учеником в группе «A-1»: принять или простить его можно в её выписке" }] } };
+  assert.equal(plain(G.settleHeadline(said)), "Долг 347 000 сум останется за учеником в группе «A-1»: принять или простить его можно в её выписке");
+  assert.equal(plain(G.SETTLE_LABEL.keepDebt), "Оставить как есть — оплатить можно и после ухода");
+  assert.equal(G.SETTLE_LABEL.forgive, "Простить сумму");
   const forgive = { [debt.membership_id]: { action: "writeoff", method: null, reason: "ab" } };
   assert.match(G.validateSettle(archive, forgive), /причину прощения долга/);
   forgive[debt.membership_id].reason = " договорённость с родителем ";
@@ -289,8 +292,11 @@ test("leave dialog and settle block draw the blocks of the spec", () => {
   const m = preview.memberships[0];
   const body = text(React.createElement(SettleBlock, { preview, choices: { [m.membership_id]: { action: "refund", method: null, reason: "" } }, onChoice: () => undefined }));
   for (const part of ["После ухода у ученика аванс 135 000 сум. Что сделать?", "Вернуть 135 000 сум", "Оставить аванс на счёте", "Как вернули", "Наличные"]) assert.ok(body.includes(part), part);
-  const debt = text(React.createElement(SettleBlock, { preview: G.normalizeLeavePreview(named("A11_")), choices: {}, onChoice: () => undefined }));
-  for (const part of ["После ухода у ученика долг 347 000 сум.", "Оставить долг — оплатить его можно и после ухода", "Простить долг"]) assert.ok(debt.includes(part), part);
+  const withWords = G.normalizeLeavePreview(named("A11_"));
+  withWords.memberships[0].effects = { kind: "archive", moves: [], ends: [], stays: [{ code: "debt", amount: 347000, text: "Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом" }] };
+  const debt = text(React.createElement(SettleBlock, { preview: withWords, choices: {}, onChoice: () => undefined }));
+  for (const part of ["Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом", "Оставить как есть — оплатить можно и после ухода", "Простить сумму"]) assert.ok(debt.includes(part), part);
+  assert.ok(!debt.includes("После ухода у ученика долг"), "no own sentence about the debt: the words are the server's");
   // Money-2 wave 2 (Б3): no own sentence about the individual price - the server's `effects.ends` say it (tests of the window: money2-w1-leave)
   assert.match(html(React.createElement(SettleBlock, { preview, choices: {}, onChoice: () => undefined })), /Расчёты при уходе/);
   // the table opens the leave dialog (owner / admin); a teacher keeps the plain confirmation
@@ -518,14 +524,14 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   const rows = [
     statement.rows[0],
     { ...base, details: { ...base.details, replaces_amount: 450000, replaces_receipt_no: 12 } },
-    { ...base, seq: 7, type: "writeoff", title: "Долг прощён — причина болезнь", debit: 0, credit: 40000, outflow: 0, balance_after: -229000, details: { ...base.details, allocations: [], reason: "болезнь", created_by_name: "Рустам", writeoff_id: "w1", payment_id: null } },
+    { ...base, seq: 7, type: "writeoff", title: "Прощено 40 000 сум — причина: болезнь · Рустам", debit: 0, credit: 40000, outflow: 0, balance_after: -229000, details: { ...base.details, allocations: [], reason: "болезнь", created_by_name: "Рустам", writeoff_id: "w1", payment_id: null } },
     { ...base, seq: 8, type: "opening_debt", title: "Долг на начало учёта на 30.09.2026", date: "2026-09-30", debit: 250000, credit: 0, outflow: 0, balance_after: -250000, details: { ...base.details, allocations: [], segment: null } },
     { ...base, seq: 9, type: "opening_paid_until", title: "Остаток на начало: оплачено до 31.10 (до ALGO)", date: "2026-10-21", debit: 0, credit: 0, outflow: 0, balance_after: -250000, details: { ...base.details, allocations: [] } },
   ];
   const view = L.buildStatementItems({ ...statement, rows }, null).filter((i) => i.kind === "row");
   assert.equal(view[0].type, "charge");
   assert.equal(plain(view[1].replaced), "исправлена: было 450 000");
-  assert.equal(view[2].title, "Долг прощён — причина: болезнь · Рустам");
+  assert.equal(plain(view[2].title), "Прощено 40 000 сум — причина: болезнь · Рустам"); // the title of the server (dictionary 3.3)
   assert.equal(view[2].tag, "прощено");
   const opening = view.find((r) => r.type === "opening_debt");
   assert.equal(opening.charged, 250000); // in the «Стоимость» column
@@ -538,9 +544,9 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   // receipt of a correction
   assert.equal(plain(P.receiptReplacesNote({ replaces_receipt_no: 17, replaces_amount: 450000 })), "Исправление оплаты № 17 (было 450 000 сум)");
   assert.equal(L.STATEMENT_TYPE_LABEL.charge, "Стоимость");
-  assert.equal(L.STATEMENT_TYPE_LABEL.writeoff, "Долг прощён");
-  // «Простить долг» everywhere
-  assert.equal(require(path.join(root, "src/components/payments/writeoff-dialog.tsx")).WRITEOFF_ACTION_LABEL, "Простить долг");
+  assert.equal(L.STATEMENT_TYPE_LABEL.writeoff, "Прощено");
+  // «Простить сумму» everywhere (the action is named neutrally, the sum is in the button)
+  assert.equal(require(path.join(root, "src/components/payments/writeoff-dialog.tsx")).WRITEOFF_ACTION_LABEL, "Простить сумму");
   assert.equal(L.validateWriteoff({ amount: "", all: true, reason: "ok ok" }, 0), "Долга нет — прощать нечего");
   assert.equal(plain(L.balanceAfterText(469000, 0)), "Останется неоплаченным после оплаты: 469 000 сум");
 });

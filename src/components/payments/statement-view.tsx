@@ -255,13 +255,13 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
         key: "void", label: "Отменить прощение", icon: XCircle, danger: true,
         onSelect: () => setVoidRecord({
           key: id,
-          title: "Отменить прощение долга?",
+          title: "Отменить прощение?",
           description: `${formatDateRu(item.date)} · ${formatMoney(item.credit)}`,
-          explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
+          explain: "Прощённая сумма снова станет неоплаченной. Запись останется в выписке серым с этой причиной.",
           action: "Отменить прощение",
           // Money-1 V1: the debt the person SAW is checked by the server (a change in between is «Долг изменился: было …, сейчас …»)
           expected: statement?.summary.unpaid, expectedKind: "debt", emptyText: "Долга больше нет", onStale: changed,
-          run: async (reason, expected) => { const result = await orgApi.voidWriteoff(id, reason, expected); const note = studentToast(); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
+          run: async (reason, expected) => { const result = await orgApi.voidWriteoff(id, reason, expected); const note = studentToast(); showToast("Прощение отменено", note.tone, note.details); changed(); },
         }),
       });
     }

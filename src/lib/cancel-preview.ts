@@ -29,7 +29,7 @@ export function cancelMoneyView(answer: unknown): CancelMoneyView {
   if (list !== null) {
     const total = list.reduce((sum, item) => sum + Number(item.amount), 0);
     students = total > 0
-      ? tidyMoneyText(`Ученикам — перерасчёт: долг уменьшится сразу на ${formatMoney(total)} (${list.length} ${pluralRu(list.length, "ученик", "ученика", "учеников")})`)
+      ? tidyMoneyText(`Ученикам — перерасчёт: неоплаченная сумма уменьшится сразу на ${formatMoney(total)} (${list.length} ${pluralRu(list.length, "ученик", "ученика", "учеников")})`)
       : "Ученикам перерасчёта не будет";
   }
   const payroll = effectLines(moneyEffectsOf(answer), { done: false }).filter((line) => line.key.startsWith("payroll"));

@@ -134,6 +134,8 @@ export interface ArchiveDialogView {
   students: Array<{ id: string; name: string; displayId?: string | null }>;
   /** Money-2 Т12: the stays with a debt or an advance (empty without the blocker). */
   balances: ArchiveBalance[];
+  /** PAY-DUE решение 3: what the archive does to the unpaid sums, the sentences of the server (a line only when its number is not zero: «У K учеников осталась неоплаченная сумма N — это долг», «У M учеников это последняя группа: неоплаченная сумма X станет долгом»); empty - nothing is said */
+  balanceTexts: string[];
   /** the lines that do not block */
   notes: string[];
   examServiceDown: boolean;
@@ -185,6 +187,7 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
     cancelConsequence: missed ? tidyMoneyText(missed.cancelConsequence?.trim() || MISSED_CANCEL_CONSEQUENCE) : null,
     students: students?.students ?? [],
     balances: balances?.balances ?? [],
+    balanceTexts: (balances?.texts ?? []).filter((line) => typeof line === "string" && line.trim()).map((line) => line.trim()),
     notes,
     examServiceDown,
   };

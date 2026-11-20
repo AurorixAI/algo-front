@@ -269,7 +269,7 @@ export function ArchiveDialogBody({
         </div>
       )}
 
-      {balanceStop && <ArchiveOpenBalances title={balanceStop.text} balances={view.balances} paymentsBase={paymentsBase} />}
+      {balanceStop && <ArchiveOpenBalances title={balanceStop.text} words={view.balanceTexts} balances={view.balances} paymentsBase={paymentsBase} />}
 
       {otherStops.map((stop, index) => (
         <p key={`${stop.code}-${index}`} role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/60 px-3.5 py-3 text-sm font-medium text-rose-900">

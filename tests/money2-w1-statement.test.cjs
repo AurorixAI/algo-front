@@ -1,5 +1,5 @@
 // Money-2 wave 1, Э3 (Т7, Т11): the statement - «Восстановить оплату» at a cancelled payment that the server calls `restorable` (reason is mandatory, «Что изменится» from the dry run, a refusal in the server's
-// words); a payment already replaced says by which one and has no button; the student in the archive keeps «Вернуть аванс» and «Простить долг».
+// words); a payment already replaced says by which one and has no button; the student in the archive keeps «Вернуть аванс» and «Простить сумму».
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
@@ -90,7 +90,7 @@ test("Т7: a 409 of the server is said in its own words and the window stays", a
   await run.page.close();
 });
 
-test("Т11: the student in the archive keeps «Вернуть аванс» and «Простить долг» (the server allows both)", () => {
+test("Т11: the student in the archive keeps «Вернуть аванс» and «Простить сумму» (the server allows both)", () => {
   const ts = require("typescript");
   require.extensions[".ts"] = (mod, filename) => { mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText, filename); };
   const Module = require("node:module");
@@ -99,7 +99,7 @@ test("Т11: the student in the archive keeps «Вернуть аванс» and �
   const M = require(path.join(root, "src/lib/membership-actions.ts"));
   Module._resolveFilename = original;
   const left = { is_active: false, debt: 100000, writeoff_allowed: true, refundable: 0 };
-  assert.deepEqual(M.membershipMenuLabels(left, { archived: true }), ["Простить долг"]);
+  assert.deepEqual(M.membershipMenuLabels(left, { archived: true }), ["Простить сумму"]);
   assert.deepEqual(M.membershipMenuLabels({ ...left, debt: 0, refundable: 50000 }, { archived: true }), ["Вернуть аванс"]);
-  assert.deepEqual(M.membershipMenuLabels({ ...left, is_active: true }, { archived: true }), ["Простить долг"], "the price and the opening balance stay closed for an archived student");
+  assert.deepEqual(M.membershipMenuLabels({ ...left, is_active: true }, { archived: true }), ["Простить сумму"], "the price and the opening balance stay closed for an archived student");
 });

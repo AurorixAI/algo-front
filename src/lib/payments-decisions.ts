@@ -83,7 +83,7 @@ export const DECISION_KINDS: Array<{ value: string; label: string }> = [
   { value: "", label: "Все решения" },
   { value: "payment_void", label: "Оплата отменена" },
   { value: "payment_replace", label: "Оплата исправлена" },
-  { value: "payment_writeoff", label: "Долг прощён" },
+  { value: "payment_writeoff", label: "Прощено" },
   { value: "payment_writeoff_void", label: "Прощение отменено" },
   { value: "payment_refund", label: "Аванс возвращён" },
   { value: "payment_refund_void", label: "Возврат отменён" },

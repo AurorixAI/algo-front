@@ -10,6 +10,7 @@ import {
   defaultSettleChoice,
   logicaError,
   SETTLE_LABEL,
+  settleDebtLines,
   settleHeadline,
   settleKind,
   validateSettle,
@@ -93,7 +94,7 @@ const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text
 
 /**
  * A block per membership: «После ухода у ученика аванс 135 000 сум. Что сделать?» — «Вернуть 135 000 сум» [how] / «Оставить аванс на
- * счёте»; «После ухода у ученика долг 120 000 сум.» — «Оставить долг» / «Простить долг» [reason]; «Расчётов нет — можно убирать»;
+ * счёте»; the sentences of the server about what stays unpaid — «Оставить как есть» / «Простить 120 000 сум» [reason]; «Расчётов нет — можно убирать»;
  * without access to money: «У ученика есть расчёты по оплате — их видит владелец».
  */
 export function SettleBlock({
@@ -140,7 +141,10 @@ function MembershipSettle({
   return (
     <div className="space-y-2">
       {showGroup && <p className="break-words text-sm font-semibold text-slate-900">{membership.group_name}</p>}
-      <p className={`text-sm ${kind === "none" ? "text-slate-500" : "text-slate-800"}`}>{settleHeadline(membership)}</p>
+      {kind === "debt"
+        // the sentences of the server by the state AFTER the leaving, one per name; silent - nothing is said
+        ? settleDebtLines(membership).map((words) => <p key={words} data-testid="settle-words" className="text-sm text-slate-800">{words}</p>)
+        : <p className={`text-sm ${kind === "none" ? "text-slate-500" : "text-slate-800"}`}>{settleHeadline(membership)}</p>}
 
       {kind === "debt" && money && (
         <div className="space-y-2">

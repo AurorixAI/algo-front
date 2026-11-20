@@ -741,6 +741,8 @@ export interface StatementRow {
   open_name?: OpenName | null;
   open_text?: string | null;
   open_parts?: OpenPart[];
+  /** PAY-DUE 16Б.1: the term under the title of a charge, in the words of the server («до 24.11» / «до сегодня» for a part «к оплате», «срок был 06.11» for a debt); null for a paid one and for every other row. A server without the field - no line. */
+  open_sub?: string | null;
   details: StatementDetails;
   voided_at: string | null;
   voided_by_name: string | null;

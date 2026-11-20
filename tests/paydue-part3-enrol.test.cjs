@@ -9,6 +9,11 @@ const root = path.join(__dirname, "..");
 const B = require(path.join(root, "src/lib/enrol-bar.ts"));
 const F = require(path.join(root, "src/lib/pay-from.ts"));
 const PB = require(path.join(root, "src/lib/past-balances.ts"));
+const TE = require(path.join(root, "src/lib/transfer-effects.ts"));
+const G = require(path.join(root, "src/lib/payments-logica.ts"));
+const L = require(path.join(root, "src/lib/payments-ledger.ts"));
+const M = require(path.join(root, "src/lib/membership-actions.ts"));
+const S = require("./helpers/paydue-statement.cjs");
 const { dueLines } = require("./helpers/enrol-words.cjs");
 const plain = (text) => String(text).replace(/ /g, " ");
 
@@ -83,4 +88,43 @@ test("the balances of the past stays: the name of the state is the server's `kin
     "Аванс с прошлого раза 80 000 сум · в «Химия», ушёл 10.11",
     "К оплате с прошлого раза · в этой же группе, ушёл 17.11",
   ]);
+});
+
+test("16А.3 transfer: a sum that stays «к оплате» is a row «К оплате до ДД.ММ · N» (the name by the server's code `due`), a debt - «Долг · N»", () => {
+  const due = TE.effectRow({ code: "due", amount: 100000, due_until: "2026-11-24", text: "x" }, 0);
+  assert.deepEqual([due.label, plain(due.value)], ["К оплате до 24.11", "100 000 сум"]);
+  assert.equal(TE.effectRow({ code: "due", amount: 100000, text: "x" }, 0).label, "К оплате");
+  assert.equal(TE.effectRow({ code: "debt", amount: 100000, text: "x" }, 0).label, "Долг");
+});
+
+test("16А.3 leaving: the headline of the block is the sentences of the server (stays `debt` / `due`), none of its own; a server without them - silent", () => {
+  const stays = [{ code: "debt", text: "К оплате 86 000 сум. Это единственная группа ученика: после ухода сумма станет долгом" }, { code: "advance", text: "Аванс" }, { code: "due", text: "К оплате 10 000 сум до 24.11, срок не меняется" }];
+  const membership = { membership_id: "m", group_id: "g", group_name: "A", money: { debt: 96000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false }, has_open_balance: true, allowed: ["keep", "writeoff"], effects: { kind: "leave", moves: [], ends: [], stays } };
+  assert.deepEqual(G.settleDebtLines(membership), [stays[0].text, stays[2].text]);
+  assert.equal(G.settleHeadline(membership), `${stays[0].text} ${stays[2].text}`);
+  assert.deepEqual(G.settleDebtLines({ ...membership, effects: null }), []);
+  assert.equal(G.SETTLE_LABEL.forgive, "Простить сумму");
+  assert.ok(!/долг/i.test(G.SETTLE_LABEL.keepDebt), "the action is named neutrally");
+});
+
+test("16А.4 the dictionary 3.3 on the screens: «Простить сумму» (menu, window), «Прощено» (row, filter), «Прощено N сум» (message), no «Простить долг» in src", () => {
+  assert.equal(M.WRITEOFF_MENU_LABEL, "Простить сумму");
+  assert.equal(L.STATEMENT_TYPE_LABEL.writeoff, "Прощено");
+  assert.equal(plain(G.settledLines([{ membership_id: "m", action: "writeoff", amount: 120000 }]).join("")), "Прощено 120 000 сум");
+  assert.equal(L.writeoffPreviewText({ amount: "", all: true, reason: "" }, 100000), "Будет прощено полностью");
+  const fs = require("node:fs");
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+  const old = walk(path.join(root, "src")).filter((f) => /\.(ts|tsx)$/.test(f)).filter((f) => /«Простить долг»|"Простить долг"|Оставить долг|прощён\b|Прощение долга|После ухода у ученика долг|К оплате сразу/.test(fs.readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
+  assert.deepEqual(old, [], "the old words of the action are gone from the code");
+});
+
+test("16А.5 statement: the term under the title of a charge is the server's `open_sub` («до 19.11» / «срок был 06.11»), before the price; the field is absent - no term", () => {
+  const raw = S.anvarDue();
+  const withSub = { ...raw, rows: raw.rows.map((row) => (row.type === "charge" ? { ...row, open_sub: "до 24.11" } : row)) };
+  const subOf = (statement) => L.buildStatementItems(L.normalizeStatement(statement), null).find((item) => item.kind === "row" && item.type === "charge").sub;
+  assert.match(plain(subOf(withSub)), /^до 24\.11 · цена /);
+  const without = subOf(raw);
+  assert.ok(!/до 24\.11/.test(plain(without ?? "")), "no field - no term");
+  const debt = { ...raw, rows: raw.rows.map((row) => (row.type === "charge" ? { ...row, open_sub: "срок был 06.11" } : row)) };
+  assert.match(plain(subOf(debt)), /^срок был 06\.11/);
 });

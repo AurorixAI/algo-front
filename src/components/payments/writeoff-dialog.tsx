@@ -21,7 +21,7 @@ import { SegmentedControl } from "@/components/ui/radio";
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
-export const WRITEOFF_ACTION_LABEL = "Простить долг";
+export const WRITEOFF_ACTION_LABEL = "Простить сумму";
 
 /**
  * «Простить долг» (a concession, an illness, an agreement): an amount up to the debt or the whole debt, and a reason
@@ -106,7 +106,7 @@ export function WriteoffDialog({
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={`${WRITEOFF_ACTION_LABEL}${(() => { const sum = writeoffAmount(values, debtShown); return sum !== null && sum > 0 ? ` ${formatMoney(sum)}` : ""; })()}`} submitFor="writeoff-form" busy={busy} disabled={change !== null} why={null} whyId="writeoff-why" onCancel={onClose} testId="writeoff-submit" />}
+      footer={<ConfirmFooter primary={(() => { const sum = writeoffAmount(values, debtShown); return sum !== null && sum > 0 ? `Простить ${formatMoney(sum)}` : WRITEOFF_ACTION_LABEL; })()} submitFor="writeoff-form" busy={busy} disabled={change !== null} why={null} whyId="writeoff-why" onCancel={onClose} testId="writeoff-submit" />}
     >
       <form id="writeoff-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <p className="text-sm text-slate-700">

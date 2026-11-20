@@ -14,7 +14,7 @@ function statementAllKinds(names) {
     mk(4, "transfer_in", "2026-11-10", `Перевод из группы «${names.T}»`, { credit: 600000, balance_after: 700000 }, { from_group_name: names.T }),
     mk(5, "refund", "2026-11-12", "Возврат аванса", { outflow: 120000, balance_after: 580000 }, { refund_id: "r1", method: "cash", recorded_on: "2026-11-12" }),
     mk(6, "charge", "2026-11-13", "Доплата за занятия", { debit: 600000, balance_after: -20000, ...PAID }, {}),
-    mk(7, "writeoff", "2026-11-14", "Долг прощён", { credit: 20000, balance_after: 0 }, { writeoff_id: "w1", recorded_on: "2026-11-14" }),
+    mk(7, "writeoff", "2026-11-14", "Прощено 20 000 сум", { credit: 20000, balance_after: 0 }, { writeoff_id: "w1", recorded_on: "2026-11-14" }),
   ];
   data.voided = [];
   data.summary = { ...data.summary, charged: 1800000, paid: 1800000 };

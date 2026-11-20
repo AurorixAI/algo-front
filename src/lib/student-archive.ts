@@ -115,7 +115,7 @@ export function archiveResultDetails(result: { diagnostic_invites_cancelled?: un
   const running = whole(result?.diagnostic_invites_in_progress);
   if (cancelled > 0) lines.push(`Отменено приглашений на диагностику: ${cancelled}`);
   if (running > 0) lines.push(`Идёт диагностика: ${running} — ${ARCHIVE_DIAGNOSTICS_RUNNING_NOTE}`);
-  // LOGIC-A F9: what was settled with the archive («Возвращено 135 000 сум», «Долг 120 000 сум прощён»)
+  // LOGIC-A F9: what was settled with the archive («Возвращено 135 000 сум», «Прощено 120 000 сум»)
   lines.push(...settledLines(Array.isArray(result?.settled) ? (result?.settled as Parameters<typeof settledLines>[0]) : []));
   return lines;
 }

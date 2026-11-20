@@ -555,11 +555,11 @@ export function buildWriteoffPayload(values: WriteoffFormValues, today?: string,
   return body;
 }
 
-/** «Долг станет 60 000 сум» / «Долг будет прощён полностью» under the amount. */
+/** «Долг станет 60 000 сум» / «Будет прощено полностью» under the amount. */
 export function writeoffPreviewText(values: WriteoffFormValues, debt: number): string {
   const amount = writeoffAmount(values, debt);
   if (amount === null || amount < 1 || amount > debt) return "";
-  return amount === debt ? "Долг будет прощён полностью" : `Долг станет ${formatMoney(debt - amount)}`;
+  return amount === debt ? "Будет прощено полностью" : `Долг станет ${formatMoney(debt - amount)}`;
 }
 
 // ── Refund ─────────────────────────────────────────────────────────────────
@@ -601,7 +601,7 @@ export function refundPreviewText(values: RefundFormValues, refundable: number):
 export const STATEMENT_TYPE_LABEL: Record<StatementRowType, string> = {
   charge: "Стоимость",
   payment: "Оплата",
-  writeoff: "Долг прощён",
+  writeoff: "Прощено",
   refund: "Возврат",
   transfer_in: "Деньги ученика перешли из группы",
   transfer_out: "Деньги ученика перешли в группу",
@@ -684,7 +684,7 @@ export interface StatementTotal {
 }
 
 export const STATEMENT_HINTS = {
-  written_off: "Прощено — долг, который центр простил (кнопка «Простить долг»)",
+  written_off: "Прощено — сумма, которую центр простил (кнопка «Простить сумму»)",
   recalculated: "Перерасчёт — уроки, которые отменил центр, вычтены из оплаты (настройка «Оплаты»)",
   refunded: "Возвращено — аванс, возвращённый ученику (кнопка «Вернуть аванс»)",
   transferred_in: "Деньги, которые пришли вместе с учеником из другой группы",
@@ -789,6 +789,7 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
     open_amount: nullableSum(item.open_amount),
     open_name: item.open_name ?? null,
     open_text: item.open_text ?? null,
+    open_sub: typeof item.open_sub === "string" && item.open_sub.trim() ? item.open_sub.trim() : null,
     open_parts: list<OpenPart>(item.open_parts).map((part) => ({ name: part.name, amount: sum(part.amount), text: String(part.text ?? "") })),
     details: {
       allocations: list<Allocation>(item.details?.allocations),
@@ -914,7 +915,7 @@ export function receiptFacts(receipt: {
 export interface StatementRowView {
   seq: number;
   type: StatementRowType;
-  /** Стоимость / Оплата / Долг прощён… */
+  /** Стоимость / Оплата / Прощено… */
   typeLabel: string;
   /** The server's title: «Стоимость 15.09–14.10», «Оплата № 17». */
   title: string;
@@ -1214,7 +1215,8 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
     const base = { kind: "row" as const, seq: row.seq, type: row.type, date: row.date, open: openParts(row), allocations: [] as string[], replaced: null as string | null, cancelled: Boolean(row.voided_at), cancelNote: null as string | null, raw: row };
     if (row.type === "charge") {
       const words = d.segment ? chargeWords(d.segment) : { title: row.title, sub: "" };
-      entries.push({ ...base, title: words.title, sub: words.sub || null, tag: null, charged: sum(row.debit), paid: null });
+      // the term of the unpaid part is the server's `open_sub` («до 24.11» / «срок был 06.11»), then the price; the field is absent - only the price
+      entries.push({ ...base, title: words.title, sub: [row.open_sub, words.sub].filter(Boolean).join(" · ") || null, tag: null, charged: sum(row.debit), paid: null });
     } else if (row.type === "payment") {
       const head = [`Оплата${d.receipt_no ? ` № ${d.receipt_no}` : ""}`, lowerMethod(d.method), d.created_by_name ? `внёс ${d.created_by_name}` : ""].filter(Boolean).join(" · ");
       const lines: string[] = [];
@@ -1247,7 +1249,8 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
       entries.push({ ...base, title: head, sub: d.note ? `комментарий: ${d.note}` : null, tag: null, charged: null, paid: sum(row.credit), allocations: lines, replaced });
     } else if (row.type === "writeoff") {
       writeoffSeen = true;
-      const title = `Долг прощён${d.reason ? ` — причина: ${d.reason}` : ""}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
+      // the title is the server's («Прощено 40 000 сум — причина: …»); a row without one is named by the dictionary 3.3
+      const title = row.title || `Прощено ${formatMoney(Number(row.credit) || 0)}${d.reason ? ` — причина: ${d.reason}` : ""}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
       entries.push({ ...base, title, sub: null, tag: "прощено", charged: null, paid: sum(row.credit) });
     } else if (row.type === "recalc") {
       // PAY-F: the lesson the centre cancelled, taken off the money like a forgiven debt (the line is derived by the server, nothing was entered)

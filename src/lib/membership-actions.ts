@@ -11,7 +11,7 @@
 import { formatDateRu, isCarryOver, paymentAmountLabel, type MembershipPaymentRow } from "./payments";
 import { canRefund, canWriteOff } from "./payments-ledger";
 
-export const WRITEOFF_MENU_LABEL = "Простить долг";
+export const WRITEOFF_MENU_LABEL = "Простить сумму";
 export const REFUND_MENU_LABEL = "Вернуть аванс";
 export const INDIVIDUAL_PRICE_MENU_LABEL = "Индивидуальная цена…";
 export const OPENING_SET_MENU_LABEL = "Внести остаток на начало…";

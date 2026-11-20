@@ -56,12 +56,12 @@ test("F1: the row menu has at most three items, one per domain, in a fixed order
     }
   }
   assert.deepEqual(M.membershipMenuLabels(row()), ["Индивидуальная цена…", "Внести остаток на начало…"]);
-  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 })), ["Простить долг", "Индивидуальная цена…", "Внести остаток на начало…"]);
+  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 })), ["Простить сумму", "Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ refundable: 50000 })), ["Вернуть аванс", "Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ opening: { id: "o", paid_until: null, debt_amount: 1, debt_on: "2026-10-01" } })), ["Индивидуальная цена…", "Остаток на начало…"]);
   // a group the student has left keeps the money actions; so does an archived student (Money-2 T11), but not the price and the opening balance
-  assert.deepEqual(M.membershipMenuLabels(row({ is_active: false, debt: 100000 })), ["Простить долг"]);
-  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 }), { archived: true }), ["Простить долг"]);
+  assert.deepEqual(M.membershipMenuLabels(row({ is_active: false, debt: 100000 })), ["Простить сумму"]);
+  assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 }), { archived: true }), ["Простить сумму"]);
 });
 
 test("F1 / F13: the student card and the group's «Оплаты» tab render the SAME component for the menu", () => {
@@ -483,7 +483,7 @@ test("F29: money screens open the student on «Оплаты» and the group on i
   }
 });
 
-test("F4 / d3: the menu of a row of «Оплаты» is «Простить долг» | «Вернуть аванс», «Исправить последнюю оплату», «Отменить последнюю оплату»; «Выписка» is an icon link, the card is the name", () => {
+test("F4 / d3: the menu of a row of «Оплаты» is «Простить сумму» | «Вернуть аванс», «Исправить последнюю оплату», «Отменить последнюю оплату»; «Выписка» is an icon link, the card is the name", () => {
   const page = read("src/components/payments/payments-page.tsx");
   assert.doesNotMatch(page, /key: "statement"|key: "profile"|Карточка ученика", icon/);
   assert.match(page, /data-testid="payment-row-statement"/);

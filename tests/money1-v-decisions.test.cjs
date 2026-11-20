@@ -13,7 +13,7 @@ const NB = " ";
 const rows = [
   { id: "d1", at: "2026-11-05T09:20:00", kind: "payment_void", kind_label: "Оплата отменена", student_id: "s1", student_name: "Тошматов Бобур", group_name: "Алгебра 7", amount: 400000, new_amount: null, receipt_no: 21, reason: "Ошибка в сумме, внесли два раза", actor_name: "Иванова Д.", debt_before: 0, debt_after: 400000 },
   { id: "d2", at: "2026-11-04T07:00:00", kind: "payment_replace", kind_label: "Оплата исправлена", student_id: "s2", student_name: "Каримова Дилноза", group_name: "Геометрия 8", amount: 400000, new_amount: 200000, receipt_no: 22, reason: "ошибся в сумме", actor_name: "Арслан Владелец", debt_before: 0, debt_after: 200000 },
-  { id: "d3", at: "2026-11-03T07:00:00", kind: "payment_writeoff", kind_label: "Долг прощён", student_id: "s3", student_name: "Очень Длинное Имя Ученика Которое Не Помещается В Ячейку", group_name: "Алгебра 7 (углублённый курс по четвергам)", amount: 150000, new_amount: null, receipt_no: null, reason: null, actor_name: null, debt_before: 150000, debt_after: null },
+  { id: "d3", at: "2026-11-03T07:00:00", kind: "payment_writeoff", kind_label: "Прощено", student_id: "s3", student_name: "Очень Длинное Имя Ученика Которое Не Помещается В Ячейку", group_name: "Алгебра 7 (углублённый курс по четвергам)", amount: 150000, new_amount: null, receipt_no: null, reason: null, actor_name: null, debt_before: 150000, debt_after: null },
 ];
 const page = (extra = {}) => ({ as_of: "2026-11-10", from: "2026-11-01", to: "2026-11-30", page: 1, size: 25, total: rows.length, pages: 1, since: "2026-11-02", rows, ...extra });
 const server = (answer) => (request) => (request.method === "GET" && request.path === "/auth/org/payments/decisions" ? answer(request) : null);
@@ -48,7 +48,7 @@ test("the filter «Вид» sends kind; an empty answer under a filter is «По
   await p.waitForSelector('[data-testid="decisions-empty"]');
   assert.equal(plain(await p.textContent('[data-testid="decisions-empty"]')), "За этот период денежных решений нет");
   await p.click('[data-testid="decisions-kind"]');
-  await p.click('[role="option"]:has-text("Долг прощён")');
+  await p.click('[role="option"]:has-text("Прощено")');
   await p.waitForFunction(() => /По фильтру ничего нет/.test(document.body.innerText));
   assert.match(calls.at(-1).query, /kind=payment_writeoff/);
   await p.click("text=Сбросить");

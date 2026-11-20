@@ -515,7 +515,7 @@ export interface LeaveMembership {
   money: LeaveMoney | null;
   has_open_balance: boolean;
   allowed: SettleAction[];
-  /** Money-2 T3: what ENDS with the stay, in the words of the server (null: an older server - the own sentence stays). */
+  /** Money-2 T3 / PAY-DUE 10.5: what ENDS with the stay and what STAYS unpaid after it, in the words of the server by the state AFTER the action (null: the server said nothing - the screen says nothing about it, LESSONS 151). */
   effects: TransferEffects | null;
 }
 
@@ -571,7 +571,7 @@ export interface SettleChoice {
   action: SettleAction;
   /** «Вернуть аванс»: how the money was given back. */
   method: Exclude<PayMethod, "unknown"> | null;
-  /** «Простить долг»: the reason, 3..500 characters. */
+  /** «Простить N сум»: the reason, 3..500 characters. */
   reason: string;
 }
 
@@ -589,11 +589,16 @@ export function settleKind(membership: LeaveMembership): SettleKind {
   return "none";
 }
 
+/** What the leaving leaves unpaid, the sentences of the server («К оплате 40 000 сум. Это единственная группа ученика: после ухода сумма станет долгом» / «Долг 120 000 сум останется за учеником…» / «…до 24.11, срок не меняется…»): one per name. */
+export function settleDebtLines(membership: LeaveMembership): string[] {
+  return (membership.effects?.stays ?? []).filter((item) => (item.code === "debt" || item.code === "due") && item.text).map((item) => item.text.trim());
+}
+
 /** «После ухода у ученика долг 120 000 сум.» / «После ухода у ученика аванс 135 000 сум. Что сделать?» / «Расчётов нет — можно убирать» / … */
 export function settleHeadline(membership: LeaveMembership): string {
   switch (settleKind(membership)) {
     case "debt":
-      return `После ухода у ученика долг ${formatMoney(membership.money!.debt)}.`;
+      return settleDebtLines(membership).join(" ");
     case "advance":
       return `После ухода у ученика аванс ${formatMoney(membership.money!.advance)}. Что сделать?`;
     case "hidden":
@@ -604,8 +609,9 @@ export function settleHeadline(membership: LeaveMembership): string {
 }
 
 export const SETTLE_LABEL = {
-  keepDebt: "Оставить долг — оплатить его можно и после ухода",
-  forgive: "Простить долг",
+  keepDebt: "Оставить как есть — оплатить можно и после ухода",
+  // the sum is said by the sentence of the server right above the choices (one fact once, LESSONS 145)
+  forgive: "Простить сумму",
   keepAdvance: "Оставить аванс на счёте",
   refund: (amount: number) => `Вернуть ${formatMoney(amount)}`,
 } as const;
@@ -655,13 +661,13 @@ export function applyFreshBalances(preview: LeavePreview, fresh: FreshBalance[])
 
 export const BALANCE_CHANGED_TEXT = "Данные оплат изменились — проверьте суммы";
 
-/** «Возвращено 135 000 сум» / «Долг 120 000 сум прощён» — the toast lines after a settled leave. */
+/** «Возвращено 135 000 сум» / «Прощено 120 000 сум» — the toast lines after a settled leave. */
 export function settledLines(settled: SettledOut[] | null | undefined, groupNames: Record<string, string> = {}): string[] {
   return arr<SettledOut>(settled)
     .filter((item) => item.action !== "keep" && item.amount > 0)
     .map((item) => {
       const where = groupNames[item.membership_id] ? ` (${groupNames[item.membership_id]})` : "";
-      return item.action === "refund" ? `Возвращено ${formatMoney(item.amount)}${where}` : `Долг ${formatMoney(item.amount)} прощён${where}`;
+      return item.action === "refund" ? `Возвращено ${formatMoney(item.amount)}${where}` : `Прощено ${formatMoney(item.amount)}${where}`;
     });
 }
 

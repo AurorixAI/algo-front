@@ -98,7 +98,7 @@ export function toast(page: Page, text: string | RegExp) {
 
 /**
  * The «⋯» menu of a group block on the «Оплаты» tab of the student card, and of a row of the group's «Оплаты» tab (IA audit 22.10: the same
- * component, at most three items): «Простить долг» | «Вернуть аванс», «Индивидуальная цена…», «Остаток на начало…».
+ * component, at most three items): «Простить сумму» | «Вернуть аванс», «Индивидуальная цена…», «Остаток на начало…».
  */
 export async function openPaymentCardMenu(page: Page) {
   await page.getByRole("button", { name: /^Действия по оплате:/ }).first().click();

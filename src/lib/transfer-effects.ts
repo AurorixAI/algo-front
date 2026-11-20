@@ -14,6 +14,8 @@ export interface EffectItem {
   date?: string;
   since?: string;
   valid_from?: string;
+  /** `due` only (a role with money): the last day of «к оплате» that stays with the group */
+  due_until?: string | null;
 }
 export interface TransferEffects {
   kind: string;
@@ -82,6 +84,8 @@ export function effectRow(item: EffectItem, index: number): EffectRow {
   switch (item.code) {
     case "money": return { key, label: "Деньги ученика", value: sum(item.amount) };
     case "debt": return { key, label: "Долг", value: sum(item.amount) };
+    // the sum that stays «к оплате» after the action (the student is still in the centre: his term goes on)
+    case "due": { const day = dayOf(item.due_until ?? undefined); return { key, label: day ? `К оплате до ${day}` : "К оплате", value: sum(item.amount) }; }
     // a transfer where the money does not go: `money_stays` with a sum is the advance that stays («Аванс · N сум»); with 0 it is the calm line of the server (see `calmMoneyText`), not a row
     case "money_stays": return { key, label: "Аванс", value: sum(item.amount) };
     case "advance": return { key, label: "Аванс", value: sum(item.amount) };

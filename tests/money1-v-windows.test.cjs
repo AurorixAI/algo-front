@@ -288,6 +288,6 @@ test("forgiveness «Часть долга»: the debt changed - the field takes 
   await page.click('[data-testid="writeoff-submit"]');
   await page.click('[data-testid="balance-changed-continue"]');
   assert.equal(plain(await page.inputValue('input[aria-label="Сумма прощения"]')), "400 000");
-  assert.match(plain(await page.textContent('[data-testid="writeoff-submit"]')), /^Простить долг 400 000 сум$/);
+  assert.match(plain(await page.textContent('[data-testid="writeoff-submit"]')), /^Простить 400 000 сум$/);
   await page.close();
 });

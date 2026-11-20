@@ -43,7 +43,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "voidWriteoff":
       root.render(<RecordVoidModal onClose={() => log("close")} target={{
-        key: "w1", title: "Отменить прощение долга?", description: "05.11 · 40 000 сум", action: "Отменить прощение", explain: "Прощённая сумма снова станет долгом.",
+        key: "w1", title: "Отменить прощение?", description: "05.11 · 40 000 сум", action: "Отменить прощение", explain: "Прощённая сумма снова станет долгом.",
         expected: 100000, expectedKind: "debt", emptyText: "Долга больше нет", onStale: () => log("stale"),
         run: async (reason, expected) => { await orgApi.voidWriteoff("w1", reason, expected); log("voided"); },
       }} />);

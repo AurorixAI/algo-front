@@ -8,8 +8,8 @@ function statement() {
   const data = F.statementWithVoided(F.SHORT);
   const mk = (seq, type, date, title, over, extra) => ({ ...data.rows[0], seq, type, date, title, credit: 0, debit: 0, outflow: 0, ...over, details: { ...data.rows[0].details, payment_id: null, receipt_no: null, replaces_receipt_no: null, ...extra } });
   data.rows.push(mk(5, "refund", "2026-11-12", "Возврат аванса", { outflow: 120000 }, { refund_id: "r1", recorded_on: "2026-11-20" }));
-  data.rows.push(mk(6, "writeoff", "2026-11-13", "Долг прощён", { credit: 30000 }, { writeoff_id: "w1", recorded_on: "2026-11-13" }));
-  data.voided.push(mk(7, "writeoff", "2026-11-14", "Долг прощён", { credit: 10000, voided_at: "2026-11-21T08:00:00", void_reason: "Ошибка", voided_by_name: "Рустам Каримов" }, { writeoff_id: "w2", recorded_on: "2026-11-19" }));
+  data.rows.push(mk(6, "writeoff", "2026-11-13", "Прощено 30 000 сум", { credit: 30000 }, { writeoff_id: "w1", recorded_on: "2026-11-13" }));
+  data.voided.push(mk(7, "writeoff", "2026-11-14", "Прощено 10 000 сум", { credit: 10000, voided_at: "2026-11-21T08:00:00", void_reason: "Ошибка", voided_by_name: "Рустам Каримов" }, { writeoff_id: "w2", recorded_on: "2026-11-19" }));
   data.voided.push(mk(8, "refund", "2026-11-15", "Возврат аванса", { outflow: 5000, voided_at: "2026-11-21T08:00:00", void_reason: "Ошибка", voided_by_name: "Рустам Каримов" }, { refund_id: "r2", recorded_on: "2026-11-18" }));
   return data;
 }

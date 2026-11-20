@@ -75,7 +75,7 @@ function answer(url, request) {
     await page.waitForTimeout(400);
     // the write-off from the row menu of the real page (a form that moves money: its dry run is asked once the reason is typed)
     await page.getByRole("button", { name: /Действия: Иванов Иван/ }).first().click();
-    await page.getByRole("menuitem", { name: /Простить долг/ }).first().click();
+    await page.getByRole("menuitem", { name: /Простить сумму/ }).first().click();
     await page.waitForSelector("#writeoff-reason");
     await page.fill("#writeoff-reason", "болезнь, договорились с родителем");
     await page.waitForSelector('[data-testid="money-effects"][data-state="ready"]', { timeout: 15000 });

@@ -306,7 +306,7 @@ test("write-off: an amount up to the debt (or all of it) and a reason; refund: u
   assert.deepEqual(L.buildWriteoffPayload({ amount: "40 000", all: false, reason: " болезнь " }, "2026-10-21"), { reason: "болезнь", amount: 40000, effective_on: "2026-10-21" });
   assert.deepEqual(L.buildWriteoffPayload({ amount: "", all: true, reason: "болезнь" }), { reason: "болезнь", all: true });
   assert.equal(plain(L.writeoffPreviewText({ amount: "40 000", all: false, reason: "" }, 100000)), "Долг станет 60 000 сум");
-  assert.equal(L.writeoffPreviewText({ amount: "", all: true, reason: "" }, 100000), "Долг будет прощён полностью");
+  assert.equal(L.writeoffPreviewText({ amount: "", all: true, reason: "" }, 100000), "Будет прощено полностью");
   const writeoff = fixture("e6_writeoff_40000");
   assert.equal(writeoff.unpaid_before - writeoff.unpaid_after, writeoff.writeoff.amount); // the answer says `unpaid_*` (13.1)
 
@@ -363,7 +363,7 @@ test("E1 statement (14Б.7): one timeline, «Остаток» is what is open on
   assert.deepEqual(totals.map((total) => total.text).map(plain), ["1 000 000 сум", "1 021 000 сум"]);
   const withOffs = L.statementTotals({ ...statement.summary, written_off: 40000, refunded: 200000 });
   assert.deepEqual(withOffs.map((total) => total.label), ["Стоимость обучения", "Оплачено", "Прощено", "Возвращено"]);
-  assert.match(withOffs[2].hint, /долг, который центр простил \(кнопка «Простить долг»\)/);
+  assert.match(withOffs[2].hint, /сумма, которую центр простил \(кнопка «Простить сумму»\)/);
   assert.match(withOffs[3].hint, /аванс, возвращённый ученику \(кнопка «Вернуть аванс»\)/);
   // the state on the right: the server's `state_text` when nothing is unpaid
   assert.deepEqual(L.statementStates(statement.summary), [{ key: "state", text: "Оплачено до 15.11", sub: null, tone: "advance" }]);
@@ -579,11 +579,11 @@ test("the statement draws E1: «Остаток» of a row is what is open on the
   const extra = { ...statement, rows: [
     rows[0],
     { ...rows[1], details: { ...rows[1].details, replaces_amount: 450000, replaces_receipt_no: 12 } },
-    { seq: 5, date: "2026-09-25", type: "writeoff", title: "Долг прощён", debit: 0, credit: 40000, outflow: 0, balance_after: -229000, balance_text: null, void_reason: null, voided_at: null, voided_by_name: null, details: { ...rows[1].details, allocations: [], reason: "болезнь", created_by_name: "Рустам", method: null, note: null, receipt_no: null, payment_id: null, writeoff_id: "w1" } },
+    { seq: 5, date: "2026-09-25", type: "writeoff", title: "Прощено 40 000 сум — причина: болезнь · Рустам", debit: 0, credit: 40000, outflow: 0, balance_after: -229000, balance_text: null, void_reason: null, voided_at: null, voided_by_name: null, details: { ...rows[1].details, allocations: [], reason: "болезнь", created_by_name: "Рустам", method: null, note: null, receipt_no: null, payment_id: null, writeoff_id: "w1" } },
     { seq: 6, date: "2026-09-26", type: "refund", title: "Возврат", debit: 0, credit: 0, outflow: 21000, balance_after: -250000, balance_text: null, void_reason: null, voided_at: null, voided_by_name: null, details: { ...rows[1].details, allocations: [], reason: "ушёл", created_by_name: "Рустам", method: "cash", note: null, receipt_no: null, payment_id: null, refund_id: "r1" } },
   ] };
   const words = text(React.createElement(StatementTimeline, { statement: extra, menuFor: () => [], withVoided: false }));
-  for (const part of ["исправлена: было 450 000", "Долг прощён — причина: болезнь · Рустам", "прощено", "Возврат аванса — наличные · Рустам", "возврат", "−21 000"]) assert.ok(words.includes(part), part);
+  for (const part of ["исправлена: было 450 000", "Прощено 40 000 сум — причина: болезнь · Рустам", "прощено", "Возврат аванса — наличные · Рустам", "возврат", "−21 000"]) assert.ok(words.includes(part), part);
   assert.ok(extra.rows.length === 4);
   // a statement that does not add up says so on the screen
   const broken = { ...statement, summary: { ...statement.summary, paid: statement.summary.paid - 1000 } };
