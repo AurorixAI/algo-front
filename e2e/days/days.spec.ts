@@ -2,7 +2,7 @@ import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { travel } from "../support/clock";
 import { dm, expectNoHorizontalScroll, moneyPattern, pickOption, toast } from "../support/ui";
-import { FRI, MON_WED_FRI, TUE_THU, holdLesson, lessonOn, mondayOf, openCard, openPayDialog, plusDays, reconcile, reconcileBaseline, rowOf, statementCost, summaryOf, weekly } from "./days-support";
+import { FRI, MON_WED_FRI, TUE_THU, holdLesson, lessonOn, mondayOf, openCard, openPayDialog, paymentsRow, plusDays, reconcile, reconcileBaseline, rowOf, statementCost, statusRow, summaryOf, weekly } from "./days-support";
 
 /**
  * «Life of a student by days» (TIME-TESTS, the days project).  One stand, one forward-only clock: the tests are in the order of their DATES (but independent:
@@ -216,7 +216,7 @@ test("the first scenario: enrol on Wed 15.10.2031 - 343 000 in the window and th
   await drawer.getByPlaceholder(/Поиск по имени/).fill("Мартов");
   await drawer.getByRole("checkbox", { name: /Мартовский Алишер/ }).click();
   await expect(drawer.getByTestId("picked-chips")).toContainText("Мартовский Алишер");
-  await expect(drawer.getByTestId("summary-bar-sum")).toHaveText(new RegExp(`^${moneyPattern(SHARE)}\\sсум$`), RELAX);       // the window: «К оплате сразу 343 000 сум»
+  await expect(drawer.getByTestId("summary-bar-sum")).toHaveText(new RegExp(`^${moneyPattern(SHARE)}\\sсум$`), RELAX);       // the window: the sum, and over it the words of the server «К оплате до 19.10» (the term 5 days from the first charged day 15.10: 15 16 17 18 19)
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);
 
@@ -258,7 +258,9 @@ test("the first scenario: enrol on Wed 15.10.2031 - 343 000 in the window and th
   const listed = status.items.find((item: any) => item.membership_id === membership);
   expect(listed, "the student is in the list of payments").toBeTruthy();
   expect(listed.student_name).toContain("Мартовский");
-  expect(listed.debt).toBe(600_000);
+  expect(listed.unpaid, "everything unpaid").toBe(600_000);
+  // the term of the centre is 5 days (the default): the first charged day of the November cell is 01.11 (the 1st day), so the term is the 5th day = 05.11 - the sum is «к оплате до 05.11», not a debt
+  expect([listed.debt_amount, listed.due_amount, listed.due_until], "01.11 00:10: the new month is a sum in term").toEqual([0, 600_000, "2031-11-05"]);
   expect(await statementCost(page, membership)).toBe(SHARE + 600_000);
   await reconcile(org, "01.11 00:10");
 });
@@ -423,7 +425,7 @@ test("the 15th: «Общий месяц» from the 15th, the centre cancels less
   expect(one.statement.summary.reconciles).toBe(true);
   expect(one.recalc[0].details.recalc.amount, "46 000 = 600 000 / 13 rounded to the thousand").toBe(46_000);
   expect(one.recalc[0].details.recalc.lesson_date).toBe(first.date);
-  expect([one.statement.summary.charged, one.statement.summary.debt], "the charge stays, the debt is smaller").toEqual([600_000, 554_000]);
+  expect([one.statement.summary.charged, one.statement.summary.unpaid], "the charge stays, the debt is smaller").toEqual([600_000, 554_000]);
   await page.goto(`/owner/payments/statement/${membership}`);
   await expect(page.getByText(`Перерасчёт: урок ${dm(first.date)} отменён центром`)).toBeVisible();
   await expect(page.getByText(new RegExp(`−${moneyPattern(46_000)}\\sсум`)).first()).toBeVisible();
@@ -460,7 +462,7 @@ test("the 15th: «Общий месяц» from the 15th, the centre cancels less
   expect(two.recalc.map((r: any) => r.details.recalc.lesson_date).sort()).toEqual([first.date, mine.date]);
   expect(two.recalc.map((r: any) => r.details.recalc.amount)).toEqual([46_000, 46_000]);
   expect(two.statement.summary.reconciles).toBe(true);
-  expect([two.statement.summary.charged, two.statement.summary.debt]).toEqual([600_000, 508_000]);
+  expect([two.statement.summary.charged, two.statement.summary.unpaid]).toEqual([600_000, 508_000]);
   await reconcile(org, "15.06 two lessons cancelled");
 
   // --- 6. «Изменить причину отмены»: both cancellations become holidays -> the lines disappear, the amount is back to 600 000
@@ -476,7 +478,7 @@ test("the 15th: «Общий месяц» from the 15th, the centre cancels less
   const none = await lines();
   expect(none.recalc).toHaveLength(0);
   expect(none.statement.summary.reconciles).toBe(true);
-  expect([none.statement.summary.charged, none.statement.summary.debt]).toEqual([600_000, 600_000]);
+  expect([none.statement.summary.charged, none.statement.summary.unpaid]).toEqual([600_000, 600_000]);
   await page.goto(`/owner/payments/statement/${membership}`);
   await expect(page.getByText(/Перерасчёт: урок/)).toHaveCount(0);
   const back = await openPayDialog(page, "Помесячный");
@@ -531,4 +533,130 @@ test("the 30th: a student joins on Thu 30.03.2034 a group (Tuesdays) with no les
   await travel.toDate("2034-04-28", "00:10");
   await expectDay("Fri 28.04 00:10", 480_000 + 600_000, 480_000 + 600_000);
   await reconcile(org, "28.04 00:10");
+});
+
+// =====================================================================================================================
+// 15.11.2034 (Wed) -> 19.11 23:50 -> 20.11 00:10 -> a term of 10 days -> payment: THE TERM OF PAYMENT (PAY-DUE 9.13б, 10.12): «К оплате» -> «Долг» by the clock
+// =====================================================================================================================
+// November 2034 begins on a WEDNESDAY and has 30 days.  «А» (Mon-Wed-Fri) lessons: Wed 1 8 15 22 29, Fri 3 10 17 24, Mon 6 13 20 27 = 13.  From Wed 15.11 (a lesson of the day, ahead at 14:00): 15 17 20 22 24 27 29 = 7.
+// The share: 600 000 x 7 / 13 = 323 076.9 -> to the thousand 323 000.  The term of the centre is set to 5 days: the first charged day is 15.11 (the 1st day), so the term is the 5th day: 15 16 17 18 19 -> D = 19.11.
+test("term of payment: enrol on the day of a lesson, term 5 days - «К оплате до 19.11»; 19.11 23:50 «до сегодня»; 20.11 00:10 «Долг · просрочено 1 день»; the term 10 brings «К оплате до 24.11» back; the payment says «Оплачено до 30.11»", async ({ signIn }) => {
+  await travel.toDate("2034-11-15", "10:00");
+  const org = await Org.create("Срок оплаты");
+  await reconcileBaseline(org);
+  await org.setPaymentSettings({ pay_due_days: 5 });                                   // the setting is read by the owner and written by the owner only (10.6)
+  const teacher = await org.addStaff("teacher", "Сроков");
+  const group = await org.createGroup({ name: "А", teacherId: teacher.userId });
+  await org.setGroupPrice(group.id, 600_000);
+  await weekly(org, group, MON_WED_FRI);
+  const student = await org.createStudent("Алишер", "Сроковый");
+  const SHARE = 323_000;
+
+  // Wed 15.11 10:00, the window of enrolment: the words of the server over the sum - «К оплате до 19.11» (the term of the first charged day); the sum 323 000; the line under it - the lessons: 7 of 13 in November.
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}`);
+  await page.getByRole("button", { name: /Добавить ученика|Зачислить/ }).first().click();
+  const drawer = page.getByRole("dialog");
+  await drawer.getByPlaceholder(/Поиск по имени/).fill("Сроков");
+  await drawer.getByRole("checkbox", { name: /Сроковый Алишер/ }).click();
+  await expect(drawer.getByTestId("summary-bar-sum")).toHaveText(new RegExp(`^${moneyPattern(SHARE)}\\sсум$`), RELAX);
+  await expect(drawer.getByTestId("summary-bar-label")).toHaveText("К оплате до 19.11");
+  await expect(drawer.getByTestId("summary-bar-line")).toContainText(/7 уроков из 13 в ноябре/);
+  await drawer.getByTestId("enrol-submit").click();
+  await expect(drawer).toHaveCount(0);
+
+  const membership = await org.membershipId(student.id, group.id);
+  let row = await statusRow(org, "Сроковый");
+  expect([row.state, row.due_amount, row.debt_amount, row.due_until, row.due_sub], "15.11 10:00 after enrolling").toEqual(["to_pay", SHARE, 0, "2034-11-19", "до 19.11"]);
+  expect(await statementCost(page, membership), "the statement: the cost of the study").toBe(SHARE);
+  await expect(page.getByTestId("statement-summary")).toContainText(/К оплате/);
+  await expect(page.getByTestId("statement-summary")).toContainText("до 19.11");
+  let line = await paymentsRow(page, /К оплате/, "Сроковый");
+  await expect(line, "the tab «К оплате»: the student, the sum, the term").toContainText(new RegExp(`К оплате\\s+${moneyPattern(SHARE)}`));
+  await expect(line).toContainText("до 19.11");
+  await reconcile(org, "15.11 enrolled");
+
+  // Sun 19.11 23:50: the LAST day of the term - still «К оплате», and the word for it is «до сегодня».
+  await travel.toDate("2034-11-19", "23:50");
+  row = await statusRow(org, "Сроковый");
+  expect([row.state, row.due_amount, row.debt_amount, row.due_sub], "19.11 23:50").toEqual(["to_pay", SHARE, 0, "до сегодня"]);
+  line = await paymentsRow(page, /К оплате/, "Сроковый");
+  await expect(line).toContainText("до сегодня");
+  await reconcile(org, "19.11 23:50");
+
+  // Mon 20.11 00:10: the term has passed by one day: «Долг 323 000 · просрочено 1 день»; the student is in the tab «Должники» and no more in «К оплате».
+  await travel.toDate("2034-11-20", "00:10");
+  row = await statusRow(org, "Сроковый");
+  expect([row.state, row.debt_amount, row.due_amount, row.overdue_days, row.debt_sub], "20.11 00:10").toEqual(["debt", SHARE, 0, 1, "просрочено 1 день"]);
+  line = await paymentsRow(page, /Должники/, "Сроковый");
+  await expect(line, "the tab «Должники»").toContainText(new RegExp(`Долг\\s+${moneyPattern(SHARE)}`));
+  await expect(line).toContainText("просрочено 1 день");
+  await reconcile(org, "20.11 00:10");
+
+  // the owner moves the term 5 -> 10: the term is the 10th day, 15 .. 24 -> D = 24.11.  Before saving the server says who changes the name (dry run): one student from the debtors becomes «К оплате»;
+  // after saving the number is the fact: «К оплате до 24.11», the debtors are gone.  The money did not move (the reconciliation below).
+  const dry = await org.owner.api.put("/auth/org/settings/payments?dry_run=true", { pay_due_days: 10 });
+  expect([dry.pay_due_impact.to_due, dry.pay_due_impact.to_debt], "the dry run of the term 5 -> 10").toEqual([1, 0]);
+  expect(String(dry.pay_due_impact.texts[0]).replace(/\u00a0/g, " ")).toBe("1 ученик из должников станет «К оплате»");
+  await org.setPaymentSettings({ pay_due_days: 10 });
+  row = await statusRow(org, "Сроковый");
+  expect([row.state, row.due_amount, row.debt_amount, row.due_until, row.due_sub], "20.11 00:10, the term 10").toEqual(["to_pay", SHARE, 0, "2034-11-24", "до 24.11"]);
+  line = await paymentsRow(page, /К оплате/, "Сроковый");
+  await expect(line).toContainText("до 24.11");
+  await expect(page.getByRole("tab", { name: /Должники/ })).toContainText("0");
+  const sum = await summaryOf(org, student, group);
+  expect([sum.charged, sum.paid, sum.debt, sum.advance], "the term moves the NAME only, not a sum").toEqual([SHARE, 0, SHARE, 0]);
+  await reconcile(org, "20.11 term 10");
+
+  // the payment of 323 000: nothing is unpaid, «Оплачено до 30.11» (the end of the cell)
+  await org.pay(student.id, SHARE);
+  row = await statusRow(org, "Сроковый");
+  expect([row.state, row.due_amount, row.debt_amount, row.paid_until], "after the payment").toEqual(["paid", 0, 0, "2034-11-30"]);
+  line = await paymentsRow(page, /Без долга/, "Сроковый");
+  await expect(line, "the tab «Без долга»: paid until the end of the month").toContainText("Оплачено до 30.11");
+  await reconcile(org, "20.11 paid");
+});
+
+// =====================================================================================================================
+// 15.08.2035 (Wed) -> 17.08 (Fri): LEAVE OF THE ONLY GROUP BEFORE THE TERM - the sum becomes a debt, without words of being late
+// =====================================================================================================================
+// August 2035 begins on a WEDNESDAY and has 31 days: «А» (Mon-Wed-Fri) 14 lessons: Mon 6 13 20 27, Wed 1 8 15 22 29, Fri 3 10 17 24 31.  Term 5 days from 15.08: 15 16 17 18 19 -> D = 19.08.
+// Enrolled on 15.08 (a lesson of the day): 15 17 20 22 24 27 29 31 = 8 of 14 -> 600 000 x 8 / 14 = 342 857 -> 343 000, «к оплате до 19.08».
+// Leaves on Fri 17.08 (the day of leaving counts): the stay 15..17 holds the lessons 15, 17 = 2 of 14 -> 600 000 x 2 / 14 = 85 714 -> 86 000.
+test("leave of the only group before the term: the window says the sum becomes a debt; after it «Долг 86 000» without «просрочено»; after the old term (20.08 00:10) the days count: 1 day", async ({ signIn }) => {
+  await travel.toDate("2035-08-15", "10:00");
+  const org = await Org.create("Уход до срока");
+  await reconcileBaseline(org);
+  await org.setPaymentSettings({ pay_due_days: 5 });
+  const teacher = await org.addStaff("teacher", "Уходов");
+  const group = await org.createGroup({ name: "А", teacherId: teacher.userId });
+  await org.setGroupPrice(group.id, 600_000);
+  await weekly(org, group, MON_WED_FRI);
+  const student = await org.addStudent(group, "Рустам", "Единственный", undefined, null);      // no «Оплата с»: from the first lesson, Wed 15.08
+  let row = await statusRow(org, "Единственный");
+  expect([row.state, row.due_amount, row.due_until], "15.08 after enrolling").toEqual(["to_pay", 343_000, "2035-08-19"]);
+  await reconcile(org, "15.08 enrolled");
+
+  // Fri 17.08 10:00, before the term: the window of leaving names the sum by the state AFTER the leaving, in the words of the server
+  await travel.toDate("2035-08-17", "10:00");
+  const page = await signIn(org.owner);
+  const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
+  const stay = preview.memberships[0].effects.stays.find((item: any) => item.code === "debt");
+  expect(String(stay.text).replace(/\u00a0/g, " "), "the server's sentence in the window").toBe("К оплате 86 000 сум. Это единственная группа ученика: после ухода сумма станет долгом");
+  await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
+
+  // after the leaving: a DEBT of 86 000 at once, the term was 19.08 (it has not come): no words about being late
+  row = await statusRow(org, "Единственный", "debtors");
+  expect([row.state, row.debt_amount, row.due_amount, row.debt_text], "17.08 after leaving").toEqual(["debt", 86_000, 0, "Долг 86\u00a0000\u00a0сум"]);
+  expect(String(row.debt_sub ?? ""), "no word about being late").not.toContain("просрочено");
+  const line = await paymentsRow(page, /Должники/, "Единственный");
+  await expect(line).toContainText(new RegExp(`Долг\\s+${moneyPattern(86_000)}`));
+  await expect(line).not.toContainText("просрочено");
+  await reconcile(org, "17.08 left");
+
+  // Sun 19.08 23:50 -> Mon 20.08 00:10: the old term (19.08) has passed: the debt is overdue by 1 day (the days go by rule 2)
+  await travel.toDate("2035-08-20", "00:10");
+  row = await statusRow(org, "Единственный", "debtors");
+  expect([row.state, row.debt_amount, row.overdue_days, row.debt_sub], "20.08 00:10").toEqual(["debt", 86_000, 1, "просрочено 1 день"]);
+  await reconcile(org, "20.08 00:10");
 });

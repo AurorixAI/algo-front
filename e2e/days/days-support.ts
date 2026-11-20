@@ -71,7 +71,8 @@ export interface Summary {
 export async function summaryOf(org: Org, student: StudentInfo, group: GroupInfo): Promise<Summary> {
   const membership = await org.membershipId(student.id, group.id);
   const statement = await org.owner.api.get(`/auth/org/memberships/${membership}/statement`);
-  return statement.summary as Summary;
+  // PAY-DUE: the summary names everything unpaid `unpaid` (a debt and a sum in term together); the tests below say «debt» for that whole sum, as before the term of payment existed
+  return { ...statement.summary, debt: statement.summary.unpaid ?? statement.summary.debt } as Summary;
 }
 
 /** The statement page: «Стоимость обучения» (the charged sum) as the owner reads it, and the totals reconcile. */
@@ -183,4 +184,22 @@ export async function openPayDialog(page: Page, lastName: string) {
   const amountNow = async () => Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""));
   await expect.poll(amountNow, { message: "the dialog proposes a sum" }).toBeGreaterThan(0);
   return { dialog, amountNow };
+}
+
+
+// ------------------------------------------------------------------------------------------------ the term of payment (PAY-DUE): the list «Оплаты» and the status of the API
+
+/** The row of the student in the list «Оплаты» of the API (`/org/payments/status`, every tab): the names of the unpaid sums and the term, as the server says them. */
+export async function statusRow(org: Org, lastName: string, bucket = "all"): Promise<any> {
+  const status = await org.owner.api.get("/auth/org/payments/status", { bucket, scope: "all", search: lastName });
+  const found = status.items.filter((item: any) => String(item.student_name).includes(lastName));
+  if (found.length !== 1) throw new Error(`the list «Оплаты» (${bucket}) has ${found.length} rows of ${lastName}`);
+  return found[0];
+}
+
+/** The row of the student in a TAB of the page «Оплаты» (the tab is opened by its name), as the owner sees it. */
+export async function paymentsRow(page: Page, tab: RegExp, lastName: string) {
+  await page.goto("/owner/payments");
+  await page.getByRole("tab", { name: tab }).click();
+  return page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
 }
