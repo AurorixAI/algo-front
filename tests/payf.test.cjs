@@ -56,8 +56,8 @@ test("1. the amber label of a package that runs out is the server's («Оста�
 });
 
 test("1. the forecast is on the list, the group tab and the student's block, and not on the receipt or the statement", () => {
-  assert.match(read("src/components/payments/payments-page.tsx"), /<PackageProgress row=\{row\} variant="compact" \/>/);
-  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<PackageProgress row=\{view\.row\} variant="compact"/);
+  assert.match(read("src/components/payments/payments-page.tsx"), /<PackageProgress row=\{row\} variant="compact" bare=\{Boolean\(label\.text\)\} \/>/);
+  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<PackageProgress row=\{view\.row\} variant="compact" bare=\{Boolean\(view\.chip\.label\)\}/);
   assert.match(read("src/components/payments/membership-payments.tsx"), /<PackageProgress row=\{row\}/);
   for (const file of ["src/components/payments/receipt-view.tsx", "src/lib/payments-ledger.ts"]) assert.doesNotMatch(read(file), /paid_through_forecast|forecastText/, file);
 });
@@ -154,7 +154,7 @@ test("3. the deduction: «−46 000 сум: урок 21.10 отменён цен
   assert.equal(plain(F.recalcText({ lesson_date: "2026-10-21", amount: 46000 })), "−46 000 сум: урок 21.10 отменён центром");        // built here when an older answer has no text
   assert.deepEqual(F.recalcLines([line, { ...line, lesson_id: "x", lesson_date: "2026-10-23", amount: 46000, text: "" }]).total, 92000);
   assert.deepEqual(F.recalcLines(undefined), { texts: [], total: 0 });
-  const summary = { charged: 600000, paid: 0, transferred_in: 0, written_off: 0, recalculated: 46000, refunded: 0, transferred_out: 0, debt: 554000, advance: 0, paid_until: null, status: "none", reconciles: true };
+  const summary = { charged: 600000, paid: 0, transferred_in: 0, written_off: 0, recalculated: 46000, refunded: 0, transferred_out: 0, unpaid: 554000, advance: 0, paid_until: null, status: "none", reconciles: true };
   assert.equal(L.statementDiff(summary), 0);                                                         // charged - recalculated = debt
   assert.equal(L.statementReconciles(summary), true);
   assert.equal(L.statementReconciles({ ...summary, recalculated: 0 }), false);

@@ -255,7 +255,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
           explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
           action: "Отменить прощение",
           // Money-1 V1: the debt the person SAW is checked by the server (a change in between is «Долг изменился: было …, сейчас …»)
-          expected: statement?.summary.debt, expectedKind: "debt", emptyText: "Долга больше нет", onStale: changed,
+          expected: statement?.summary.unpaid, expectedKind: "debt", emptyText: "Долга больше нет", onStale: changed,
           run: async (reason, expected) => { const result = await orgApi.voidWriteoff(id, reason, expected); const note = studentToast(); showToast("Прощение долга отменено", note.tone, note.details); changed(); },
         }),
       });

@@ -575,8 +575,8 @@ test("payments page: three cards before the tabs; the card count is the tab coun
 });
 
 test("payment tabs: the numbers of each tab come from the summary, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
-  // students: 3 debtors (4 memberships: one owes in two groups), 1 on a pause, 1 expiring, 4 without a debt
-  const summary = { period_mode: "calendar", debtors: 3, due_students: 0, expiring: 1, active: 4, paused: 2, students_paused: 1, price_missing: 1, advance_total: 100000, students_with_advance: 1, buckets: { debtors: 4, to_pay: 0, expiring: 1, active: 4, paused: 2 } };
+  // students (14А.6: `buckets` count STUDENTS): 3 debtors (one of them owes in two groups), 1 on a pause, 1 expiring, 4 without a debt
+  const summary = { period_mode: "calendar", debtors: 3, due_students: 0, expiring: 1, active: 4, paused: 2, students_paused: 1, price_missing: 1, advance_total: 100000, students_with_advance: 1, buckets: { debtors: 3, to_pay: 0, expiring: 1, active: 4, paused: 1 } };
   const state = SUMM.summaryToState(summary);
   assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(state.tabs, b.key))), ["Должники 3", "К оплате 0", "Заканчивается оплата 1", "Без долга 4"]);
   assert.equal(P.bucketCount(state.tabs, "paused"), 1, "the badge counts STUDENTS (1), not memberships (2)");

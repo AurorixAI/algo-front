@@ -36,14 +36,15 @@ function Bar({ p, compact }: { p: Progress; compact?: boolean }) {
  * The package of lessons as a progress block (nothing for a calendar mode).  `card`: on the card of the student - «Осталось 8 из 12 уроков» and «до ~21.11» over the segmented bar,
  * «по расписанию» / «Пакет закончился» under it.  `compact`: in the tables - «8/12 уроков» (the colour of the state), the date as quiet grey text, a thin bar.  One component for every place.
  */
-export function PackageProgress({ row, variant = "card", className = "" }: { row: Row | MembershipPaymentRow; variant?: "card" | "compact"; className?: string }) {
+/** `bare` (compact only): the words of the package are the SERVER's label next to it («Осталось 7 уроков», `state_text`), so the bar says no count of its own - only the bar and the date of the forecast (PAY-DUE 14А.6). */
+export function PackageProgress({ row, variant = "card", className = "", bare = false }: { row: Row | MembershipPaymentRow; variant?: "card" | "compact"; className?: string; bare?: boolean }) {
   const p = packageProgress(row);
   if (!p) return null;
   if (variant === "compact") {
     return (
       <div data-testid="package-progress-compact" className={`w-full max-w-[10.5rem] min-w-[7rem] space-y-1 ${className}`}>
         <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs leading-tight tabular-nums">
-          <span className={`whitespace-nowrap font-semibold ${PACKAGE_TEXT_CLASS[p.tone]}`}>{p.shortText}</span>
+          {!bare && <span className={`whitespace-nowrap font-semibold ${PACKAGE_TEXT_CLASS[p.tone]}`}>{p.shortText}</span>}
           {p.forecastDay ? <span className="whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400">до {p.forecastDay}</span> : p.left === 0 ? <span className="text-[11px] text-slate-500">закончился</span> : null}
         </p>
         <Bar p={p} compact />

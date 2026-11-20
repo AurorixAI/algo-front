@@ -752,7 +752,7 @@ export function statementTotals(summary: StatementSummary | null | undefined): S
   if (sum(summary.recalculated) > 0) out.push(money("recalculated", "Перерасчёт", sum(summary.recalculated), STATEMENT_HINTS.recalculated));
   if (sum(summary.refunded) > 0) out.push(money("refunded", "Возвращено", summary.refunded, STATEMENT_HINTS.refunded));
   if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Деньги в другие группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
-  const left = sum(summary.advance) - sum(summary.debt);
+  const left = sum(summary.advance) - sum(summary.unpaid);
   const cell = balanceCell(left);
   out.push({ key: "balance", label: "Остаток", amount: Math.abs(left), text: cell.text, tone: cell.kind });
   return out;
@@ -761,7 +761,7 @@ export function statementTotals(summary: StatementSummary | null | undefined): S
 /** The identity of the statement: стоимость − оплачено − перенесено − прощено + возвращено + перенесено в другие = долг − аванс. */
 export function statementDiff(summary: StatementSummary): number {
   const left = sum(summary.charged) - sum(summary.paid) - sum(summary.transferred_in) - sum(summary.written_off) - sum(summary.recalculated) + sum(summary.refunded) + sum(summary.transferred_out);
-  return left - (sum(summary.debt) - sum(summary.advance));
+  return left - (sum(summary.unpaid) - sum(summary.advance));
 }
 
 /** «сходится» only when the server and this check agree. */
@@ -773,7 +773,7 @@ export function statementReconciles(summary: StatementSummary | null | undefined
 export function statementEndsAtBalance(statement: Pick<StatementOut, "rows" | "summary">): boolean {
   const rows = statement.rows.filter((row) => row.balance_after !== null);
   if (rows.length === 0) return true;
-  return sum(rows[rows.length - 1].balance_after) === sum(statement.summary.advance) - sum(statement.summary.debt);
+  return sum(rows[rows.length - 1].balance_after) === sum(statement.summary.advance) - sum(statement.summary.unpaid);
 }
 
 /** Every `balance_after` equals the previous one plus the effect of the row (rows are in time order). */
@@ -827,8 +827,18 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
       recalculated: sum(summary.recalculated),
       refunded: sum(summary.refunded),
       transferred_out: sum(summary.transferred_out),
-      debt: sum(summary.debt),
+      unpaid: sum(summary.unpaid),
       advance: sum(summary.advance),
+      debt_amount: sum(summary.debt_amount),
+      due_amount: sum(summary.due_amount),
+      due_until: summary.due_until ?? null,
+      overdue_days: nullableSum(summary.overdue_days),
+      debt_text: summary.debt_text ?? null,
+      debt_sub: summary.debt_sub ?? null,
+      due_text: summary.due_text ?? null,
+      due_sub: summary.due_sub ?? null,
+      state: summary.state ?? "none",
+      state_text: summary.state_text ?? null,
       paid_until: summary.paid_until ?? null,
       status: summary.status ?? "none",
       reconciles: summary.reconciles !== false,
@@ -934,7 +944,7 @@ export interface StatementRowView {
 
 export function statementRowView(row: StatementRow): StatementRowView {
   const effect = effectOf(row);
-  const balance = row.balance_after;
+  const balance = row.balance_after ?? null;
   const balanceKind: BalanceKind = balance === null ? "none" : balance < 0 ? "debt" : balance > 0 ? "advance" : "none";
   const cancelled = Boolean(row.voided_at);
   return {

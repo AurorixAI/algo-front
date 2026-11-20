@@ -114,7 +114,7 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     assert.equal(sum, X.SUMMARY.due_total);
     // a student with both sums: the second line says the debt, the term-first line stays «к оплате»
     const timur = plain(rows.find((t) => t.includes("Тимур")));
-    assert.match(timur, /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней · оплачено до 30\.09/);
+    assert.match(timur, /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/);
     // no notice above the page, no column of the price, no «Цена»
     assert.equal(await page.locator('[data-testid="payments-alert-banner"]').count(), 0);
     const body = plain(await page.locator("body").first().innerText());
@@ -149,7 +149,7 @@ test("«Оплаты», tab «Должники»: the debt leads, «просро
   const { page } = await open(1280, 900, server(), ["payments", OWNER, { search: "bucket=debtors" }]);
   await page.waitForSelector('[data-testid="pay-label"]');
   const rows = (await page.locator("li").allInnerTexts()).map(plain);
-  assert.match(rows.find((t) => t.includes("Тимур")), /Долг 600 000 сум просрочено 45 дней · оплачено до 30\.09 и к оплате 231 000 сум · до 24\.11/);
+  assert.match(rows.find((t) => t.includes("Тимур")), /Долг 600 000 сум просрочено 45 дней · оплачено до 30\.09 и к оплате 231 000 сум до 24\.11/);
   assert.match(rows.find((t) => t.includes("Лола")), /Долг 600 000 сум просрочено 14 дней · оплачено до 31\.10/);
   assert.ok(!/и к оплате/.test(rows.find((t) => t.includes("Лола"))), "no second line for a student with one sum");
   const strip = plain(await page.locator('[data-testid="debt-ages"]').first().innerText());
@@ -167,8 +167,8 @@ test("«Оплаты», tab «Должники»: the debt leads, «просро
 
 test("«Оплаты», a package centre: «К оплате 100 000 сум · 2 урока» + the date, «и долг …» on a second line only for the one with both", async () => {
   const pk = (id, name, over) => X.base({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, period_mode: "lessons", lessons_total: 8, ...over });
-  const SAID = pk("said", "Саид Назаров", { debt: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12" });
-  const DIL = pk("dil", "Дильноза Ахмедова", { debt: 150000, debt_amount: 50000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, debt_lessons: 1, state: "debt", state_text: "Долг 50 000 сум · 1 урок", debt_text: "Долг 50 000 сум · 1 урок", debt_sub: "просрочено 3 дня", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12" });
+  const SAID = pk("said", "Саид Назаров", { unpaid: 100000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, state: "to_pay", state_text: "К оплате 100 000 сум · 2 урока", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12" });
+  const DIL = pk("dil", "Дильноза Ахмедова", { unpaid: 150000, debt_amount: 50000, due_amount: 100000, due_until: "2026-12-04", due_lessons: { used: 2 }, debt_lessons: 1, state: "debt", state_text: "Долг 50 000 сум · 1 урок", debt_text: "Долг 50 000 сум · 1 урок", debt_sub: "просрочено 3 дня", due_text: "К оплате 100 000 сум · 2 урока", due_sub: "до 04.12", debt_also_text: "и долг 50 000 сум · 1 урок · просрочено 3 дня", due_also_text: "и к оплате 100 000 сум · 2 урока · до 04.12" });
   const answer = server((r) => {
     if (r.path === "/auth/org/payments/summary") return { json: { ...X.SUMMARY, period_mode: "lessons", debt_total: 50000, debtors: 1, due_total: 200000, due_students: 2, buckets: { debtors: 1, to_pay: 2, expiring: 0, active: 0, paused: 0 } } };
     if (r.path === "/auth/org/payments/status") return { json: { items: /bucket=to_pay/.test(r.query) ? [SAID, DIL] : [DIL], total: /bucket=to_pay/.test(r.query) ? 2 : 1, students: /bucket=to_pay/.test(r.query) ? 2 : 1, amount_total: 0, limit: 50, offset: 0 } };

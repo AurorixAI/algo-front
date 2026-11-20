@@ -376,6 +376,8 @@ export interface MembershipPaymentRow {
    * EVERYTHING unpaid of the group (whole сум) = `debt_amount + due_amount`: a sum, never a name (the name is `state`).  The server renames it `debt` → `unpaid`
    * (PAY-DUE, second part): the screens read it ONLY through `rowUnpaid` (lib/pay-state.ts), so the change of the name is one line there.
    */
+  unpaid?: number;
+  /** The same sum in the normalised row (`normalizeRow` copies `unpaid` here): the screens that have always read `row.debt` keep working, nothing reads the server's name but `rowUnpaid`. */
   debt?: number;
   advance?: number;
   /** Money that covers a part of a day / lesson not bought completely. */
@@ -713,14 +715,30 @@ export interface StatementRow {
   credit: number;
   /** Money out: a refund or a transfer to another group. */
   outflow: number;
-  /** Minus = debt, plus = advance.  Null on a cancelled row. */
-  balance_after: number | null;
-  /** «Долг 269 000» / «Аванс 21 000» / «Нет долга» — the server's words. */
-  balance_text: string | null;
+  /** The RUNNING total (minus = debt, plus = advance).  The server drops it after the screens' part 2 (PAY-DUE 10.11): the column «Остаток» reads `open_*`, nothing reads these two any more. */
+  balance_after?: number | null;
+  balance_text?: string | null;
+  /**
+   * PAY-DUE 10.11: what is open on the row ITSELF today, in the server's words.  A charge: the unpaid part of THIS charge named by the term (`paid` «Оплачено», `due` «К оплате N», `debt` «Долг N»); a payment (and a transfer
+   * that brought money): `advance` («Аванс N») while a part of it is not laid on the charges yet, else null; a refund, a write-off, a transfer out: null.  `open_parts`: the same split by name - one element, or TWO
+   * (the debt first) when the unpaid part of one charge holds both names; `open_name` is the worst of them (the tone), `open_amount` their sum, `open_text` the words of both.
+   */
+  open_amount?: number | null;
+  open_name?: OpenName | null;
+  open_text?: string | null;
+  open_parts?: OpenPart[];
   details: StatementDetails;
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+}
+
+export type OpenName = "paid" | "due" | "debt" | "advance";
+
+export interface OpenPart {
+  name: OpenName;
+  amount: number;
+  text: string;
 }
 
 export interface StatementSummary {
@@ -732,12 +750,24 @@ export interface StatementSummary {
   recalculated?: number;
   refunded: number;
   transferred_out: number;
-  debt: number;
+  /** Everything unpaid (`debt_amount + due_amount`): a sum, never a name (the server's `unpaid`, 14А.6). */
+  unpaid: number;
   advance: number;
   paid_until: string | null;
   status: PaymentStatus;
-  /** charged − paid − written_off − recalculated + refunded = debt − advance (checked by the server). */
+  /** charged − paid − written_off − recalculated + refunded = unpaid − advance (checked by the server). */
   reconciles: boolean;
+  /** PAY-DUE 10.2: the unpaid sum NAMED by the term and the server's words (the same fields as a row of the list): `debt_*` the part whose term has passed, `due_*` the part within it, `state` / `state_text` the worst state. */
+  debt_amount?: number;
+  due_amount?: number;
+  due_until?: string | null;
+  overdue_days?: number | null;
+  debt_text?: string | null;
+  debt_sub?: string | null;
+  due_text?: string | null;
+  due_sub?: string | null;
+  state?: PayState;
+  state_text?: string | null;
 }
 
 export interface StatementMembership {
@@ -967,8 +997,8 @@ export const PAYMENT_SAVED_TEXT: Record<"create" | "replace", string> = {
  * Money is due when the group has a debt, was never paid, or the paid period has ended: the button in the student's
  * card is filled; for a running payment it is outlined.
  */
-export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment"> & { debt?: number | null }): boolean {
-  if (rowUnpaid(row) > 0) return true;
+export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment"> & { debt?: number | null; unpaid?: number | null }): boolean {
+  if (rowUnpaid(row) > 0 || (Number(row.debt) || 0) > 0) return true;       // the server's `unpaid` or the normalised row's `debt` (the same sum)
   if (!row.last_payment) return true;
   return row.status === "expired" || row.status === "none";
 }

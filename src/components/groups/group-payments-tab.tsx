@@ -334,7 +334,7 @@ function ChipView({ view }: { view: GroupPaymentRowView }) {
     <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center">
       {view.chip.label && <Chip tone={view.chip.tone} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>}
       {view.chip.sub && <p className="text-xs text-slate-600 lg:text-center" data-testid="membership-chip-sub">{view.chip.sub}</p>}
-      <PackageProgress row={view.row} variant="compact" className="lg:[&>p]:justify-center" />
+      <PackageProgress row={view.row} variant="compact" bare={Boolean(view.chip.label)} className="lg:[&>p]:justify-center" />
     </div>
   );
 }

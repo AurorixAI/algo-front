@@ -594,7 +594,7 @@ function PaymentRow({
           {label.sub && <p className="w-full text-xs text-slate-600" data-testid="pay-sub">{label.sub}</p>}
           {label.second && <p className="w-full text-xs text-slate-600" data-testid="pay-second">{label.second}</p>}
           {/* a package that is paid: how many lessons are left (the bar of the package); a sum in its term / a debt already says its lessons in its own words */}
-          {row.period_mode === "lessons" && (label.state === "paid" || label.state === "expiring") && <PackageProgress row={row} variant="compact" />}
+          {row.period_mode === "lessons" && (label.state === "paid" || label.state === "expiring") && <PackageProgress row={row} variant="compact" bare={Boolean(label.text)} />}
         </div>
       </DataCell>
       <DataCell col="actions">

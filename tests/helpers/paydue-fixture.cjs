@@ -10,13 +10,13 @@ const base = (over) => ({
   membership_id: "m", student_id: "s", student_name: "X", display_id: null, class_level: 7, group_id: "g1", group_name: "Математика 7", teacher_id: "t1", teacher_name: "Каримова К.",
   is_primary: true, is_active: true, price: { amount: 600000, source: "group", valid_from: "2026-01-01", group_amount: 600000, reason: null }, monthly_fee: 600000,
   status: "active", period_mode: "calendar", paid_until: null, days_left: null, lessons_total: null, lessons_used: null, lessons_left: null, last_payment: null,
-  debt: 0, advance: 0, partial_credit: 0, price_missing: false, lessons_unpaid: 0, refundable: 0, writeoff_allowed: true,
+  unpaid: 0, advance: 0, partial_credit: 0, price_missing: false, lessons_unpaid: 0, refundable: 0, writeoff_allowed: true,
   debt_amount: 0, due_amount: 0, due_until: null, overdue_days: null, due_lessons: null, debt_lessons: 0, debt_text: null, debt_sub: null, due_text: null, due_sub: null,
   state: "paid", state_text: null, debt_age_bucket: null, ...over,
 });
 
 const due = (id, name, amount, until, untilText, over = {}) => base({
-  membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, debt: amount, due_amount: amount, due_until: until, state: "to_pay",
+  membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, unpaid: amount, due_amount: amount, due_until: until, state: "to_pay",
   state_text: `К оплате ${money(amount)}`, due_text: `К оплате ${money(amount)}`, due_sub: untilText, ...over,
 });
 
@@ -26,11 +26,11 @@ const AZIZ = due("aziz", "Азиз Салимов", 231000, "2026-11-24", "до 
 const ANVAR = due("anvar", "Анвар Каримов", 231000, "2026-11-24", "до 24.11");
 const NODIRA = due("nodira", "Нодира Хасанова", 231000, "2026-11-24", "до 24.11");
 const TIMUR = base({
-  membership_id: "m-timur", student_id: "s-timur", student_name: "Тимур Рашидов", debt: 831000, debt_amount: 600000, due_amount: 231000, due_until: "2026-11-24", overdue_days: 45, state: "debt",
-  state_text: `Долг ${money(600000)}`, debt_text: `Долг ${money(600000)}`, debt_sub: "просрочено 45 дней · оплачено до 30.09", due_text: `К оплате ${money(231000)}`, due_sub: "до 24.11", debt_age_bucket: "31_60",
+  membership_id: "m-timur", student_id: "s-timur", student_name: "Тимур Рашидов", unpaid: 831000, debt_amount: 600000, due_amount: 231000, due_until: "2026-11-24", overdue_days: 45, state: "debt",
+  state_text: `Долг ${money(600000)}`, debt_text: `Долг ${money(600000)}`, debt_sub: "просрочено 45 дней · оплачено до 30.09", due_text: `К оплате ${money(231000)}`, due_sub: "до 24.11", debt_also_text: `и долг ${money(600000)} · просрочено 45 дней`, due_also_text: `и к оплате ${money(231000)} до 24.11`, debt_age_bucket: "31_60",
 });
 const LOLA = base({
-  membership_id: "m-lola", student_id: "s-lola", student_name: "Лола Юсупова", debt: 600000, debt_amount: 600000, overdue_days: 14, state: "debt",
+  membership_id: "m-lola", student_id: "s-lola", student_name: "Лола Юсупова", unpaid: 600000, debt_amount: 600000, overdue_days: 14, state: "debt",
   state_text: `Долг ${money(600000)}`, debt_text: `Долг ${money(600000)}`, debt_sub: "просрочено 14 дней · оплачено до 31.10", paid_until: "2026-10-31", debt_age_bucket: "to_30",
 });
 const MADINA = base({ membership_id: "m-madina", student_id: "s-madina", student_name: "Мадина Турсунова", paid_until: "2026-11-30", state: "paid", state_text: "Оплачено до 30.11" });

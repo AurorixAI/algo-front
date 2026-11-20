@@ -594,7 +594,7 @@ test("F25 (wave 3): money is RIGHT, text and dates LEFT - the list of «Опла
   assert.match(page, /\{ key: "status", header: "Статус"/);
   assert.match(read("src/components/payments/group-prices-page.tsx"), /aligns=\{\["left", "right", "right", "center", "right"\]\}/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /aria-label=\{priceColumn\} className=\{`\$\{HEAD\} text-right/);
-  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<span>\{label\}<\/span>/); // 26.10: price + «индивидуальная» chip are left-aligned in their own column
+  assert.doesNotMatch(read("src/components/groups/group-payments-tab.tsx"), /<span>\{label\}<\/span>/); // 14А.4: no column of the price on the tab of the group (the «индивидуальная» mark is under the name of its student)
 });
 
 // ── F14 / F17 / F34 / F36 ─────────────────────────────────────────────────────────────────────────────

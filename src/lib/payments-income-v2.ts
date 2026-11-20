@@ -101,6 +101,9 @@ export interface IncomePosition {
   due_total: number;
   debtors: number;
   due_students: number;
+  /** The server's words of the two parts («Долг 600 000 сум» / «К оплате 231 000 сум»; null at zero): the screen glues nothing (14А.6). */
+  debt_text?: string | null;
+  due_text?: string | null;
   advance_total: number;
   memberships_with_advance: number;
   students_with_advance: number;
@@ -285,6 +288,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     } : null,
     position: {
       debt_total: sum(position.debt_total), due_total: sum(position.due_total), debtors: sum(position.debtors), due_students: sum(position.due_students),
+      debt_text: nullableText(position.debt_text), due_text: nullableText(position.due_text),
       advance_total: sum(position.advance_total),
       memberships_with_advance: sum(position.memberships_with_advance), students_with_advance: sum(position.students_with_advance),
     },
@@ -606,7 +610,8 @@ export function debtCard(overview: IncomeOverview): PositionCard {
   const p = overview.position;
   // the red number is the DEBT (the term has passed); the sum within its term is named under it, never silently added
   const debt = p.debt_total;
-  const due = p.due_total > 0 ? `К оплате ${formatMoney(p.due_total)}${p.due_students > 0 ? ` · ${studentsText(p.due_students)}` : ""}` : "";
+  // the words of the part within its term are the server's (`due_text`); it said nothing - the card says nothing (151)
+  const due = p.due_total > 0 ? (p.due_text ?? "").trim() : "";
   if (debt > 0) return { amount: formatMoney(debt), caption: studentsText(p.debtors), due, none: false };
   return due ? { amount: "Долгов нет", caption: "Никто не просрочил", due, none: true } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
 }

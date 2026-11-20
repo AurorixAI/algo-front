@@ -125,7 +125,7 @@ test("lessons mode: «Цена пакета» in the header, the cell is the sum
   const r = row(1, "Алиев", { period_mode: "lessons", lessons_total: 12, lessons_left: 9, lessons_used: 3, paid_until: null, state: "paid", state_text: null });
   const v = G.paymentRowViews([r], { periodMode: "lessons", today: TODAY })[0];
   assert.equal(plain(v.priceText), "500 000 сум");
-  assert.equal(v.chip.label, null);                             // 151: a paid package has no label of the server - the screen says nothing; the count is the progress line of the package
+  assert.equal(v.chip.label, null);                             // 151: a paid package has no label of the server - the screen says nothing; the count is the progress line of the package (when the server speaks - «Осталось K уроков» - the bar is bare)
   assert.equal(require(path.join(root, "src/lib/package-progress.ts")).packageProgress(r).leftText, "Осталось 9 из 12 уроков");
   assert.equal(plain(G.scheduledLine({ amount: 400000, valid_from: "2026-12-01" }, TODAY, "Цена пакета")), "с 01.12 — 400 000 сум за пакет");
 });

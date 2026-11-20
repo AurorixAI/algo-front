@@ -20,15 +20,15 @@ const N = (s) => String(s).replace(/[\u00A0\u202F]/g, " ");
 
 // ── the rows of the contract (today is Friday 20.11.2026, the term is 5 days) ───────────────────────────
 // Анвар: записан сегодня, 600 000 × 5 / 13 уроков = 230 769 → 231 000; срок = 5-й день с 20.11 = 24.11
-const ANVAR = { membership_id: "m1", student_id: "s1", state: "to_pay", state_text: "К оплате 231 000 сум", due_amount: 231000, debt_amount: 0, due_until: "2026-11-24", due_text: "К оплате 231 000 сум", due_sub: "до 24.11", debt_text: null, debt_sub: null, debt: 231000 };
+const ANVAR = { membership_id: "m1", student_id: "s1", state: "to_pay", state_text: "К оплате 231 000 сум", due_amount: 231000, debt_amount: 0, due_until: "2026-11-24", due_text: "К оплате 231 000 сум", due_sub: "до 24.11", debt_text: null, debt_sub: null, unpaid: 231000 };
 // Тимур: ушёл 31.10 с долгом за октябрь 600 000 (срок был 06.10 → просрочено 45 дней), вернулся сегодня: за ноябрь 231 000 до 24.11
-const TIMUR = { membership_id: "m2", student_id: "s2", state: "debt", state_text: "Долг 600 000 сум", debt_amount: 600000, due_amount: 231000, due_until: "2026-11-24", overdue_days: 45, debt_text: "Долг 600 000 сум", debt_sub: "просрочено 45 дней · оплачено до 30.09", due_text: "К оплате 231 000 сум", due_sub: "до 24.11", debt: 831000 };
+const TIMUR = { membership_id: "m2", student_id: "s2", state: "debt", state_text: "Долг 600 000 сум", debt_amount: 600000, due_amount: 231000, due_until: "2026-11-24", overdue_days: 45, debt_text: "Долг 600 000 сум", debt_sub: "просрочено 45 дней · оплачено до 30.09", due_text: "К оплате 231 000 сум", due_sub: "до 24.11", debt_also_text: "и долг 600 000 сум · просрочено 45 дней", due_also_text: "и к оплате 231 000 сум до 24.11", unpaid: 831000 };
 // Лола: 600 000 с 02.11, срок был 06.11 → просрочено 14 дней, оплачено до 31.10
-const LOLA = { membership_id: "m3", student_id: "s3", state: "debt", state_text: "Долг 600 000 сум", debt_amount: 600000, due_amount: 0, overdue_days: 14, debt_text: "Долг 600 000 сум", debt_sub: "просрочено 14 дней · оплачено до 31.10", due_text: null, due_sub: null, debt: 600000 };
-const MADINA = { membership_id: "m4", student_id: "s4", state: "paid", state_text: "Оплачено до 30.11", debt_amount: 0, due_amount: 0, debt: 0 };
-const PAUSED = { membership_id: "m5", student_id: "s5", state: "paused", state_text: "Пауза до 25.11", debt_amount: 0, due_amount: 0, debt: 0 };
-const EXPIRING = { membership_id: "m6", student_id: "s6", state: "expiring", state_text: "Оплачено до 22.11", debt_amount: 0, due_amount: 0, debt: 0 };
-const SILENT = { membership_id: "m7", student_id: "s7", state: "none", state_text: null, debt_amount: 0, due_amount: 0, debt: 0 };
+const LOLA = { membership_id: "m3", student_id: "s3", state: "debt", state_text: "Долг 600 000 сум", debt_amount: 600000, due_amount: 0, overdue_days: 14, debt_text: "Долг 600 000 сум", debt_sub: "просрочено 14 дней · оплачено до 31.10", due_text: null, due_sub: null, unpaid: 600000 };
+const MADINA = { membership_id: "m4", student_id: "s4", state: "paid", state_text: "Оплачено до 30.11", debt_amount: 0, due_amount: 0, unpaid: 0 };
+const PAUSED = { membership_id: "m5", student_id: "s5", state: "paused", state_text: "Пауза до 25.11", debt_amount: 0, due_amount: 0, unpaid: 0 };
+const EXPIRING = { membership_id: "m6", student_id: "s6", state: "expiring", state_text: "Оплачено до 22.11", debt_amount: 0, due_amount: 0, unpaid: 0 };
+const SILENT = { membership_id: "m7", student_id: "s7", state: "none", state_text: null, debt_amount: 0, due_amount: 0, unpaid: 0 };
 
 test("the tone map: one tone per state, the five on the layout's map are all different, «К оплате» is a calm blue and only a debt is red", () => {
   assert.deepEqual(S.PAY_STATE_TONE, { debt: "danger", to_pay: "due", expiring: "warn", paused: "neutral", paid: "ok", free: "neutral", none: "neutral" });
@@ -42,15 +42,17 @@ test("the tone map: one tone per state, the five on the layout's map are all dif
   assert.equal(S.payStateTone("nonsense"), "neutral");
 });
 
-test("«everything unpaid» is read in ONE place: rowUnpaid (the day the server calls it `unpaid` it is one line there)", () => {
-  assert.equal(S.rowUnpaid({ debt: 831000 }), 831000);
+test("«everything unpaid» is read in ONE place: rowUnpaid - the server's `unpaid` (14А.6); the normalised row keeps it in its older field", () => {
+  assert.equal(S.rowUnpaid({ unpaid: 831000 }), 831000);
   assert.equal(S.rowUnpaid({}), 0);
   assert.equal(S.rowUnpaid(null), 0);
-  assert.equal(S.rowUnpaid({ debt: -5 }), 0);
+  assert.equal(S.rowUnpaid({ unpaid: -5 }), 0);
+  assert.equal(S.rowUnpaid({ debt: 831000 }), 0, "the old name is not read: a row without `unpaid` owes nothing on the screens");
   // the normaliser of the rows goes through it too
-  assert.equal(L.normalizeRow({ debt: 100 }).debt, 100);
+  assert.equal(L.normalizeRow({ unpaid: 100 }).debt, 100);
   const src = require("node:fs").readFileSync(path.join(root, "src/lib/pay-state.ts"), "utf8");
-  assert.equal((src.match(/row\?\.debt/g) ?? []).length, 1, "`.debt` of a row is read exactly once in pay-state.ts");
+  assert.equal((src.match(/row\?\.unpaid/g) ?? []).length, 1, "`.unpaid` of a row is read exactly once in pay-state.ts");
+  assert.equal((src.match(/row\?\.debt\b/g) ?? []).length, 0);
 });
 
 test("the label of a row: the tab chooses which sum leads, every word is the server's", () => {
@@ -59,9 +61,9 @@ test("the label of a row: the tab chooses which sum leads, every word is the ser
   assert.deepEqual([a.text, a.tone, a.sub, a.second], ["К оплате 231 000 сум", "due", "до 24.11", null]);
   // Тимур has BOTH: on «Должники» the debt leads, the sum within its term is the second line; on «К оплате» the other way round
   const d = S.payLabel(TIMUR, "debtors");
-  assert.deepEqual([d.text, d.tone, d.sub, d.second], ["Долг 600 000 сум", "danger", "просрочено 45 дней · оплачено до 30.09", "и к оплате 231 000 сум · до 24.11"]);
+  assert.deepEqual([d.text, d.tone, d.sub, d.second], ["Долг 600 000 сум", "danger", "просрочено 45 дней · оплачено до 30.09", "и к оплате 231 000 сум до 24.11"]);
   const t = S.payLabel(TIMUR, "to_pay");
-  assert.deepEqual([t.text, t.tone, t.sub, t.second], ["К оплате 231 000 сум", "due", "до 24.11", "и долг 600 000 сум · просрочено 45 дней · оплачено до 30.09"]);
+  assert.deepEqual([t.text, t.tone, t.sub, t.second], ["К оплате 231 000 сум", "due", "до 24.11", "и долг 600 000 сум · просрочено 45 дней"]);
   // a debtor alone: no second line
   const l = S.payLabel(LOLA, "debtors");
   assert.deepEqual([l.text, l.sub, l.second], ["Долг 600 000 сум", "просрочено 14 дней · оплачено до 31.10", null]);

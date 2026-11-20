@@ -153,7 +153,8 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     dueNearest: nearest && typeof nearest.text === "string" && nearest.text ? { date: String(nearest.date), text: nearest.text } : null,
     advanceTotal: count(summary?.advance_total),
     tabs: summary?.buckets
-      ? { debtors, to_pay: dueStudents, expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: optionalCount(summary?.students_paused) ?? count(summary.buckets.paused) }
+      // the numbers of the tabs are the server's `buckets` (STUDENTS, 14А.6); `students_paused` stays the badge of «На паузе» when the server sends it
+      ? { debtors: optionalCount(summary.buckets.debtors), to_pay: optionalCount(summary.buckets.to_pay), expiring: optionalCount(summary.buckets.expiring), active: optionalCount(summary.buckets.active), paused: optionalCount(summary?.students_paused) ?? optionalCount(summary.buckets.paused) }
       : null,
     payDueDays: optionalCount(summary?.pay_due_days),
     payDueLessons: optionalCount(summary?.pay_due_lessons),

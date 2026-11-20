@@ -9,11 +9,11 @@ import type { ChipTone } from "./chip-tone";
 export type PayState = "debt" | "to_pay" | "expiring" | "paused" | "paid" | "free" | "none";
 
 /**
- * The ONE place the front reads «everything unpaid» of a row (`debt_amount + due_amount`).  The server calls it `debt` today and `unpaid` after its second part;
- * the day it does, this line is the only change on the screens.
+ * The ONE place the front reads «everything unpaid» of a row (`unpaid` = `debt_amount + due_amount`, the server's name since its second part): a sum, never a name (the name is `state`).
+ * Inside the screens the normalised row keeps it in its older field `debt` (`normalizeRow`), so no other file reads the server's name.
  */
-export function rowUnpaid(row: { debt?: number | null } | null | undefined): number {
-  return Math.max(0, Math.round(Number(row?.debt) || 0));
+export function rowUnpaid(row: { unpaid?: number | null } | null | undefined): number {
+  return Math.max(0, Math.round(Number(row?.unpaid) || 0));
 }
 
 /** The tone of every label by state - the map of tones (frame 0 of the layout): red only for a debt, calm blue for «К оплате», amber for «Заканчивается оплата», green for paid, grey for the rest. */
@@ -44,6 +44,9 @@ export interface PayFields {
   debt_sub?: string | null;
   due_text?: string | null;
   due_sub?: string | null;
+  /** The second line of a row that holds BOTH sums, the server's words: «и долг 600 000 сум · просрочено 45 дней» / «и к оплате 231 000 сум до 24.11». */
+  debt_also_text?: string | null;
+  due_also_text?: string | null;
 }
 
 export interface PayLabel {
@@ -59,8 +62,6 @@ export interface PayLabel {
 
 const clean = (value: string | null | undefined): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
 const positive = (value: number | null | undefined) => (Number(value) || 0) > 0;
-const lowerFirst = (value: string) => value.charAt(0).toLowerCase() + value.slice(1);
-const joined = (parts: Array<string | null>): string | null => parts.filter(Boolean).join(" · ") || null;
 
 /**
  * The label of a row on the tab `tab`: «Должники» leads with the debt and mentions the sum within its term on the second line; «К оплате» the other way round (PAY-DUE 9.1);
@@ -71,11 +72,11 @@ export function payLabel(row: PayFields, tab: "debtors" | "to_pay" | "worst" | s
   const hasDebt = positive(row.debt_amount) && clean(row.debt_text) !== null;
   const hasDue = positive(row.due_amount) && clean(row.due_text) !== null;
   if (tab === "debtors" && hasDebt) {
-    const other = hasDue ? joined([`и ${lowerFirst(clean(row.due_text)!)}`, clean(row.due_sub)]) : null;
+    const other = hasDue ? clean(row.due_also_text) : null;
     return { text: clean(row.debt_text), tone: PAY_STATE_TONE.debt, sub: clean(row.debt_sub), second: other, state };
   }
   if (tab === "to_pay" && hasDue) {
-    const other = hasDebt ? joined([`и ${lowerFirst(clean(row.debt_text)!)}`, clean(row.debt_sub)]) : null;
+    const other = hasDebt ? clean(row.debt_also_text) : null;
     return { text: clean(row.due_text), tone: PAY_STATE_TONE.to_pay, sub: clean(row.due_sub), second: other, state };
   }
   // the other tabs and the single label: the worst state, in the server's words; a «К оплате» / «Долг» label carries its own sub
