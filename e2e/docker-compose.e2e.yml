@@ -50,6 +50,10 @@ services:
       # development: mounts /auth/dev-login (passwordless sign-in for the tests) and keeps the auth cookies
       # WITHOUT `Secure` (cookies_are_secure() is true only for staging/production), so plain http works.
       APP_ENV: development
+      # TIME-TESTS: the controllable business clock of the stand.  Both signs (APP_ENV=development AND ALGO_TEST_CLOCK=1) are needed; the offset lives in
+      # ONE Redis key (algo:test:clock_offset_seconds, db 0) that auth writes (PUT /api/v1/auth/dev/clock) and exam-service only reads.
+      ALGO_TEST_CLOCK: "1"
+      ALGO_TEST_CLOCK_REDIS_URL: redis://redis:6379/0
       SECRET_KEY: e2e-only-secret-key-not-for-any-real-environment-0123456789
       INTERNAL_SERVICE_TOKEN: e2e-internal-service-token
       EXAM_SERVICE_URL: http://exam:8003/api/v1
@@ -118,6 +122,8 @@ services:
       DATABASE_URL: postgresql://algo:algo_e2e_password@exam-db:5432/algo_exam
       REDIS_URL: redis://redis:6379/1
       APP_ENV: development
+      ALGO_TEST_CLOCK: "1"
+      ALGO_TEST_CLOCK_REDIS_URL: redis://redis:6379/0   # the SAME key as auth (db 0), although exam's own REDIS_URL is db 1
       AUTH_SERVICE_URL: http://auth:8000
       CONTENT_SERVICE_URL: http://content-stub:8004
       INTERNAL_SERVICE_TOKEN: e2e-internal-service-token

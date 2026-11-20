@@ -19,6 +19,13 @@
  *   E2E_PROJECT         docker compose project name (default algo-e2e): a second stack beside the default one needs its own name and ports
  *   E2E_WORKERS         parallel Playwright workers (default 3 locally, 2 in CI)
  *   E2E_CONSOLE_PORT    the port console-k1.spec.ts serves the console on (13100)
+ *   E2E_CLOCK_AT        "YYYY-MM-DDTHH:MM" (Tashkent): put the stand clock there instead of the nearest 10:00 ahead (it must be in the future;
+ *                       checks the suite on another weekday / the last day of a month / after 10:00)
+ *
+ * TIME-TESTS: the stand runs on a controllable business clock (ALGO_TEST_CLOCK=1 in the compose file).  On a FRESH stack the runner deletes the
+ * offset key in Redis, sets the nearest 10:00 ahead (Tashkent) through PUT /api/v1/auth/dev/clock, waits until auth AND exam report the same offset and
+ * prints the business time and `test_clock` of both services; with `test_clock: false` the run does not start.  The ordinary projects (desktop, mobile)
+ * run first, the `days` project (fixed 2028 dates, moves the clock far forward, never back) runs last, alone, in its own Playwright call.
  *
  * Flags starting with `--` before the first path are passed to Playwright (`--headed`, `--project=mobile`, `--grep ...`).
  */
@@ -95,6 +102,86 @@ async function waitHttp(url, ms, what) {
   fail(`${what} did not become ready at ${url} within ${ms / 1000}s (${last})`);
 }
 
+// ---------------------------------------------------------------------------------------------- the stand clock (TIME-TESTS)
+const AUTH_API = `http://localhost:${AUTH_PORT}/api/v1`;
+const EXAM_API = `http://localhost:${EXAM_PORT}/api/v1`;
+const TASHKENT_OFFSET_HOURS = 5; // Asia/Tashkent has no daylight saving time
+
+/** The nearest 10:00 AHEAD by Tashkent: today when it is not yet 10:00 there, otherwise tomorrow ("YYYY-MM-DDT10:00"); E2E_CLOCK_AT replaces it. */
+function targetBusinessNow(realNowMs = Date.now()) {
+  if (env.E2E_CLOCK_AT) {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(env.E2E_CLOCK_AT)) throw new Error("E2E_CLOCK_AT must look like 2026-11-30T10:00");
+    return env.E2E_CLOCK_AT;
+  }
+  const local = new Date(realNowMs + TASHKENT_OFFSET_HOURS * 3600_000); // the UTC fields of this date are the Tashkent wall time
+  const minutes = local.getUTCHours() * 60 + local.getUTCMinutes();
+  const day = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + (minutes >= 10 * 60 ? 1 : 0)));
+  return `${day.toISOString().slice(0, 10)}T10:00`;
+}
+
+async function getJson(url, init) {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    /* not JSON */
+  }
+  return { status: res.status, body };
+}
+
+async function setUpStandClock(fresh) {
+  const health = {};
+  for (const [name, base] of [["auth", `http://localhost:${AUTH_PORT}`], ...(WITH_EXAM ? [["exam", `http://localhost:${EXAM_PORT}`]] : [])]) {
+    health[name] = (await getJson(`${base}/health`)).body?.test_clock;
+    log(`${name}: /health test_clock: ${health[name]}`);
+  }
+  for (const [name, flag] of Object.entries(health)) {
+    if (flag !== true) throw new Error(`${name}: /health shows test_clock: ${flag} - the stand clock is off, the run does not start`);
+  }
+  if (fresh) {
+    // A fresh stack has no shift yet.  The key is deleted BEFORE the first data, so no row of the stand is ever "in the future" of the clock.
+    const del = spawnSync("docker", [...composeBase, "exec", "-T", "redis", "redis-cli", "-n", "0", "DEL", "algo:test:clock_offset_seconds"], {
+      env: composeEnv,
+      encoding: "utf8",
+      cwd: repoDir,
+    });
+    if (del.status !== 0) throw new Error(`could not delete the clock key in Redis: ${(del.stderr || "").slice(0, 200)}`);
+  }
+  const target = targetBusinessNow();
+  const current = (await getJson(`${AUTH_API}/auth/dev/clock`)).body;
+  if (!current) throw new Error("GET /auth/dev/clock answered nothing useful");
+  let offset = current.offset_seconds;
+  if (current.now_business.slice(0, 16) >= target) {
+    log(`stand clock already at ${current.now_business} (not before ${target}): left as it is (the clock only moves forward)`);
+  } else {
+    const put = await getJson(`${AUTH_API}/auth/dev/clock`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ business_now: target }),
+    });
+    if (put.status !== 200) throw new Error(`PUT /auth/dev/clock ${target}: HTTP ${put.status} ${JSON.stringify(put.body).slice(0, 200)}`);
+    offset = put.body.offset_seconds;
+  }
+  // both services must report the same offset before the first test
+  const end = Date.now() + 15_000;
+  let seen = {};
+  for (;;) {
+    const auth = (await getJson(`${AUTH_API}/auth/dev/clock`)).body;
+    const exam = WITH_EXAM ? (await getJson(`${EXAM_API}/dev/clock`)).body : auth;
+    seen = { auth, exam };
+    if (auth?.offset_seconds === offset && exam?.offset_seconds === offset) break;
+    if (Date.now() > end) throw new Error(`the services do not agree on the clock offset ${offset}: ${JSON.stringify(seen)}`);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  log(`stand business time (Asia/Tashkent): auth ${seen.auth.now_business}${WITH_EXAM ? `, exam ${seen.exam.now_business}` : ""}; offset ${offset} s; test_clock: true`);
+}
+
+async function clockOffsetNow() {
+  return (await getJson(`${AUTH_API}/auth/dev/clock`)).body?.offset_seconds ?? 0;
+}
+
 function stopFront() {
   // Only the process this tool started (its pid is in .state/front.pid) - never anything else on the port.
   if (!existsSync(frontPidFile)) return;
@@ -169,6 +256,7 @@ try {
   }
   await waitHttp(`http://localhost:${AUTH_PORT}/health`, 60_000, "auth-service");
   if (WITH_EXAM) await waitHttp(`http://localhost:${EXAM_PORT}/health`, 120_000, "exam-service");
+  await setUpStandClock(!(REUSE && alreadyUp));
 
   // ------------------------------------------------------------------------------------------ front
   const buildDir = path.join(repoDir, ".next-e2e");
@@ -222,14 +310,26 @@ try {
   await waitHttp(`${FRONT_ORIGIN}/login`, 60_000, "front");
 
   // ------------------------------------------------------------------------------------------ tests
-  const pwArgs = ["playwright", "test", "-c", path.join(e2eDir, "playwright.config.ts"), ...process.argv.slice(2)];
-  log(`playwright ${process.argv.slice(2).join(" ")}`);
-  const pw = spawnSync("npx", pwArgs, {
-    cwd: repoDir,
-    env: { ...env, E2E_FRONT_PORT: String(FRONT_PORT), E2E_AUTH_PORT: String(AUTH_PORT), E2E_EXAM_PORT: String(EXAM_PORT), E2E_EXAM: WITH_EXAM ? "1" : "" },
-    stdio: "inherit",
-  });
-  exitCode = pw.status ?? 1;
+  const userArgs = process.argv.slice(2);
+  const pwEnv = { ...env, E2E_FRONT_PORT: String(FRONT_PORT), E2E_AUTH_PORT: String(AUTH_PORT), E2E_EXAM_PORT: String(EXAM_PORT), E2E_EXAM: WITH_EXAM ? "1" : "" };
+  const runPlaywright = (extra) => {
+    log(`playwright ${[...extra, ...userArgs].join(" ")}`);
+    const args = ["playwright", "test", "-c", path.join(e2eDir, "playwright.config.ts"), ...extra, ...userArgs];
+    return spawnSync("npx", args, { cwd: repoDir, env: pwEnv, stdio: "inherit" }).status ?? 1;
+  };
+  if (userArgs.some((a) => a.startsWith("--project"))) {
+    exitCode = runPlaywright([]); // the caller chose the projects: nothing is split
+  } else {
+    // The ordinary projects first; the `days` project LAST and alone: it moves the stand clock to 2028 and never back.
+    exitCode = runPlaywright(["--project=desktop", "--project=mobile"]);
+    if ((await clockOffsetNow()) > 300 * 86400) {
+      log("project days: the stand clock is already far in the future (a previous days run on this stand) and cannot go back - start a fresh stand (npm run e2e:down)");
+      exitCode = exitCode || 1;
+    } else {
+      const daysCode = runPlaywright(["--project=days", "--workers=1", "--pass-with-no-tests"]);
+      exitCode = exitCode || daysCode;
+    }
+  }
   if (exitCode !== 0) {
     log("tests failed - the report: npx playwright show-report e2e/playwright-report ; traces: e2e/test-results");
     if (KEEP) log("auth-service log: docker logs algo-e2e-auth-1 --tail 80");
