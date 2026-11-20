@@ -420,13 +420,14 @@ test("«Касса за день»: the server's own line under the donut on the
 test("softer numbers: semibold (not bold), tabular, tight; neutral slate-800, debt rose-600, advance emerald-600; money stays right-aligned", () => {
   const { React, html, P, J } = parts();
   const o = overview("I01_income_month_october");
-  assert.equal(P.ACCENT, "mt-1 text-2xl font-semibold leading-8 tabular-nums tracking-tight");
+  // 24 px at most (`--fit-max`), smaller where the card is narrow: the sum fits its card on one line (PAY-DUE 20.1)
+  assert.equal(P.ACCENT, "fit-sum mt-1 font-semibold leading-8 tabular-nums tracking-tight [--fit-max:1.5rem]");
   const markup = plain(html(React.createElement(P.IncomeCards, { overview: o, paymentsBase: "/owner/payments" })));
   assert.equal((markup.match(/font-semibold leading-8 tabular-nums tracking-tight/g) || []).length, 4, "four big numbers");
   assert.ok(!/font-(bold|extrabold)/.test(markup), "nothing shouts");
-  assert.match(markup, /tracking-tight text-slate-800">3 450 000/);
-  assert.match(markup, /tracking-tight text-rose-600">500 000/);
-  assert.match(markup, /tracking-tight text-emerald-600">450 000/);
+  assert.match(markup, /tracking-tight \[--fit-max:1\.5rem\] text-slate-800" style="--len:\d+">3 450 000/);
+  assert.match(markup, /text-rose-600" style="--len:\d+">500 000/);
+  assert.match(markup, /text-emerald-600" style="--len:\d+">450 000/);
   assert.doesNotMatch(markup, /text-slate-900|text-rose-700|text-emerald-700">\d/);
   // «Куда ушли деньги» and the journal amounts are font-medium
   const flow = plain(html(React.createElement(P.FlowLine, { overview: o })));

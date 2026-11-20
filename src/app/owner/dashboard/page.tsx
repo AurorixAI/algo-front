@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { orgApi } from "@/lib/api";
@@ -224,14 +224,15 @@ export default function OwnerDashboard() {
 
           {/* IA audit F27: what needs the owner today - the debt and the attention of the attendance, each one click from its list */}
           {tiles.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="dashboard-tiles">
+            <div className="tile-row">
+            <div className="tile-grid grid gap-4" data-testid="dashboard-tiles">
               {tiles.map((tile) => tile.key === "money" ? (
                 // PAY-DUE 9.9: one tile of the money with two rows; it stands as tall as the two plain tiles beside it
-                <div key="money" data-testid="dashboard-tile-money" className="flex flex-col divide-y divide-slate-200 overflow-hidden rounded-card border border-slate-200 bg-slate-50 sm:row-span-2">
+                <div key="money" data-testid="dashboard-tile-money" className="flex flex-col divide-y divide-slate-200 overflow-hidden rounded-card border border-slate-200 bg-slate-50 tile-span">
                   {tile.rows.map((row) => (
                     <Link key={row.key} href={row.href} data-testid={`dashboard-tile-${row.key}`} className="group flex flex-1 items-center justify-between gap-4 p-5 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500">
-                      <div className="min-w-0">
-                        <p className={`text-2xl font-semibold tracking-tight tabular-nums ${row.tone === "alert" ? "text-danger-700" : "text-slate-900"}`}>{row.value}</p>
+                      <div className="fit-card min-w-0 flex-1">
+                        <p className={`fit-sum font-semibold leading-8 tracking-tight tabular-nums [--fit-max:1.5rem] ${row.tone === "alert" ? "text-danger-700" : "text-slate-900"}`} style={{ "--len": row.value.length } as CSSProperties}>{row.value}</p>
                         <p className="mt-1 text-sm font-medium text-slate-600">{row.label}</p>
                       </div>
                       <span className="shrink-0 text-sm font-semibold text-slate-500 group-hover:text-slate-900" aria-hidden>→</span>
@@ -247,6 +248,7 @@ export default function OwnerDashboard() {
                   <span className="shrink-0 text-sm font-semibold text-slate-500 group-hover:text-slate-900" aria-hidden>→</span>
                 </Link>
               ))}
+            </div>
             </div>
           )}
 

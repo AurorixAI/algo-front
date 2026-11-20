@@ -111,7 +111,7 @@ export function FilterNotice({ text, onJump, testId = "filter-notice" }: { text:
 
 function StatCard({ label, id, children, testId }: { label: string; id?: string; children: ReactNode; testId: string }) {
   return (
-    <div id={id} data-testid={testId} className="flex min-w-0 scroll-mt-20 flex-col rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+    <div id={id} data-testid={testId} className="fit-card flex min-w-0 scroll-mt-20 flex-col rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
       <p className="text-sm text-slate-500">{label}</p>
       {children}
     </div>
@@ -119,10 +119,13 @@ function StatCard({ label, id, children, testId }: { label: string; id?: string;
 }
 
 /** The big number of a card: soft (semibold, tight), not a shout.  24 px is «large text», so the lighter colours below stay readable. */
-export const ACCENT = "mt-1 text-2xl font-semibold leading-8 tabular-nums tracking-tight";
+export const ACCENT = "fit-sum mt-1 font-semibold leading-8 tabular-nums tracking-tight [--fit-max:1.5rem]";
 export const ACCENT_NEUTRAL = "text-slate-800";
 export const ACCENT_DEBT = "text-rose-600";
 export const ACCENT_ADVANCE = "text-emerald-600";
+
+/** The length of the printed sum for the CSS that fits it to its card (`.fit-sum`, globals.css). */
+const fit = (text: string) => ({ "--len": text.length }) as CSSProperties;
 
 /** «Поступило» / «Собрано за месяц» / «Долг на сегодня» / «Аванс»: one accent number each, the rest is quiet. */
 export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOverview; paymentsBase: string }) {
@@ -134,7 +137,7 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
   return (
     <section aria-label="Главное за период" className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${count === 4 ? "xl:grid-cols-4" : "xl:grid-cols-3"}`} data-testid="income-cards">
       <StatCard label="Поступило" testId="card-received">
-        <p className={`${ACCENT} ${ACCENT_NEUTRAL}`}>{received.amount}</p>
+        <p className={`${ACCENT} ${ACCENT_NEUTRAL}`} style={fit(received.amount)}>{received.amount}</p>
         {received.delta.text && (
           <p className={`mt-1 truncate text-sm font-medium ${DELTA_CLASS[received.delta.tone]}`} data-testid="received-delta" data-tone={received.delta.tone} title={received.hint || received.delta.text}>
             {received.delta.arrow && <span aria-hidden className="mr-1">{received.delta.arrow}</span>}
@@ -146,14 +149,14 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
 
       {collected && (
         <StatCard label="Собрано за месяц" testId="card-collected">
-          <p className={`${ACCENT} ${ACCENT_NEUTRAL}`}>{collected.amount}</p>
+          <p className={`${ACCENT} ${ACCENT_NEUTRAL}`} style={fit(collected.amount)}>{collected.amount}</p>
           <p className="mt-1 text-sm text-slate-500">{collected.caption}</p>
           {collected.pct !== null && <div className="mt-2.5"><ProgressBar pct={collected.pct} label="Собрано за месяц" /></div>}
         </StatCard>
       )}
 
       <StatCard label="Долг" id="position" testId="card-debt">
-        <p className={`${ACCENT} ${debt.none ? "text-slate-600" : ACCENT_DEBT}`}>{debt.amount}</p>
+        <p className={`${ACCENT} ${debt.none ? "text-slate-600" : ACCENT_DEBT}`} style={fit(debt.amount)}>{debt.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{debt.caption}</p>
         {debt.due && <p className="mt-0.5 text-sm text-slate-600" data-testid="debt-due">{debt.due}</p>}
         {!debt.none && (
@@ -165,7 +168,7 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
       </StatCard>
 
       <StatCard label="Аванс" id="advance" testId="card-advance">
-        <p className={`${ACCENT} ${advance.none ? "text-slate-600" : ACCENT_ADVANCE}`}>{advance.amount}</p>
+        <p className={`${ACCENT} ${advance.none ? "text-slate-600" : ACCENT_ADVANCE}`} style={fit(advance.amount)}>{advance.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{advance.caption}</p>
       </StatCard>
     </section>

@@ -42,6 +42,19 @@ body {
 @container (min-width: 540px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container (min-width: 1100px) { .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
+/* The sum of a card of money (PAY-DUE 20.1): ONE line that fits its card at any window width.  The card is the container (`fit-card`); the sum takes the largest size up to `--fit-max` at which
+   `--len` characters (set by the screen from the text it prints) still fit the inner width of the card (0.62 em for a character, a margin over the widest digits of the font).  No clipping: a sum never leaves its card. */
+.fit-card { container-type: inline-size; }
+.fit-sum { white-space: nowrap; font-size: min(var(--fit-max, 1.875rem), calc(100cqw / (var(--len, 14) * 0.62))); }
+/* The tiles of the owner's panel: two in a row where the ROW is >= 540 px wide, one under another below (the sidebar takes 240 px); the tile of money stands as tall as the two plain ones beside it */
+.tile-row { container-type: inline-size; }
+.tile-grid { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 540px) { .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tile-span { grid-row: span 2 / span 2; } }
+/* The three cards of «Оплаты»: three in a row where the card is wide enough for a sum of 20 px (the width of the ROW, not of the screen: the sidebar takes 240 px), one under another below */
+.pos-row { container-type: inline-size; }
+.pos-grid { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 680px) { .pos-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
 /* ── DataTable (src/components/ui/data-table.tsx): the frame of every list of rows; a table from `data-min` wide (the width of the table itself), cards below ───────────────── */
 .dt { container: dt / inline-size; }
 .dt-head { display: none; }

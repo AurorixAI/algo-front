@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, Undo2, XCircle } from "lucide-react";
@@ -341,14 +341,15 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           In the title row of «К оплате» the term of the centre: the owner's link to the setting, the administrator's plain text.  There is NO notice above the heading: the same fact is in the card, the tab and the badge of the menu. */}
       {summaryLoaded && (
         <>
-          <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position" className="hidden grid-cols-1 gap-3 sm:grid sm:grid-cols-3">
+          <div className="pos-row hidden sm:block">
+          <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position" className="pos-grid grid gap-3">
             {cards.map((card) => {
               const href = cardHref(card.key);
               return (
                 <div key={card.key} className="relative rounded-2xl border border-slate-200 bg-white transition-colors hover:border-slate-300">
-                  <Link href={href} data-testid={`position-${card.key}`} className="group block h-full rounded-2xl px-5 py-4 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                  <Link href={href} data-testid={`position-${card.key}`} className="group fit-card block h-full rounded-2xl px-5 py-4 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                     <p className={`text-sm text-slate-500 ${card.key === "due" && term ? "pr-28" : ""}`}>{card.label}</p>
-                    <p className={`mt-1 text-3xl font-bold tabular-nums ${AMOUNT_TONE[card.tone]}`}>{card.amount}</p>
+                    <p className={`fit-sum mt-1 font-bold leading-9 tabular-nums ${AMOUNT_TONE[card.tone]}`} style={{ "--len": card.amount.length } as CSSProperties}>{card.amount}</p>
                     {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
                   </Link>
                   {/* the term sits in the title row, on the right: the three cards keep one height and no empty bottom */}
@@ -359,6 +360,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
               );
             })}
           </section>
+          </div>
           {/* a phone (< 640): ONE compact summary in two lines + the advance as a small third (frame 20); the first screen keeps the tabs and two rows */}
           <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position-compact" className="rounded-2xl border border-slate-200 bg-white px-4 py-1 sm:hidden">
             {cards.filter((card) => card.key !== "advance").map((card) => (
