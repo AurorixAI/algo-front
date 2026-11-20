@@ -3,6 +3,19 @@ import { FRONT_ORIGIN } from "./support/env";
 
 const ci = !!process.env.CI;
 
+// The `days` project (TIME-TESTS) is in the config ONLY with E2E_DAYS=1 (e2e/scripts/run.mjs sets nothing: the caller does) and never together with the ordinary
+// projects: its dates move the stand clock far forward, and the clock never goes back.
+const withDays = process.env.E2E_DAYS === "1";
+const argv = process.argv.slice(2);
+const chosen = argv.flatMap((a, i) => (a.startsWith("--project=") ? [a.slice("--project=".length)] : a === "--project" && argv[i + 1] ? [argv[i + 1]] : []));
+const inRunner = process.env.TEST_WORKER_INDEX === undefined; // the workers load this file too, with their own argv: only the runner checks
+if (inRunner && withDays && chosen.includes("days") && chosen.length > 1) {
+  throw new Error("the `days` project cannot be run together with other projects (its dates move the stand clock far forward, never back): run it alone, --project=days");
+}
+if (inRunner && withDays && chosen.length === 0) {
+  throw new Error("E2E_DAYS=1: choose the projects (run.mjs does: the ordinary ones, then `days` alone); a bare `playwright test` would run `days` beside the ordinary projects");
+}
+
 export default defineConfig({
   testDir: "./tests",
   // TIME-TESTS: the stand's clock offset is read once into process.env, the workers inherit it
@@ -31,15 +44,19 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
-    {
-      // «Life of a student by days»: fixed dates in 2028, each test sets its own absolute date and creates its own centre.  The stand clock moves
-      // only forward, so this project goes LAST (e2e/scripts/run.mjs runs it in its own call, one worker) and never gives the time back.
-      name: "days",
-      testDir: "./days",
-      retries: 0,
-      timeout: 180_000,
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
-    },
+    ...(withDays
+      ? [
+          {
+            // «Life of a student by days»: fixed dates from 2030 on, each test sets its own absolute date and creates its own centre.  The stand clock moves
+            // only forward, so this project goes LAST (e2e/scripts/run.mjs runs it in its own call, one worker) and never gives the time back.
+            name: "days",
+            testDir: "./days",
+            retries: 0,
+            timeout: 180_000,
+            use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
+          },
+        ]
+      : []),
     {
       // Only the tests tagged @mobile run at phone width (375x812, touch).
       name: "mobile",

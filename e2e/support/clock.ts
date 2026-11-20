@@ -76,7 +76,7 @@ async function moveTo(target: string): Promise<void> {
     throw new Error(`the stand clock only moves forward: now ${before.now_business.slice(0, 16)}, asked for ${target} (a fresh stand is the only way back)`);
   }
   await Promise.all([...openContexts].flatMap((context) => context.pages().map(settle)));
-  const oldNowMs = standNow().getTime();
+  const oldOffset = clockOffsetSeconds();
   const res = await fetch(`${AUTH_API}/auth/dev/clock`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -94,9 +94,12 @@ async function moveTo(target: string): Promise<void> {
     if (i > 60) throw new Error(`the services did not take the clock offset ${offset}: ${JSON.stringify(seen)}`);
     await new Promise((r) => setTimeout(r, 250));
   }
+  // exam has two workers, each with its own 0.2 s cache of the offset: after the offsets agree, wait one cache out
+  await new Promise((r) => setTimeout(r, 250));
   process.env.E2E_CLOCK_OFFSET_SECONDS = String(offset);
-  const deltaMs = standNow().getTime() - oldNowMs;
-  // the pages: the same jump (the due timers fire once, as after a long sleep of the tab)
+  // the pages: the jump is the DIFFERENCE OF THE OFFSETS, not the time the requests took (the clock of the page runs on by itself: `install` without a pause);
+  // the due timers fire once, as after a long sleep of the tab
+  const deltaMs = (offset - oldOffset) * 1000;
   await Promise.all([...openContexts].map((context) => context.clock.fastForward(deltaMs)));
 }
 

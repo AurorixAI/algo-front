@@ -19,13 +19,17 @@
  *   E2E_PROJECT         docker compose project name (default algo-e2e): a second stack beside the default one needs its own name and ports
  *   E2E_WORKERS         parallel Playwright workers (default 3 locally, 2 in CI)
  *   E2E_CONSOLE_PORT    the port console-k1.spec.ts serves the console on (13100)
+ *   E2E_DAYS=1          also run the `days` project (fixed dates from 2030, last, alone); it cannot be started together with the ordinary projects
  *   E2E_CLOCK_AT        "YYYY-MM-DDTHH:MM" (Tashkent): put the stand clock there instead of the nearest 10:00 ahead (it must be in the future;
  *                       checks the suite on another weekday / the last day of a month / after 10:00)
  *
  * TIME-TESTS: the stand runs on a controllable business clock (ALGO_TEST_CLOCK=1 in the compose file).  On a FRESH stack the runner deletes the
  * offset key in Redis, sets the nearest 10:00 ahead (Tashkent) through PUT /api/v1/auth/dev/clock, waits until auth AND exam report the same offset and
  * prints the business time and `test_clock` of both services; with `test_clock: false` the run does not start.  The ordinary projects (desktop, mobile)
- * run first, the `days` project (fixed 2028 dates, moves the clock far forward, never back) runs last, alone, in its own Playwright call.
+ * run first; the `days` project (fixed dates from 2030 on, moves the clock far forward, never back) exists only with E2E_DAYS=1, runs last, alone, in its own
+ * Playwright call with one worker.  A live stack of a previous run is ALWAYS removed first (`down -v`) unless E2E_REUSE=1: the clock key is deleted on a
+ * fresh database only (deleting it under a live database would take the clock back).  Order: fresh stack -> key deleted -> build -> the nearest 10:00
+ * ahead -> both services agree (+250 ms) -> tests.  E2E_REUSE=1 is refused when the stand is not near 10:00 (10:00-11:30) or is more than 36 h ahead.
  *
  * Flags starting with `--` before the first path are passed to Playwright (`--headed`, `--project=mobile`, `--grep ...`).
  */
@@ -106,6 +110,9 @@ async function waitHttp(url, ms, what) {
 const AUTH_API = `http://localhost:${AUTH_PORT}/api/v1`;
 const EXAM_API = `http://localhost:${EXAM_PORT}/api/v1`;
 const TASHKENT_OFFSET_HOURS = 5; // Asia/Tashkent has no daylight saving time
+const SERVICES_SETTLE_MS = 250; // exam has two workers, each with its own 0.2 s cache of the offset: after the offsets agree, wait one cache out
+const DAYS_FIRST_DATE = "2030-05-01"; // the first date of the `days` project (e2e/days/days.spec.ts): a stand already at or past it cannot go back
+const REUSE_MAX_AHEAD_SECONDS = 36 * 3600;
 
 /** The nearest 10:00 AHEAD by Tashkent: today when it is not yet 10:00 there, otherwise tomorrow ("YYYY-MM-DDT10:00"); E2E_CLOCK_AT replaces it. */
 function targetBusinessNow(realNowMs = Date.now()) {
@@ -131,7 +138,7 @@ async function getJson(url, init) {
   return { status: res.status, body };
 }
 
-async function setUpStandClock(fresh) {
+async function assertStandClockOn() {
   const health = {};
   for (const [name, base] of [["auth", `http://localhost:${AUTH_PORT}`], ...(WITH_EXAM ? [["exam", `http://localhost:${EXAM_PORT}`]] : [])]) {
     health[name] = (await getJson(`${base}/health`)).body?.test_clock;
@@ -140,31 +147,20 @@ async function setUpStandClock(fresh) {
   for (const [name, flag] of Object.entries(health)) {
     if (flag !== true) throw new Error(`${name}: /health shows test_clock: ${flag} - the stand clock is off, the run does not start`);
   }
-  if (fresh) {
-    // A fresh stack has no shift yet.  The key is deleted BEFORE the first data, so no row of the stand is ever "in the future" of the clock.
-    const del = spawnSync("docker", [...composeBase, "exec", "-T", "redis", "redis-cli", "-n", "0", "DEL", "algo:test:clock_offset_seconds"], {
-      env: composeEnv,
-      encoding: "utf8",
-      cwd: repoDir,
-    });
-    if (del.status !== 0) throw new Error(`could not delete the clock key in Redis: ${(del.stderr || "").slice(0, 200)}`);
-  }
-  const target = targetBusinessNow();
-  const current = (await getJson(`${AUTH_API}/auth/dev/clock`)).body;
-  if (!current) throw new Error("GET /auth/dev/clock answered nothing useful");
-  let offset = current.offset_seconds;
-  if (current.now_business.slice(0, 16) >= target) {
-    log(`stand clock already at ${current.now_business} (not before ${target}): left as it is (the clock only moves forward)`);
-  } else {
-    const put = await getJson(`${AUTH_API}/auth/dev/clock`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ business_now: target }),
-    });
-    if (put.status !== 200) throw new Error(`PUT /auth/dev/clock ${target}: HTTP ${put.status} ${JSON.stringify(put.body).slice(0, 200)}`);
-    offset = put.body.offset_seconds;
-  }
-  // both services must report the same offset before the first test
+}
+
+/** A FRESH stack has no shift yet.  The key is deleted before the build and before any data of the stand (the database is new, so this never takes a used clock back). */
+function deleteClockKey() {
+  const del = spawnSync("docker", [...composeBase, "exec", "-T", "redis", "redis-cli", "-n", "0", "DEL", "algo:test:clock_offset_seconds"], {
+    env: composeEnv,
+    encoding: "utf8",
+    cwd: repoDir,
+  });
+  if (del.status !== 0) throw new Error(`could not delete the clock key in Redis: ${(del.stderr || "").slice(0, 200)}`);
+}
+
+/** Wait until auth AND exam report `offset`, then one more cache of exam (SERVICES_SETTLE_MS). */
+async function waitServicesAgree(offset) {
   const end = Date.now() + 15_000;
   let seen = {};
   for (;;) {
@@ -175,15 +171,44 @@ async function setUpStandClock(fresh) {
     if (Date.now() > end) throw new Error(`the services do not agree on the clock offset ${offset}: ${JSON.stringify(seen)}`);
     await new Promise((r) => setTimeout(r, 300));
   }
+  await new Promise((r) => setTimeout(r, SERVICES_SETTLE_MS));
+  return seen;
+}
+
+/** The nearest 10:00 ahead (or E2E_CLOCK_AT) on a fresh stack; with E2E_REUSE=1 the stand is only checked: it must be at 10:00-11:30 and at most 36 h ahead. */
+async function setUpStandClock(reused) {
+  const current = (await getJson(`${AUTH_API}/auth/dev/clock`)).body;
+  if (!current) throw new Error("GET /auth/dev/clock answered nothing useful");
+  let offset = current.offset_seconds;
+  if (reused) {
+    const minutes = Number(current.now_business.slice(11, 13)) * 60 + Number(current.now_business.slice(14, 16));
+    if (minutes < 10 * 60 || minutes > 11 * 60 + 30 || offset > REUSE_MAX_AHEAD_SECONDS) {
+      throw new Error(`a fresh stand is needed: the reused stand shows ${current.now_business.slice(0, 16)} (offset ${offset} s); the ordinary projects run at 10:00-11:30 and at most 36 h ahead (npm run e2e:down)`);
+    }
+  } else {
+    const target = targetBusinessNow();
+    if (current.now_business.slice(0, 16) >= target) {
+      log(`stand clock already at ${current.now_business} (not before ${target}): left as it is (the clock only moves forward)`);
+    } else {
+      const put = await getJson(`${AUTH_API}/auth/dev/clock`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ business_now: target }),
+      });
+      if (put.status !== 200) throw new Error(`PUT /auth/dev/clock ${target}: HTTP ${put.status} ${JSON.stringify(put.body).slice(0, 200)}`);
+      offset = put.body.offset_seconds;
+    }
+  }
+  const seen = await waitServicesAgree(offset);
   log(`stand business time (Asia/Tashkent): auth ${seen.auth.now_business}${WITH_EXAM ? `, exam ${seen.exam.now_business}` : ""}; offset ${offset} s; test_clock: true`);
 }
 
-async function clockOffsetNow() {
+async function standBusinessDate() {
   try {
-    return (await getJson(`${AUTH_API}/auth/dev/clock`)).body?.offset_seconds ?? 0;
+    return (await getJson(`${AUTH_API}/auth/dev/clock`)).body?.now_business?.slice(0, 10) ?? "";
   } catch (e) {
     log(`the stand clock could not be read after the ordinary projects (${e.cause?.code || e.message}): the days project goes on and says it itself`);
-    return 0;
+    return "";
   }
 }
 
@@ -226,7 +251,22 @@ if (!existsSync(path.join(authPath, "Dockerfile"))) {
 }
 if (WITH_EXAM && !existsSync(path.join(examPath, "Dockerfile"))) fail(`exam-service checkout not found at ${examPath} (EXAM_SERVICE_PATH)`);
 
-const alreadyUp = spawnSync("docker", ["compose", "-p", PROJECT, "ps", "-q"], { env: composeEnv, encoding: "utf8" }).stdout.trim() !== "";
+const WITH_DAYS = env.E2E_DAYS === "1";
+const userArgv = process.argv.slice(2);
+const chosenProjects = userArgv.flatMap((a, i) => (a.startsWith("--project=") ? [a.slice("--project=".length)] : a === "--project" && userArgv[i + 1] ? [userArgv[i + 1]] : []));
+if (chosenProjects.includes("days") && (chosenProjects.length > 1 || chosenProjects.some((p) => p !== "days"))) {
+  fail("the `days` project cannot be run together with the ordinary projects (its dates move the stand clock far forward, never back): run it alone, --project=days");
+}
+if (chosenProjects.includes("days") && !WITH_DAYS) fail("the `days` project exists only with E2E_DAYS=1");
+
+const stackIsUp = () => spawnSync("docker", ["compose", "-p", PROJECT, "ps", "-q"], { env: composeEnv, encoding: "utf8" }).stdout.trim() !== "";
+let alreadyUp = stackIsUp();
+if (alreadyUp && !REUSE) {
+  // the clock key is deleted on a FRESH stack only (a live database of the last run would be left with rows "in the future" of a clock taken back)
+  log("a stack of a previous run is up and E2E_REUSE is not set: docker compose down -v, then a fresh stack");
+  teardown();
+  alreadyUp = false;
+}
 if (!REUSE || !alreadyUp) {
   for (const [port, what] of [[FRONT_PORT, "E2E_FRONT_PORT"], [AUTH_PORT, "E2E_AUTH_PORT"], ...(WITH_EXAM ? [[EXAM_PORT, "E2E_EXAM_PORT"]] : [])]) {
     if (!alreadyUp && (await portBusy(port))) fail(`port ${port} is busy (another program listens there). Choose another with ${what}=...`);
@@ -261,7 +301,9 @@ try {
   }
   await waitHttp(`http://localhost:${AUTH_PORT}/health`, 60_000, "auth-service");
   if (WITH_EXAM) await waitHttp(`http://localhost:${EXAM_PORT}/health`, 120_000, "exam-service");
-  await setUpStandClock(!(REUSE && alreadyUp));
+  const reused = REUSE && alreadyUp;
+  await assertStandClockOn();
+  if (!reused) deleteClockKey();
 
   // ------------------------------------------------------------------------------------------ front
   const buildDir = path.join(repoDir, ".next-e2e");
@@ -314,6 +356,9 @@ try {
   }
   await waitHttp(`${FRONT_ORIGIN}/login`, 60_000, "front");
 
+  // The clock is set LAST before the tests (the build and the start of the front took minutes): the ordinary projects begin at 10:00 of the stand.
+  await setUpStandClock(reused);
+
   // ------------------------------------------------------------------------------------------ tests
   const userArgs = process.argv.slice(2);
   const pwEnv = { ...env, E2E_FRONT_PORT: String(FRONT_PORT), E2E_AUTH_PORT: String(AUTH_PORT), E2E_EXAM_PORT: String(EXAM_PORT), E2E_EXAM: WITH_EXAM ? "1" : "" };
@@ -322,17 +367,22 @@ try {
     const args = ["playwright", "test", "-c", path.join(e2eDir, "playwright.config.ts"), ...extra, ...userArgs];
     return spawnSync("npx", args, { cwd: repoDir, env: pwEnv, stdio: "inherit" }).status ?? 1;
   };
-  if (userArgs.some((a) => a.startsWith("--project"))) {
-    exitCode = runPlaywright([]); // the caller chose the projects: nothing is split
+  // a filter of the caller (--grep, a path): the `days` project may then have nothing to run; without one it must run at least one test
+  const hasFilter = userArgs.some((a) => a === "-g" || a.startsWith("--grep") || !a.startsWith("-"));
+  if (chosenProjects.length > 0) {
+    exitCode = runPlaywright(chosenProjects.includes("days") ? ["--workers=1"] : []); // the caller chose the projects: nothing is split (days: one thread)
   } else {
-    // The ordinary projects first; the `days` project LAST and alone: it moves the stand clock to 2028 and never back.
+    // The ordinary projects first; the `days` project LAST and alone: it moves the stand clock to 2030+ and never back.
     exitCode = runPlaywright(["--project=desktop", "--project=mobile"]);
-    if ((await clockOffsetNow()) > 300 * 86400) {
-      log("project days: the stand clock is already far in the future (a previous days run on this stand) and cannot go back - start a fresh stand (npm run e2e:down)");
-      exitCode = exitCode || 1;
-    } else {
-      const daysCode = runPlaywright(["--project=days", "--workers=1", "--pass-with-no-tests"]);
-      exitCode = exitCode || daysCode;
+    if (WITH_DAYS) {
+      const now = await standBusinessDate();
+      if (now && now >= DAYS_FIRST_DATE) {
+        log(`project days: the stand clock shows ${now}, not before the first date of the project (${DAYS_FIRST_DATE}) and cannot go back - start a fresh stand (npm run e2e:down)`);
+        exitCode = exitCode || 1;
+      } else {
+        const daysCode = runPlaywright(["--project=days", "--workers=1", ...(hasFilter ? ["--pass-with-no-tests"] : [])]);
+        exitCode = exitCode || daysCode;
+      }
     }
   }
   if (exitCode !== 0) {
