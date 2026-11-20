@@ -749,7 +749,7 @@ export interface StatementRow {
   void_reason: string | null;
 }
 
-export type OpenName = "paid" | "due" | "debt" | "advance";
+export type OpenName = "paid" | "forgiven" | "due" | "debt" | "advance";
 
 export interface OpenPart {
   name: OpenName;

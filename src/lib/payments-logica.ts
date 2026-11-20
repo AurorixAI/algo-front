@@ -527,7 +527,8 @@ export interface LeavePreview {
 export interface SettleItem {
   membership_id: string;
   action: SettleAction;
-  expected_debt?: number | null;
+  /** everything unpaid the owner saw (PAY-DUE 17: `expected_unpaid`) */
+  expected_unpaid?: number | null;
   expected_refundable?: number | null;
   method?: Exclude<PayMethod, "unknown"> | null;
   reason?: string | null;
@@ -551,7 +552,7 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
       group_name: String(item.group_name ?? ""),
       money: item.money
         ? {
-            debt: num(item.money.debt),
+            debt: num((item.money as { unpaid?: number }).unpaid ?? item.money.debt), // `unpaid` (everything unpaid after the action) of the server of 17; `debt` of an older answer
             advance: num(item.money.advance),
             refundable: num(item.money.refundable),
             paid_until: item.money.paid_until ?? null,
@@ -639,7 +640,7 @@ export function buildSettle(preview: LeavePreview | null, choices: Record<string
     if (choice.action === "refund" && membership.money.refundable > 0) {
       out.push({ membership_id: membership.membership_id, action: "refund", expected_refundable: membership.money.refundable, method: choice.method });
     } else if (choice.action === "writeoff" && membership.money.debt > 0) {
-      out.push({ membership_id: membership.membership_id, action: "writeoff", expected_debt: membership.money.debt, reason: choice.reason.trim() });
+      out.push({ membership_id: membership.membership_id, action: "writeoff", expected_unpaid: membership.money.debt, reason: choice.reason.trim() });
     } else if (membership.money.debt > 0 || membership.money.refundable > 0) {
       out.push({ membership_id: membership.membership_id, action: "keep" });
     }

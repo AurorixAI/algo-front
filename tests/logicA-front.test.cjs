@@ -253,7 +253,7 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   const forgive = { [debt.membership_id]: { action: "writeoff", method: null, reason: "ab" } };
   assert.match(G.validateSettle(archive, forgive), /причину прощения долга/);
   forgive[debt.membership_id].reason = " договорённость с родителем ";
-  assert.deepEqual(G.buildSettle(archive, forgive), [{ membership_id: debt.membership_id, action: "writeoff", expected_debt: 347000, reason: "договорённость с родителем" }]);
+  assert.deepEqual(G.buildSettle(archive, forgive), [{ membership_id: debt.membership_id, action: "writeoff", expected_unpaid: 347000, reason: "договорённость с родителем" }]);
   // no money to see, no settlements, a hidden balance
   assert.equal(G.settleHeadline({ money: null, has_open_balance: true, allowed: ["keep"] }), "У ученика есть расчёты по оплате — их видит владелец");
   assert.equal(G.settleHeadline({ money: { debt: 0, advance: 0, refundable: 0 }, has_open_balance: false, allowed: ["keep"] }), "Расчётов нет — можно убирать");

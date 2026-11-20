@@ -583,7 +583,7 @@ export function OpenCell({ parts }: { parts: OpenPart[] }) {
   if (parts.length === 0) return null;
   return (
     <span className="inline-flex flex-col items-center gap-1" data-testid="statement-open">
-      {parts.map((part) => (part.name === "paid"
+      {parts.map((part) => (part.name === "paid" || part.name === "forgiven"
         ? <span key={part.name} data-testid="statement-open-paid" className="text-sm text-slate-500">{part.text}</span>
         : <StatusChip key={part.name} tone={OPEN_TONE[part.name]} testId="statement-open-chip" className="tabular-nums">{part.text}</StatusChip>))}
     </span>
