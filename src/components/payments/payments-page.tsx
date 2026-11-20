@@ -317,7 +317,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
           <p className="text-sm text-slate-500 max-sm:hidden">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* a phone: the three links are ONE row that scrolls sideways (the edge that hides a link fades out), not three wrapped lines */}
+        <ScrollHint focusable={false} data-allow-hscroll="" data-testid="payments-header-links" className="flex w-full items-center gap-2 overflow-x-auto sm:w-auto sm:flex-wrap sm:overflow-visible [&>a]:shrink-0 [&>a]:whitespace-nowrap">
           <Link
             href={incomeHref(paymentsBase)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 max-sm:min-h-10"
@@ -333,7 +334,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             Цены групп
           </Link>
           <OpeningsHeaderLink paymentsBase={paymentsBase} />
-        </div>
+        </ScrollHint>
       </div>
 
       {/* The position of the centre: three cards before the tabs (PAY-DUE 9.7).  «Долг» leads to the debtors tab of THIS page, «К оплате» to its own tab, «Аванс» to its card on «Поступления».
@@ -361,16 +362,20 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           {/* a phone (< 640): ONE compact summary in two lines + the advance as a small third (frame 20); the first screen keeps the tabs and two rows */}
           <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position-compact" className="rounded-2xl border border-slate-200 bg-white px-4 py-1 sm:hidden">
             {cards.filter((card) => card.key !== "advance").map((card) => (
-              <Link key={card.key} href={cardHref(card.key)} data-testid={`position-${card.key}-compact`} className="flex min-h-10 items-baseline justify-between gap-3 border-b border-slate-100 py-2 last:border-b-0">
-                <span className="text-sm text-slate-500">{card.label}</span>
-                <span className={`min-w-0 flex-1 text-right text-lg font-bold tabular-nums ${AMOUNT_TONE[card.tone]}`}>{card.amount}</span>
+              <div key={card.key} className="relative grid min-h-10 grid-cols-[auto_1fr_auto] items-center gap-x-3 border-b border-slate-100 py-1.5 last:border-b-0">
+                {/* the whole row leads to its tab (a stretched link); the term of the centre stands under the label of «К оплате», above the link */}
+                <Link href={cardHref(card.key)} data-testid={`position-${card.key}-compact`} aria-label={`${card.label} ${card.amount}${card.students ? `, ${card.students}` : ""}`} className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
+                <span className="text-sm text-slate-500">
+                  {card.label}
+                  {card.key === "due" && term && <span className="relative z-10 block text-xs leading-4" data-testid="pay-due-term-compact">{termNode("inline-flex min-h-6 items-center")}</span>}
+                </span>
+                <span className={`min-w-0 text-right text-lg font-bold tabular-nums ${AMOUNT_TONE[card.tone]}`}>{card.amount}</span>
                 <span className="w-6 shrink-0 text-right text-sm tabular-nums text-slate-500">{card.students ?? ""}</span>
-              </Link>
+              </div>
             ))}
             {advanceCard && (
               <p className="flex flex-wrap items-center gap-x-3 border-t border-slate-100 py-2 text-xs text-slate-500">
                 <Link href={cardHref("advance")} data-testid="position-advance-compact" className="inline-flex min-h-6 items-center tabular-nums">Аванс {advanceCard.amount}{advanceCard.students ? ` · ${advanceCard.students}` : ""}</Link>
-                {term && <span data-testid="pay-due-term-compact">{termNode("inline-flex min-h-10 items-center")}</span>}
               </p>
             )}
           </section>
@@ -402,8 +407,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             </div>
           </ScrollHint>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-sm 2xl:w-64 2xl:flex-none">
+        <div className="flex items-center gap-2 sm:flex-wrap">
+          <div className="relative min-w-0 flex-1 sm:min-w-[200px] sm:max-w-sm 2xl:w-64 2xl:flex-none">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               value={search}
@@ -418,6 +423,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             groups={groups}
             value={filter}
             onChange={(value) => { setFilter(value); setPage(0); }}
+            iconOnPhone
           />
         </div>
       </div>
@@ -555,29 +561,33 @@ function PaymentRow({
   // IA audit F29: money screens lead to the «Оплаты» tab of the card (never the default one) and the group is a link
   const studentLink = studentHref(studentProfileBasePath, row.student_id, "payments");
 
+  const classLine = [row.display_id, row.class_level ? `${row.class_level} класс` : ""].filter(Boolean).join(" · ");
   const student = (
     <div className="min-w-0">
-      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center" title="Открыть карточку ученика">
+      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700" title="Открыть карточку ученика">
         <Words text={row.student_name} />
       </Link>
-      <p className="text-xs text-slate-500">
-        {[row.display_id, row.class_level ? `${row.class_level} класс` : ""].filter(Boolean).join(" · ")}
+      {/* a table: the class under the name, the group in its own column; a card: ONE muted line «7 класс · Математика 7» (the group stays a link) */}
+      <p className="dt-wide-only text-xs text-slate-500">{classLine}</p>
+      <p className="dt-card-only text-xs text-slate-500" data-testid="payment-row-meta">
+        {classLine && <>{classLine} · </>}
+        <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group-card" className="break-words hover:text-primary-700"><Words text={row.group_name} /></Link>
       </p>
     </div>
   );
   const group = (
     <div className="min-w-0">
-      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center">
+      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700">
         <Words text={row.group_name} />
       </Link>
-      <p className="text-xs text-slate-500 max-sm:hidden">{row.teacher_name || "—"}</p>
+      <p className="text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
   );
 
   return (
     <DataRow>
       <DataCell col="student">{student}</DataCell>
-      <DataCell col="group">{group}</DataCell>
+      <DataCell col="group" className="dt-card-hidden">{group}</DataCell>
       <DataCell col="status" testId="status-cell">
         <div className="flex flex-col items-start gap-y-0.5 text-left">
           {label.text && <Chip tone={label.tone} bleed testId="pay-label">{label.text}</Chip>}

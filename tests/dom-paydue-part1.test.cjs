@@ -81,9 +81,20 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
       assert.ok(geo.cardRight - geo.termRight < 40, `the term is at the right edge: ${JSON.stringify(geo)}`);
     } else {
       assert.equal(await page.locator('[data-testid="payments-position"]').isVisible(), false);
-      const compact = (await page.locator('[data-testid="payments-position-compact"] a').allInnerTexts()).map(plain);
-      assert.deepEqual(compact, ["Долг 3 780 000 сум 12", "К оплате 1 524 000 сум 6", "Аванс 148 000 сум · 4", "срок 5 дней"]);
-      assert.equal(plain(await page.locator('[data-testid="pay-due-term-compact"]').innerText()), "срок 5 дней");
+      const compactRows = (await page.locator('[data-testid="payments-position-compact"] > div').allInnerTexts()).map(plain);
+      assert.deepEqual(compactRows, ["Долг 3 780 000 сум 12", "К оплате срок 5 дней 1 524 000 сум 6"]);
+      assert.equal(plain(await page.locator('[data-testid="payments-position-compact"] > p').innerText()), "Аванс 148 000 сум · 4");
+      // 14А.2(б): the term stands in the row of «К оплате» (not at the advance)
+      assert.equal(await page.locator('[data-testid="payments-position-compact"] > div:has([data-testid="pay-due-term-compact"])').count(), 1);
+      assert.match(plain(await page.locator('[data-testid="payments-position-compact"] > div:has([data-testid="pay-due-term-compact"])').innerText()), /^К оплате/);
+      assert.equal(await page.locator('[data-testid="payments-position-compact"] > p [data-testid="pay-due-term-compact"]').count(), 0);
+      // 14А.2(а): the three links are ONE row (one top), scrolling sideways
+      const linkTops = await page.evaluate(() => [...document.querySelectorAll(`[data-testid="payments-header-links"] > a`)].map((el) => Math.round(el.getBoundingClientRect().top)));
+      assert.equal(linkTops.length, 3);
+      assert.equal(new Set(linkTops).size, 1, `the header links are one row: ${linkTops}`);
+      // 14А.2(в): the filter button is IN the row of the search
+      const rowTops = await page.evaluate(() => { const s = document.querySelector(`input[aria-label^="Поиск"]`).getBoundingClientRect(); const f = [...document.querySelectorAll("button")].find((b) => /Все ученики|Фильтр/.test(b.getAttribute("aria-label") ?? b.innerText))?.getBoundingClientRect(); return { search: Math.round(s.top), filter: f ? Math.round(f.top) : null, searchBottom: Math.round(s.bottom), filterBottom: f ? Math.round(f.bottom) : null }; });
+      assert.ok(rowTops.filter !== null && rowTops.filter < rowTops.searchBottom && rowTops.filterBottom > rowTops.search, `the filter stands in the search row: ${JSON.stringify(rowTops)}`);
     }
     // the tabs: the server's students
     const tabs = (await page.locator('[role="tab"]').allInnerTexts()).map(plain);
@@ -121,9 +132,14 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     assert.deepEqual(errors.filter((e) => !/404|Failed to load resource/.test(e)), []);
     await probe(page, "body", `to_pay ${width}`);
     if (width === 375) {
-      // the first screen of a phone holds the cards, the tabs and at least two rows (frame 20)
-      const tops = await page.evaluate(() => [...document.querySelectorAll("li")].slice(0, 3).map((el) => Math.round(el.getBoundingClientRect().top)));
-      assert.ok(tops[1] < 812, `the second row starts on the first screen (the first one is whole): ${tops}`);
+      // 14А.2: the first screen of a phone (375 × 812) holds the tabs and TWO rows of the list WHOLE (the bottom of the second card is inside the screen)
+      const first = await page.evaluate(() => { const tabs = document.querySelector(`[role="tablist"]`).getBoundingClientRect(); const rows = [...document.querySelectorAll(`li`)].slice(0, 2).map((el) => el.getBoundingClientRect()); return { tabsBottom: Math.round(tabs.bottom), rows: rows.map((r) => [Math.round(r.top), Math.round(r.bottom)]) }; });
+      assert.ok(first.tabsBottom <= 812 && first.rows.length === 2 && first.rows[1][1] <= 812, `tabs and two whole rows on 375 × 812: ${JSON.stringify(first)}`);
+      // the card is compact: the group stands in the muted line with the class, no column of its own, no gaps (the name, the meta line, the label, the buttons)
+      const card = await page.evaluate(() => { const li = document.querySelector(`li`); return { meta: li.querySelector(`[data-testid="payment-row-meta"]`)?.innerText.replace(/\s+/g, " ").trim(), groupCellShown: [...li.querySelectorAll(`[data-testid="payment-row-group"]`)].some((el) => el.offsetParent !== null), height: Math.round(li.getBoundingClientRect().height) }; });
+      assert.equal(card.meta, "7 класс · Математика 7");
+      assert.equal(card.groupCellShown, false);
+      assert.ok(card.height <= 190, `a compact card: ${card.height} px`);
     }
     await page.close();
   }
