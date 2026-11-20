@@ -339,9 +339,9 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
 
 test("«Оплаты» validates and sends only the fields its card shows", () => {
   const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
-  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "expiring_days", "centre_cancel_recalc"]);
-  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "billing_day", "expiring_days", "centre_cancel_recalc"]);
-  assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "lessons_per_payment", "expiring_lessons"]);
+  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "expiring_days", "centre_cancel_recalc", "pay_due_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "billing_day", "expiring_days", "centre_cancel_recalc", "pay_due_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "lessons_per_payment", "expiring_lessons", "pay_due_lessons"]);
   const junk = { lessons_per_payment: NaN, expiring_lessons: 99, expiring_days: NaN, billing_day: 40 };
   // a calendar card: the package fields and the day are hidden, a leftover in them does not block
   assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), null);

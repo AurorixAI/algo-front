@@ -34,6 +34,8 @@ interface PaymentsSummaryState {
   /** The term of the centre in days / lessons - READ ONLY here (PAY-DUE 10.6); null until the server sends it. */
   payDueDays: number | null;
   payDueLessons: number | null;
+  /** «Не дольше N дней» of a package - the server's number (`pay_due_package_max_days`); null until it sends it (then the screen says nothing about it). */
+  payDueMaxDays: number | null;
   paused: number;
   studentsPaused: number | null;
   studentsWithAdvance: number | null;
@@ -80,6 +82,7 @@ const EMPTY = {
   tabs: null as TabCounts | null,
   payDueDays: null as number | null,
   payDueLessons: null as number | null,
+  payDueMaxDays: null as number | null,
   paused: 0,
   studentsPaused: null as number | null,
   studentsWithAdvance: null as number | null,
@@ -154,6 +157,7 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
       : null,
     payDueDays: optionalCount(summary?.pay_due_days),
     payDueLessons: optionalCount(summary?.pay_due_lessons),
+    payDueMaxDays: optionalCount(summary?.pay_due_package_max_days),
     paused: count(summary?.paused),
     studentsPaused: optionalCount(summary?.students_paused),
     studentsWithAdvance: optionalCount(summary?.students_with_advance),

@@ -31,7 +31,10 @@ const server = (extra = {}, state = {}) => (request) => {
     return { json: state.long ? { ...page, items: longRows(page.items) } : page };
   }
   if (request.path === "/auth/org/groups") return { json: [{ id: "g1", name: "Математика 7", teacher_id: "t1" }] };
-  if (request.path === "/auth/org/settings/payments") return { json: request.method === "PUT" && isDry(request) ? { ...s.settings, dry_run: true, pay_due_impact: state.impact ?? X.impact(4, 0) } : request.method === "PUT" ? { ...s.settings, ...request.body } : s.settings };
+  if (request.path === "/auth/org/settings/payments") {
+    const days = request.body?.pay_due_days ?? s.settings.pay_due_days; const lessons = request.body?.pay_due_lessons ?? s.settings.pay_due_lessons;
+    return { json: request.method === "PUT" && isDry(request) ? { ...s.settings, dry_run: true, pay_due_impact: state.impact ?? X.impact(4, 0), pay_due_example: X.example(days, lessons) } : request.method === "PUT" ? { ...s.settings, ...request.body, pay_due_example: null } : s.settings };
+  }
   if (request.path === "/auth/org/stats") return { json: { total_students: 23, total_groups: 3, total_members: 6, active_diagnostics: 0, completed_diagnostics: 0, new_students: 1 } };
   if (request.path === "/auth/org/groups-overview") return { json: { groups: [], avg_theta: null } };
   return null;
@@ -82,7 +85,7 @@ const FRAMES = [
   { name: "f01-settings-term", mount: ["settings", OWNER, { moneyAvailable: true }], answer: server(), steps: (p) => block(p) },
   { name: "f02a-settings-5-to-10", mount: ["settings", OWNER, { moneyAvailable: true }], answer: server(), steps: async (p) => { await block(p); await p.fill("#pay-due-days", "10"); await p.waitForSelector('[data-testid="pay-due-impact"]'); await p.locator('[data-testid="pay-due-block"]').scrollIntoViewIfNeeded(); } },
   { name: "f02b-settings-10-to-5", mount: ["settings", OWNER, { moneyAvailable: true }], answer: tenSettings, steps: async (p) => { await block(p); await p.fill("#pay-due-days", "5"); await p.waitForSelector('[data-testid="pay-due-impact"]'); await p.locator('[data-testid="pay-due-block"]').scrollIntoViewIfNeeded(); } },
-  { name: "f02c-settings-saved", mount: ["settings", OWNER, { moneyAvailable: true }], answer: server(), steps: async (p) => { await block(p); await p.fill("#pay-due-days", "10"); await p.waitForSelector('[data-testid="pay-due-save"]'); await p.click('[data-testid="pay-due-save"]'); await p.waitForSelector("text=Срок оплаты — 10 дней"); await p.waitForTimeout(500); } },
+  { name: "f02c-settings-saved", mount: ["settings", OWNER, { moneyAvailable: true }], answer: server(), steps: async (p) => { await block(p); await p.fill("#pay-due-days", "10"); await p.waitForSelector('[data-testid="pay-due-impact"]'); await p.getByRole("button", { name: /^Сохранить$/ }).click(); await p.waitForSelector("text=Срок оплаты — 10 дней"); await p.waitForTimeout(500); } },
   { name: "f03-settings-package", mount: ["settings", OWNER, { moneyAvailable: true }], answer: lessonsSettings, steps: (p) => block(p, '[data-testid="pay-due-lessons"]') },
   { name: "f04-settings-admin", mount: ["adminSettings", ADMIN, { moneyAvailable: true }], answer: server(), steps: (p) => block(p, '[data-testid="pay-due-readonly"]') },
   { name: "f05-payments-top", mount: ["payments", OWNER, { search: "bucket=to_pay" }], answer: server(), steps: async (p) => { await p.waitForSelector('[data-testid="pay-label"]'); } },

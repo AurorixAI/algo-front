@@ -152,32 +152,24 @@ test("the three cards: Долг · К оплате · Аванс - the server's 
   assert.equal(P.positionCards({ due_total: 5, due_students: 1 })[1].sub, "1 ученик");
 });
 
-test("the term of the settings: the example under the field is the arithmetic of the day, the first day being the first", () => {
-  // календарный «Общий месяц»: период с 01.12, срок 5 → до 05.12 включительно
-  assert.equal(D.payDueExample({ anchor: "fixed_day", billingDay: 1, days: 5, today: "2026-11-20" }), "Период с 01.12 — платить до 05.12 включительно");
-  assert.equal(D.payDueExample({ anchor: "fixed_day", billingDay: 1, days: 10, today: "2026-11-20" }), "Период с 01.12 — платить до 10.12 включительно");
-  assert.equal(D.payDueExample({ anchor: "fixed_day", billingDay: 1, days: 1, today: "2026-11-20" }), "Период с 01.12 — платить до 01.12 включительно");
-  assert.equal(D.payDueExample({ anchor: "fixed_day", billingDay: 25, days: 14, today: "2026-11-20" }), "Период с 25.11 — платить до 08.12 включительно");
-  assert.equal(D.payDueExample({ anchor: "fixed_day", billingDay: 5, days: 3, today: "2026-12-20" }), "Период с 05.01 — платить до 07.01 включительно");
-  // «Свой месяц у каждого»: записан 20.11, срок 5 → до 24.11
-  assert.equal(D.payDueExample({ anchor: "payment_date", billingDay: 1, days: 5, today: "2026-11-20" }), "Записан 20.11 — платить до 24.11 включительно");
-  assert.equal(D.payDueExample({ anchor: "payment_date", billingDay: 1, days: 10, today: "2026-11-20" }), "Записан 20.11 — платить до 29.11 включительно");
-  // 0 = a debt from the first day; out of range = no example
-  assert.equal(D.payDueExample({ anchor: "payment_date", billingDay: 1, days: 0, today: "2026-11-20" }), "Неоплата — долг с первого дня");
-  assert.equal(D.payDueExample({ anchor: "payment_date", billingDay: 1, days: 15, today: "2026-11-20" }), "");
-  assert.equal(D.payDueExample({ anchor: "payment_date", billingDay: 1, days: NaN, today: "2026-11-20" }), "");
-  // a package: the example names the lesson that turns into a debt (10.7); 15 = 14 + 1
-  assert.equal(D.payDueLessonsExample(2), "Третий неоплаченный урок или 15-й день после урока — уже долг");
-  assert.equal(D.payDueLessonsExample(0), "Первый неоплаченный урок или 15-й день после урока — уже долг");
-  assert.equal(D.payDueLessonsExample(4), "Пятый неоплаченный урок или 15-й день после урока — уже долг");
-  assert.equal(D.payDueLessonsExample(5), "");
+test("the term of the settings: the example under the field is the SERVER's (14А.3) - the screen has no arithmetic of it; the ranges and the hint by the server's number", () => {
+  // the old screen arithmetic is gone: the sentences come from `pay_due_example` of the owner's GET / the dry run
+  for (const gone of ["payDueExample", "payDueLessonsExample", "nextPeriodStart", "PACKAGE_UNPAID_DAYS", "PAY_DUE_LESSONS_HINT"]) assert.equal(D[gone], undefined, `${gone} must be deleted`);
   assert.deepEqual([D.PAY_DUE_DAYS_RANGE, D.PAY_DUE_LESSONS_RANGE], [{ min: 0, max: 14 }, { min: 0, max: 4 }]);
+  // «не дольше N дней» - N is `pay_due_package_max_days`; the server said nothing - the screen says nothing (151)
+  assert.equal(D.payDueLessonsHint(14), "не дольше 14 дней");
+  assert.equal(D.payDueLessonsHint(10), "не дольше 10 дней");
+  assert.equal(D.payDueLessonsHint(null), "");
+  assert.equal(D.payDueLessonsHint(undefined), "");
+  assert.equal(SUM.summaryToState({ pay_due_package_max_days: 14 }).payDueMaxDays, 14);
+  assert.equal(SUM.summaryToState({}).payDueMaxDays, null);
 });
 
 test("the term of the settings: words, the body of the save and the validity", () => {
   assert.equal(D.payDueSavedText(10), "Срок оплаты — 10 дней");
   assert.equal(D.payDueSavedText(1), "Срок оплаты — 1 день");
   assert.equal(D.payDueSavedText(2), "Срок оплаты — 2 дня");
+  assert.equal(D.payDueSavedText(2, true), "Срок оплаты — 2 урока");
   assert.equal(D.payDueReadText(5), "Срок оплаты: 5 дней");
   assert.equal(D.lessonsUnit(1), "урок");
   assert.equal(D.lessonsUnit(2), "урока");
@@ -196,10 +188,19 @@ test("the term of the settings: words, the body of the save and the validity", (
   assert.deepEqual(D.payDueImpactLines({ texts: ["1 ученик станет должниками", "  "] }), ["1 ученик станет должниками"]);
   assert.deepEqual(D.payDueImpactLines({ texts: [] }), []);
   assert.deepEqual(D.payDueImpactLines(null), []);
-  // the new fields are in the types' defaults and are NOT in the keys of the section's own save (the term saves on its own)
+  // 14А.3: the term is a PART OF THE FORM - saved by the one button of the section, with the keys of the chosen mode (days: calendar; lessons: package), validated with the section
   assert.deepEqual([P.DEFAULT_PAYMENT_SETTINGS.pay_due_days, P.DEFAULT_PAYMENT_SETTINGS.pay_due_lessons], [5, 2]);
-  assert.ok(!P.PAYMENTS_SCOPE_KEYS.includes("pay_due_days"));
-  assert.ok(!P.PAYMENTS_SCOPE_KEYS.includes("pay_due_lessons"));
+  assert.ok(P.PAYMENTS_SCOPE_KEYS.includes("pay_due_days") && P.PAYMENTS_SCOPE_KEYS.includes("pay_due_lessons"));
+  assert.ok(P.paymentsScopeKeys("fixed_day").includes("pay_due_days") && !P.paymentsScopeKeys("fixed_day").includes("pay_due_lessons"));
+  assert.ok(P.paymentsScopeKeys("payment_date").includes("pay_due_days") && !P.paymentsScopeKeys("payment_date").includes("pay_due_lessons"));
+  assert.ok(P.paymentsScopeKeys("lessons").includes("pay_due_lessons") && !P.paymentsScopeKeys("lessons").includes("pay_due_days"));
+  const base = { ...P.DEFAULT_PAYMENT_SETTINGS, period_mode: "calendar", billing_anchor: "fixed_day", billing_day: 1 };
+  assert.equal(P.validatePaymentSettings({ ...base, pay_due_days: 14 }, "payments"), null);
+  assert.match(P.validatePaymentSettings({ ...base, pay_due_days: 15 }, "payments"), /Срок оплаты: от 0 до 14/);
+  assert.match(P.validatePaymentSettings({ ...base, pay_due_days: NaN }, "payments"), /Срок оплаты/);
+  assert.equal(P.validatePaymentSettings({ ...base, pay_due_lessons: 9 }, "payments"), null, "the field of the other mode is hidden: not checked");
+  assert.match(P.validatePaymentSettings({ ...base, period_mode: "lessons", pay_due_lessons: 5 }, "payments"), /Уроков без оплаты: от 0 до 4/);
+  assert.deepEqual(P.diffPaymentSettings({ ...base }, { ...base, pay_due_days: 10 }, P.paymentsScopeKeys("fixed_day")), { pay_due_days: 10 });
 });
 
 test("the dashboard: ONE tile of the money with two rows; no row of «К оплате» when nothing is to be paid; no tile without the right to money", () => {

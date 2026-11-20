@@ -222,86 +222,110 @@ test("«Оплаты»: after midnight of Tashkent a return to the tab re-reads 
   await page.close();
 });
 
-test("settings, the term of a calendar centre: the example, the dry run asked with EXACTLY the saved body, the server's line, the save, the message", async () => {
+const saveButton = (page) => page.getByRole("button", { name: /^Сохранить$/ });
+/** The owner's settings as the SERVER answers them (the example is its sentence for the REQUESTED values: a dry run says it for the typed ones). */
+const termServer = (puts, { settings = X.SETTINGS, impact = X.impact(4, 0) } = {}) => server((r) => {
+  if (r.path === "/auth/org/settings/payments" && r.method === "PUT") {
+    puts.push({ dry: isDry(r), body: r.body });
+    const days = r.body?.pay_due_days ?? settings.pay_due_days;
+    const lessons = r.body?.pay_due_lessons ?? settings.pay_due_lessons;
+    return { json: isDry(r) ? { ...settings, dry_run: true, pay_due_impact: impact, pay_due_example: X.example(days, lessons) } : { ...settings, ...r.body, pay_due_example: null, updated_at: "2026-11-20T10:00:00" } };
+  }
+  if (r.path === "/auth/org/settings/payments" && r.method === "GET" && puts.saved) return { json: { ...settings, ...puts.saved, pay_due_example: X.example(puts.saved.pay_due_days ?? settings.pay_due_days, puts.saved.pay_due_lessons ?? settings.pay_due_lessons) } };
+  if (r.path === "/auth/org/settings/payments") return { json: settings };
+  return null;
+});
+
+test("settings, the term of a calendar centre (14А.3): a GREY PANEL like its neighbours, no buttons of its own, the server's example, the dry run under the field, the page's ONE «Сохранить» saves it, the message", async () => {
   for (const [width, height] of WIDTHS) {
     const puts = [];
-    const answer = server((r) => {
-      if (r.path === "/auth/org/settings/payments" && r.method === "PUT") { puts.push({ dry: isDry(r), body: r.body }); return { json: isDry(r) ? { ...X.SETTINGS, dry_run: true, pay_due_impact: X.impact(4, 0) } : { ...X.SETTINGS, ...r.body, updated_at: "2026-11-20T10:00:00" } }; }
-      return null;
-    });
-    const { page, calls } = await open(width, height, answer, ["settings", OWNER, { moneyAvailable: true }]);
+    const { page, calls } = await open(width, height, termServer(puts), ["settings", OWNER, { moneyAvailable: true }]);
     await page.waitForSelector('[data-testid="pay-due-block"]');
     assert.equal(plain(await page.locator('[data-testid="pay-due-block"] h3').first().innerText()), "Срок оплаты");
     assert.equal(await page.inputValue("#pay-due-days"), "5");
-    assert.match(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), /^Период с \d\d\.\d\d — платить до \d\d\.\d\d включительно$/);
-    assert.equal(await page.locator('[data-testid="pay-due-save"]').count(), 0, "no buttons until the number changes");
+    // the example is the SERVER's sentence (`pay_due_example.period` of the GET), not the screen's arithmetic
+    assert.equal(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), X.example(5, 2).period);
     assert.equal(await page.locator('[data-testid="pay-due-lessons"]').count(), 0, "a calendar centre has no field of lessons");
-    // 5 → 10: the example is recounted, the dry run is asked, the server's line stands above the buttons
+    // the look of the neighbours: the grey panel without a frame of its own (the same box as «День, с которого начинается общий месяц»)
+    const look = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('[data-testid="pay-due-block"]')); return { bg: s.backgroundColor, border: s.borderTopWidth, radius: s.borderTopLeftRadius }; });
+    assert.equal(look.border, "0px", "no frame of its own");
+    assert.equal(look.bg, "rgb(250, 249, 247)", "the grey panel (slate-50 of the project - the same as the admin switch panel)");
+    // no buttons of its own, ever: the page has ONE «Сохранить»
+    assert.equal(await page.locator('[data-testid="pay-due-save"], [data-testid="pay-due-cancel"]').count(), 0);
+    assert.equal(await saveButton(page).count(), 1, "one button of the section");
+    // 5 → 10: the server's example for 10, the server's line under the field while the value differs; the dry run is the term part of the saved body
     await page.fill("#pay-due-days", "10");
     await page.waitForSelector('[data-testid="pay-due-impact"]');
     assert.equal(plain(await page.locator('[data-testid="pay-due-impact"]').first().innerText()), "После сохранения: 4 ученика из должников станут «К оплате»");
-    assert.match(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), /платить до 10\.12 включительно$/);
+    assert.equal(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), X.example(10, 2).period);
     assert.deepEqual(puts.at(-1), { dry: true, body: { pay_due_days: 10 } });
     await probe(page, '[data-testid="pay-due-block"]', `settings ${width}`);
-    if (width === 375) {
-      const heights = await page.evaluate(() => ["pay-due-save", "pay-due-cancel"].map((id) => Math.round(document.querySelector(`[data-testid="${id}"]`).getBoundingClientRect().height)));
-      assert.ok(heights.every((h) => h >= 40), `the buttons are tap targets: ${heights}`);
-    }
-    // cancel brings 5 back and the buttons go
-    await page.click('[data-testid="pay-due-cancel"]');
-    assert.equal(await page.inputValue("#pay-due-days"), "5");
-    assert.equal(await page.locator('[data-testid="pay-due-save"]').count(), 0);
-    // save: the same body, the message names the new value, the block rests, the summary is read again
+    // back to 5: the line goes (the value equals the saved one)
+    await page.fill("#pay-due-days", "5");
+    await page.waitForFunction(() => !document.querySelector('[data-testid="pay-due-impact"]'));
+    assert.equal(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), X.example(5, 2).period);
+    // save with the page's button: the same term in the body, the message names it, the summary is read again, the line goes, the example is the server's for the saved value (the save answers without it - it is asked again)
     await page.fill("#pay-due-days", "10");
     await page.waitForSelector('[data-testid="pay-due-impact"]');
     const summaryBefore = calls.filter((c) => c.path === "/auth/org/payments/summary").length;
-    await page.click('[data-testid="pay-due-save"]');
+    puts.saved = { pay_due_days: 10 };
+    await saveButton(page).click();
     await page.waitForSelector("text=Срок оплаты — 10 дней");
-    assert.deepEqual(puts.at(-1), { dry: false, body: { pay_due_days: 10 } });
+    assert.deepEqual(puts.at(-1), { dry: false, body: { pay_due_days: 10 } }, "the term is the only change: the body holds nothing else");
     await until(() => calls.filter((c) => c.path === "/auth/org/payments/summary").length > summaryBefore, "the summary is read again after the save");
-    await page.waitForFunction(() => !document.querySelector('[data-testid="pay-due-save"]'));
+    await page.waitForFunction(() => !document.querySelector('[data-testid="pay-due-impact"]'));
     assert.equal(await page.inputValue("#pay-due-days"), "10");
+    await page.waitForFunction((text) => document.querySelector('[data-testid="pay-due-example"]')?.textContent.trim() === text, X.example(10, 2).period);
     await page.close();
   }
 });
 
-test("settings, 10 → 5 says the other way round; a dry run with no change says nothing; a bad number is not saved", async () => {
-  const settings10 = { ...X.SETTINGS, pay_due_days: 10 };
-  const answer = (request) => {
-    if (request.path === "/auth/org/settings/payments") return { json: request.method === "PUT" && isDry(request) ? { ...settings10, dry_run: true, pay_due_impact: X.impact(0, 4) } : settings10 };
-    return server()(request);
-  };
-  const { page } = await open(1280, 800, answer, ["settings", OWNER, { moneyAvailable: true }]);
+test("settings, 10 → 5 says the other way round; a dry run with no change says nothing; a bad number is not saved (the page's own message)", async () => {
+  const settings10 = { ...X.SETTINGS, pay_due_days: 10, pay_due_example: X.example(10, 2) };
+  const puts = [];
+  const { page } = await open(1280, 800, termServer(puts, { settings: settings10, impact: X.impact(0, 4) }), ["settings", OWNER, { moneyAvailable: true }]);
   await page.waitForSelector('[data-testid="pay-due-block"]');
   await page.fill("#pay-due-days", "5");
   await page.waitForSelector('[data-testid="pay-due-impact"]');
   assert.equal(plain(await page.locator('[data-testid="pay-due-impact"]').first().innerText()), "После сохранения: 4 ученика станут должниками");
   await page.fill("#pay-due-days", "15");
   await page.waitForSelector('[data-testid="pay-due-range"]');
-  assert.equal(await page.locator('[data-testid="pay-due-save"]').count(), 0, "15 is out of 0..14: no buttons");
+  assert.equal(plain(await page.locator('[data-testid="pay-due-range"]').first().innerText()), "Срок: от 0 до 14 дней");
+  assert.equal(await page.locator('[data-testid="pay-due-impact"]').count(), 0, "no dry run for a bad number");
+  const putsBefore = puts.filter((p) => !p.dry).length;
+  await saveButton(page).click();
+  await page.waitForSelector("text=Срок оплаты: от 0 до 14 дней");
+  assert.equal(puts.filter((p) => !p.dry).length, putsBefore, "a bad number is not sent");
   await page.close();
-  // nothing changes name: no line, the buttons stay
-  const quiet = (request) => (request.path === "/auth/org/settings/payments" && request.method === "PUT" && isDry(request) ? { json: { ...X.SETTINGS, dry_run: true, pay_due_impact: X.impact(0, 0) } } : server()(request));
+  // nothing changes name: no line
+  const quiet = termServer([], { impact: X.impact(0, 0) });
   const calm = await open(1280, 800, quiet, ["settings", OWNER, { moneyAvailable: true }]);
   await calm.page.waitForSelector('[data-testid="pay-due-block"]');
   await calm.page.fill("#pay-due-days", "6");
-  await calm.page.waitForSelector('[data-testid="pay-due-save"]');
-  await calm.page.waitForTimeout(600);
+  await calm.page.waitForFunction((text) => document.querySelector('[data-testid="pay-due-example"]')?.textContent.trim() === text, X.example(6, 2).period);
   assert.equal(await calm.page.locator('[data-testid="pay-due-impact"]').count(), 0, "at zero changes there is no line");
   await calm.page.close();
 });
 
-test("settings, a package centre: «Без оплаты можно провести [2] урока» with its example; a centre that changes the mode shows both lines", async () => {
+test("settings, a package centre: «Без оплаты можно провести [2] урока (не дольше 14 дней)» - the 14 is the server's number, the example its sentence", async () => {
   const lessons = { ...X.SETTINGS, period_mode: "lessons", billing_anchor: "payment_date" };
-  const { page } = await open(1280, 800, (r) => (r.path === "/auth/org/settings/payments" ? { json: lessons } : server()(r)), ["settings", OWNER, { moneyAvailable: true }]);
+  const puts = [];
+  const { page } = await open(1280, 800, termServer(puts, { settings: lessons }), ["settings", OWNER, { moneyAvailable: true }]);
   await page.waitForSelector('[data-testid="pay-due-lessons"]');
   assert.equal(await page.inputValue("#pay-due-lessons"), "2");
   assert.equal(await page.locator("#pay-due-days").count(), 0);
-  assert.equal(plain(await page.locator('[data-testid="pay-due-lessons-example"]').first().innerText()), "Третий неоплаченный урок или 15-й день после урока — уже долг");
+  assert.equal(plain(await page.locator('[data-testid="pay-due-example"]').first().innerText()), "Третий неоплаченный урок или 15-й день после урока — уже долг");
   assert.match(plain(await page.locator('[data-testid="pay-due-block"]').first().innerText()), /Без оплаты можно провести урока \(не дольше 14 дней\)/);
   await page.fill("#pay-due-lessons", "3");
-  assert.equal(plain(await page.locator('[data-testid="pay-due-lessons-example"]').first().innerText()), "Четвёртый неоплаченный урок или 15-й день после урока — уже долг");
+  await page.waitForFunction(() => /^Четвёртый неоплаченный урок/.test(document.querySelector('[data-testid="pay-due-example"]').textContent.trim()));
+  assert.deepEqual(puts.at(-1), { dry: true, body: { pay_due_lessons: 3 } });
+  // the server did not say the number of days: the hint is not there (151)
   await page.close();
+  const silent = await open(1280, 800, (r) => (r.path === "/auth/org/payments/summary" ? { json: { ...X.SUMMARY, pay_due_package_max_days: undefined } } : termServer([], { settings: lessons })(r)), ["settings", OWNER, { moneyAvailable: true }]);
+  await silent.page.waitForSelector('[data-testid="pay-due-lessons"]');
+  await silent.page.waitForTimeout(300);
+  assert.equal(await silent.page.locator('[data-testid="pay-due-hint"]').count(), 0);
+  await silent.page.close();
 });
 
 test("settings, an administrator with the right to money: the term is a line of text («Срок оплаты: 5 дней. Меняет владелец»), no field, no request to the owner's settings", async () => {

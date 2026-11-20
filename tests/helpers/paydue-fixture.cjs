@@ -45,7 +45,7 @@ const SUMMARY = {
     { bucket: "to_30", students: 6, memberships: 6, debt_total: 2100000 }, { bucket: "31_60", students: 4, memberships: 4, debt_total: 1380000 },
     { bucket: "61_90", students: 2, memberships: 2, debt_total: 300000 }, { bucket: "over_90", students: 0, memberships: 0, debt_total: 0 },
   ],
-  students_paused: 0, pay_due_days: 5, pay_due_lessons: 2,
+  students_paused: 0, pay_due_days: 5, pay_due_lessons: 2, pay_due_package_max_days: 14,
 };
 
 const TABS = {
@@ -65,10 +65,20 @@ const statusPage = (query) => {
   return { ...tab, items: tab.items.slice(0, limit), limit, offset: Number(params.get("offset") || 0), as_of: "2026-11-20" };
 };
 
+/** A STUB of the server's example under the term (`pay_due_example`: the real sentences are the server's, `payments_texts.py`): the next period of the centre from 01.12, the package sentence by M and the limit of days. */
+const example = (days, lessons, maxDays = 14) => {
+  const ddmm = (d) => `${String(d).padStart(2, "0")}.12`;
+  const ordinals = ["Первый", "Второй", "Третий", "Четвёртый", "Пятый"];
+  const period = days <= 0 ? "Неоплата — долг с первого дня" : `Период с 01.12 — платить до ${ddmm(days)} включительно`;
+  const pack = `${ordinals[lessons]} неоплаченный урок или ${maxDays + 1}-й день после урока — уже долг`;
+  return { period, package: pack, text: period };
+};
+
 /** The settings of the centre (`GET /org/settings/payments`; the owner only). */
 const SETTINGS = {
   period_mode: "calendar", billing_anchor: "fixed_day", billing_day: 1, lessons_per_payment: 12, expiring_days: 3, expiring_lessons: 3, pay_due_days: 5, pay_due_lessons: 2,
   excuse_deadline_days: 5, excuse_deadline_lessons: 2, admin_can_manage: false, centre_cancel_recalc: false, accounting_start_date: "2026-09-01", updated_by: null, updated_at: null,
+  pay_due_example: example(5, 2),
 };
 
 /** The dry run of a new term: the server's lines (the screen never rebuilds them). */
@@ -80,4 +90,4 @@ const impact = (to_due, to_debt) => {
   return { to_due, to_debt, texts };
 };
 
-module.exports = { money, SUMMARY, SETTINGS, TABS, KAMILA, SANJAR, AZIZ, ANVAR, NODIRA, TIMUR, LOLA, MADINA, statusPage, impact, base };
+module.exports = { example, money, SUMMARY, SETTINGS, TABS, KAMILA, SANJAR, AZIZ, ANVAR, NODIRA, TIMUR, LOLA, MADINA, statusPage, impact, base };

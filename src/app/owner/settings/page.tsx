@@ -45,6 +45,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { AccountingStartLine } from "@/components/payments/accounting-start-line";
 import { HelpToggle } from "@/components/ui/help-toggle";
 import { PayDueSetting } from "@/components/settings/pay-due-setting";
+import { payDueSavedText } from "@/lib/pay-due-setting";
 import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMENT_MODEL_ORDER, PAYMENT_MODEL_SHORT_HINT, RECOMMENDED_LABEL, RECOMMENDED_MODEL, BILLING_DAY_SHORT_HINT } from "@/lib/payf-settings";
 import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
@@ -211,10 +212,7 @@ function usePaymentSettingsDraft(enabled: boolean) {
     }
   };
 
-  /** The answer of a change made OUTSIDE the two sections («Срок оплаты» saves on its own) is what is loaded and shown. */
-  const adopt = (next: Partial<PaymentSettings>) => { setLoaded((previous) => ({ ...previous, ...next })); setForm((previous) => ({ ...previous, ...next })); };
-
-  return { status, form, loaded, saves, patch, save, adopt };
+  return { status, form, loaded, saves, patch, save };
 }
 
 type PaymentSettingsDraft = ReturnType<typeof usePaymentSettingsDraft>;
@@ -339,10 +337,14 @@ function PaymentsSettingsSection({ draft, onNotify }: { draft: PaymentSettingsDr
   const saveBody = diffPaymentSettings(loaded, form, paymentsScopeKeys(model)) as Record<string, unknown>;
   // Money-1 B3: «Сохранить» of a change of the mode opens the window that says, per student, what it does (the dry run is asked inside it)
   const [regimeOpen, setRegimeOpen] = useState(false);
-  const saveSection = () => { if (regimeChanged) setRegimeOpen(true); else void draft.save("payments"); };
-  const confirmRegime = () => { void draft.save("payments").then((ok) => { if (ok) setRegimeOpen(false); }); };
+  const saveSection = () => { if (regimeChanged) setRegimeOpen(true); else void draft.save("payments").then(afterSave); };
+  const confirmRegime = () => { void draft.save("payments").then(afterSave).then((ok) => { if (ok) setRegimeOpen(false); }); };
   const patch = (next: Partial<PaymentSettings>) => draft.patch("payments", next);
   const choose = (key: PaymentModel) => patch(paymentModelPatch(key));
+  const payDueMaxDays = usePaymentsSummary((summary) => summary.payDueMaxDays);
+  // the term is a part of the form: its message («Срок оплаты — 10 дней») comes after the SAVE of the section, when the term was among the changes
+  const termChanged = "pay_due_days" in saveBody || "pay_due_lessons" in saveBody;
+  const afterSave = (ok: boolean) => { if (ok && termChanged) onNotify(payDueSavedText(model === "lessons" ? form.pay_due_lessons : form.pay_due_days, model === "lessons")); return ok; };
 
   return (
     <SettingsSection
@@ -417,7 +419,7 @@ function PaymentsSettingsSection({ draft, onNotify }: { draft: PaymentSettingsDr
         </div>
       )}
 
-      <PayDueSetting draft={draft} model={model} onNotify={onNotify} />
+      <PayDueSetting form={form} loaded={loaded} model={model} maxDays={payDueMaxDays} onChange={patch} />
 
       {model === "lessons" ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

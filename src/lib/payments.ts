@@ -17,6 +17,7 @@ import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 import { forecastText, type RecalcLine } from "./payf";
 import { rowUnpaid, type PayState } from "./pay-state";
+import { PAY_DUE_DAYS_RANGE, PAY_DUE_LESSONS_RANGE } from "./pay-due-setting";
 
 // ── API contract (pay2_contract.json) ──────────────────────────────────────
 
@@ -44,6 +45,8 @@ export interface PaymentSettings {
   /** PAY-DUE 9.6: the term of the centre.  A calendar mode: the sum of a period is «К оплате» for this many days from its start (the first day counts as the first; 0 - a debt from the first day); a package: this many lessons may be held unpaid.  The owner changes them (own block, own dry run), nobody else reads them here. */
   pay_due_days: number;
   pay_due_lessons: number;
+  /** PAY-DUE 14А.3: the example under the term in the SERVER'S words (the owner's GET and the dry run - for the requested values): `period` for a calendar mode, `package` for a package, `text` - of the centre's mode.  Read only, never sent back. */
+  pay_due_example?: PayDueExample | null;
   /** An excuse is confirmed this many days before the end of the paid period... */
   excuse_deadline_days: number;
   /** ...or when this many lessons are left in a lessons package. */
@@ -59,7 +62,7 @@ export interface PaymentSettings {
   updated_at: string | null;
 }
 
-export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" | "updated_at" | "recalc_hint">>;
+export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" | "updated_at" | "recalc_hint" | "pay_due_example">>;
 
 /** What a change of `accounting_start_date` touches (`PUT /org/settings/payments?dry_run=true`). */
 export interface AccountingStartImpact {
@@ -71,6 +74,13 @@ export interface AccountingStartImpact {
   refundable_delta?: number;
   /** S0: memberships whose live opening has «оплачено до» earlier than the new start − 1 (they need a second look in «Остатки на начало»; older servers do not send it). */
   openings_to_review?: number;
+}
+
+/** The sentences of the example under the term of payment (`pay_due_example`). */
+export interface PayDueExample {
+  period: string;
+  package: string;
+  text: string;
 }
 
 /** `PUT /org/settings/payments`: the settings plus the impact of the requested start date (`dry_run`: nothing was saved). */
@@ -116,6 +126,8 @@ export interface PaymentsSummary {
   /** PAY-DUE 10.6: the term of the centre, READ ONLY here (the roles with the right to money read it; changing it is the owner's, `PUT /org/settings/payments`). */
   pay_due_days?: number;
   pay_due_lessons?: number;
+  /** An unpaid lesson of a package stops being «К оплате» this many days after its date whatever the setting is (read only; the screen says «не дольше N дней» by it). */
+  pay_due_package_max_days?: number;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -1221,7 +1233,7 @@ export type PaymentSettingsScope = "payments" | "attendance";
 
 export const PAYMENTS_SCOPE_KEYS = [
   "period_mode", "billing_anchor", "billing_day", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage", "accounting_start_date",
-  "centre_cancel_recalc",
+  "centre_cancel_recalc", "pay_due_days", "pay_due_lessons",
 ] as const;
 export const ATTENDANCE_SCOPE_KEYS = ["excuse_deadline_days", "excuse_deadline_lessons"] as const;
 
@@ -1235,9 +1247,9 @@ type SettingsKey = (typeof PAYMENTS_SCOPE_KEYS)[number] | (typeof ATTENDANCE_SCO
  */
 export function paymentsScopeKeys(model: PaymentModel): SettingsKey[] {
   const common: SettingsKey[] = ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date"];
-  if (model === "lessons") return [...common, "lessons_per_payment", "expiring_lessons"];
-  if (model === "fixed_day") return [...common, "billing_day", "expiring_days", "centre_cancel_recalc"];
-  return [...common, "expiring_days", "centre_cancel_recalc"];
+  if (model === "lessons") return [...common, "lessons_per_payment", "expiring_lessons", "pay_due_lessons"];
+  if (model === "fixed_day") return [...common, "billing_day", "expiring_days", "centre_cancel_recalc", "pay_due_days"];
+  return [...common, "expiring_days", "centre_cancel_recalc", "pay_due_days"];
 }
 
 /** «Изменит долг у 12 учеников: +5 400 000 сум» — what a new start of the accounting does (the dry run of the server). */
@@ -1275,7 +1287,7 @@ export const ACCOUNTING_START_MIN = "2020-01-01";
 
 export function validatePaymentSettings(
   settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
-    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day" | "period_mode" | "billing_anchor" | "accounting_start_date">>,
+    Partial<Pick<PaymentSettings, "pay_due_days" | "pay_due_lessons" | "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day" | "period_mode" | "billing_anchor" | "accounting_start_date">>,
   scope?: PaymentSettingsScope,
 ): string | null {
   if (scope !== "attendance") {
@@ -1295,6 +1307,12 @@ export function validatePaymentSettings(
     }
     if (check("billing_day") && settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
       return `${BILLING_DAY_LABEL}: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
+    }
+    if (check("pay_due_days") && settings.pay_due_days !== undefined && !inRange(settings.pay_due_days, PAY_DUE_DAYS_RANGE)) {
+      return `Срок оплаты: от ${PAY_DUE_DAYS_RANGE.min} до ${PAY_DUE_DAYS_RANGE.max} дней`;
+    }
+    if (check("pay_due_lessons") && settings.pay_due_lessons !== undefined && !inRange(settings.pay_due_lessons, PAY_DUE_LESSONS_RANGE)) {
+      return `Уроков без оплаты: от ${PAY_DUE_LESSONS_RANGE.min} до ${PAY_DUE_LESSONS_RANGE.max}`;
     }
     if (check("accounting_start_date") && settings.accounting_start_date && !isIsoDate(settings.accounting_start_date)) {
       return "Укажите дату начала учёта оплат";
