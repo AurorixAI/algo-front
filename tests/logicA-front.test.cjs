@@ -553,11 +553,11 @@ test("fix 10Д → PAY-DUE 9.7: the notice of the debt stands NOWHERE (its sourc
 });
 
 test("payments page: three cards before the tabs; the card count is the tab count (one number, the server's)", () => {
-  const summary = { debt_total: 1250000, debtors: 33, due_total: 400000, due_students: 4, due_nearest: { date: "2026-10-23", text: "до завтра, 23.10" }, advance_total: 340000, students_with_advance: 5, expiring: 4, active: 120 };
+  const summary = { debt_total: 1250000, debtors: 33, due_total: 400000, due_students: 4, due_nearest: { date: "2026-10-23", text: "завтра, 23.10" }, advance_total: 340000, students_with_advance: 5, expiring: 4, active: 120 };
   const cards = P.positionCards(summary);
   assert.deepEqual(cards.map((card) => [card.label, plain(card.amount), card.sub, card.tone]), [
     ["Долг", "1 250 000 сум", "33 ученика · срок прошёл", "debt"],
-    ["К оплате", "400 000 сум", "4 ученика · ближайший срок до завтра, 23.10", "due"],
+    ["К оплате", "400 000 сум", "4 ученика · ближайший срок завтра, 23.10", "due"],
     ["Аванс", "340 000 сум", "5 учеников", "advance"],
   ]);
   // one number for both: the tab and the card are the server's `debtors`

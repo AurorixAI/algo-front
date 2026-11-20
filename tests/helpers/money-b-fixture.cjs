@@ -39,7 +39,7 @@ const WAITING = ROW({ membership_id: "m2", student_id: "s2", student_name: "Пе
 
 const SUMMARY = {
   as_of: "2026-11-06", ends_today: 0, expiring: 0, none: 0, active: 0, free: 0, tracked_total: 2, period_mode: "calendar", debt_total: 600000, debtors: 1, due_total: 300000, due_students: 1,
-  due_nearest: { date: "2026-11-07", text: "до завтра, 07.11" }, advance_total: 0, students_with_advance: 0, memberships_with_debt: 1, paused: 0, students_paused: 0, price_missing: 0,
+  due_nearest: { date: "2026-11-07", text: "завтра, 07.11" }, advance_total: 0, students_with_advance: 0, memberships_with_debt: 1, paused: 0, students_paused: 0, price_missing: 0,
   buckets: { debtors: 1, to_pay: 1, expiring: 0, active: 0, paused: 0 }, debt_ages: [], pay_due_days: 5, pay_due_lessons: 2, accounting_start_date: "2026-09-01",
 };
 

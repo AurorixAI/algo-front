@@ -280,7 +280,7 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     assert.ok(!/Петров/.test(await page.textContent("body")), "the student within his term is not among the debtors");
     const sfx = width >= 640 ? "" : "-compact";      // a phone: ONE compact summary instead of the cards
     assert.equal(plain(await page.locator(`[data-testid="position-debt${sfx}"]`).innerText()).includes("600 000 сум"), true, "the red card is the debt only");
-    assert.match(plain(await page.locator(`[data-testid="position-due${sfx}"]`).innerText()), width >= 640 ? /^К оплате 300 000 сум 1 ученик · ближайший срок до завтра, 07\.11/ : /^К оплате 300 000 сум 1$/);
+    assert.match(plain(await page.locator(`[data-testid="position-due${sfx}"]`).innerText()), width >= 640 ? /^К оплате 300 000 сум 1 ученик · ближайший срок завтра, 07\.11/ : /^К оплате 300 000 сум 1$/);
     if (width === 375) {
       // R3 №13: the buttons of a row are ≥ 40 px on a phone
       const heights = await page.evaluate(() => ["button:has(+ *), li button", "a[data-testid=payment-row-statement]"].flatMap((sel) => [...document.querySelectorAll(sel)].filter((el) => el.offsetParent).map((el) => [el.textContent.trim().slice(0, 14) || el.getAttribute("aria-label") || sel, Math.round(el.getBoundingClientRect().height)])));

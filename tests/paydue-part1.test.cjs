@@ -123,13 +123,13 @@ test("the summary is read as the server sends it: the numbers of the cards, the 
   // Данные макета: Долг 3 780 000 · 12 учеников; К оплате 1 524 000 = 323 000 + 277 000 + 4 × 231 000 · 6 учеников; Аванс 148 000 · 4 ученика
   const state = SUM.summaryToState({
     as_of: "2026-11-20", ends_today: 0, expiring: 0, none: 0, active: 5, free: 0, tracked_total: 23, period_mode: "calendar", lessons_per_payment: 12,
-    debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { date: "2026-11-20", text: "до сегодня" },
+    debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { date: "2026-11-20", text: "сегодня" },
     advance_total: 148000, students_with_advance: 4, paused: 0, students_paused: 0,
     buckets: { debtors: 12, to_pay: 6, expiring: 0, active: 5, paused: 0 }, price_missing: 0, debt_ages: [], pay_due_days: 5, pay_due_lessons: 2,
   });
   assert.equal(323000 + 277000 + 4 * 231000, 1524000);
   assert.deepEqual([state.debtTotal, state.debtors, state.dueTotal, state.dueStudents, state.advanceTotal, state.studentsWithAdvance], [3780000, 12, 1524000, 6, 148000, 4]);
-  assert.deepEqual(state.dueNearest, { date: "2026-11-20", text: "до сегодня" });
+  assert.deepEqual(state.dueNearest, { date: "2026-11-20", text: "сегодня" });
   assert.deepEqual(state.tabs, { debtors: 12, to_pay: 6, expiring: 0, active: 5, paused: 0 });
   assert.deepEqual([state.payDueDays, state.payDueLessons], [5, 2]);
   // the old fields are not read any more: a server without the new ones has nothing to show (and shows nothing)
@@ -139,11 +139,11 @@ test("the summary is read as the server sends it: the numbers of the cards, the 
 });
 
 test("the three cards: Долг · К оплате · Аванс - the server's numbers, the nearest term in the server's words; nothing is said about nothing", () => {
-  const cards = P.positionCards({ debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { text: "до сегодня" }, advance_total: 148000, students_with_advance: 4 });
+  const cards = P.positionCards({ debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { text: "сегодня" }, advance_total: 148000, students_with_advance: 4 });
   assert.deepEqual(cards.map((c) => c.key), ["debt", "due", "advance"]);
   assert.deepEqual(cards.map((c) => c.label), ["Долг", "К оплате", "Аванс"]);
   assert.deepEqual(cards.map((c) => N(c.amount)), ["3 780 000 сум", "1 524 000 сум", "148 000 сум"]);
-  assert.deepEqual(cards.map((c) => c.sub), ["12 учеников · срок прошёл", "6 учеников · ближайший срок до сегодня", "4 ученика"]);
+  assert.deepEqual(cards.map((c) => c.sub), ["12 учеников · срок прошёл", "6 учеников · ближайший срок сегодня", "4 ученика"]);
   assert.deepEqual(cards.map((c) => c.tone), ["debt", "due", "advance"]);
   const none = P.positionCards({ debt_total: 0, debtors: 0, due_total: 0, due_students: 0, due_nearest: null, advance_total: 0, students_with_advance: 0 });
   assert.deepEqual(none.map((c) => [c.sub, c.tone]), [["", "none"], ["", "none"], ["", "none"]]);

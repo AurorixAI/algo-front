@@ -38,7 +38,7 @@ const MADINA = base({ membership_id: "m-madina", student_id: "s-madina", student
 /** The summary of the centre (`GET /org/payments/summary`). */
 const SUMMARY = {
   as_of: "2026-11-20", ends_today: 0, expiring: 0, none: 0, active: 5, free: 0, tracked_total: 23, period_mode: "calendar", lessons_per_payment: 12,
-  debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { date: "2026-11-20", text: "до сегодня" },
+  debt_total: 3780000, debtors: 12, due_total: 1524000, due_students: 6, due_nearest: { date: "2026-11-20", text: "сегодня" },
   advance_total: 148000, students_with_advance: 4, memberships_with_debt: 12, accounting_start_date: "2026-09-01", paused: 0,
   buckets: { debtors: 12, to_pay: 6, expiring: 0, active: 5, paused: 0 }, price_missing: 0,
   debt_ages: [

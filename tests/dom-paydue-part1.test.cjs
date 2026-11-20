@@ -66,8 +66,19 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     if (width >= 640) {
       const cards = await page.locator('[data-testid="payments-position"] > div').allInnerTexts();
       assert.deepEqual(cards.map(plain), [
-        "Долг 3 780 000 сум 12 учеников · срок прошёл", "К оплате 1 524 000 сум 6 учеников · ближайший срок до сегодня срок 5 дней", "Аванс 148 000 сум 4 ученика",
+        "Долг 3 780 000 сум 12 учеников · срок прошёл", "К оплате 1 524 000 сум 6 учеников · ближайший срок сегодня срок 5 дней", "Аванс 148 000 сум 4 ученика",
       ]);
+      // 14А.1: three cards of ONE height, the term link in the TITLE row of «К оплате» (right of the label, above the sum), no empty bottom
+      const boxes = await page.evaluate(() => [...document.querySelectorAll(`[data-testid="payments-position"] > div`)].map((el) => Math.round(el.getBoundingClientRect().height)));
+      assert.equal(new Set(boxes).size, 1, `the cards have one height: ${boxes}`);
+      const geo = await page.evaluate(() => {
+        const card = document.querySelector(`[data-testid="position-due"]`).getBoundingClientRect();
+        const term = document.querySelector(`[data-testid="pay-due-term"]`).getBoundingClientRect();
+        const sum = document.querySelector(`[data-testid="position-due"] p:nth-child(2)`).getBoundingClientRect();
+        return { termBottom: term.bottom, sumTop: sum.top, termRight: term.right, cardRight: card.right };
+      });
+      assert.ok(geo.termBottom <= geo.sumTop + 2, `the term sits above the sum: ${JSON.stringify(geo)}`);
+      assert.ok(geo.cardRight - geo.termRight < 40, `the term is at the right edge: ${JSON.stringify(geo)}`);
     } else {
       assert.equal(await page.locator('[data-testid="payments-position"]').isVisible(), false);
       const compact = (await page.locator('[data-testid="payments-position-compact"] a').allInnerTexts()).map(plain);

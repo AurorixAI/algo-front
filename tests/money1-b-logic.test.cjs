@@ -80,7 +80,7 @@ test("Б7 → PAY-DUE: the cards and the badge count the DEBTORS (the term has p
   // 1 debtor owes 600 000; 1 student is within his term: 300 000 (the server's `debtors` / `due_students`)
   const state = S.summaryToState({
     expiring: 0, active: 1, period_mode: "calendar", debt_total: 600000, debtors: 1, due_total: 300000, due_students: 1,
-    due_nearest: { date: "2026-11-07", text: "до 07.11" }, buckets: { debtors: 1, to_pay: 1, expiring: 0, active: 1, paused: 0 },
+    due_nearest: { date: "2026-11-07", text: "07.11" }, buckets: { debtors: 1, to_pay: 1, expiring: 0, active: 1, paused: 0 },
   });
   assert.equal(state.debtTotal, 600000);
   assert.equal(state.debtors, 1);
@@ -90,7 +90,7 @@ test("Б7 → PAY-DUE: the cards and the badge count the DEBTORS (the term has p
   const cards = P.positionCards({ debt_total: state.debtTotal, debtors: state.debtors, due_total: state.dueTotal, due_students: state.dueStudents, due_nearest: state.dueNearest });
   assert.equal(N(cards[0].amount), "600 000 сум");
   assert.equal(N(cards[1].amount), "300 000 сум");
-  assert.equal(N(cards[1].sub), "1 ученик · ближайший срок до 07.11");
+  assert.equal(N(cards[1].sub), "1 ученик · ближайший срок 07.11");
   // an answer without the new fields does not fall back to the old ones (the server drops them): no debt, nobody to pay
   const old = S.summaryToState({ due: 2, expired: 1, debt_total: undefined, students_with_debt: 2, debt_split: { debtors: 2, debtors_debt_total: 500000 } });
   assert.equal(old.debtTotal, 0);

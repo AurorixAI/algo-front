@@ -99,7 +99,7 @@ export interface PaymentsSummary {
   debtors?: number;
   due_total?: number;
   due_students?: number;
-  /** The nearest term among the sums «К оплате»: the day and the server's words («до сегодня» / «до завтра, 21.11» / «до 24.11»); null - none. */
+  /** The nearest term among the sums «К оплате»: the day and the server's words («сегодня» / «завтра, 21.11» / «24.11», without «до»); null - none. */
   due_nearest?: { date: string; text: string } | null;
   advance_total?: number;
   accounting_start_date?: string | null;
@@ -1376,7 +1376,7 @@ export interface PositionCard {
   label: string;
   /** The big sum: «1 250 000 сум». */
   amount: string;
-  /** Under it: «12 учеников · срок прошёл» / «6 учеников · ближайший срок до сегодня» / «4 ученика»; "" while the server has not told the count. */
+  /** Under it: «12 учеников · срок прошёл» / «6 учеников · ближайший срок сегодня» / «4 ученика»; "" while the server has not told the count. */
   sub: string;
   /** The students of the card (the server's number; null while it is not known) - the compact summary of a phone says it on the right of the sum. */
   students: number | null;
