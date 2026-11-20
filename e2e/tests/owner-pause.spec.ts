@@ -56,8 +56,11 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   // --- the tab «На паузе» holds him, «Должники» does not
   await page.goto("/owner/payments");
   const rowOf = (name: string) => page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
-  await expect(page.getByRole("tab", { name: /^На паузе \(1\)$/ })).toBeVisible();
-  await page.getByRole("tab", { name: /^На паузе/ }).click();
+  // the tabs read «Название N» (the count is a separate badge, no brackets): the tab «На паузе» with the count 1 is there and leads to the list of the paused
+  const pausedTab = page.getByRole("tab", { name: /^На паузе\s*1$/ });
+  await expect(pausedTab).toBeVisible();
+  await pausedTab.click();
+  await expect(pausedTab).toHaveAttribute("aria-selected", "true");
   await expect(rowOf("Уехавший Достон")).toContainText(`На паузе до ${dm(last)}`);
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(rowOf("Уехавший Достон")).toHaveCount(0);
