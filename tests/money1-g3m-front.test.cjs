@@ -484,19 +484,13 @@ test("К2 (экран): вкладка «Оплаты» группы с запл
       const run = await openPage(browser, "group-tab.entry.tsx", server, { width, height: 800 });
       await run.page.clock.setFixedTime(new Date("2026-11-15T10:00:00+05:00"));
       await run.page.evaluate((s) => window.mountGroupTab({ scheduled: s }), scheduled);
-      await run.page.waitForSelector('[data-testid="group-payment-price"]');
+      await run.page.waitForSelector('[data-testid="group-payment-row"]');
       await run.page.waitForTimeout(500);
-      const texts = (await run.page.locator('[data-testid="group-payment-price"]').allTextContents()).map(plain);
-      const colours = await run.page.locator('[data-testid="group-payment-price"]').evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+      // 14А.4: no column of the price - a student without his own price has no price in his row at all (no «Не задана» in red, no planned sum repeated per row); the group's price is said ONCE, above the list
+      assert.equal(await run.page.locator('[data-testid="group-payment-price"]').count(), 0);
       const summary = plain(await run.page.textContent('[data-testid="group-payments-summary"]'));
-      if (scheduled) {
-        assert.deepEqual(texts, ["с 01.12 — 420 000 сум", "с 01.12 — 420 000 сум"]);
-        assert.notEqual(colours[0], "rgb(180, 83, 9)", "not the amber of «не задана»");
-        assert.ok(summary.includes("Цена с 01.12 — 420 000 сум"));
-      } else {
-        assert.deepEqual(texts, ["Не задана", "Не задана"]);
-        assert.equal(summary, "Задать цену группы");      // Р4-1: the warning is the chip of the header; the tab keeps only the action
-      }
+      if (scheduled) assert.ok(summary.includes("Цена с 01.12 — 420 000 сум"));
+      else assert.equal(summary, "Задать цену группы");      // Р4-1: the warning is the chip of the header; the tab keeps only the action
       if (scheduled) await run.page.screenshot({ path: path.join(shots, `k2-paytab-${width}.png`), fullPage: true });
       await run.page.close();
     }

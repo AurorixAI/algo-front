@@ -40,20 +40,19 @@ test("inc12-1: every row of «Уроки без отметки» has the same ac
   assert.ok(labels.includes("Открыть") && labels.includes("Отметить"));
 });
 
-test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned; the payment column is CENTRED (header, chip, bar on one axis, owner 26.10); student left, actions right", () => {
+test("inc12-2 (26.10, 14А.4): group «Оплаты» - NO column of the price (PAY-DUE 14А.4); the payment column is CENTRED (header, chip, bar on one axis); student left, actions right", () => {
   const src = read("src/components/groups/group-payments-tab.tsx");
   const grid = const_(src, "GRID_COLS");
-  assert.equal(grid, "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]");
+  assert.equal(grid, "lg:grid-cols-[minmax(12rem,1fr)_minmax(15rem,22rem)_minmax(272px,1fr)]");
   const cols = grid.match(/\[(.*)\]/)[1].split("_");
-  assert.equal(cols.length, 4);
-  assert.match(cols[2], /^minmax\(11\.5rem,/, "payment: room for the chip and the compact bar");
-  assert.match(src, /<span>Ученик<\/span>\s*<span>\{label\}<\/span>\s*<span className="text-center">Оплата<\/span>/);
-  // the price cell: amount and the «индивидуальная» chip stand at the left of their column on a desktop; the payment chip and the bar are centred
-  assert.match(src, /lg:block lg:text-left">\s*<span[^>]*lg:hidden">\{label\}/);
-  assert.match(src, /lg:flex-col lg:items-start lg:justify-center/);
+  assert.equal(cols.length, 3, "student · payment · actions - the price column is gone");
+  assert.match(cols[1], /^minmax\(15rem,/, "payment: room for «просрочено 45 дней · оплачено до 30.09» on ONE line (the price column is gone, its room went here)");
+  assert.match(src, /<span>Ученик<\/span>\s*<span className="text-center">Оплата<\/span>/);
+  assert.doesNotMatch(src, /<span>\{label\}<\/span>|lg:hidden">\{label\}/, "no header of the price, no phone label of it");
+  assert.doesNotMatch(src, /Цена в месяц|Цена пакета/);
   assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-center"><ChipView view=\{view\} \/><\/div>/g) || []).length, 2, "payment chip centred in both row kinds");
   assert.match(src, /flex-col items-start gap-1\.5 lg:items-center/, "the chip and the bar on one axis");
-  assert.match(src, /<span className="text-sm text-slate-500 max-lg:hidden">—<\/span>/);
+  assert.doesNotMatch(src, /<span className="text-sm text-slate-500 max-lg:hidden">—<\/span>/, "no placeholder cell of the price in the left row");
   assert.match(src, /lg:gap-x-6/, "the columns breathe: 24px between them");
   // the actions stay right
   assert.match(src, /<div className="flex items-center gap-2 lg:justify-end">/);

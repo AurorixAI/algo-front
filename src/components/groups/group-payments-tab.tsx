@@ -57,8 +57,9 @@ import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/lib/button-style";
 import { EmptyState } from "@/components/ui/empty-state";
 
-/** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
-const GRID_COLS = "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]"; // the student column is capped so the price sits near the names (owner 23.10); «Цена» is left-aligned and «Оплата» has room for the chip and the bar (owner 26.10); the actions take the rest and stay right
+/** Student takes what is left; the «payment» column is fixed (its header and cells are centred), the actions stay right.  NO column of the price (PAY-DUE 14А.4): the price of the group is in the chips of the header,
+ * an individual price is a mark under the name of its student. */
+const GRID_COLS = "lg:grid-cols-[minmax(12rem,1fr)_minmax(15rem,22rem)_minmax(272px,1fr)]";
 const PAGE = 500;
 const MAX_PAGES = 5;
 /** At most this many `price-override` calls at once (an older server: the author of an individual price is not in the list). */
@@ -277,7 +278,6 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
         <section aria-label="Оплаты учеников группы" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
           <div role="presentation" className={`hidden items-center gap-x-6 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>
             <span>Ученик</span>
-            <span>{label}</span>
             <span className="text-center">Оплата</span>
             <span className="sr-only">Действия</span>
           </div>
@@ -286,7 +286,6 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
               <PaymentRow
                 key={view.key}
                 view={view}
-                label={label}
                 studentsBasePath={studentsBasePath}
                 paymentsBasePath={paymentsBasePath}
                 actions={actionsFor(view)}
@@ -340,22 +339,33 @@ function ChipView({ view }: { view: GroupPaymentRowView }) {
   );
 }
 
-function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; studentsBasePath: string }) {
+function StudentCell({ view, studentsBasePath, marks = false }: { view: GroupPaymentRowView; studentsBasePath: string; /** the marks of the price under the name (the rows of the group, not the left ones) */ marks?: boolean }) {
   return (
     <div className="min-w-0">
       <Link href={studentHref(studentsBasePath, view.studentId, "payments")} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700">
         {view.name}
       </Link>
       {view.displayId && <p className="truncate text-xs text-slate-500">{view.displayId}</p>}
+      {/* the price is NOT a column; what only this student has stays under his name: the individual price (the badge says why on a tap / hover) and a price planned from a day */}
+      {marks && (view.individual || view.scheduledText) && (
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+          {view.individual && view.individualHint && (
+            <Hint text={view.individualHint} side="below" width={280} className="inline-flex">
+              <span data-testid="individual-badge" className="inline-block rounded-md border border-primary-200 bg-primary-50 px-1.5 py-px text-[11px] font-semibold leading-4 text-primary-700">индивидуальная</span>
+            </Hint>
+          )}
+          {view.individual && <span className="font-semibold tabular-nums text-slate-900" data-testid="group-payment-price">{view.priceText}</span>}
+          {view.scheduledText && <span data-testid="group-payment-scheduled">{view.scheduledText}</span>}
+        </p>
+      )}
     </div>
   );
 }
 
 const ROW = `flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-center lg:gap-x-6 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${GRID_COLS}`;
 
-function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, onPay }: {
+function PaymentRow({ view, studentsBasePath, paymentsBasePath, actions, onPay }: {
   view: GroupPaymentRowView;
-  label: string;
   studentsBasePath: string;
   paymentsBasePath: string;
   actions: ReactNode;
@@ -364,22 +374,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
   const due = payIsDue(view.row);
   return (
     <li className={ROW} data-testid="group-payment-row" data-membership-id={view.membershipId} data-individual={view.individual ? "true" : "false"}>
-      <StudentCell view={view} studentsBasePath={studentsBasePath} />
-
-      <div className="flex items-start justify-between gap-3 lg:block lg:text-left">
-        <span className="shrink-0 text-xs text-slate-500 lg:hidden">{label}</span>
-        <div className="min-w-0 text-right lg:text-left">
-          <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 lg:flex-col lg:items-start lg:justify-center lg:gap-y-0.5">
-            <span className={`text-sm font-semibold tabular-nums ${view.priceMissing && !view.priceScheduled ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
-            {view.individual && view.individualHint && (
-              <Hint text={view.individualHint} side="below" width={280} className="inline-flex">
-                <span data-testid="individual-badge" className="inline-block rounded-md border border-primary-200 bg-primary-50 px-1.5 py-px text-[11px] font-semibold leading-4 text-primary-700">индивидуальная</span>
-              </Hint>
-            )}
-          </p>
-          {view.scheduledText && <p className="text-xs text-slate-500" data-testid="group-payment-scheduled">{view.scheduledText}</p>}
-        </div>
-      </div>
+      <StudentCell view={view} studentsBasePath={studentsBasePath} marks />
 
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
 
@@ -408,7 +403,6 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
         <StudentCell view={view} studentsBasePath={studentsBasePath} />
         <p className="text-xs text-slate-500">ушёл из группы</p>
       </div>
-      <span className="text-sm text-slate-500 max-lg:hidden">—</span>
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
       <div className="flex items-center gap-2 lg:justify-end">
         {canPayLeftDebt(view.row) && (
