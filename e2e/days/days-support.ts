@@ -61,7 +61,8 @@ export interface Summary {
   transferred_out: number;
   written_off: number;
   refunded: number;
-  debt: number;
+  /** everything unpaid: a debt and a sum in term together (the server's `unpaid`) */
+  unpaid: number;
   advance: number;
   paid_until: string | null;
   reconciles: boolean;
@@ -71,8 +72,7 @@ export interface Summary {
 export async function summaryOf(org: Org, student: StudentInfo, group: GroupInfo): Promise<Summary> {
   const membership = await org.membershipId(student.id, group.id);
   const statement = await org.owner.api.get(`/auth/org/memberships/${membership}/statement`);
-  // PAY-DUE: the summary names everything unpaid `unpaid` (a debt and a sum in term together); the tests below say «debt» for that whole sum, as before the term of payment existed
-  return { ...statement.summary, debt: statement.summary.unpaid ?? statement.summary.debt } as Summary;
+  return statement.summary as Summary;
 }
 
 /** The statement page: «Стоимость обучения» (the charged sum) as the owner reads it, and the totals reconcile. */

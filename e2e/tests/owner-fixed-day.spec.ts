@@ -72,7 +72,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   expect(payment).toMatchObject({ amount: expectedAmount, method: "card" });
   expect(payment.allocation.items.reduce((total: number, item: { amount: number }) => total + item.amount, 0)).toBe(expectedAmount);
   const statement = await org.owner.api.get(`/auth/org/memberships/${membership}/statement`);
-  expect(statement.summary).toMatchObject({ charged: expectedAmount, paid: expectedAmount, debt: 0, reconciles: true });
+  expect(statement.summary).toMatchObject({ charged: expectedAmount, paid: expectedAmount, unpaid: 0, reconciles: true });
 
   // --- the receipt shows where the money went, not a period
   await page.goto(`/owner/payments/receipt/${payment.id}`);

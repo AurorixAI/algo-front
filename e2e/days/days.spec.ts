@@ -47,7 +47,7 @@ test("packages: a package of 8 paid on 15.05, lessons 15, 17, 20.05 held - the r
   await org.pay(student.id, 400_000);
   let row = await rowOf(org, student, group);
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.advance, sum.debt]).toEqual([0, 400_000, 400_000, 0]);
+  expect([sum.charged, sum.paid, sum.advance, sum.unpaid]).toEqual([0, 400_000, 400_000, 0]);
   expect([row.lessons_used, row.lessons_left]).toEqual([0, 8]);
   await reconcile(org, "15.05 10:00");
 
@@ -63,7 +63,7 @@ test("packages: a package of 8 paid on 15.05, lessons 15, 17, 20.05 held - the r
     held++;
     row = await rowOf(org, student, group);
     sum = await summaryOf(org, student, group);
-    expect([sum.charged, sum.advance, sum.debt, row.lessons_used, row.lessons_left], `after the lesson of ${date}`).toEqual([50_000 * held, 400_000 - 50_000 * held, 0, held, 8 - held]);
+    expect([sum.charged, sum.advance, sum.unpaid, row.lessons_used, row.lessons_left], `after the lesson of ${date}`).toEqual([50_000 * held, 400_000 - 50_000 * held, 0, held, 8 - held]);
     await reconcile(org, `${date} 14:50`);
   }
   // 8 held: the package is used up (charged 400 000 = paid, nothing left). 03.06 (Mon): the 9th lesson is held without money: charged 50 000 more = a debt of 50 000.
@@ -71,7 +71,7 @@ test("packages: a package of 8 paid on 15.05, lessons 15, 17, 20.05 held - the r
   await holdLesson(teacher, lessonOn(group, slots[1], "2030-06-03"), [student]);
   row = await rowOf(org, student, group);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "the 9th lesson, nobody paid it").toEqual([450_000, 400_000, 50_000, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "the 9th lesson, nobody paid it").toEqual([450_000, 400_000, 50_000, 0]);
   expect([row.lessons_left, row.lessons_unpaid]).toEqual([0, 1]);
   await reconcile(org, "03.06 14:50");
 });
@@ -93,12 +93,12 @@ test("once a week (Friday): a student who joins on Thursday 16.01 is charged fro
   expect(def.default_pay_from).toBe("2031-01-17");
   // Thursday 16.01: the stay is written, but its first billable day (Fri 17.01) has not come - nothing is charged yet.
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.debt], "Thu 16.01: the first billable day has not come").toEqual([0, 0]);
+  expect([sum.charged, sum.unpaid], "Thu 16.01: the first billable day has not come").toEqual([0, 0]);
   // Friday 17.01 10:00: the first billable day.  Fridays of January 2031: 3 10 17 24 31 = 5 (the whole month by the schedule); from 17.01: 17, 24, 31 = 3.
   // 500 000 x 3 / 5 = 300 000 exactly.
   await travel.toDate("2031-01-17", "10:00");
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.debt], "Fri 17.01").toEqual([300_000, 300_000]);
+  expect([sum.charged, sum.unpaid], "Fri 17.01").toEqual([300_000, 300_000]);
   const page = await signIn(org.owner);
   expect(await statementCost(page, await org.membershipId(student.id, group.id))).toBe(300_000);
   await reconcile(org, "17.01 10:00");
@@ -124,7 +124,7 @@ test("transfer А -> Б on Monday 20.01 and the day after: what А charged, what
   // 17.01 (Fri) 12:00: «А» from 17.01: 17, 20, 22, 24, 27, 29, 31 = 7 lessons of 14.   600 000 x 7 / 14 = 300 000.   The student pays 200 000: a debt of 100 000.
   await org.pay(student.id, 200_000);
   let sum = await summaryOf(org, student, a);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance]).toEqual([300_000, 200_000, 100_000, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance]).toEqual([300_000, 200_000, 100_000, 0]);
   await reconcile(org, "17.01 12:00");
 
   // 20.01 (Mon) 11:00: the transfer.  «А» keeps the days 17..20.01 (the day of leaving counts): lessons 17, 20 = 2 of 14.   600 000 x 2 / 14 = 85 714 -> 86 000.
@@ -133,18 +133,18 @@ test("transfer А -> Б on Monday 20.01 and the day after: what А charged, what
   await org.owner.api.post(`/auth/org/groups/${b.id}/students/${student.id}`, { from_group_id: a.id });
   const membershipB = await org.membershipId(student.id, b.id);
   sum = await summaryOf(org, student, a);
-  expect([sum.charged, sum.paid, sum.transferred_out, sum.debt, sum.advance, sum.reconciles], "«А» on the day of the transfer").toEqual([86_000, 200_000, 114_000, 0, 0, true]);
+  expect([sum.charged, sum.paid, sum.transferred_out, sum.unpaid, sum.advance, sum.reconciles], "«А» on the day of the transfer").toEqual([86_000, 200_000, 114_000, 0, 0, true]);
   // «Б» is charged from the DAY AFTER the transfer (first_billable_floor): on the day itself - nothing charged, the 114 000 that came lie as an advance.
   sum = await summaryOf(org, student, b);
-  expect([sum.charged, sum.transferred_in, sum.debt, sum.advance, sum.reconciles], "«Б» on the day of the transfer").toEqual([0, 114_000, 0, 114_000, true]);
+  expect([sum.charged, sum.transferred_in, sum.unpaid, sum.advance, sum.reconciles], "«Б» on the day of the transfer").toEqual([0, 114_000, 0, 114_000, true]);
   await reconcile(org, "20.01 11:00");
 
   // 21.01 (Tue) 10:00: «Б» from 21.01: 21, 23, 28, 30 = 4 lessons of 9 (Tue 7 14 21 28, Thu 2 9 16 23 30).   400 000 x 4 / 9 = 177 778 -> 178 000.   Minus 114 000: a debt of 64 000.
   await travel.toDate("2031-01-21", "10:00");
   sum = await summaryOf(org, student, b);
-  expect([sum.charged, sum.transferred_in, sum.debt, sum.advance, sum.reconciles], "«Б» the day after").toEqual([178_000, 114_000, 64_000, 0, true]);
+  expect([sum.charged, sum.transferred_in, sum.unpaid, sum.advance, sum.reconciles], "«Б» the day after").toEqual([178_000, 114_000, 64_000, 0, true]);
   sum = await summaryOf(org, student, a);
-  expect([sum.charged, sum.paid, sum.transferred_out, sum.debt, sum.advance], "«А» the day after: unchanged").toEqual([86_000, 200_000, 114_000, 0, 0]);
+  expect([sum.charged, sum.paid, sum.transferred_out, sum.unpaid, sum.advance], "«А» the day after: unchanged").toEqual([86_000, 200_000, 114_000, 0, 0]);
   const page = await signIn(org.owner);
   expect(await statementCost(page, membershipA)).toBe(86_000);
   expect(await statementCost(page, membershipB)).toBe(178_000);
@@ -167,13 +167,13 @@ test("pause 23.01 - 28.01 (across a weekend and the borders of the days): the ch
 
   // from 22.01: 22, 24, 27, 29, 31 = 5 lessons of 14.   600 000 x 5 / 14 = 214 286 -> 214 000
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.debt]).toEqual([214_000, 214_000]);
+  expect([sum.charged, sum.unpaid]).toEqual([214_000, 214_000]);
   await reconcile(org, "22.01 before the pause");
 
   // the pause 23.01 - 28.01 takes the lessons Fri 24 and Mon 27 out: the lessons left 22, 29, 31 = 3 of 14.   600 000 x 3 / 14 = 128 571 -> 129 000
   await org.owner.api.post(`/auth/org/memberships/${membership}/pauses`, { first_day: "2031-01-23", last_day: "2031-01-28", reason: "Поездка" });
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.debt], "the pause is written, the day before it").toEqual([129_000, 129_000]);
+  expect([sum.charged, sum.unpaid], "the pause is written, the day before it").toEqual([129_000, 129_000]);
   await reconcile(org, "22.01 the pause is written");
 
   for (const [date, time, paused] of [["2031-01-23", "00:05", true], ["2031-01-25", "12:00", true], ["2031-01-28", "23:55", true], ["2031-01-29", "00:05", false]] as const) {
@@ -181,14 +181,14 @@ test("pause 23.01 - 28.01 (across a weekend and the borders of the days): the ch
     const row = await rowOf(org, student, group);
     sum = await summaryOf(org, student, group);
     expect(Boolean(row.paused), `${date} ${time}: on pause`).toBe(paused);
-    expect([sum.charged, sum.debt], `${date} ${time}: the charge does not move`).toEqual([129_000, 129_000]);
+    expect([sum.charged, sum.unpaid], `${date} ${time}: the charge does not move`).toEqual([129_000, 129_000]);
     await reconcile(org, `${date} ${time}`);
   }
   // 29.01: the days left to pay for: 22, 29, 30, 31 (the paused days are not billable); the money 129 000 covers all of them: paid until 31.01.
   await org.pay(student.id, 129_000);
   const row = await rowOf(org, student, group);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance]).toEqual([129_000, 129_000, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance]).toEqual([129_000, 129_000, 0, 0]);
   expect(row.paid_until).toBe("2031-01-31");
   await reconcile(org, "29.01 paid");
 });
@@ -223,13 +223,13 @@ test("the first scenario: enrol on Wed 15.10.2031 - 343 000 in the window and th
   const membership = await org.membershipId(student.id, group.id);
   expect(await statementCost(page, membership), "the statement: the cost of the study").toBe(SHARE);
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance]).toEqual([SHARE, 0, SHARE, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance]).toEqual([SHARE, 0, SHARE, 0]);
   await reconcile(org, "15.10 enrolled");
 
   // the payment of 343 000: the balance is 0, paid until the end of the month
   await org.pay(student.id, SHARE);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance]).toEqual([SHARE, SHARE, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance]).toEqual([SHARE, SHARE, 0, 0]);
   expect((await rowOf(org, student, group)).paid_until).toBe("2031-10-31");
   await reconcile(org, "15.10 paid");
 
@@ -237,21 +237,21 @@ test("the first scenario: enrol on Wed 15.10.2031 - 343 000 in the window and th
   await travel.toDate("2031-10-17", "14:50");
   await holdLesson(teacher, lessonOn(group, slots[5], "2031-10-17"), [student]);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "after the lesson of 17.10").toEqual([SHARE, SHARE, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "after the lesson of 17.10").toEqual([SHARE, SHARE, 0, 0]);
   expect(await statementCost(page, membership)).toBe(SHARE);
   await reconcile(org, "17.10 after the lesson");
 
   // Fri 31.10 23:50: still October; the November period has not begun - nothing is owed
   await travel.toDate("2031-10-31", "23:50");
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "31.10 23:50").toEqual([SHARE, SHARE, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "31.10 23:50").toEqual([SHARE, SHARE, 0, 0]);
   await reconcile(org, "31.10 23:50");
 
   // Sat 01.11 00:10: the November cell begins on the 1st (the billing day of the centre): the FIRST BILLABLE DAY is 01.11 (not the first lesson, Mon 03.11).
   // November 2031 «А»: 3 5 7 10 12 14 17 19 21 24 26 28 = 12 lessons; the student is in the group the whole month, so the whole price: 600 000.
   await travel.toDate("2031-11-01", "00:10");
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "01.11 00:10").toEqual([SHARE + 600_000, SHARE, 600_000, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "01.11 00:10").toEqual([SHARE + 600_000, SHARE, 600_000, 0]);
   const row = await rowOf(org, student, group);
   expect(row.paid_until, "paid until stays at the end of October").toBe("2031-10-31");
   const status = await org.owner.api.get("/auth/org/payments/status", { bucket: "all", search: "Мартовский" });
@@ -280,10 +280,10 @@ test("personal period: joins 15.09, period 15.09 - 14.10, paid; leaves 25.09 - w
 
   // the period: 15.09 + one month - a day = 14.10 = 16 days of September + 14 of October = 30 days; the whole price 600 000, a debt until the payment
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.debt]).toEqual([600_000, 600_000]);
+  expect([sum.charged, sum.unpaid]).toEqual([600_000, 600_000]);
   await org.pay(student.id, 600_000);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance]).toEqual([600_000, 600_000, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance]).toEqual([600_000, 600_000, 0, 0]);
   expect((await rowOf(org, student, group)).paid_until).toBe("2032-10-14");
   await reconcile(org, "15.09 paid");
 
@@ -292,10 +292,10 @@ test("personal period: joins 15.09, period 15.09 - 14.10, paid; leaves 25.09 - w
   await travel.toDate("2032-09-25", "10:00");
   const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
   const money = preview.memberships.find((m: any) => m.group_id === group.id).money;
-  expect([money.charged_after_leave, money.advance, money.refundable, money.debt], "the preview of the leaving").toEqual([220_000, 380_000, 380_000, 0]);
+  expect([money.charged_after_leave, money.advance, money.refundable, money.unpaid], "the preview of the leaving").toEqual([220_000, 380_000, 380_000, 0]);
   await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "after the leaving (the advance stays)").toEqual([220_000, 600_000, 0, 380_000]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "after the leaving (the advance stays)").toEqual([220_000, 600_000, 0, 380_000]);
   await reconcile(org, "25.09 left");
 
   // 26.09 (Sun) 10:00: comes back INSIDE the period he has been charged for: the period goes on (the gap is a pause), no second full period (Money-1 B5):
@@ -303,7 +303,7 @@ test("personal period: joins 15.09, period 15.09 - 14.10, paid; leaves 25.09 - w
   await travel.toDate("2032-09-26", "10:00");
   await org.enrol(group.id, student.id);
   sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "back the next day").toEqual([600_000, 600_000, 0, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "back the next day").toEqual([600_000, 600_000, 0, 0]);
   expect((await rowOf(org, student, group)).paid_until).toBe("2032-10-14");
   await reconcile(org, "26.09 back");
 });
@@ -326,8 +326,8 @@ test("leave on Tue 21.12 and return on Wed 22.12: the debt of the first stay and
   await org.pay(payer.id, 343_000);
   let d = await summaryOf(org, debtor, group);
   let p = await summaryOf(org, payer, group);
-  expect([d.charged, d.debt]).toEqual([343_000, 343_000]);
-  expect([p.charged, p.paid, p.debt, p.advance]).toEqual([343_000, 343_000, 0, 0]);
+  expect([d.charged, d.unpaid]).toEqual([343_000, 343_000]);
+  expect([p.charged, p.paid, p.unpaid, p.advance]).toEqual([343_000, 343_000, 0, 0]);
   await reconcile(org, "15.12");
 
   // Tue 21.12 10:00: both leave, the money is kept.  The stay 15.12 .. 21.12 (the day of leaving counts): lessons 15, 17, 20 = 3 of 14.   600 000 x 3 / 14 = 128 571 -> 129 000.
@@ -335,13 +335,13 @@ test("leave on Tue 21.12 and return on Wed 22.12: the debt of the first stay and
   for (const [student, debt, advance] of [[debtor, 129_000, 0], [payer, 0, 214_000]] as const) {                  // «Авансов»: 343 000 - 129 000 = 214 000
     const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
     const money = preview.memberships.find((m: any) => m.group_id === group.id).money;
-    expect([money.charged_after_leave, money.debt, money.advance, money.refundable], `the preview of ${student.fullName}`).toEqual([129_000, debt, advance, advance]);
+    expect([money.charged_after_leave, money.unpaid, money.advance, money.refundable], `the preview of ${student.fullName}`).toEqual([129_000, debt, advance, advance]);
     await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
   }
   d = await summaryOf(org, debtor, group);
   p = await summaryOf(org, payer, group);
-  expect([d.charged, d.debt, d.advance], "the debtor after leaving").toEqual([129_000, 129_000, 0]);
-  expect([p.charged, p.paid, p.debt, p.advance], "the payer after leaving").toEqual([129_000, 343_000, 0, 214_000]);
+  expect([d.charged, d.unpaid, d.advance], "the debtor after leaving").toEqual([129_000, 129_000, 0]);
+  expect([p.charged, p.paid, p.unpaid, p.advance], "the payer after leaving").toEqual([129_000, 343_000, 0, 214_000]);
   await reconcile(org, "21.12 left");
 
   // Wed 22.12 10:00: both come back (the first lesson from today: 22.12).  The stays of ONE month are ONE charge of the cell: the days 15..21 and 22..31 -
@@ -351,8 +351,8 @@ test("leave on Tue 21.12 and return on Wed 22.12: the debt of the first stay and
   await org.enrol(group.id, payer.id);
   d = await summaryOf(org, debtor, group);
   p = await summaryOf(org, payer, group);
-  expect([d.charged, d.debt, d.advance], "the debtor is back: the old debt and the new charge").toEqual([343_000, 343_000, 0]);
-  expect([p.charged, p.paid, p.debt, p.advance], "the payer is back: the advance went into the account").toEqual([343_000, 343_000, 0, 0]);
+  expect([d.charged, d.unpaid, d.advance], "the debtor is back: the old debt and the new charge").toEqual([343_000, 343_000, 0]);
+  expect([p.charged, p.paid, p.unpaid, p.advance], "the payer is back: the advance went into the account").toEqual([343_000, 343_000, 0, 0]);
   expect((await rowOf(org, payer, group)).paid_until).toBe("2032-12-31");
   await reconcile(org, "22.12 back");
 });
@@ -394,7 +394,7 @@ test("the 15th: «Общий месяц» from the 15th, the centre cancels less
   const student = await org.addStudent(group, "Тимур", "Помесячный");        // «Оплата с» = today = the 15th
   const membership = await org.membershipId(student.id, group.id);
   let sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "the whole cell is charged").toEqual([600_000, 0, 600_000, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "the whole cell is charged").toEqual([600_000, 0, 600_000, 0]);
   expect(await statementCost(page, membership)).toBe(600_000);
   await reconcile(org, "15.06 enrolled");
 
@@ -514,8 +514,8 @@ test("the 30th: a student joins on Thu 30.03.2034 a group (Tuesdays) with no les
   const expectDay = async (label: string, aCharged: number, bCharged: number) => {
     const sumA = await summaryOf(org, a, group);
     const sumB = await summaryOf(org, b, group);
-    expect([sumA.charged, sumA.paid, sumA.debt, sumA.advance], `${label}: A`).toEqual([aCharged, 0, aCharged, 0]);
-    expect([sumB.charged, sumB.paid, sumB.debt, sumB.advance], `${label}: B`).toEqual([bCharged, 0, bCharged, 0]);
+    expect([sumA.charged, sumA.paid, sumA.unpaid, sumA.advance], `${label}: A`).toEqual([aCharged, 0, aCharged, 0]);
+    expect([sumB.charged, sumB.paid, sumB.unpaid, sumB.advance], `${label}: B`).toEqual([bCharged, 0, bCharged, 0]);
   };
   await expectDay("Thu 30.03 10:00", 0, 480_000);
   await reconcile(org, "30.03 10:00");
@@ -605,7 +605,7 @@ test("term of payment: enrol on the day of a lesson, term 5 days - «К опла
   await expect(line).toContainText("до 24.11");
   await expect(page.getByRole("tab", { name: /Должники/ })).toContainText("0");
   const sum = await summaryOf(org, student, group);
-  expect([sum.charged, sum.paid, sum.debt, sum.advance], "the term moves the NAME only, not a sum").toEqual([SHARE, 0, SHARE, 0]);
+  expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "the term moves the NAME only, not a sum").toEqual([SHARE, 0, SHARE, 0]);
   await reconcile(org, "20.11 term 10");
 
   // the payment of 323 000: nothing is unpaid, «Оплачено до 30.11» (the end of the cell)

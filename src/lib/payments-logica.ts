@@ -499,7 +499,8 @@ export function pauseLine(pause: Pick<PauseOut, "first_day" | "last_day" | "days
 export type SettleAction = "keep" | "writeoff" | "refund";
 
 export interface LeaveMoney {
-  debt: number;
+  /** everything unpaid after the action (the server's `unpaid`: a debt and a sum in term together) */
+  unpaid: number;
   advance: number;
   refundable: number;
   paid_until: string | null;
@@ -552,7 +553,7 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
       group_name: String(item.group_name ?? ""),
       money: item.money
         ? {
-            debt: num((item.money as { unpaid?: number }).unpaid ?? item.money.debt), // `unpaid` (everything unpaid after the action) of the server of 17; `debt` of an older answer
+            unpaid: num(item.money.unpaid),
             advance: num(item.money.advance),
             refundable: num(item.money.refundable),
             paid_until: item.money.paid_until ?? null,
@@ -585,7 +586,7 @@ export type SettleKind = "none" | "hidden" | "debt" | "advance";
 
 export function settleKind(membership: LeaveMembership): SettleKind {
   if (!membership.money) return membership.has_open_balance ? "hidden" : "none";
-  if (membership.money.debt > 0) return "debt";
+  if (membership.money.unpaid > 0) return "debt";
   if (membership.money.refundable > 0 || membership.money.advance > 0) return "advance";
   return "none";
 }
@@ -639,9 +640,9 @@ export function buildSettle(preview: LeavePreview | null, choices: Record<string
     const choice = choices[membership.membership_id] ?? defaultSettleChoice();
     if (choice.action === "refund" && membership.money.refundable > 0) {
       out.push({ membership_id: membership.membership_id, action: "refund", expected_refundable: membership.money.refundable, method: choice.method });
-    } else if (choice.action === "writeoff" && membership.money.debt > 0) {
-      out.push({ membership_id: membership.membership_id, action: "writeoff", expected_unpaid: membership.money.debt, reason: choice.reason.trim() });
-    } else if (membership.money.debt > 0 || membership.money.refundable > 0) {
+    } else if (choice.action === "writeoff" && membership.money.unpaid > 0) {
+      out.push({ membership_id: membership.membership_id, action: "writeoff", expected_unpaid: membership.money.unpaid, reason: choice.reason.trim() });
+    } else if (membership.money.unpaid > 0 || membership.money.refundable > 0) {
       out.push({ membership_id: membership.membership_id, action: "keep" });
     }
   }
@@ -655,7 +656,7 @@ export function applyFreshBalances(preview: LeavePreview, fresh: FreshBalance[])
     const next = fresh.find((item) => item.membership_id === membership.membership_id);
     if (!next || !membership.money) return membership;
     reset.push(membership.membership_id);
-    return { ...membership, money: { ...membership.money, debt: next.debt, advance: next.advance, refundable: next.refundable }, has_open_balance: next.debt > 0 || next.advance > 0 };
+    return { ...membership, money: { ...membership.money, unpaid: next.debt, advance: next.advance, refundable: next.refundable }, has_open_balance: next.debt > 0 || next.advance > 0 };
   });
   return { preview: { ...preview, memberships }, reset };
 }

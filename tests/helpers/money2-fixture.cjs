@@ -64,7 +64,7 @@ function leaveMembership(index, { money = true, kind = "leave", names = LONG } =
   const rub = (n) => `${String(n).replace(/\B(?=(\d{3})+$)/g, "\u00a0")}\u00a0сум`;
   return {
     membership_id: id, group_id: base.group_id, group_name: name,
-    money: money ? { debt: 120000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: true } : null,
+    money: money ? { unpaid: 120000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: true } : null,
     has_open_balance: true, allowed: money ? ["keep", "writeoff"] : ["keep"],
     effects: {
       kind, moves: [], money_text: null, texts: [],
@@ -89,7 +89,7 @@ function statementWithVoided(names = LONG) {
   return {
     membership: { membership_id: MEMBERSHIP, student_id: "st1", student_name: "Каримов Фарход", display_id: "N13-004", group_id: "ga", group_name: A, teacher_name: "Камол Эргашев", is_active: false },
     as_of: "2026-11-16", mode: "calendar", accounting_start: "2026-01-01",
-    summary: { charged: 200000, paid: 600000, transferred_in: 0, written_off: 0, refunded: 0, transferred_out: 0, debt: 0, advance: 400000, paid_until: null, status: "left", reconciles: true },
+    summary: { charged: 200000, paid: 600000, transferred_in: 0, written_off: 0, refunded: 0, transferred_out: 0, unpaid: 0, advance: 400000, paid_until: null, status: "left", reconciles: true },
     rows: [row(2, "2026-11-22", "Оплата № 2", 600000, { payment_id: "p2", receipt_no: 2, replaces_receipt_no: 1 })],
     voided: [
       row(1, "2026-11-22", "Оплата № 1", 600000, { payment_id: "p1", receipt_no: 1, replaced_by_receipt_no: 2 }, { voided_at: "2026-11-23T08:00:00", void_reason: "Отменили по ошибке", voided_by_name: "Рустам Каримов" }),

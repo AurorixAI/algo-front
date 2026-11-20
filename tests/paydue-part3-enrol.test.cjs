@@ -99,7 +99,7 @@ test("16А.3 transfer: a sum that stays «к оплате» is a row «К опл
 
 test("16А.3 leaving: the headline of the block is the sentences of the server (stays `debt` / `due`), none of its own; a server without them - silent", () => {
   const stays = [{ code: "debt", text: "К оплате 86 000 сум. Это единственная группа ученика: после ухода сумма станет долгом" }, { code: "advance", text: "Аванс" }, { code: "due", text: "К оплате 10 000 сум до 24.11, срок не меняется" }];
-  const membership = { membership_id: "m", group_id: "g", group_name: "A", money: { debt: 96000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false }, has_open_balance: true, allowed: ["keep", "writeoff"], effects: { kind: "leave", moves: [], ends: [], stays } };
+  const membership = { membership_id: "m", group_id: "g", group_name: "A", money: { unpaid: 96000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false }, has_open_balance: true, allowed: ["keep", "writeoff"], effects: { kind: "leave", moves: [], ends: [], stays } };
   assert.deepEqual(G.settleDebtLines(membership), [stays[0].text, stays[2].text]);
   assert.equal(G.settleHeadline(membership), `${stays[0].text} ${stays[2].text}`);
   assert.deepEqual(G.settleDebtLines({ ...membership, effects: null }), []);
