@@ -167,3 +167,56 @@ test("the window on 375 / 1024: nothing leaves its box, no sideways scroll, the 
     await page.close();
   }
 });
+
+// ── 20.3 (the walk M18, D6): «Аванс N сум» under the state of the statement, the number of the server's `summary.advance` ─────────────────────────────────────────────────────────────────────────────
+test("20.3: a transfer into the group with an advance and a payment ahead - the state says «Оплачено до 21.12», under it the green small «Аванс N сум» (the number of the summary, the sum of the rows marked «Аванс»)", async () => {
+  for (const [statement, advance] of [[S.transferWithAdvance(), "Аванс 319 000 сум"], [S.aheadPaid(), "Аванс 200 000 сум"]]) {
+    for (const [width, height] of [[1280, 900], [375, 812]]) {
+      const { page } = await openStatement(width, statement, height);
+      assert.equal(await textOf(page, "statement-state-state"), "Оплачено до 21.12");
+      assert.equal(await textOf(page, "statement-advance"), advance, `${width}`);
+      // the same number as the sum of the rows marked «Аванс» (the equality of the statement holds, no red line)
+      const rows = (await page.locator('[data-testid="statement-cell-balance"]').allInnerTexts()).map(plain);
+      assert.ok(rows.some((text) => text.endsWith(advance)), `${width}: the row says ${advance}: ${rows.join(" | ")}`);
+      assert.equal(await page.getAttribute('[data-testid="statement-summary"]', "data-reconciles"), "true");
+      // below the state, green, small (12 px), not a second big word
+      const geometry = await page.evaluate(() => { const s = document.querySelector('[data-testid="statement-state"]').getBoundingClientRect(); const a = document.querySelector('[data-testid="statement-advance"]'); const r = a.getBoundingClientRect(); return { below: r.top >= s.bottom - 1, size: parseFloat(getComputedStyle(a).fontSize), green: getComputedStyle(a).color }; });
+      assert.ok(geometry.below, `${width}: under the state`);
+      assert.equal(geometry.size, 12);
+      assert.equal(geometry.green, "rgb(4, 120, 87)", "the tone of the advance of the tone map (emerald-700)");
+      await page.close();
+    }
+  }
+});
+
+test("20.3: no advance - no line; the state is already «Аванс N сум» - it is not repeated", async () => {
+  for (const statement of [S.anvarPaid(), S.anvarDue(), S.lolaDebt(), S.timurTwo(), S.withAdvance()]) {
+    const { page } = await openStatement(1280, statement);
+    assert.equal(await page.locator('[data-testid="statement-advance"]').count(), 0);
+    await page.close();
+  }
+  const { page } = await openStatement(1280, S.withAdvance());
+  assert.equal(await textOf(page, "statement-state-state"), "Аванс 200 000 сум", "the state itself stays");
+  await page.close();
+});
+
+test("20.3: layout of the new line (1280 / 375, long names)", async () => {
+  for (const [width, height] of [[1280, 900], [375, 812]]) {
+    for (const statement of [S.transferWithAdvance(LONG_NAME, LONG_GROUP), S.aheadPaid(LONG_NAME, LONG_GROUP)]) {
+      const { page } = await openStatement(width, statement, height);
+      await probe(page, "body", `statement advance ${width}`);
+      await page.close();
+    }
+  }
+});
+
+test("20.3: statementAdvanceLine reads only the server's number and is silent without it", () => {
+  require("./helpers/money1-env.cjs");
+  const L = require(path.join(root, "src/lib/payments-ledger.ts"));
+  const NB = "\u00a0";
+  assert.equal(plain(L.statementAdvanceLine({ advance: 319000, state: "paid", state_text: "Оплачено до 21.12" })), "Аванс 319 000 сум");
+  assert.equal(L.statementAdvanceLine({ advance: 0, state_text: "Оплачено до 21.12" }), null);
+  assert.equal(L.statementAdvanceLine(null), null);
+  assert.equal(L.statementAdvanceLine({ advance: 21000, state_text: `Аванс 21${NB}000${NB}сум` }), null, "the state already says it");
+  assert.equal(plain(L.statementAdvanceLine({ advance: 21000, state_text: "Авансовый платёж" })), "Аванс 21 000 сум", "only the word «Аванс» at the start counts");
+});

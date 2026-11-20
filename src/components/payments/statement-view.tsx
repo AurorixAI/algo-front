@@ -39,6 +39,7 @@ import {
   statementMonths,
   statementReconciles,
   statementRowView,
+  statementAdvanceLine,
   statementStates,
   statementTotals,
   STATEMENT_HINTS,
@@ -427,6 +428,7 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
   const m = statement.membership;
   const totals = statementTotals(statement.summary);
   const states = statementStates(statement.summary);
+  const advanceLine = statementAdvanceLine(statement.summary);
   const reconciles = statementReconciles(statement);
   return (
     <>
@@ -462,14 +464,19 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
             ))}
           </dl>
           {/* the state: ONE big word of the server (or TWO side by side, the debt first) with its quiet line under it; a phone puts it on its own row under a rule (frame 21) */}
-          {states.length > 0 && (
-            <div data-testid="statement-state" className="flex flex-wrap items-start gap-x-8 gap-y-2 border-t border-slate-100 pt-3 lg:justify-end lg:border-0 lg:pt-0 lg:text-right">
-              {states.map((state) => (
-                <div key={state.key} data-testid={`statement-state-${state.key}`}>
-                  <p className={`text-lg font-bold tabular-nums ${STATE_TONE[state.tone]}`}>{state.text}</p>
-                  {state.sub && <p className={`text-xs ${STATE_SUB_TONE[state.tone]}`}>{state.sub}</p>}
+          {(states.length > 0 || advanceLine) && (
+            <div className="flex flex-col gap-1.5 lg:items-end lg:text-right">
+              {states.length > 0 && (
+                <div data-testid="statement-state" className="flex flex-wrap items-start gap-x-8 gap-y-2 border-t border-slate-100 pt-3 lg:justify-end lg:border-0 lg:pt-0 lg:text-right">
+                  {states.map((state) => (
+                    <div key={state.key} data-testid={`statement-state-${state.key}`}>
+                      <p className={`text-lg font-bold tabular-nums ${STATE_TONE[state.tone]}`}>{state.text}</p>
+                      {state.sub && <p className={`text-xs ${STATE_SUB_TONE[state.tone]}`}>{state.sub}</p>}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {advanceLine && <p data-testid="statement-advance" className={`text-xs font-medium tabular-nums ${STATE_TONE.advance} ${states.length === 0 ? "border-t border-slate-100 pt-3 lg:border-0 lg:pt-0" : ""}`}>{advanceLine}</p>}
             </div>
           )}
         </div>

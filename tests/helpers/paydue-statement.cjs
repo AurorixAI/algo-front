@@ -69,6 +69,20 @@ function withAdvance(name = "Нодира Алиева", group = "Математ
     payment(2, "2026-11-10", 32, 800000, [PART("advance", 200000, `Аванс ${money(200000)}`)]),
   ]);
 }
+/** PAY-DUE 20.3: a payment ahead - the state of the server is «Оплачено до 21.12», the advance (200 000) stands only in its payment row and in the summary: the line «Аванс 200 000 сум» under the state. */
+function aheadPaid(name = "Нодира Алиева", group = "Математика 7 Пн-Ср-Пт") {
+  const out = withAdvance(name, group);
+  out.summary = { ...out.summary, state: "paid", state_text: "Оплачено до 21.12", paid_until: "2026-12-21" };
+  return out;
+}
+/** PAY-DUE 20.3 (DS-043): the student moved into the group with money (919 000 came with him): 600 000 are the charge, the rest (319 000) is the advance of the group - the row of the transfer says «Аванс 319 000». */
+function transferWithAdvance(name = "Тимур Рашидов", group = "Математика 7 Пн-Ср-Пт") {
+  const transfer = { ...payment(2, "2026-11-10", 0, 0, [PART("advance", 319000, `Аванс ${money(319000)}`)]), type: "transfer_in", title: "Перевод из группы «Математика 6»", credit: 919000, details: DETAILS(null, { from_group_name: "Математика 6" }) };
+  return base(name, group, SUMMARY({ state: "paid", state_text: "Оплачено до 21.12", charged: 600000, paid: 0, transferred_in: 919000, advance: 319000, paid_until: "2026-12-21" }), [
+    charge(1, "2026-11-02", "Ноябрь 2026 — полный месяц", 600000, SEGMENT("seg:11", "2026-11-02", "2026-12-01", 600000, 600000), [PART("paid", 0, "Оплачено")]),
+    transfer,
+  ]);
+}
 /**
  * 18Б.3 (the contract of 17): October (600 000) forgiven whole - the row says «Прощено» (quiet, not a sum of the open); November (600 000) paid, then the centre cancelled a lesson with the recalculation on
  * (-46 000): the charge is closed by money (554 000) and the recalculation (46 000) - «Оплачено»; the 46 000 of the payment are free again and stand NOWHERE but on the row of the recalculation: «Аванс 46 000».
@@ -114,4 +128,4 @@ function timurPreview(amount) {
   return { ...out, result: { allocations: [], unpaid_after: 831000 - amount, debt_amount_after: 600000 - debtGoes, due_amount_after: 231000 - dueGoes, due_until_after: dueGoes < 231000 ? "2026-11-24" : null, overdue_days_after: debtGoes < 600000 ? 45 : null, advance_after: 0, paid_until_before: null, paid_until_after: null, status_after: "expired", partial_credit_after: 0, lessons: null, price_ahead: [], summary_text: dueGoes > 0 ? `Погасит долг ${money(debtGoes)} · к оплате ${money(dueGoes)}` : `Погасит долг ${money(debtGoes)}` } };
 }
 
-module.exports = { forgivenRecalc, lolaDebt, timurTwo, anvarDue, anvarPaid, withAdvance, broken, anvarPreview, timurPreview, money };
+module.exports = { aheadPaid, transferWithAdvance, forgivenRecalc, lolaDebt, timurTwo, anvarDue, anvarPaid, withAdvance, broken, anvarPreview, timurPreview, money };

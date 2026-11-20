@@ -737,6 +737,16 @@ export function statementStates(summary: StatementSummary | null | undefined): S
   return out;
 }
 
+/**
+ * «Аванс N сум» under the state of the statement (PAY-DUE 20.3, 10.11): the very `advance` of the summary - the number of the header of the Excel («Остаток: Аванс N») and the sum of the rows marked «Аванс».
+ * Said once: when a word of the state already is the advance («Аванс 21 000 сум»), the line is not repeated; no advance - no line.  The number is the server's, nothing is counted here (LESSONS 151).
+ */
+export function statementAdvanceLine(summary: StatementSummary | null | undefined): string | null {
+  if (!summary || sum(summary.advance) <= 0) return null;
+  if (statementStates(summary).some((state) => /^Аванс(?=[\s\u00a0\u202f]|$)/.test(state.text))) return null;
+  return `Аванс ${formatMoney(sum(summary.advance))}`;
+}
+
 /** The identity of the statement: стоимость − оплачено − перенесено − прощено + возвращено + перенесено в другие = долг − аванс. */
 export function statementDiff(summary: StatementSummary): number {
   const left = sum(summary.charged) - sum(summary.paid) - sum(summary.transferred_in) - sum(summary.written_off) - sum(summary.recalculated) + sum(summary.refunded) + sum(summary.transferred_out);
