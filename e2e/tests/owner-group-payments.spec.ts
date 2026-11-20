@@ -170,7 +170,7 @@ test("the header of the group: the price chip and «Цена группы…» i
   await expect(page.getByTestId("group-price-chip")).toContainText(new RegExp(moneyPattern(500000)));
   // the debt chip is the DEBTORS' (red, a link to the filtered tab); the student still within his term has his own calm blue chip «К оплате» and filter (PAY-DUE 9.10)
   await expect(page.getByTestId("group-debt-chip")).toContainText(/Долг .*· 1 ученик/);
-  await expect(page.getByTestId("group-due-chip")).toContainText(/К оплате .* · 1 ученик/);
+  await expect(page.getByTestId("group-due-chip")).toContainText(/К оплате\s.*\s·\s1\sученик/);
   await page.getByTestId("group-due-chip").click();
   await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=due`));
   await expect(page.getByTestId("group-payments-tab")).toContainText("Ждущий Рустам");

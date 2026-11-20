@@ -154,7 +154,7 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   await page.reload();
   await page.getByRole("tab", { name: /К оплате/ }).click();   // PAY-DUE: her period began today, the term is running
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
-  await expect(row).toContainText(/К оплате .* сум/);
+  await expect(row).toContainText(/К оплате\s.*\sсум/); // the words of the server carry non-breaking spaces around the sum: \s, not a plain space (PAY-DUE 19.4)
   await expect(row).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
   await expect(row.getByRole("textbox")).toHaveCount(0);
   await expect(row.getByRole("button", { name: "Внести оплату" })).toBeVisible();
