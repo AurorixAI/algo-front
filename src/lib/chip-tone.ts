@@ -3,7 +3,7 @@
  * grey = nothing to do yet, amber = soon, red = overdue or used up.  No React here, so node:test
  * can load this file directly.
  */
-export type ChipTone = "neutral" | "warn" | "danger" | "ok" | "info" | "violet" | "muted";
+export type ChipTone = "neutral" | "warn" | "danger" | "ok" | "info" | "violet" | "muted" | "due";
 
 export const CHIP_TONE_CLASS: Record<ChipTone, string> = {
   neutral: "border-slate-200 bg-slate-50 text-slate-600",
@@ -13,6 +13,8 @@ export const CHIP_TONE_CLASS: Record<ChipTone, string> = {
   ok: "border-success-200 bg-success-50 text-success-800",
   info: "border-info-200 bg-info-50 text-info-900",
   violet: "border-violet-200 bg-violet-50 text-violet-700",
+  // PAY-DUE 9.11: «К оплате» - the sum is within its term: a calm blue, apart from the grey pause, the amber «заканчивается оплата» and the red debt (accent-900 on accent-100: 9.6:1)
+  due: "border-accent-200 bg-accent-100 text-accent-900",
   muted: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
