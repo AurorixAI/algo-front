@@ -1453,6 +1453,19 @@ const studentsText = (n: number) => `${n} ${pluralRu(n, "ученик", "уче�
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null);
 
 /**
+ * The term of the centre in the title row of the card «К оплате» (PAY-DUE 20.2): in days for the calendar and the personal period, in lessons for a package; the settings of the centre are the server's
+ * (`pay_due_days`, `pay_due_lessons` of the summary), the mode is `period_mode` of the same summary.  Zero is the term «from the first day / the first lesson».  The setting the summary did not carry -> no term (nothing is guessed).
+ */
+export function payDueTermText(mode: PeriodMode, days: number | null, lessons: number | null): string | null {
+  if (mode === "lessons") {
+    if (lessons === null) return null;
+    return lessons === 0 ? "долг с первого урока" : `срок ${lessons} ${pluralRu(lessons, "урок", "урока", "уроков")}`;
+  }
+  if (days === null) return null;
+  return days === 0 ? "долг с первого дня" : `срок ${days} ${pluralRu(days, "день", "дня", "дней")}`;
+}
+
+/**
  * «Долг» (red, the term has passed), «К оплате» (calm, still within the term, with the nearest term in the server's words) and «Аванс».  Every number is the server's (`/org/payments/summary`):
  * the debtors and the students of «К оплате» are the very numbers of the tabs, the two sums add up to everything unpaid.
  */

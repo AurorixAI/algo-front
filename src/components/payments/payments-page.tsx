@@ -19,6 +19,7 @@ import {
   paymentsListQueryString,
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
+  payDueTermText,
   positionCards,
   priceMissingText,
   statementHref,
@@ -38,7 +39,6 @@ import {
   savedPaymentToastDetails,
 } from "@/lib/payments-ledger";
 import { pricesBaseOf } from "@/lib/group-price";
-import { pluralRu } from "@/lib/plural";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
@@ -107,6 +107,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const dueStudents = usePaymentsSummary((state) => state.dueStudents);
   const dueNearest = usePaymentsSummary((state) => state.dueNearest);
   const payDueDays = usePaymentsSummary((state) => state.payDueDays);
+  const payDueLessons = usePaymentsSummary((state) => state.payDueLessons);
+  const periodMode = usePaymentsSummary((state) => state.periodMode);
   const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
   const priceMissing = usePaymentsSummary((state) => state.priceMissing);
   const advanceTotal = usePaymentsSummary((state) => state.advanceTotal);
@@ -305,7 +307,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const advanceCard = cards.find((card) => card.key === "advance");
   const cardHref = (key: "debt" | "due" | "advance") => (key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : key === "due" ? `${paymentsBase}?bucket=to_pay#payments-list` : `${incomeHref(paymentsBase)}#advance`);
   // the term of the centre: the owner's link to the setting, the administrator's plain text (PAY-DUE 9.7)
-  const term = payDueDays !== null ? `срок ${payDueDays} ${pluralRu(payDueDays, "день", "дня", "дней")}` : null;
+  const term = payDueTermText(periodMode, payDueDays, payDueLessons);
   const termNode = (linkClass: string) => (isOwner
     ? <Link href="/owner/settings?section=payments#pay-due" className={`${linkClass} font-medium text-primary-700 hover:underline`}>{term}</Link>
     : <span className="text-slate-500">{term}</span>);
@@ -354,7 +356,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                   </Link>
                   {/* the term sits in the title row, on the right: the three cards keep one height and no empty bottom */}
                   {card.key === "due" && term && (
-                    <p className="absolute right-5 top-3 text-sm" data-testid="pay-due-term">{termNode("inline-flex min-h-6 items-center")}</p>
+                    <p className={`absolute right-5 top-3 ${term.length > 14 ? "text-xs leading-5" : "text-sm"}`} data-testid="pay-due-term">{termNode("inline-flex min-h-6 items-center")}</p>
                   )}
                 </div>
               );

@@ -58,4 +58,4 @@ async function measure(run, page, sidebar) {
   return { rows, doc };
 }
 
-module.exports = { answer, PAGES, SETUPS, measure };
+module.exports = { SUMMARY, answer, PAGES, SETUPS, measure };
