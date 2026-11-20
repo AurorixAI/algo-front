@@ -1,7 +1,7 @@
 "use client";
 
 import { isStaleRefusal, REFRESH_LABEL, formAllowsConfirm } from "@/lib/money-preview";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X, Search, Loader2, GraduationCap, RotateCcw } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
@@ -40,7 +40,7 @@ import { enrolBarOf, enrolIntoLabel } from "@/lib/enrol-bar";
 import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, type OwnPriceError } from "@/lib/enrol-terms";
 import { probeRefusalOfError } from "@/lib/bulk-outcome";
 import { formatMoney } from "@/lib/money-format";
-import { enrolCardTitle, groupNameShown } from "@/lib/enrol-labels";
+import { enrolCardTitle, groupNameShown, serverPhraseShown } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -106,6 +106,14 @@ export function AssignGroupModal({
   const excluded = useMemo(() => new Set([...(excludeGroupIds ?? []), ...(currentGroupId ? [currentGroupId] : [])]), [excludeGroupIds, currentGroupId]);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [search, setSearch] = useState("");
+  // Money-2 fix 12 (Д8): the height of the list as it was with the full list, taken at the FIRST input in the search; it stays the minimum while the window is open and no group is chosen,
+  // so the window does not breathe with every letter (no empty box at the opening: until the first input the height is the content's)
+  const listRef = useRef<HTMLDivElement>(null);
+  const [listMin, setListMin] = useState<number | null>(null);
+  const typeSearch = (next: string) => {
+    if (listMin === null && next && !selectedGroupId && listRef.current) setListMin(Math.ceil(listRef.current.getBoundingClientRect().height));
+    setSearch(next);
+  };
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -153,6 +161,7 @@ export function AssignGroupModal({
       setAssignmentError(null);
       setLoadError(null);
       setSearch("");
+      setListMin(null);
       setExceptionAmount("");
       setExceptionReason("");
       setPriceError(null);
@@ -381,7 +390,7 @@ export function AssignGroupModal({
           {assignmentError && (
             <div role="alert" className="mx-5 mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium leading-relaxed text-rose-800 max-sm:mx-4">
               <X className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{assignmentError}</span>
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{serverPhraseShown(assignmentError)}</span>
               {assignmentStale && <Button type="button" variant="secondary" size="sm" data-testid="assign-refresh" onClick={() => { onClose(); window.location.reload(); }}>{REFRESH_LABEL}</Button>}
             </div>
           )}
@@ -421,7 +430,7 @@ export function AssignGroupModal({
             placeholder="Группа или преподаватель"
             aria-label="Группа или преподаватель"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => typeSearch(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-500 focus:border-transparent focus:ring-2 focus:ring-primary-500"
           />
           {search && (
@@ -431,8 +440,8 @@ export function AssignGroupModal({
           )}
         </div>
 
-        {/* a minimal height of the list (two or three cards: the common results of a search; one card is not a tall empty box): the window does not jump while the person types in the search and the found cards come and go */}
-        <div className="mt-3 min-h-[13rem]" data-testid="assign-groups" role="radiogroup" aria-label="Группа">
+        {/* the minimal height of the list is taken at the first input in the search (`listMin`): the window does not jump while the person types and the found cards come and go */}
+        <div ref={listRef} className="mt-3" style={listMin !== null && !selectedGroupId ? { minHeight: listMin } : undefined} data-testid="assign-groups" role="radiogroup" aria-label="Группа">
           {loading ? (
             <div className="flex min-h-[120px] flex-col items-center justify-center text-slate-600">
               <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary-500" aria-hidden="true" />
@@ -443,12 +452,12 @@ export function AssignGroupModal({
               <DataLoadError compact title="Не удалось загрузить группы" message={loadError} onRetry={() => setReloadNonce((current) => current + 1)} />
             </div>
           ) : filteredGroups.length === 0 ? (
-            <div className="flex min-h-[120px] flex-col items-center justify-center px-4 py-3 text-center">
-              <GraduationCap className="mb-3 h-8 w-8 text-slate-500" aria-hidden="true" />
+            <div className={`flex flex-col items-center justify-center px-4 text-center ${search ? "py-2" : "min-h-[120px] py-3"}`}>
+              {!search && <GraduationCap className="mb-3 h-8 w-8 text-slate-500" aria-hidden="true" />}
               <h4 className="mb-1 text-sm font-bold text-slate-800">
                 {search ? "Группы не найдены" : isTransfer ? "Нет группы для перевода" : isAdd ? "Нет других групп" : "Нет активных групп"}
               </h4>
-              <p className="mb-4 max-w-xs text-xs text-slate-600">
+              <p className={`max-w-xs text-xs text-slate-600 ${search ? "mb-2" : "mb-4"}`}>
                 {search
                   ? "Попробуйте изменить поиск."
                   : isTransfer

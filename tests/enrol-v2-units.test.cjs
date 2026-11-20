@@ -95,3 +95,13 @@ test("the message of success: «Трое зачислены в «…»» and the
   assert.equal(E.enrolToast({ ...base, added: 2, skipped: 1, groupName: "Г" }).type, "warning", "somebody refused: not a plain success");
   assert.equal(three.details.length > 0, true, "a message with details stays long (10 s)");
 });
+
+test("Money-2 fix 12: serverPhraseShown - a hyphen inside «…» is non-breaking (U+2011), the rest of the sentence stays; the toast carries it too", () => {
+  const { serverPhraseShown } = require(path.join(root, "src/lib/enrol-labels.ts"));
+  const text = "Долг 42 000 сум останется за учеником в группе «М11 ВС Вт-Чт-Сб»: он был в ней по 20-е число; «Алгебра 7 (вт/пт)» и «Пн-Ср-Пт».";
+  assert.equal(serverPhraseShown(text), "Долг 42 000 сум останется за учеником в группе «М11 ВС Вт‑Чт‑Сб»: он был в ней по 20-е число; «Алгебра 7 (вт/пт)» и «Пн‑Ср‑Пт».");
+  assert.equal(serverPhraseShown(null), null);
+  assert.equal(serverPhraseShown("без кавычек - как есть"), "без кавычек - как есть");
+  const toast = E.assignDoneToast({ studentName: "Анвар", groupName: "М11 ВС Вт-Чт-Сб", transfer: true, warnings: ["Долг останется в группе «М11 ВС Вт-Чт-Сб»: 42 000"], infos: [] });
+  assert.equal(toast.details[0], "Долг останется в группе «М11 ВС Вт‑Чт‑Сб»: 42 000");
+});

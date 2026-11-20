@@ -6,6 +6,7 @@ import { carriedOf, carriedRows, CLOSING_PRICES_SHOWN, closingPricesOf } from "@
 import { useState } from "react";
 import { Notice } from "@/components/ui/notice";
 import { tidyMoneyText } from "@/lib/money-format";
+import { serverPhraseShown } from "@/lib/enrol-labels";
 import { Button } from "@/components/ui/button";
 import { EffectsSections } from "@/components/money/effects-sections";
 import { effectsEmpty, effectsOfAnswer } from "@/lib/transfer-effects";
@@ -65,7 +66,7 @@ export function TransferPreviewBlock({ preview, onRetry, onRefresh, names, targe
       <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
       {carried.length > 0 && (
         <ul className="mt-1.5 space-y-1" data-testid="transfer-carried">
-          {carried.flatMap((line, index) => carriedRows(line.message).map((row, part) => <li key={`${line.code}-${index}-${part}`} className="text-sm text-slate-800">{tidyMoneyText(row)}</li>))}
+          {carried.flatMap((line, index) => carriedRows(line.message).map((row, part) => <li key={`${line.code}-${index}-${part}`} className="text-sm text-slate-800">{serverPhraseShown(tidyMoneyText(row))}</li>))}
         </ul>
       )}
       {closing.length > 0 && <ClosingPrices lines={closing} />}
@@ -80,7 +81,7 @@ function ClosingPrices({ lines }: { lines: Array<{ text: string }> }) {
   const rest = lines.length - shown.length;
   return (
     <div className="mt-2 space-y-1.5" data-testid="transfer-closing-prices">
-      {shown.map((line, index) => <Notice key={`${index}-${line.text}`} variant="warning" compact testId="transfer-closing-price">{line.text}</Notice>)}
+      {shown.map((line, index) => <Notice key={`${index}-${line.text}`} variant="warning" compact testId="transfer-closing-price">{serverPhraseShown(line.text)}</Notice>)}
       {rest > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setAll(true)} data-testid="transfer-closing-more">и ещё {rest}</Button>}
     </div>
   );

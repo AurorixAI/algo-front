@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/radio";
 import { transferWordsOf } from "@/lib/dry-run";
-import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL } from "@/lib/enrol-labels";
+import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, serverPhraseShown } from "@/lib/enrol-labels";
 import { EFFECTS_LOADING_TEXT, EFFECTS_RETRY_LABEL, effectsFailureText } from "@/lib/money-effects";
 import { isStaleRefusal, refusedInWords, REFRESH_LABEL, type EffectsPreview } from "@/lib/money-preview";
 import { ExceptionRow } from "./enrol-exceptions";
@@ -44,7 +44,7 @@ function Words({ preview, lines, onRetry }: { preview: EffectsPreview; lines: st
   return (
     <div data-testid="transfer-preview" data-state="ready" className="mt-1.5 space-y-0.5 text-xs text-slate-600">
       <ul data-testid="transfer-carried" className="space-y-0.5">
-        {lines.map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{text}</li>)}
+        {lines.map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{serverPhraseShown(text)}</li>)}
       </ul>
     </div>
   );
@@ -58,7 +58,7 @@ export function EnrolTransferRows({ students, mode, onMode, preview, onRetry }: 
   const words = preview.status === "ready" ? transferWordsOf(preview.answer) : { byStudent: new Map<string, string[]>() };
   const single = students.length === 1;
   const hintOf = (student: EnrolTransferStudent): ReactNode => (mode === "transfer" && student.hint
-    ? <p className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{student.name} — {student.hint}</p>
+    ? <p className="mt-1 text-xs text-warning-800" data-testid="student-many-groups-hint">{student.name} — {serverPhraseShown(student.hint)}</p>
     : null);
   const switcher = (
     <div className="mt-2">

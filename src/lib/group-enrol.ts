@@ -5,7 +5,7 @@
  * `warnings` are real hints (third group, class mismatch); `infos` are calm notes such as
  * "the payment moved to the new group" (N13 P2.1) - they never turn a success into a warning.
  */
-import { groupNameShown } from "./enrol-labels";
+import { groupNameShown, serverPhraseShown } from "./enrol-labels";
 
 export interface EnrolSummary {
   added: number;
@@ -42,14 +42,14 @@ export function enrolToast(result: EnrolSummary): EnrolToast {
   const infos = result.infos ?? [];
   if (result.added > 0 && result.skipped === 0) {
     const text = enrolHeadline(result);
-    const lines = [...(result.payNowLine ? [result.payNowLine] : []), ...infos];
-    if (result.warnings.length > 0) return { text, type: "warning", details: [...result.warnings, ...lines] };
+    const lines = [...(result.payNowLine ? [result.payNowLine] : []), ...infos].map(serverPhraseShown);
+    if (result.warnings.length > 0) return { text, type: "warning", details: [...result.warnings.map(serverPhraseShown), ...lines] };
     if (lines.length > 0) return { text, type: "success", details: lines };
     return { text, type: "success" };
   }
-  const notes = [...result.skippedLines, ...result.warnings];
+  const notes = [...result.skippedLines, ...result.warnings].map(serverPhraseShown);
   if (result.added > 0) {
-    return { text: `Зачислено: ${result.added}, не зачислено: ${result.skipped}`, type: "warning", details: [...notes, ...infos] };
+    return { text: `Зачислено: ${result.added}, не зачислено: ${result.skipped}`, type: "warning", details: [...notes, ...infos.map(serverPhraseShown)] };
   }
   return { text: "Ни одного ученика не зачислено", type: "error", details: notes };
 }
@@ -85,10 +85,10 @@ export function assignDoneToast(input: AssignDoneInput): EnrolToast {
   const stay = staysLine(input.stays ?? []);
   const lines = [
     ...(input.payNowLine ? [input.payNowLine] : []),
-    ...(input.undoText ? [input.undoText] : []),
+    ...(input.undoText ? [serverPhraseShown(input.undoText)] : []),
     ...(stay ? [stay] : []),
-    ...(input.warnings ?? []),
-    ...(input.infos ?? []),
+    ...(input.warnings ?? []).map(serverPhraseShown),
+    ...(input.infos ?? []).map(serverPhraseShown),
   ];
   const type = (input.warnings ?? []).length > 0 ? "warning" : "success";
   return lines.length > 0 ? { text, type, details: lines } : { text, type };

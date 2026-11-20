@@ -1,6 +1,7 @@
 "use client";
 
 import { tidyMoneyText } from "@/lib/money-format";
+import { serverPhraseShown } from "@/lib/enrol-labels";
 import { Disclosure } from "@/components/ui/disclosure";
 import { calmMoneyText, effectFullTexts, effectSections, type TransferEffects } from "@/lib/transfer-effects";
 
@@ -14,14 +15,14 @@ export function EffectsSections({ effects, target = null, testId = "transfer-eff
   if (sections.length === 0 && !calm) return null;
   return (
     <div data-testid={testId} className={`space-y-2.5 ${className}`}>
-      {calm && <p className="text-sm text-slate-600" data-testid="effects-calm">{tidyMoneyText(calm)}</p>}
+      {calm && <p className="text-sm text-slate-600" data-testid="effects-calm">{serverPhraseShown(tidyMoneyText(calm))}</p>}
       {sections.map((section) => (
         <section key={section.key} aria-label={section.title}>
           <h4 className="text-xs font-semibold text-slate-600 [overflow-wrap:anywhere]">{section.title}</h4>
           <ul className="mt-1 space-y-1" data-testid={`effects-${section.key}`}>
             {section.rows.map((row) => (
               <li key={row.key} data-testid="effect-row" className="flex items-baseline justify-between gap-x-3 text-sm leading-snug text-slate-800">
-                <span className="min-w-0 [overflow-wrap:anywhere]">{tidyMoneyText(row.label)}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere]">{serverPhraseShown(tidyMoneyText(row.label))}</span>
                 {row.value && <span className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums">{row.value}</span>}
               </li>
             ))}
@@ -29,7 +30,7 @@ export function EffectsSections({ effects, target = null, testId = "transfer-eff
         </section>
       ))}
       <Disclosure testId="effects-full">
-        <ul className="space-y-1">{effectFullTexts(effects).map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{tidyMoneyText(text)}</li>)}</ul>
+        <ul className="space-y-1">{effectFullTexts(effects).map((text, index) => <li key={`${index}-${text}`} className="[overflow-wrap:anywhere]">{serverPhraseShown(tidyMoneyText(text))}</li>)}</ul>
       </Disclosure>
     </div>
   );

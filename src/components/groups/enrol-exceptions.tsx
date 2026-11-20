@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { tidyMoneyText } from "@/lib/money-format";
+import { serverPhraseShown } from "@/lib/enrol-labels";
 import { pastBalanceNote, type PastBalance } from "@/lib/past-balances";
 import { statementHref } from "@/lib/payments";
 import type { LeaveUndo } from "@/lib/transfer-effects";
@@ -69,15 +70,15 @@ const MUTED_DETAIL = "mt-0.5 block text-xs text-slate-600";
 export function EnrolNoteRows({ note, paymentsBase }: { note: EnrolNote; paymentsBase: string | null }) {
   const facts: Array<Omit<Parameters<typeof Fact>[0], "name" | "first">> = [
     ...note.past.map((row) => ({
-      testId: "enrol-note-past", tone: "warn" as const, state: tidyMoneyText(pastBalanceNote(row)),
+      testId: "enrol-note-past", tone: "warn" as const, state: serverPhraseShown(tidyMoneyText(pastBalanceNote(row))),
       aside: paymentsBase ? <Link href={statementHref(paymentsBase, row.membershipId)} data-testid="past-balance-link" className="inline-flex min-h-8 shrink-0 items-center text-sm font-semibold text-primary-700 hover:underline max-sm:min-h-10">Выписка</Link> : undefined,
     })),
     ...(note.rewrite ? [{
       testId: "enrol-note-rewrite", state: <span data-testid="leave-undo-line">{note.name && note.past.length === 0 ? "записывается заново" : "Записывается заново"}</span>,
-      detail: <span className={MUTED_DETAIL} data-testid="leave-undo-text">{tidyMoneyText(note.rewrite.text)}</span>,
+      detail: <span className={MUTED_DETAIL} data-testid="leave-undo-text">{serverPhraseShown(tidyMoneyText(note.rewrite.text))}</span>,
     }] : []),
     ...(note.undone ? [{
-      testId: "enrol-note-undone", phrase: <span data-testid="leave-undo-text">{tidyMoneyText(note.undone.text)}</span>,
+      testId: "enrol-note-undone", phrase: <span data-testid="leave-undo-text">{serverPhraseShown(tidyMoneyText(note.undone.text))}</span>,
       detail: note.sharedUndone ? <span className={MUTED_DETAIL} data-testid="enrol-note-shared">Общие цена и дата на него не действуют — остаются прежние</span> : undefined,
     }] : []),
   ];
@@ -94,7 +95,7 @@ export function EnrolRefusedRow({ id, name, reason }: { id: string; name: string
   return (
     <ExceptionRow tone="warn" testId={`enrol-refused-${id}`}>
       <b className="font-semibold text-slate-900">{name}</b>{" — "}<span className="text-warning-800">не будет записан</span>
-      {reason && <span className={MUTED_DETAIL} data-testid="enrol-refused-reason">{reason}</span>}
+      {reason && <span className={MUTED_DETAIL} data-testid="enrol-refused-reason">{serverPhraseShown(reason)}</span>}
     </ExceptionRow>
   );
 }
@@ -104,7 +105,7 @@ export function EnrolRefusedAllRow({ reason }: { reason: string }) {
   return (
     <ExceptionRow tone="warn" testId="enrol-refused-all">
       <span className="font-semibold text-warning-800">Никто не будет записан</span>
-      {reason && <span className={MUTED_DETAIL} data-testid="enrol-refused-reason">{reason}</span>}
+      {reason && <span className={MUTED_DETAIL} data-testid="enrol-refused-reason">{serverPhraseShown(reason)}</span>}
     </ExceptionRow>
   );
 }

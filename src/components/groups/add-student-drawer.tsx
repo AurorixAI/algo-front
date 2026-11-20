@@ -20,7 +20,7 @@ import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
 import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview, type PayFromPreview } from "@/lib/use-pay-from";
-import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, groupNameShown } from "@/lib/enrol-labels";
+import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, groupNameShown, serverPhraseShown } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -554,6 +554,28 @@ export function AddStudentDrawer({
     </EnrolExceptions>
   );
 
+  // the conditions: one line, the rare fields open in place; a role without money has none.  A phone (Money-2 fix 12, Д9): they stand right after the special rows, BEFORE the list of the rest - the line is seen without scrolling; a wide window pins them above the bar
+  const termsBlock = moneyAvailable && !allUndone && selected.size > 0 && (
+    <EnrolTerms
+      idPrefix="add-student"
+      payDef={payFromAllowed ? payDef : null}
+      showPayFrom={payFromAllowed}
+      payFrom={payFromValue}
+      onPayFrom={(next) => { setAddError(null); setPayFrom(next); }}
+      accountingStart={accountingStart}
+      priceLabel={priceLabel}
+      groupAmount={groupAmount}
+      amount={exceptionAmount}
+      reason={exceptionReason}
+      onAmount={(text) => { setAddError(null); setPriceError(null); setExceptionAmount(text); }}
+      onReason={(text) => { setAddError(null); setPriceError(null); setExceptionReason(text); }}
+      priceError={priceError}
+      openSignal={termsSignal}
+      onOpenChange={setTermsOpen}
+      opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}
+    />
+  );
+
   return (
     <Modal
       open={open}
@@ -575,7 +597,7 @@ export function AddStudentDrawer({
       ) : (
         <>
           {addError && (
-            <p role="alert" data-testid="enrol-error" className="mx-5 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 max-sm:mx-4">{addError}</p>
+            <p role="alert" data-testid="enrol-error" className="mx-5 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 max-sm:mx-4">{serverPhraseShown(addError)}</p>
           )}
           {/* «По ученикам»: the list opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
@@ -617,6 +639,7 @@ export function AddStudentDrawer({
       </div>
       {/* a phone: what the server says about the chosen stands right under their labels, so it is seen without scrolling (a wide window keeps it under the list) */}
       {phone && exceptionsBlock}
+      {phone && termsBlock}
       {/* the rest as a short list */}
       <div className={`flex flex-col px-5 pb-2 max-sm:px-4 sm:min-h-0 sm:flex-1 ${termsOpen && selected.size > 0 ? "max-sm:hidden" : ""}`}>
         <div className="mt-3 flex shrink-0 items-baseline gap-1.5 text-xs text-slate-600" data-testid="enrol-others-title">
@@ -689,27 +712,7 @@ export function AddStudentDrawer({
         </div>
       </div>
       {!phone && exceptionsBlock}
-      {/* Conditions: one line, the rare fields open in place; a role without money has none */}
-      {moneyAvailable && !allUndone && selected.size > 0 && (
-        <EnrolTerms
-          idPrefix="add-student"
-          payDef={payFromAllowed ? payDef : null}
-          showPayFrom={payFromAllowed}
-          payFrom={payFromValue}
-          onPayFrom={(next) => { setAddError(null); setPayFrom(next); }}
-          accountingStart={accountingStart}
-          priceLabel={priceLabel}
-          groupAmount={groupAmount}
-          amount={exceptionAmount}
-          reason={exceptionReason}
-          onAmount={(text) => { setAddError(null); setPriceError(null); setExceptionAmount(text); }}
-          onReason={(text) => { setAddError(null); setPriceError(null); setExceptionReason(text); }}
-          priceError={priceError}
-          openSignal={termsSignal}
-          onOpenChange={setTermsOpen}
-          opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}
-        />
-      )}
+      {!phone && termsBlock}
 
       </>)}
     </Modal>

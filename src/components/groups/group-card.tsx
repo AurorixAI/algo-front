@@ -93,7 +93,7 @@ export function GroupCard({ group, href, index = 0, substituteLabel }: GroupCard
         <p className="relative z-20 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="group-card-price">
           <Wallet className="h-4 w-4 text-slate-400" aria-hidden="true" />
           {group.price_current ? (
-            <span className="font-semibold tabular-nums text-slate-800">{formatPrice(group.price_current.amount, priceLabel)}</span>
+            <span className="whitespace-nowrap font-semibold tabular-nums text-slate-800">{formatPrice(group.price_current.amount, priceLabel)}</span>
           ) : (
             <>
               {group.price_scheduled

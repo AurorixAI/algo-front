@@ -26,3 +26,9 @@ export function enrolCardTitle(transfer: boolean, studentName: string): string {
  * («Пн-Ср-⏎Пт»).  Only for showing: the name that goes to the server or is compared stays as it is (Money-2 fix 11, F8).
  */
 export const groupNameShown = (name: string): string => name.replace(/-/g, "\u2011");
+
+/**
+ * A sentence of the server shown in a window of enrolment (a special row, the words of a transfer, the reason of a refusal, the message after the write): inside «…» a hyphen is the NON-BREAKING one (U+2011), so the name of
+ * a group («М11 ВС Вт-Чт-Сб») is not torn at a hyphen; the rest of the text stays as the server said it (Money-2 fix 12, item 3).
+ */
+export const serverPhraseShown = <T extends string | null | undefined>(text: T): T => (typeof text === "string" ? (text.replace(/«[^»]*»/g, (quoted) => quoted.replace(/-/g, "‑")) as T) : text);
