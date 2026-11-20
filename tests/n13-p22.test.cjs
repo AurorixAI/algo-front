@@ -43,9 +43,9 @@ test("the price is «Цена в месяц» for months and «Цена паке
 });
 
 test("screens take the price wording from the helper, not from literals", () => {
-  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-price.tsx"]) {
-    assert.match(read(`src/${file}`), /priceLabelOf\(/, file);
-  }
+  // PAY-DUE 9.7: the list of «Оплаты» has no column of the price any more, so it has no price wording at all
+  assert.match(read("src/components/payments/membership-price.tsx"), /priceLabelOf\(/);
+  assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /priceLabelOf|Цена в месяц|Цена пакета/);
   for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx", "components/payments/membership-price.tsx", "components/payments/group-prices-page.tsx"]) {
     assert.doesNotMatch(read(`src/${file}`), /["'>]Цена в месяц[<"',]/, file);
   }
@@ -273,7 +273,6 @@ test("receipt pages exist for the owner and the administrator and share one comp
 
 test("print hides the app chrome of both workspaces", () => {
   assert.match(read("src/components/layout/sidebar.tsx"), /select-none print:hidden/);
-  assert.match(read("src/components/payments/payments-alert-banner.tsx"), /print:hidden/);
   for (const role of ["owner", "admin"]) {
     const layout = read(`src/app/${role}/layout.tsx`);
     assert.match(layout, /print:ml-0 print:p-0/, role);

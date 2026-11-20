@@ -67,7 +67,7 @@ test("the contract: three operations, each with a helper of the api; every fixtu
     if (name.startsWith("I")) {
       const o = overview(name);
       assert.ok(Array.isArray(o.series) && Array.isArray(o.by_method) && Array.isArray(o.checks), name);
-      assert.ok(Number.isInteger(o.current.received) && Number.isInteger(o.position.debtors_debt_total), name);
+      assert.ok(Number.isInteger(o.current.received) && Number.isInteger(o.position.debt_total), name);
       assert.ok(!JSON.stringify(o).includes("NaN"), name);
     } else {
       const j = journal(name);
@@ -76,7 +76,7 @@ test("the contract: three operations, each with a helper of the api; every fixtu
   }
   // a reader that gets less than the contract promises still gives whole numbers and lists
   const bare = V.normalizeOverview({});
-  assert.deepEqual([bare.current.received, bare.position.students_debtors, bare.series.length, bare.ok], [0, 0, 0, true]);
+  assert.deepEqual([bare.current.received, bare.position.debtors, bare.series.length, bare.ok], [0, 0, 0, true]);
   assert.equal(V.normalizeJournal({}).rows.length, 0);
 });
 
@@ -211,11 +211,11 @@ test("cards «Долг на сегодня» and «Аванс»: the sum and the
   for (const [n, caption] of [[1, "1 ученик оплатил вперёд"], [21, "21 ученик оплатил вперёд"], [3, "3 ученика оплатили вперёд"], [5, "5 учеников оплатили вперёд"]]) {
     assert.equal(V.advanceCard({ ...o, position: { ...o.position, advance_total: 100000, students_with_advance: n } }).caption, caption);
   }
-  const clean = { ...o, position: { ...o.position, debtors_debt_total: 0, debt_waiting_total: 0, students_debtors: 0, students_waiting: 0, advance_total: 0, students_with_advance: 0 } };
+  const clean = { ...o, position: { ...o.position, debt_total: 0, due_total: 0, debtors: 0, due_students: 0, advance_total: 0, students_with_advance: 0 } };
   assert.deepEqual([V.debtCard(clean).amount, V.debtCard(clean).none, V.advanceCard(clean).amount], ["Долгов нет", true, "Авансов нет"]);
-  assert.equal(V.debtorsHref("/owner/payments/"), "/owner/payments?bucket=debt");
-  assert.equal(V.debtorsHref("/owner/payments", { groupId: "g 1" }), "/owner/payments?bucket=debt&group_id=g+1");
-  assert.equal(V.debtorsHref("/admin/payments", { teacherId: "t1" }), "/admin/payments?bucket=debt"); // the teacher is no longer a scope of this link
+  assert.equal(V.debtorsHref("/owner/payments/"), "/owner/payments?bucket=debtors");
+  assert.equal(V.debtorsHref("/owner/payments", { groupId: "g 1" }), "/owner/payments?bucket=debtors&group_id=g+1");
+  assert.equal(V.debtorsHref("/admin/payments", { teacherId: "t1" }), "/admin/payments?bucket=debtors"); // the teacher is no longer a scope of this link
 });
 
 // ── «Куда ушли деньги» ──────────────────────────────────────────────────────────────────────────
@@ -454,7 +454,7 @@ test("«Группы — собираемость»: worst first, a group with n
   assert.deepEqual([total.title, total.charged, total.paid, total.pct], ["Всего", 2500000, 1900000, 76]);
   // ties go by the bigger debt; no percent goes last
   const base = overview("I01_income_month_october").collection;
-  const make = (id, pct, debt, charged = 100) => ({ ...base.groups[0], group_id: id, group_name: id, pct, debt, debtors_debt: debt, debt_waiting: 0, charged, students_with_debt: debt > 0 ? 1 : 0 });
+  const make = (id, pct, debt, charged = 100) => ({ ...base.groups[0], group_id: id, group_name: id, pct, debt, due: 0, charged, debtors: debt > 0 ? 1 : 0, due_students: 0 });
   const sorted = V.collectionRows({ ...base, groups: [make("e", null, 0, 0), make("a", 50, 10), make("b", 50, 90), make("c", 0, 5)] });
   assert.deepEqual(sorted.map((r) => r.title), ["c", "b", "a", "e"]);
   assert.equal(sorted[3].pctText, "");
@@ -462,9 +462,9 @@ test("«Группы — собираемость»: worst first, a group with n
   // the total counts distinct students: the tooltip is always there, the «*» only when total != sum of the rows
   assert.equal(V.collectionTotalDebtorsHint(null), null);
   assert.match(V.collectionTotalDebtorsHint(base).title, /без повторов/);
-  const rowsSum = base.groups.reduce((a, g) => a + g.students_with_debt, 0);
-  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, students_with_debt: rowsSum } }).marker, false);
-  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, students_with_debt: rowsSum - 1 } }).marker, true);
+  const rowsSum = base.groups.reduce((a, g) => a + g.debtors, 0);
+  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, debtors: rowsSum } }).marker, false);
+  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, debtors: rowsSum - 1 } }).marker, true);
   assert.equal(V.collectionTotalView(null), null);
   // «долгов нет» in words
   assert.equal(V.collectionRows({ ...base, groups: [make("z", 100, 0)] })[0].debtorsText, "долгов за месяц нет");
@@ -565,7 +565,7 @@ test("the month on screen: the sentence of the server, four cards, one line, the
   assert.ok(!markup.includes("<table") && !markup.includes('role="table"'));
   assert.ok(!body.includes("По преподавателям") && !body.includes("По дням"));
   // the link to «Должники» keeps the workspace
-  assert.match(markup, /href="\/owner\/payments\?bucket=debt"/);
+  assert.match(markup, /href="\/owner\/payments\?bucket=debtors"/);
   assert.match(markup, /id="position"/);
   // 31 bars, each with its sentence for a screen reader
   assert.equal((markup.match(/data-testid="income-bar"/g) || []).length, 6); // only the 6 days with payments (7 payments) are pressed
@@ -589,7 +589,7 @@ test("a day answer (the shape the till of today asks for): three cards (no «С�
 test("a quiet period: the cards, no chart, no line of shares, no till; the zero is said in words", () => {
   const { React, text, P } = parts();
   const o = overview("I02_income_day_today_cash");
-  const quiet = { ...o, strip: null, current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debtors_debt_total: 0, debt_waiting_total: 0, students_debtors: 0, students_waiting: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
+  const quiet = { ...o, strip: null, current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debt_total: 0, due_total: 0, debtors: 0, due_students: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
   const body = text(React.createElement(P.IncomeOverviewView, { overview: quiet, today: TODAY, paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
   for (const piece of ["Оплат не было", "Долгов нет", "Авансов нет"]) assert.ok(body.includes(piece), piece);
   for (const absent of ["Куда ушли деньги", "Чем платили", "Пришло по дням", "Должники"]) assert.ok(!body.includes(absent), absent);
@@ -687,11 +687,11 @@ test("the groups' collection on screen: worst first, bars, a row is a link to «
   for (const piece of ["Октябрь 2026 · по группам", "Группа", "Стоимость", "Оплачено", "Собрано", "Долг", "Должников", "Математика 9А", "Пётр Иванов", "73%", "1 100 000 сум", "300 000 сум", "Всего", "76%"]) assert.ok(body.includes(piece), piece);
   assert.ok(body.indexOf("Математика 9А") < body.indexOf("Английский 7Б") && body.indexOf("Английский 7Б") < body.indexOf("Физика 10В"));
   const markup = html(el);
-  assert.match(markup, /href="\/owner\/payments\?bucket=debt&amp;group_id=group%3AA"/);
+  assert.match(markup, /href="\/owner\/payments\?bucket=debtors&amp;group_id=group%3AA"/);
   assert.equal((markup.match(/role="progressbar"/g) || []).length, 4); // three groups and the total
   assert.equal((markup.match(/data-testid="collection-row"/g) || []).length, 3);
   // a group without a debt says it with a quiet green tick, not «нет» or a dash
-  const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, debtors_debt: 0, debt_waiting: 0, students_with_debt: 0, students_waiting: 0, pct: 100, paid: 1500000 }] };
+  const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, due: 0, debtors: 0, due_students: 0, pct: 100, paid: 1500000 }] };
   const quiet = text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/admin/payments" }));
   assert.ok(quiet.includes("✓ оплачено") && !/(^|\s)нет(\s|$)/.test(quiet) && !/(^|\s)—(\s|$)/.test(quiet));
   // a month without groups
@@ -730,7 +730,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
   assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
   // debt 0 → ✓ оплачено (emerald-700 for AA at small size, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
-  const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, debtors_debt: 0, debt_waiting: 0, students_with_debt: 0, students_waiting: 0, pct: 100, paid: 1500000 }], total: { ...o.collection.total, debt: 0, debtors_debt: 0, debt_waiting: 0, students_with_debt: 0, students_waiting: 0 } };
+  const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, due: 0, debtors: 0, due_students: 0, pct: 100, paid: 1500000 }], total: { ...o.collection.total, debt: 0, debtors_debt: 0, debt_waiting: 0, students_with_debt: 0, students_waiting: 0 } };
   const cleanMarkup = html(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" }));
   assert.equal((cleanMarkup.match(/data-testid="collection-paid"/g) || []).length, 2, "the row and the total follow the same rule");
   assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ оплачено<\/span>/);
@@ -833,7 +833,7 @@ test("INCOME-2 addendum: «Кто внёс» from two authors, the Excel limit, 
   assert.equal(V.exportErrorText(new Error("Нет сети")), "Нет сети");
   assert.equal(V.exportErrorText(null), "Не удалось скачать Excel");
   assert.equal(V.DEBTORS_GROUP_NOTE, "Показаны все долги группы, не только за месяц");
-  assert.match(read("src/components/payments/payments-page.tsx"), /bucket === "debt" && filter\.groupId && \(/);
+  assert.match(read("src/components/payments/payments-page.tsx"), /bucket === "debtors" && filter\.groupId && \(/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/); // income3: the hint is the tooltip of line 1, not a third line
 });
 

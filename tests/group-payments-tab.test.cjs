@@ -31,7 +31,7 @@ const price = (over = {}) => ({ amount: 500000, source: "group", valid_from: "20
 const row = (id, name, over = {}) => ({
   membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, display_id: `AL1-00${id}`, group_id: "g1", group_name: "Группа А",
   is_primary: true, is_active: true, price: price(), status: "active", period_mode: "calendar", paid_until: "2026-11-15",
-  debt: 0, past_debt: 0, current_due: 0, advance: 0, partial_credit: 0, price_missing: false, ...over,
+  debt: 0, debt_amount: 0, due_amount: 0, state: "paid", state_text: "Оплачено до 15.11", advance: 0, partial_credit: 0, price_missing: false, ...over,
 });
 const override = (amount, reason = "Сестра ученика", from = "2026-10-15", more = {}) => price({ amount, source: "override", valid_from: from, reason, ...more });
 
@@ -40,9 +40,9 @@ const ROWS = [
   row(2, "Бекова Мадина", { price: override(400000, "Сестра ученика", "2026-10-15", { set_by_name: "Иванова А." }) }), // individual today
   row(3, "Валиев Тимур", { price: price({ scheduled: { row_id: "r9", amount: 400000, valid_from: "2026-12-01", reason: "С нового месяца" } }) }), // scheduled, not in force
   row(4, "Гафуров Али", { price: price({ valid_from: "2026-09-01" }) }),                              // an override ended: the group price again
-  row(5, "Дадаев Саид", { status: "paused", paused: { from: "2026-10-20", to: "2026-11-01" }, price: override(300000, "Пауза не влияет") }),
-  row(6, "Ёрова Лола", { status: "expired", debt: 900000, past_debt: 500000, days_overdue: 5, paid_until: "2026-10-01" }),
-  row(7, "Жураева Нилуфар", { price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, price_missing: true, status: "none" }),
+  row(5, "Дадаев Саид", { status: "paused", state: "paused", state_text: "Пауза до 01.11", paused: { from: "2026-10-20", to: "2026-11-01" }, price: override(300000, "Пауза не влияет") }),
+  row(6, "Ёрова Лола", { status: "active", state: "debt", state_text: "Долг 900 000 сум", debt: 900000, debt_amount: 900000, debt_text: "Долг 900 000 сум", debt_sub: "просрочено 5 дней · оплачено до 01.10", overdue_days: 5, paid_until: "2026-10-01" }),
+  row(7, "Жураева Нилуфар", { price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, price_missing: true, status: "none", state: "none", state_text: "Нет цены" }),
   row(8, "Зокиров Рустам", { price: override(0, "Грант"), status: "active" }),                         // free by an exception
 ];
 const VIEWS = G.paymentRowViews(ROWS, { periodMode: "calendar", today: TODAY });
@@ -122,24 +122,29 @@ test("rows: the price is the server's price.amount (what the statement charges);
 });
 
 test("lessons mode: «Цена пакета» in the header, the cell is the sum alone, the chip says the lessons left", () => {
-  const r = row(1, "Алиев", { period_mode: "lessons", lessons_total: 12, lessons_left: 9, lessons_used: 3, paid_until: null });
+  const r = row(1, "Алиев", { period_mode: "lessons", lessons_total: 12, lessons_left: 9, lessons_used: 3, paid_until: null, state: "paid", state_text: null });
   const v = G.paymentRowViews([r], { periodMode: "lessons", today: TODAY })[0];
   assert.equal(plain(v.priceText), "500 000 сум");
-  assert.equal(v.chip.label, "Оплачено");                       // the header chip is short; the count is the progress line of the package
+  assert.equal(v.chip.label, null);                             // 151: a paid package has no label of the server - the screen says nothing; the count is the progress line of the package
   assert.equal(require(path.join(root, "src/lib/package-progress.ts")).packageProgress(r).leftText, "Осталось 9 из 12 уроков");
   assert.equal(plain(G.scheduledLine({ amount: 400000, valid_from: "2026-12-01" }, TODAY, "Цена пакета")), "с 01.12 — 400 000 сум за пакет");
 });
 
-test("invariant: the chip of a row is the chip of the student card (membershipChip of the same row)", () => {
+test("invariant: the label of a row is the label of the student card (payLabel of the same row, the server's words)", () => {
+  const S = require(path.join(root, "src/lib/pay-state.ts"));
   for (const r of ROWS) {
     const v = G.paymentRowViews([r], { periodMode: "calendar", today: TODAY })[0];
-    assert.deepEqual(v.chip, P.membershipChip(r), r.student_name);
+    const card = S.payLabel(r, "debtors");
+    assert.deepEqual(v.chip, { label: card.text, tone: card.tone, sub: card.sub }, r.student_name);
   }
-  assert.match(view(5).chip.label, /На паузе/);
+  assert.match(view(5).chip.label, /Пауза/);
   assert.match(view(6).chip.label, /Долг 900/);
+  assert.equal(view(6).chip.tone, "danger");
+  assert.equal(view(1).chip.tone, "ok");
   const src = read("src/components/payments/membership-payments.tsx");
-  assert.match(src, /const chip = membershipChip\(row\)/);
-  assert.match(read("src/lib/group-payments.ts"), /chip: membershipChip\(row\)/);
+  assert.match(src, /const chip = payLabel\(row, "debtors"\)/);
+  assert.match(read("src/lib/group-payments.ts"), /const label = payLabel\(row\)/);
+  for (const gone of ["membershipChip", "moneyChip"]) assert.ok(!read("src/lib/group-payments.ts").includes(gone) && !src.includes(gone), gone);
 });
 
 test("individual price: the badge is for an override in force today (source=override); scheduled / ended / group price are not", () => {
@@ -171,7 +176,7 @@ test("a scheduled individual price is a quiet second line «с 01.12 — 400 000
 
 test("filters and counts: «Все (8)», «Индивидуальная цена (3)», «С долгом (1)»; individual by name, debt by the biggest debt", () => {
   const counts = G.paymentsCounts(VIEWS);
-  assert.deepEqual(counts, { all: 8, individual: 4, debt: 1, waiting: 0 });      // Р4-1 круг 5: 3 действующие + 1 со своей запланированной ценой
+  assert.deepEqual(counts, { all: 8, individual: 4, debt: 1, due: 0 });      // Р4-1 круг 5: 3 действующие + 1 со своей запланированной ценой
   assert.equal(G.filterChipLabel("all", counts), "Все (8)");
   assert.equal(G.filterChipLabel("individual", counts), "Индивидуальная цена (4)");
   assert.equal(G.filterChipLabel("debt", counts), "С долгом (1)");
@@ -182,7 +187,7 @@ test("filters and counts: «Все (8)», «Индивидуальная цен�
   assert.deepEqual(G.filterPaymentRows(VIEWS, "all", "AL1-003").map((v) => v.name), ["Валиев Тимур"]);
   assert.equal(G.emptyFilterText("individual", ""), "Индивидуальных цен нет: все платят по цене группы");
   assert.equal(G.emptyFilterText("all", "яяя"), "Ничего не найдено");
-  const many = G.paymentRowViews([row(1, "А", { debt: 100, status: "expired" }), row(2, "Б", { debt: 900, status: "expired" })], { periodMode: "calendar", today: TODAY });
+  const many = G.paymentRowViews([row(1, "А", { debt: 100, debt_amount: 100, state: "debt" }), row(2, "Б", { debt: 900, debt_amount: 900, state: "debt" })], { periodMode: "calendar", today: TODAY });
   assert.deepEqual(G.filterPaymentRows(many, "debt").map((v) => v.name), ["Б", "А"]);
 });
 
@@ -211,7 +216,7 @@ test("a student in two groups: the tab asks for this group only (group_id) and r
 });
 
 test("students who left: only those with a debt, not among the active ones, the biggest debt first", () => {
-  const debtors = [row(6, "Ёрова", { debt: 900 }), row(21, "Ушёл А", { is_active: false, debt: 100 }), row(22, "Ушёл Б", { is_active: false, debt: 700 }), row(23, "Ушёл В", { is_active: false, debt: 0 })];
+  const debtors = [row(6, "Ёрова", { debt: 900, debt_amount: 900 }), row(21, "Ушёл А", { is_active: false, debt: 100, debt_amount: 100 }), row(22, "Ушёл Б", { is_active: false, debt: 700, debt_amount: 700 }), row(23, "Ушёл В", { is_active: false, debt: 0 })];
   const left = G.leftDebtRows(debtors, new Set(["m-6"]));
   assert.deepEqual(left.map((r) => r.student_name), ["Ушёл Б", "Ушёл А"]);
   assert.equal(G.leftDebtToggleLabel(2, false), "Показать ушедших с долгом (2)");

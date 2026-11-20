@@ -172,10 +172,10 @@ export async function openCard(page: Page, group: GroupInfo, lesson: { date: str
   return { card, sheet };
 }
 
-/** The «Внести оплату» dialog of the student from the list «Ждём оплату»; returns the amount it proposes. */
+/** The «Внести оплату» dialog of the student from the list «К оплате»; returns the amount it proposes. */
 export async function openPayDialog(page: Page, lastName: string) {
-  await page.goto("/owner/payments?bucket=waiting");
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  await page.goto("/owner/payments?bucket=to_pay");
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });

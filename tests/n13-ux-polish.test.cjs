@@ -147,55 +147,7 @@ test("menu counter: it hangs on the icon's corner inside the link, not on an off
   assert.match(sidebar, /title=\{collapsed \?/, "the collapsed link keeps its tooltip");
 });
 
-// ── 3. payments notice ────────────────────────────────────────────────────────────────────────────
-
-test("payments notice: «1 ученик ждёт / 2 ученика ждут / 5 учеников ждут / 21 ученик ждёт оплаты»", () => {
-  const { bannerCopy } = require(path.join(root, "src/lib/payments-banner.ts"));
-  const expected = {
-    1: "1 ученик ждёт оплаты", 2: "2 ученика ждут оплаты", 4: "4 ученика ждут оплаты", 5: "5 учеников ждут оплаты",
-    11: "11 учеников ждут оплаты", 12: "12 учеников ждут оплаты", 13: "13 учеников ждут оплаты", 14: "14 учеников ждут оплаты",
-    20: "20 учеников ждут оплаты", 21: "21 ученик ждёт оплаты", 22: "22 ученика ждут оплаты", 101: "101 ученик ждёт оплаты",
-    111: "111 учеников ждут оплаты",
-  };
-  for (const [count, text] of Object.entries(expected)) assert.equal(bannerCopy({ due: Number(count), expired: 0 }).text, text, count);
-  const thirteen = bannerCopy({ due: 13, expired: 0 });
-  assert.deepEqual([thirteen.subject, thirteen.predicate], ["13 учеников", "ждут оплаты"]);
-  const one = bannerCopy({ due: 1, expired: 0 });
-  assert.deepEqual([one.subject, one.predicate], ["1 ученик", "ждёт оплаты"]);
-});
-
-test("payments notice: the overdue chip appears only for payments that have ended; the cross hides it until more people wait", () => {
-  const { bannerDismissed } = require(path.join(root, "src/lib/payments.ts"));
-  const { bannerCopy } = require(path.join(root, "src/lib/payments-banner.ts"));
-  assert.equal(bannerCopy({ due: 5, expired: 0 }).chip, null);
-  assert.equal(bannerCopy({ due: 5, expired: undefined }).chip, null);
-  assert.equal(bannerCopy({ due: 9, expired: 5 }).chip, "из них просрочено: 5");
-  assert.equal(bannerDismissed(null, 13), false, "never dismissed");
-  assert.equal(bannerDismissed(13, 13), true);
-  assert.equal(bannerDismissed(13, 9), true, "fewer people: still hidden");
-  assert.equal(bannerDismissed(13, 14), false, "the count grew: it comes back");
-  const { summaryToState } = require(path.join(root, "src/lib/payments-summary.ts"));
-  const sp = (due, expired) => ({ debt_split: { due, expired } });   // Money-1 V (а): the split alone
-  assert.equal(summaryToState({ ...sp(13, 5), ends_today: 8 }).expired, 5);
-  assert.equal(summaryToState(sp(3, 9)).expired, 3, "never more overdue than due");
-  assert.equal(summaryToState(sp(3, undefined)).expired, 0, "an older server without the field");
-});
-
-test("payments notice: a calm light surface, rose only in the chip, one line on desktop, sessionStorage in try/catch", () => {
-  const banner = read("src/components/payments/payments-alert-banner.tsx");
-  assert.doesNotMatch(banner, /bg-rose-50 px-4|text-rose-900|bg-rose-\d+ px-4 py-2\.5/, "not a red bar");
-  assert.match(banner, /border border-slate-200 bg-white/);
-  assert.match(banner, /bg-amber-50 text-amber-600/);
-  assert.match(banner, /rounded-full bg-rose-50 px-2 py-0\.5/);
-  assert.match(banner, /sm:whitespace-nowrap|whitespace-nowrap text-sm text-slate-600/);
-  assert.match(banner, /try \{[\s\S]*sessionStorage\.getItem[\s\S]*\} catch/);
-  assert.match(banner, /try \{[\s\S]*sessionStorage\.setItem[\s\S]*\} catch/);
-  assert.match(banner, /Открыть список/);
-  assert.match(banner, /aria-label="Скрыть напоминание"/);
-  // the role rules and the data source are as before
-  assert.match(banner, /usePaymentsSummary\(\(state\) => state\.available\)/);
-  assert.match(banner, /bannerShownOn\(pathname, paymentsBasePath\)/);
-});
+// ── 3. payments notice: removed by PAY-DUE 9.7 (its absence is checked in tests/money2-fix10e-banner.test.cjs) ──
 
 // ── 4. excuse decision after the deadline ─────────────────────────────────────────────────────────
 

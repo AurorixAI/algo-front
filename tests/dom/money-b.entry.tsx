@@ -7,7 +7,6 @@ import { GroupCreateModal } from "@/components/groups/group-create-modal";
 import { RegimeChangeDialog } from "@/components/settings/regime-change-dialog";
 import { PaymentsHistory } from "@/components/settings/payments-history";
 import { PaymentsPage } from "@/components/payments/payments-page";
-import { PaymentsAlertBanner } from "@/components/payments/payments-alert-banner";
 import { GroupDetailView } from "@/components/groups/group-detail-view";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
 import OwnerSettingsPage from "@/app/owner/settings/page";
@@ -55,9 +54,6 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
     case "payments":
       w.__search = props.search ?? "";
       root.render(<PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />);
-      break;
-    case "banner":
-      root.render(<div className="mx-auto max-w-3xl p-4"><PaymentsAlertBanner paymentsBasePath="/owner/payments" /></div>);
       break;
     case "groupHeader":
       w.__params = { id: "g1" };

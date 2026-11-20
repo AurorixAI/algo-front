@@ -31,7 +31,6 @@ import { StudentGroupsBlock } from "@/components/students/student-groups-block";
 import { PayoutDialog } from "@/components/payroll/payout-dialog";
 import { SubstitutionsPage } from "@/components/substitutions/substitutions-page";
 import { ExcuseDecisionDialog } from "@/components/attendance/excuse-decision-dialog";
-import { PaymentsAlertBanner } from "@/components/payments/payments-alert-banner";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { studentToast, toastWithEffects } from "@/lib/money-effects";
 import { returnReviewDoneText } from "@/lib/lesson-return";
@@ -142,9 +141,6 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "substitutions":
       root.render(<SubstitutionsPage role={props.role ?? "owner"} />);
-      break;
-    case "debtBanner":
-      root.render(<div className="mx-auto max-w-3xl p-4"><PaymentsAlertBanner paymentsBasePath="/owner/payments" /></div>);
       break;
     case "receipt":
       root.render(<div className="mx-auto max-w-xl p-4"><ReceiptSheet receipt={props.receipt} /></div>);

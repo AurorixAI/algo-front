@@ -81,9 +81,9 @@ async function openCard(page: Page, group: GroupInfo, lesson: { date: string; to
 
 /** The "Внести оплату" dialog of the student from the list of debtors; returns the amount it proposes. */
 async function openPayDialog(page: Page, lastName: string) {
-  // Money-1 B7: the student is charged from today («Оплата с» = today, see `Org.addStudent`), his period began today - he WAITS for the payment («Ждём оплату»); an overdue one would be among «Должники»
-  await page.goto("/owner/payments?bucket=waiting");
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  // PAY-DUE: the student is charged from today («Оплата с» = today, see `Org.addStudent`), his period began today - the term is running («К оплате»); one past his term would be among «Должники»
+  await page.goto("/owner/payments?bucket=to_pay");
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: new RegExp(lastName) }) });
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Оплата от ученика" });
@@ -149,8 +149,8 @@ test.describe("package centre", () => {
     await page.goto(`/owner/students/${student.id}`);
     await page.getByRole("tab", { name: "Оплаты" }).click();
     // the header chip is short; under the price the progress line of the package: the count, the bar, what the schedule promises
-    const chip = page.getByTestId("membership-chip");
-    await expect(chip).toHaveText("Оплачено");
+    // PAY-DUE 151: a paid package has no label of the server («Оплачено до …» is a date, a package has none) - the screen says nothing; the progress line below is the whole answer
+    await expect(page.getByTestId("membership-chip")).toHaveCount(0);
     const progress = page.getByTestId("package-progress");
     await expect(progress).toContainText("Осталось 12 из 12 уроков");
     await expect(progress.getByTestId("package-forecast-day")).toHaveText(`до ~${dm(twelfth)}`);
@@ -160,8 +160,8 @@ test.describe("package centre", () => {
     await expect(bar).toHaveAttribute("aria-valuemax", "12");
     await expect(bar).toHaveAttribute("data-segments", "12");                // one segment per lesson
     await expect(bar).toHaveAttribute("data-tone", "ok");
-    // nothing is pushed aside: the chip is one line, the teacher line of the heading is not broken, no sideways scroll (long group name)
-    expect((await chip.boundingBox())!.height).toBeLessThan(32);
+    // nothing is pushed aside: the progress block is short, the teacher line of the heading is not broken, no sideways scroll (long group name)
+    expect((await progress.boundingBox())!.height).toBeLessThan(120);
     const teacherLine = page.getByText(/Преподаватель:/).first();
     expect((await teacherLine.boundingBox())!.height).toBeLessThan(project === "mobile" ? 60 : 32);
     await expect(page.getByText(/осталось 12 уроков из 12|хватит до ~/)).toHaveCount(0);       // the old long chip is gone
@@ -230,7 +230,7 @@ test.describe("monthly centre", () => {
     test.setTimeout(300_000);
     // The premise of this check is «the common month starts TODAY»: its billing day is today's day of the month, and the centre allows 1..28.  On the 29th-31st the premise
     // cannot be built (found by the stand clock on 30.11: the student joined the last day of the old month with no lesson left in it, so nothing was charged and
-    // the row never reached «Ждём оплату»).  The check is skipped on those days only; it is not weakened on the others.
+    // the row never reached «К оплате»).  The check is skipped on those days only; it is not weakened on the others.
     test.skip(businessNow().day > 28, "the billing day of a centre is 1..28: «the common month starts today» cannot be set on the 29th-31st");
     const project = info.project.name;
     const org = await Org.create("Месяц 25.10");

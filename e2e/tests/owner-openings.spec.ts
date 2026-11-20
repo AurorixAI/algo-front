@@ -164,7 +164,7 @@ test("a debt for one student → the effect says a debtor appears → saved → 
   await expect(row.getByTestId("openings-now")).toContainText(new RegExp(`Долг ${moneyPattern(250000)}\\sсум на ${dm(debtDay)}`));
 
   expect(await savedOpening(memberships[0])).toMatchObject({ debt_amount: 250000, debt_on: debtDay });
-  await page.goto("/owner/payments?bucket=debt");
+  await page.goto("/owner/payments?bucket=debtors");
   await expect(page.getByText(students[0].lastName).first()).toBeVisible();
   await expect(page.getByText(students[1].lastName)).toHaveCount(0);
 });

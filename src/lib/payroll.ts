@@ -1515,7 +1515,7 @@ export const WARNING_LINKS = {
   open_lessons: "/owner/attendance?tab=open",
   pending_excused: "/owner/attendance?tab=excuses",
   no_fee: pricesBaseOf("/owner/groups"),
-  unpaid: "/owner/payments?bucket=debt",
+  unpaid: "/owner/payments?bucket=debtors",
 } as const;
 
 /** The button of an item in the block «Что нужно сделать» of the sheet (UX pack §5.2-бис). */
@@ -1526,7 +1526,7 @@ export const WARNING_TARGETS = {
   open_lessons: "Посещаемость → Уроки без отметки",
   pending_excused: "Посещаемость → Пропуски",
   no_fee: "Оплаты → Цены групп",
-  unpaid: "Оплаты → Требуют оплаты",
+  unpaid: "Оплаты → Должники",
 } as const;
 
 /** Money-1 A6 (П7): the check of the unfinished lessons failed - not «0 уроков без отметки». */

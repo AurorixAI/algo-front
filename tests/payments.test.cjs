@@ -15,7 +15,8 @@ const TODAY = "2026-10-14";
 /** Normal spaces instead of the non-breaking ones: what the user reads. */
 const plain = (text) => text.replace(/ /g, " ");
 
-const split = (due, expired = 0, extra = {}) => ({ debt_split: { debtors: 0, debtors_memberships: 0, debtors_debt_total: 0, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 0, all_students_with_debt: 0, due, expired, students_due: 0, students_expired: 0, ...extra } });
+/** PAY-DUE 10.2: the summary as the server sends it - the DEBTORS (students whose term has passed) and the students within their term. */
+const split = (debtors, dueStudents = 0, extra = {}) => ({ debtors, debt_total: debtors * 100000, due_students: dueStudents, due_total: dueStudents * 50000, ...extra });
 
 test("formatMoney groups thousands and adds «сум» with non-breaking spaces", () => {
   assert.equal(plain(rules.formatMoney(450000)), "450 000 сум");
@@ -64,42 +65,16 @@ test("day arithmetic never depends on the browser zone", () => {
   assert.equal(rules.isIsoDate("2026-02-28"), true);
 });
 
-test("status wording: calendar mode (UX-1 A: human words, plurals, no abbreviations)", () => {
-  const base = { period_mode: "calendar", paid_until: "2026-11-04", days_overdue: null, days_left: null, lessons_total: null, lessons_left: null };
-  assert.equal(rules.statusLabel({ ...base, status: "active" }), "Оплачено");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 2 }), "Осталось 2 дня");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 1 }), "Остался 1 день");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 5 }), "Осталось 5 дней");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: null }), "Скоро закончится");
-  assert.equal(rules.statusLabel({ ...base, status: "ends_today" }), "Сегодня последний день");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 3 }), "Просрочено на 3 дня");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 31 }), "Просрочено на 31 день");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 11 }), "Просрочено на 11 дней");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: null }), "Оплата просрочена");
-  assert.equal(rules.statusLabel({ ...base, status: "none", period_mode: null, paid_until: null }), "Без оплат");
-  assert.equal(rules.statusLabel({ ...base, status: "free", period_mode: null, paid_until: null }), "Бесплатно");
-  // the date the payment runs to is the second line of the badge - for every state that has one
-  assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "оплачено до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "expired" }), "оплачено до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "ends_today" }), "оплачено до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "active" }), "оплачено до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "none", paid_until: null }), "");
-  assert.equal(rules.statusDetail({ ...base, status: "free", paid_until: null }), "");
-});
-
-test("status wording: lessons mode", () => {
-  const base = { period_mode: "lessons", paid_until: null, days_overdue: null, days_left: null, lessons_total: 12, lessons_left: 3 };
-  assert.equal(rules.statusLabel({ ...base, status: "expiring" }), "Скоро закончится");            // the count is the progress line of the package
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Скоро закончится");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: null }), "Скоро закончится");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", lessons_left: 0 }), "Уроки закончились");
-  // a package that is paid and not running out: «Оплачено», the lessons left are the second line
-  assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: 9 }), "Оплачено");
-  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 9 }), "осталось 9 уроков из 12");
-  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 21 }), "остался 21 урок из 12");
-  assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: null, lessons_total: null }), "Оплачено");
-  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: null, lessons_total: null }), "");
-  assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "");
+test("status wording: the screen has NO words of its own for a state - the label is the server's `state_text` (PAY-DUE 143)", () => {
+  assert.equal(rules.statusLabel, undefined);
+  assert.equal(rules.statusDetail, undefined);
+  const P = require(path.join(__dirname, "../src/lib/pay-state.ts"));
+  // calendar: «Оплачено до 04.11», «Оплачено до 04.11» (ends soon, amber), «К оплате …», «Долг …»; lessons: «Осталось 2 урока»
+  for (const [state, text, tone] of [["paid", "Оплачено до 04.11", "ok"], ["expiring", "Оплачено до 04.11", "warn"], ["expiring", "Осталось 2 урока", "warn"], ["to_pay", "К оплате 450 000 сум", "due"], ["debt", "Долг 450 000 сум", "danger"], ["paused", "Пауза до 20.10", "neutral"], ["free", "Бесплатно", "neutral"]]) {
+    const label = P.payLabel({ state, state_text: text });
+    assert.deepEqual([label.text, label.tone], [text, tone], `${state} ${text}`);
+  }
+  assert.equal(P.payLabel({ state: "none", state_text: null }).text, null, "the server said nothing - the screen says nothing");
 });
 
 test("tones: overdue is red, the last day and «soon» are amber, paid is grey", () => {
@@ -111,7 +86,7 @@ test("tones: overdue is red, the last day and «soon» are amber, paid is grey",
   assert.equal(rules.statusTone("none"), "muted");
 });
 
-test("plural forms of «урок» (the banner words are in tests/ux1-d.test.cjs)", () => {
+test("plural forms of «урок»", () => {
   assert.deepEqual([1, 2, 4, 5, 11, 12, 21, 22, 25].map(rules.lessonsWord),
     ["урок", "урока", "урока", "уроков", "уроков", "уроков", "урок", "урока", "уроков"]);
 });
@@ -131,24 +106,25 @@ test("cancellation reason is 3..500 characters", () => {
   assert.ok(rules.validateVoidReason("x".repeat(501)));
 });
 
-test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter", () => {
-  // owner 21.10: tabs by money; «Без оплат» is gone (its rows are debtors «Ещё не платил»)
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debt", "expiring", "active"]);
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
-  assert.equal(rules.parseBucket("none"), "debt"); // an old link opens the most urgent tab
-  assert.equal(rules.parseBucket("due"), "debt");
+test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter (the server's students)", () => {
+  // PAY-DUE 9.3 / 10.2: the keys are the server's; «Скоро платить» is «Заканчивается оплата»; «К оплате» is a tab of its own
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debtors", "to_pay", "expiring", "active"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга"]);
+  assert.equal(rules.parseBucket("none"), "debtors"); // an old link opens the most urgent tab
+  assert.equal(rules.parseBucket("due"), "debtors");
+  assert.equal(rules.parseBucket("waiting"), "debtors");
   assert.equal(rules.parseBucket("active"), "active");
-  assert.equal(rules.parseBucket("all"), "debt");
-  assert.equal(rules.parseBucket(null), "debt");
-  assert.equal(rules.parseBucket("<script>"), "debt");
-  const summary = { debtors: 4, expiring: 3, active: 120 };
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(summary, b.key)), [4, 3, 120]);
-  assert.equal(rules.bucketCount({ students_with_debt: 9, expiring: 0, active: 0 }, "debt"), null); // Money-1 V (а): the old field is not read
+  assert.equal(rules.parseBucket("to_pay"), "to_pay");
+  assert.equal(rules.parseBucket("all"), "debtors");
+  assert.equal(rules.parseBucket(null), "debtors");
+  assert.equal(rules.parseBucket("<script>"), "debtors");
+  const counts = { debtors: 4, to_pay: 2, expiring: 3, active: 120, paused: null };
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(counts, b.key)), [4, 2, 3, 120]);
   assert.equal(rules.bucketCount({ debtors: 0, expiring: 0, active: 0 }, "expiring"), 0);
-  assert.equal(rules.bucketCount(null, "debt"), null);
+  assert.equal(rules.bucketCount(null, "debtors"), null);
   assert.equal(rules.bucketCount({ debtors: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
-  assert.equal(rules.bucketTabLabel("Должники", 7), "Должники (7)");
-  assert.equal(rules.bucketTabLabel("Без долга", 0), "Без долга (0)");
+  assert.equal(rules.bucketTabLabel("Должники", 7), "Должники 7");
+  assert.equal(rules.bucketTabLabel("Без долга", 0), "Без долга 0");
   assert.equal(rules.bucketTabLabel("Без долга", null), "Без долга");
 });
 
@@ -192,7 +168,8 @@ test("summary store: 200 makes payments available and counts due; one request", 
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
     assert.equal(state.available, true);
-    assert.equal(state.due, 5);
+    assert.equal(state.debtors, 5);
+    assert.equal(state.dueStudents, 3);
     assert.equal(state.expiring, 4);
     assert.equal(state.none, 6);
     assert.equal(state.active, 20); // the whole «Оплачено» tab; `free` (2) is a sub-count, not added again
@@ -219,7 +196,7 @@ test("summary store: 403 and 404 hide everything quietly and are remembered", as
         await usePaymentsSummary.getState().refresh(true);
         const state = usePaymentsSummary.getState();
         assert.equal(state.available, false);
-        assert.equal(state.due, 0);
+        assert.equal(state.debtors, null);
         assert.equal(state.loaded, true);
         // route change / tab visible / a forced refresh do not ask again
         await usePaymentsSummary.getState().refresh();
@@ -248,7 +225,7 @@ test("summary store: a recheck that succeeds (the owner enabled the right) lifts
     assert.equal(calls.length, 1);
     await usePaymentsSummary.getState().refresh(true, { recheck: true });
     assert.equal(usePaymentsSummary.getState().available, true);
-    assert.equal(usePaymentsSummary.getState().due, 1);
+    assert.equal(usePaymentsSummary.getState().debtors, 1);
     status = 403;
     await usePaymentsSummary.getState().refresh(true, { recheck: true });
     assert.equal(usePaymentsSummary.getState().available, false);
@@ -278,14 +255,14 @@ test("summary store: a network error or 5xx keeps the last state and warns once"
     });
     const state = usePaymentsSummary.getState();
     assert.equal(state.available, true, "open dialogs and the menu item must not vanish");
-    assert.equal(state.due, 3);
+    assert.equal(state.debtors, 3);
     assert.equal(state.periodMode, "lessons");
     assert.equal(warnings.length, 1, "warned once, not on every refresh");
     // and the next good answer is taken
     await withFetch(() => reply(200, { ...split(0), period_mode: "calendar" }), async () => {
       await usePaymentsSummary.getState().refresh(true);
     });
-    assert.equal(usePaymentsSummary.getState().due, 0);
+    assert.equal(usePaymentsSummary.getState().debtors, 0);
   } finally {
     console.warn = originalWarn;
   }
@@ -306,7 +283,7 @@ test("summary store: a forced refresh during a request queues exactly one more",
     release();
     await first;
     assert.equal(calls.length, 2, "one more read, not one per call");
-    assert.equal(usePaymentsSummary.getState().due, 2, "the answer after the action wins");
+    assert.equal(usePaymentsSummary.getState().debtors, 2, "the answer after the action wins");
   });
 });
 
@@ -322,17 +299,17 @@ test("summary store: an answer that arrives after reset (logout) is dropped", as
     await pending;
   });
   assert.equal(usePaymentsSummary.getState().available, false);
-  assert.equal(usePaymentsSummary.getState().due, 0);
+  assert.equal(usePaymentsSummary.getState().debtors, 0);
 });
 
 // ── Screens follow the contract ─────────────────────────────────────────────
 
-test("screens exist and follow the contract (routes, menu, banner, teacher, demo)", () => {
+test("screens exist and follow the contract (routes, menu, no notice, teacher, demo)", () => {
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
   for (const role of ["admin", "owner"]) {
     // each workspace opens the student card under its own prefix (N13 P1.4)
     assert.match(read(`src/app/${role}/payments/page.tsx`), new RegExp(`<PaymentsPage studentProfileBasePath="/${role}/students" groupsBasePath="/${role}/groups" />`), role);
-    assert.match(read(`src/app/${role}/layout.tsx`), new RegExp(`<PaymentsAlertBanner paymentsBasePath="/${role}/payments" />`), role);
+    assert.doesNotMatch(read(`src/app/${role}/layout.tsx`), /PaymentsAlertBanner/, role); // PAY-DUE 9.7: no notice; the shell keeps the summary fresh
   }
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /href: "\/admin\/payments", label: "Оплаты"/);

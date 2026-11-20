@@ -16,6 +16,7 @@ import { parseDebtAge, type DebtAge } from "./debt-ages";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 import { forecastText, type RecalcLine } from "./payf";
+import { rowUnpaid, type PayState } from "./pay-state";
 
 // ── API contract (pay2_contract.json) ──────────────────────────────────────
 
@@ -23,8 +24,8 @@ export type PeriodMode = "calendar" | "lessons";
 /** How a calendar period starts: from the payment date, or on one day of the month for the whole center. */
 export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
-/** The tabs of «Оплаты» by money: «Должники» (debt), «Скоро платить», «Оплачено» (owner 21.10; «Без оплат» is gone: its rows are debtors «Ещё не платил»). */
-export type PaymentBucket = "debt" | "waiting" | "expiring" | "active" | "paused";
+/** The tabs of «Оплаты» (the server's keys, PAY-DUE 10.2): «Должники» (`debtors`), «К оплате» (`to_pay`), «Заканчивается оплата», «Без долга», «На паузе».  A student with both sums is in both of the first two. */
+export type PaymentBucket = "debtors" | "to_pay" | "expiring" | "active" | "paused";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
 export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
@@ -40,6 +41,9 @@ export interface PaymentSettings {
   lessons_per_payment: number;
   expiring_days: number;
   expiring_lessons: number;
+  /** PAY-DUE 9.6: the term of the centre.  A calendar mode: the sum of a period is «К оплате» for this many days from its start (the first day counts as the first; 0 - a debt from the first day); a package: this many lessons may be held unpaid.  The owner changes them (own block, own dry run), nobody else reads them here. */
+  pay_due_days: number;
+  pay_due_lessons: number;
   /** An excuse is confirmed this many days before the end of the paid period... */
   excuse_deadline_days: number;
   /** ...or when this many lessons are left in a lessons package. */
@@ -73,6 +77,8 @@ export interface AccountingStartImpact {
 export interface PaymentSettingsChanged extends PaymentSettings {
   dry_run?: boolean;
   impact?: AccountingStartImpact | null;
+  /** PAY-DUE 10.6: only on the dry run of a new term: how many students change the NAME of their sum by it (`to_due`: debtors who become «К оплате»; `to_debt`: the other way) and the server's lines for them (`texts`, none at zero). */
+  pay_due_impact?: { to_due: number; to_debt: number; texts: string[] } | null;
   /** LOGIC-A F12: only on the dry run of a change of the billing mode: who is touched and when each switches. */
   regime_impact?: ({ students_affected: number; first_switch: string | null; latest_switch: string | null; defer: boolean } & Record<string, unknown>) | null;
 }
@@ -88,36 +94,28 @@ export interface PaymentsSummary {
   period_mode: PeriodMode;
   /** Not in the contract yet: used for the "уроков" default when the server sends it. */
   lessons_per_payment?: number | null;
-  /** PAY-2: the money position of the whole center today (the debt is only in `debt_split`: Money-1 V (а)). */
+  /** PAY-DUE 10.2: ONE meaning of the unpaid sum.  `debt_total` / `debtors`: the parts whose term has passed (students); `due_total` / `due_students`: the parts still within their term; a student with both is in both. */
+  debt_total?: number;
+  debtors?: number;
+  due_total?: number;
+  due_students?: number;
+  /** The nearest term among the sums «К оплате»: the day and the server's words («до сегодня» / «до завтра, 21.11» / «до 24.11»); null - none. */
+  due_nearest?: { date: string; text: string } | null;
   advance_total?: number;
   accounting_start_date?: string | null;
-  /** LOGIC-A: memberships on a pause today (they are in no tab of the list). */
+  /** LOGIC-A: memberships on a pause today. */
   paused?: number;
-  /** The rows of each tab (memberships); the length of the «Должники» list is `debt_split.debtors_memberships`. */
-  buckets?: { expiring: number; active: number; paused: number };
-  /** Distinct students on a pause (the badge of «На паузе»); older answers only have `buckets.paused`. */
+  /** Memberships of each tab (the same sets `payments/status?bucket=` lists); `debtors` and `to_pay` overlap. */
+  buckets?: { debtors: number; to_pay: number; expiring: number; active: number; paused: number };
+  /** Distinct students on a pause (the badge of «На паузе»). */
   students_paused?: number;
   students_with_advance?: number;
   price_missing?: number;
-  /** Money-1 B7: the debt split by ONE definition - the debtors (the red banner, the card) and «Ждём оплату» (calm, apart); the old fields above keep the old meaning (the waiting ones inside). */
-  debt_split?: DebtSplit;
-  /** Money-2 Т18: the real debtors by the age of the debt - four baskets in the order `to_30`, `31_60`, `61_90`, `over_90`. */
+  /** Money-2 Т18: the debtors by the age of the debt (`overdue_days`) - four baskets in the order `to_30`, `31_60`, `61_90`, `over_90`. */
   debt_ages?: Array<{ bucket: string; students: number; memberships: number; debt_total: number }>;
-}
-
-export interface DebtSplit {
-  debtors: number;
-  debtors_memberships: number;
-  debtors_debt_total: number;
-  waiting_students: number;
-  waiting_memberships: number;
-  waiting_debt_total: number;
-  all_debt_total: number;
-  all_students_with_debt: number;
-  expired: number;
-  due: number;
-  students_expired: number;
-  students_due: number;
+  /** PAY-DUE 10.6: the term of the centre, READ ONLY here (the roles with the right to money read it; changing it is the owner's, `PUT /org/settings/payments`). */
+  pay_due_days?: number;
+  pay_due_lessons?: number;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -353,9 +351,7 @@ export interface MembershipPaymentRow {
   status: PaymentStatus;
   period_mode?: PeriodMode | null;
   paid_until?: string | null;
-  days_overdue?: number | null;
-  /** Money-2 Т18: how many days the debt is old (the pauses are not counted; null - no debt) and its basket. */
-  debt_age_days?: number | null;
+  /** Money-2 Т18: the basket of `overdue_days` (`to_30` / `31_60` / `61_90` / `over_90`; null - no debt). */
   debt_age_bucket?: string | null;
   days_left?: number | null;
   lessons_total?: number | null;
@@ -364,10 +360,11 @@ export interface MembershipPaymentRow {
   /** PAY-F: the day of the last paid lesson by the schedule (a package only; null: no forecast). */
   paid_through_forecast?: string | null;
   last_payment?: PaymentOut | null;
-  /** PAY-2 balance of the group (whole сум).  An older server does not send them: read through `rowBalance`. */
+  /**
+   * EVERYTHING unpaid of the group (whole сум) = `debt_amount + due_amount`: a sum, never a name (the name is `state`).  The server renames it `debt` → `unpaid`
+   * (PAY-DUE, second part): the screens read it ONLY through `rowUnpaid` (lib/pay-state.ts), so the change of the name is one line there.
+   */
   debt?: number;
-  past_debt?: number;
-  current_due?: number;
   advance?: number;
   /** Money that covers a part of a day / lesson not bought completely. */
   partial_credit?: number;
@@ -376,15 +373,23 @@ export interface MembershipPaymentRow {
   /** How much of the advance may be given back. */
   refundable?: number;
   writeoff_allowed?: boolean;
-  /** Owner 21.10: why the row is among the debtors, in the server's words («Не доплачено за октябрь: 150 000») - the MONTH of the debt lives only here (rule 113: the sum is explained on the screen). */
-  reason?: string | null;
-  /** The tab the row is on (null: on none, e.g. a free student) and why it is a debtor. */
-  bucket?: PaymentBucket | null;
-  debt_reason?: "overdue" | "partial" | "never_paid" | null;
-  /** Money-1 B7: the NEW tab of the row (one definition of a debtor): `debtors` / `waiting` for a debt; `waiting_until` / `waiting_reason` («Ждём оплату до 07.11») only for a student who waits. */
-  tab?: "debtors" | "waiting" | "expiring" | "active" | "paused" | null;
-  waiting_until?: string | null;
-  waiting_reason?: string | null;
+  /**
+   * PAY-DUE 10.2: the unpaid sum is split by its TERM and named by the server (the screen never decides, LESSONS 143): `debt_amount` (the term has passed) and `due_amount` (still within it, until `due_until`),
+   * `overdue_days` (K, null without a debt), for packages `due_lessons` / `debt_lessons`; the words of each name - `debt_text` / `debt_sub`, `due_text` / `due_sub` (which of them leads is the choice of the tab).
+   */
+  debt_amount?: number;
+  due_amount?: number;
+  due_until?: string | null;
+  overdue_days?: number | null;
+  due_lessons?: Record<string, number> | null;
+  debt_lessons?: number;
+  debt_text?: string | null;
+  debt_sub?: string | null;
+  due_text?: string | null;
+  due_sub?: string | null;
+  /** The WORST state of the membership (debt → to pay → payment ends soon → pause → paid / advance → free → no price) and its one label: the single chip of a group / a card reads these two. */
+  state?: PayState;
+  state_text?: string | null;
   /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
   paused?: PausedRange | null;
   /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
@@ -442,10 +447,14 @@ export interface PaymentSaveResult {
 
 export interface PaymentsStatusList {
   items: MembershipPaymentRow[];
+  /** Memberships (rows) of the filter. */
   total: number;
   limit: number;
   offset: number;
   as_of: string;
+  /** PAY-DUE 10.2: DISTINCT students of the filter - the number of the tab; `amount_total`: the tab's part of the money over ALL its rows (`debtors`: `debt_amount`, `to_pay`: `due_amount`). */
+  students?: number;
+  amount_total?: number;
 }
 
 // ── Preview «что закроет» (GET …/payments/preview) ─────────────────────────
@@ -824,24 +833,22 @@ export { pluralRu };
 // ── Buckets (tabs) ─────────────────────────────────────────────────────────
 
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
-  { key: "debt", label: "Должники" },
-  { key: "expiring", label: "Скоро платить" },
+  { key: "debtors", label: "Должники" },
+  { key: "to_pay", label: "К оплате" },
+  { key: "expiring", label: "Заканчивается оплата" },
   { key: "active", label: "Без долга" },
 ];
 
-/** «На паузе»: a fourth tab, shown while somebody is on a pause (or while it is the open one). */
+/** «На паузе»: a fifth tab, shown while somebody is on a pause (or while it is the open one). */
 export const PAUSED_BUCKET: { key: PaymentBucket; label: string } = { key: "paused", label: "На паузе" };
 
-/** Money-1 B7: «Ждём оплату» - the debt of a period that has just begun; a tab of its own next to «Должники», shown while somebody waits. */
-export const WAITING_BUCKET: { key: PaymentBucket; label: string } = { key: "waiting", label: "Ждём оплату" };
-
-/** `?bucket=` of the page; unknown or missing values (and the old `due` / `none` links) open «Должники», the most urgent tab. */
+/** `?bucket=` of the page; unknown or missing values (and the old `debt` / `waiting` / `due` / `none` links) open «Должники», the most urgent tab. */
 export function parseBucket(value: string | null | undefined): PaymentBucket {
-  return [...PAYMENT_BUCKETS, PAUSED_BUCKET, WAITING_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
+  return [...PAYMENT_BUCKETS, PAUSED_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debtors";
 }
 
 /**
- * IA audit F34: the whole list of «Оплаты» is in the address - `?bucket=debt&group_id=…&teacher_id=…&q=иван&page=3` (`page` is 1-based there):
+ * IA audit F34: the whole list of «Оплаты» is in the address - `?bucket=debtors&group_id=…&teacher_id=…&q=иван&page=3` (`page` is 1-based there):
  * a return from a card, a reload and a shared link keep the tab, the filter, the search and the page.  Defaults are not written.
  */
 export interface PaymentsListState {
@@ -863,7 +870,7 @@ export function parsePaymentsListQuery(params: { get(name: string): string | nul
     teacherId: params?.get("group_id") ? "" : params?.get("teacher_id") ?? "",
     q: (params?.get("q") ?? "").slice(0, 80),
     page: Number.isFinite(page) && page >= 2 ? page - 1 : 0,
-    age: parseBucket(params?.get("bucket")) === "debt" ? parseDebtAge(params?.get("age")) : "",
+    age: parseBucket(params?.get("bucket")) === "debtors" ? parseDebtAge(params?.get("age")) : "",
   };
 }
 
@@ -872,74 +879,22 @@ export function paymentsListQueryString(state: PaymentsListState): string {
   if (state.groupId) params.set("group_id", state.groupId);
   else if (state.teacherId) params.set("teacher_id", state.teacherId);
   if (state.q.trim()) params.set("q", state.q.trim());
-  if (state.bucket === "debt" && state.age) params.set("age", state.age);
+  if (state.bucket === "debtors" && state.age) params.set("age", state.age);
   if (state.page > 0) params.set("page", String(state.page + 1));
   return `?${params.toString()}`;
 }
 
-/** The tabs on screen: the three of the owner, and «На паузе» when it has somebody or is the open one. */
-export function visibleBuckets(summary: { buckets?: { paused?: number | null; waiting?: number | null } | null; paused?: number | null; students_waiting?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
-  const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);
-  // Money-1 B7: «Ждём оплату» stands next to «Должники» while somebody waits (or while it is the open tab)
-  const waiting = Number(summary?.students_waiting ?? summary?.buckets?.waiting ?? 0);
-  const base = waiting > 0 || open === "waiting" ? [PAYMENT_BUCKETS[0], WAITING_BUCKET, ...PAYMENT_BUCKETS.slice(1)] : PAYMENT_BUCKETS;
-  return paused > 0 || open === "paused" ? [...base, PAUSED_BUCKET] : base;
+/** The tabs on screen: the four of the owner, and «На паузе» when it has somebody or is the open one. */
+export function visibleBuckets(summary: { paused?: number | null; students_paused?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
+  const paused = Number(summary?.students_paused ?? summary?.paused ?? 0);
+  return paused > 0 || open === "paused" ? [...PAYMENT_BUCKETS, PAUSED_BUCKET] : PAYMENT_BUCKETS;
 }
 
-/**
- * The number of the «Должники» tab AND of the card «Долг учеников»: one function, so the two can never differ.  The server's
- * `debtors`; an answer without it falls back to the students with a debt.
- */
-export function debtorsCount(summary: { debtors?: number | null } | null | undefined): number | null {
-  const value = summary?.debtors;
+/** The number on a tab: STUDENTS (the server's counts - never counted on the screen); null while it is not known. */
+export interface TabCounts { debtors: number | null; to_pay: number | null; expiring: number | null; active: number | null; paused: number | null }
+export function bucketCount(counts: Partial<TabCounts> | null | undefined, key: PaymentBucket): number | null {
+  const value = counts?.[key];
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
-}
-
-/** The number on a tab - every tab has one; null while the summary is not known. */
-export function bucketCount(
-  summary: {
-    buckets?: { debt?: number | null; waiting?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
-    students_waiting?: number | null;
-    debtors?: number | null; students_paused?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
-  } | null,
-  key: PaymentBucket,
-): number | null {
-  // Owner 21.10: the badge counts STUDENTS (a student with a debt in two groups is one), the same number as the card «Долг учеников»;
-  // the list under the tab still has a row per group membership.
-  if (key === "debt") {
-    const students = debtorsCount(summary);
-    if (students !== null) return students;
-  }
-  if (key === "waiting" && typeof summary?.students_waiting === "number") return summary.students_waiting;
-  if (key === "paused" && typeof summary?.students_paused === "number") return summary.students_paused;
-  const own = summary?.buckets?.[key];
-  if (typeof own === "number" && Number.isFinite(own)) return own;
-  const value = key === "debt" || key === "waiting" ? null : summary?.[key as "expiring" | "active" | "paused"];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-/**
- * The reason line of a debtor's row (Money-1 V (а): the server's `reason` is gone), read from the row: «Ждём оплату …» for the waiting tab, overdue days, never paid, or the debt.
- */
-export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>): string {
-  if (row.tab === "waiting" && row.waiting_reason) return row.waiting_reason;
-  if (row.reason) return row.reason;
-  if (row.status === "expired" && row.days_overdue) return `Просрочено на ${daysLabel(row.days_overdue)}`;
-  if (!row.last_payment && (row.status === "none" || row.status === "expired")) return "Ещё не платил";
-  if ((row.debt ?? 0) > 0) return `Долг ${formatMoney(row.debt)}`;
-  return "";
-}
-
-/**
- * What the row of a debtor says under its chip.  When the chip already says «Ещё не платил…» the reason line must not repeat it: it
- * is the overdue days when they are known, else nothing (the amount is the balance line under it).  A line equal to the chip is dropped.
- */
-export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason"> & Partial<Pick<MembershipPaymentRow, "tab" | "waiting_reason">>, chipLabel: string): string {
-  let reason = debtReasonText(row);
-  if (reason.startsWith(NEVER_PAID) && chipLabel.startsWith(NEVER_PAID)) {
-    reason = row.status === "expired" && row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "";
-  }
-  return reason === chipLabel ? "" : reason;
 }
 
 /** «У 3 учеников не задана цена» above the list (the card links to «Цены групп»). */
@@ -948,165 +903,15 @@ export function priceMissingText(count: number | null | undefined): string | nul
   return n > 0 ? `У ${n} ${pluralRu(n, "ученика", "учеников", "учеников")} не задана цена` : null;
 }
 
-/** «Требуют оплаты (12)»; the bare label while the number is not known. */
+/** «Должники 12»: the label and the number of a tab; the bare label while the number is not known. */
 export function bucketTabLabel(label: string, count: number | null): string {
-  return count === null ? label : `${label} (${count})`;
-}
-
-// ── The tab counts of a narrowed list (a group / a teacher filter) ─────────
-
-export interface TabCounts { debt: number; waiting: number; expiring: number; active: number; paused: number }
-
-/** The most debtors read in one answer to count distinct students; a longer list falls back to the number of memberships. */
-export const DEBTORS_SAMPLE = 500;
-
-/**
- * The counts of the four tabs for the group / teacher the list is narrowed to.  `/org/payments/summary` takes no filter (it is the
- * centre's: the banner and the menu badge stay that), but `/org/payments/status` does and answers an exact `total`, so each tab asks
- * for its own total with the same filter.  «Должники» counts students like the centre's number does (one student with a debt in
- * two groups of the teacher is one): the debtors are read and counted by `student_id`; the other tabs count memberships.
- */
-export async function filteredTabCounts(
-  fetchPage: (query: { bucket: PaymentBucket; limit: number; offset: number }) => Promise<{ total?: number | null; items?: Array<{ student_id?: string | null }> | null }>,
-): Promise<TabCounts> {
-  const total = (page: { total?: number | null }) => Math.max(0, Math.floor(Number(page?.total) || 0));
-  const [debtPage, waitingPage, expiring, active, paused] = await Promise.all([
-    fetchPage({ bucket: "debt", limit: DEBTORS_SAMPLE, offset: 0 }),
-    fetchPage({ bucket: "waiting", limit: DEBTORS_SAMPLE, offset: 0 }),
-    fetchPage({ bucket: "expiring", limit: 1, offset: 0 }),
-    fetchPage({ bucket: "active", limit: 1, offset: 0 }),
-    fetchPage({ bucket: "paused", limit: 1, offset: 0 }),
-  ]);
-  const items = debtPage?.items ?? [];
-  const debt = items.length > 0 && items.length === total(debtPage) ? new Set(items.map((item) => item.student_id)).size : total(debtPage);
-  const waitItems = waitingPage?.items ?? [];
-  const waiting = waitItems.length > 0 && waitItems.length === total(waitingPage) ? new Set(waitItems.map((item) => item.student_id)).size : total(waitingPage);
-  return { debt, waiting, expiring: total(expiring), active: total(active), paused: total(paused) };
-}
-
-/** The `summary` the tab bar reads when the list is narrowed: the filtered counts (null while they are on their way: no number rather than the centre's). */
-export function narrowedTabSummary(counts: TabCounts | null) {
-  return counts ? { buckets: counts, debtors: counts.debt, students_with_debt: counts.debt, students_waiting: counts.waiting, expiring: counts.expiring, active: counts.active, paused: counts.paused, students_paused: counts.paused } : null;
+  return count === null ? label : `${label} ${count}`;
 }
 
 // ── Status wording ─────────────────────────────────────────────────────────
 
-export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";
-
 /** One word-forms helper of the project (`lib/plural.ts`); the payments screens import it from here as before. */
 export { lessonsWord };
-
-/**
- * The chip of a row, in words and without abbreviations:
- * «Просрочено на 31 день» (red), «Осталось 5 дней» / «Остался 1 день» (amber, while the server calls it «скоро заканчивается»),
- * «Сегодня последний день» (amber), «Оплачено» (grey), «Без оплат», «Бесплатно».
- * By lessons: «Осталось 3 урока из 12» / «Остался 1 урок из 12» (amber), «Уроки закончились» (red).
- */
-export function statusLabel(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left"> & Partial<Pick<MembershipPaymentRow, "paused">>,
-): string {
-  const lessons = row.period_mode === "lessons";
-  switch (row.status) {
-    case "none":
-      return "Без оплат";
-    case "free":
-      return "Бесплатно";
-    case "ends_today":
-      return "Сегодня последний день";
-    case "expired":
-      if (lessons) return "Уроки закончились";
-      return row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "Оплата просрочена";
-    case "expiring":
-      if (lessons) return "Скоро закончится";        // the count and the date are the progress line of the package (`lib/package-progress.ts`)
-      return row.days_left ? leftPhrase(row.days_left, "день", "дня", "дней") : "Скоро закончится";
-    case "active":
-      return "Оплачено";
-    case "paused":
-      // «На паузе до 20.10» (the day is the end of the live pause).
-      return row.paused?.to ? `На паузе до ${formatDateRu(row.paused.to).slice(0, 5)}` : "На паузе";
-  }
-  return "";
-}
-
-/**
- * The status chip that sits next to money.  It comes from the MONEY (the debt), not from the date status, so a chip never
- * contradicts the debt line beside it (owner 22.10):
- *  - paused: «На паузе до …» (grey);
- *  - debt and the period has ended: «Просрочено на N дней» (red; by lessons «Уроки закончились»);
- *  - debt, never paid, not overdue yet: «Ещё не платил» (amber);
- *  - debt, but the paid period still runs (a part is paid): «Не доплачено» (amber);
- *  - no debt: the date status as before - «Оплачено» (grey) / «Осталось 5 дней» / «Сегодня последний день» (amber) / «Без оплат» / «Бесплатно».
- */
-export type MoneyChipRow = Parameters<typeof statusLabel>[0]
-  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason" | "past_debt" | "tab" | "waiting_until">>
-  & { status: PaymentStatus };
-
-export const WAITING_CHIP = "Ждём оплату";
-/**
- * ONE answer to «debtor or only waiting?» for EVERY screen (the list, the tab of a group, its header, the card of a student, the banner - LESSONS 104): a row with a debt is `waiting` when the server's `tab` says so
- * (the period began within the days of grace and nothing older is owed), otherwise a `debtor`; without a debt - null.
- */
-export type DebtRole = "debtor" | "waiting";
-export function debtRoleOf(row: { tab?: string | null; debt?: number | null } | null | undefined): DebtRole | null {
-  if (Math.round(Number(row?.debt) || 0) <= 0) return null;
-  return row?.tab === "waiting" ? "waiting" : "debtor";
-}
-/** The row of a student who only waits for the payment of a period that has just begun (the server's `tab`). */
-export function isWaitingRow(row: { tab?: string | null; debt?: number | null } | null | undefined): boolean {
-  return debtRoleOf(row) === "waiting";
-}
-
-const NEVER_PAID = "Ещё не платил";
-const NEVER_PAID_OVERDUE = "Ещё не платил · просрочено";
-
-export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone } {
-  if (row.status === "paused") return { label: statusLabel(row), tone: statusTone(row.status) };
-  // Money-1 B7: a student who only waits is not a debtor - a calm grey chip, never the red «Просрочено»
-  if (isWaitingRow(row)) return { label: (row as { waiting_reason?: string | null }).waiting_reason || WAITING_CHIP, tone: "muted" };
-  if ((row.debt ?? 0) > 0) {
-    if (row.status === "expired" || row.debt_reason === "overdue") return { label: statusLabel({ ...row, status: "expired" }), tone: "danger" };
-    const neverPaid = row.debt_reason === "never_paid" || (!row.last_payment && (row.status === "none" || row.status === "ends_today" || row.status === "expiring"));
-    // Never paid, but a period has already ended unpaid (past_debt > 0): the same red the student's card shows, not the calm amber.
-    if (neverPaid) return (row.past_debt ?? 0) > 0 ? { label: NEVER_PAID_OVERDUE, tone: "danger" } : { label: NEVER_PAID, tone: "warning" };
-    return { label: "Не доплачено", tone: "warning" };
-  }
-  return { label: statusLabel(row), tone: statusTone(row.status) };
-}
-
-/**
- * The ONE chip of a membership on the student's card (owner 22.10: the block was multi-storey): the key fact in one line, the rest lives in the statement.
- * The state logic is `moneyChip`'s, only the words change:
- *  - paused: «На паузе до 12.11» (grey);
- *  - debt, the period has ended: «Долг 592 000 сум» (red; the title says «Просрочено на N дней»);
- *  - debt, never paid, nothing overdue yet: «Ещё не платил» (amber; the title says the debt);
- *  - debt, never paid, but a period has already ended unpaid (past_debt > 0): «Долг 1 500 000 сум» (red; the title says «Ещё не платил»);
- *  - debt, a part is paid: «Долг 92 000 сум» (amber; the title says «Не доплачено»);
- *  - no debt: «Оплачено до 30.11» (green) / «Осталось 5 дней · до 30.11» / «Сегодня последний день» (amber) / «Оплачено · осталось 9 уроков из 12» / «Без оплат» / «Бесплатно».
- * An advance is not said here (it is in the statement).
- */
-export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until" | "past_debt" | "paid_through_forecast">>): { label: string; tone: StatusTone; title: string | null } {
-  const base = moneyChip(row);
-  const debt = row.debt ?? 0;
-  const until = row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) ? row.paid_until : null;
-  if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
-  if (isWaitingRow(row)) return { label: `${WAITING_CHIP} · ${formatMoney(debt)}`, tone: "muted", title: null };
-  if (debt > 0) {
-    if (base.label === NEVER_PAID_OVERDUE) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: NEVER_PAID };
-    if (base.tone === "danger") return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
-    if (base.label === NEVER_PAID) {
-      // Never paid, but a period has already ended unpaid: that is a real overdue debt, so red «Долг N сум» (the tooltip keeps «Ещё не платил»).
-      return { ...base, title: `Долг ${formatMoney(debt)}` };
-    }
-    return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
-  }
-  if (row.period_mode === "lessons") {
-    // a package: only the short status here («Оплачено» / «Скоро закончится»), the count, the bar and the forecast are `PackageProgress` under the price
-    return { ...base, title: null };
-  }
-  if (row.status === "active" && until) return { label: `Оплачено до ${formatDayMonthRu(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
-  if (row.status === "expiring" && until) return { label: `${base.label} · до ${formatDayMonthRu(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };
-  return { ...base, title: until && row.status === "ends_today" ? `оплачено до ${formatDateRu(until)}` : null };
-}
 
 /** «На паузе до 01.11» for a student of the group list (`paused_until` = the last day of the live pause, ISO); «На паузе» without the day. */
 export function pausedChipText(student: { on_pause?: boolean | null; paused_until?: string | null }): string | null {
@@ -1115,31 +920,8 @@ export function pausedChipText(student: { on_pause?: boolean | null; paused_unti
   return day && /^\d{4}-\d{2}-\d{2}/.test(day) ? `На паузе до ${formatDayMonthRu(day)}` : "На паузе";
 }
 
-/** «Осталось 3 урока из 12» / «Остался 1 урок из 12» / «Осталось 3 урока»; "" when the count is not known. */
-function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "lessons_left">): string {
-  if (row.lessons_left === null || row.lessons_left === undefined) return "";
-  const left = leftPhrase(row.lessons_left, "урок", "урока", "уроков");
-  return row.lessons_total ? `${left} из ${row.lessons_total}` : left;
-}
-
-/**
- * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12 · хватит до ~30.10 (по расписанию)» (a package that is
- * paid and not running out yet; PAY-F: the forecast of the schedule), «пакет закончился» (nothing left).
- */
-export function statusDetail(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until" | "lessons_total" | "lessons_left"> & Partial<Pick<MembershipPaymentRow, "paid_through_forecast">>,
-): string {
-  if (row.period_mode === "lessons") {
-    return [row.status === "active" ? lessonsLeftText(row).toLowerCase() : "", forecastText(row)].filter(Boolean).join(" · ");
-  }
-  if (!row.paid_until) return "";
-  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active" || row.status === "paused") {
-    return `оплачено до ${formatDateRu(row.paid_until)}`;
-  }
-  return "";
-}
-
-/** Red is for a real problem (overdue, used up); the last day and «soon» are amber; paid is grey. */
+/** The tone of a package bar (`lib/package-progress.ts`): red - used up, amber - runs out, green - paid.  The tone of a LABEL is `PAY_STATE_TONE` (lib/pay-state.ts). */
+export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";
 export function statusTone(status: PaymentStatus): StatusTone {
   switch (status) {
     case "expired":
@@ -1174,19 +956,10 @@ export const PAYMENT_SAVED_TEXT: Record<"create" | "replace", string> = {
  * card is filled; for a running payment it is outlined.
  */
 export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment"> & { debt?: number | null }): boolean {
-  if ((row.debt ?? 0) > 0) return true;
+  if (rowUnpaid(row) > 0) return true;
   if (!row.last_payment) return true;
   return row.status === "expired" || row.status === "none";
 }
-
-/** Same grey / amber / red as the deadline chips of «Пропуски»; paid, free and no-data states stay grey. */
-export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  danger: CHIP_TONE_CLASS.danger,
-  warning: CHIP_TONE_CLASS.warn,
-  ok: CHIP_TONE_CLASS.neutral,
-  free: CHIP_TONE_CLASS.neutral,
-  muted: CHIP_TONE_CLASS.neutral,
-};
 
 /**
  * The period of a pre-PAY-2 payment: «05.10.2026 — 04.11.2026» (calendar) or «12 уроков с 05.10.2026» (by lessons).
@@ -1429,6 +1202,8 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   lessons_per_payment: 12,
   expiring_days: 3,
   expiring_lessons: 3,
+  pay_due_days: 5,
+  pay_due_lessons: 2,
   excuse_deadline_days: 5,
   excuse_deadline_lessons: 2,
   admin_can_manage: false,
@@ -1594,69 +1369,49 @@ export function diffPaymentSettings(
 
 // ── Banner ─────────────────────────────────────────────────────────────────
 
-/**
- * The banner is hidden for this session after the user dismissed it, until MORE people wait than at that moment
- * (`dismissedAt` = the count at dismissal, null = never dismissed).
- */
-export function bannerDismissed(dismissedAt: number | null, due: number): boolean {
-  return dismissedAt !== null && due <= dismissedAt;
-}
-
-// ── The two cards under the header of «Оплаты» (owner 21.10) ───────────────
+// ── The three cards under the header of «Оплаты» (PAY-DUE 9.7) ─────────────
 
 export interface PositionCard {
-  key: "debt" | "advance";
+  key: "debt" | "due" | "advance";
   label: string;
   /** The big sum: «1 250 000 сум». */
   amount: string;
-  /** Under it: «33 ученика с долгом» / «5 учеников оплатили вперёд»; "" while the server has not told the count. */
+  /** Under it: «12 учеников · срок прошёл» / «6 учеников · ближайший срок до сегодня» / «4 ученика»; "" while the server has not told the count. */
   sub: string;
-  /** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - apart from the debt, calm; "" when nobody waits. */
-  waiting?: string;
-  tone: "debt" | "advance" | "none";
+  /** The students of the card (the server's number; null while it is not known) - the compact summary of a phone says it on the right of the sum. */
+  students: number | null;
+  tone: "debt" | "due" | "advance" | "none";
 }
+
+const studentsText = (n: number) => `${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`;
+const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null);
 
 /**
- * «Долг учеников» (big, red) with «33 ученика с долгом» and «Аванс» (big, green) with «N учеников оплатили вперёд».  The debtors count is
- * `debtorsCount`, the very number of the «Должники» tab.
+ * «Долг» (red, the term has passed), «К оплате» (calm, still within the term, with the nearest term in the server's words) and «Аванс».  Every number is the server's (`/org/payments/summary`):
+ * the debtors and the students of «К оплате» are the very numbers of the tabs, the two sums add up to everything unpaid.
  */
-/** «Ждём оплату: 300 000 сум · 2 ученика»; "" when nobody waits.  The debt of the cards is the debtors' only (the red number); this line is the rest, named. */
-export function waitingLine(amount: number | null | undefined, students: number | null | undefined): string {
-  const sumValue = Math.max(0, Math.round(Number(amount) || 0));
-  if (sumValue <= 0) return "";
-  const n = Math.max(0, Math.floor(Number(students) || 0));
-  return `Ждём оплату: ${formatMoney(sumValue)}${n > 0 ? ` · ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}` : ""}`;
-}
-
 export function positionCards(summary: {
-  /** The debt of the DEBTORS (`debt_split.debtors_debt_total`); the ones who only wait are `debt_waiting_total`. */
-  debtors_debt_total?: number | null;
-  advance_total?: number | null;
+  debt_total?: number | null;
   debtors?: number | null;
+  due_total?: number | null;
+  due_students?: number | null;
+  due_nearest?: { text?: string | null } | null;
+  advance_total?: number | null;
   students_with_advance?: number | null;
-  debt_waiting_total?: number | null;
-  students_waiting?: number | null;
 } | null | undefined): PositionCard[] {
-  const debt = Math.max(0, Math.round(Number(summary?.debtors_debt_total) || 0));
-  const advance = Math.max(0, Math.round(Number(summary?.advance_total) || 0));
-  const debtors = debtorsCount(summary);
-  const ahead = typeof summary?.students_with_advance === "number" && summary.students_with_advance >= 0 ? Math.floor(summary.students_with_advance) : null;
+  const money = (value: unknown) => Math.max(0, Math.round(Number(value) || 0));
+  const debt = money(summary?.debt_total);
+  const due = money(summary?.due_total);
+  const advance = money(summary?.advance_total);
+  const debtors = count(summary?.debtors);
+  const dueStudents = count(summary?.due_students);
+  const ahead = count(summary?.students_with_advance);
+  const nearest = summary?.due_nearest?.text?.trim();
+  const dueSub = [dueStudents === null || dueStudents === 0 ? "" : studentsText(dueStudents), nearest ? `ближайший срок ${nearest}` : ""].filter(Boolean).join(" · ");
   return [
-    {
-      key: "debt",
-      label: "Долг",
-      amount: formatMoney(debt),
-      sub: debtors === null ? "" : `${debtors} ${pluralRu(debtors, "ученик с долгом", "ученика с долгом", "учеников с долгом")}`,
-      waiting: waitingLine(summary?.debt_waiting_total, summary?.students_waiting),
-      tone: debt > 0 ? "debt" : "none",
-    },
-    {
-      key: "advance",
-      label: "Аванс",
-      amount: formatMoney(advance),
-      sub: ahead === null ? "" : `${ahead} ${pluralRu(ahead, "ученик оплатил вперёд", "ученика оплатили вперёд", "учеников оплатили вперёд")}`,
-      tone: advance > 0 ? "advance" : "none",
-    },
+    { key: "debt", label: "Долг", amount: formatMoney(debt), sub: debtors === null || debtors === 0 ? "" : `${studentsText(debtors)} · срок прошёл`, students: debtors, tone: debt > 0 ? "debt" : "none" },
+    { key: "due", label: "К оплате", amount: formatMoney(due), sub: dueSub, students: dueStudents, tone: due > 0 ? "due" : "none" },
+    { key: "advance", label: "Аванс", amount: formatMoney(advance), sub: ahead === null || ahead === 0 ? "" : studentsText(ahead), students: ahead, tone: advance > 0 ? "advance" : "none" },
   ];
 }
 

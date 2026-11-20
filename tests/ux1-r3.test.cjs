@@ -302,18 +302,17 @@ test("Modal: the first field to focus is one that is on screen (the hidden file 
 
 // ── «Остался 1 день», one phrase ─────────────────────────────────────────────────────────────────────
 
-test("leftPhrase: the verb agrees with the number, in the payments chip and in the excuses column alike", () => {
+test("leftPhrase: the verb agrees with the number, in the excuses column (the payments labels are the server's)", () => {
   const { leftPhrase } = lib("plural.ts");
   assert.equal(leftPhrase(1, "день", "дня", "дней"), "Остался 1 день");
   assert.equal(leftPhrase(21, "день", "дня", "дней"), "Остался 21 день");
   assert.equal(leftPhrase(2, "день", "дня", "дней"), "Осталось 2 дня");
   assert.equal(leftPhrase(11, "день", "дня", "дней"), "Осталось 11 дней");
   assert.equal(leftPhrase(1, "урок", "урока", "уроков"), "Остался 1 урок");
+  // PAY-DUE: the payments labels are the server's («Осталось 2 урока» / «Оплачено до …»); the screen has no `statusLabel` / `statusDetail`
   const payments = lib("payments.ts");
-  const row = { status: "expiring", period_mode: "calendar", days_overdue: null, days_left: 21, lessons_total: null, lessons_left: null };
-  assert.equal(payments.statusLabel(row), "Остался 21 день");
-  assert.equal(payments.statusLabel({ ...row, period_mode: "lessons", lessons_total: 12, lessons_left: 1 }), "Скоро закончится");
-  assert.equal(payments.statusDetail({ status: "active", period_mode: "lessons", paid_until: null, lessons_total: 12, lessons_left: 1 }), "остался 1 урок из 12");
+  assert.equal(payments.statusLabel, undefined);
+  assert.equal(payments.statusDetail, undefined);
   assert.equal(lib("excuse-deadline.ts").excuseDeadlineCell({ lesson_date: "2026-10-03", status: "pending", deadline: { kind: "date", date: "2026-10-26", overdue: false, days_left: 1 } }, "2026-10-25").headline, "Остался 1 день");
   assert.doesNotMatch(read("src/lib/excuse-deadline.ts"), /\bfunction (daysWord|lessonsWord)\b/);
   assert.doesNotMatch(read("src/lib/excuse-decision.ts"), /lastTwo/);

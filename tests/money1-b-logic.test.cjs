@@ -9,7 +9,6 @@ const W = require(path.join(root, "src/lib/whatif.ts"));
 const P = require(path.join(root, "src/lib/payments.ts"));
 const L = require(path.join(root, "src/lib/payments-ledger.ts"));
 const S = require(path.join(root, "src/lib/payments-summary.ts"));
-const B = require(path.join(root, "src/lib/payments-banner.ts"));
 const F = require(path.join(root, "src/lib/pay-from.ts"));
 const G = require(path.join(root, "src/lib/group-form.ts"));
 const H = require(path.join(root, "src/lib/settings-history.ts"));
@@ -77,48 +76,42 @@ test("Б3: the window of the mode - a student with a package in progress waits f
   assert.equal(W.regimeChangeKind({ lessons_per_payment: 8 }), "package");
 });
 
-test("Б7: the banner, the cards and the badge count the DEBTORS (debt_split); the waiting ones are apart and named", () => {
+test("Б7 → PAY-DUE: the cards and the badge count the DEBTORS (the term has passed); the sum within its term is apart and named «К оплате»", () => {
+  // 1 debtor owes 600 000; 1 student is within his term: 300 000 (the server's `debtors` / `due_students`)
   const state = S.summaryToState({
-    expiring: 0,
-    buckets: { expiring: 0, active: 1, paused: 0 },
-    debt_split: { debtors: 1, debtors_memberships: 1, debtors_debt_total: 600000, waiting_students: 1, waiting_memberships: 1, waiting_debt_total: 300000, all_debt_total: 900000, all_students_with_debt: 2, expired: 0, due: 1, students_expired: 0, students_due: 1 },
+    expiring: 0, active: 1, period_mode: "calendar", debt_total: 600000, debtors: 1, due_total: 300000, due_students: 1,
+    due_nearest: { date: "2026-11-07", text: "до 07.11" }, buckets: { debtors: 1, to_pay: 1, expiring: 0, active: 1, paused: 0 },
   });
   assert.equal(state.debtTotal, 600000);
   assert.equal(state.debtors, 1);
-  assert.equal(state.studentsExpired, 0);
-  assert.equal(state.studentsWaiting, 1);
-  assert.equal(state.debtWaitingTotal, 300000);
-  assert.equal(state.buckets.debt, 1);
-  assert.equal(state.buckets.waiting, 1);
-  const copy = B.debtBannerCopy({ debtors: state.debtors, debtTotal: state.debtTotal, overdue: state.studentsExpired });
-  assert.equal(N(copy.text), "1 ученик с долгом — 600 000 сум");
-  assert.equal(copy.chip, null);
-  const cards = P.positionCards({ debtors_debt_total: state.debtTotal, debtors: state.debtors, debt_waiting_total: state.debtWaitingTotal, students_waiting: state.studentsWaiting });
+  assert.equal(state.dueTotal, 300000);
+  assert.equal(state.dueStudents, 1);
+  assert.deepEqual([state.tabs.debtors, state.tabs.to_pay], [1, 1]);
+  const cards = P.positionCards({ debt_total: state.debtTotal, debtors: state.debtors, due_total: state.dueTotal, due_students: state.dueStudents, due_nearest: state.dueNearest });
   assert.equal(N(cards[0].amount), "600 000 сум");
-  assert.equal(N(cards[0].waiting), "Ждём оплату: 300 000 сум · 1 ученик");
-  // Money-1 V (а): an answer without the split does not fall back to the old fields (the server drops them): no debt, nobody waits
-  const old = S.summaryToState({ due: 2, expired: 1, debt_total: 500000, students_with_debt: 2, debtors: 2 });
+  assert.equal(N(cards[1].amount), "300 000 сум");
+  assert.equal(N(cards[1].sub), "1 ученик · ближайший срок до 07.11");
+  // an answer without the new fields does not fall back to the old ones (the server drops them): no debt, nobody to pay
+  const old = S.summaryToState({ due: 2, expired: 1, debt_total: undefined, students_with_debt: 2, debt_split: { debtors: 2, debtors_debt_total: 500000 } });
   assert.equal(old.debtTotal, 0);
-  assert.equal(old.debtors, 0);
-  assert.equal(old.studentsWaiting, 0);
+  assert.equal(old.debtors, null);
+  assert.equal(old.dueStudents, null);
 });
 
-test("Б7: the tab «Ждём оплату» stands next to «Должники» while somebody waits; the waiting row is grey, never the red «Просрочено»", () => {
-  const keys = (summary, open = "debt") => P.visibleBuckets(summary, open).map((b) => b.key);
-  assert.deepEqual(keys({ students_waiting: 2 }), ["debt", "waiting", "expiring", "active"]);
-  assert.deepEqual(keys({ students_waiting: 0 }), ["debt", "expiring", "active"]);
-  assert.deepEqual(keys({ students_waiting: 0 }, "waiting"), ["debt", "waiting", "expiring", "active"]);
-  assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "waiting"), 2);
-  assert.equal(P.bucketCount({ students_waiting: 2, debtors: 7 }, "debt"), 7);
-  const row = { status: "expired", debt: 300000, days_overdue: 1, debt_reason: "overdue", tab: "waiting", waiting_reason: "Ждём оплату до 07.11", reason: "Просрочено на 1 день" };
-  assert.deepEqual(P.moneyChip(row), { label: "Ждём оплату до 07.11", tone: "muted" });
-  assert.deepEqual(P.moneyChip({ ...row, waiting_reason: null }), { label: "Ждём оплату", tone: "muted" });
-  assert.equal(P.debtReasonText(row), "Ждём оплату до 07.11");
-  assert.match(L.balanceView(row).className, /slate/);
-  assert.match(L.balanceView({ debt: 300000, advance: 0, tab: "debtors" }).className, /rose/);
-  assert.equal(P.moneyChip({ ...row, tab: "debtors" }).tone, "danger");
-  assert.equal(P.parseBucket("waiting"), "waiting");
-  assert.equal(P.parseBucket("debt"), "debt");
+test("Б7 → PAY-DUE: the tab «К оплате» stands next to «Должники» always; the row within its term is calm blue, never the red", () => {
+  const PS = require(path.join(root, "src/lib/pay-state.ts"));
+  const keys = (summary, open = "debtors") => P.visibleBuckets(summary, open).map((b) => b.key);
+  assert.deepEqual(keys({ students_paused: 0 }), ["debtors", "to_pay", "expiring", "active"]);
+  assert.deepEqual(keys({ students_paused: 2 }), ["debtors", "to_pay", "expiring", "active", "paused"]);
+  assert.equal(P.bucketCount({ to_pay: 2, debtors: 7 }, "to_pay"), 2);
+  assert.equal(P.bucketCount({ to_pay: 2, debtors: 7 }, "debtors"), 7);
+  const row = { state: "to_pay", state_text: "К оплате 300 000 сум", due_amount: 300000, due_text: "К оплате 300 000 сум", due_sub: "до 07.11", debt: 300000 };
+  assert.deepEqual([PS.payLabel(row, "to_pay").text, PS.payLabel(row, "to_pay").tone, PS.payLabel(row, "to_pay").sub], ["К оплате 300 000 сум", "due", "до 07.11"]);
+  assert.match(L.balanceView({ debt: 300000, advance: 0 }).className, /rose/);
+  assert.equal(PS.payLabel({ ...row, state: "debt", state_text: "Долг 300 000 сум" }).tone, "danger");
+  assert.equal(P.parseBucket("to_pay"), "to_pay");
+  assert.equal(P.parseBucket("waiting"), "debtors");
+  assert.equal(P.parseBucket("debt"), "debtors");
 });
 
 test("Б1: «Оплата с» - without the money right there is no date and nothing is sent; the default is not sent; the range", () => {
@@ -188,43 +181,40 @@ test("Б5/Б6: the statement shows «Период продлён на N дней
   assert.ok(items.filter((item) => item.title && /Период продлён/.test(item.title)).every((item) => item.charged === null && item.paid === null), "an information row: no money");
 });
 
-test("Б7: the header of a group says «Ждём оплату: M сум · N учеников» by the SAME function as the card of «Оплаты»; nobody waits - nothing", () => {
+test("Б7 → PAY-DUE: the header of a group says «К оплате M сум · N ученика» from the server's students and sum; nobody to pay - nothing", () => {
   const W2 = require(path.join(root, "src/lib/group-workspace.ts"));
-  const summary = W2.groupDebtSummary([{ debt: 300000 }, { debt: 200000 }, { debt: 0 }]);
-  assert.equal(N(W2.groupWaitingChipText(summary)), "Ждём оплату: 500 000 сум · 2 ученика");
-  assert.equal(W2.groupWaitingChipText(summary), P.waitingLine(500000, 2));
-  assert.equal(W2.groupWaitingChipText(W2.groupDebtSummary([])), null);
-  assert.equal(W2.groupWaitingChipText(null), null);
+  const summary = W2.groupDebtSummary({ students: 2, amount_total: 500000 });
+  assert.equal(N(W2.groupDueChipText(summary)), "К оплате 500 000 сум · 2 ученика");
+  assert.equal(W2.groupDueChipText(W2.groupDebtSummary({ students: 0, amount_total: 0 })), null);
+  assert.equal(W2.groupDueChipText(null), null);
 });
 
-test("R3 №1/2/6/23: ONE question «debtor or waiting» for the list, the tab of a group, the header and the card of a student", () => {
+test("R3 №1/2/6/23 → PAY-DUE: ONE label of a student for the list, the tab of a group, the header and the card - the server's worst state", () => {
   const GP = require(path.join(root, "src/lib/group-payments.ts"));
   const SC = require(path.join(root, "src/lib/student-card.ts"));
-  const base = { is_active: true, status: "expired", advance: 0, paid_until: null, period_mode: "calendar", price: { amount: 300000, source: "group" }, is_primary: true };
-  const debtor = { ...base, membership_id: "d", student_id: "sd", student_name: "Должников", debt: 600000, tab: "debtors" };
-  const waiting = { ...base, membership_id: "w", student_id: "sw", student_name: "Ждущий", debt: 300000, tab: "waiting", waiting_reason: "Ждём оплату до 07.11" };
-  assert.equal(P.debtRoleOf(debtor), "debtor");
-  assert.equal(P.debtRoleOf(waiting), "waiting");
-  assert.equal(P.debtRoleOf({ ...waiting, debt: 0 }), null);
-  assert.equal(P.debtRoleOf({ debt: 5 }), "debtor", "an older server (no tab): a debtor, as before");
-  // the tab of the group: «С долгом» holds the debtor only; the waiting one has his own filter and count
-  const views = GP.paymentRowViews([debtor, waiting], { periodMode: "calendar", today: "2026-11-06" });
-  assert.deepEqual(GP.paymentsCounts(views), { all: 2, individual: 0, debt: 1, waiting: 1 });
+  const PS = require(path.join(root, "src/lib/pay-state.ts"));
+  const base = { is_active: true, status: "active", advance: 0, paid_until: null, period_mode: "calendar", price: { amount: 300000, source: "group" }, is_primary: true };
+  const debtor = { ...base, membership_id: "d", student_id: "sd", student_name: "Должников", debt: 600000, debt_amount: 600000, due_amount: 0, state: "debt", state_text: "Долг 600 000 сум", debt_text: "Долг 600 000 сум", debt_sub: "просрочено 3 дня" };
+  const due = { ...base, membership_id: "w", student_id: "sw", student_name: "Ждущий", debt: 300000, debt_amount: 0, due_amount: 300000, state: "to_pay", state_text: "К оплате 300 000 сум", due_text: "К оплате 300 000 сум", due_sub: "до 07.11" };
+  // the tab of the group: «С долгом» holds the debtor only; the student within his term has his own filter and count
+  const views = GP.paymentRowViews([debtor, due], { periodMode: "calendar", today: "2026-11-06" });
+  assert.deepEqual(GP.paymentsCounts(views), { all: 2, individual: 0, debt: 1, due: 1 });
   assert.deepEqual(GP.filterPaymentRows(views, "debt").map((v) => v.name), ["Должников"]);
-  assert.deepEqual(GP.filterPaymentRows(views, "waiting").map((v) => v.name), ["Ждущий"]);
-  assert.equal(GP.filterChipLabel("waiting", GP.paymentsCounts(views)), "Ждём оплату (1)");
-  assert.equal(GP.parsePaymentsFilter("waiting"), "waiting");
-  // the same row, the same word in the list chip, the tab chip and the card chip
-  assert.equal(P.moneyChip(waiting).tone, "muted");
-  assert.equal(views[1].chip.tone, "muted");
-  assert.match(views[1].chip.label, /^Ждём оплату/);
+  assert.deepEqual(GP.filterPaymentRows(views, "due").map((v) => v.name), ["Ждущий"]);
+  assert.equal(GP.filterChipLabel("due", GP.paymentsCounts(views)), "К оплате (1)");
+  assert.equal(GP.parsePaymentsFilter("due"), "due");
+  // the same row, the same word and tone in the list label, the tab label and the card label
+  assert.equal(PS.payLabel(due, "to_pay").tone, "due");
+  assert.equal(views[1].chip.tone, "due");
+  assert.match(views[1].chip.label, /^К оплате/);
   assert.equal(views[0].chip.tone, "danger");
-  // the card of a student: the waiting group is not «Долг», only the debtor's debt is
-  const both = SC.studentMoneyChip([debtor, waiting]);
+  // the card of a student: the group within its term is not «Долг», only the debtor's debt is
+  const both = SC.studentMoneyChip([debtor, due]);
   assert.deepEqual([N(both.label), both.tone, both.debtGroups], ["Долг 600 000 сум", "danger", 1]);
-  const card = SC.studentMoneyChip([waiting]);
-  assert.equal(N(card.label), "Ждём оплату · 300 000 сум");
-  assert.equal(card.tone, "muted");
+  const card = SC.studentMoneyChip([due]);
+  assert.equal(N(card.label), "К оплате 300 000 сум");
+  assert.equal(card.tone, "due");
+  assert.equal(card.sub, "до 07.11");
   assert.equal(card.debtGroups, 0);
 });
 
@@ -282,10 +272,11 @@ test("RB Д2 (front): a package shows «осталось уроков» instead 
 
 const SC = require(path.join(root, "src/lib/student-card.ts"));
 test("RB З4: the card of a student with an advance says the advance next to «Оплачено до» - the number of the statement", () => {
-  const row = (o) => ({ debt: 0, advance: 0, is_active: true, paid_until: "2026-12-22", status: "active", ...o });
+  // PAY-DUE: the label «Оплачено до 22.12» is the server's `state_text` of a paid row; the advance is added by the card with the statement's number
+  const row = (o) => ({ debt: 0, advance: 0, is_active: true, paid_until: "2026-12-22", status: "active", state: "paid", state_text: "Оплачено до 22.12", ...o });
   const chip = SC.studentMoneyChip([row({ advance: 290000 })]);
   assert.equal(N(chip.label), "Оплачено до 22.12 · Аванс 290 000 сум");
   assert.equal(chip.tone, "ok");
   assert.equal(N(SC.studentMoneyChip([row({})]).label), "Оплачено до 22.12");
-  assert.equal(N(SC.studentMoneyChip([row({ advance: 100, paid_until: null }), row({ advance: 200, paid_until: null })]).label), "Аванс 300 сум", "the sum of the groups; no date - the advance alone");
+  assert.equal(N(SC.studentMoneyChip([row({ advance: 100, paid_until: null, state_text: null, state: "none" }), row({ advance: 200, paid_until: null, state_text: null, state: "none" })]).label), "Аванс 300 сум", "the sum of the groups; no date - the advance alone");
 });

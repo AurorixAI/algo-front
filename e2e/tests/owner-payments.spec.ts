@@ -6,7 +6,7 @@ import { dmy, expectNoHorizontalScroll, expectStatementReconciles, statementRowM
 /**
  * Owner: «Оплаты» (PAY-2: a payment is money; the server distributes it).  A brand-new student of a group WITHOUT a price is
  * is not in the list (the page says «не задана цена»); once the price is set on the group the debtor row is a plain row
- * (name, group, price, the chip «Ещё не платил» with the debt, «Внести оплату») and the dialog says what is due and starts the amount with it.  The payment lands in «Оплачено», the
+ * (name, group, price, the label «К оплате N сум» with its term, «Внести оплату») and the dialog says what is due and starts the amount with it.  The payment lands in «Оплачено», the
  * history numbers it («№ N») and says where the money went, the receipt spells the amount in words and shows the snapshot,
  * the statement lists it with the running balance and «Сходится», and a cancelled payment stays in the history with its
  * reason (and the receipt is stamped).
@@ -22,7 +22,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   const teacher = await org.addStaff("teacher", "Оплатин");
   const group = await org.createGroup({ name: "Группа О1", teacherId: teacher.userId });
   const student = await org.addStudent(group, "Анвар", "Платёжкин"); // the group has no price yet
-  // a REAL debtor next to him (Money-1 B7): charged from ten days ago, so his period is overdue - he is on «Должники», Платёжкин (period began today) only «Ждём оплату»
+  // a REAL debtor next to him (Money-1 B7): charged from ten days ago, so his period is overdue - he is on «Должники», Платёжкин (period began today, the term of 5 days is running) only «К оплате»
   await org.setPaymentSettings({ accounting_start_date: addDays(today, -60) });
   const debtor = await org.createStudent("Иван", "Должников");
   await org.owner.api.post(`/auth/org/groups/${group.id}/students/${debtor.id}`, { pay_from: addDays(today, -10) });
@@ -43,11 +43,11 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(page.getByRole("link", { name: "Должников Иван", exact: true })).toBeVisible();
   await expect(row()).toHaveCount(0);
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   await expect(row()).toContainText(student.displayId!);
-  await expect(row()).toContainText(money(450000)); // «Цена в месяц»
-  await expect(row()).toContainText(/Ждём оплату до \d\d\.\d\d/);
+  // PAY-DUE: no column of the price any more - the label carries the sum, under it the term in the server's words
   await expect(row()).toContainText(new RegExp(`К оплате ${moneyPattern(450000)}`));
+  await expect(row()).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
   const payDialog = page.getByRole("dialog", { name: "Оплата от ученика" });
@@ -62,15 +62,13 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await payDialog.getByRole("radio", { name: "Наличные" }).click();
   await payDialog.getByRole("button", { name: new RegExp(`^Внести\\s*${moneyPattern(450000)}`) }).click(); // the amount is in the button
   await expect(toast(page, "Оплата внесена")).toBeVisible();
-  await expect(row()).toHaveCount(0); // left «Ждём оплату»
+  await expect(row()).toHaveCount(0); // left «К оплате»
 
   // --- it is now under «Оплачено»
   await page.getByRole("tab", { name: "Без долга" }).click();
-  await expect(row()).toContainText(money(450000));
-  await expect(row()).toContainText("Оплачено"); // the grey chip ...
-  await expect(row()).toContainText("оплачено до"); // ... and the date under it (the server worked it out from the money)
+  await expect(row()).toContainText(/Оплачено до \d\d\.\d\d/); // the server's label of a paid period: the date in it (worked out from the money)
   await expect(row().getByRole("button", { name: "Внести оплату" })).toBeVisible(); // one verb, also for a running payment
-  await expect(page.getByRole("tab", { name: /^Без долга \(\d+\)$/ })).toBeVisible(); // every tab carries its number
+  await expect(page.getByRole("tab", { name: /^Без долга \d+$/ })).toBeVisible(); // every tab carries its number
 
   // --- history: «№ N»
   const membership = await org.membershipId(student.id);
@@ -154,9 +152,10 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   await expectNoHorizontalScroll(page);
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();   // Money-1 B7: her period began today
+  await page.getByRole("tab", { name: /К оплате/ }).click();   // PAY-DUE: her period began today, the term is running
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
-  await expect(row).toContainText(/Ждём оплату до \d\d\.\d\d/);
+  await expect(row).toContainText(/К оплате .* сум/);
+  await expect(row).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
   await expect(row.getByRole("textbox")).toHaveCount(0);
   await expect(row.getByRole("button", { name: "Внести оплату" })).toBeVisible();
   await expectNoHorizontalScroll(page);

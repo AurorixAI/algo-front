@@ -108,11 +108,12 @@ test("journal deep link keeps tab, month, lesson and date from the lesson key", 
 
 // ---- one palette for deadline and payment chips -----------------------------------------
 
-test("payment status chips use the same grey / amber / red as the deadline chips", () => {
-  const classes = payments.STATUS_TONE_CLASS;
-  assert.equal(classes.danger, chipTone.CHIP_TONE_CLASS.danger);
-  assert.equal(classes.warning, chipTone.CHIP_TONE_CLASS.warn);
-  for (const quiet of ["ok", "free", "muted"]) assert.equal(classes[quiet], chipTone.CHIP_TONE_CLASS.neutral, quiet);
+test("payment status labels use the same grey / amber / red as the deadline chips (one table: PAY_STATE_TONE → CHIP_TONE_CLASS)", () => {
+  const states = require(path.join(__dirname, "../src/lib/pay-state.ts")).PAY_STATE_TONE;
+  assert.equal(payments.STATUS_TONE_CLASS, undefined, "no second palette of money");
+  assert.equal(chipTone.CHIP_TONE_CLASS[states.debt], chipTone.CHIP_TONE_CLASS.danger);
+  assert.equal(chipTone.CHIP_TONE_CLASS[states.expiring], chipTone.CHIP_TONE_CLASS.warn);
+  for (const quiet of ["paused", "free", "none"]) assert.equal(chipTone.CHIP_TONE_CLASS[states[quiet]], chipTone.CHIP_TONE_CLASS.neutral, quiet);
   assert.match(chipTone.CHIP_TONE_CLASS.danger, /danger/);
   assert.match(chipTone.CHIP_TONE_CLASS.warn, /warning/);
   assert.match(chipTone.CHIP_TONE_CLASS.neutral, /slate/);

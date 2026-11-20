@@ -9,7 +9,7 @@
  * No React and no network here, so node:test loads this file.
  */
 import { MONTHS_GENITIVE, MONTHS_NOMINATIVE, MONTHS_SHORT_TITLE } from "./ru-calendar";
-import { formatDateRu, formatMoney, isIsoDate, pluralRu, waitingLine } from "./payments";
+import { formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
 import { monthEnd, monthStart } from "./payments-income";
 import { METHODS, sum } from "./payments-ledger";
 import { addIsoDays, capitalizeFirst, daysBetweenInclusive, formatDayMonthRu, formatUtcNaiveAsBusinessDate, monthYearLabelRu, shiftDateByMonth, utcNaiveToBusinessIsoDate } from "./business-time";
@@ -75,13 +75,13 @@ export interface CollectionRow {
   charged: number;
   paid: number;
   forgiven: number;
-  /** Money-1 R3 (Р3): what the DEBTORS owe (the old `debt` of the server, which also held the ones who only wait, is gone). */
-  debtors_debt: number;
+  /** PAY-DUE 10.2: of the unpaid sum of the month (`charged - paid - forgiven`) the parts whose term has passed («Долг») and the rest («К оплате»). */
+  debt: number;
+  due: number;
   students: number;
-  students_with_debt: number;
-  /** Money-1 B7: of `debt` / `students_with_debt`, those who only «ждём оплату» (0 from an older server). */
-  debt_waiting: number;
-  students_waiting: number;
+  /** Distinct students with a debt part / with a part «К оплате» in the month (a student of two groups counts once in the total). */
+  debtors: number;
+  due_students: number;
   pct: number | null;
 }
 
@@ -96,15 +96,14 @@ export interface MonthCollection {
 }
 
 export interface IncomePosition {
-  past_debt_total: number;
+  /** PAY-DUE 10.2: where the whole centre stands today by the names of the server: the parts past their term / within it, and their students. */
+  debt_total: number;
+  due_total: number;
+  debtors: number;
+  due_students: number;
   advance_total: number;
   memberships_with_advance: number;
   students_with_advance: number;
-  /** Money-1 B7: the debt by ONE definition - the debtors' and «ждём оплату» apart (`debt_total` is their sum, the old number). `null` from an older server. */
-  debtors_debt_total: number;
-  debt_waiting_total: number;
-  students_debtors: number;
-  students_waiting: number;
 }
 
 export interface IncomeCheck { code: string; left: number; right: number; diff: number }
@@ -251,9 +250,8 @@ function periodOut(raw: Partial<IncomePeriodOut> | null | undefined): IncomePeri
 function collectionRow(raw: Partial<CollectionRow> | null | undefined): CollectionRow {
   return {
     group_id: raw?.group_id ?? null, group_name: raw?.group_name ?? null, teacher_id: raw?.teacher_id ?? null, teacher_name: raw?.teacher_name ?? null,
-    charged: sum(raw?.charged), paid: sum(raw?.paid), forgiven: sum(raw?.forgiven), debtors_debt: sum(raw?.debtors_debt),
-    students: sum(raw?.students), students_with_debt: sum(raw?.students_with_debt),
-    debt_waiting: sum(raw?.debt_waiting), students_waiting: sum(raw?.students_waiting),
+    charged: sum(raw?.charged), paid: sum(raw?.paid), forgiven: sum(raw?.forgiven), debt: sum(raw?.debt), due: sum(raw?.due),
+    students: sum(raw?.students), debtors: sum(raw?.debtors), due_students: sum(raw?.due_students),
     pct: raw?.pct === null || raw?.pct === undefined ? null : sum(raw.pct),
   };
 }
@@ -286,12 +284,9 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
       total: collectionRow(collection.total), groups: arr<CollectionRow>(collection.groups).map(collectionRow),
     } : null,
     position: {
-      past_debt_total: sum(position.past_debt_total), advance_total: sum(position.advance_total),
+      debt_total: sum(position.debt_total), due_total: sum(position.due_total), debtors: sum(position.debtors), due_students: sum(position.due_students),
+      advance_total: sum(position.advance_total),
       memberships_with_advance: sum(position.memberships_with_advance), students_with_advance: sum(position.students_with_advance),
-      debtors_debt_total: sum(position.debtors_debt_total),
-      debt_waiting_total: sum(position.debt_waiting_total),
-      students_debtors: sum(position.students_debtors),
-      students_waiting: sum(position.students_waiting),
     },
     checks: arr<IncomeCheck>(raw?.checks).map((check) => ({ code: text(check.code), left: sum(check.left), right: sum(check.right), diff: sum(check.diff) })),
     ok: raw?.ok !== false,
@@ -600,8 +595,8 @@ export interface PositionCard {
   amount: string;
   /** «3 ученика». */
   caption: string;
-  /** Money-1 B7: «Ждём оплату: 300 000 сум · 2 ученика» - the rest of the debt, named, calm. */
-  waiting?: string;
+  /** PAY-DUE: «К оплате 300 000 сум · 2 ученика» - the part still within its term, named, calm. */
+  due?: string;
   none: boolean;
 }
 
@@ -609,12 +604,11 @@ const studentsText = (count: number): string => `${count} ${pluralRu(count, "у�
 
 export function debtCard(overview: IncomeOverview): PositionCard {
   const p = overview.position;
-  // Money-1 B7: the red number is the DEBTORS' debt; the ones who only wait are named under it (never silently added)
-  const debt = p.debtors_debt_total;
-  const students = p.students_debtors;
-  const waiting = waitingLine(p.debt_waiting_total, p.students_waiting);
-  if (debt > 0) return { amount: formatMoney(debt), caption: studentsText(students), waiting, none: false };
-  return waiting ? { amount: "Долгов нет", caption: "Никто не просрочил", waiting, none: true } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
+  // the red number is the DEBT (the term has passed); the sum within its term is named under it, never silently added
+  const debt = p.debt_total;
+  const due = p.due_total > 0 ? `К оплате ${formatMoney(p.due_total)}${p.due_students > 0 ? ` · ${studentsText(p.due_students)}` : ""}` : "";
+  if (debt > 0) return { amount: formatMoney(debt), caption: studentsText(p.debtors), due, none: false };
+  return due ? { amount: "Долгов нет", caption: "Никто не просрочил", due, none: true } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
 }
 
 export function advanceCard(overview: IncomeOverview): PositionCard {
@@ -624,7 +618,14 @@ export function advanceCard(overview: IncomeOverview): PositionCard {
 
 /** The «Должники» tab of «Оплаты», narrowed to a group when a row of the collection table leads there. */
 export function debtorsHref(paymentsBase: string, scope: { groupId?: string | null } = {}): string {
-  const params = new URLSearchParams({ bucket: "debt" });
+  const params = new URLSearchParams({ bucket: "debtors" });
+  if (scope.groupId) params.set("group_id", scope.groupId);
+  return `${paymentsBase.replace(/\/+$/, "")}?${params.toString()}`;
+}
+
+/** The tab «К оплате» of «Оплаты» (the sums still within their term), narrowed to a group when a row of the collection table leads there. */
+export function dueHref(paymentsBase: string, scope: { groupId?: string | null } = {}): string {
+  const params = new URLSearchParams({ bucket: "to_pay" });
   if (scope.groupId) params.set("group_id", scope.groupId);
   return `${paymentsBase.replace(/\/+$/, "")}?${params.toString()}`;
 }
@@ -1073,9 +1074,9 @@ export interface CollectionRowView {
   paid: number;
   debt: number;
   debtors: number;
-  /** Money-1 B7: of the debt of the month, the part of «ждём оплату» (not in `debt`). */
-  waitingDebt: number;
-  waitingStudents: number;
+  /** PAY-DUE: of the unpaid sum of the month, the part still within its term («К оплате»; not in `debt`). */
+  dueAmount: number;
+  dueStudents: number;
   /** 0–100 or null (nothing charged). */
   pct: number | null;
   pctText: string;
@@ -1089,11 +1090,11 @@ function collectionView(row: CollectionRow, index: number): CollectionRowView {
     groupId: row.group_id,
     title: row.group_name || "Без группы",
     teacher: row.teacher_name,
-    charged: row.charged, paid: row.paid, debt: Math.max(0, row.debtors_debt), debtors: Math.max(0, row.students_with_debt - row.students_waiting),
-    waitingDebt: row.debt_waiting, waitingStudents: row.students_waiting,
+    charged: row.charged, paid: row.paid, debt: Math.max(0, row.debt), debtors: Math.max(0, row.debtors),
+    dueAmount: Math.max(0, row.due), dueStudents: Math.max(0, row.due_students),
     pct: row.pct === null ? null : Math.max(0, Math.min(100, row.pct)),
     pctText: row.pct === null ? "" : `${row.pct}%`,
-    debtorsText: row.students_with_debt - row.students_waiting > 0 ? `${row.students_with_debt - row.students_waiting} ${pluralRu(row.students_with_debt - row.students_waiting, "ученик", "ученика", "учеников")} с долгом за месяц` : "долгов за месяц нет",
+    debtorsText: row.debtors > 0 ? `${row.debtors} ${pluralRu(row.debtors, "ученик", "ученика", "учеников")} с долгом за месяц` : "долгов за месяц нет",
   };
 }
 
@@ -1105,7 +1106,7 @@ export function collectionRows(collection: MonthCollection | null | undefined): 
     .sort((a, b) => {
       const pa = a.row.pct === null ? 101 : a.row.pct;
       const pb = b.row.pct === null ? 101 : b.row.pct;
-      return pa - pb || b.row.debtors_debt - a.row.debtors_debt || a.view.title.localeCompare(b.view.title, "ru");
+      return pa - pb || b.row.debt - a.row.debt || a.view.title.localeCompare(b.view.title, "ru");
     })
     .map((item) => item.view);
 }
@@ -1116,8 +1117,8 @@ export function collectionRows(collection: MonthCollection | null | undefined): 
  */
 export function collectionDebtNote(collection: MonthCollection | null | undefined, debtToday: number | null | undefined): string | null {
   if (!collection || debtToday === null || debtToday === undefined) return null;
-  // `debtToday` is the whole debt of the position (debtors + «ждём оплату»), the month's `debt` of the server too: the same footing
-  const month = collection.total.debtors_debt + collection.total.debt_waiting;
+  // `debtToday` is everything unpaid of the position (debt + «К оплате»); the month's unpaid sum is the same two parts: the same footing
+  const month = collection.total.debt + collection.total.due;
   if (month === debtToday) return null;
   const name = (collection.month_label || "").trim().split(/\s+/)[0].toLowerCase();
   return `Долг ${name ? `за ${name}` : "за месяц"} — ${formatMoney(month)}. Всего долг на сегодня — ${formatMoney(debtToday)} (с прошлыми месяцами).`;
@@ -1147,8 +1148,8 @@ export const COLLECTION_DEBTORS_TOTAL_TITLE = "учеников без повт�
  */
 export function collectionTotalDebtorsHint(collection: MonthCollection | null | undefined): { title: string; marker: boolean } | null {
   if (!collection) return null;
-  const rowsSum = collection.groups.reduce((acc, row) => acc + sum(row.students_with_debt), 0);
-  return { title: COLLECTION_DEBTORS_TOTAL_TITLE, marker: sum(collection.total.students_with_debt) !== rowsSum };
+  const rowsSum = collection.groups.reduce((acc, row) => acc + sum(row.debtors), 0);
+  return { title: COLLECTION_DEBTORS_TOTAL_TITLE, marker: sum(collection.total.debtors) !== rowsSum };
 }
 
 // ── The journal ────────────────────────────────────────────────────────────

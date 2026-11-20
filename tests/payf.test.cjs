@@ -30,37 +30,35 @@ const PACKAGE = { status: "active", period_mode: "lessons", lessons_total: 12, l
 
 // ---- part 1: the forecast ---------------------------------------------------------------------------------------------------------------------------------
 
-test("1. a package says «хватит до ~30.10 (по расписанию)» next to «осталось 12 уроков из 12»", () => {
+test("1. a package says «хватит до ~30.10 (по расписанию)»: the forecast is the package bar's (forecastText), the label is the server's", () => {
   assert.equal(F.forecastText(PACKAGE), "хватит до ~30.10 (по расписанию)");
-  assert.equal(P.statusDetail(PACKAGE), "осталось 12 уроков из 12 · хватит до ~30.10 (по расписанию)");
-  assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: "2026-11-02" }), "осталось 12 уроков из 12 · хватит до ~02.11 (по расписанию)");      // scenario 2
-  assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: "2026-11-06" }), "осталось 12 уроков из 12 · хватит до ~06.11 (по расписанию)");      // scenario 3
-  const chip = P.membershipChip({ ...PACKAGE, debt: 0, last_payment: { id: "p" } });
-  assert.equal(chip.label, "Оплачено");                       // the chip is short: the count, the bar and the forecast are `PackageProgress`
-  assert.equal(chip.tone, "ok");
+  assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: "2026-11-02" }), "хватит до ~02.11 (по расписанию)");      // scenario 2
+  assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: "2026-11-06" }), "хватит до ~06.11 (по расписанию)");      // scenario 3
+  const progress = require(path.join(root, "src/lib/package-progress.ts")).packageProgress(PACKAGE);
+  assert.equal(progress.leftText, "Осталось 12 из 12 уроков");
+  assert.equal(progress.forecastLine, "Хватит примерно до 30.10 по расписанию");
+  // PAY-DUE 151: a paid package has no label of the server - nothing is said in its place; the count, the bar and the forecast are `PackageProgress`
+  assert.equal(require(path.join(root, "src/lib/pay-state.ts")).payLabel({ state: "paid", state_text: null }).text, null);
+  assert.equal(P.statusDetail, undefined);
 });
 
 test("1. N = 0: «пакет закончился»; no forecast from an older server; a monthly mode never has one", () => {
   assert.equal(F.forecastText({ ...PACKAGE, lessons_left: 0, paid_through_forecast: null }), "пакет закончился");
-  assert.equal(P.statusDetail({ ...PACKAGE, status: "expired", lessons_left: 0, paid_through_forecast: null }), "пакет закончился");
   assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: undefined }), "");
-  assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: undefined }), "осталось 12 уроков из 12");          // as before
   assert.equal(F.forecastText({ status: "active", period_mode: "calendar", paid_through_forecast: "2026-10-30" }), "");
-  assert.equal(P.statusDetail({ status: "active", period_mode: "calendar", paid_until: "2026-11-04" }), "оплачено до 04.11.2026");
 });
 
-test("1. the amber chip of a package that runs out is short too; its progress line is amber and carries the forecast", () => {
-  const chip = P.membershipChip({ ...PACKAGE, status: "expiring", lessons_left: 2, debt: 0, last_payment: { id: "p" }, paid_through_forecast: "2026-10-23" });
-  assert.equal(chip.label, "Скоро закончится");
+test("1. the amber label of a package that runs out is the server's («Осталось 2 урока»); its progress line is amber and carries the forecast", () => {
+  const label = require(path.join(root, "src/lib/pay-state.ts")).payLabel({ state: "expiring", state_text: "Осталось 2 урока" });
+  assert.deepEqual([label.text, label.tone], ["Осталось 2 урока", "warn"]);
   const p = require(path.join(root, "src/lib/package-progress.ts")).packageProgress({ ...PACKAGE, status: "expiring", lessons_left: 2, paid_through_forecast: "2026-10-23" });
   assert.deepEqual([p.tone, p.leftText, p.forecastLine, p.shortText, p.percent], ["warning", "Осталось 2 из 12 уроков", "Хватит примерно до 23.10 по расписанию", "2/12 уроков", 17]);
-  assert.equal(chip.tone, "warning");
 });
 
 test("1. the forecast is on the list, the group tab and the student's block, and not on the receipt or the statement", () => {
-  assert.match(read("src/components/payments/payments-page.tsx"), /statusDetail\(row\)/);
-  assert.match(read("src/lib/group-payments.ts"), /chip: membershipChip\(row\)/);
-  assert.match(read("src/components/payments/membership-payments.tsx"), /membershipChip\(row\)/);
+  assert.match(read("src/components/payments/payments-page.tsx"), /<PackageProgress row=\{row\} variant="compact" \/>/);
+  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<PackageProgress row=\{view\.row\} variant="compact"/);
+  assert.match(read("src/components/payments/membership-payments.tsx"), /<PackageProgress row=\{row\}/);
   for (const file of ["src/components/payments/receipt-view.tsx", "src/lib/payments-ledger.ts"]) assert.doesNotMatch(read(file), /paid_through_forecast|forecastText/, file);
 });
 
@@ -249,8 +247,8 @@ test("2. where it lives: the owner's settings (a section), the administrator's s
 test("the pages grew by an import and a field each: the new screens are components", () => {
   const lines = (file) => read(file).split("\n").length;
   // measured on the production commit 7c616a1 (before PAY-F)
-  const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
-    "src/app/admin/settings/page.tsx": 107 + 6 + 1 + 5 /* WAVE E: the read-only e-mail component, the password check; UX pack №7: the card of the days off goes below for an administrator without the money access */, "src/components/payments/payment-dialog.tsx": 22 + 459 + 3 + 5 + 8 + 2 /* Money-1 V: the reason of a correction, the cheque line, the already-voided note, a ref against a double press */ /* re-audit В3 + the flat «Готово» */ /* UX pack §5.1: the rows of the student, the folded line of the teachers, the footer */ /* WB-P5 R3: the text of a 409 after a lost answer */ + 8 /* Money-1 R3 #15: the dry run of the payment - one hook (`use-payment-effects`) and one block */ + 1 /* Money-1 B9: the repeated-payment note is a component */ + 2 /* Money-1 B9 R3 №3: the warnings after a save without the repeat */ + 5 /* Money-1 Г-4б: the dry run of a correction is a hook (`use-replace-effects`): its import, the call, the block of the server's sentence, the wait of the button */, "src/components/payments/receipt-view.tsx": 297 + 3,
+  const limits = { "src/app/owner/settings/page.tsx": 951 + 8 + 8 /* PAY-DUE: «Срок оплаты» is a component; the page grew by an import, the adopt of the draft and one line */, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
+    "src/app/admin/settings/page.tsx": 107 + 6 + 1 + 5 + 3 /* PAY-DUE: the read-only term is a component */ /* WAVE E: the read-only e-mail component, the password check; UX pack №7: the card of the days off goes below for an administrator without the money access */, "src/components/payments/payment-dialog.tsx": 22 + 459 + 3 + 5 + 8 + 2 /* Money-1 V: the reason of a correction, the cheque line, the already-voided note, a ref against a double press */ /* re-audit В3 + the flat «Готово» */ /* UX pack §5.1: the rows of the student, the folded line of the teachers, the footer */ /* WB-P5 R3: the text of a 409 after a lost answer */ + 8 /* Money-1 R3 #15: the dry run of the payment - one hook (`use-payment-effects`) and one block */ + 1 /* Money-1 B9: the repeated-payment note is a component */ + 2 /* Money-1 B9 R3 №3: the warnings after a save without the repeat */ + 5 /* Money-1 Г-4б: the dry run of a correction is a hook (`use-replace-effects`): its import, the call, the block of the server's sentence, the wait of the button */, "src/components/payments/receipt-view.tsx": 297 + 3,
     "src/components/groups/lesson-action-sheet.tsx": 4 /* К3 круг 3: «Назначить того, кто провёл» is off with the reason on the card */ + 3 /* G3M Ф3: the reason «Отметить посещаемость» is off */ + 338 + 12 + 26 + 17 + 8 + 40 + 4 + 2 /* owner 11.11: the end «later than the start» says why (an import and a line) */ /* Money-1 R3 K2: the preview of «Вернуть урок» (one hook, one block) and `onReload` */ };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3); + 40: Money-1 A2/A3 - three buttons and the three windows (own components) of «Вернуть урок» (held), «Вернуть на отметку», «Отменить решение»
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
@@ -310,7 +308,7 @@ test("the panel of the days off renders (before the list arrives) and the dialog
 
 test("1. the forecast says «прогноз недоступен» when the server sent an empty day for a package that is not over", () => {
   assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: null }), "прогноз недоступен");
-  assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: null }), "осталось 12 уроков из 12 · прогноз недоступен");
+  assert.equal(require(path.join(root, "src/lib/package-progress.ts")).packageProgress({ ...PACKAGE, paid_through_forecast: null }).forecastLine, "Прогноз недоступен");
   assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: undefined }), "");                  // an older server: no field, no word
   assert.equal(F.forecastText({ ...PACKAGE, lessons_left: 0, paid_through_forecast: null }), "пакет закончился");
 });

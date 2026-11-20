@@ -55,7 +55,8 @@ test("every response fixture reads through the tolerant parsers without NaN or m
   }
   // the documented nulls: an older server sends none of the PAY-2 numbers, a tolerant reader makes them 0
   const row = L.normalizeRow({ membership_id: "m", student_id: "s", student_name: "A", group_id: "g", group_name: "G", is_primary: true, is_active: true, status: "none" });
-  assert.deepEqual([row.debt, row.advance, row.past_debt, row.current_due, row.refundable, row.lessons_unpaid], [0, 0, 0, 0, 0, 0]);
+  assert.deepEqual([row.debt, row.advance, row.refundable, row.lessons_unpaid], [0, 0, 0, 0]);       // PAY-DUE: `past_debt` / `current_due` are gone from the row
+  assert.ok(!("past_debt" in row) && !("current_due" in row));
   assert.equal(L.balanceView(row).kind, "none");
   const bare = L.normalizePreview({ as_of: "2026-10-21", due: {}, result: null });
   assert.deepEqual([bare.suggested_amount, bare.due.debt, bare.result, bare.warnings], [0, 0, null, []]);
@@ -611,13 +612,16 @@ test("the dialog: amount first, due block, live calculation from the server, an 
 
 test("the list, the card and the statement: debt / advance shown, actions in «⋯», write-off and refund", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /<BalanceNote row=\{row\} className="w-full"( age=\{[^}]*\})? \/>/);
+  // PAY-DUE 9.7: the sum is in the label («Долг N» / «К оплате N»), so no second line repeats it under the label in the list
+  assert.doesNotMatch(page, /BalanceNote/);
+  assert.match(page, /payLabel\(row, bucket\)/);
   assert.match(page, /data-testid="payment-row-statement"/); // IA audit F4: «Выписка» is an icon link of the row, not a menu item
   assert.doesNotMatch(page, /key: "statement"|key: "profile"/);
   assert.match(page, /canWriteOff\(row\)/);
   assert.match(page, /canRefund\(row\)/);
   assert.match(page, /incomeHref\(paymentsBase\)/); // «Поступления» is one click from «Оплаты»
   assert.match(page, /usePaymentsSummary\(\(state\) => state\.debtTotal\)/);
+  assert.match(page, /usePaymentsSummary\(\(state\) => state\.dueTotal\)/);
   const card = read("src/components/payments/membership-payments.tsx");
   assert.match(card, /<BalanceNote row=\{row\} \/>/);
   assert.match(card, /href=\{statement\}/);
@@ -653,12 +657,12 @@ test("the dead code of the period form is gone", () => {
   for (const kept of ["BILLING_DAY_RANGE", "paymentPeriodLabel", "PARTIAL_PERIOD_TAG", "paymentModelOf"]) assert.ok(payments.includes(kept), kept);
 });
 
-test("the summary store keeps the debt and the advance of the center", () => {
+test("the summary store keeps the debt, the sum to pay and the advance of the center", () => {
   const { summaryToState } = require(path.join(root, "src/lib/payments-summary.ts"));
-  const state = summaryToState({ as_of: "2026-10-21", due: 3, expired: 1, expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar", advance_total: 21000, debt_split: { debtors: 1, debtors_memberships: 1, debtors_debt_total: 70000, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 70000, all_students_with_debt: 1, expired: 1, due: 3, students_expired: 1, students_due: 3 } });
-  assert.deepEqual([state.debtTotal, state.advanceTotal, state.studentsWithDebt], [70000, 21000, 1]);
-  const old = summaryToState({ as_of: "2026-10-21", due: 3, expired: 1, expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar" });
-  assert.deepEqual([old.debtTotal, old.advanceTotal, old.studentsWithDebt], [0, 0, 0]);
+  const state = summaryToState({ as_of: "2026-10-21", expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar", advance_total: 21000, debt_total: 70000, debtors: 1, due_total: 30000, due_students: 2 });
+  assert.deepEqual([state.debtTotal, state.dueTotal, state.advanceTotal, state.debtors, state.dueStudents], [70000, 30000, 21000, 1, 2]);
+  const old = summaryToState({ as_of: "2026-10-21", expiring: 0, none: 0, active: 4, tracked_total: 7, period_mode: "calendar" });
+  assert.deepEqual([old.debtTotal, old.dueTotal, old.advanceTotal, old.debtors], [0, 0, 0, null]);
 });
 
 test("settings: the start of the accounting is an owner's date with the impact of the dry run", () => {

@@ -8,11 +8,7 @@ import { orgApi } from "@/lib/api";
 import {
   bucketCount,
   bucketTabLabel,
-  isWaitingRow,
-  filteredTabCounts,
-  narrowedTabSummary,
   type TabCounts,
-  debtReasonLine,
   formatDateRu,
   formatMoney,
   incomeHref,
@@ -29,34 +25,31 @@ import {
   positionCards,
   priceMissingText,
   statementHref,
-  statusDetail,
-  moneyChip,
   type MembershipPaymentRow,
   type PaymentBucket,
   type PaymentOut,
   type PaymentSaveResult,
-  type PeriodMode,
   refundDoneText,
   writeoffDoneText,
   refundReceiptHref,
 } from "@/lib/payments";
+import { payLabel } from "@/lib/pay-state";
 import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import {
   canRefund,
   canWriteOff,
   savedPaymentToastDetails,
-  balanceView,
 } from "@/lib/payments-ledger";
-import { FREE_WORD, groupPriceHref, plannedPriceOf, priceLabelOf, priceNotInForceText, priceOfRow, priceSourceTag, pricesBaseOf, type GroupPriceScheduled } from "@/lib/group-price";
-import { useScheduledGroupPrices } from "@/lib/use-scheduled-group-prices";
+import { pricesBaseOf } from "@/lib/group-price";
+import { pluralRu } from "@/lib/plural";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
 import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
+import { formatBusinessDate } from "@/lib/business-time";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
 import { DebtAgeStrip } from "./debt-age-strip";
-import { debtAgeDays, debtAgeLine, type DebtAge } from "@/lib/debt-ages";
-import { daysLabel } from "@/lib/plural";
+import { type DebtAge } from "@/lib/debt-ages";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -65,8 +58,6 @@ import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
 import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Words } from "@/components/ui/words";
-import { moneyChipTone } from "@/lib/status-registry";
-import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
 import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
@@ -76,23 +67,24 @@ import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
 import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
+/** The tone of the big sum of a card: red - the debt, green - the advance, the rest plain. */
+const AMOUNT_TONE = { debt: "text-rose-700", advance: "text-emerald-700", due: "text-slate-900", none: "text-slate-900" } as const;
 /** The «⋯» of a row: 40 px in a card (R3 №13), compact in the table. */
 const ROW_MENU_TRIGGER = "dt-ctl flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50";
 
-/** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the price and the last payment are money, RIGHT; the action column is right. */
-const paymentColumns = (priceLabel: string): DataColumn[] => [
+/** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the last payment is money, RIGHT; the action column is right.  No column of the price (PAY-DUE 9.7: it is in the statement and on the page of the group). */
+const PAYMENT_COLUMNS: DataColumn[] = [
   { key: "student", header: "Ученик", width: "minmax(8rem,3fr)" },
   { key: "group", header: "Группа", width: "minmax(5.5rem,2fr)", cardLabel: "Группа" },
-  { key: "price", header: priceLabel, align: "end", width: "max-content", cardLabel: priceLabel },
   { key: "status", header: "Статус", width: "max-content" },
   { key: "last", header: "Последняя оплата", align: "end", width: "max-content", cardLabel: "Последняя оплата", priority: "low" },
   { key: "actions", header: "", align: "end", width: "max-content", actions: true },
 ];
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
-  debt: "Должников нет",
-  waiting: "Сейчас никого не ждём: у всех новых периодов оплата уже есть или срок прошёл",
-  expiring: "Скоро платить пока никому",
+  debtors: "Должников нет",
+  to_pay: "К оплате никого нет",
+  expiring: "Сейчас ни у кого оплата не заканчивается",
   active: "Учеников без долга пока нет",
   paused: "Сейчас никто не на паузе",
 };
@@ -111,27 +103,25 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
   // no right to money (the profile says so, or the summary was refused): the page asks the server for nothing - no 403 in the console
   const noRight = useMoneyDenied();
-  const debtors = usePaymentsSummary((state) => state.debtors);
-  const studentsWaiting = usePaymentsSummary((state) => state.studentsWaiting);
-  const debtWaitingTotal = usePaymentsSummary((state) => state.debtWaitingTotal);
-  const buckets = usePaymentsSummary((state) => state.buckets);
-  const pausedCount = usePaymentsSummary((state) => state.paused);
+  const summaryTabs = usePaymentsSummary((state) => state.tabs);
   const studentsPaused = usePaymentsSummary((state) => state.studentsPaused);
-  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
+  const debtors = usePaymentsSummary((state) => state.debtors);
+  const debtTotal = usePaymentsSummary((state) => state.debtTotal);
+  const dueTotal = usePaymentsSummary((state) => state.dueTotal);
+  const dueStudents = usePaymentsSummary((state) => state.dueStudents);
+  const dueNearest = usePaymentsSummary((state) => state.dueNearest);
+  const payDueDays = usePaymentsSummary((state) => state.payDueDays);
   const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
   const priceMissing = usePaymentsSummary((state) => state.priceMissing);
-  const expiring = usePaymentsSummary((state) => state.expiring);
-  const activeCount = usePaymentsSummary((state) => state.active);
-  const periodMode = usePaymentsSummary((state) => state.periodMode);
-  const debtTotal = usePaymentsSummary((state) => state.debtTotal);
   const advanceTotal = usePaymentsSummary((state) => state.advanceTotal);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
+  // the owner leads to the setting of the term, the administrator (with the right to money) only reads it
+  const isOwner = paymentsBaseOf(groupsBasePath).startsWith("/owner");
 
   const { showToast, toastNode } = useToast();
 
   const [items, setItems] = useState<MembershipPaymentRow[]>([]);
-  const scheduledPrices = useScheduledGroupPrices(items.some((row) => (priceOfRow(row).amount ?? null) === null));      // G3M Ф6
-  const [total, setTotal] = useState(0);
+    const [total, setTotal] = useState(0);
   const urlState = parsePaymentsListQuery(searchParams);
   const [page, setPage] = useState(urlState.page);
   // Money-2 Т18: the basket of the age of the debt («Должники» only)
@@ -244,22 +234,19 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   useEffect(() => { void load(); }, [load]);
 
-  // The tab counts follow the group / teacher the list is narrowed to (the centre's summary has no filter); the banner and the menu badge stay the centre's.
+  // The tab counts follow the group / teacher the list is narrowed to (the centre's summary has no filter): each tab asks the server for ONE row and reads its `students` - the screen counts nothing itself.
   const narrowed = Boolean(filter.groupId || filter.teacherId);
   const [narrowedCounts, setNarrowedCounts] = useState<TabCounts | null>(null);
   const countsRequests = useRef(createRequestSequence());
   const loadNarrowedCounts = useCallback(async () => {
     if (!narrowed || noRight) { countsRequests.current.next(); setNarrowedCounts(null); return; }
     const token = countsRequests.current.next();
+    const scope = { groupId: filter.groupId || undefined, teacherId: filter.groupId ? undefined : filter.teacherId || undefined, limit: 1, offset: 0 };
     try {
-      const counts = await filteredTabCounts((query) => orgApi.getPaymentsStatus({
-        bucket: query.bucket,
-        groupId: filter.groupId || undefined,
-        teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
-        limit: query.limit,
-        offset: query.offset,
-      }));
-      if (countsRequests.current.isCurrent(token)) setNarrowedCounts(counts);
+      const keys: PaymentBucket[] = ["debtors", "to_pay", "expiring", "active", "paused"];
+      const pages = await Promise.all(keys.map((key) => orgApi.getPaymentsStatus({ bucket: key, ...scope })));
+      const read = (index: number) => (typeof pages[index]?.students === "number" ? (pages[index].students as number) : null);
+      if (countsRequests.current.isCurrent(token)) setNarrowedCounts({ debtors: read(0), to_pay: read(1), expiring: read(2), active: read(3), paused: read(4) });
     } catch {
       // a failed count leaves the tabs without numbers (never the centre's): the list itself has its own error line
       if (countsRequests.current.isCurrent(token)) setNarrowedCounts(null);
@@ -278,6 +265,22 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     else if (filter.teacherId) params.set("teacher_id", filter.teacherId);
     router.replace(`?${params.toString()}`, { scroll: false });
   };
+
+  // PAY-DUE 4.7: after midnight of Tashkent the names of the sums change («К оплате» → «Долг») - a return to the tab re-reads the list and the numbers
+  const readDay = useRef(formatBusinessDate());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const today = formatBusinessDate();
+      if (today === readDay.current) return;
+      readDay.current = today;
+      void load(true);
+      void loadNarrowedCounts();
+      void refreshSummary(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [load, loadNarrowedCounts, refreshSummary]);
 
   /** A change of payments: the visible list and the shared numbers are re-read. */
   const afterChange = useCallback(() => {
@@ -299,10 +302,17 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     return <MoneyAccessDenied />;
   }
 
-  // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = narrowed ? narrowedTabSummary(narrowedCounts) : summaryLoaded ? { buckets, debtors, students_waiting: studentsWaiting, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
-  const cards = positionCards({ debt_waiting_total: debtWaitingTotal, students_waiting: studentsWaiting, debtors_debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_advance: studentsWithAdvance });
+  // Every tab carries its number - STUDENTS, the server's: the centre's from the summary, a narrowed list's from the pages of `status`; none while it is not known.
+  const tabCounts: TabCounts | null = narrowed ? narrowedCounts : summaryLoaded ? summaryTabs : null;
+  const cards = positionCards({ debt_total: debtTotal, debtors, due_total: dueTotal, due_students: dueStudents, due_nearest: dueNearest, advance_total: advanceTotal, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
+  const advanceCard = cards.find((card) => card.key === "advance");
+  const cardHref = (key: "debt" | "due" | "advance") => (key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : key === "due" ? `${paymentsBase}?bucket=to_pay#payments-list` : `${incomeHref(paymentsBase)}#advance`);
+  // the term of the centre: the owner's link to the setting, the administrator's plain text (PAY-DUE 9.7)
+  const term = payDueDays !== null ? `срок ${payDueDays} ${pluralRu(payDueDays, "день", "дня", "дней")}` : null;
+  const termNode = (linkClass: string) => (isOwner
+    ? <Link href="/owner/settings?section=payments#pay-due" className={`${linkClass} font-medium text-primary-700 hover:underline`}>{term}</Link>
+    : <span className="text-slate-500">{term}</span>);
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -330,24 +340,44 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       </div>
 
-      {/* The position of the centre: two cards before the tabs.  IA audit F26: «Долг учеников» leads to the debtors tab of THIS page (the list of
-          who owes), «Аванс» to its card on «Поступления» (the breakdown). */}
+      {/* The position of the centre: three cards before the tabs (PAY-DUE 9.7).  «Долг» leads to the debtors tab of THIS page, «К оплате» to its own tab, «Аванс» to its card on «Поступления».
+          Under «К оплате» the term of the centre: the owner's link to the setting, the administrator's plain text.  There is NO notice above the heading: the same fact is in the card, the tab and the badge of the menu. */}
       {summaryLoaded && (
-        <section aria-label="Долг и аванс учеников" data-testid="payments-position" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {cards.map((card) => (
-            <Link
-              key={card.key}
-              href={card.key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : `${incomeHref(paymentsBase)}#advance`}
-              data-testid={`position-${card.key}`}
-              className="group rounded-2xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50/60"
-            >
-              <p className="text-sm text-slate-500">{card.label}</p>
-              <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "debt" ? "text-rose-700" : card.tone === "advance" ? "text-emerald-700" : "text-slate-500"}`}>{card.amount}</p>
-              {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
-              {card.waiting && <p className="mt-0.5 text-sm text-slate-600" data-testid="position-waiting">{card.waiting}</p>}
-            </Link>
-          ))}
-        </section>
+        <>
+          <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position" className="hidden grid-cols-1 gap-3 sm:grid sm:grid-cols-3">
+            {cards.map((card) => {
+              const href = cardHref(card.key);
+              return (
+                <div key={card.key} className="relative rounded-2xl border border-slate-200 bg-white transition-colors hover:border-slate-300">
+                  <Link href={href} data-testid={`position-${card.key}`} className="group block rounded-2xl px-5 py-4 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                    <p className="text-sm text-slate-500">{card.label}</p>
+                    <p className={`mt-1 text-3xl font-bold tabular-nums ${AMOUNT_TONE[card.tone]}`}>{card.amount}</p>
+                    {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
+                  </Link>
+                  {card.key === "due" && term && (
+                    <p className="-mt-2 px-5 pb-3 text-sm" data-testid="pay-due-term">{termNode("inline-flex min-h-6 items-center")}</p>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+          {/* a phone (< 640): ONE compact summary in two lines + the advance as a small third (frame 20); the first screen keeps the tabs and two rows */}
+          <section aria-label="Долг, к оплате и аванс учеников" data-testid="payments-position-compact" className="rounded-2xl border border-slate-200 bg-white px-4 py-1 sm:hidden">
+            {cards.filter((card) => card.key !== "advance").map((card) => (
+              <Link key={card.key} href={cardHref(card.key)} data-testid={`position-${card.key}-compact`} className="flex min-h-10 items-baseline justify-between gap-3 border-b border-slate-100 py-2 last:border-b-0">
+                <span className="text-sm text-slate-500">{card.label}</span>
+                <span className={`min-w-0 flex-1 text-right text-lg font-bold tabular-nums ${AMOUNT_TONE[card.tone]}`}>{card.amount}</span>
+                <span className="w-6 shrink-0 text-right text-sm tabular-nums text-slate-500">{card.students ?? ""}</span>
+              </Link>
+            ))}
+            {advanceCard && (
+              <p className="flex flex-wrap items-center gap-x-3 border-t border-slate-100 py-2 text-xs text-slate-500">
+                <Link href={cardHref("advance")} data-testid="position-advance-compact" className="inline-flex min-h-6 items-center tabular-nums">Аванс {advanceCard.amount}{advanceCard.students ? ` · ${advanceCard.students}` : ""}</Link>
+                {term && <span data-testid="pay-due-term-compact">{termNode("inline-flex min-h-10 items-center")}</span>}
+              </p>
+            )}
+          </section>
+        </>
       )}
 
       {/* One row from 2xl (1536 px): tabs on the left, search and filter on the right.  Below it the toolbar sits under the
@@ -358,7 +388,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <ScrollHint focusable={false} data-allow-hscroll="" className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
             {/* the role sits one level below the scroller: ScrollHint owns the attributes of its own box */}
             <div role="tablist" className="flex w-max min-w-full gap-1">
-              {visibleBuckets(summaryForTabs, bucket).map(({ key, label }) => (
+              {visibleBuckets({ students_paused: tabCounts?.paused ?? studentsPaused }, bucket).map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"
@@ -369,7 +399,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                     bucket === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
-                  {bucketTabLabel(label, bucketCount(summaryForTabs, key))}
+                  {bucketTabLabel(label, bucketCount(tabCounts, key))}
                 </button>
               ))}
             </div>
@@ -395,9 +425,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       </div>
 
-      {bucket === "debt" && <OpeningsBanner paymentsBase={paymentsBase} />}
-      {bucket === "debt" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
-      {bucket === "debt" && filter.groupId && (
+      {bucket === "debtors" && <OpeningsBanner paymentsBase={paymentsBase} />}
+      {bucket === "debtors" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
+      {bucket === "debtors" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}
 
@@ -423,14 +453,12 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       ) : items.length === 0 ? (
         <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
-        <DataTable columns={paymentColumns(priceLabelOf(periodMode))} minWidth={880} gap="1.5rem" lowBelow={1100} testId="payments-table">
+        <DataTable columns={PAYMENT_COLUMNS} minWidth={760} gap="1.5rem" lowBelow={1100} testId="payments-table">
           {items.map((row) => (
             <PaymentRow
               key={row.membership_id}
               row={row}
-              scheduledPrice={scheduledPrices[row.group_id] ?? null}
               bucket={bucket}
-              periodMode={periodMode}
               paymentsBase={paymentsBase}
               studentProfileBasePath={studentProfileBasePath}
               groupsBasePath={groupsBasePath}
@@ -499,37 +527,23 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 }
 
 function PaymentRow({
-  row, scheduledPrice, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund,
+  row, bucket, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund,
 }: {
   row: MembershipPaymentRow;
   bucket: PaymentBucket;
-  periodMode: PeriodMode;
   /** `/owner/payments` or `/admin/payments`: where the statement of a student lives. */
   paymentsBase: string;
   studentProfileBasePath: string;
   groupsBasePath: string;
-  /** G3M Ф6: the price of the group planned from a day (no price today). */
-  scheduledPrice: GroupPriceScheduled | null;
   onPay: () => void;
   onCorrect: (payment: PaymentOut) => void;
   onVoid: (payment: PaymentOut) => void;
   onWriteoff: () => void;
   onRefund: () => void;
 }) {
-  const router = useRouter();
-  const chip = moneyChip(row);
-  const detail = statusDetail(row);
-  const waiting = isWaitingRow(row);
-  const reason = bucket === "debt" || bucket === "waiting" ? debtReasonLine(row, chip.label) : "";
-  // Money-2 Т18: «долг 62 дня» - unless the reason line already says these days («Просрочено на 62 дня»): one number once
-  const ageLine = bucket === "debt" ? debtAgeLine(row.debt_age_days) : null;
-  const showAge = ageLine !== null && !`${reason} ${chip.label}`.includes(daysLabel(Math.floor(row.debt_age_days ?? 0)));
-  // Money-2 fix 5: with a debt on the row the days stand on the SAME line as the sum («Долг 1 200 000 сум · 78 дней»); a separate line only when there is no sum line
-  const ageInBalance = showAge && balanceView(row).kind === "debt";
+  // PAY-DUE: the label and its words are the SERVER's (`state`, `*_text`, `*_sub`); the tab only chooses which sum leads.  Nothing from the server - nothing on the screen (LESSONS 151).
+  const label = payLabel(row, bucket);
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
-  const price = priceOfRow(row);
-  const planned = plannedPriceOf(price, scheduledPrice);      // Р4-1: the student's own planned price first, else the group's
-  const tag = priceSourceTag(price);
 
   // IA audit F4 / d3: at most three items - forgive the debt OR give the advance back, correct the last payment, cancel it (danger last).
   // «Выписка» and the card of the student are links of the row (the statement icon, the name), never menu items.
@@ -567,25 +581,13 @@ function PaymentRow({
     <DataRow>
       <DataCell col="student">{student}</DataCell>
       <DataCell col="group">{group}</DataCell>
-      <DataCell col="price">
-        {price.amount === null || price.amount === undefined ? (
-          <Link href={groupPriceHref(groupsBasePath, row.group_id)} data-testid="payment-row-price-missing" className={`text-xs font-medium hover:underline ${planned ? "text-slate-700" : "text-amber-800"}`} title={planned ? "Открыть цену группы" : "Открыть группу и задать цену"}>
-            {planned ? priceNotInForceText(planned, "", "bare") : "цена группы не задана"}
-          </Link>
-        ) : (
-          <span>
-            <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
-            {tag && <span className="block text-xs text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
-          </span>
-        )}
-      </DataCell>
       <DataCell col="status" testId="status-cell">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-left sm:flex-col sm:items-start">
-          <Chip tone={moneyChipTone(chip.tone)} bleed>{chip.label}</Chip>
-          {(bucket === "debt" || bucket === "waiting") && reason && <p className={`w-full text-xs font-medium ${waiting ? "text-slate-600" : "text-rose-700"}`} data-testid={waiting ? "waiting-reason" : "debt-reason"}>{reason}</p>}
-          {showAge && !ageInBalance && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-age">{ageLine}</p>}
-          {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
-          <BalanceNote row={row} className="w-full" age={ageInBalance ? debtAgeDays(row.debt_age_days) : null} />
+        <div className="flex flex-col items-start gap-y-0.5 text-left">
+          {label.text && <Chip tone={label.tone} bleed testId="pay-label">{label.text}</Chip>}
+          {label.sub && <p className="w-full text-xs text-slate-600" data-testid="pay-sub">{label.sub}</p>}
+          {label.second && <p className="w-full text-xs text-slate-600" data-testid="pay-second">{label.second}</p>}
+          {/* a package that is paid: how many lessons are left (the bar of the package); a sum in its term / a debt already says its lessons in its own words */}
+          {row.period_mode === "lessons" && (label.state === "paid" || label.state === "expiring") && <PackageProgress row={row} variant="compact" />}
         </div>
       </DataCell>
       {/* Последняя оплата: money, RIGHT; the date is the quiet line under the amount */}

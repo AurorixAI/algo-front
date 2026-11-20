@@ -48,7 +48,7 @@ export function groupHref(groupsBase: string, groupId: string, tab: "students" |
 }
 
 /** The payments list narrowed to one group (`?bucket=&group_id=`). */
-export function groupPaymentsListHref(paymentsBase: string, groupId: string, bucket: "debt" | "expiring" | "active" | "paused" = "debt"): string {
+export function groupPaymentsListHref(paymentsBase: string, groupId: string, bucket: "debtors" | "to_pay" | "expiring" | "active" | "paused" = "debtors"): string {
   return `${trim(paymentsBase)}?bucket=${bucket}&group_id=${encodeURIComponent(groupId)}`;
 }
 

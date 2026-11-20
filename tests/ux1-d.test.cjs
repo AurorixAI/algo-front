@@ -304,108 +304,16 @@ test("toasts: the column rests on top of the bar while the bar is on the page", 
   assert.match(read("src/components/ui/toast.tsx"), /const HOST_ID = "toast-host"/);
 });
 
-// ── the payments notice ───────────────────────────────────────────────────────────────────────────
+// ── the payments notice: removed by PAY-DUE 9.7 (its absence is checked in tests/money2-fix10e-banner.test.cjs); the counts of the summary are the server's students ──
 
-test("payments notice: all overdue -> «2 ученика с просроченной оплатой», no chip", () => {
-  const { bannerCopy } = lib("payments-banner.ts");
-  const two = bannerCopy({ due: 3, expired: 3, studentsDue: 2, studentsExpired: 2 });
-  // 3 payments of 2 students: the page counts rows, so the notice names both numbers
-  assert.equal(two.text, "2 ученика с просроченной оплатой (3\u00A0оплаты)");
-  assert.equal(two.chip, null);
-  assert.deepEqual([two.subject, two.predicate], ["2 ученика", "с просроченной оплатой (3\u00A0оплаты)"]);
-  assert.equal(two.count, 2);
-  assert.equal(bannerCopy({ due: 1, expired: 1, studentsDue: 1, studentsExpired: 1 }).text, "1 ученик с просроченной оплатой");
-  assert.equal(bannerCopy({ due: 5, expired: 5, studentsDue: 5, studentsExpired: 5 }).text, "5 учеников с просроченной оплатой");
-  assert.equal(bannerCopy({ due: 21, expired: 21, studentsDue: 21, studentsExpired: 21 }).text, "21 ученик с просроченной оплатой");
-  assert.equal(two.compactSubject + " " + two.compactPredicate, two.text, "the phone shows the same sentence");
-});
-
-test("payments notice: some overdue -> «5 учеников ждут оплаты» + the chip «из них просрочено: 2»", () => {
-  const { bannerCopy } = lib("payments-banner.ts");
-  const mixed = bannerCopy({ due: 7, expired: 3, studentsDue: 5, studentsExpired: 2 });
-  assert.equal(mixed.text, "5 учеников ждут оплаты (7\u00A0оплат)");
-  assert.equal(mixed.chip, "из них просрочено: 2");
-  assert.deepEqual([mixed.subject, mixed.predicate], ["5 учеников", "ждут оплаты (7\u00A0оплат)"]);
-  // the phone: one sentence with the noun («5» alone says nothing), the chip folded in
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`, "5 учеников ждут оплаты (7\u00A0оплат), 2\u00A0просрочено");
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/\u00A0/g, " "), "5 учеников ждут оплаты (7 оплат), 2 просрочено");
-  assert.equal(bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 }).text, "21 ученик ждёт оплаты (22\u00A0оплаты)");
-  const phone = bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 });
-  assert.equal(`${phone.compactSubject} ${phone.compactPredicate}`.replace(/\u00A0/g, " "), "21 ученик ждёт оплаты (22 оплаты), 1 просрочено");
-  assert.equal(bannerCopy({ due: 4, expired: 1, studentsDue: 4, studentsExpired: 1 }).text, "4 ученика ждут оплаты");
-});
-
-test("payments notice: rows more than people -> «(9 оплат)», plurals; equal counts or an old server -> no parenthesis", () => {
-  const { bannerCopy } = lib("payments-banner.ts");
-  const note = (due, students) => bannerCopy({ due, expired: 0, studentsDue: students, studentsExpired: 0 }).text.replace(/\u00A0/g, " ");
-  assert.equal(note(9, 7), "7 учеников ждут оплаты (9 оплат)");
-  assert.equal(note(2, 1), "1 ученик ждёт оплаты (2 оплаты)");
-  assert.equal(note(22, 21), "21 ученик ждёт оплаты (22 оплаты)");
-  assert.equal(note(21, 20), "20 учеников ждут оплаты (21 оплата)");
-  assert.equal(note(15, 12), "12 учеников ждут оплаты (15 оплат)");
-  assert.equal(note(7, 7), "7 учеников ждут оплаты", "the same number: nothing to explain");
-  assert.equal(bannerCopy({ due: 9, expired: 0 }).text, "9 учеников ждут оплаты", "an older server counts memberships only");
-  // the nbsp keeps «(9 оплат)» whole when the phone wraps the line
-  assert.match(bannerCopy({ due: 9, expired: 0, studentsDue: 7, studentsExpired: 0 }).text, /\(9\u00A0оплат\)/);
-});
-
-test("payments notice: nobody overdue -> «5 учеников ждут оплаты» with no chip", () => {
-  const { bannerCopy } = lib("payments-banner.ts");
-  const calm = bannerCopy({ due: 5, expired: 0, studentsDue: 5, studentsExpired: 0 });
-  assert.equal(calm.text, "5 учеников ждут оплаты");
-  assert.equal(calm.chip, null);
-  assert.equal(`${calm.compactSubject} ${calm.compactPredicate}`, "5 учеников ждут оплаты");
-  assert.equal(bannerCopy({ due: 1, expired: 0 }).text, "1 ученик ждёт оплаты");
-  const counts = { 1: "1 ученик ждёт оплаты", 2: "2 ученика ждут оплаты", 5: "5 учеников ждут оплаты", 11: "11 учеников ждут оплаты", 21: "21 ученик ждёт оплаты", 112: "112 учеников ждут оплаты" };
-  for (const [n, text] of Object.entries(counts)) assert.equal(bannerCopy({ due: Number(n), expired: 0 }).text, text, n);
-});
-
-test("payments notice: an older server (no student counts) falls back to the memberships, as a pair", () => {
-  const { bannerCopy } = lib("payments-banner.ts");
-  assert.equal(bannerCopy({ due: 13, expired: 5 }).text, "13 учеников ждут оплаты");
-  assert.equal(bannerCopy({ due: 13, expired: 5 }).chip, "из них просрочено: 5");
-  assert.equal(bannerCopy({ due: 2, expired: 2, studentsDue: null, studentsExpired: null }).text, "2 ученика с просроченной оплатой");
-  // only one of the two arrived: not mixed with the other kind of count
-  const half = bannerCopy({ due: 9, expired: 9, studentsDue: 4, studentsExpired: undefined });
-  assert.equal(half.count, 9);
-  assert.equal(half.text, "9 учеников с просроченной оплатой");
-  // never more overdue than waiting; garbage is zero
-  assert.equal(bannerCopy({ due: 3, expired: 9 }).text, "3 ученика с просроченной оплатой");
-  assert.equal(bannerCopy({ due: 3, expired: 9 }).expired, 3);
-  assert.equal(bannerCopy({ due: Number.NaN, expired: -4 }).count, 0);
-});
-
-test("payments summary: the student counts reach the store; a missing or bad count stays null", () => {
+test("payments summary: the student counts reach the store as the server sends them; a missing or bad count stays null", () => {
   const { summaryToState } = lib("payments-summary.ts");
-  const sp = (split) => ({ debt_split: split });   // Money-1 V (а): the counts come from the split alone
-  const full = summaryToState(sp({ due: 7, expired: 3, students_due: 5, students_expired: 2 }));
-  assert.equal(full.studentsDue, 5);
-  assert.equal(full.studentsExpired, 2);
-  assert.equal(full.due, 7, "memberships stay what the menu counter and the tabs count");
-  const old = summaryToState(sp({ due: 7, expired: 3 }));
-  assert.equal(old.studentsDue, null);
-  assert.equal(old.studentsExpired, null);
-  assert.equal(summaryToState(sp({ due: 7, students_due: "x", students_expired: -1 })).studentsDue, null);
-  assert.equal(summaryToState(sp({ due: 7, students_due: null })).studentsDue, null);
-  assert.equal(summaryToState(sp({ due: 7, students_due: 0, students_expired: 0 })).studentsDue, 0, "zero is an answer");
-});
-
-test("payments notice: one compact row on a phone, 14 px wrapping sentence without an ellipsis, desktop row as before", () => {
-  const banner = read("src/components/payments/payments-alert-banner.tsx");
-  // one row at every width: no stacked flex-col layout any more
-  assert.doesNotMatch(banner, /flex-col/);
-  assert.match(banner, /mb-3 flex items-center gap-2\.5 rounded-2xl border border-slate-200 bg-white py-2 /);
-  // 14 px, wraps, never an ellipsis: the sentence is the whole message (UX-1 polish #6)
-  assert.match(banner, /min-w-0 flex-1 text-sm leading-5 text-slate-600 sm:hidden/);
-  assert.doesNotMatch(banner, /line-clamp|truncate|text-ellipsis|aria-hidden="true">\s*<span className="font-semibold/);
-  assert.match(banner, /<span className="sm:hidden">Открыть<\/span>/);
-  assert.match(banner, /<span className="hidden sm:inline">Открыть список<\/span>/);
-  assert.match(banner, /aria-label="Открыть список"/);
-  assert.match(banner, /aria-label="Скрыть напоминание"/);
-  // the desktop sentence and the chip (rose only there)
-  assert.match(banner, /hidden min-w-0 flex-wrap items-center gap-x-2\.5 gap-y-1 sm:flex/);
-  assert.match(banner, /rounded-full bg-rose-50 px-2 py-0\.5/);
-  // the cross compares with the number of PEOPLE that is shown
-  assert.match(banner, /bannerDismissed\(dismissedAt, copy\.count\)/);
-  assert.match(banner, /writeDismissedAt\(copy\.count\)/);
+  const full = summaryToState({ debtors: 5, due_students: 2, students_with_advance: 1, students_paused: 3 });
+  assert.deepEqual([full.debtors, full.dueStudents, full.studentsWithAdvance, full.studentsPaused], [5, 2, 1, 3]);
+  const old = summaryToState({});
+  assert.deepEqual([old.debtors, old.dueStudents, old.studentsWithAdvance], [null, null, null]);
+  assert.equal(summaryToState({ debtors: "x", due_students: -1 }).debtors, null);
+  assert.equal(summaryToState({ debtors: "x", due_students: -1 }).dueStudents, null);
+  assert.equal(summaryToState({ debtors: null }).debtors, null);
+  assert.equal(summaryToState({ debtors: 0, due_students: 0 }).debtors, 0, "zero is an answer");
 });

@@ -61,8 +61,8 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
         </div>
       </DataCell>
       <DataCell col="debt">
-        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.waitingDebt > 0 ? null : nothingCharged ? <DataEmpty /> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
-        {row.waitingDebt > 0 && <span className="block text-xs font-normal text-slate-600" data-testid="collection-waiting">ждём оплату {formatMoney(row.waitingDebt)}</span>}
+        {row.debt > 0 ? <span className="font-medium text-rose-600">{formatMoney(row.debt)}</span> : row.dueAmount > 0 ? null : nothingCharged ? <DataEmpty /> : <span className="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ {PAID_TEXT}</span>}
+        {row.dueAmount > 0 && <span className="block text-xs font-normal text-slate-600" data-testid="collection-due">к оплате {formatMoney(row.dueAmount)}</span>}
       </DataCell>
       <DataCell col="debtors" title={debtorsHint?.title}>
         <span className={row.debtors > 0 ? "font-medium text-slate-700" : ""}>

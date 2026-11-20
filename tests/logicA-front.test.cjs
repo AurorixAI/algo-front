@@ -19,6 +19,7 @@ const pay2 = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures
 const named = (prefix) => fixture(fs.readdirSync(path.join(__dirname, "fixtures/logicA")).find((f) => f.startsWith(prefix)).replace(/\.json$/, ""));
 const P = require(path.join(root, "src/lib/payments.ts"));
 const L = require(path.join(root, "src/lib/payments-ledger.ts"));
+const SUMM = require(path.join(root, "src/lib/payments-summary.ts"));
 const G = require(path.join(root, "src/lib/payments-logica.ts"));
 const R = require(path.join(root, "src/lib/payroll.ts"));
 const Y = require(path.join(root, "src/lib/payroll-logica.ts"));
@@ -213,8 +214,8 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   assert.match(G.attendedText(["2026-10-12", "2026-10-14"]), /^Ученик был отмечен на уроках 12\.10, 14\.10 — на эти даты паузу поставить нельзя$/);
   // the chip: «На паузе до 20.10»; in the list and in the card
   assert.equal(G.pausedChipText({ from: "2026-10-11", to: "2026-10-20" }), "На паузе до 20.10");
-  assert.equal(P.statusLabel({ status: "paused", paused: { from: "2026-10-20", to: "2026-10-24" } }), "На паузе до 24.10");
-  assert.equal(P.statusDetail({ status: "paused", period_mode: "calendar", paid_until: "2026-11-03" }), "оплачено до 03.11.2026");
+  // PAY-DUE: the label of a paused membership is the server's `state_text` («Пауза до 24.10»), the screen builds none
+  assert.equal(require(path.join(root, "src/lib/pay-state.ts")).payLabel({ state: "paused", state_text: "Пауза до 24.10" }).text, "Пауза до 24.10");
   assert.equal(saved.row.status, "paused");
   // end: a running pause is shortened to yesterday, one that has not begun is cancelled
   assert.equal(G.pauseEndAction({ first_day: "2026-10-11", last_day: "2026-10-30" }, today), "end");
@@ -545,130 +546,48 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   assert.equal(plain(L.balanceAfterText(469000, 0)), "Остаток долга после оплаты: 469 000 сум");
 });
 
-test("fix 10Д: the notice of the debt stands ONLY on «Главная» and on the list «Оплаты» itself (not on a statement, a receipt, the prices, the groups, the students, the schedule, the journal, the salary)", () => {
-  const B = require(path.join(root, "src/lib/payments-banner.ts"));
-  const on = (pathname, base = "/owner/payments") => B.bannerShownOn(pathname, base);
-  for (const yes of ["/owner/dashboard", "/owner/dashboard/", "/owner/payments", "/owner/payments/"]) assert.equal(on(yes), true, yes);
-  for (const no of ["/owner/payments/statement/m1", "/owner/payments/receipt/p1", "/owner/payments/prices", "/owner/students", "/owner/students/st1", "/owner/schedule", "/owner/groups", "/owner/groups/g1", "/owner/attendance", "/owner/payroll", "/owner/payroll/s1", "/owner/substitutions", "/owner/settings", "/owner/staff", null, undefined, ""]) assert.equal(on(no), false, String(no));
-  assert.equal(on("/admin/diagnostics", "/admin/payments"), true, "the home of an administrator");
-  assert.equal(on("/admin/payments", "/admin/payments"), true);
-  assert.equal(on("/admin/payments/statement/m1", "/admin/payments"), false);
-  assert.equal(on("/admin/students", "/admin/payments"), false);
-  assert.equal(on("/admin/exams", "/admin/payments"), false);
-  assert.match(read("src/components/payments/payments-alert-banner.tsx"), /bannerShownOn\(pathname, paymentsBasePath\)/);
+test("fix 10Д → PAY-DUE 9.7: the notice of the debt stands NOWHERE (its source test is money2-fix10e-banner.test.cjs); the summary is kept fresh by the shell", () => {
+  assert.ok(!fs.existsSync(path.join(root, "src/lib/payments-banner.ts")));
+  assert.ok(!fs.existsSync(path.join(root, "src/components/payments/payments-alert-banner.tsx")));
+  assert.match(read("src/components/layout/sidebar.tsx"), /usePaymentsSummarySync\(showExcuses, pathname\)/);
 });
 
-test("statement page: no old words are left on the money screens", () => {
-  const files = ["src/components/payments/statement-view.tsx", "src/components/payments/writeoff-dialog.tsx", "src/components/payments/income-page.tsx", "src/components/payments/membership-payments.tsx",
-    "src/components/payments/payments-page.tsx", "src/lib/payments-ledger.ts", "src/lib/payments-income.ts", "src/lib/payments-logica.ts"];
-  for (const file of files) {
-    const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    assert.doesNotMatch(code, /Начислено|Списано|Списать долг|Нет долга|Начисление"/, file); // «Остаток долга» is the word of UX pack §1 / №14 since 05.11 (the receipt: «Остаток долга после оплаты»)
-    assert.doesNotMatch(code, /Баланс|Покрытие|Цена периода"/, file);
-  }
-});
-
-// ── the page «Оплаты» (owner 21.10) ──────────────────────────────────────────────────────────
-
-test("payments page: two cards before the tabs; the card count is the «Должники» tab count", () => {
-  const summary = { debtors_debt_total: 1250000, advance_total: 340000, debtors: 33, students_with_advance: 5, expiring: 4, active: 120 };
+test("payments page: three cards before the tabs; the card count is the tab count (one number, the server's)", () => {
+  const summary = { debt_total: 1250000, debtors: 33, due_total: 400000, due_students: 4, due_nearest: { date: "2026-10-23", text: "до завтра, 23.10" }, advance_total: 340000, students_with_advance: 5, expiring: 4, active: 120 };
   const cards = P.positionCards(summary);
   assert.deepEqual(cards.map((card) => [card.label, plain(card.amount), card.sub, card.tone]), [
-    ["Долг", "1 250 000 сум", "33 ученика с долгом", "debt"],
-    ["Аванс", "340 000 сум", "5 учеников оплатили вперёд", "advance"],
+    ["Долг", "1 250 000 сум", "33 ученика · срок прошёл", "debt"],
+    ["К оплате", "400 000 сум", "4 ученика · ближайший срок до завтра, 23.10", "due"],
+    ["Аванс", "340 000 сум", "5 учеников", "advance"],
   ]);
-  // one number for both
-  const debtTab = P.bucketTabLabel(P.PAYMENT_BUCKETS[0].label, P.bucketCount(summary, "debt"));
-  assert.equal(debtTab, "Должники (33)");
-  assert.equal(P.debtorsCount(summary), 33);
-  assert.ok(cards[0].sub.startsWith(`${P.bucketCount(summary, "debt")} `));
-  // Money-1 V (а): an answer without `debtors` has no count (the old `students_with_debt` is not read)
+  // one number for both: the tab and the card are the server's `debtors`
+  const tabs = SUMM.summaryToState({ ...summary, period_mode: "calendar", buckets: { debtors: 33, to_pay: 4, expiring: 4, active: 120, paused: 0 } }).tabs;
+  assert.equal(P.bucketTabLabel(P.PAYMENT_BUCKETS[0].label, P.bucketCount(tabs, "debtors")), "Должники 33");
+  assert.ok(cards[0].sub.startsWith(`${P.bucketCount(tabs, "debtors")} `));
+  assert.ok(cards[1].sub.startsWith(`${P.bucketCount(tabs, "to_pay")} `));
+  // an answer without the new fields has no count (the old `students_with_debt` / `debt_split` are not read)
   const old = { debtors_debt_total: 70000, advance_total: 0, students_with_debt: 2 };
   assert.equal(P.positionCards(old)[0].sub, "");
-  assert.equal(P.bucketCount(old, "debt"), null);
-  assert.equal(P.positionCards({ debtors_debt_total: 0, advance_total: 0, debtors: 0 })[0].tone, "none");
-  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
-  // the reason line of a debtor
-  assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
-  assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
-  assert.equal(P.debtReasonText({ status: "none", last_payment: null, debt: 0 }), "Ещё не платил");
-  // the chip already says «Ещё не платил…»: the line under it never repeats it (owner 22.10)
-  const never = { status: "none", last_payment: null, debt: 1500000, past_debt: 1000000, reason: "Ещё не платил" };
-  const chipNever = P.moneyChip(never);
-  assert.equal(chipNever.label, "Ещё не платил · просрочено");
-  assert.equal(P.debtReasonLine(never, chipNever.label), "", "only the amount line (the balance) stays");
-  assert.equal(P.debtReasonLine({ ...never, past_debt: 0 }, P.moneyChip({ ...never, past_debt: 0 }).label), "", "the plain chip «Ещё не платил» too");
-  assert.equal(P.debtReasonLine({ ...never, reason: undefined, status: "expired", days_overdue: 12 }, "Ещё не платил · просрочено"), "Просрочено на 12 дней", "the overdue days when known");
-  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000, reason: "Не доплачено за октябрь: 150 000" }, "Не доплачено"), "Не доплачено за октябрь: 150 000", "other reasons are kept");
-  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5, reason: "Не доплачено" }, "Не доплачено"), "", "a line equal to the chip is dropped");
-  assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /reason !== chip\.label/);
-  assert.equal(P.priceMissingText(3), "У 3 учеников не задана цена");
-  assert.equal(P.priceMissingText(0), null);
-  const page = read("src/components/payments/payments-page.tsx");
-  assert.ok(page.indexOf("data-testid=\"payments-position\"") < page.indexOf("role=\"tablist\"")); // the cards come before the tabs
-  assert.match(page, /sm:grid-cols-2/);
-  assert.match(page, /priceMissingText\(priceMissing\)/);
-  assert.match(page, /Задать<\/Link>/);
-  assert.match(page, /debtReasonLine\(row, chip\.label\)/);
-  assert.doesNotMatch(page, /QuickEntry|isFirstPaymentRow/, "no inline quick entry: every debtor row is a plain row with «Внести оплату»");
+  assert.equal(P.positionCards({ debt_total: 0, debtors: 0 })[0].tone, "none");
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга"]);
+  // the line under a row comes from the server too: the reason / «Ещё не платил» / «Просрочено на N дней» of the screen are gone
+  for (const gone of ["debtReasonText", "debtReasonLine", "moneyChip"]) assert.equal(P[gone], undefined, gone);
 });
 
-// ── the final contract (addenda 2-4) ─────────────────────────────────────────────────────────
-
-test("the opening reason: required when a replacement meets money (m13); the form says so after REASON_REQUIRED", () => {
-  const values = { ...G.emptyOpeningValues(), paidUntil: "2026-10-31", reason: " вносим вручную " };
-  assert.deepEqual(G.buildOpeningIn(values), { paid_until: "2026-10-31", debt_amount: null, debt_on: null, reason: "вносим вручную" });
-  assert.equal(G.buildOpeningIn({ ...values, reason: "" }).reason, undefined);
-  assert.equal(G.isReasonRequired({ code: "REASON_REQUIRED" }), true);
-  assert.match(G.validateOpeningReason("ab"), /не короче 3/);
-  assert.equal(G.validateOpeningReason("ok ok"), null);
-  const { React, text } = renderer();
-  const { OpeningToggle } = require(path.join(root, "src/components/payments/opening-balance-fields.tsx"));
-  const props = { idPrefix: "o", enabled: true, onEnabled: () => undefined, values, onChange: () => undefined, enrolDate: "2026-10-21", today: "2026-10-21" };
-  assert.ok(!text(React.createElement(OpeningToggle, props)).includes("Причина"));
-  assert.ok(text(React.createElement(OpeningToggle, { ...props, needsReason: true })).includes("обязательно: у ученика уже есть оплаты"));
-  for (const file of ["src/components/groups/add-student-drawer.tsx", "src/components/groups/assign-group-modal.tsx"]) assert.match(read(file), /isReasonRequired\(failure\) && openingOn/, file);
-});
-
-test("pause PATCH: REASON_REQUIRED opens the reason, PAUSE_RANGE is said inline; excuses on a pause", () => {
-  const dialog = read("src/components/payments/pause-dialog.tsx");
-  assert.match(dialog, /isReasonRequired\(failure\) && acting\.action === "end"\) \{ setEndNeedsReason\(true\)/);
-  assert.match(dialog, /\.\.\.\(endNeedsReason \? \{ reason: cancelReason\.trim\(\) \} : \{\}\)/);
-  assert.equal(fixture("errors").PAUSE_RANGE.body.detail.message, "Пауза начинается не раньше чем 30 дней назад");
-  const E = require(path.join(root, "src/lib/attendance-excuses.ts"));
-  assert.equal(E.excuseCellView("not_required").label, "Не требуется (пауза)");
-  assert.equal(E.EXCUSE_ON_PAUSE_TEXT, "Не требуется: ученик на паузе");
-  assert.equal(E.excuseCellView("confirmed").tone, "confirmed");
-});
-
-test("B1: the payroll sheet line-not-found text; the edit form no longer promises «from today» (the dialog asks the date, #126)", () => {
-  assert.equal(Y.LINE_NOT_FOUND_TEXT, "Строка ведомости изменилась — обновите страницу");
-  assert.equal(Y.isLineNotFound({ code: "LINE_NOT_FOUND" }), true);
-  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /isLineNotFound\(error\)\) \{ setSaveError\(LINE_NOT_FOUND_TEXT\); void load\(true\)/);
-  assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, undefined);
-  for (const role of ["owner", "admin"]) assert.match(read("src/components/groups/group-detail-view.tsx"), /LESSON_TYPE_EDIT_NOTE/, role);
-});
-
-test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
-  const summary = { ...named("A30_"), debtors: named("A30_").debtors ?? named("A30_").students_with_debt, debtors_debt_total: named("A30_").debt_total };
-  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Без долга (4)"]);
-  assert.equal(P.bucketCount(summary, "paused"), 1);
-  // owner: the badge counts STUDENTS, like the card, even when a student owes in two groups (4 rows, 3 students)
-  const twoGroups = { ...summary, debtors: 3, debtors_debt_total: summary.debt_total, buckets: { ...summary.buckets, debt: 4, paused: 2 }, students_paused: 1 };
-  assert.equal(P.bucketCount(twoGroups, "debt"), 3);
-  assert.equal(P.positionCards(twoGroups)[0].sub.split(" ")[0], String(P.bucketCount(twoGroups, "debt"))); // card == tab badge
-  assert.equal(P.bucketCount(twoGroups, "paused"), 1);
-  assert.deepEqual(P.visibleBuckets(summary, "debt").map((b) => b.label), ["Должники", "Скоро платить", "Без долга", "На паузе"]);
-  assert.deepEqual(P.visibleBuckets({ buckets: { paused: 0 } }, "debt").length, 3);
+test("payment tabs: the numbers of each tab come from the summary, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
+  // students: 3 debtors (4 memberships: one owes in two groups), 1 on a pause, 1 expiring, 4 without a debt
+  const summary = { period_mode: "calendar", debtors: 3, due_students: 0, expiring: 1, active: 4, paused: 2, students_paused: 1, price_missing: 1, advance_total: 100000, students_with_advance: 1, buckets: { debtors: 4, to_pay: 0, expiring: 1, active: 4, paused: 2 } };
+  const state = SUMM.summaryToState(summary);
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(state.tabs, b.key))), ["Должники 3", "К оплате 0", "Заканчивается оплата 1", "Без долга 4"]);
+  assert.equal(P.bucketCount(state.tabs, "paused"), 1, "the badge counts STUDENTS (1), not memberships (2)");
+  assert.deepEqual(P.visibleBuckets(state, "debtors").map((b) => b.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга", "На паузе"]);
+  assert.deepEqual(P.visibleBuckets({ students_paused: 0 }, "debtors").length, 4);
   assert.equal(P.parseBucket("paused"), "paused");
-  // the card shows students, the tab rows: with one debt membership per student they are the same number
-  assert.equal(P.positionCards(summary)[0].sub, "3 ученика с долгом");
-  assert.equal(P.positionCards(summary)[0].sub.split(" ")[0], String(P.bucketCount(summary, "debt")));
-  assert.equal(P.positionCards(summary)[1].sub, "1 ученик оплатил вперёд");
+  // the card shows students like the tab does
+  assert.equal(P.positionCards(summary)[0].sub, "3 ученика · срок прошёл");
+  assert.equal(P.positionCards(summary)[0].sub.split(" ")[0], String(P.bucketCount(state.tabs, "debtors")));
+  assert.equal(P.positionCards(summary)[2].sub, "1 ученик");
   assert.equal(P.priceMissingText(summary.price_missing), "У 1 ученика не задана цена");
-  const row = named("A29_");
-  assert.equal(P.debtReasonText(row), "Ещё не платил");
-  assert.equal(row.bucket, "debt");
   const opening = L.buildStatementItems(L.normalizeStatement(named("A31_")), null);
   assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);
   assert.equal(opening.find((i) => i.kind === "month").title.includes("2026"), true);
@@ -686,36 +605,21 @@ test("an individual price asks the server what it changes (dry run) and shows th
   assert.equal((code.match(/<OverrideImpactBlock/g) || []).length, 2); // «Назначить» and «Вернуть цену группы»
 });
 
-test("moneyChip: the status chip comes from the money, never contradicts the debt next to it (owner 22.10)", () => {
-  const chip = (row) => { const c = P.moneyChip(row); return `${c.label}|${c.tone}`; };
-  // a part is paid, the paid period still runs: not «Оплачено», but «Не доплачено»
-  assert.equal(chip({ status: "active", debt: 300000, last_payment: { id: "p" }, paid_until: "2026-11-02" }), "Не доплачено|warning");
-  assert.equal(chip({ status: "expiring", debt: 100000, last_payment: { id: "p" }, days_left: 3 }), "Не доплачено|warning");
-  // the period has ended with a debt: red, with the days
-  assert.equal(chip({ status: "expired", debt: 750000, days_overdue: 20, last_payment: null }), "Просрочено на 20 дней|danger");
-  assert.equal(chip({ status: "active", debt: 5000, debt_reason: "overdue", days_overdue: 2, last_payment: { id: "p" } }), "Просрочено на 2 дня|danger");
-  assert.equal(chip({ status: "expired", period_mode: "lessons", debt: 1, last_payment: { id: "p" } }), "Уроки закончились|danger");
-  // never paid, not overdue yet
-  assert.equal(chip({ status: "none", debt: 500000, last_payment: null }), "Ещё не платил|warning");
-  assert.equal(chip({ status: "active", debt: 500000, debt_reason: "never_paid", last_payment: null }), "Ещё не платил|warning");
-  // never paid AND an earlier period has already ended (past_debt > 0): red, like «Долг N сум» on the student's card
-  assert.equal(chip({ status: "none", debt: 1500000, past_debt: 1000000, debt_reason: "never_paid", last_payment: null }), "Ещё не платил · просрочено|danger");
-  assert.equal(chip({ status: "none", debt: 1500000, past_debt: 1000000, last_payment: null }), "Ещё не платил · просрочено|danger");
-  assert.equal(chip({ status: "none", debt: 500000, past_debt: 0, debt_reason: "never_paid", last_payment: null }), "Ещё не платил|warning");
-  // a part is paid, past_debt does not turn «Не доплачено» into «never paid»
-  assert.equal(chip({ status: "active", debt: 300000, past_debt: 100000, last_payment: { id: "p" } }), "Не доплачено|warning");
-  // paused stays paused
-  assert.equal(chip({ status: "paused", debt: 0, paused: { from: "2026-10-20", to: "2026-11-01" } }), "На паузе до 01.11|muted");
-  // no debt: the date status as before
-  assert.equal(chip({ status: "active", debt: 0, last_payment: { id: "p" } }), "Оплачено|ok");
-  assert.equal(chip({ status: "active", last_payment: null }), "Оплачено|ok");
-  assert.equal(chip({ status: "expiring", debt: 0, days_left: 5 }), "Осталось 5 дней|warning");
-  assert.equal(chip({ status: "ends_today", debt: 0 }), "Сегодня последний день|warning");
-  assert.equal(chip({ status: "none", debt: 0 }), "Без оплат|muted");
-  assert.equal(chip({ status: "free", debt: 0 }), "Бесплатно|free");
-  // the invariant: «Оплачено» never stands next to a debt
-  for (const status of ["none", "free", "expired", "ends_today", "expiring", "active"]) {
-    assert.notEqual(P.moneyChip({ status, debt: 1, last_payment: { id: "p" } }).label, "Оплачено");
+test("the label never contradicts the money next to it (owner 22.10, PAY-DUE: the tone is the state's, the words are the server's)", () => {
+  const P2 = require(path.join(root, "src/lib/pay-state.ts"));
+  const tone = (state, text, extra = {}) => P2.payLabel({ state, state_text: text, ...extra }).tone;
+  // a row with an unpaid sum is NEVER green or grey: red after its term, calm blue within it
+  assert.equal(tone("debt", "Долг 300 000 сум"), "danger");
+  assert.equal(tone("to_pay", "К оплате 300 000 сум"), "due");
+  // the sum is paid: green; the period ends soon: amber; a pause stays grey
+  assert.equal(tone("paid", "Оплачено до 02.11"), "ok");
+  assert.equal(tone("expiring", "Оплачено до 02.11"), "warn");
+  assert.equal(tone("paused", "Пауза до 01.11"), "neutral");
+  // the invariant: «Оплачено…» never stands for a row with an unpaid part - the server's state is debt / to pay there, whatever the date status says
+  for (const [state, debtAmount, dueAmount] of [["debt", 1, 0], ["to_pay", 0, 1], ["debt", 5, 9]]) {
+    const label = P2.payLabel({ state, state_text: state === "debt" ? "Долг 1 сум" : "К оплате 1 сум", debt_amount: debtAmount, due_amount: dueAmount, debt_text: "Долг 1 сум", due_text: "К оплате 1 сум" }, state === "debt" ? "debtors" : "to_pay");
+    assert.doesNotMatch(label.text, /Оплачено/);
+    assert.notEqual(label.tone, "ok");
   }
 });
 
@@ -727,21 +631,6 @@ test("pause on the group list: on_pause hides the student from a lesson of today
   assert.equal(P.pausedChipText({ on_pause: true }), "На паузе");
   assert.equal(P.pausedChipText(list[0]), null);
   assert.equal(P.pausedChipText(list[2]), null);
-});
-
-test("the banner speaks the language of the card «Долг учеников»: debtors, their debt, how many are overdue", () => {
-  const B = require(path.join(root, "src/lib/payments-banner.ts"));
-  const copy = B.debtBannerCopy({ debtors: 33, debtTotal: 21395000, overdue: 19 });
-  assert.equal(plain(copy.text), "33 ученика с долгом — 21 395 000 сум · из них просрочено: 19");
-  assert.equal(copy.count, 33);
-  assert.equal(copy.chip, "из них просрочено: 19");
-  assert.equal(plain(B.debtBannerCopy({ debtors: 1, debtTotal: 500000, overdue: 0 }).text), "1 ученик с долгом — 500 000 сум");
-  assert.equal(B.debtBannerCopy({ debtors: 1, debtTotal: 500000, overdue: 9 }).expired, 1, "never more overdue than debtors");
-  assert.equal(B.debtBannerCopy({ debtors: null, debtTotal: 0, overdue: null }).count, 0);
-  const banner = read("src/components/payments/payments-alert-banner.tsx");
-  assert.match(banner, /debtBannerCopy\(/);
-  assert.match(banner, /bannerShownOn\(pathname, paymentsBasePath\)/, "only on the home and on the «Оплаты» list (fix 10Д)");
-  assert.match(banner, /bucket=debt/);
 });
 
 test("schedule cards of the group (owner/admin): information only; the actions by situation live in the lesson sheet (income2 §1)", () => {

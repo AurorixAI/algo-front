@@ -63,50 +63,38 @@ test("daysLabel: the number with the right word", () => {
 
 const calendar = { period_mode: "calendar", paid_until: "2026-09-19", days_overdue: null, days_left: null, lessons_total: null, lessons_left: null };
 
-test("status chip: «Просрочено на N …» and «Осталось N …» agree in number, never «дн.»", () => {
-  const overdue = (n) => rules.statusLabel({ ...calendar, status: "expired", days_overdue: n });
-  const soon = (n) => rules.statusLabel({ ...calendar, status: "expiring", days_left: n });
-  assert.equal(overdue(31), "Просрочено на 31 день");
-  assert.deepEqual([1, 2, 5, 11, 12, 21, 22, 25].map(overdue), [
-    "Просрочено на 1 день", "Просрочено на 2 дня", "Просрочено на 5 дней", "Просрочено на 11 дней",
-    "Просрочено на 12 дней", "Просрочено на 21 день", "Просрочено на 22 дня", "Просрочено на 25 дней",
-  ]);
-  assert.equal(soon(5), "Осталось 5 дней");
-  // the verb agrees with the number: «Остался 1 день», «Остался 21 день», «Осталось 2 дня»
-  assert.deepEqual([1, 2, 3, 4, 5, 11, 21, 22].map(soon), [
-    "Остался 1 день", "Осталось 2 дня", "Осталось 3 дня", "Осталось 4 дня", "Осталось 5 дней", "Осталось 11 дней", "Остался 21 день", "Осталось 22 дня",
-  ]);
-  const lessonsLeft = (n) => rules.statusLabel({ ...calendar, period_mode: "lessons", lessons_total: 12, status: "expiring", lessons_left: n });
-  // the chip of a package is «Скоро закончится» for every count; the count is the progress line of the package (lib/package-progress.ts)
-  assert.deepEqual([1, 2, 5, 21].map(lessonsLeft), ["Скоро закончится", "Скоро закончится", "Скоро закончится", "Скоро закончится"]);
-  for (const text of [overdue(1), overdue(31), soon(1), soon(5), rules.statusLabel({ ...calendar, status: "ends_today" })]) {
-    assert.doesNotMatch(text, /дн\./);
+test("status label: the days and the lessons agree in number in the SERVER's words; the screen forms none (PAY-DUE 143)", () => {
+  assert.equal(rules.statusLabel, undefined);
+  const PS = require(path.join(__dirname, "../src/lib/pay-state.ts"));
+  // «просрочено N дней» / «Осталось N урока» are the server's (`debt_sub`, `state_text`): the screen shows them as they are and adds nothing
+  for (const sub of ["просрочено 1 день", "просрочено 2 дня", "просрочено 5 дней", "просрочено 21 день"]) {
+    const label = PS.payLabel({ state: "debt", debt_amount: 1, debt_text: "Долг 1 сум", debt_sub: sub, state_text: "Долг 1 сум" }, "debtors");
+    assert.equal(label.sub, sub);
+    assert.doesNotMatch(label.sub, /дн\./);
   }
+  assert.equal(PS.payLabel({ state: "expiring", state_text: "Осталось 1 урок" }).text, "Осталось 1 урок");
 });
 
-test("status: the chip says the state, the second line says «оплачено до 19.09.2026»", () => {
-  const row = (status, extra = {}) => ({ ...calendar, status, ...extra });
-  assert.equal(rules.statusLabel(row("active")), "Оплачено");
-  assert.equal(rules.statusDetail(row("active")), "оплачено до 19.09.2026");
-  assert.equal(rules.statusDetail(row("expired", { days_overdue: 31 })), "оплачено до 19.09.2026");
-  assert.equal(rules.statusDetail(row("expiring", { days_left: 5 })), "оплачено до 19.09.2026");
-  assert.equal(rules.statusLabel(row("none", { paid_until: null, period_mode: null })), "Без оплат");
-  assert.equal(rules.statusDetail(row("none", { paid_until: null, period_mode: null })), "");
-  // tone: red only for overdue, amber for «soon» and the last day, grey for paid
-  assert.deepEqual(["expired", "expiring", "ends_today", "active", "none"].map((status) => rules.statusTone(status)), ["danger", "warning", "warning", "ok", "muted"]);
-  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expired")], /danger/);
-  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("expiring")], /warning/);
-  assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
+test("status: the label says the state, the line under it the term - both the server's; the tones are one table", () => {
+  const PS = require(path.join(__dirname, "../src/lib/pay-state.ts"));
+  const label = PS.payLabel({ state: "paid", state_text: "Оплачено до 19.09" }, "active");
+  assert.deepEqual([label.text, label.sub, label.tone], ["Оплачено до 19.09", null, "ok"], "the date is in the label: no second line repeats it");
+  const debt = PS.payLabel({ state: "debt", debt_amount: 5, debt_text: "Долг 5 сум", debt_sub: "просрочено 31 день · оплачено до 19.09", state_text: "Долг 5 сум" }, "debtors");
+  assert.deepEqual([debt.text, debt.sub, debt.tone], ["Долг 5 сум", "просрочено 31 день · оплачено до 19.09", "danger"]);
+  assert.equal(PS.payLabel({ state: "none", state_text: null }, "active").text, null);
+  // tone: red only for a debt, blue for «К оплате», amber for «ends soon», green for paid, grey for the rest
+  assert.deepEqual(["debt", "to_pay", "expiring", "paid", "none"].map((state) => PS.payStateTone(state)), ["danger", "due", "warn", "ok", "neutral"]);
+  assert.equal(rules.statusTone("expired"), "danger");     // the bar of a package keeps its own tone function
 });
 
-test("tabs by money: «Должники», «Скоро платить», «Без долга» and a counter on every tab", () => {
+test("tabs by money: «Должники», «К оплате», «Заканчивается оплата», «Без долга» and a counter on every tab", () => {
   assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none"), undefined);
-  const summary = { debtors: 12, expiring: 3, active: 48 };
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(summary, bucket.key))), [
-    "Должники (12)", "Скоро платить (3)", "Без долга (48)",
+  const counts = { debtors: 12, to_pay: 6, expiring: 3, active: 48 };
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(counts, bucket.key))), [
+    "Должники 12", "К оплате 6", "Заканчивается оплата 3", "Без долга 48",
   ]);
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(null, bucket.key))), [
-    "Должники", "Скоро платить", "Без долга",
+    "Должники", "К оплате", "Заканчивается оплата", "Без долга",
   ]);
 });
 
@@ -140,7 +128,7 @@ test("the payments table: sentence-case headers, a tab bar that scrolls with a f
   assert.match(head, /font-size: 0\.75rem; font-weight: 600/);
   assert.match(page, /<ScrollHint focusable=\{false\} (?:data-allow-hscroll="" )?className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
   assert.match(page, /shrink-0 whitespace-nowrap/); // a label is never squeezed
-  assert.match(page, /bucketTabLabel\(label, bucketCount\(summaryForTabs, key\)\)/);
+  assert.match(page, /bucketTabLabel\(label, bucketCount\(tabCounts, key\)\)/);
   assert.match(page, /kind: "create", row, payment: null/);
   assert.equal((page.match(/<PayButton row=\{row\}/g) || []).length, 1);
 });
@@ -166,41 +154,28 @@ test("student card: row 1 = group + status + main button + «⋯»; row 2 = the 
 
 // ── the money chip of a membership on the student's card: ONE chip, one line (owner 22.10) ──────
 
-test("membershipChip: one line per state - «Оплачено до 30.11», «Долг …», «Ещё не платил», «На паузе до …»; the state logic is moneyChip's", () => {
-  const base = { status: "active", period_mode: "calendar", paid_until: "2026-11-30", debt: 0, advance: 0, last_payment: { id: "p" }, days_left: 20 };
-  const chip = (patch) => { const c = rules.membershipChip({ ...base, ...patch }); return { ...c, label: plain(c.label), title: c.title && plain(c.title) }; };
-  // paid: green, the date in dd.mm, the full date is the tooltip; an advance is NOT said
-  assert.deepEqual(chip({}), { label: "Оплачено до 30.11", tone: "ok", title: "оплачено до 30.11.2026" });
-  assert.equal(chip({ advance: 450000 }).label, "Оплачено до 30.11");
-  // overdue debt: red «Долг N сум», the tooltip says how overdue
-  assert.deepEqual(chip({ status: "expired", debt: 592000, days_overdue: 12 }), { label: "Долг 592 000 сум", tone: "danger", title: "Просрочено на 12 дней" });
-  assert.deepEqual(chip({ status: "active", debt: 592000, debt_reason: "overdue", days_overdue: 3 }).label, "Долг 592 000 сум");
-  // a part is paid and the period still runs («Не доплачено») -> «Долг 92 000 сум», still amber (not overdue), the tooltip keeps the old word
-  assert.deepEqual(chip({ status: "active", debt: 92000 }), { label: "Долг 92 000 сум", tone: "warning", title: "Не доплачено" });
-  // never paid: stays «Ещё не платил» (amber), the debt is the tooltip
-  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 450000, debt_reason: "never_paid" }), { label: "Ещё не платил", tone: "warning", title: "Долг 450 000 сум" });
-  // never paid AND a period has already ended unpaid (past_debt > 0): red «Долг N сум», the tooltip is «Ещё не платил» (inc5 C02b)
-  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 1500000, past_debt: 1000000, current_due: 500000, debt_reason: "never_paid" }), { label: "Долг 1 500 000 сум", tone: "danger", title: "Ещё не платил" });
-  // never paid, past_debt 0 (only the running period): still amber
-  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 500000, past_debt: 0, current_due: 500000, debt_reason: "never_paid" }), { label: "Ещё не платил", tone: "warning", title: "Долг 500 000 сум" });
-  // pause stays «На паузе до 12.11»
-  assert.equal(chip({ status: "paused", paused: { from: "2026-11-01", to: "2026-11-12" } }).label, "На паузе до 12.11");
-  // the rest of the date states keep their words, the date joins the one line
-  assert.equal(chip({ status: "expiring", days_left: 5 }).label, "Осталось 5 дней · до 30.11");
-  assert.equal(chip({ status: "ends_today" }).label, "Сегодня последний день");
-  assert.equal(chip({ status: "none", paid_until: null, last_payment: null }).label, "Без оплат");
-  assert.equal(chip({ status: "free", paid_until: null }).label, "Бесплатно");
-  assert.equal(chip({ period_mode: "lessons", lessons_total: 12, lessons_left: 9, paid_until: null }).label, "Оплачено");          // a package: the short status, the count is the progress line
+test("the label of a membership: one line per state in the server's words; one function for the card, the group tab and the list", () => {
+  assert.equal(rules.membershipChip, undefined);
+  assert.equal(rules.moneyChip, undefined);
+  const PS = require(path.join(__dirname, "../src/lib/pay-state.ts"));
+  const row = (state, text, extra = {}) => ({ state, state_text: text, ...extra });
+  // paid: green, the date is in the server's label; an advance is NOT said here
+  assert.deepEqual([PS.payLabel(row("paid", "Оплачено до 30.11")).text, PS.payLabel(row("paid", "Оплачено до 30.11")).tone], ["Оплачено до 30.11", "ok"]);
+  // a debt: red, with the days in the line under it; a sum within its term: blue, with the term
+  const debt = PS.payLabel(row("debt", "Долг 592 000 сум", { debt_amount: 592000, debt_text: "Долг 592 000 сум", debt_sub: "просрочено 12 дней" }), "debtors");
+  assert.deepEqual([debt.text, debt.tone, debt.sub], ["Долг 592 000 сум", "danger", "просрочено 12 дней"]);
+  const due = PS.payLabel(row("to_pay", "К оплате 92 000 сум", { due_amount: 92000, due_text: "К оплате 92 000 сум", due_sub: "до 04.12" }), "to_pay");
+  assert.deepEqual([due.text, due.tone, due.sub], ["К оплате 92 000 сум", "due", "до 04.12"]);
+  // pause / ends soon / free / no price: the server's words, their tones
+  assert.deepEqual(["paused", "expiring", "free", "none"].map((state) => PS.payLabel(row(state, state)).tone), ["neutral", "warn", "neutral", "neutral"]);
   // every label is one line: no line breaks
-  for (const patch of [{}, { status: "expired", debt: 5, days_overdue: 2 }, { status: "paused" }]) assert.ok(!/\n/.test(chip(patch).label));
-  // the shared moneyChip (the tabs of «Оплаты») is unchanged
-  assert.equal(rules.moneyChip({ ...base, status: "active", debt: 92000 }).label, "Не доплачено");
+  for (const label of [debt, due, PS.payLabel(row("paused", "Пауза до 12.11"))]) assert.ok(!/\n/.test(label.text));
 });
 
 test("the card of a membership: one chip, the actions in one row «Внести оплату» · «Выписка» · «⋯»; no «оплачено до» / «Аванс» / «Выписка» lines", () => {
   const src = read("src/components/payments/membership-payments.tsx");
   const head = src.slice(src.indexOf("{/* Row 1: the group"), src.indexOf("{/* A group the student has left"));
-  assert.match(head, /membershipChip|chip\.label/);
+  assert.match(head, /payLabel\(row, "debtors"\)|chip\.text/);
   assert.match(head, /testId="membership-chip"/); // <Chip> (IA audit F14)
   assert.doesNotMatch(head, /statusDetail|BalanceNote|detail &&/, "no second line under the chip");
   assert.match(head, /\[grid-template-areas:'heading_heading'_'status_status'_'actions_actions'\]/, "phone: the chip on its own line, the actions under it");
@@ -214,6 +189,8 @@ test("the card of a membership: one chip, the actions in one row «Внести 
   assert.doesNotMatch(read("src/lib/membership-actions.ts"), /statement/i);
   // the rows of the «Оплаты» tabs keep their layout and their chip
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /const chip = moneyChip\(row\);/);
-  assert.match(page, /detail && <p className="text-xs text-slate-500">\{detail\}<\/p>/);
+  assert.match(page, /const label = payLabel\(row, bucket\);/);
+  assert.match(page, /label\.sub && <p className="w-full text-xs text-slate-600" data-testid="pay-sub">/);
+  assert.match(page, /label\.second && <p/);
+  assert.doesNotMatch(page, /BalanceNote|statusDetail|moneyChip/);
 });

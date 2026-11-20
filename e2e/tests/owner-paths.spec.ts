@@ -24,7 +24,7 @@ test("«Оплаты»: the card «Долг» -> the debtors tab; the student of
 
   await page.goto("/owner/payments?bucket=active");
   await page.getByTestId("position-debt").click();
-  await expect(page).toHaveURL(/\/owner\/payments\?bucket=debt/);
+  await expect(page).toHaveURL(/\/owner\/payments\?bucket=debtors/);
   await expect(page.getByRole("tab", { name: /^Должники/, selected: true })).toBeVisible();
 
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Должников Тимур", exact: true }) });
@@ -42,7 +42,7 @@ test("the owner's dashboard: KPI cards are links, the debt tile leads to the deb
   await expect(page.getByTestId("dashboard-kpi-link").first()).toBeVisible();
   const hrefs = await page.getByTestId("dashboard-kpi-link").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   expect(hrefs).toEqual(["/owner/students", "/owner/teachers"]);
-  await expect(page.getByTestId("dashboard-tile-debt")).toHaveAttribute("href", "/owner/payments?bucket=debt");
+  await expect(page.getByTestId("dashboard-tile-debt")).toHaveAttribute("href", "/owner/payments?bucket=debtors");
   await page.getByTestId("dashboard-kpi-link").first().click();
   await expect(page).toHaveURL(/\/owner\/students$/);
 });

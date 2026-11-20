@@ -13,9 +13,11 @@ const payFrom = require(src("lib/pay-from.ts"));
 const { namesakeDetail } = require(src("lib/student-namesake.ts"));
 const nb = (text) => text.replace(/[\s ]+/g, " ");
 
-test("a waiting student's balance says «К оплате 350 000 сум», a debtor's «Долг …»", () => {
-  assert.equal(nb(ledger.balanceView({ debt: 350000, advance: 0, tab: "waiting" }).text), "К оплате 350 000 сум");
-  assert.match(nb(ledger.balanceView({ debt: 350000, advance: 0, tab: "debtors" }).text), /^Долг 350 000 сум$/);
+test("the balance line says «Долг …» for a debt and «Аванс …» for an advance; «К оплате» is the server's word and is not made here (PAY-DUE 143)", () => {
+  assert.equal(nb(ledger.balanceView({ debt: 350000, advance: 0 }).text), "Долг 350 000 сум");
+  assert.equal(nb(ledger.balanceView({ debt: 0, advance: 21000 }).text), "Аванс 21 000 сум");
+  assert.equal(ledger.balanceView({ debt: 0, advance: 0 }).kind, "none");
+  assert.equal(ledger.BALANCE_TEXT_WAITING, undefined, "no calm colour of a «waiting» debt any more");
 });
 
 const PARTS = [

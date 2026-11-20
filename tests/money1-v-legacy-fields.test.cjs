@@ -1,5 +1,5 @@
-// «Деньги-1 / В» (а): the front no longer reads the OLD fields of the debtors (the server removes them in its last commit): `summary.debt_total / students_with_debt / debtors / memberships_with_debt /
-// due / expired / students_due / students_expired / buckets.debt`, `position.debt_total / students_with_debt`, `collection.*.debt`.  One definition of a debtor: `debt_split`, `debtors_debt`.
+// «Деньги-1 / В» (а) → PAY-DUE 10.2: the front no longer reads the OLD fields of the debtors (the server removed them): `debt_split.*`, `students_waiting`, `debt_waiting*`, `debtors_debt*`, `students_with_debt`,
+// `students_due` / `students_expired`, `past_debt_total`, and on a row `past_debt` / `current_due` / `tab` / `waiting_*` / `debt_reason` / `reason` / `bucket`.  ONE meaning of the unpaid sum: `debt_total` / `due_total` of the summary.
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
@@ -19,41 +19,44 @@ const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true
 
 test("no source reads the old fields of the debtors", () => {
   const banned = [
-    /summary\??\.debt_total/, /summary\??\.students_with_debt/, /summary\??\.memberships_with_debt/, /summary\??\.students_due/, /summary\??\.students_expired/,
-    /summary\??\.(due|expired)\b/, /buckets\??\.debt\b.*summary|summary.*buckets\??\.debt\b/, /position\??\.debt_total/, /position\??\.students_with_debt/, /position\??\.memberships_with_debt/,
+    /debt_split/, /students_waiting/, /debt_waiting/, /debtors_debt/, /students_with_debt/, /students_due\b/, /students_expired/, /past_debt_total/, /memberships_with_debt/,
+    /\.waiting_(until|reason)/, /\.debt_reason\b/, /\brow\??\.(past_debt|current_due)\b/, /\brow\??\.tab\b/, /\.debt_age_days/,
   ];
   const found = [];
   for (const file of [...walk("src"), ...walk("console")].filter((f) => !f.includes("node_modules") && !f.includes(".next"))) {
     const lines = fs.readFileSync(path.join(root, file), "utf8").split("\n");
     lines.forEach((line, i) => { if (!line.trim().startsWith("//") && !line.trim().startsWith("*") && banned.some((re) => re.test(line))) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`); });
   }
-  const real = found.filter((entry) => !/^console\/|income-decisions|group-price|payments-decisions|refund-receipt|openings|attendance|excuse|substitution|payf|lesson/.test(entry));
+  const real = found.filter((entry) => !/^console\//.test(entry));
   assert.deepEqual(real, []);
 });
 
-test("the summary is read from the split alone: the same numbers with and without the old fields; without the split every debt number is 0", () => {
-  const split = { debtors: 3, debtors_memberships: 4, debtors_debt_total: 600000, waiting_students: 1, waiting_memberships: 1, waiting_debt_total: 300000, all_debt_total: 900000, all_students_with_debt: 4, expired: 2, due: 5, students_expired: 2, students_due: 4 };
-  const base = { as_of: "2026-11-10", expiring: 1, none: 0, active: 4, tracked_total: 9, period_mode: "calendar", advance_total: 5000, buckets: { expiring: 1, active: 4, paused: 0 }, debt_split: split };
-  const withOld = summaryToState({ ...base, due: 99, expired: 99, students_due: 99, students_expired: 99, debt_total: 999, students_with_debt: 99, debtors: 99, memberships_with_debt: 99, buckets: { debt: 99, expiring: 1, active: 4, paused: 0 } });
+test("the summary is read from the new fields alone: the same numbers with and without the old ones; without them every number is 0 / null", () => {
+  const base = { as_of: "2026-11-10", expiring: 1, none: 0, active: 4, tracked_total: 9, period_mode: "calendar", advance_total: 5000, debt_total: 600000, debtors: 3, due_total: 300000, due_students: 1, buckets: { debtors: 4, to_pay: 1, expiring: 1, active: 4, paused: 0 } };
+  const withOld = summaryToState({ ...base, due: 99, expired: 99, students_due: 99, students_expired: 99, students_with_debt: 99, memberships_with_debt: 99, debt_split: { debtors: 77, debtors_debt_total: 1 } });
   const without = summaryToState(base);
   assert.deepEqual(without, withOld);
-  assert.deepEqual([without.debtTotal, without.debtors, without.due, without.expired, without.studentsDue, without.studentsExpired, without.buckets.debt, without.buckets.waiting], [600000, 3, 5, 2, 4, 2, 4, 1]);
-  const none = summaryToState({ ...base, debt_split: undefined, debt_total: 999, students_with_debt: 5, debtors: 5, due: 7 });
-  assert.deepEqual([none.debtTotal, none.debtors, none.due, none.studentsWithDebt], [0, 0, 0, 0]);
+  assert.deepEqual([without.debtTotal, without.debtors, without.dueTotal, without.dueStudents, without.tabs.debtors, without.tabs.to_pay], [600000, 3, 300000, 1, 3, 1]);
+  const none = summaryToState({ as_of: "2026-11-10", period_mode: "calendar", students_with_debt: 5, due: 7, debt_split: { debtors: 5 } });
+  assert.deepEqual([none.debtTotal, none.debtors, none.dueTotal, none.dueStudents], [0, null, 0, null]);
 });
 
-test("the reason line of a debtor keeps the server's `reason` - the MONTH of the debt lives only there (rule 113)", () => {
-  assert.equal(P.debtReasonText({ status: "active", debt: 150000, last_payment: { paid_on: "2026-10-01" }, reason: "Не доплачено за октябрь: 150 000" }), "Не доплачено за октябрь: 150 000");
-  assert.equal(P.debtReasonText({ status: "none", debt: 100000, days_overdue: 0, last_payment: null }), "Ещё не платил");
+test("a row's words are the server's (`debt_text` / `debt_sub` / `due_text` / `state_text`) - the MONTH of a debt is not worked out on the screen (rule 113 → 143)", () => {
+  assert.equal(P.debtReasonText, undefined);
+  const PS = require(path.join(root, "src/lib/pay-state.ts"));
+  assert.equal(PS.payLabel({ state: "debt", debt_amount: 150000, debt_text: "Долг 150 000 сум", debt_sub: "просрочено 3 дня", state_text: "Долг 150 000 сум" }, "debtors").sub, "просрочено 3 дня");
+  assert.equal(PS.payLabel({ state: "none", state_text: null }).text, null);
 });
 
-test("the debt of the position is debtors + waiting; the collection reads debtors_debt; the card needs no old field", () => {
-  const overview = V.normalizeOverview({ position: { debtors_debt_total: 600000, debt_waiting_total: 300000, students_debtors: 3, students_waiting: 1, advance_total: 0, students_with_advance: 0 }, collection: { month: "2026-11", month_label: "ноябрь 2026", total: { charged: 100, paid: 50, debtors_debt: 40, debt_waiting: 10, students_with_debt: 3, students_waiting: 1 }, groups: [{ group_id: "g", group_name: "A", charged: 100, paid: 50, debtors_debt: 40, debt_waiting: 10, students_with_debt: 3, students_waiting: 1 }] } });
+test("the position is the server's debt and «К оплате»; the collection reads `debt` / `due`; the card needs no old field", () => {
+  const overview = V.normalizeOverview({ position: { debt_total: 600000, due_total: 300000, debtors: 3, due_students: 1, advance_total: 0, students_with_advance: 0 }, collection: { month: "2026-11", month_label: "ноябрь 2026", total: { charged: 100, paid: 50, debt: 40, due: 10, students: 3, debtors: 1, due_students: 1, pct: 50 }, groups: [{ group_id: "g", group_name: "Г", charged: 100, paid: 50, debt: 40, due: 10, students: 3, debtors: 1, due_students: 1, pct: 50 }] } });
   assert.equal(V.debtCard(overview).amount.replace(/\s/g, " "), "600 000 сум");
-  assert.deepEqual(Object.keys(overview.position).filter((k) => /^(debt_total|students_with_debt|memberships_with_debt)$/.test(k)), []);
+  assert.equal(V.debtCard(overview).due.replace(/\s/g, " "), "К оплате 300 000 сум · 1 ученик");
+  assert.deepEqual(Object.keys(overview.position).filter((k) => /^(past_debt_total|students_with_debt|debtors_debt_total|debt_waiting_total|students_waiting|students_debtors)$/.test(k)), []);
   assert.equal(V.collectionRows(overview.collection)[0].debt, 40);
+  assert.equal(V.collectionRows(overview.collection)[0].dueAmount, 10);
   assert.equal(V.collectionDebtNote(overview.collection, 600000 + 300000)?.includes("50"), true);
-  assert.match(read("src/components/payments/income-page.tsx"), /position\.debtors_debt_total \+ overview\.data\.position\.debt_waiting_total/);
+  assert.match(read("src/components/payments/income-page.tsx"), /position\.debt_total \+ overview\.data\.position\.due_total/);
 });
 
 test("the toast after a forgiveness names the period of the server and nothing of the teacher", () => {

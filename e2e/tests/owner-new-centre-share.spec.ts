@@ -33,7 +33,7 @@ test("a new centre: the mode is «Общий месяц»; a student who joins t
 
   // --- the row says the share
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Серединный Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`К оплате ${moneyPattern(share)}`));
   await expectNoHorizontalScroll(page);

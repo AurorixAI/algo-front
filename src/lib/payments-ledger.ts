@@ -42,6 +42,7 @@ import {
 import { formatDayMonthRu, shiftMonthKey } from "./business-time";
 import { recalcAmountText, type RecalcLine } from "./payf";
 import { serverEffectsRows } from "./money-effects";
+import { rowUnpaid } from "./pay-state";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
 
@@ -95,8 +96,6 @@ export const BALANCE_TEXT_CLASS: Record<BalanceKind, string> = {
   advance: "text-emerald-700",
   none: "text-slate-500",
 };
-/** Money-1 B7: the debt of a student who only waits - the same number, calm (a token, not a class in the logic). */
-export const BALANCE_TEXT_WAITING = "text-slate-600";
 
 export function debtLabel(amount: number): string {
   return `Долг ${formatMoney(amount)}`;
@@ -111,11 +110,8 @@ export function rowBalance(row: Pick<MembershipPaymentRow, "debt" | "advance"> |
   return { debt: Math.max(0, sum(row?.debt)), advance: Math.max(0, sum(row?.advance)) };
 }
 
-export function balanceView(row: (Pick<MembershipPaymentRow, "debt" | "advance"> & Partial<Pick<MembershipPaymentRow, "tab">>) | null | undefined): BalanceView {
+export function balanceView(row: Pick<MembershipPaymentRow, "debt" | "advance"> | null | undefined): BalanceView {
   const { debt, advance } = rowBalance(row);
-  // Money-1 B7: the debt of a student who only waits is the same number, in a calm colour
-  // a student who only waits owes nothing yet: «К оплате 350 000 сум» (the word «долг» is for the debtors)
-  if (debt > 0 && row?.tab === "waiting") return { kind: "debt", amount: debt, text: `К оплате ${formatMoney(debt)}`, className: BALANCE_TEXT_WAITING };
   if (debt > 0) return { kind: "debt", amount: debt, text: debtLabel(debt), className: BALANCE_TEXT_CLASS.debt };
   if (advance > 0) return { kind: "advance", amount: advance, text: advanceLabel(advance), className: BALANCE_TEXT_CLASS.advance };
   return { kind: "none", amount: 0, text: "", className: BALANCE_TEXT_CLASS.none };
@@ -465,9 +461,7 @@ export function normalizeRow(row: MembershipPaymentRow): MembershipPaymentRow {
   if (!row) return row;
   return {
     ...row,
-    debt: sum(row.debt),
-    past_debt: sum(row.past_debt),
-    current_due: sum(row.current_due),
+    debt: rowUnpaid(row),
     advance: sum(row.advance),
     partial_credit: sum(row.partial_credit),
     refundable: sum(row.refundable),

@@ -497,7 +497,7 @@ function priceRow(over = {}) {
     membership_id: "m1", student_id: "s1", student_name: "Каримова Дилноза", display_id: "A-1", class_level: 8, group_id: "g1", group_name: "Алгебра 8А",
     teacher_id: "t1", teacher_name: "Иванов", is_primary: true, is_active: true,
     price: { amount: 500000, source: "group", valid_from: "2026-10-01", group_amount: 500000, reason: null }, monthly_fee: 500000,
-    status: "active", period_mode: "calendar", paid_until: "2026-10-31", days_overdue: null, days_left: 14, lessons_total: null, lessons_used: null, lessons_left: null, last_payment: null,
+    status: "active", period_mode: "calendar", paid_until: "2026-10-31", state: "paid", state_text: "Оплачено до 31.10", days_overdue: null, days_left: 14, lessons_total: null, lessons_used: null, lessons_left: null, last_payment: null,
     ...over,
   };
 }
@@ -556,8 +556,9 @@ test("the student card shows the price in one line with no field to type it; the
   // status chip + one main button by the situation of the row
   assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено до 31\.10 Внести оплату Выписка/);
   assert.match(textOf(html(priceRow())), /Оплачено до 31\.10 Внести оплату Выписка/); // never paid or running: the same «Внести оплату»
-  const overdue = textOf(html(priceRow({ status: "expired", days_overdue: 31, days_left: null, last_payment: { id: "p" } })));
-  assert.match(overdue, /Просрочено на 31 день Внести оплату Выписка/);
+  // PAY-DUE: a debt says «Долг N сум» (the server's label) and, next to it, how long it is overdue (the server's line)
+  const overdue = textOf(html(priceRow({ state: "debt", state_text: "Долг 500 000 сум", debt: 500000, debt_amount: 500000, debt_text: "Долг 500 000 сум", debt_sub: "просрочено 31 день", overdue_days: 31, days_left: null, last_payment: { id: "p" } })));
+  assert.match(overdue, /Долг 500 000 сум просрочено 31 день Внести оплату Выписка/);
   assert.doesNotMatch(overdue, /дн\./);
 });
 

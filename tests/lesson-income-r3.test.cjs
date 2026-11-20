@@ -140,7 +140,7 @@ test("INC-14: «Должники» of the debt card is the plain link; the page 
   const { React, html, P } = renderer();
   const overview = V.normalizeOverview(fixture("I01_income_month_october"));
   const view = html(React.createElement(P.IncomeOverviewView, { overview, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
-  assert.match(view, /href="\/owner\/payments\?bucket=debt"/);
+  assert.match(view, /href="\/owner\/payments\?bucket=debtors"/);
   const page = read("src/components/payments/income-page.tsx");
   assert.doesNotMatch(page, /CascadingFilter|FiltersBar|usePaymentsDirectory|Все группы|filters\.groupId|filters\.teacherId|scope=/);
   assert.doesNotMatch(page, /group_id|teacher_id/);

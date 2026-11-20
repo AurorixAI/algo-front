@@ -105,15 +105,14 @@ test("Р4-1 счётчики: фильтр «Индивидуальная цен
 });
 
 for (const [state, price, expected] of CASES) {
-  test(`Р4-1 место 5, страница «Оплаты» центра (${state}): колонка цены «${expected}» (bare): подпись «Цена в месяц» есть на 1280 и 375, слово «Цена» не повторяется`, async () => {
-    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, current_due: 100000, status: "debt" }], total: 1, limit: 50, offset: 0 } } : r.path === "/auth/org/payments/summary" ? { json: {} } : null));
+  test(`Р4-1 место 5 → PAY-DUE 9.7, страница «Оплаты» центра (${state}): колонки цены нет на 1280 и 375 - ни подписи столбца, ни слова «Цена» в строке`, async () => {
+    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, debt_amount: 100000, due_amount: 0, state: "debt", state_text: "Долг 100 000 сум", debt_text: "Долг 100 000 сум", debt_sub: "просрочено 3 дня", status: "active" }], total: 1, students: 1, limit: 50, offset: 0 } } : null));
     for (const width of [375, 1280]) {
       const run = await mounted("money-g4.entry.tsx", "payments", {}, answer, width);
-      await run.page.waitForFunction((t) => (document.querySelector('[data-testid="payment-row-price-missing"]')?.textContent || "").replace(/[\s\u00a0\u202f]+/g, " ").includes(t), expected, { timeout: 8000 });
-      assert.equal(plain(await run.page.textContent('[data-testid="payment-row-price-missing"]')), expected, "bare: без слова «Цена»");
-      const cell = plain(await run.page.locator('[data-col="price"]').first().textContent());
-      assert.match(cell, /Цена в месяц/, "подпись столбца/карточки есть");
-      assert.equal((cell.match(/[Цц]ена/g) || []).length, 1, "слово «Цена» в ячейке один раз (подпись)");
+      await run.page.waitForSelector('[data-testid="pay-label"]', { timeout: 8000 });
+      assert.equal(await run.page.locator('[data-col="price"]').count(), 0, "нет колонки цены");
+      assert.equal(await run.page.locator('[data-testid="payment-row-price-missing"]').count(), 0);
+      assert.ok(!/[Цц]ена/.test(plain(await run.page.locator('[data-testid="payments-table"]').textContent())), "слова «Цена» в таблице нет");
       if (state === "в") await run.page.screenshot({ path: path.join(shots, `p5-payments-${width}.png`) });
       await run.page.close();
     }

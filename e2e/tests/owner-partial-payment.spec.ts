@@ -7,7 +7,7 @@ import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern } fro
 
 /**
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
- * due - on the debtors list («Не доплачено за …: 300 000»), on the card, and on the statement: the payment row says
+ * due - on the debtors list («Долг 300 000 сум · просрочено N дней»), on the card, and on the statement: the payment row says
  * «за <период> — 200 000 (осталось 300 000)», the month header «осталось 300 000», the balance «Долг 300 000», «Сходится».
  * The rest paid later closes the debt (the row leaves «Должники»; the second payment does not say «осталось»).
  */
@@ -24,7 +24,7 @@ const MONTHS_NOMINATIVE = "(?:январь|февраль|март|апрель|
 test("partial payment: debtors row -> statement shows the allocation and «осталось» -> the rest closes the debt @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Платёжный");
   const group = await org.createGroup({ name: "Группа ЧО", teacherId: teacher.userId });
-  // Money-1 B7: charged from ten days ago - overdue, so the debtors tab (not «Ждём оплату») holds her
+  // Money-1 B7: charged from ten days ago - the term of 5 days has passed, so the debtors tab (not «К оплате») holds her
   const student = await org.addStudent(group, "Дилдора", "Частичная", undefined, addDays(businessNow().date, -10));
   await org.setGroupPrice(group.id, 500000);
   await org.pay(student.id, 200000, { method: "cash" });
@@ -33,11 +33,11 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   const page = await signIn(org.owner);
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Частичная Дилдора", exact: true }) });
 
-  // --- «Должники»: the reason line says what is missing in the server's words
+  // --- «Должники»: the label says what is missing, the line under it how long, both in the server's words (PAY-DUE: the old «Не доплачено за …» line is gone)
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
-  await expect(row()).toContainText(new RegExp(`Не доплачено за [^:]+: ${moneyPattern(300000)}`));
   await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(300000)}`));
+  await expect(row()).toContainText(/просрочено \d+ дн/);
 
   // --- the card: the group block carries the debt and the link to the statement
   await page.goto(`/owner/students/${student.id}?tab=payments`);

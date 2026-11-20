@@ -1799,13 +1799,13 @@ export const orgApi = {
   // ── Payments (owner; admin only when the owner enabled it) ─────────────
   getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
   getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; age?: string; limit?: number; offset?: number }) => {
-    // Money-1 B7: the tab «Должники» is the server's `debtors` (the real debtors); «Ждём оплату» is `waiting`
-    const params = new URLSearchParams({ bucket: q.bucket === "debt" ? "debtors" : q.bucket });
+    // PAY-DUE 10.2: the keys of the tabs are the server's (`debtors` / `to_pay` / `expiring` / `active` / `paused`, plus `all`)
+    const params = new URLSearchParams({ bucket: q.bucket });
     if (q.groupId) params.set("group_id", q.groupId);
     if (q.teacherId) params.set("teacher_id", q.teacherId);
     if (q.search) params.set("search", q.search);
     // Money-2 Т18: the basket of the age of the debt (with the debtors only)
-    if (q.age && q.bucket === "debt") params.set("age", q.age);
+    if (q.age && q.bucket === "debtors") params.set("age", q.age);
     params.set("limit", String(q.limit ?? 50));
     params.set("offset", String(q.offset ?? 0));
     return api<PaymentsStatusList>(`/auth/org/payments/status?${params.toString()}`)

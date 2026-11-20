@@ -16,7 +16,7 @@ const { usePaymentsSummary, paymentsAccessFromProfile } = require(path.join(root
 const { useAuthStore } = require(path.join(root, "src/lib/store.ts"));
 
 const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
-const SUMMARY = { debt_split: { debtors: 0, debtors_memberships: 0, debtors_debt_total: 0, waiting_students: 0, waiting_memberships: 0, waiting_debt_total: 0, all_debt_total: 0, all_students_with_debt: 0, due: 4, expired: 1, students_due: 0, students_expired: 0 }, active: 9, period_mode: "calendar" };
+const SUMMARY = { debtors: 4, debt_total: 400000, due_students: 1, due_total: 50000, active: 9, period_mode: "calendar" };
 const profile = (extra = {}) => ({ id: "u1", email: "a@b.c", first_name: "A", last_name: "B", full_name: "A B", role: "admin", org_role: "admin", ...extra });
 const signIn = (extra) => useAuthStore.setState({ user: profile(extra), isAuthenticated: true });
 
@@ -60,7 +60,7 @@ test("payments_access false: no request at all, the state of «no money», howev
     await usePaymentsSummary.getState().refresh(true);
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
-    assert.deepEqual([state.available, state.loaded, state.due, state.debtTotal], [false, true, 0, 0]);
+    assert.deepEqual([state.available, state.loaded, state.debtors, state.debtTotal], [false, true, null, 0]);
     assert.equal(calls.length, 0, "not a single request (no 403 per page load)");
   });
 });
@@ -70,7 +70,7 @@ test("payments_access true (owner, admin with the right): asked as before, one r
   await withServer({ "/auth/org/payments/summary": () => reply(200, SUMMARY) }, async (calls) => {
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
-    assert.deepEqual([state.available, state.loaded, state.due, state.expired, state.active], [true, true, 4, 1, 9]);
+    assert.deepEqual([state.available, state.loaded, state.debtors, state.dueStudents, state.active], [true, true, 4, 1, 9]);
     assert.equal(summaryCalls(calls).length, 1);
     await usePaymentsSummary.getState().refresh(); // within a second: skipped, as before
     assert.equal(summaryCalls(calls).length, 1);
@@ -125,7 +125,7 @@ test("the owner gives the right in the middle of a session: the timer re-reads t
     await usePaymentsSummary.getState().refresh(false, { recheck: true });
     assert.equal(summaryCalls(calls).length, 1);
     assert.equal(useAuthStore.getState().user.payments_access, true);
-    assert.deepEqual([usePaymentsSummary.getState().available, usePaymentsSummary.getState().due], [true, 4]);
+    assert.deepEqual([usePaymentsSummary.getState().available, usePaymentsSummary.getState().debtors], [true, 4]);
   });
 });
 
@@ -137,7 +137,7 @@ test("the right is taken back: a profile with false hides what was shown, with n
     useAuthStore.setState({ user: profile({ payments_access: false }) }); // the profile was reloaded (page load)
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
-    assert.deepEqual([state.available, state.loaded, state.due], [false, true, 0]);
+    assert.deepEqual([state.available, state.loaded, state.debtors], [false, true, null]);
     assert.equal(summaryCalls(calls).length, 1, "no new request");
   });
 });
@@ -165,7 +165,7 @@ test("another user signs in (logout resets): the new profile decides from scratc
     useAuthStore.setState({ user: profile({ id: "u2", role: "teacher", org_role: "teacher", payments_access: false }) });
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
-    assert.deepEqual([state.available, state.loaded, state.due], [false, true, 0]);
+    assert.deepEqual([state.available, state.loaded, state.debtors], [false, true, null]);
     assert.equal(summaryCalls(calls).length, 1, "nothing asked for the second user");
   });
 });

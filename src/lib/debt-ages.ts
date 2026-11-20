@@ -1,9 +1,7 @@
 /**
- * Money-2 Э8 (Т18): «Должники» by the age of the debt.  Four baskets (`to_30`, `31_60`, `61_90`, `over_90`) of the summary - students, stays and the sum of each - are a FILTER of the list (`age=`); a row says
- * «долг N дней» from `debt_age_days` (the same count as «Просрочено на N дней»; the pauses are not counted).  The numbers are the server's.  Pure.
+ * Money-2 Э8 (Т18): «Должники» by the age of the debt.  Four baskets (`to_30`, `31_60`, `61_90`, `over_90`) of the summary - students, stays and the sum of each - are a FILTER of the list (`age=`) by the days of the overdue (`overdue_days`; the pauses are not counted).  The numbers are the server's; a row says its overdue in the server's words (`debt_sub`).  Pure.
  */
 import { formatMoney } from "./money-format";
-import { daysLabel } from "./plural";
 
 export type DebtAge = "to_30" | "31_60" | "61_90" | "over_90";
 export const DEBT_AGES: ReadonlyArray<{ key: DebtAge; label: string }> = [
@@ -41,14 +39,4 @@ export function debtAgeAllLabel(total: { students: number }): string {
 /** «3 ученика · 450 000 сум» of a basket. */
 export function debtAgeSummary(basket: Pick<DebtAgeBasket, "students" | "debtTotal">): string {
   return `${basket.students} уч. · ${formatMoney(basket.debtTotal)}`;
-}
-
-/** «62 дня» (the age of the debt for the line with the sum, «Долг 700 000 сум · 62 дня»); null without an age. */
-export function debtAgeDays(days: number | null | undefined): string | null {
-  return typeof days === "number" && Number.isFinite(days) && days >= 0 ? daysLabel(Math.floor(days)) : null;
-}
-
-/** «долг 62 дня»; null without an age. */
-export function debtAgeLine(days: number | null | undefined): string | null {
-  return typeof days === "number" && Number.isFinite(days) && days >= 0 ? `долг ${daysLabel(Math.floor(days))}` : null;
 }

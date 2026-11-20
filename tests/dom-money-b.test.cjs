@@ -1,5 +1,5 @@
 // «Деньги-1 / Б» in a real browser (headless Chromium, the CSS of the project): the window of a price and of the mode show every student «было → станет», «Оплата с» exists only with the money right,
-// «Ждём оплату» is apart from «Должники» and the red banner, the group form has a price only for the money right.  Layout probe on 1280 / 1024 / 375; PNGs in artifacts/analysis/money1_b_screens/.
+// «К оплате» is apart from «Должники» (PAY-DUE: no red notice), the group form has a price only for the money right.  Layout probe on 1280 / 1024 / 375; PNGs in artifacts/analysis/money1_b_screens/.
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
@@ -257,28 +257,29 @@ const paymentsServer = (extra) => (request) => {
   if (extra) { const own = extra(request); if (own) return own; }
   if (request.path === "/auth/org/payments/summary") return { json: X.SUMMARY };
   if (request.path === "/auth/org/payments/status") {
-    const tab = /bucket=([a-z]+)/.exec(request.query)[1];
-    const items = tab === "waiting" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
-    return { json: { items, total: items.length, limit: 50, offset: 0 } };
+    const tab = /bucket=([a-z_]+)/.exec(request.query)[1];
+    const items = tab === "to_pay" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
+    const amount = tab === "to_pay" ? 300000 : tab === "debtors" ? 600000 : 0;
+    return { json: { items, total: items.length, students: items.length, amount_total: amount, limit: 50, offset: 0 } };
   }
   if (request.path === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра", teacher_id: "t1" }] };
   return null;
 };
 
-test("Б7: «Ждём оплату» is a calm tab next to «Должники»; the waiting row is grey with «Ждём оплату до 07.11»; the debtors tab holds only debtors; the card says debt and waiting apart", async () => {
+test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должники»; the row within its term is blue with «до 07.11»; the debtors tab holds only debtors; the cards say each part", async () => {
   await atAllWidths("money-b.entry.tsx", paymentsServer(), async ({ page: firstPage, calls }, width) => {
     let page = firstPage;
-    await page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=debt" }));
+    await page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=debtors" }));
     await page.waitForSelector('[role="tab"]');
     const tabs = (await page.locator('[role="tab"]').allTextContents()).map(plain);
-    assert.deepEqual(tabs.slice(0, 2), ["Должники (1)", "Ждём оплату (1)"]);
+    assert.deepEqual(tabs.slice(0, 2), ["Должники 1", "К оплате 1"]);
     const debtCall = calls.find((c) => c.path === "/auth/org/payments/status");
     assert.match(debtCall.query, /bucket=debtors/);
     await page.waitForSelector('li:has-text("Иванов Иван")');
-    assert.match(plain(await page.textContent("ul")), /Просрочено на 20 дней/);
-    assert.ok(!/Петров/.test(await page.textContent("body")), "the waiting student is not among the debtors");
-    assert.equal(plain(await page.textContent('[data-testid="position-debt"]')).replace(/\s+/g, " ").includes("600 000 сум"), true, "the red card is the debtors' debt only");
-    assert.equal(plain(await page.textContent('[data-testid="position-waiting"]')), "Ждём оплату: 300 000 сум · 1 ученик");
+    assert.match(plain(await page.locator("ul").first().innerText()), /Долг 600 000 сум просрочено 20 дней/);
+    assert.ok(!/Петров/.test(await page.textContent("body")), "the student within his term is not among the debtors");
+    assert.equal(plain(await page.locator('[data-testid="position-debt"]').innerText()).includes("600 000 сум"), true, "the red card is the debt only");
+    assert.match(plain(await page.locator('[data-testid="position-due"]').innerText()), /^К оплате 300 000 сум 1 ученик · ближайший срок до завтра, 07\.11/);
     if (width === 375) {
       // R3 №13: the buttons of a row are ≥ 40 px on a phone
       const heights = await page.evaluate(() => ["button:has(+ *), li button", "a[data-testid=payment-row-statement]"].flatMap((sel) => [...document.querySelectorAll(sel)].filter((el) => el.offsetParent).map((el) => [el.textContent.trim().slice(0, 14) || el.getAttribute("aria-label") || sel, Math.round(el.getBoundingClientRect().height)])));
@@ -287,48 +288,27 @@ test("Б7: «Ждём оплату» is a calm tab next to «Должники»;
     }
     await probe(page, "body", `debtors ${width}`);
     if (width === 1280) await page.screenshot({ path: path.join(SHOTS, "04-payments-debtors-1280.png") });
-    // the router of the test does not move the address: the waiting tab is opened by its own address, as a link does
+    // the router of the test does not move the address: the tab «К оплате» is opened by its own address, as a link does
     const other = await openPage(browser, "money-b.entry.tsx", paymentsServer(), { width, height: width === 375 ? 812 : 900 });
-    await other.page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=waiting" }));
+    await other.page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=to_pay" }));
     page = other.page; // eslint-disable-line no-param-reassign
     await page.waitForSelector('li:has-text("Петров Пётр")');
-    assert.match(plain(await page.textContent('[role="tab"][aria-selected="true"]')), /^Ждём оплату \(1\)$/);
-    assert.match(other.calls.find((c) => c.path === "/auth/org/payments/status").query, /bucket=waiting/);
-    const chipText = plain(await page.textContent('li:has-text("Петров Пётр")'));
-    assert.match(chipText, /Ждём оплату до 07\.11/);
-    assert.equal((chipText.match(/Ждём оплату до 07\.11/g) ?? []).length, 1, "said once");
-    const chipColor = await page.evaluate(() => { const chip = [...document.querySelectorAll("li span")].find((e) => /Ждём оплату до/.test(e.textContent)); return getComputedStyle(chip).color; });
-    assert.ok(chipColor !== "rgb(185, 28, 28)" && chipColor !== "rgb(190, 18, 60)", `the waiting chip is not red/rose: ${chipColor}`);
-    assert.equal(await page.locator('[data-testid="balance-note"]').evaluate((el) => /rose/.test(el.className)), false, "the sum of a waiting student is not red");
-    assert.ok(!/Просрочено/.test(await page.textContent("main, body")), "no «Просрочено» on the waiting tab");
-    await probe(page, "body", `waiting ${width}`);
-    await page.screenshot({ path: path.join(SHOTS, `05-payments-waiting-${width}.png`) });
+    assert.match(plain(await page.textContent('[role="tab"][aria-selected="true"]')), /^К оплате 1$/);
+    assert.match(other.calls.find((c) => c.path === "/auth/org/payments/status").query, /bucket=to_pay/);
+    const chipText = plain(await page.locator('li:has-text("Петров Пётр")').innerText());
+    assert.match(chipText, /К оплате 300 000 сум до 07\.11/);
+    assert.equal((chipText.match(/К оплате 300 000 сум/g) ?? []).length, 1, "said once");
+    const chipColor = await page.evaluate(() => { const chip = document.querySelector('li [data-testid="pay-label"]'); return getComputedStyle(chip).color; });
+    assert.ok(chipColor !== "rgb(185, 28, 28)" && chipColor !== "rgb(190, 18, 60)", `the chip within the term is not red/rose: ${chipColor}`);
+    assert.equal(await page.locator('[data-testid="balance-note"]').count(), 0, "no second line with the same sum");
+    assert.ok(!/Просрочено|просрочено/.test(await page.textContent("main, body")), "no «просрочено» on the tab «К оплате»");
+    await probe(page, "body", `to pay ${width}`);
+    await page.screenshot({ path: path.join(SHOTS, `05-payments-to-pay-${width}.png`) });
     await other.page.close();
   });
 });
 
-test("Б7: the red banner counts the debtors only - not those who wait", async () => {
-  const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer(), { width: 1280, height: 600 });
-  await page.evaluate(() => { window.__pathname = "/owner/dashboard"; window.mount("banner", { role: "owner", org_role: "owner" }, { refresh: true }); });
-  await page.waitForSelector('[data-testid="payments-alert-banner"]');
-  const text = plain(await page.textContent('[data-testid="payments-alert-banner"]'));
-  assert.match(text, /^1 ученик с долгом — 600 000 сум/);
-  assert.ok(!/900 000|2 ученика|ждём/i.test(text), text);
-  assert.ok(!/из них просрочено/.test(text) || /просрочено: 1/.test(text));
-  await page.waitForTimeout(700);      // the banner opens with an animation: the picture is taken after it (R3 №14)
-  assert.ok((await page.locator('[data-testid="payments-alert-banner"]').boundingBox()).height > 40);
-  assert.match(await page.getAttribute('button[aria-label="Скрыть напоминание"]', "title"), /пока должников не станет больше/);
-  await page.screenshot({ path: path.join(SHOTS, "06-banner-1280.png") });
-  await page.close();
-  // only waiting students: no banner at all
-  const calm = paymentsServer((r) => (r.path === "/auth/org/payments/summary"
-    ? { json: { ...X.SUMMARY, debt_total: 300000, students_with_debt: 1, debtors: 1, students_expired: 1, expired: 1, debt_split: { ...X.SPLIT, debtors: 0, debtors_memberships: 0, debtors_debt_total: 0, expired: 0, due: 0, students_expired: 0, students_due: 0, all_debt_total: 300000, all_students_with_debt: 1 } } } : null));
-  const ctx = await openPage(browser, "money-b.entry.tsx", calm, { width: 1280, height: 600 });
-  await ctx.page.evaluate(() => { window.__pathname = "/owner/dashboard"; window.mount("banner", { role: "owner", org_role: "owner" }, { refresh: true }); });
-  await ctx.page.waitForTimeout(600);
-  assert.equal(await ctx.page.locator('[data-testid="payments-alert-banner"]').count(), 0, "nobody is a debtor: the banner is not drawn");
-  await ctx.page.close();
-});
+// Б7 (the red banner counts the debtors only): PAY-DUE 9.7 removed the notice - its absence is checked in tests/money2-fix10e-banner.test.cjs and tests/dom-paydue-part1.test.cjs
 
 test("Б9: the repeated payment - the server's sentence as it is, the button is NOT off", async () => {
   const server = (request) => {
@@ -431,27 +411,21 @@ test("R3 №22: no flash of «Укажите дату» before the default of th
   await page.close();
 });
 
-test("R3 №6/DOM: the header of a group - the red chip «Долг» for the debtors and the GREY «Ждём оплату: M сум · N ученик» chip that leads to the waiting filter; both from the same split of the list", async () => {
+test("R3 №6/DOM → PAY-DUE 9.10: the header of a group - the red chip «Долг» and the BLUE «К оплате: M сум · N ученик» chip that leads to its filter; both from the server's `students` / `amount_total`", async () => {
   const GROUP = { id: "g1", name: "7-А Алгебра", status: "active", class_level: 7, teacher_id: "t1", teacher_name: "Каримова К.", max_students: 30, student_count: 2, students: [], price_current: { amount: 300000 }, lesson_type: "group", schedule: [] };
   const server = (request) => {
     if (request.path === "/auth/org/groups/g1") return { json: GROUP };
-    if (request.path === "/auth/org/payments/summary") return { json: X.SUMMARY };
-    if (request.path === "/auth/org/payments/status") {
-      const tab = /bucket=([a-z]+)/.exec(request.query)[1];
-      const items = tab === "waiting" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
-      return { json: { items, total: items.length } };
-    }
-    return null;
+    return paymentsServer()(request);
   };
   const { page } = await openPage(browser, "money-b.entry.tsx", server, { width: 1280, height: 900 });
   await page.evaluate(() => window.mount("groupHeader", { role: "owner", org_role: "owner" }, { refresh: true }));
-  await page.waitForSelector('[data-testid="group-waiting-chip"]', { timeout: 8000 });
-  assert.equal(plain(await page.textContent('[data-testid="group-waiting-chip"]')), "Ждём оплату: 300 000 сум · 1 ученик");
+  await page.waitForSelector('[data-testid="group-due-chip"]', { timeout: 8000 });
+  assert.equal(plain(await page.textContent('[data-testid="group-due-chip"]')), "К оплате 300 000 сум · 1 ученик");
   assert.match(plain(await page.textContent('[data-testid="group-debt-chip"]')), /^Долг 600 000 сум · 1 ученик$/);
-  const colorOf = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).color, sel);
-  assert.equal(await colorOf('[data-testid="group-waiting-chip"]'), "rgb(82, 79, 72)", "neutral-600 (warm slate-600), not red");
-  assert.equal(await colorOf('[data-testid="group-debt-chip"]'), "rgb(190, 18, 60)", "rose-700");
-  assert.match(await page.getAttribute('[data-testid="group-waiting-chip"]', "href"), /tab=payments&filter=waiting/);
+  const look = (sel) => page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s + " span")); return [c.backgroundColor, c.color]; }, sel);
+  assert.deepEqual(await look('[data-testid="group-due-chip"]'), ["rgb(219, 234, 254)", "rgb(30, 58, 138)"], "accent-100 / accent-900, not red");
+  assert.equal((await look('[data-testid="group-debt-chip"]'))[1], "rgb(190, 18, 60)", "rose-700");
+  assert.match(await page.getAttribute('[data-testid="group-due-chip"]', "href"), /tab=payments&filter=due/);
   assert.match(await page.getAttribute('[data-testid="group-debt-chip"]', "href"), /tab=payments&filter=debt/);
   await page.screenshot({ path: path.join(SHOTS, "08-group-header-chips-1280.png") });
   await page.close();
@@ -526,7 +500,7 @@ test("RB Д4: on 375 every tap target is ≥ 40 px - header chips of a group, fi
   // 1. the header of a group
   let ctx = await openPage(browser, "money-b.entry.tsx", groupServer, phone);
   await ctx.page.evaluate(() => window.mount("groupHeader", { role: "owner", org_role: "owner" }, { refresh: true }));
-  await ctx.page.waitForSelector('[data-testid="group-waiting-chip"]', { timeout: 8000 });
+  await ctx.page.waitForSelector('[data-testid="group-due-chip"]', { timeout: 8000 });
   assert.deepEqual(await small(ctx.page, '[data-testid="group-money-chips"]'), [], "header chips");
   await probe(ctx.page, "body", "group header 375");
   await ctx.page.screenshot({ path: path.join(SHOTS, "RBfix-01-group-header-chips-375.png") });

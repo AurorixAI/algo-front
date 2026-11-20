@@ -280,7 +280,7 @@ test("Q3 / F7 / F30: the header menu of a group is «Изменить групп
   assert.equal(W.groupPriceChipText(null, "Цена в месяц"), "Цена группы не задана");
   assert.equal(plain(W.groupPriceChipText({ amount: 500000 }, "Цена в месяц")), "Цена 500 000 сум/мес");
   assert.equal(W.groupPriceChipText(undefined, "Цена в месяц"), null);
-  assert.deepEqual(W.groupDebtSummary([{ debt: 100000 }, { debt: 0 }, { debt: 50000 }]), { count: 2, total: 150000 });
+  assert.deepEqual(W.groupDebtSummary({ students: 2, amount_total: 150000 }), { count: 2, total: 150000 });   // PAY-DUE 10.2: the server counts the students and the sum of the tab - the screen adds nothing up
   assert.equal(plain(W.groupDebtChipText({ count: 2, total: 150000 })), "Долг 150 000 сум · 2 ученика");
   assert.equal(W.groupDebtChipText({ count: 0, total: 0 }), null);
   assert.match(view, /groupPaymentsHref\(paths\.groups, group\.id, "debt"\)/);
@@ -364,12 +364,14 @@ test("F35: the default tab of the card is «Обучение» (one default); th
   assert.equal(PT.parseProfileTab(null, owner), "learning");
   assert.equal(PT.parseProfileTab("nonsense", owner), "learning");
   assert.equal(PT.parseProfileTab("payments", owner), "payments");
-  const row = (over) => ({ debt: 0, advance: 0, is_active: true, paid_until: null, status: "active", ...over });
-  const chip = C.studentMoneyChip([row({ debt: 300000 }), row({ debt: 100000, is_active: false }), row({ paid_until: "2026-11-15" })]);
+  // PAY-DUE 9.10: the label is the server's worst state of the groups; two groups in one state are added up under the same word
+  const debt = (amount, over = {}) => ({ debt: amount, debt_amount: amount, advance: 0, is_active: true, paid_until: null, status: "active", state: "debt", state_text: `Долг ${amount} сум`, debt_text: `Долг ${amount} сум`, ...over });
+  const paid = (until, text, over = {}) => ({ debt: 0, debt_amount: 0, advance: 0, is_active: true, paid_until: until, status: "active", state: "paid", state_text: text, ...over });
+  const chip = C.studentMoneyChip([debt(300000), debt(100000, { is_active: false }), paid("2026-11-15", "Оплачено до 15.11")]);
   assert.deepEqual([plain(chip.label), chip.tone, chip.debtGroups], ["Долг 400 000 сум", "danger", 2]);
-  assert.deepEqual(C.studentMoneyChip([row({ paid_until: "2026-12-01" }), row({ paid_until: "2026-11-15" })]), { label: "Оплачено до 15.11", tone: "ok", debtGroups: 0 });
+  assert.deepEqual(C.studentMoneyChip([paid("2026-12-01", "Оплачено до 01.12"), paid("2026-11-15", "Оплачено до 15.11")]), { label: "Оплачено до 01.12", tone: "ok", sub: null, debtGroups: 0 });
   assert.equal(C.studentMoneyChip([]), null);
-  assert.equal(C.studentMoneyChip([row({ status: "paused", paid_until: "2026-11-15" })]), null);
+  assert.equal(plain(C.studentMoneyChip([paid("2026-11-15", "Пауза до 20.11", { state: "paused", status: "paused" })]).label), "Пауза до 20.11");
   const view = read("src/components/students/student-profile-view.tsx");
   assert.match(view, /href=\{`\$\{pathname\}\?tab=payments`\}/);
   assert.match(view, /data-testid="student-money-chip"/);
@@ -442,26 +444,27 @@ test("ia-links: every link is built from the workspace; money screens lead to th
   assert.equal(L2.studentHref("/owner/students", "s1", null), "/owner/students/s1");
   assert.equal(L2.groupHref("/admin/groups", "g1"), "/admin/groups/g1");
   assert.equal(L2.groupHref("/admin/groups", "g1", "payments"), "/admin/groups/g1?tab=payments");
-  assert.equal(L2.groupPaymentsListHref("/owner/payments", "g1"), "/owner/payments?bucket=debt&group_id=g1");
+  assert.equal(L2.groupPaymentsListHref("/owner/payments", "g1"), "/owner/payments?bucket=debtors&group_id=g1");
   assert.equal(L2.teacherHref("t 1"), "/owner/teachers?teacher=t%201");
-  assert.equal(INC.debtorsHref("/owner/payments"), "/owner/payments?bucket=debt");
+  assert.equal(INC.debtorsHref("/owner/payments"), "/owner/payments?bucket=debtors");
+  assert.equal(INC.dueHref("/owner/payments"), "/owner/payments?bucket=to_pay");
 });
 
 test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of the same page; «Аванс» to its card on «Поступления» (#advance)", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /card\.key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
+  assert.match(page, /card\.key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : card\.key === "due" \? `\$\{paymentsBase\}\?bucket=to_pay#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
   assert.match(page, /id="payments-list"/);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Аванс" id="advance"/);
   assert.match(read("src/components/payments/income-page.tsx"), /window\.location\.hash === "#advance"/);
-  const cards = PAY.positionCards({ debtors_debt_total: 500000, advance_total: 0, debtors: 2 });
-  assert.deepEqual(cards.map((card) => card.label), ["Долг", "Аванс"]);
+  const cards = PAY.positionCards({ debt_total: 500000, advance_total: 0, debtors: 2, due_total: 100000, due_students: 1 });
+  assert.deepEqual(cards.map((card) => card.label), ["Долг", "К оплате", "Аванс"]);
 });
 
-test("F18: «Долг» is the name of the card here and in «Поступления»; the tabs are «Должники» / «Скоро платить» / «Без долга»; «Оплачено» stays an amount and a chip", () => {
-  assert.deepEqual(PAY.PAYMENT_BUCKETS.map((bucket) => bucket.label), ["Должники", "Скоро платить", "Без долга"]);
+test("F18: «Долг» is the name of the card here and in «Поступления»; the tabs are «Должники» / «К оплате» / «Заканчивается оплата» / «Без долга»; «Оплачено» stays an amount and a chip", () => {
+  assert.deepEqual(PAY.PAYMENT_BUCKETS.map((bucket) => bucket.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга"]);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Долг" id="position"/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /Долг на сегодня"/);
-  assert.equal(PAY.membershipChip({ status: "active", period_mode: "calendar", paid_until: "2026-11-15", debt: 0 }).label, "Оплачено до 15.11");
+  assert.equal(require(path.join(root, "src/lib/pay-state.ts")).payLabel({ state: "paid", state_text: "Оплачено до 15.11" }).text, "Оплачено до 15.11");
   assert.match(read("src/components/payments/receipt-view.tsx"), /receipt\.lessons_count \? "Пакет" : "Период"/);
 });
 
@@ -512,11 +515,15 @@ test("F27: the owner's dashboard - KPI cards are links (students, staff), the de
   assert.equal(D2.dashboardKpiHref("students"), "/owner/students");
   assert.equal(D2.dashboardKpiHref("staff"), "/owner/teachers");
   const fmt = (n) => `${n} сум`;
-  const input = { moneyAvailable: true, debtTotal: 1200000, studentsWithDebt: 3, attention: 4, pendingSubstitutions: 2, format: fmt, debtorsHref: "/owner/payments?bucket=debt" };
-  assert.deepEqual(D2.dashboardTiles(input).map((tile) => [tile.key, tile.href]), [["debt", "/owner/payments?bucket=debt"], ["attention", "/owner/attendance"], ["substitutions", "/owner/substitutions"]]);
-  assert.equal(D2.dashboardTiles(input)[0].label, "Долг · 3 ученика");
+  const input = { moneyAvailable: true, debtTotal: 1200000, debtors: 3, dueTotal: 462000, dueStudents: 2, attention: 4, pendingSubstitutions: 2, format: fmt, debtorsHref: "/owner/payments?bucket=debtors", dueHref: "/owner/payments?bucket=to_pay" };
+  // PAY-DUE 9.9: ONE tile of the money with two rows (the debt and the sum within its term), each row leads to its tab
+  const tiles = D2.dashboardTiles(input);
+  assert.deepEqual(tiles.map((tile) => tile.key), ["money", "attention", "substitutions"]);
+  assert.deepEqual(tiles[0].rows.map((row) => [row.key, row.href]), [["debt", "/owner/payments?bucket=debtors"], ["due", "/owner/payments?bucket=to_pay"]]);
+  assert.deepEqual([tiles[1].href, tiles[2].href], ["/owner/attendance", "/owner/substitutions"]);
+  assert.equal(tiles[0].rows[0].label, "Долг · 3 ученика");
   assert.deepEqual(D2.dashboardTiles({ ...input, moneyAvailable: false, attention: 0, pendingSubstitutions: 0 }), []);   // no money right, nothing to attend: no tiles
-  assert.equal(D2.dashboardTiles({ ...input, debtTotal: 0, attention: 0, pendingSubstitutions: 0 })[0].value, "Долга нет");
+  assert.equal(D2.dashboardTiles({ ...input, debtTotal: 0, dueTotal: 0, attention: 0, pendingSubstitutions: 0 })[0].rows[0].value, "Долга нет");
   const page = read("src/app/owner/dashboard/page.tsx");
   assert.match(page, /data-testid="dashboard-kpi-link"/);
   assert.match(page, /data-testid="dashboard-group-row"/);
@@ -581,7 +588,7 @@ test("F22 / F23 / F24: «Прикрепить» + object, «Настройки»
 
 test("F25 (wave 3): money is RIGHT, text and dates LEFT - the list of «Оплаты» (price, last payment), «Цены групп», the payroll sheet", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /\{ key: "price", header: priceLabel, align: "end"/);                // the price is money: right, its header too
+  assert.doesNotMatch(page, /key: "price"/);                                              // PAY-DUE 9.7: no column of the price in the list (it is in the statement and on the page of the group)
   assert.match(page, /\{ key: "last", header: "Последняя оплата", align: "end"/);        // the last payment (amount + date) is money: right
   assert.match(page, /\{ key: "group", header: "Группа", width/);                         // the group is text: left
   assert.match(page, /\{ key: "status", header: "Статус"/);
@@ -633,12 +640,12 @@ test("F17: one wording of the lesson actions by the date of the lesson, in the s
 });
 
 test("F34: the filters and sub-tabs are in the address - payments list, income period, statement month, excuses / substitutions status, staff tab", () => {
-  const url = (state) => PAY.paymentsListQueryString({ bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, age: "", ...state });
-  assert.equal(url({}), "?bucket=debt");
+  const url = (state) => PAY.paymentsListQueryString({ bucket: "debtors", groupId: "", teacherId: "", q: "", page: 0, age: "", ...state });
+  assert.equal(url({}), "?bucket=debtors");
   assert.equal(url({ bucket: "active", groupId: "g1", q: "али", page: 2 }), "?bucket=active&group_id=g1&q=%D0%B0%D0%BB%D0%B8&page=3");
-  assert.equal(url({ teacherId: "t1" }), "?bucket=debt&teacher_id=t1");
+  assert.equal(url({ teacherId: "t1" }), "?bucket=debtors&teacher_id=t1");
   assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3, age: "" });
-  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, age: "" });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debtors", groupId: "", teacherId: "", q: "", page: 0, age: "" });
   const today = "2026-10-22";
   const period = (kind, from, to) => ({ kind, from, to });
   assert.equal(INC.incomeQueryString(INC.periodOf("month", today), "journal", today), "?");

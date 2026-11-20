@@ -6,7 +6,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
 /**
  * «Деньги-1 / Б» (расчёт оплат), the screens against the real server:
  *  - the window of a price change names EVERY student the change moves, «было → станет», with the next period («следующий период с …: 300 000 → 400 000 сум (+100 000)»), the individual prices apart;
- *  - «Ждём оплату» is a tab of its own: a student whose period has just begun is NOT among «Должники», the red banner and the red card count the debtors only;
+ *  - PAY-DUE: «К оплате» is a tab of its own: a student whose period has just begun (the term of 5 days is running) is NOT among «Должники»; the red card and the badge count the debtors only; there is NO red notice any more;
  *  - «Оплата с» in adding a student: the owner sees the date (the first lesson by default), the quiet line without the money right is the server's `billing.text`.
  */
 let org: Org;
@@ -18,7 +18,7 @@ test.beforeAll(async () => {
 
 const post = (path: string, body: unknown) => org.owner.api.post(path, body);
 
-test("Б3: the price window lists every moved student with the next period; Б7: «Ждём оплату» is apart from «Должники», the banner counts the debtors only", async ({ signIn }) => {
+test("Б3: the price window lists every moved student with the next period; PAY-DUE: «К оплате» is apart from «Должники», the cards count each part, no notice above the page", async ({ signIn }) => {
   const today = businessNow().date;
   const teacher = await org.addStaff("teacher", "Ждунов");
   const group = await org.createGroup({ name: "Группа Б", teacherId: teacher.userId });
@@ -26,7 +26,7 @@ test("Б3: the price window lists every moved student with the next period; Б7:
   const waiter = await org.createStudent("Пётр", "Ждущий");
   const debtor = await org.createStudent("Иван", "Долгов");
   const payer = await org.createStudent("Алия", "Платящая");
-  // «Оплата с» yesterday: the period began yesterday (within the 3 days of grace); ten days ago: it is overdue; paid in time
+  // «Оплата с» yesterday: the period began yesterday (inside the term of 5 days: «К оплате»); ten days ago: the term has passed («Долг»); paid in time
   await post(`/auth/org/groups/${group.id}/students/${waiter.id}`, { pay_from: addDays(today, -1) });
   await post(`/auth/org/groups/${group.id}/students/${debtor.id}`, { pay_from: addDays(today, -10) });
   await post(`/auth/org/groups/${group.id}/students/${payer.id}`, { pay_from: addDays(today, -1) });
@@ -34,30 +34,34 @@ test("Б3: the price window lists every moved student with the next period; Б7:
 
   // --- the server's split, the same numbers on the screen
   const summary = await org.owner.api.get("/auth/org/payments/summary");
-  expect(summary.debt_split).toMatchObject({ debtors: 1, waiting_students: 1, debtors_debt_total: 300000, waiting_debt_total: 300000 });
+  expect(summary).toMatchObject({ debtors: 1, due_students: 1, debt_total: 300000, due_total: 300000 });
 
   const page = await signIn(org.owner);
-  await page.goto("/owner/payments?bucket=debt");
+  await page.goto("/owner/payments?bucket=debtors");
   const tabs = page.getByRole("tab");
-  await expect(tabs.nth(0)).toHaveText("Должники (1)");
-  await expect(tabs.nth(1)).toHaveText("Ждём оплату (1)");
-  await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText(/Просрочено|Ещё не платил/);
-  await expect(page.getByText("Ждущий Пётр")).toHaveCount(0);       // the waiting student is not a debtor
+  await expect(tabs.nth(0)).toHaveText("Должники 1");
+  await expect(tabs.nth(1)).toHaveText("К оплате 1");
+  await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText(/Долг 300\s000\sсум/);
+  await expect(page.getByRole("list").filter({ hasText: "Долгов Иван" })).toContainText(/просрочено \d+ дн/);
+  await expect(page.getByText("Ждущий Пётр")).toHaveCount(0);       // the student within his term is not a debtor
   await expect(page.getByTestId("position-debt")).toContainText(/300\s000\sсум/);
-  await expect(page.getByTestId("position-waiting")).toContainText("Ждём оплату: 300 000 сум · 1 ученик");
+  await expect(page.getByTestId("position-due")).toContainText(/300\s000\sсум/);
+  await expect(page.getByTestId("position-due")).toContainText("1 ученик");
   await expectNoHorizontalScroll(page);
 
-  await page.goto("/owner/payments?bucket=waiting");
-  await expect(page.getByRole("tab", { selected: true })).toHaveText("Ждём оплату (1)");
+  await page.goto("/owner/payments?bucket=to_pay");
+  await expect(page.getByRole("tab", { selected: true })).toHaveText("К оплате 1");
   const row = page.getByRole("listitem").filter({ hasText: "Ждущий Пётр" });
-  await expect(row).toContainText(/Ждём оплату до \d\d\.\d\d/);
-  await expect(row).not.toContainText("Просрочено");
+  await expect(row).toContainText(/К оплате 300\s000\sсум/);
+  await expect(row).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
+  await expect(row).not.toContainText("просрочено");
   await expect(page.getByText("Долгов Иван")).toHaveCount(0);
 
-  // --- the red banner (on the home page) counts the debtors: one student, 300 000 сум - not the waiting one
+  // --- no red notice above the page (PAY-DUE 9.7): the same fact is in the card, the tab and the badge of the menu
   await page.goto("/owner/dashboard");
-  const banner = page.getByTestId("payments-alert-banner");
-  await expect(banner).toContainText(/1 ученик с долгом — 300\s000\sсум/);
+  await expect(page.getByTestId("payments-alert-banner")).toHaveCount(0);
+  await expect(page.getByTestId("dashboard-tile-debt")).toContainText(/300\s000\sсум/);
+  await expect(page.getByTestId("dashboard-tile-due")).toContainText(/300\s000\sсум/);
 
   // --- the price window: every moved student, the next period, in the table «было → станет»
   await page.goto(`/owner/payments/prices?group=${group.id}`);

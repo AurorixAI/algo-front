@@ -151,28 +151,24 @@ test("the chart opens at the last day with money (else today, else the end) and 
 
 // ── 4. the tabs of «Оплаты» follow the filter ──────────────────────────────────────────────────
 
-test("tab counts under a group / teacher filter come from /payments/status with the same filter; the centre's summary stays for the banner", async () => {
-  const calls = [];
-  const rows = (ids) => ids.map((id) => ({ student_id: id }));
-  const answers = { debt: { total: 3, items: rows(["a", "b", "a"]) }, expiring: { total: 1, items: rows(["c"]) }, active: { total: 7, items: rows(["d"]) }, paused: { total: 0, items: [] }, waiting: { total: 2, items: rows(["w", "w"]) } };
-  const counts = await P.filteredTabCounts(async (query) => { calls.push(query); return answers[query.bucket]; });
-  assert.deepEqual(counts, { debt: 2, waiting: 1, expiring: 1, active: 7, paused: 0 }, "debtors and the waiting ones are students (a, b / w), the rest memberships");
-  assert.deepEqual(calls.map((query) => query.bucket).sort(), ["active", "debt", "expiring", "paused", "waiting"]);
-  assert.ok(calls.filter((query) => query.bucket !== "debt" && query.bucket !== "waiting").every((query) => query.limit === 1), "only the total is wanted");
-  // more debtors than one answer holds: the exact total instead of a guess
-  assert.equal((await P.filteredTabCounts(async (query) => (query.bucket === "debt" ? { total: 900, items: rows(["a", "b"]) } : { total: 0, items: [] }))).debt, 900);
-  // the tab bar reads the narrowed numbers: «Должники (2) / Без долга (7)»; none while they are on their way
-  const summary = P.narrowedTabSummary(counts);
-  assert.deepEqual(P.visibleBuckets(summary, "debt").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(summary, tab.key))), ["Должники (2)", "Ждём оплату (1)", "Скоро платить (1)", "Без долга (7)"]);
-  assert.equal(P.narrowedTabSummary(null), null);
-  assert.equal(P.bucketCount(P.narrowedTabSummary(null), "debt"), null);
+test("tab counts under a group / teacher filter: each tab asks /payments/status with the same filter for ONE row and reads the server's `students`; the screen counts nothing", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /const summaryForTabs = narrowed \? narrowedTabSummary\(narrowedCounts\) : summaryLoaded \?/);
-  assert.match(page, /teacherId: filter\.groupId \? undefined : filter\.teacherId \|\| undefined,\s*limit: query\.limit/); // the same filter as the list
+  // PAY-DUE 10.2: filteredTabCounts / narrowedTabSummary (the screen's own count of students) are deleted
+  for (const gone of ["filteredTabCounts", "narrowedTabSummary"]) assert.equal(P[gone], undefined, gone);
+  assert.match(page, /const keys: PaymentBucket\[\] = \["debtors", "to_pay", "expiring", "active", "paused"\]/);
+  assert.match(page, /orgApi\.getPaymentsStatus\(\{ bucket: key, \.\.\.scope \}\)/);
+  assert.match(page, /limit: 1, offset: 0/);
+  assert.match(page, /typeof pages\[index\]\?\.students === "number"/);
+  assert.doesNotMatch(page, /new Set\(/, "no student is counted on the screen");
+  assert.match(page, /const scope = \{ groupId: filter\.groupId \|\| undefined, teacherId: filter\.groupId \? undefined : filter\.teacherId \|\| undefined, limit: 1, offset: 0 \}/); // the same filter as the list
   assert.match(page, /void loadNarrowedCounts\(\);\s*void refreshSummary\(true\)/); // refreshed after a payment
-  // the banner and the badge are the centre's: they never read the narrowed counts
-  assert.doesNotMatch(read("src/components/payments/payments-alert-banner.tsx"), /narrowed|filteredTabCounts/);
-  assert.doesNotMatch(read("src/lib/payments-summary.ts"), /filteredTabCounts/);
+  // the tab bar reads the narrowed numbers: «Должники 2 / Без долга 7»; none while they are on their way
+  const counts = { debtors: 2, to_pay: 1, expiring: 1, active: 7, paused: 0 };
+  assert.deepEqual(P.visibleBuckets({ students_paused: counts.paused }, "debtors").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(counts, tab.key))), ["Должники 2", "К оплате 1", "Заканчивается оплата 1", "Без долга 7"]);
+  assert.equal(P.bucketCount(null, "debtors"), null);
+  assert.match(page, /const tabCounts: TabCounts \| null = narrowed \? narrowedCounts : summaryLoaded \? summaryTabs : null;/);
+  // the badge of the menu is the centre's: it never reads the narrowed counts
+  assert.doesNotMatch(read("src/lib/payments-summary.ts"), /narrowed|filteredTabCounts/);
 });
 
 // ── 5. the drawer ──────────────────────────────────────────────────────────────────────────────
@@ -364,10 +360,10 @@ test("debt numbers: «Долг» header, and one quiet line under the total when
   const { React, text, html } = parts();
   const C = require(path.join(root, "src/components/payments/income-collection.tsx"));
   const o = overview("I01_income_month_october");
-  const total = o.collection.total.debtors_debt + o.collection.total.debt_waiting;
+  const total = o.collection.total.debt + o.collection.total.due;
   assert.equal(V.collectionDebtNote(o.collection, total), null, "the same number: nothing is said");
   assert.equal(V.collectionDebtNote(o.collection, null), null);
-  const note = V.collectionDebtNote({ ...o.collection, month_label: "октябрь 2026", total: { ...o.collection.total, debtors_debt: 1800000, debt_waiting: 0 } }, 1950000);
+  const note = V.collectionDebtNote({ ...o.collection, month_label: "октябрь 2026", total: { ...o.collection.total, debt: 1800000, due: 0 } }, 1950000);
   assert.equal(plain(note), "Долг за октябрь — 1 800 000 сум. Всего долг на сегодня — 1 950 000 сум (с прошлыми месяцами).");
   const el = (debtToday) => React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", debtToday });
   assert.match(html(el(total + 150000)), /data-testid="collection-debt-note"/);
@@ -376,7 +372,7 @@ test("debt numbers: «Долг» header, and one quiet line under the total when
   assert.ok(text(el(total)).includes("Долг") && !text(el(total)).includes("Долг за месяц"), "the column is «Долг»");
   const src = read("src/components/payments/income-collection.tsx");
   assert.match(src, /key: "debt", header: "Долг", align: "end"/);
-  assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data \? overview\.data\.position\.debtors_debt_total \+ overview\.data\.position\.debt_waiting_total : null\}/);
+  assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data \? overview\.data\.position\.debt_total \+ overview\.data\.position\.due_total : null\}/);
 });
 
 test("I07: «Журнал оплат пуст» is the normal secondary grey (slate-600 ≥ 4.5:1), not slate-400", () => {

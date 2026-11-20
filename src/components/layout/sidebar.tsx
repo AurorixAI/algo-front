@@ -31,11 +31,10 @@ import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { refreshBadgesOnPageChange } from "@/lib/badge-throttle";
 import { BADGE_LABEL } from "@/lib/substitutions";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { usePaymentsSummary, usePaymentsSummarySync } from "@/lib/payments-summary";
 import { effectiveRole, homeForSidebar } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
-import { debtorsCount } from "@/lib/payments";
 import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomNav } from "@/lib/bottom-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { SupportDialog } from "@/components/support/support-dialog";
@@ -129,12 +128,13 @@ export function Sidebar() {
   }, [showExcuses, refreshExcuses, refreshSubstitutions]);
 
   // Payments: the item exists only while the server lets this user see them (owner always,
-  // administrator once the owner enabled it). The summary itself is kept fresh by the banner
-  // in the layout; a teacher never reads it.
+  // administrator once the owner enabled it). The summary is kept fresh HERE, in the shell (mount, route change,
+  // tab visible, every 5 minutes; PAY-DUE 10.8: the notice that used to carry it is gone); a teacher never reads it.
+  usePaymentsSummarySync(showExcuses, pathname);
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
   const paymentsKnown = usePaymentsSummary((state) => state.loaded);
-  // One number for the owner everywhere: the badge, the banner and the card «Долг учеников» count the DEBTORS (students with a debt).
-  const paymentsDue = usePaymentsSummary((state) => debtorsCount({ debtors: state.debtors }) ?? 0);
+  // One number for the owner everywhere: the badge, the tab «Должники» and the card «Долг» count the DEBTORS (students whose term has passed) - the server's `debtors`.
+  const paymentsDue = usePaymentsSummary((state) => state.debtors ?? 0);
   // The owner always has access, so the item is there from the first paint (no jump when the
   // summary arrives); an administrator sees it once the server confirms the access.
   const showPayments = rawRole === "owner" || (role === "admin" && paymentsAvailable);

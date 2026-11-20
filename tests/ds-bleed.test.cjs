@@ -24,7 +24,7 @@ const paymentsServer = (request) => {
   if (request.path === "/auth/org/payments/summary") return { json: X.SUMMARY };
   if (request.path === "/auth/org/payments/status") {
     const tab = /bucket=([a-z]+)/.exec(request.query)[1];
-    const items = tab === "waiting" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
+    const items = tab === "to_pay" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
     return { json: { items, total: items.length, limit: 50, offset: 0 } };
   }
   if (request.path === "/auth/org/groups") return { json: [{ id: "g1", name: "7-А Алгебра", teacher_id: "t1" }] };
@@ -34,7 +34,7 @@ const paymentsServer = (request) => {
 /** The left edge of the first text of an element (the text node, not the box). */
 const textLeft = `(el) => { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); for (let n = w.nextNode(); n; n = w.nextNode()) { if (!n.textContent.trim()) continue; const r = document.createRange(); r.selectNodeContents(n); const rect = r.getClientRects()[0]; if (rect) return rect.left; } return null; }`;
 
-for (const bucket of ["debt", "waiting"]) {
+for (const bucket of ["debtors", "to_pay"]) {
   for (const [width, height] of [[1280, 900], [375, 812]]) {
     test(`«Оплаты», вкладка ${bucket}, ${width}: the text of the chip, the line under it and (from 1280) the header «Статус» have one left edge`, async () => {
       const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer, { width, height });

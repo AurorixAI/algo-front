@@ -24,8 +24,8 @@ test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher
   await org.addStudent(g3, "Булат", "Физиков");
 
   const page = await signIn(org.owner);
-  await page.goto("/owner/payments?bucket=waiting");   // Money-1 B7: students added today wait for the first payment
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  await page.goto("/owner/payments?bucket=to_pay");   // PAY-DUE: students added today are within their term - «К оплате»
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   const names = ["Ивановский Анвар", "Геометрова Мадина", "Физиков Булат"];
   const visible = async () =>
     (await Promise.all(names.map(async (n) => ((await page.getByRole("link", { name: n, exact: true }).count()) > 0 ? n : null)))).filter(Boolean);

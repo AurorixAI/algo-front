@@ -30,15 +30,17 @@ const REGIME_IMPACT = {
   override_students: [{ membership_id: "o", student_name: "Юсупов Бек", price: 250000, reason: "скидка", text: "Юсупов Бек: индивидуальная цена 250 000 сум не меняется" }],
 };
 
-const ROW = (o) => ({ membership_id: "m1", student_id: "s1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", teacher_name: "Каримова К.", is_primary: true, is_active: true, status: "expired", debt: 300000, past_debt: 0, current_due: 300000, advance: 0,
-  price: { amount: 300000, source: "group", valid_from: "2026-01-01", group_amount: 300000, reason: null }, last_payment: null, bucket: "debt", ...o });
-const DEBTOR = ROW({ membership_id: "m1", student_name: "Иванов Иван", debt: 600000, past_debt: 300000, days_overdue: 20, debt_reason: "overdue", reason: "Просрочено на 20 дней", tab: "debtors" });
-const WAITING = ROW({ membership_id: "m2", student_id: "s2", student_name: "Петров Пётр", debt: 300000, days_overdue: 1, debt_reason: "overdue", reason: "Просрочено на 1 день", tab: "waiting", waiting_until: "2026-11-07", waiting_reason: "Ждём оплату до 07.11" });
+// PAY-DUE 10.2: the rows and the summary by the contract of section 12 - `debt_amount` / `due_amount` with the server's words, `state` the worst state; `debt` is everything unpaid.
+const ROW = (o) => ({ membership_id: "m1", student_id: "s1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", teacher_name: "Каримова К.", is_primary: true, is_active: true, status: "active", period_mode: "calendar", paid_until: null, advance: 0,
+  price: { amount: 300000, source: "group", valid_from: "2026-01-01", group_amount: 300000, reason: null }, last_payment: null,
+  debt: 0, debt_amount: 0, due_amount: 0, due_until: null, overdue_days: null, debt_text: null, debt_sub: null, due_text: null, due_sub: null, state: "paid", state_text: null, ...o });
+const DEBTOR = ROW({ membership_id: "m1", student_name: "Иванов Иван", debt: 600000, debt_amount: 600000, overdue_days: 20, state: "debt", state_text: "Долг 600 000 сум", debt_text: "Долг 600 000 сум", debt_sub: "просрочено 20 дней" });
+const WAITING = ROW({ membership_id: "m2", student_id: "s2", student_name: "Петров Пётр", debt: 300000, due_amount: 300000, due_until: "2026-11-07", state: "to_pay", state_text: "К оплате 300 000 сум", due_text: "К оплате 300 000 сум", due_sub: "до 07.11" });
 
-const SPLIT = { debtors: 1, debtors_memberships: 1, debtors_debt_total: 600000, waiting_students: 1, waiting_memberships: 1, waiting_debt_total: 300000, all_debt_total: 900000, all_students_with_debt: 2, expired: 1, due: 1, students_expired: 1, students_due: 1 };
 const SUMMARY = {
-  as_of: "2026-11-06", due: 2, ends_today: 0, expired: 2, expiring: 0, none: 0, active: 0, free: 0, tracked_total: 2, period_mode: "calendar", debt_total: 900000, advance_total: 0, memberships_with_debt: 2, students_with_debt: 2, debtors: 2,
-  students_due: 2, students_expired: 2, buckets: { debt: 2, expiring: 0, active: 0, paused: 0 }, debt_split: SPLIT, accounting_start_date: "2026-09-01",
+  as_of: "2026-11-06", ends_today: 0, expiring: 0, none: 0, active: 0, free: 0, tracked_total: 2, period_mode: "calendar", debt_total: 600000, debtors: 1, due_total: 300000, due_students: 1,
+  due_nearest: { date: "2026-11-07", text: "до завтра, 07.11" }, advance_total: 0, students_with_advance: 0, memberships_with_debt: 1, paused: 0, students_paused: 0, price_missing: 0,
+  buckets: { debtors: 1, to_pay: 1, expiring: 0, active: 0, paused: 0 }, debt_ages: [], pay_due_days: 5, pay_due_lessons: 2, accounting_start_date: "2026-09-01",
 };
 
-module.exports = { PRICE_IMPACT, REGIME_IMPACT, DEBTOR, WAITING, SUMMARY, SPLIT, ROW };
+module.exports = { PRICE_IMPACT, REGIME_IMPACT, DEBTOR, WAITING, SUMMARY, ROW };

@@ -168,11 +168,11 @@ test("the header of the group: the price chip and «Цена группы…» i
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы задана")).toBeVisible();
   await expect(page.getByTestId("group-price-chip")).toContainText(new RegExp(moneyPattern(500000)));
-  // the debt chip is the DEBTORS' (red, a link to the filtered tab); the student who only waits has his own grey chip and filter
+  // the debt chip is the DEBTORS' (red, a link to the filtered tab); the student still within his term has his own calm blue chip «К оплате» and filter (PAY-DUE 9.10)
   await expect(page.getByTestId("group-debt-chip")).toContainText(/Долг .*· 1 ученик/);
-  await expect(page.getByTestId("group-waiting-chip")).toContainText(/Ждём оплату: .* · 1 ученик/);
-  await page.getByTestId("group-waiting-chip").click();
-  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=waiting`));
+  await expect(page.getByTestId("group-due-chip")).toContainText(/К оплате .* · 1 ученик/);
+  await page.getByTestId("group-due-chip").click();
+  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=due`));
   await expect(page.getByTestId("group-payments-tab")).toContainText("Ждущий Рустам");
   await expect(page.getByTestId("group-payments-tab")).not.toContainText("Должников Тимур");
   await page.goBack();

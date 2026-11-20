@@ -13,13 +13,7 @@ interface PaymentsSummaryState {
   available: boolean;
   /** At least one answer (or failure) has been processed. */
   loaded: boolean;
-  /** Memberships whose payment has ended (expired + ends today): the banner and the menu badge. */
-  due: number;
-  /** Of `due`, those whose payment has already ended (the rest end today): the overdue chip of the banner. */
-  expired: number;
-  /** The same as `due` / `expired`, in distinct students (a student of two groups counts once); null from an older server. */
-  studentsDue: number | null;
-  studentsExpired: number | null;
+  /** Memberships of the tab «Заканчивается оплата» / «Без долга»; the others are in `tabs`. */
   expiring: number;
   none: number;
   active: number;
@@ -28,17 +22,18 @@ interface PaymentsSummaryState {
   /** The day the accounting starts (S0: the opening balances are checked against the day before it); null until the server sends it. */
   accountingStart: string | null;
   lessonsPerPayment: number | null;
-  /** PAY-2: what the students owe the center today, and what they have paid ahead (whole сум; 0 from an older server). */
+  /** PAY-DUE 10.2: ONE meaning of the unpaid sum: the debt (the term has passed) and «К оплате» (still within it), each with its students; the nearest term in the server's words. */
   debtTotal: number;
-  advanceTotal: number;
-  studentsWithDebt: number;
-  /** Owner 21.10: the count of the «Должники» tab (= the card «Долг учеников»), students who paid ahead, memberships without a price; null until the server sends them. */
   debtors: number | null;
-  /** The rows of each tab (memberships); null from an older server. */
-  buckets: { debt: number; waiting: number; expiring: number; active: number; paused: number } | null;
-  /** Money-1 B7: students / sum of «Ждём оплату» (apart from the debtors; 0 from an older server). */
-  studentsWaiting: number;
-  debtWaitingTotal: number;
+  dueTotal: number;
+  dueStudents: number | null;
+  dueNearest: { date: string; text: string } | null;
+  advanceTotal: number;
+  /** The numbers of the tabs - STUDENTS, the server's (null until it sends them). */
+  tabs: TabCounts | null;
+  /** The term of the centre in days / lessons - READ ONLY here (PAY-DUE 10.6); null until the server sends it. */
+  payDueDays: number | null;
+  payDueLessons: number | null;
   paused: number;
   studentsPaused: number | null;
   studentsWithAdvance: number | null;
@@ -60,6 +55,7 @@ interface PaymentsSummaryState {
 }
 
 import { debtAgesOf, type DebtAgeBasket } from "./debt-ages";
+import type { TabCounts } from "./payments";
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 /** A count the server may leave out: null when it is missing or not a number. */
 const optionalCount = (value: unknown): number | null =>
@@ -68,10 +64,6 @@ const optionalCount = (value: unknown): number | null =>
 const EMPTY = {
   available: false,
   loaded: false,
-  due: 0,
-  expired: 0,
-  studentsDue: null as number | null,
-  studentsExpired: null as number | null,
   expiring: 0,
   none: 0,
   active: 0,
@@ -80,12 +72,14 @@ const EMPTY = {
   accountingStart: null as string | null,
   lessonsPerPayment: null as number | null,
   debtTotal: 0,
-  advanceTotal: 0,
-  studentsWithDebt: 0,
   debtors: null as number | null,
-  buckets: null as { debt: number; waiting: number; expiring: number; active: number; paused: number } | null,
-  studentsWaiting: 0,
-  debtWaitingTotal: 0,
+  dueTotal: 0,
+  dueStudents: null as number | null,
+  dueNearest: null as { date: string; text: string } | null,
+  advanceTotal: 0,
+  tabs: null as TabCounts | null,
+  payDueDays: null as number | null,
+  payDueLessons: null as number | null,
   paused: 0,
   studentsPaused: null as number | null,
   studentsWithAdvance: null as number | null,
@@ -132,36 +126,34 @@ export function useMoneyDenied(): boolean {
   return moneyDeniedFor(user, { loaded, available });
 }
 
-/** Fields of the state that come from one summary answer. */
+/** Fields of the state that come from one summary answer: the server's numbers, read as they are (PAY-DUE 10.2). */
 export function summaryToState(summary: Partial<PaymentsSummary> | null | undefined) {
   const lessons = Number(summary?.lessons_per_payment);
-  // Money-1 B7 / V (а): ONE definition of a debtor.  The red banner, the cards and the badge read ONLY the split (the waiting ones are out); the old fields of the server (`debt_total`, `students_with_debt`,
-  // `due`, `expired`, `buckets.debt`, …) are not read any more - without the split every such number is 0 (a server that does not send it has no debt to show).
-  const split = summary?.debt_split ?? null;
+  const nearest = summary?.due_nearest;
+  const debtors = optionalCount(summary?.debtors);
+  const dueStudents = optionalCount(summary?.due_students);
   return {
     available: true,
     loaded: true,
-    due: count(split?.due),
-    expired: Math.min(count(split?.expired), count(split?.due)),
-    studentsDue: optionalCount(split?.students_due),
-    studentsExpired: optionalCount(split?.students_expired),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
-    // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.
+    // `active` is already the whole «Без долга» tab (paid + free); `free` is a sub-count of it.
     active: count(summary?.active),
     trackedTotal: count(summary?.tracked_total),
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
     accountingStart: typeof summary?.accounting_start_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(summary.accounting_start_date) ? summary.accounting_start_date : null,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,
-    debtTotal: count(split?.debtors_debt_total),
-    studentsWaiting: count(split?.waiting_students),
-    debtWaitingTotal: count(split?.waiting_debt_total),
+    debtTotal: count(summary?.debt_total),
+    debtors,
+    dueTotal: count(summary?.due_total),
+    dueStudents,
+    dueNearest: nearest && typeof nearest.text === "string" && nearest.text ? { date: String(nearest.date), text: nearest.text } : null,
     advanceTotal: count(summary?.advance_total),
-    studentsWithDebt: count(split?.debtors),
-    debtors: count(split?.debtors),
-    buckets: summary?.buckets
-      ? { debt: count(split?.debtors_memberships), waiting: count(split?.waiting_memberships), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
+    tabs: summary?.buckets
+      ? { debtors, to_pay: dueStudents, expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: optionalCount(summary?.students_paused) ?? count(summary.buckets.paused) }
       : null,
+    payDueDays: optionalCount(summary?.pay_due_days),
+    payDueLessons: optionalCount(summary?.pay_due_lessons),
     paused: count(summary?.paused),
     studentsPaused: optionalCount(summary?.students_paused),
     studentsWithAdvance: optionalCount(summary?.students_with_advance),

@@ -49,13 +49,13 @@ test("fixed payment day: the new mode waits for the next period; the running one
   // --- the running period is not touched: the share of the running month is due, the amount starts as that
   const expectedAmount = sharedMonthCharge(fee, now.date, now.date);       // the share of the days from today to the end of the month
 
-  // Money-1 B7: the period began today - he WAITS for the payment, he is not a debtor: «Должники» says so in its empty state (not a list that failed to load), «Ждём оплату» holds his row
-  const split = (await org.owner.api.get("/auth/org/payments/summary")).debt_split;
-  expect(split).toMatchObject({ debtors: 0, waiting_students: 1 });
+  // PAY-DUE: the period began today - the term is running, he is not a debtor: «Должники» says so in its empty state (not a list that failed to load), «К оплате» holds his row
+  const summary = await org.owner.api.get("/auth/org/payments/summary");
+  expect(summary).toMatchObject({ debtors: 0, due_students: 1 });
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(page.getByText("Должников нет")).toBeVisible();
-  await page.getByRole("tab", { name: /Ждём оплату/ }).click();
+  await page.getByRole("tab", { name: /К оплате/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`${groupedDigits(expectedAmount).replace(/ /g, "\\s")}\\s*сум`));
   await row.getByRole("button", { name: "Внести оплату" }).click();
