@@ -9,12 +9,9 @@ import {
   bucketCount,
   bucketTabLabel,
   type TabCounts,
-  formatDateRu,
   formatMoney,
   incomeHref,
   isCarryOver,
-  lastPaymentLabel,
-  paymentAmountLabel,
   visibleBuckets,
   parseBucket,
   paymentsBaseOf,
@@ -56,7 +53,7 @@ import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
-import { DataCell, DataEmpty, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Words } from "@/components/ui/words";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
@@ -72,12 +69,11 @@ const AMOUNT_TONE = { debt: "text-rose-700", advance: "text-emerald-700", due: "
 /** The «⋯» of a row: 40 px in a card (R3 №13), compact in the table. */
 const ROW_MENU_TRIGGER = "dt-ctl flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50";
 
-/** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the last payment is money, RIGHT; the action column is right.  No column of the price (PAY-DUE 9.7: it is in the statement and on the page of the group). */
+/** The columns of the list (DataTable): names and groups are text, LEFT and wide (they wrap, they are not cut); the action column is right.  No column of the price and no column of the last payment (a «—» in every row; the last payment is in the statement and in the «⋯» menu) (PAY-DUE 9.7: it is in the statement and on the page of the group). */
 const PAYMENT_COLUMNS: DataColumn[] = [
   { key: "student", header: "Ученик", width: "minmax(8rem,3fr)" },
-  { key: "group", header: "Группа", width: "minmax(5.5rem,2fr)", cardLabel: "Группа" },
+  { key: "group", header: "Группа", width: "minmax(5.5rem,2fr)" },
   { key: "status", header: "Статус", width: "max-content" },
-  { key: "last", header: "Последняя оплата", align: "end", width: "max-content", cardLabel: "Последняя оплата", priority: "low" },
   { key: "actions", header: "", align: "end", width: "max-content", actions: true },
 ];
 
@@ -319,7 +315,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
-          <p className="text-sm text-slate-500">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
+          <p className="text-sm text-slate-500 max-sm:hidden">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -573,7 +569,7 @@ function PaymentRow({
       <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 max-sm:flex max-sm:min-h-10 max-sm:items-center">
         <Words text={row.group_name} />
       </Link>
-      <p className="text-xs text-slate-500">{row.teacher_name || "—"}</p>
+      <p className="text-xs text-slate-500 max-sm:hidden">{row.teacher_name || "—"}</p>
     </div>
   );
 
@@ -589,17 +585,6 @@ function PaymentRow({
           {/* a package that is paid: how many lessons are left (the bar of the package); a sum in its term / a debt already says its lessons in its own words */}
           {row.period_mode === "lessons" && (label.state === "paid" || label.state === "expiring") && <PackageProgress row={row} variant="compact" />}
         </div>
-      </DataCell>
-      {/* Последняя оплата: money, RIGHT; the date is the quiet line under the amount */}
-      <DataCell col="last">
-        {last ? (
-          <span className="tabular-nums" title={lastPaymentLabel(last)}>
-            <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
-            <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
-          </span>
-        ) : (
-          <DataEmpty testId="last-payment-empty" />
-        )}
       </DataCell>
       <DataCell col="actions">
         <PayButton row={row} onPay={onPay} />

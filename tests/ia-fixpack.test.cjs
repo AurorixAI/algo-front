@@ -452,7 +452,7 @@ test("ia-links: every link is built from the workspace; money screens lead to th
 
 test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of the same page; «Аванс» to its card on «Поступления» (#advance)", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /card\.key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : card\.key === "due" \? `\$\{paymentsBase\}\?bucket=to_pay#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
+  assert.match(page, /key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : key === "due" \? `\$\{paymentsBase\}\?bucket=to_pay#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
   assert.match(page, /id="payments-list"/);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Аванс" id="advance"/);
   assert.match(read("src/components/payments/income-page.tsx"), /window\.location\.hash === "#advance"/);
@@ -589,7 +589,7 @@ test("F22 / F23 / F24: «Прикрепить» + object, «Настройки»
 test("F25 (wave 3): money is RIGHT, text and dates LEFT - the list of «Оплаты» (price, last payment), «Цены групп», the payroll sheet", () => {
   const page = read("src/components/payments/payments-page.tsx");
   assert.doesNotMatch(page, /key: "price"/);                                              // PAY-DUE 9.7: no column of the price in the list (it is in the statement and on the page of the group)
-  assert.match(page, /\{ key: "last", header: "Последняя оплата", align: "end"/);        // the last payment (amount + date) is money: right
+  assert.doesNotMatch(page, /key: "last"/);                                            // PAY-DUE: no column of the last payment (a «—» in every row)
   assert.match(page, /\{ key: "group", header: "Группа", width/);                         // the group is text: left
   assert.match(page, /\{ key: "status", header: "Статус"/);
   assert.match(read("src/components/payments/group-prices-page.tsx"), /aligns=\{\["left", "right", "right", "center", "right"\]\}/);

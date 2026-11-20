@@ -145,7 +145,7 @@ for (const [state, price, expected] of CASES) {
   });
 
   test(`Р4-1 место 5 → PAY-DUE 9.7, страница «Оплаты» центра (${state}): колонки цены в списке НЕТ (ни суммы, ни «цена группы не задана», ни «цена с …») - цена живёт в выписке и на странице группы`, async () => {
-    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, debt_amount: 100000, due_amount: 0, state: "debt", state_text: "Долг 100 000 сум", debt_text: "Долг 100 000 сум", debt_sub: "просрочено 3 дня", status: "active" }], total: 1, students: 1, limit: 50, offset: 0 } } : null));
+    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/summary" ? { json: { as_of: "2026-11-15", period_mode: "calendar", debtors: 1, debt_total: 100000, due_students: 0, due_total: 0, buckets: { debtors: 1, to_pay: 0, expiring: 0, active: 0, paused: 0 }, pay_due_days: 5, pay_due_lessons: 2 } } : r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, debt_amount: 100000, due_amount: 0, state: "debt", state_text: "Долг 100 000 сум", debt_text: "Долг 100 000 сум", debt_sub: "просрочено 3 дня", status: "active" }], total: 1, students: 1, limit: 50, offset: 0 } } : null));
     const run = await mounted("money-g4.entry.tsx", "payments", {}, answer);
     await run.page.waitForSelector('[data-testid="pay-label"]', { timeout: 8000 });
     assert.equal(await run.page.locator('[data-testid="payment-row-price-missing"]').count(), 0);
@@ -199,7 +199,9 @@ test("Р4-1 место 3, вкладка «Оплаты» группы (г): с�
 
 test("Р4-1: исходники — ни одно место не выбирает «запланированную» своей веткой (одна plannedPriceOf)", () => {
   const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
-  for (const f of ["src/components/payments/payments-page.tsx", "src/components/payments/membership-price.tsx", "src/lib/openings.ts", "src/lib/group-payments.ts", "src/lib/group-price.ts"]) {
+  // PAY-DUE 9.7: the list of «Оплаты» has no price column, so it no longer chooses a planned price at all
+  assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /plannedPriceOf|priceOfRow/);
+  for (const f of ["src/components/payments/membership-price.tsx", "src/lib/openings.ts", "src/lib/group-payments.ts", "src/lib/group-price.ts"]) {
     assert.match(read(f), /plannedPriceOf/, f);
   }
   assert.doesNotMatch(read("src/lib/group-payments.ts"), /own \?\? options\.groupScheduled/, "локальная ветка выбора убрана");

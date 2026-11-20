@@ -144,7 +144,7 @@ test("invariant: the label of a row is the label of the student card (payLabel o
   const src = read("src/components/payments/membership-payments.tsx");
   assert.match(src, /const chip = payLabel\(row, "debtors"\)/);
   assert.match(read("src/lib/group-payments.ts"), /const label = payLabel\(row\)/);
-  for (const gone of ["membershipChip", "moneyChip"]) assert.ok(!read("src/lib/group-payments.ts").includes(gone) && !src.includes(gone), gone);
+  for (const gone of ["membershipChip", "moneyChip"]) assert.ok(!new RegExp(`${gone}\\(`).test(read("src/lib/group-payments.ts")) && !new RegExp(`${gone}\\(`).test(src), gone);
 });
 
 test("individual price: the badge is for an override in force today (source=override); scheduled / ended / group price are not", () => {

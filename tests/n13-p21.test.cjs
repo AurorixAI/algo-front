@@ -105,9 +105,9 @@ test("payment history and payments page never print «0 сум» for a carry-ove
   assert.match(history, /isCarryOver\(last\) \? "перенесено "/);
   // a carry-over can only be cancelled: no «Исправить» for it on the payments page
   assert.match(read("src/components/payments/payments-page.tsx"), /if \(!isCarryOver\(last\)\) menu\.push\(\{ key: "correct"/);
+  // PAY-DUE 9.7: the list of «Оплаты» prints no last payment at all (its column is gone), so it cannot print «0 сум» for a carry-over
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /paymentAmountLabel\(last\)/);
-  assert.doesNotMatch(page, /formatMoney\(last\.amount\)/);
+  assert.doesNotMatch(page, /formatMoney\(last\.amount\)|paymentAmountLabel|lastPaymentLabel/);
   // the window of the cancel (names a carry-over by words, says the original payment works again) is read as a window in tests/money1-a-contract.test.cjs
 });
 

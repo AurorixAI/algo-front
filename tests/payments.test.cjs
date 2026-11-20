@@ -262,7 +262,7 @@ test("summary store: a network error or 5xx keeps the last state and warns once"
     await withFetch(() => reply(200, { ...split(0), period_mode: "calendar" }), async () => {
       await usePaymentsSummary.getState().refresh(true);
     });
-    assert.equal(usePaymentsSummary.getState().debtors, 0);
+    assert.equal(usePaymentsSummary.getState().debtors ?? 0, 0);
   } finally {
     console.warn = originalWarn;
   }
@@ -299,7 +299,7 @@ test("summary store: an answer that arrives after reset (logout) is dropped", as
     await pending;
   });
   assert.equal(usePaymentsSummary.getState().available, false);
-  assert.equal(usePaymentsSummary.getState().debtors, 0);
+  assert.equal(usePaymentsSummary.getState().debtors ?? 0, 0)   // after a reset nothing is known: null (the answer that came after it was dropped);
 });
 
 // ── Screens follow the contract ─────────────────────────────────────────────

@@ -106,7 +106,7 @@ test("Р4-1 счётчики: фильтр «Индивидуальная цен
 
 for (const [state, price, expected] of CASES) {
   test(`Р4-1 место 5 → PAY-DUE 9.7, страница «Оплаты» центра (${state}): колонки цены нет на 1280 и 375 - ни подписи столбца, ни слова «Цена» в строке`, async () => {
-    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, debt_amount: 100000, due_amount: 0, state: "debt", state_text: "Долг 100 000 сум", debt_text: "Долг 100 000 сум", debt_sub: "просрочено 3 дня", status: "active" }], total: 1, students: 1, limit: 50, offset: 0 } } : null));
+    const answer = server(PRICES, (r) => (r.path === "/auth/org/payments/summary" ? { json: { as_of: "2026-11-15", period_mode: "calendar", debtors: 1, debt_total: 100000, due_students: 0, due_total: 0, buckets: { debtors: 1, to_pay: 0, expiring: 0, active: 0, paused: 0 }, pay_due_days: 5, pay_due_lessons: 2 } } : r.path === "/auth/org/payments/status" ? { json: { items: [{ ...ROW, price, debt: 100000, debt_amount: 100000, due_amount: 0, state: "debt", state_text: "Долг 100 000 сум", debt_text: "Долг 100 000 сум", debt_sub: "просрочено 3 дня", status: "active" }], total: 1, students: 1, limit: 50, offset: 0 } } : null));
     for (const width of [375, 1280]) {
       const run = await mounted("money-g4.entry.tsx", "payments", {}, answer, width);
       await run.page.waitForSelector('[data-testid="pay-label"]', { timeout: 8000 });

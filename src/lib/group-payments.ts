@@ -5,7 +5,7 @@
  * Spec: artifacts/partner_doc_check/group_payments_tab_spec.md.
  *
  * Invariants kept by construction: the price of a row is `price.amount` of the server's row (the same number the statement charges);
- * the chip is `membershipChip(row)` (the student card's own); «индивидуальная» is `price.source === "override"` (the rule of the
+ * the label is `payLabel(row)` (the student card's own, the server's words); «индивидуальная» is `price.source === "override"` (the rule of the
  * count on «Цены групп»: an individual price in force today).
  */
 import {

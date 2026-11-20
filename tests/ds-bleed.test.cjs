@@ -23,7 +23,7 @@ test.after(async () => { await browser.close(); });
 const paymentsServer = (request) => {
   if (request.path === "/auth/org/payments/summary") return { json: X.SUMMARY };
   if (request.path === "/auth/org/payments/status") {
-    const tab = /bucket=([a-z]+)/.exec(request.query)[1];
+    const tab = /bucket=([a-z_]+)/.exec(request.query)[1];
     const items = tab === "to_pay" ? [X.WAITING] : tab === "debtors" ? [X.DEBTOR] : [];
     return { json: { items, total: items.length, limit: 50, offset: 0 } };
   }
