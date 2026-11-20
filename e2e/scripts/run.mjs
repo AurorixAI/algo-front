@@ -179,7 +179,12 @@ async function setUpStandClock(fresh) {
 }
 
 async function clockOffsetNow() {
-  return (await getJson(`${AUTH_API}/auth/dev/clock`)).body?.offset_seconds ?? 0;
+  try {
+    return (await getJson(`${AUTH_API}/auth/dev/clock`)).body?.offset_seconds ?? 0;
+  } catch (e) {
+    log(`the stand clock could not be read after the ordinary projects (${e.cause?.code || e.message}): the days project goes on and says it itself`);
+    return 0;
+  }
 }
 
 function stopFront() {
