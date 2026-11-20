@@ -175,7 +175,9 @@ test.describe("package centre", () => {
     // the tables: the group's «Оплаты» tab and the list of payments show the same package as a compact line
     await page.goto(`/owner/groups/${group.id}?tab=payments`);
     const small = page.getByTestId("package-progress-compact");
-    await expect(small).toContainText("12/12 уроков");
+    // PAY-DUE 14А.6: the count of lessons is the SERVER's label next to the bar («Осталось 12 уроков», `state_text`); the compact line does not repeat it (bar + the date only)
+    await expect(page.getByTestId("membership-chip")).toHaveText(/^Осталось\s12\sуроков$/);
+    await expect(small).not.toContainText("12/12");
     await expect(small).toContainText(`до ${dm(twelfth)}`);
     await expect(small.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
     await expectNoHorizontalScroll(page);
@@ -188,7 +190,9 @@ test.describe("package centre", () => {
     }
     await page.goto("/owner/payments");
     await page.getByRole("tab", { name: /Без долга/ }).click();
-    await expect(page.getByTestId("package-progress-compact").first()).toContainText("12/12 уроков");
+    await expect(page.getByTestId("pay-label").first()).toHaveText(/^Осталось\s12\sуроков$/);   // the server's words of the row; the bar under them carries the date
+    await expect(page.getByTestId("package-progress-compact").first()).toContainText(`до ${dm(twelfth)}`);
+    await expect(page.getByTestId("package-progress-compact").first().getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
     await expectNoHorizontalScroll(page);
     await shot(page, `26-payments-list-${project}`);
 
