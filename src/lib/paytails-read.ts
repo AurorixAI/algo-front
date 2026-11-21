@@ -3,31 +3,23 @@
  */
 import { orgApi } from "./api";
 import type { MembershipPaymentRow } from "./payments";
-import { settledRowsOf } from "./paytails";
+import { leftCountOf } from "./paytails";
 
 const PAGE = 500;
 const MAX_PAGES = 5;
 
-async function allOf(query: { bucket: "debtors" | "to_pay" | "advance"; groupId: string; leftOnly?: boolean }): Promise<MembershipPaymentRow[]> {
-  const out: MembershipPaymentRow[] = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const result = await orgApi.getPaymentsStatus({ ...query, limit: PAGE, offset: page * PAGE });
-    out.push(...result.items);
-    if (result.items.length === 0 || out.length >= result.total) break;
-  }
-  return out;
-}
-
 /**
- * PAY-TAILS Б1.2: the closed memberships of a group with a settlement left - the band «Ушли из группы — расчёт не закрыт (N)»; `count` is the number of its rows.
- * TO SWAP: when the server gives them with any balance in ONE answer (and the number for the band), only this function changes.
+ * PAY-TAILS Б1.2: the closed memberships of a group with a settlement left - the band «Ушли из группы — расчёт не закрыт (N)»: ONE request `status?group_id=…&bucket=left_open`
+ * (the server picks the closed ones with any debt, «к оплате» or advance and sorts them); `count` is its `left_count`, not the length of what was read.
  */
-export async function fetchGroupSettled(groupId: string, activeIds: ReadonlySet<string>): Promise<{ rows: MembershipPaymentRow[]; count: number }> {
-  const lists = await Promise.all([
-    allOf({ bucket: "debtors", groupId }),
-    allOf({ bucket: "to_pay", groupId }),
-    allOf({ bucket: "advance", groupId, leftOnly: true }),
-  ]);
-  const rows = settledRowsOf(lists, activeIds);
-  return { rows, count: rows.length };
+export async function fetchGroupSettled(groupId: string): Promise<{ rows: MembershipPaymentRow[]; count: number }> {
+  const rows: MembershipPaymentRow[] = [];
+  let count: number | null = null;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const result = await orgApi.getPaymentsStatus({ bucket: "left_open", groupId, limit: PAGE, offset: page * PAGE });
+    count ??= leftCountOf(result);
+    rows.push(...result.items);
+    if (result.items.length === 0 || rows.length >= result.total) break;
+  }
+  return { rows, count: count ?? rows.length };
 }

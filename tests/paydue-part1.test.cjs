@@ -256,9 +256,6 @@ test("the group's tab «Оплаты»: one label per student (the worst state),
   assert.equal(GP.parsePaymentsFilter("due"), "due");
   assert.equal(GP.parsePaymentsFilter("waiting"), "all", "the old filter is gone");
   assert.equal(GP.emptyFilterText("due", ""), "К оплате никого нет");
-  // the ones who left (PAY-TAILS Б1.2: with ANY settlement - a debt, a sum to pay, an advance): the debt part leads, then «к оплате» - not the sum of everything
-  const left = require(path.join(root, "src/lib/paytails.ts")).settledRowsOf([[row({ ...ANVAR, membership_id: "x1", is_active: false }), row({ ...LOLA, membership_id: "x2", is_active: false })]], new Set());
-  assert.deepEqual(left.map((r) => r.membership_id), ["x2", "x1"], "the debt before the sum within its term");
 });
 
 test("the student's card: ONE label - the worst state of his groups in the server's words; two groups in one state are added up with the same word", () => {

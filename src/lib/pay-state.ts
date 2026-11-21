@@ -97,7 +97,7 @@ export function payLabel(row: PayFields, tab: "debtors" | "to_pay" | "worst" | s
   // the tab «Аванс» says its own words (`tab_text` / `tab_sub`); a period covered by a forgiveness / a recalculation is «Прощено до» / «Оплата не нужна до» - grey, not the green of money
   if (tab === "advance") {
     const own = tabWordsOf(row);
-    if (own.text) return { text: own.text, tone: payStateTone(state), sub: own.sub ?? sub, second: null, state };
+    if (own.text) return { text: own.text, tone: payStateTone(state), sub: own.sub, second: null, state };
   }
   const tone = state === "paid" && isNotMoneyCover(row) ? "neutral" : payStateTone(state);
   return { text: clean(row.state_text), tone, sub, second: null, state };

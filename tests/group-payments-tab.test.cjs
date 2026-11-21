@@ -216,13 +216,12 @@ test("a student in two groups: the tab asks for this group only (group_id) and r
   assert.equal(two[0].studentId, two[1].studentId);
 });
 
-test("students who left: only those with a settlement (PAY-TAILS Б1.2: a debt, a sum to pay or an advance), not among the active ones, the biggest debt first", () => {
-  const debtors = [row(6, "Ёрова", { debt: 900, debt_amount: 900 }), row(21, "Ушёл А", { is_active: false, debt: 100, debt_amount: 100 }), row(22, "Ушёл Б", { is_active: false, debt: 700, debt_amount: 700 }), row(23, "Ушёл В", { is_active: false, debt: 0 })];
-  const left = T.settledRowsOf([debtors], new Set(["m-6"]));
-  assert.deepEqual(left.map((r) => r.student_name), ["Ушёл Б", "Ушёл А"], "the left one without any settlement («Ушёл В») is not in the band");
+test("students who left (PAY-TAILS Б1.2): the rows of `bucket=left_open` come picked and sorted by the server; the views keep the order and mark them as left", () => {
+  const left = [row(22, "Ушёл Б", { is_active: false, debt: 700, debt_amount: 700 }), row(21, "Ушёл А", { is_active: false, debt: 100, debt_amount: 100 })];
   for (const gone of ["leftDebtRows", "leftDebtToggleLabel"]) assert.equal(G[gone], undefined, `${gone} is replaced by the band «Ушли из группы — расчёт не закрыт»`);
-  const leftView = G.paymentRowViews(left, { periodMode: "calendar", today: TODAY })[0];
-  assert.equal(leftView.left, true);
+  const views = G.paymentRowViews(left, { periodMode: "calendar", today: TODAY });
+  assert.deepEqual(views.map((v) => v.studentName ?? v.name), left.map((r) => r.student_name));
+  assert.equal(views[0].left, true);
 });
 
 // ── the extra call (an older server) ────────────────────────────────────────────────────────

@@ -149,8 +149,10 @@ test("Б2.3 (frame 4): the group's «Оплаты» - the open ones first, the b
   const header = plain(await page.locator("body").innerText());
   assert.ok(!/Аванс\s+[\d\s]+сум\s*·\s*\d+\s+учени/.test(header.split("Состав")[0] ?? ""), "the header of the group has no label of the advance");
   const asked = calls.filter((c) => c.path === "/auth/org/payments/status" && /group_id=g1/.test(c.query)).map((c) => /bucket=([a-z_]+)/.exec(c.query)[1]);
-  for (const bucket of ["all", "debtors", "to_pay", "advance"]) assert.ok(asked.includes(bucket), `the group asked for «${bucket}»`);
-  assert.ok(calls.some((c) => /bucket=advance/.test(c.query) && /left_only=true/.test(c.query)), "the closed advance is the filter `left_only`");
+  assert.ok(asked.includes("all") && asked.includes("left_open"), "the group asks the open ones (`all`) and the closed with a settlement (`left_open`)");
+  assert.ok(!asked.includes("advance"), "no request for the advance of the closed ones any more (`left_open` carries every settlement); `debtors` / `to_pay` are the one-row counts of the header chips");
+  assert.ok(calls.filter((c) => /bucket=(debtors|to_pay)/.test(c.query) && /group_id=g1/.test(c.query)).every((c) => /limit=1&/.test(c.query)), "the band is not made out of lists of debtors / to_pay");
+  assert.equal(asked.filter((bucket) => bucket === "left_open").length, 1, "the band is ONE request, its number is `left_count`");
   await page.close();
 });
 

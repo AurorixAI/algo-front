@@ -62,8 +62,9 @@ test("the label of a row of the tab «Аванс»: the server's `state_text` an
   const closed = S.payLabel(X.YAHYO, "advance");
   assert.deepEqual([N(closed.text), closed.sub, closed.tone], ["Аванс 37 000 сум", "ушёл 28.10", "ok"]);
   const open = S.payLabel(X.ANVAR_ADV, "advance");
-  assert.deepEqual([N(open.text), open.sub], ["Аванс 600 000 сум", "оплачено до 31.12"]);
-  assert.equal(S.payLabel({ ...X.YAHYO, state_sub: null }, "advance").sub, null, "the server said nothing - nothing is shown");
+  assert.deepEqual([N(open.text), open.sub], ["Аванс 600 000 сум", "оплачено до 31.12"], "an open one: `tab_text` / `tab_sub`, while `state_text` of the same row says «Оплачено до 31.12»");
+  assert.equal(N(S.payLabel(X.ANVAR_ADV, "worst").text), "Оплачено до 31.12", "every other list says `state_text`");
+  assert.equal(S.payLabel({ ...X.YAHYO, tab_sub: null, state_sub: "не это" }, "advance").sub, null, "the server said nothing in `tab_sub` - nothing is shown, `state_sub` is not borrowed");
   assert.equal(S.payLabel(X.FERUZA, "debtors").sub, "ушёл 20.11 · просрочено 14 дней", "a debt keeps its own sub-line");
 });
 
@@ -90,15 +91,15 @@ test("the «⋯» menu keeps «Вернуть аванс» for an OPEN membershi
   assert.deepEqual(keys(X.ANVAR_ADV, true), []);
 });
 
-test("the closed memberships of a group (Б1.2): each once, never an open one, debt → «к оплате» → advance, the biggest first", () => {
-  const OPEN = X.grp("open", "Открытый", { is_active: true, debt: 5, debt_amount: 5 });
-  const rows = T.settledRowsOf([[X.LOLA, X.FERUZA, OPEN], [X.DILSHOD, X.FERUZA], [X.KAMOLA]], new Set());
-  assert.deepEqual(rows.map((r) => r.student_name), ["Феруза Орипова", "Дилшод Эрматов", "Камола Эшонова"]);
-  const big = { ...X.KAMOLA, membership_id: "m-big", student_name: "Большой Аванс", advance: 500000 };
-  assert.deepEqual(T.settledRowsOf([[X.KAMOLA, big]], new Set()).map((r) => r.student_name), ["Большой Аванс", "Камола Эшонова"]);
-  assert.deepEqual(T.settledRowsOf([[X.FERUZA]], new Set([X.FERUZA.membership_id])), [], "a row already among the active ones is not repeated");
-  const levels = T.settledRowsOf([[{ ...X.DILSHOD, student_name: "Б" }, { ...X.FERUZA, student_name: "А", debt: 1, debt_amount: 1 }]], new Set());
-  assert.deepEqual(levels.map((r) => r.student_name), ["А", "Б"], "a debt, even a small one, stands before a sum «к оплате»");
+test("the closed memberships of a group (Б1.2): ONE request `bucket=left_open`, the number is `left_count` of the server, the order is the server's - the screen filters and sorts nothing", () => {
+  const body = read("src/lib/paytails-read.ts");
+  assert.equal((body.match(/getPaymentsStatus\(/g) || []).length, 1, "one request");
+  assert.match(body, /bucket: "left_open"/);
+  assert.doesNotMatch(body, /debtors|to_pay|"advance"|leftOnly/, "no request per kind of settlement");
+  assert.match(body, /leftCountOf\(result\)/, "the number of the band is `left_count`");
+  assert.equal(T.leftCountOf({ left_count: 3 }), 3);
+  assert.equal(T.leftCountOf({}), null);
+  assert.equal(T.settledRowsOf, undefined, "the screen's own picking of the rows is gone");
 });
 
 test("one place reads the contract: the screens do not read `left_students`, `advance_text`, `advance_left_students` themselves", () => {

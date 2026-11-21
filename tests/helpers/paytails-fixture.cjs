@@ -14,7 +14,7 @@ const M4 = { id: "g4", name: "Математика 4" };
 const M7 = { id: "g1", name: "Математика 7" };
 
 const adv = (id, name, left = "28.10") => closed(id, name, M4, {
-  advance: 37000, refundable: 37000, state: "paid", state_text: `Аванс ${money(37000)}`, state_sub: `ушёл ${left}`, class_level: 4,
+  advance: 37000, state: "paid", state_text: `Аванс ${money(37000)}`, state_sub: `ушёл ${left}`, tab_text: `Аванс ${money(37000)}`, tab_sub: `ушёл ${left}`, class_level: 4,
 });
 const YAHYO = adv("yahyo", "Яхё Саидов");
 const ALINA = adv("alina", "Алина Ким");
@@ -22,7 +22,7 @@ const ELDOR = adv("eldor", "Эльдор Рахимов");
 const AMIR = adv("amir", "Амир Назаров");
 /** Open, paid ahead for the next month: «Аванс 600 000 сум · оплачено до 31.12». */
 const ANVAR_ADV = X.base({
-  membership_id: "m-anvar-adv", student_id: "s-anvar", student_name: "Анвар Каримов", advance: 600000, refundable: 600000, state: "paid", state_text: `Аванс ${money(600000)}`, state_sub: "оплачено до 31.12", paid_until: "2026-12-31",
+  membership_id: "m-anvar-adv", student_id: "s-anvar", student_name: "Анвар Каримов", advance: 600000, state: "paid", state_text: "Оплачено до 31.12", state_sub: null, tab_text: `Аванс ${money(600000)}`, tab_sub: "оплачено до 31.12", paid_until: "2026-12-31",
 });
 
 const ADVANCE_ALL = [YAHYO, ALINA, ELDOR, AMIR, ANVAR_ADV];
@@ -46,7 +46,7 @@ const DILSHOD = closed("dilshod", "Дилшод Эрматов", M7, {
   left_on: "2026-11-20", unpaid: 92000, debt: 92000, due_amount: 92000, due_until: "2026-11-22", state: "to_pay", state_text: `К оплате ${money(92000)}`, due_text: `К оплате ${money(92000)}`, due_sub: "ушёл 20.11 · до 22.11",
 });
 const KAMOLA = closed("kamola", "Камола Эшонова", M7, {
-  left_on: "2026-11-20", advance: 85000, refundable: 85000, state: "paid", state_text: `Аванс ${money(85000)}`, state_sub: "ушёл 20.11",
+  left_on: "2026-11-20", advance: 85000, state: "paid", state_text: `Аванс ${money(85000)}`, state_sub: "ушёл 20.11", tab_text: `Аванс ${money(85000)}`, tab_sub: "ушёл 20.11",
 });
 const SETTLED_NONE = closed("nodue", "Расчётов Нет", M7, { left_on: "2026-11-20", state: "paid", state_text: null });
 
@@ -75,9 +75,8 @@ const groupStatus = (query) => {
   const bucket = params.get("bucket");
   const limit = Number(params.get("limit") || 50);
   const open = [LOLA, ANVAR_ADV_G(), MADINA];
-  if (bucket === "debtors") return page([LOLA, FERUZA].slice(0, limit), { total: 2, students: 2, amount_total: 1015000 });
-  if (bucket === "to_pay") return page([DILSHOD].slice(0, limit), { total: 1, students: 1, amount_total: 92000 });
-  if (bucket === "advance") return params.get("left_only") === "true" ? page([KAMOLA], { left_students: 1 }) : page([ANVAR_ADV_G(), KAMOLA], { left_students: 1 });
+  // PAY-TAILS Б1.2: ONE request - the closed memberships with ANY settlement, picked and sorted by the server (debt, «к оплате», advance), the number is `left_count`
+  if (bucket === "left_open") return page([FERUZA, DILSHOD, KAMOLA].slice(0, limit), { total: 3, students: 3, left_count: 3 });
   return page(open.slice(0, limit), { total: open.length, students: open.length, limit });
 };
 function ANVAR_ADV_G() { return { ...ANVAR_ADV, group_id: "g1", group_name: "Математика 7" }; }

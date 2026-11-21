@@ -117,6 +117,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
 
   const [rows, setRows] = useState<MembershipPaymentRow[] | null>(null);
   const [leftRows, setLeftRows] = useState<MembershipPaymentRow[]>([]);
+  /** The number of the band: `left_count` of the server. */
+  const [leftCount, setLeftCount] = useState(0);
   const phone = useMediaQuery(PHONE_QUERY);
   const [extras, setExtras] = useState<Record<string, PriceExtras>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -135,11 +137,12 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     setLoadError(null);
     try {
       // PAY-TAILS Б1.2: the closed memberships with ANY settlement (debt, «к оплате», advance), one reading place (`lib/paytails-read.ts`)
-      const [active, settled] = await Promise.all([fetchAll("all", groupId), fetchGroupSettled(groupId, new Set())]);
+      const [active, settled] = await Promise.all([fetchAll("all", groupId), fetchGroupSettled(groupId)]);
       if (!requests.current.isCurrent(token)) return;
       const activeIds = new Set(active.map((row) => row.membership_id));
       setRows(active);
       setLeftRows(settled.rows.filter((row) => !activeIds.has(row.membership_id)));
+      setLeftCount(settled.count);
       extrasAsked.current = new Set();
       setExtras({});
     } catch (cause) {
@@ -311,7 +314,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
       {leftViews.length > 0 && (
         <section aria-label={SETTLED_BAND_TITLE} data-testid="payments-left" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
           <button type="button" onClick={() => setShowLeft((value) => !value)} aria-expanded={showLeft} data-testid="payments-left-toggle" className="flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3.5 text-sm font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 lg:rounded-none lg:border-0">
-            <span className="min-w-0 py-2 text-left">{SETTLED_BAND_TITLE} <span className="font-medium tabular-nums text-slate-500">{leftViews.length}</span></span>
+            <span className="min-w-0 py-2 text-left">{SETTLED_BAND_TITLE} <span className="font-medium tabular-nums text-slate-500">{leftCount}</span></span>
             <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500">
               <span className="max-sm:hidden">{showLeft ? "скрыть" : "показать"}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${showLeft ? "rotate-180" : ""}`} aria-hidden="true" />

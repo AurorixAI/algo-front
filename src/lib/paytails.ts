@@ -4,8 +4,8 @@
  *
  * What is read (artifacts/analysis/PAY_TAILS_SPEC.md):
  *  - `GET /org/payments/summary`: `buckets.advance` (students), `advance_left_students`, `advance_text` (the sub-line of the card) → `advanceSummaryOf`;
- *  - `GET /org/payments/status?bucket=advance[&left_only=true]`: the rows carry `is_active`, `left_on`, `refundable`, `state_text`, `state_sub`; the page `students`, `left_students`, `amount_total` → `advanceLeftOf`;
- *  - a group's closed memberships with ANY settlement (debt, «к оплате», advance) → `fetchGroupSettled` in `lib/paytails-read.ts` (the one request of the contract; it needs the API, so it is apart from this pure file).
+ *  - `GET /org/payments/status?bucket=advance[&left_only=true]`: the rows carry `is_active`, `left_on`, `advance`, `state_text`, `state_sub`; the page `students`, `left_students`, `amount_total` → `advanceLeftOf`;
+ *  - a group's closed memberships with ANY settlement (debt, «к оплате», advance) → ONE request `status?group_id=&bucket=left_open`, the number `left_count` → `fetchGroupSettled` in `lib/paytails-read.ts` (the one request of the contract; it needs the API, so it is apart from this pure file).
  */
 import { canRefund } from "./payments-ledger";
 import type { MembershipPaymentRow, PaymentsStatusList, PaymentsSummary } from "./payments";
@@ -35,6 +35,11 @@ export function advanceLeftOf(page: Pick<PaymentsStatusList, "left_students"> | 
   return optionalCount(page?.left_students);
 }
 
+/** `left_count` of `status?group_id=…&bucket=left_open`: how many closed memberships of the group still have a settlement (the number of the band); null while the server does not say it. */
+export function leftCountOf(page: Pick<Partial<PaymentsStatusList>, "left_count"> | null | undefined): number | null {
+  return optionalCount(page?.left_count);
+}
+
 /** The membership is closed: the student left the group or sits in the archive. */
 export function isClosedRow(row: Pick<MembershipPaymentRow, "is_active">, archived = false): boolean {
   return !row.is_active || archived;
@@ -53,30 +58,12 @@ export interface RowActionSet {
  * PAY-TAILS Б2.2: the action of a row by its STATE, the same on every list (the tabs of «Оплаты», the «Оплаты» of a group, the card of a student):
  *  - a closed membership with an advance: «Вернуть» (+ the statement); with a debt or a sum «к оплате»: «Внести оплату»; with nothing left: the statement only;
  *  - an open membership: «Внести оплату», the statement, «⋯» (an advance is given back from the «⋯»).
- * A button the server would refuse is not drawn: a closed membership never gets «Внести оплату» without something to pay (`debt` = debt + due), a refund only with `refundable` > 0.
+ * A button the server would refuse is not drawn: a closed membership never gets «Внести оплату» without something to pay (`debt` = debt + due), a refund only with an `advance` > 0.
  */
-export function rowActionsOf(row: Pick<MembershipPaymentRow, "is_active" | "debt" | "refundable">, archived = false): RowActionSet {
+export function rowActionsOf(row: Pick<MembershipPaymentRow, "is_active" | "debt" | "advance">, archived = false): RowActionSet {
   const owes = Math.max(0, Math.round(Number(row.debt) || 0)) > 0;
   if (!isClosedRow(row, archived)) return { pay: true, refund: false, menuRefund: canRefund(row) };
   return { pay: owes, refund: !owes && canRefund(row), menuRefund: false };
-}
-
-/**
- * PAY-TAILS Б1.2: the closed memberships of a group that still have ANY settlement, from the lists the server gave (a membership may stand in more than one): each once, never an open one, never one without a settlement, never one already among the active rows.
- * The order: the debt first (the biggest), then «к оплате», then the advance (the biggest), then by name.
- */
-export function settledRowsOf(lists: ReadonlyArray<ReadonlyArray<MembershipPaymentRow>>, activeIds: ReadonlySet<string>): MembershipPaymentRow[] {
-  const seen = new Set<string>();
-  const rows: MembershipPaymentRow[] = [];
-  for (const row of lists.flat()) {
-    const settles = (Number(row.debt_amount) || 0) > 0 || (Number(row.due_amount) || 0) > 0 || (Number(row.advance) || 0) > 0;
-    if (row.is_active || !settles || activeIds.has(row.membership_id) || seen.has(row.membership_id)) continue;
-    seen.add(row.membership_id);
-    rows.push(row);
-  }
-  const weight = (row: MembershipPaymentRow) => ((Number(row.debt_amount) || 0) > 0 ? 0 : (Number(row.due_amount) || 0) > 0 ? 1 : 2);
-  const size = (row: MembershipPaymentRow) => (weight(row) === 2 ? Number(row.advance) || 0 : Number(row.debt) || 0);
-  return rows.sort((a, b) => weight(a) - weight(b) || size(b) - size(a) || a.student_name.localeCompare(b.student_name, "ru"));
 }
 
 /** «Ушли из группы — расчёт не закрыт 3» - the title of the band (the number is the count of its rows). */
