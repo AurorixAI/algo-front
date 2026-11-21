@@ -6,7 +6,7 @@
  * offered back by `archived_groups`, a full or archived group is skipped with a reason).  This file
  * only turns those answers into what the owner reads and clicks.
  */
-import { settledLines } from "./payments-logica";
+import { leaveToastLines, settledLines } from "./payments-logica";
 import { formatUtcNaiveAsBusinessDate } from "./business-time";
 import { isInviteRunning, isInviteWaiting } from "./diagnostic-invite";
 
@@ -108,7 +108,7 @@ export function archiveDiagnosticLines(counts: ArchiveDiagnosticCounts): string[
 }
 
 /** What the server did (`diagnostic_invites_cancelled` / `_in_progress` of the archive answer), for the toast; only numbers above zero. */
-export function archiveResultDetails(result: { diagnostic_invites_cancelled?: unknown; diagnostic_invites_in_progress?: unknown; settled?: unknown } | null | undefined): string[] {
+export function archiveResultDetails(result: { diagnostic_invites_cancelled?: unknown; diagnostic_invites_in_progress?: unknown; settled?: unknown; recalc?: unknown; others?: unknown; effects?: unknown } | null | undefined): string[] {
   const whole = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
   const lines: string[] = [];
   const cancelled = whole(result?.diagnostic_invites_cancelled);
@@ -116,7 +116,8 @@ export function archiveResultDetails(result: { diagnostic_invites_cancelled?: un
   if (cancelled > 0) lines.push(`Отменено приглашений на диагностику: ${cancelled}`);
   if (running > 0) lines.push(`Идёт диагностика: ${running} — ${ARCHIVE_DIAGNOSTICS_RUNNING_NOTE}`);
   // LOGIC-A F9: what was settled with the archive («Возвращено 135 000 сум», «Прощено 120 000 сум»)
-  lines.push(...settledLines(Array.isArray(result?.settled) ? (result?.settled as Parameters<typeof settledLines>[0]) : []));
+  // PAY-TAILS Б2.4: the same words as the message of a leaving - what the charge became, the other groups, what was settled and what stays (the server's sentences)
+  lines.push(...leaveToastLines({ settled: Array.isArray(result?.settled) ? (result?.settled as Parameters<typeof settledLines>[0]) : [], effects: result?.effects, recalc: result?.recalc, others: result?.others }));
   return lines;
 }
 

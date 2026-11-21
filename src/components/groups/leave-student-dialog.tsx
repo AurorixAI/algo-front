@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { orgApi } from "@/lib/api";
-import { leaveToastLines, logicaError } from "@/lib/payments-logica";
+import { isShownChanged, leaveToastLines, logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 import { ModalActions } from "@/components/ui/modal-actions";
@@ -11,11 +11,11 @@ import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 /**
  * «Убрать ученика из группы?» with the money: the server says what is left on the account after leaving; the owner chooses per
  * membership (keep / forgive the debt / give the advance back) and everything runs in one transaction after the stay is closed.
- * A payment that came in meanwhile is caught (409 `BALANCE_CHANGED`): the numbers are replaced and the owner confirms again.
+ * A payment that came in meanwhile (or a midnight) is caught (409 `BALANCE_CHANGED`, «Сумма изменилась, откройте окно заново»): nothing is written, the window closes, the server's words are said (`onStale`), the next opening reads the probe again.
  * A role the server does not give the preview to (or an older server) leaves the plain way.
  */
 export function LeaveStudentDialog({
-  open, groupId, studentId, studentName, onClose, onLeft, onLegacy,
+  open, groupId, studentId, studentName, onClose, onLeft, onLegacy, onStale,
 }: {
   open: boolean;
   groupId: string;
@@ -26,6 +26,8 @@ export function LeaveStudentDialog({
   onLeft: (lines: string[]) => void;
   /** The preview is not offered to this role: leave the old way (the caller's own removal). */
   onLegacy?: () => Promise<void> | void;
+  /** The shown numbers are out of date (the server refused, nothing written): the caller says the server's words. */
+  onStale?: (message: string) => void;
 }) {
   const settle = useSettle(() => orgApi.getLeavePreview(groupId, studentId), open, `${groupId}:${studentId}`);
   const [busy, setBusy] = useState(false);
@@ -58,7 +60,7 @@ export function LeaveStudentDialog({
       onClose();
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось убрать ученика");
-      if (failure.code === "BALANCE_CHANGED" && failure.fresh.length > 0) settle.applyFresh(failure.fresh);
+      if (isShownChanged(failure) && onStale) { onClose(); onStale(failure.message); }
       else setError(failure.message);
     } finally {
       setBusy(false);
@@ -77,8 +79,7 @@ export function LeaveStudentDialog({
       footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Убрать из группы" onPrimary={() => void submit()} tone="danger" disabled={busy || !ready} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-3 pb-2">
-        <p className="text-sm text-slate-600">Ученик останется в системе, но перестанет числиться в этой группе.</p>
-        <SettleStatus loading={settle.loading} failure={settle.failure} notice={settle.notice} onRetry={settle.reload} />
+        <SettleStatus loading={settle.loading} failure={settle.failure} onRetry={settle.reload} />
         {settle.preview && !legacy && (
           <SettleBlock preview={settle.preview} choices={settle.choices} onChoice={settle.setChoice} disabled={busy} showGroup={settle.preview.memberships.length > 1} />
         )}

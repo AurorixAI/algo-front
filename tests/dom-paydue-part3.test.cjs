@@ -86,9 +86,10 @@ test("frame 18a (leaving the only group): the sentence of the server by the stat
     await run.page.waitForSelector('[data-testid="settle-words"]');
     const text = plain(await run.page.locator('[role="dialog"]').innerText());
     assert.ok(text.includes("К оплате 231 000 сум. Это единственная группа ученика: после ухода сумма станет долгом"), text);
-    assert.ok(text.includes("Оставить как есть — оплатить можно и после ухода") && text.includes("Простить сумму"), text);
-    assert.equal(text.split("231 000 сум").length - 1, 1, "the sum is said once: by the sentence of the server");
-    assert.ok(!text.includes("После ухода у ученика долг") && !text.includes("Оставить долг") && !text.includes("Простить долг"), text);
+    // PAY-TAILS Б2.4 (frame 6): the whole sum is a debt after the leaving (the single group): «Оставить долг», «Простить N сум»
+    assert.ok(text.includes("Оставить долг — оплатить можно и после ухода") && text.includes("Простить 231 000 сум"), text);
+    assert.equal(text.split("231 000 сум").length - 1, 2, "the sum is said by the sentence of the server and by the choice that forgives it (the approved layout)");
+    assert.ok(!text.includes("После ухода у ученика долг") && !text.includes("Простить долг") && !text.includes("Простить сумму"), text);
     assert.equal(await run.page.locator('[data-testid="settle-words"]').count(), 1, "one sentence, once");
     await noOverflow(run.page, '[role="dialog"]', `frame 18a ${width}`);
     await run.page.close();

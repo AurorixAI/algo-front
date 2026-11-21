@@ -231,15 +231,20 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   const refund = G.normalizeLeavePreview(named("A09_"));
   const [m] = refund.memberships;
   assert.equal(G.settleKind(m), "advance");
-  assert.equal(plain(G.settleHeadline(m)), "После ухода у ученика аванс 135 000 сум. Что сделать?");
+  // PAY-TAILS Б2.4: the outcome is ONE sentence of the server («Останется аванс …»); the fixture of the server carries none - the screen says nothing (LESSONS 151)
+  assert.equal(G.settleHeadline(m), "");
+  const advanceSaid = { ...m, effects: { kind: "leave", moves: [], ends: [], stays: [{ code: "advance", amount: 135000, text: "Останется аванс 135 000 сум" }] } };
+  assert.equal(plain(G.settleHeadline(advanceSaid)), "Останется аванс 135 000 сум");
   assert.equal(plain(G.SETTLE_LABEL.refund(135000)), "Вернуть 135 000 сум");
   // «keep» by default: the request says what the owner saw
-  assert.deepEqual(G.buildSettle(refund, {}), [{ membership_id: m.membership_id, action: "keep" }]);
+  // PAY-TAILS Б5.1: an item for every membership with what was shown (the sum unpaid, the advance, the business day of the probe)
+  const seen = { membership_id: m.membership_id, expected_unpaid: m.money.unpaid, expected_advance: m.money.advance, expected_as_of: refund.as_of };
+  assert.deepEqual(G.buildSettle(refund, {}), [{ ...seen, action: "keep" }]);
   const choices = { [m.membership_id]: { action: "refund", method: null, reason: "" } };
   assert.match(G.validateSettle(refund, choices), /выберите, как вернули деньги/);
   choices[m.membership_id].method = "cash";
   assert.equal(G.validateSettle(refund, choices), null);
-  assert.deepEqual(G.buildSettle(refund, choices), [{ membership_id: m.membership_id, action: "refund", expected_refundable: 135000, method: "cash" }]);
+  assert.deepEqual(G.buildSettle(refund, choices), [{ ...seen, action: "refund", expected_refundable: 135000, method: "cash" }]);
   assert.deepEqual(G.settledLines(named("A10_").settled).map(plain), ["Возвращено 135 000 сум"]);
   // a debt after leaving (chain 4): keep, or forgive with a reason
   const archive = G.normalizeLeavePreview(named("A11_"));
@@ -248,26 +253,29 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   assert.equal(G.settleHeadline(debt), "");
   const said = { ...debt, effects: { kind: "archive", moves: [], ends: [], stays: [{ code: "debt", amount: 347000, text: "Долг 347 000 сум останется за учеником в группе «A-1»: принять или простить его можно в её выписке" }] } };
   assert.equal(plain(G.settleHeadline(said)), "Долг 347 000 сум останется за учеником в группе «A-1»: принять или простить его можно в её выписке");
-  assert.equal(plain(G.SETTLE_LABEL.keepDebt), "Оставить как есть — оплатить можно и после ухода");
-  assert.equal(G.SETTLE_LABEL.forgive, "Простить сумму");
+  assert.equal(plain(G.SETTLE_LABEL.keepDebt), "Оставить долг — оплатить можно и после ухода");
+  assert.equal(plain(G.SETTLE_LABEL.keepUnpaid), "Оставить как есть — оплатить можно и после ухода");
+  assert.equal(plain(G.SETTLE_LABEL.forgive(347000)), "Простить 347 000 сум");
+  assert.equal(G.keepUnpaidLabel({ debt_amount: 347000, due_amount: 0 }), G.SETTLE_LABEL.keepDebt, "a whole debt after the leaving: «Оставить долг»");
+  assert.equal(G.keepUnpaidLabel({ debt_amount: 0, due_amount: 125000 }), G.SETTLE_LABEL.keepUnpaid, "a sum «к оплате» that stays is not named a debt");
+  assert.equal(G.keepUnpaidLabel({ debt_amount: 100000, due_amount: 25000 }), G.SETTLE_LABEL.keepUnpaid);
   const forgive = { [debt.membership_id]: { action: "writeoff", method: null, reason: "ab" } };
   assert.match(G.validateSettle(archive, forgive), /причину прощения долга/);
   forgive[debt.membership_id].reason = " договорённость с родителем ";
-  assert.deepEqual(G.buildSettle(archive, forgive), [{ membership_id: debt.membership_id, action: "writeoff", expected_unpaid: 347000, reason: "договорённость с родителем" }]);
+  assert.deepEqual(G.buildSettle(archive, forgive), [{ membership_id: debt.membership_id, action: "writeoff", expected_unpaid: 347000, expected_advance: debt.money.advance, expected_as_of: archive.as_of, reason: "договорённость с родителем" }]);
   // no money to see, no settlements, a hidden balance
   assert.equal(G.settleHeadline({ money: null, has_open_balance: true, allowed: ["keep"] }), "У ученика есть расчёты по оплате — их видит владелец");
   assert.equal(G.settleHeadline({ money: { unpaid: 0, advance: 0, refundable: 0 }, has_open_balance: false, allowed: ["keep"] }), "Расчётов нет — можно убирать");
   assert.deepEqual(G.buildSettle({ memberships: [{ membership_id: "x", money: null, has_open_balance: true, allowed: ["keep"] }] }, {}), []);
   // an individual price ends with the stay (F13)
   assert.equal(G.normalizeLeavePreview(named("A12_")).memberships[0].money.individual_price_ends, true);
-  // BALANCE_CHANGED: the fresh numbers replace the old ones and the choice falls back
+  // BALANCE_CHANGED (PAY-TAILS Б5.1): nothing is written; the window closes and the page says the server's words (no fresh numbers are merged into the window any more: the next opening reads the probe again)
   const errors = fixture("errors");
   const changed = G.logicaError({ code: "BALANCE_CHANGED", message: "x", detail: errors.BALANCE_CHANGED.body.detail });
   assert.equal(changed.fresh.length, 1);
-  const next = G.applyFreshBalances(refund, [{ membership_id: m.membership_id, debt: 0, advance: 150000, refundable: 150000 }]);
-  assert.equal(next.preview.memberships[0].money.refundable, 150000);
-  assert.deepEqual(next.reset, [m.membership_id]);
-  assert.equal(G.BALANCE_CHANGED_TEXT, errors.BALANCE_CHANGED.body.detail.message);
+  assert.equal(G.isShownChanged(changed), true);
+  assert.equal(G.isShownChanged({ code: "MONEY_RIGHT_REQUIRED" }), false);
+  assert.equal(G.applyFreshBalances, undefined, "the merge of the fresh numbers is gone");
 });
 
 test("a student who has left pays at most the debt (S-5, chain 4)", () => {
@@ -291,11 +299,14 @@ test("leave dialog and settle block draw the blocks of the spec", () => {
   const preview = G.normalizeLeavePreview(named("A09_"));
   const m = preview.memberships[0];
   const body = text(React.createElement(SettleBlock, { preview, choices: { [m.membership_id]: { action: "refund", method: null, reason: "" } }, onChoice: () => undefined }));
-  for (const part of ["После ухода у ученика аванс 135 000 сум. Что сделать?", "Вернуть 135 000 сум", "Оставить аванс на счёте", "Как вернули", "Наличные"]) assert.ok(body.includes(part), part);
+  for (const part of ["Вернуть 135 000 сум", "Оставить на счёте", "Как вернули", "Наличные"]) assert.ok(body.includes(part), part);
+  assert.ok(!body.includes("Что сделать?"), "the screen makes up no sentence about the advance: it says the server's outcome or nothing");
+  const advanceWords = { ...preview, memberships: [{ ...m, effects: { kind: "leave", moves: [], ends: [], stays: [{ code: "advance", amount: 135000, text: "Останется аванс 135 000 сум" }] } }] };
+  assert.ok(text(React.createElement(SettleBlock, { preview: advanceWords, choices: {}, onChoice: () => undefined })).includes("Останется аванс 135 000 сум"));
   const withWords = G.normalizeLeavePreview(named("A11_"));
   withWords.memberships[0].effects = { kind: "archive", moves: [], ends: [], stays: [{ code: "debt", amount: 347000, text: "Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом" }] };
   const debt = text(React.createElement(SettleBlock, { preview: withWords, choices: {}, onChoice: () => undefined }));
-  for (const part of ["Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом", "Оставить как есть — оплатить можно и после ухода", "Простить сумму"]) assert.ok(debt.includes(part), part);
+  for (const part of ["Ученик уходит из центра: вся неоплаченная сумма 347 000 сум в группе «A-1» станет долгом", "Оставить долг — оплатить можно и после ухода", "Простить 347 000 сум"]) assert.ok(debt.includes(part), part);
   assert.ok(!debt.includes("После ухода у ученика долг"), "no own sentence about the debt: the words are the server's");
   // Money-2 wave 2 (Б3): no own sentence about the individual price - the server's `effects.ends` say it (tests of the window: money2-w1-leave)
   assert.match(html(React.createElement(SettleBlock, { preview, choices: {}, onChoice: () => undefined })), /Расчёты при уходе/);

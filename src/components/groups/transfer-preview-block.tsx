@@ -10,6 +10,8 @@ import { serverPhraseShown } from "@/lib/enrol-labels";
 import { Button } from "@/components/ui/button";
 import { EffectsSections } from "@/components/money/effects-sections";
 import { effectsEmpty, effectsOfAnswer } from "@/lib/transfer-effects";
+import { othersOf, recalcOf } from "@/lib/paytails-contract";
+import { OtherGroupLines, RecalcLines } from "@/components/money/recalc-lines";
 import { isStaleRefusal, refusedInWords, REFRESH_LABEL } from "@/lib/money-preview";
 
 /**
@@ -48,22 +50,31 @@ export function TransferPreviewBlock({ preview, onRetry, onRefresh, names, targe
   }
   // Money-2 Э1: a server that sends `effects` says «что перейдёт / останется / закончится» itself - the old sentences of `carried` are not said next to it (one fact, once)
   const effects = effectsOfAnswer(preview.answer);
+  // PAY-TAILS Б2.4: «что было → что станет» of the group the student leaves (`recalc`) and the sentence about the new group (`others`: «Начисление в «Б» начнётся с 23.11») - the server's lines, over the sections
+  const recalc = recalcOf(preview.answer);
+  const others = othersOf(preview.answer);
+  const money = recalc !== null || others.length > 0;
   if (effects) {
-    if (effectsEmpty(effects)) return null;
+    if (effectsEmpty(effects) && !money) return null;
     return (
       <section aria-label={EFFECTS_TITLE} data-testid="transfer-preview" data-state="ready" className={shell}>
         <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
-        <EffectsSections effects={effects} target={target} className="mt-1.5" />
+        <div className="mt-1.5 space-y-2.5">
+          <RecalcLines block={recalc} testId="transfer-recalc" />
+          <OtherGroupLines lines={others} testId="transfer-others" />
+          {!effectsEmpty(effects) && <EffectsSections effects={effects} target={target} />}
+        </div>
       </section>
     );
   }
   const carried = carriedOf(preview.answer, names);
   const closing = closingPricesOf(preview.answer, names);
   // the server said nothing about the money of this move: the window says nothing too (it never claims what the server did not - LESSONS 143)
-  if (carried.length === 0 && closing.length === 0) return null;
+  if (carried.length === 0 && closing.length === 0 && !money) return null;
   return (
     <section aria-label={EFFECTS_TITLE} data-testid="transfer-preview" data-state="ready" className={shell}>
       <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
+      {money && <div className="mt-1.5 space-y-2.5"><RecalcLines block={recalc} testId="transfer-recalc" /><OtherGroupLines lines={others} testId="transfer-others" /></div>}
       {carried.length > 0 && (
         <ul className="mt-1.5 space-y-1" data-testid="transfer-carried">
           {carried.flatMap((line, index) => carriedRows(line.message).map((row, part) => <li key={`${line.code}-${index}-${part}`} className="text-sm text-slate-800">{serverPhraseShown(tidyMoneyText(row))}</li>))}

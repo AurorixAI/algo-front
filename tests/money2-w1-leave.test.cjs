@@ -40,7 +40,7 @@ test("Э1 (уход): «Закончится» is the server's `ends` - price, p
   assert.deepEqual(rows, [["Индивидуальная цена", "300 000 сум"], ["Цена с 01.12", "250 000 сум"], ["Пауза", "23–26.11"]]);
   const dialog = plain(await run.page.locator('[role="dialog"]').evaluate((el) => el.innerText));
   assert.ok(!/вместе с группой/.test(dialog), "the own sentence about the individual price is gone");
-  assert.equal(count(dialog, "120 000 сум"), 1, "the debt once");
+  assert.equal(count(dialog, "120 000 сум"), 2, "the debt: the sentence of the server and the choice that forgives it (PAY-TAILS frame 6)");
   assert.equal(count(dialog, "300 000 сум"), 1, "the price once");
   assert.equal(run.errors.length, 0, run.errors.join("|"));
   await run.page.close();

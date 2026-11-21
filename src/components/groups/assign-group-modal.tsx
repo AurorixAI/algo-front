@@ -37,6 +37,7 @@ import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
 import { EnrolExceptions, EnrolNoteRows, EnrolRefusedRow, ExceptionRow } from "./enrol-exceptions";
 import { enrolBarOf, enrolIntoLabel } from "@/lib/enrol-bar";
+import { resultMoneyLines } from "@/lib/paytails-contract";
 import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, type OwnPriceError } from "@/lib/enrol-terms";
 import { probeRefusalOfError } from "@/lib/bulk-outcome";
 import { formatMoney } from "@/lib/money-format";
@@ -273,6 +274,7 @@ export function AssignGroupModal({
         undoText: undoDone?.undone ? undoDone.text : null,
         // the sum of the last probe, as the window of a group says it (only for a role that sees money; no sum - no line)
         payNowLine: bar && bar.words.length > 0 ? `${bar.words.join(" · ")} — на странице «Оплаты»` : null,
+        moneyLines: resultMoneyLines(result),
         stays: isAdd ? (sourceGroups ?? []).filter((g) => g.id !== selectedGroupId).map((g) => g.name).filter(Boolean) : [],
         warnings: notes.warnings,
         infos: billingLine ? [...notes.infos, billingLine] : notes.infos,

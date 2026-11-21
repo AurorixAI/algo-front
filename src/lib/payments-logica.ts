@@ -24,6 +24,7 @@ import {
 import { addIsoDays, daysBetween, daysBetweenInclusive, formatDayMonthRu } from "./business-time";
 import { daysLabel, pluralRu } from "./plural";
 import { effectsOfAnswer, type TransferEffects } from "./transfer-effects";
+import { othersOf, recalcOf, resultMoneyLines, type RecalcBlock } from "./paytails-contract";
 
 const num = (value: unknown): number => {
   const parsed = Number(value);
@@ -501,6 +502,9 @@ export type SettleAction = "keep" | "writeoff" | "refund";
 export interface LeaveMoney {
   /** everything unpaid after the action (the server's `unpaid`: a debt and a sum in term together) */
   unpaid: number;
+  /** The part of `unpaid` that is a DEBT after the action (the rest is a sum «к оплате» that stays within its term). */
+  debt_amount: number;
+  due_amount: number;
   advance: number;
   refundable: number;
   paid_until: string | null;
@@ -518,6 +522,9 @@ export interface LeaveMembership {
   allowed: SettleAction[];
   /** Money-2 T3 / PAY-DUE 10.5: what ENDS with the stay and what STAYS unpaid after it, in the words of the server by the state AFTER the action (null: the server said nothing - the screen says nothing about it, LESSONS 151). */
   effects: TransferEffects | null;
+  /** PAY-TAILS Б1.3: «что было → что станет» (the lines of the server; null - the charge does not change) and what the closing does to the student's OTHER groups. */
+  recalc: RecalcBlock | null;
+  others: string[];
 }
 
 export interface LeavePreview {
@@ -528,8 +535,10 @@ export interface LeavePreview {
 export interface SettleItem {
   membership_id: string;
   action: SettleAction;
-  /** everything unpaid the owner saw (PAY-DUE 17: `expected_unpaid`) */
+  /** PAY-TAILS Б5.1: what the person saw, for EVERY membership (also «оставить»): everything unpaid, the advance and the business day of the probe; the server refuses «Сумма изменилась, откройте окно заново» when any of them differs. */
   expected_unpaid?: number | null;
+  expected_advance?: number | null;
+  expected_as_of?: string | null;
   expected_refundable?: number | null;
   method?: Exclude<PayMethod, "unknown"> | null;
   reason?: string | null;
@@ -554,6 +563,8 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
       money: item.money
         ? {
             unpaid: num(item.money.unpaid),
+            debt_amount: item.money.debt_amount === undefined ? num(item.money.unpaid) : num(item.money.debt_amount),
+            due_amount: num(item.money.due_amount),
             advance: num(item.money.advance),
             refundable: num(item.money.refundable),
             paid_until: item.money.paid_until ?? null,
@@ -564,6 +575,8 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
       has_open_balance: Boolean(item.has_open_balance),
       allowed: arr<SettleAction>(item.allowed).length > 0 ? arr<SettleAction>(item.allowed) : ["keep"],
       effects: effectsOfAnswer({ effects: (item as { effects?: unknown }).effects }),
+      recalc: recalcOf(item),
+      others: othersOf(item),
     })),
   };
 }
@@ -591,18 +604,21 @@ export function settleKind(membership: LeaveMembership): SettleKind {
   return "none";
 }
 
-/** What the leaving leaves unpaid, the sentences of the server («К оплате 40 000 сум. Это единственная группа ученика: после ухода сумма станет долгом» / «Долг 120 000 сум останется за учеником…» / «…до 24.11, срок не меняется…»): one per name. */
-export function settleDebtLines(membership: LeaveMembership): string[] {
-  return (membership.effects?.stays ?? []).filter((item) => (item.code === "debt" || item.code === "due") && item.text).map((item) => item.text.trim());
+/**
+ * What the closing leaves on the account - ONE sentence of the server («Останется долг 415 000 сум» / «Останется к оплате 125 000 сум до 25.11» / «Останется аванс 185 000 сум» / «Останется долг 125 000 сум: это единственная группа ученика»):
+ * `effects.stays` of the debt, the sum «к оплате» and the advance, one per name.  The server said nothing - the screen says nothing (LESSONS 151).
+ */
+export function settleOutcomeLines(membership: LeaveMembership): string[] {
+  const codes = settleKind(membership) === "advance" ? ["advance"] : ["debt", "due"];
+  return (membership.effects?.stays ?? []).filter((item) => codes.includes(item.code) && item.text).map((item) => item.text.trim());
 }
 
-/** «После ухода у ученика долг 120 000 сум.» / «После ухода у ученика аванс 135 000 сум. Что сделать?» / «Расчётов нет — можно убирать» / … */
+/** The sentence under the lines of the block: the outcome of the server; without money - «Расчётов нет — можно убирать»; a role without the right - that the settlements exist and the owner sees them. */
 export function settleHeadline(membership: LeaveMembership): string {
   switch (settleKind(membership)) {
     case "debt":
-      return settleDebtLines(membership).join(" ");
     case "advance":
-      return `После ухода у ученика аванс ${formatMoney(membership.money!.advance)}. Что сделать?`;
+      return settleOutcomeLines(membership).join(" ");
     case "hidden":
       return "У ученика есть расчёты по оплате — их видит владелец";
     default:
@@ -611,12 +627,18 @@ export function settleHeadline(membership: LeaveMembership): string {
 }
 
 export const SETTLE_LABEL = {
-  keepDebt: "Оставить как есть — оплатить можно и после ухода",
-  // the sum is said by the sentence of the server right above the choices (one fact once, LESSONS 145)
-  forgive: "Простить сумму",
-  keepAdvance: "Оставить аванс на счёте",
+  /** «Оставить долг» only when the whole unpaid sum is a debt after the action (the server's `debt_amount`); a sum «к оплате» that stays within its term is not named a debt. */
+  keepDebt: "Оставить долг — оплатить можно и после ухода",
+  keepUnpaid: "Оставить как есть — оплатить можно и после ухода",
+  forgive: (amount: number) => `Простить ${formatMoney(amount)}`,
+  keepAdvance: "Оставить на счёте",
   refund: (amount: number) => `Вернуть ${formatMoney(amount)}`,
 } as const;
+
+/** The label of «keep» for a sum that stays unpaid (the numbers are the server's: `debt_amount`, `due_amount`). */
+export function keepUnpaidLabel(money: Pick<LeaveMoney, "debt_amount" | "due_amount">): string {
+  return money.debt_amount > 0 && money.due_amount === 0 ? SETTLE_LABEL.keepDebt : SETTLE_LABEL.keepUnpaid;
+}
 
 /** The first problem of the choices (a reason for a forgiven debt, a method for a refund); null when the dialog may go on. */
 export function validateSettle(preview: LeavePreview | null, choices: Record<string, SettleChoice>): string | null {
@@ -632,46 +654,42 @@ export function validateSettle(preview: LeavePreview | null, choices: Record<str
   return null;
 }
 
-/** `settle[]` of the request: what the owner saw (`expected_*`) goes along, so a payment that came in between is caught (409 `BALANCE_CHANGED`). */
+/**
+ * `settle[]` of the request (PAY-TAILS Б5.1): ONE item for every membership the person sees the money of, also «оставить» and a membership with nothing to settle - each with what was SHOWN
+ * (`expected_unpaid`, `expected_advance`, the business day of the probe `expected_as_of`), so a payment that came in or a midnight that passed between the window and the button is caught (409 `BALANCE_CHANGED`,
+ * «Сумма изменилась, откройте окно заново»).  A role without the right to money has no `money`: no item, the old behaviour - and no refusal of the check.
+ */
 export function buildSettle(preview: LeavePreview | null, choices: Record<string, SettleChoice>): SettleItem[] {
   const out: SettleItem[] = [];
   for (const membership of preview?.memberships ?? []) {
     if (!membership.money) continue;
     const choice = choices[membership.membership_id] ?? defaultSettleChoice();
+    const seen = { membership_id: membership.membership_id, expected_unpaid: membership.money.unpaid, expected_advance: membership.money.advance, expected_as_of: preview?.as_of || null };
     if (choice.action === "refund" && membership.money.refundable > 0) {
-      out.push({ membership_id: membership.membership_id, action: "refund", expected_refundable: membership.money.refundable, method: choice.method });
+      out.push({ ...seen, action: "refund", expected_refundable: membership.money.refundable, method: choice.method });
     } else if (choice.action === "writeoff" && membership.money.unpaid > 0) {
-      out.push({ membership_id: membership.membership_id, action: "writeoff", expected_unpaid: membership.money.unpaid, reason: choice.reason.trim() });
-    } else if (membership.money.unpaid > 0 || membership.money.refundable > 0) {
-      out.push({ membership_id: membership.membership_id, action: "keep" });
+      out.push({ ...seen, action: "writeoff", reason: choice.reason.trim() });
+    } else {
+      out.push({ ...seen, action: "keep" });
     }
   }
   return out;
 }
 
-/** A refreshed preview after `BALANCE_CHANGED`: the fresh numbers replace the old ones, the choices that no longer fit fall back to «keep». */
-export function applyFreshBalances(preview: LeavePreview, fresh: FreshBalance[]): { preview: LeavePreview; reset: string[] } {
-  const reset: string[] = [];
-  const memberships = preview.memberships.map((membership) => {
-    const next = fresh.find((item) => item.membership_id === membership.membership_id);
-    if (!next || !membership.money) return membership;
-    reset.push(membership.membership_id);
-    return { ...membership, money: { ...membership.money, unpaid: next.debt, advance: next.advance, refundable: next.refundable }, has_open_balance: next.debt > 0 || next.advance > 0 };
-  });
-  return { preview: { ...preview, memberships }, reset };
-}
+/** The refusal of the check of what was shown (409 `BALANCE_CHANGED`): the window closes, the server's words are said, the next opening reads the probe again. */
+export const isShownChanged = (failure: Pick<LogicaError, "code">): boolean => failure.code === "BALANCE_CHANGED";
 
-export const BALANCE_CHANGED_TEXT = "Данные оплат изменились — проверьте суммы";
 
 /** The toast after a student left a group (PAY-DUE 20.5): this line always, never an empty message. */
 export const LEFT_GROUP_TEXT = "Ученик убран из группы";
 
 /**
- * The lines under the toast of a leave: what was settled («Возвращено …», «Прощено …») and the sentence of the server about the money that stays (`effects.stays`: the debt, the sum «к оплате», the advance) in ITS
+ * The lines under the toast of a leave: what the charge became (`recalc`) and happened to the other groups (`others`), what was settled («Возвращено …», «Прощено …») and the sentence of the server about the money that stays (`effects.stays`: the debt, the sum «к оплате», the advance) in ITS
  * words.  The server said nothing - no line is made up (LESSONS 151).
  */
-export function leaveToastLines(answer: { settled?: SettledOut[] | null; effects?: unknown } | null | undefined, groupNames: Record<string, string> = {}): string[] {
-  const lines = settledLines(answer?.settled, groupNames);
+export function leaveToastLines(answer: { settled?: SettledOut[] | null; effects?: unknown; recalc?: unknown; others?: unknown } | null | undefined, groupNames: Record<string, string> = {}): string[] {
+  // PAY-TAILS Б2.4: «что было → что станет» in the past tense (`recalc`, the server's) and what happened to the other groups come first, then what was settled, then what stays
+  const lines = [...resultMoneyLines(answer), ...settledLines(answer?.settled, groupNames)];
   const stays = effectsOfAnswer({ effects: answer?.effects })?.stays ?? [];
   for (const item of stays) {
     const text = typeof item.text === "string" ? item.text.trim() : "";

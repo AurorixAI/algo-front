@@ -5,8 +5,8 @@ import { addDays, businessNow } from "../support/time";
 
 /**
  * PAY-DUE 20.5: the message after leaving a group is never empty - it says what was done («Ученик убран из группы») and, when the server gave a sentence
- * about the money, it stands under it in the words of the server.  Every outcome of the window: no money, «Оставить как есть» (a debt; a sum «к оплате» in the only group),
- * «Простить сумму», «Вернуть» an advance - from the roster of the group and from the card of the student.
+ * about the money, it stands under it in the words of the server.  Every outcome of the window: no money, «Оставить долг» / «Оставить как есть» (a debt; a sum «к оплате» in the only group),
+ * «Простить N сум», «Вернуть» an advance - from the roster of the group and from the card of the student.
  */
 const LEFT = "Ученик убран из группы";
 let org: Org;
@@ -48,17 +48,17 @@ test("a debt, «Оставить как есть»: the fact and the sentence of
   const student = await org.addStudent({ id: groupId, name: "", teacherId: null }, "Анвар", "Должников", undefined, addDays(businessNow().date, -10));
   const page = await signIn(org.owner);
   const text = await leaveFromRoster(page, student.fullName);
-  expect(text).toMatch(/^Ученик убран из группы Долг [\d\s  ]+ сум останется за учеником/);
+  expect(text).toMatch(/^Ученик убран из группы.*Долг [\d\s\u00a0\u202f]+ сум (останется|остался) за учеником/);
 });
 
-test("a debt, «Простить сумму»: the fact and what was forgiven", async ({ signIn }) => {
+test("a debt, «Простить N сум»: the fact and what was forgiven", async ({ signIn }) => {
   const student = await org.addStudent({ id: groupId, name: "", teacherId: null }, "Дильноза", "Прощаемая", undefined, addDays(businessNow().date, -10));
   const page = await signIn(org.owner);
   const text = await leaveFromRoster(page, student.fullName, async (dialog) => {
-    await dialog.getByLabel("Простить сумму").check();
+    await dialog.getByLabel(/^Простить [\d\s\u00a0\u202f]+ сум/).check();
     await dialog.getByLabel(/Причина/).fill("Болезнь");
   });
-  expect(text).toMatch(/^Ученик убран из группы Прощено [\d\s  ]+ сум/);
+  expect(text).toMatch(/^Ученик убран из группы.*Прощено [\d\s\u00a0\u202f]+ сум/);
 });
 
 test("an advance, «Вернуть»: the fact and what was returned", async ({ signIn }) => {
@@ -69,7 +69,7 @@ test("an advance, «Вернуть»: the fact and what was returned", async ({ 
     await dialog.getByRole("radio", { name: /Вернуть/ }).check();
     await dialog.getByRole("radio", { name: "Наличные" }).click();
   });
-  expect(text).toMatch(/^Ученик убран из группы Возвращено [\d\s  ]+ сум/);
+  expect(text).toMatch(/^Ученик убран из группы.*Возвращено [\d\s\u00a0\u202f]+ сум/);
 });
 
 test("from the card of the student (the only group, «Оставить как есть»): the same message", async ({ signIn }) => {
@@ -84,5 +84,5 @@ test("from the card of the student (the only group, «Оставить как е
   await dialog.getByRole("button", { name: "Убрать из группы" }).click();
   const status = page.getByRole("status").filter({ hasText: LEFT });
   await expect(status).toBeVisible();
-  expect(((await status.innerText()) || "").replace(/\s+/g, " ").trim()).toMatch(/^Ученик убран из группы Долг [\d\s  ]+ сум останется/);
+  expect(((await status.innerText()) || "").replace(/\s+/g, " ").trim()).toMatch(/^Ученик убран из группы.*Долг [\d\s\u00a0\u202f]+ сум (останется|остался)/);
 });

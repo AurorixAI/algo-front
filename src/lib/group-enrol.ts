@@ -70,6 +70,8 @@ export interface AssignDoneInput {
   stays?: readonly string[];
   /** the server's words of the last probe («К оплате до 24.11: 600 000 сум …») and the way to the page, only for a role that sees money (as the window of a group says it) */
   payNowLine?: string | null;
+  /** PAY-TAILS Б2.4: what the move did to the charge (`recalc` of the group the student left, past tense) and to the other group (`others`) - the server's sentences, first under the headline */
+  moneyLines?: readonly string[];
   /** calm notes and real hints of the server (`warnings` of the answer) */
   infos?: readonly string[];
   warnings?: readonly string[];
@@ -84,6 +86,7 @@ export function assignDoneToast(input: AssignDoneInput): EnrolToast {
   const text = `${input.studentName} ${input.transfer ? "переведён" : "зачислен"} в «${groupNameShown(input.groupName)}»`;
   const stay = staysLine(input.stays ?? []);
   const lines = [
+    ...(input.moneyLines ?? []),
     ...(input.payNowLine ? [input.payNowLine] : []),
     ...(input.undoText ? [serverPhraseShown(input.undoText)] : []),
     ...(stay ? [stay] : []),

@@ -31,6 +31,8 @@ interface GroupStudentTableProps {
    */
   groupId?: string;
   onLeft?: (studentId: string, settledLines: string[]) => void;
+  /** The numbers the window showed were out of date (the server refused, nothing written): the page says the server's words. */
+  onStale?: (message: string) => void;
   /** «Перевести в другую группу…» of a row: the page opens the transfer dialog of the card for this student. */
   onTransfer?: (student: StudentInGroup) => void;
 }
@@ -39,7 +41,7 @@ interface GroupStudentTableProps {
  * The roster of a group.  The name is the link to the card of the student; the «⋯» of a row has at most two items (IA audit F4, d2):
  * «Перевести в другую группу…» and «Убрать из группы…» (the one dialog with the money).  The card of the student is the link of the name.
  */
-export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, onLeft, onTransfer }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, onLeft, onStale, onTransfer }: GroupStudentTableProps) {
   const pathname = usePathname();
   const isTeacher = pathname?.startsWith("/teacher");
   const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
@@ -157,6 +159,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
           studentName={leaveTarget ? (leaveTarget.full_name || `${leaveTarget.last_name} ${leaveTarget.first_name}`) : ""}
           onClose={() => setLeaveTarget(null)}
           onLeft={(lines) => { if (leaveTarget) onLeft(leaveTarget.id, lines); }}
+          onStale={onStale}
           onLegacy={leaveTarget ? () => orgApi.removeStudentFromGroup(groupId, leaveTarget.id) : undefined}
         />
       )}

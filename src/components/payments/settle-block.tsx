@@ -5,17 +5,15 @@ import { Loader2 } from "lucide-react";
 import { METHODS } from "@/lib/payments-ledger";
 import { REASON_MAX } from "@/lib/payments";
 import {
-  applyFreshBalances,
   buildSettle,
   defaultSettleChoice,
+  keepUnpaidLabel,
   logicaError,
   SETTLE_LABEL,
-  settleDebtLines,
   settleHeadline,
   settleKind,
+  settleOutcomeLines,
   validateSettle,
-  BALANCE_CHANGED_TEXT,
-  type FreshBalance,
   type LeaveMembership,
   type LeavePreview,
   type SettleChoice,
@@ -24,11 +22,13 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Radio } from "@/components/ui/radio";
 import { EffectsSections } from "@/components/money/effects-sections";
+import { OtherGroupLines, RecalcLines } from "@/components/money/recalc-lines";
 import { endsOnly } from "@/lib/transfer-effects";
 
 /**
- * The state of the «what happens to the money» part of leaving a group / the archive: the server's preview (what is left on the
- * account after leaving), the owner's choice per membership, and the numbers re-read after a payment came in between (`BALANCE_CHANGED`).
+ * The state of the «what happens to the money» part of leaving a group / the archive: the server's preview (what the charge becomes and what is left on the
+ * account after leaving), the owner's choice per membership.  A payment that came in (or a midnight that passed) between the window and the button is refused by the server (`BALANCE_CHANGED`):
+ * the dialog closes and says the server's words, the next opening reads the probe again (PAY-TAILS Б5.1).
  */
 export function useSettle(load: () => Promise<LeavePreview>, enabled: boolean, resetKey: string) {
   const [preview, setPreview] = useState<LeavePreview | null>(null);
@@ -36,12 +36,9 @@ export function useSettle(load: () => Promise<LeavePreview>, enabled: boolean, r
   const [loading, setLoading] = useState(false);
   /** `refused`: the server does not offer the preview to this user / this version (the old plain leave stays). */
   const [failure, setFailure] = useState<{ message: string; refused: boolean } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const sequence = useRef(createRequestSequence());
   const loadRef = useRef(load);
   loadRef.current = load;
-  const previewRef = useRef<LeavePreview | null>(null);
-  previewRef.current = preview;
 
   const reload = useCallback(() => {
     const token = sequence.current.next();
@@ -61,41 +58,24 @@ export function useSettle(load: () => Promise<LeavePreview>, enabled: boolean, r
     if (!enabled) return undefined;
     setPreview(null);
     setChoices({});
-    setNotice(null);
     reload();
     return () => { sequence.current.next(); };
   }, [enabled, resetKey, reload]);
 
-  /** The server's fresh numbers: the preview is replaced, a changed membership falls back to «keep» and the owner is told. */
-  const applyFresh = (fresh: FreshBalance[]) => {
-    const current = previewRef.current;
-    if (current) {
-      const next = applyFreshBalances(current, fresh);
-      setPreview(next.preview);
-      setChoices((previous) => {
-        const copy = { ...previous };
-        for (const id of next.reset) delete copy[id];
-        return copy;
-      });
-    }
-    setNotice(BALANCE_CHANGED_TEXT);
-  };
-
   const problem = validateSettle(preview, choices);
   const settle: SettleItem[] = buildSettle(preview, choices);
   const setChoice = (membershipId: string, next: Partial<SettleChoice>) => {
-    setNotice(null);
     setChoices((previous) => ({ ...previous, [membershipId]: { ...(previous[membershipId] ?? defaultSettleChoice()), ...next } }));
   };
-  return { preview, choices, loading, failure, notice, problem, settle, reload, applyFresh, setChoice, setNotice };
+  return { preview, choices, loading, failure, problem, settle, reload, setChoice };
 }
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
 /**
- * A block per membership: «После ухода у ученика аванс 135 000 сум. Что сделать?» — «Вернуть 135 000 сум» [how] / «Оставить аванс на
- * счёте»; the sentences of the server about what stays unpaid — «Оставить как есть» / «Простить 120 000 сум» [reason]; «Расчётов нет — можно убирать»;
- * without access to money: «У ученика есть расчёты по оплате — их видит владелец».
+ * A block per membership (PAY-TAILS Б2.4, frames 6-9): «что было → что станет» (`recalc`, bold with the basis grey), what happens to the other groups (`others`), the outcome in ONE sentence of the server
+ * («Останется долг 415 000 сум» / «Останется аванс 185 000 сум»), then the choice: «Оставить долг — …» / «Простить 415 000 сум» [reason]; «Вернуть 185 000 сум» [how] / «Оставить на счёте»;
+ * «Расчётов нет — можно убирать»; without access to money: «У ученика есть расчёты по оплате — их видит владелец».
  */
 export function SettleBlock({
   preview, choices, onChoice, disabled = false, showGroup = true,
@@ -141,16 +121,18 @@ function MembershipSettle({
   return (
     <div className="space-y-2">
       {showGroup && <p className="break-words text-sm font-semibold text-slate-900">{membership.group_name}</p>}
-      {kind === "debt"
-        // the sentences of the server by the state AFTER the leaving, one per name; silent - nothing is said
-        ? settleDebtLines(membership).map((words) => <p key={words} data-testid="settle-words" className="text-sm text-slate-800">{words}</p>)
+      <RecalcLines block={membership.recalc} testId="settle-recalc" />
+      <OtherGroupLines lines={membership.others} testId="settle-others" />
+      {kind === "debt" || kind === "advance"
+        // the sentences of the server by the state AFTER the closing, one per name; silent - nothing is said
+        ? settleOutcomeLines(membership).map((words) => <p key={words} data-testid="settle-words" className="text-sm text-slate-800 [overflow-wrap:anywhere]">{words}</p>)
         : <p className={`text-sm ${kind === "none" ? "text-slate-500" : "text-slate-800"}`}>{settleHeadline(membership)}</p>}
 
       {kind === "debt" && money && (
         <div className="space-y-2">
-          <ChoiceRow name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{SETTLE_LABEL.keepDebt}</ChoiceRow>
+          <ChoiceRow name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{keepUnpaidLabel(money)}</ChoiceRow>
           {membership.allowed.includes("writeoff") && (
-            <ChoiceRow name={name} checked={choice.action === "writeoff"} onChange={() => onChoice({ action: "writeoff" })} disabled={disabled}>{SETTLE_LABEL.forgive}</ChoiceRow>
+            <ChoiceRow name={name} checked={choice.action === "writeoff"} onChange={() => onChoice({ action: "writeoff" })} disabled={disabled}>{SETTLE_LABEL.forgive(money.unpaid)}</ChoiceRow>
           )}
           {choice.action === "writeoff" && (
             <div className="pl-6">
@@ -197,11 +179,10 @@ function MembershipSettle({
 
 /** The loading / failure frame around a settle block. */
 export function SettleStatus({
-  loading, failure, notice, onRetry,
+  loading, failure, onRetry,
 }: {
   loading: boolean;
   failure: { message: string; refused: boolean } | null;
-  notice: string | null;
   onRetry: () => void;
 }) {
   return (
@@ -213,7 +194,6 @@ export function SettleStatus({
           <button type="button" onClick={onRetry} className="underline">Повторить</button>
         </p>
       )}
-      {notice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">{notice}</p>}
     </>
   );
 }

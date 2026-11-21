@@ -1,0 +1,141 @@
+/**
+ * PAY-TAILS (package Б, screens part 2): THE one place where the screens read what the server's contract Б1.3-Б1.5 + Б5.1-Б5.5 adds - the block «что было → что станет» of a leaving / archiving / transfer (`recalc`, `others`),
+ * the forecast of the charge that has not begun (`upcoming`, `forecast`), the words of a state (`state`: `starts` / `settled` / `no_charges`, `covered_by`, `tab_text`, `tab_sub`, `state_sub`) and the line of a receipt
+ * (`receipt_state_text`).  Pure (no React): node:test loads it.  While the server does not send a field the reader returns «nothing» and the screen says nothing (LESSONS 151); when it does, only THIS file reads it -
+ * the table «field → where it is read» of the report is the list of the exports below.  The screen counts no sum and makes up no sentence about money: every line is the server's.
+ *
+ * Contract: artifacts/analysis/PAY_TAILS_SPEC.md (Б1.3-Б1.5; Б5 wins over Б1).  The stub of the server: tests/helpers/paytails-fixture.cjs.
+ */
+import { pluralRu } from "./plural";
+
+const clean = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
+const whole = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+};
+const record = (value: unknown): Record<string, unknown> | null => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
+
+// ── Б1.3 / Б5.1: «что было → что станет» ─────────────────────────────────────
+
+/** One line of the block: the server's sentence («Ноябрь: 600 000 → 415 000 сум», «Декабрь не начнётся: 300 000 сум останутся авансом», «Прощено: 600 000 → 415 000 сум») and, grey under it, the basis («пересчёт по день ухода · 9 уроков из 13»). */
+export interface RecalcLine {
+  text: string;
+  basisText: string | null;
+}
+export interface RecalcBlock {
+  lines: RecalcLine[];
+  /** «и ещё N периодов»: the server cut the list at two lines. */
+  more: number;
+}
+
+/**
+ * `recalc` of a probe or a result of a leaving, an archiving of a student and a transfer (one membership of the preview, the whole answer of a transfer): a list of lines, or `{lines, more}`.
+ * A line without its `text` is dropped (the server said nothing - nothing is drawn).  null when there is nothing to draw: no change of the charge - no block.
+ */
+export function recalcOf(source: unknown): RecalcBlock | null {
+  const raw = record(source)?.recalc;
+  const rawLines = Array.isArray(raw) ? raw : Array.isArray(record(raw)?.lines) ? (record(raw)?.lines as unknown[]) : [];
+  const lines = rawLines.flatMap((item): RecalcLine[] => {
+    const entry = record(item);
+    const text = clean(entry?.text);
+    return text ? [{ text, basisText: clean(entry?.basis_text) }] : [];
+  });
+  const more = Array.isArray(raw) ? 0 : Math.max(0, whole(record(raw)?.more) ?? 0);
+  return lines.length > 0 ? { lines, more } : null;
+}
+
+/** «и ещё 2 периода» - the tail of the cut list (only a count, no money in it). */
+export const recalcMoreText = (more: number): string => `и ещё ${more} ${pluralRu(more, ["период", "периода", "периодов"])}`;
+
+/**
+ * `others` (Б1.3, Б5.2): what the closing does to ANOTHER membership of the student - the server's sentences with the money in them («В группе «Английский 7»: 200 000 → 160 000 сум — сегодняшний урок оплачен в «Математике 7»»,
+ * «Начисление в «Б» начнётся с 23.11»): a string, a list of strings or a list of `{text}`.
+ */
+export function othersOf(source: unknown): string[] {
+  const raw = record(source)?.others;
+  const list = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
+  return list.flatMap((item) => {
+    const text = clean(item) ?? clean(record(item)?.text);
+    return text ? [text] : [];
+  });
+}
+
+/** The sentences of a done action (the message after): the lines of `recalc` (past tense - the server's), then `others`.  Nothing to say - empty. */
+export function resultMoneyLines(answer: unknown): string[] {
+  const block = recalcOf(answer);
+  return [...(block?.lines.map((line) => line.text) ?? []), ...(block && block.more > 0 ? [recalcMoreText(block.more)] : []), ...othersOf(answer)];
+}
+
+// ── Б1.4 / Б5.3: the charge that has not begun ───────────────────────────────
+
+export interface Upcoming {
+  /** The first day of the charge, `YYYY-MM-DD`. */
+  from: string;
+  /** The forecast sum (never a part of any total); null for a role without the right to money - it gets the date only. */
+  amount: number | null;
+  /** «2 урока из 8 в ноябре». */
+  lessonsText: string | null;
+  /** The last day to pay within the term; null: «долг с первого дня» (the sub-line says it) or the role sees no sums. */
+  dueUntil: string | null;
+  text: string | null;
+  sub: string | null;
+}
+
+/** `upcoming` of a row of a status list, of a probe of adding, of a student of a bulk probe: `{from, amount, lessons_text, due_until, text, sub}`.  No `from` - nothing starts later: null. */
+export function upcomingOf(source: unknown): Upcoming | null {
+  const entry = record(source);
+  const raw = record(entry?.upcoming) ?? record(record(entry?.billing)?.upcoming);
+  const from = clean(raw?.from);
+  if (!raw || !from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) return null;
+  return { from, amount: whole(raw.amount), lessonsText: clean(raw.lessons_text), dueUntil: clean(raw.due_until), text: clean(raw.text), sub: clean(raw.sub) };
+}
+
+/** The total of a batch (`upcoming_total`): the same shape; the server adds, the screen does not. */
+export function upcomingTotalOf(answer: unknown): Upcoming | null {
+  const raw = record(record(answer)?.upcoming_total);
+  return raw ? upcomingOf({ upcoming: raw }) : null;
+}
+
+/** The forecast row of a statement (`forecast`): a grey row in the month - the date, the title, the sub-line («прогноз: начислится 120 000 сум»); in no total. */
+export interface StatementForecast {
+  date: string;
+  title: string;
+  sub: string | null;
+}
+export function forecastOf(statement: unknown): StatementForecast | null {
+  const raw = record(record(statement)?.forecast);
+  const date = clean(raw?.date);
+  const title = clean(raw?.title);
+  return raw && date && title ? { date, title, sub: clean(raw.sub) } : null;
+}
+
+// ── Б1.5 / Б5.4: the words of a state ────────────────────────────────────────
+
+/** The new values of `state` (Б5.4): the charge has not begun / the closed membership is settled / nothing was ever charged.  The old ones stay in `pay-state.ts`. */
+export type NewState = "starts" | "settled" | "no_charges";
+export const isNewState = (state: unknown): state is NewState => state === "starts" || state === "settled" || state === "no_charges";
+
+/** What covered the last paid period (`covered_by`, Б5.4): money / the forgiveness / the recalculation / the opening balance. */
+export type CoveredBy = "money" | "forgiven" | "recalc" | "opening";
+export function coveredByOf(source: unknown): CoveredBy | null {
+  const value = record(source)?.covered_by;
+  return value === "money" || value === "forgiven" || value === "recalc" || value === "opening" ? value : null;
+}
+
+/** «Прощено до» and «Оплата не нужна до» are not money: a quiet grey label, not the green of «Оплачено до». */
+export const isNotMoneyCover = (source: unknown): boolean => {
+  const covered = coveredByOf(source);
+  return covered === "forgiven" || covered === "recalc";
+};
+
+/** The words of a row on the tab «Аванс» (Б5.5): `tab_text` / `tab_sub` (the words of the tab); every other tab reads `state_text` / `state_sub`. */
+export function tabWordsOf(row: unknown): { text: string | null; sub: string | null } {
+  const entry = record(row);
+  return { text: clean(entry?.tab_text), sub: clean(entry?.tab_sub) };
+}
+
+/** `receipt_state_text` of a receipt (Б1.5): «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period). */
+export function receiptStateTextOf(receipt: unknown): string | null {
+  return clean(record(receipt)?.receipt_state_text);
+}

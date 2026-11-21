@@ -190,7 +190,7 @@ export function GroupArchiveDialog({
         groupNames={[group.name]}
         onClose={() => setArchiveStudent(null)}
         onArchived={() => { setArchiveStudent(null); void load(); }}
-        onStale={() => { setArchiveStudent(null); void load(); }}
+        onStale={(message) => { setArchiveStudent(null); void load(); showToast(message, "error"); }}
       />
       {toastNode}
     </>

@@ -13,7 +13,7 @@ import {
   validateArchiveReason,
   type ArchiveDiagnosticCounts,
 } from "@/lib/student-archive";
-import { logicaError } from "@/lib/payments-logica";
+import { isShownChanged, logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 import { ModalActions } from "@/components/ui/modal-actions";
@@ -62,11 +62,8 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       onArchived(result);
     } catch (cause) {
       const failed = logicaError(cause);
-      if (failed.code === "BALANCE_CHANGED" && failed.fresh.length > 0) {
-        settle.applyFresh(failed.fresh);
-        setBusy(false);
-        return;
-      }
+      // PAY-TAILS Б5.1: the shown numbers are out of date - nothing is written; the dialog closes and the server's words are said (the next opening reads the probe again)
+      if (isShownChanged(failed)) { onStale(failed.message); return; }
       const message = cause instanceof Error ? cause.message : "Не удалось отправить ученика в архив";
       // 409 «Ученик уже в архиве» = a stale card; 409 «…пока идёт урок…» and the rest: the server's text, the dialog stays.
       if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("archive", message)) onStale(message);
@@ -101,7 +98,7 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
           )}
         </div>
 
-        <SettleStatus loading={settle.loading} failure={settle.failure} notice={settle.notice} onRetry={settle.reload} />
+        <SettleStatus loading={settle.loading} failure={settle.failure} onRetry={settle.reload} />
 
         <div className="space-y-1.5">
           <label htmlFor="student-archive-reason" className="block text-xs font-semibold text-slate-600">Причина (необязательно)</label>

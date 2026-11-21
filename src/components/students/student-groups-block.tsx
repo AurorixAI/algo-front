@@ -189,6 +189,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
           studentName={studentName}
           onClose={() => setLeaveFor(null)}
           onLeft={(lines) => { onNotify?.(LEFT_GROUP_TEXT, "success", lines); onChanged?.("left"); }}
+          onStale={(message) => onNotify?.(message, "error")}
           onLegacy={async () => { await orgApi.removeStudentFromGroup(leaveFor.group_id, profile.student.id); }}
         />
       )}

@@ -576,6 +576,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               studentBasePath={paths.students}
               groupId={groupId}
               onLeft={handleStudentLeft}
+              onStale={(message) => { setDebtTick((n) => n + 1); showToast(message, "error"); }}
               canRemove={canManage && group.status === "active"}
               onTransfer={setTransferStudent}
             />
