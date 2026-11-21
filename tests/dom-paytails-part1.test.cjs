@@ -58,8 +58,8 @@ test("Б2.1 (frame 2b): the tab «Аванс» - ушедшие first (the serve
   assert.equal(plain(await page.innerText('[role="tab"][aria-selected="true"]')), "Аванс 5");
   const rows = await page.$$eval('[data-testid="payments-table"] li.dt-li, [data-testid="payments-table"] li.dt-row', (els) => els.map((li) => li.innerText.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
   assert.equal(rows.length, 5);
-  assert.match(rows[0], /^Яхё Саидов 4 класс Математика 4 .*Аванс 37 000 сум ушёл 28\.10 Вернуть/);
-  assert.match(rows[4], /^Анвар Каримов .* Аванс 600 000 сум оплачено до 31\.12$/);
+  assert.match(rows[0], new RegExp(`^Яхё Саидов ${X.YAHYO.display_id} · 4 класс Математика 4 .*Аванс 37 000 сум ушёл 28\\.10 Вернуть`));
+  assert.match(rows[4], new RegExp(`^Анвар Каримов ${X.ANVAR_ADV.display_id} · .* Аванс 600 000 сум оплачено до 31\\.12$`));
   const status = await page.$$eval('[data-testid="payments-table"] li', (els) => els.map((li) => ({ pay: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean), menu: Boolean(li.querySelector('button[aria-label^="Действия:"]')) })));
   const rowsOnly = status.filter((s) => s.pay.length || s.menu);
   assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.pay), [["Вернуть"], ["Вернуть"], ["Вернуть"], ["Вернуть"]]);
@@ -408,3 +408,42 @@ test("Б2.7: the settings of the owner - «Администратор работ
   await page.close();
 });
 
+// ── the ID of a student (owner's remark 21.11): under the name from 640 px everywhere, none in the compact row of a phone, the search finds it ──
+
+test("the ID under the name: the tab «Аванс» and the band «Ушли из группы — расчёт не закрыт» (from 640 px) like the other tabs; the group's search finds by ID", async () => {
+  const idOf = (rowOf) => rowOf.display_id;
+  const advance = await open(1280, 900, server(), payments("bucket=advance"));
+  await listLoaded(advance.page);
+  const cells = await advance.page.$$eval('[data-testid="payments-table"] li.dt-li, [data-testid="payments-table"] li.dt-row', (els) => els.map((li) => (li.querySelector(".dt-wide-only")?.textContent ?? "").replace(/\s+/g, " ").trim()));
+  assert.deepEqual(cells, X.ADVANCE_ALL.map((row) => `${idOf(row)} · ${row.class_level} класс`), "every row of «Аванс»: «AL-… · N класс» under the name");
+  await advance.page.close();
+
+  const group = await open(1280, 900, groupServer(), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+  await group.page.waitForSelector('[data-testid="payments-left-toggle"]', { timeout: 9000 });
+  await group.page.click('[data-testid="payments-left-toggle"]');
+  const under = await group.page.$$eval('[data-testid="group-payment-row"], [data-testid="group-payment-left-row"]', (els) => els.map((li) => [li.querySelector("a")?.textContent.trim(), li.querySelector("a + p")?.textContent.trim()]));
+  assert.equal(under.length, 6);
+  for (const [name, id] of under) assert.match(id ?? "", /^AL-\d{3}$/, `${name}: the ID stands under the name`);
+  await group.page.close();
+});
+
+test("the ID on a phone: no ID in the compact row; the search of the list takes the ID (the server finds the student by it)", async () => {
+  const asked = [];
+  const answer = server((request) => {
+    if (request.path !== "/auth/org/payments/status" || /bucket=advance/.test(request.query)) return null;
+    asked.push(request.query);
+    const q = new URLSearchParams(request.query).get("search");
+    const all = X.statusPage(request.query).items.map(X.withId);
+    return { json: X.page(q ? all.filter((row) => row.display_id.toLowerCase().includes(q.toLowerCase())) : all) };
+  });
+  const { page } = await open(375, 812, answer, payments("bucket=debtors"));
+  await page.waitForSelector('[data-testid="payments-phone-list"] li', { timeout: 8000 });
+  const before = await page.$$eval('[data-testid="payments-phone-list"] > li', (els) => els.map((li) => li.innerText));
+  assert.ok(before.length >= 2 && before.every((text) => !/AL-\d{3}/.test(text)), "the compact row of a phone has no ID");
+  const target = X.statusPage("bucket=debtors").items.map(X.withId)[0];
+  await page.getByLabel("Поиск по имени или ID ученика").fill(target.display_id);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="payments-phone-list"] > li').length === 1, null, { timeout: 5000 });
+  assert.ok(asked.some((query) => new URLSearchParams(query).get("search") === target.display_id), "the ID went to the server as the search");
+  assert.match(await page.innerText('[data-testid="payments-phone-list"] > li'), new RegExp(target.student_name.split(" ")[0]));
+  await page.close();
+});

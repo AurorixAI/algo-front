@@ -261,8 +261,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Имя ученика"
-                aria-label="Поиск ученика"
+                placeholder="Имя или ID ученика"
+                aria-label="Поиск ученика по имени или ID"
                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
               />
             </div>

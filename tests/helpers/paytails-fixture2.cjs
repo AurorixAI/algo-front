@@ -61,7 +61,7 @@ const enrolServer = ({ upcoming = UPCOMING_10, payFrom = "2026-11-24", today = "
 
 // ── Б1.5 / Б5.4: the words of a state (frames 0, 11, 13, 15, 16, 17) ──────────────────────────────────
 const PF = require("./paytails-fixture.cjs");
-const row = (id, name, over) => PF.base({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, group_name: "Математика 7", ...over });
+const row = (id, name, over) => PF.withId(PF.base({ membership_id: `m-${id}`, student_id: `s-${id}`, student_name: name, group_name: "Математика 7", ...over }));
 const SARDOR = row("sardor", "Сардор Алиев", { group_id: "g9", group_name: "Физика 7", state: "starts", state_text: "Начнётся 24.11", state_sub: `≈ ${money(120000)}`, upcoming: UPCOMING_10_ROW() });
 const TIMUR_PACK = row("timur", "Тимур Саидов", { state: "starts", state_text: "Уроков ещё не было", state_sub: `${money(50000)} за урок · без оплаты 2 урока` });
 const ZARINA = row("zarina", "Зарина Умарова", { state: "paid", state_text: "Прощено до 30.11", state_sub: null, covered_by: "forgiven", paid_until: "2026-11-30" });
@@ -72,7 +72,7 @@ const WORD_ROWS = [SARDOR, MADINA2, BEKZOD, ZARINA];
 
 /** The statements of frames 12, 16, 17, 18 (the shape of `GET /org/memberships/{id}/statement`). */
 const statementOf = ({ name, group, summary, rows = [], forecast = null }) => ({
-  membership: { membership_id: "m-a", student_id: "st1", student_name: name, display_id: null, group_id: "ga", group_name: group, teacher_name: null, is_active: !/ушёл/.test(JSON.stringify(summary)) },
+  membership: { membership_id: "m-a", student_id: "st1", student_name: name, display_id: PF.idOf(name), group_id: "ga", group_name: group, teacher_name: null, is_active: !/ушёл/.test(JSON.stringify(summary)) },
   as_of: "2026-11-21", mode: "calendar", accounting_start: "2026-01-01",
   summary: { charged: 0, paid: 0, transferred_in: 0, written_off: 0, refunded: 0, transferred_out: 0, unpaid: 0, advance: 0, status: "paid", reconciles: true, ...summary },
   rows, voided: [], upcoming: [], ...(forecast ? { forecast } : {}),

@@ -50,8 +50,11 @@ const KAMOLA = closed("kamola", "Камола Эшонова", M7, {
 });
 const SETTLED_NONE = closed("nodue", "Расчётов Нет", M7, { left_on: "2026-11-20", state: "paid", state_text: null });
 
+// Every student of the stub has an ID of the centre («AL-014»), as the real data: the lists show it under the name (frames 1-4, 20-23).
+const idOf = (studentId) => `AL-${String([...String(studentId)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 900, 7) + 100).padStart(3, "0")}`;
+const withId = (r) => (r && typeof r === "object" && !Array.isArray(r) && r.student_id && !r.display_id ? { ...r, display_id: idOf(r.student_id) } : r);
 /** A page of `GET /org/payments/status` for the stub: `own` answers the buckets of the layout, the rest falls to the fixture of PAY-DUE. */
-const page = (items, over = {}) => ({ items, total: items.length, students: new Set(items.map((r) => r.student_id)).size, amount_total: 0, limit: 50, offset: 0, as_of: "2026-11-21", ...over });
+const page = (items, over = {}) => ({ items: items.map(withId), total: items.length, students: new Set(items.map((r) => r.student_id)).size, amount_total: 0, limit: 50, offset: 0, as_of: "2026-11-21", ...over });
 
 /** The status of the centre: the tab «Аванс» with its filter «Ушедшие» (`left_only=true`) and the numbers of the contract. */
 const statusOf = (query, { advance = ADVANCE_ALL } = {}) => {
@@ -62,7 +65,8 @@ const statusOf = (query, { advance = ADVANCE_ALL } = {}) => {
     const cut = items.slice(Number(params.get("offset") || 0), Number(params.get("offset") || 0) + Number(params.get("limit") || 50));
     return page(cut, { total: items.length, students: items.length, left_students: advance.filter((r) => !r.is_active).length, amount_total: items.reduce((sum, r) => sum + (r.advance || 0), 0) });
   }
-  return X.statusPage(query);
+  const answer = X.statusPage(query);
+  return { ...answer, items: (answer.items || []).map(withId) };
 };
 
 /** The status of the group «Математика 7» by bucket. */
@@ -86,4 +90,4 @@ const longRow = (id, over = {}) => X.base({
   state_text: `Долг ${BIG}`, debt_text: `Долг ${BIG}`, debt_sub: "просрочено 100 дней · оплачено до 31.07", ...over,
 });
 
-module.exports = { ...X, NB, money, M4, M7, YAHYO, ALINA, ELDOR, AMIR, ANVAR_ADV, ADVANCE_ALL, ADVANCE_LEFT, SUMMARY, SUMMARY_NOBODY, FERUZA, DILSHOD, KAMOLA, SETTLED_NONE, LOLA, MADINA, page, statusOf, groupStatus, LONG_NAME, LONG_GROUP, BIG, longRow, grp };
+module.exports = { ...X, NB, money, M4, M7, YAHYO: withId(YAHYO), ALINA: withId(ALINA), ELDOR: withId(ELDOR), AMIR: withId(AMIR), ANVAR_ADV: withId(ANVAR_ADV), ADVANCE_ALL: ADVANCE_ALL.map(withId), ADVANCE_LEFT: ADVANCE_LEFT.map(withId), SUMMARY, SUMMARY_NOBODY, FERUZA: withId(FERUZA), DILSHOD: withId(DILSHOD), KAMOLA: withId(KAMOLA), SETTLED_NONE, LOLA: withId(LOLA), MADINA: withId(MADINA), page, statusOf, groupStatus, LONG_NAME, LONG_GROUP, BIG, longRow: (...a) => withId(longRow(...a)), grp: (...a) => withId(grp(...a)), idOf, withId };

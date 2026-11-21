@@ -114,7 +114,7 @@ test("@mobile the tab fits a phone: cards, no horizontal scroll, the badge opens
   await page.goto(`/owner/groups/${group.id}?tab=payments`);
   await expect(page.getByTestId("group-payment-row")).toHaveCount(9);
   await expectNoHorizontalScroll(page);
-  await expect(page.getByLabel("Поиск ученика")).toBeVisible(); // from 9 rows
+  await expect(page.getByLabel("Поиск ученика по имени или ID")).toBeVisible(); // from 9 rows
   await page.getByTestId("individual-badge").first().click(); // a tap is a click for the page (the desktop project has no touch)
   await expect(page.getByRole("tooltip")).toContainText("Сестра ученика");
   await expectNoHorizontalScroll(page);
