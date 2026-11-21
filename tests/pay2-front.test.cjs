@@ -26,7 +26,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 // ── the contract: every fixture is read by the front without surprises ──────────────────────────
 
 test("the contract has 21 operations; the front has a helper for each one it uses", () => {
-  const contract = fixture("_contract");
+  const contract = fixture("pay2_contract");
   const operations = Object.entries(contract.paths).flatMap(([route, methods]) => Object.keys(methods).map((method) => `${method.toUpperCase()} ${route}`));
   assert.equal(operations.length, 21); // the retired quote is among them: the front never calls it
   const api = read("src/lib/api.ts");
@@ -71,7 +71,7 @@ test("E1 (14Б.8): the top block of the dialog is the two sums of the SERVER, na
   const preview = L.normalizePreview(fixture("e1_preview_due"));
   const due = L.dueBlock(preview);
   assert.equal(due.unpaid, 769000);
-  assert.deepEqual(due.states.map((state) => [state.key, plain(state.text), state.sub]), [["debt", "Долг 769 000 сум", "просрочено 32 дня · оплачено до 27.09"]]);
+  assert.deepEqual(due.states.map((state) => [state.key, plain(state.text), state.sub]), [["debt", "Долг 769 000 сум", "просрочено 32 дня"]]);
   assert.equal(L.defaultAmount(preview), 769000); // the amount starts as the server's `suggested_amount`
   // nothing asked yet: no calculation
   assert.equal(L.previewView(preview), null);
@@ -90,14 +90,14 @@ test("E1: previews of 250 000 / 300 000 / 769 000 / 790 000 show exactly where t
   const view = (name) => L.previewView(L.normalizePreview(fixture(name)));
 
   const part = view("e1_preview_250000");
-  assert.equal(plain(part.headline), "Погасит 250 000 сум из долга 769 000 сум → оплачено до 12.10 · останется 519 000 сум");
+  assert.equal(plain(part.headline), "Погасит 250 000 сум из долга 769 000 сум → оплачено 481 000 из 500 000 сум · долг 519 000 сум");
   assert.deepEqual(part.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 250000]]);
   assert.equal("paidUntil" in part, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal("remaining" in part, false, "the window composes no sentence of its own about the state after the payment");
   assert.equal(plain(L.normalizePreview(fixture("e1_preview_250000")).result.after_text), "Останется: долг 519 000 сум"); // the server's words
 
   const mid = view("e1_preview_300000");
-  assert.equal(plain(mid.headline), "Погасит 300 000 сум из долга 769 000 сум → оплачено до 15.10 · останется 469 000 сум");
+  assert.equal(plain(mid.headline), "Погасит 300 000 сум из долга 769 000 сум → оплачено 31 000 из 500 000 сум · долг 469 000 сум");
   assert.deepEqual(mid.lines.map((line) => [plain(line.label), line.amount]), [["Погашено за 15.09–14.10", 269000], ["На текущий период 15.10–14.11", 31000]]);
   assert.equal("paidUntil" in mid, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal(plain(L.normalizePreview(fixture("e1_preview_300000")).result.after_text), "Останется: долг 469 000 сум");
@@ -523,7 +523,7 @@ test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (the
   const plan = (name) => X.planView(L.normalizePreview(fixture(name)));
   const calc = text(React.createElement(PlanBlock, { plan: plan("e1_preview_300000") }));
   // 10.10: under the amount stands the SERVER'S sentence, once; the screen builds no table of rows and adds no number (143)
-  assert.equal(calc.trim(), "Погасит 300 000 сум из долга 769 000 сум → оплачено до 15.10 · останется 469 000 сум");
+  assert.equal(calc.trim(), "Погасит 300 000 сум из долга 769 000 сум → оплачено 31 000 из 500 000 сум · долг 469 000 сум");
   assert.ok(!html(React.createElement(PlanBlock, { plan: plan("e1_preview_300000") })).includes("payment-plan-rows"), "no rows of the screen's own");
   // two sums at once (E5): the sentence names which one the money closes first
   assert.equal(text(React.createElement(PlanBlock, { plan: plan("e5_preview_630000_held12") })).trim().startsWith("Погасит долг 500 000 сум · к оплате 100 000 сум"), true);

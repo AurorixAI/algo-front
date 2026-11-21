@@ -51,7 +51,7 @@ function renderer() {
 // ── the contract ─────────────────────────────────────────────────────────────────────────────
 
 test("the contract: 36 operations, every one a screen of the front calls has a helper in orgApi (opening void and the payouts list have no screen: their helpers are gone, wave D)", () => {
-  const contract = fixture("_contract");
+  const contract = fixture("logicA_contract");
   const operations = Object.entries(contract.paths).flatMap(([route, methods]) => Object.keys(methods).map((method) => `${method.toUpperCase()} ${route}`));
   assert.equal(operations.length, 36);
   const api = read("src/lib/api.ts");

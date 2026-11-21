@@ -28,7 +28,7 @@ const E1 = () => L.normalizePreview(fixture("e1_preview_250000"));
 test("the top block of the window: the sums of the server named by the term, the debt first, the words are the server's; nothing the server did not say (151)", () => {
   const due = L.dueBlock(E1());
   assert.equal(due.unpaid, 769000);
-  assert.deepEqual(due.states.map((state) => [state.key, plain(state.text), state.sub, state.tone]), [["debt", "Долг 769 000 сум", "просрочено 32 дня · оплачено до 27.09", "debt"]]);
+  assert.deepEqual(due.states.map((state) => [state.key, plain(state.text), state.sub, state.tone]), [["debt", "Долг 769 000 сум", "просрочено 32 дня", "debt"]]);
   const both = L.normalizePreview({ ...fixture("e1_preview_250000"), due: { ...fixture("e1_preview_250000").due, unpaid: 831000, debt_amount: 600000, due_amount: 231000, due_text: "К оплате 231 000 сум", due_sub: "до 24.11", debt_text: "Долг 600 000 сум", debt_sub: "просрочено 45 дней" } });
   assert.deepEqual(L.dueBlock(both).states.map((state) => [state.key, state.text, state.sub]), [["debt", "Долг 600 000 сум", "просрочено 45 дней"], ["due", "К оплате 231 000 сум", "до 24.11"]]);
   const onlyDue = L.normalizePreview({ ...fixture("e1_preview_250000"), due: { ...fixture("e1_preview_250000").due, unpaid: 231000, debt_amount: 0, debt_text: null, debt_sub: null, due_amount: 231000, due_text: "К оплате 231 000 сум", due_sub: "до 24.11" } });
@@ -54,7 +54,7 @@ test("the old screen arithmetic of the window is gone: no chips, no rows of the 
 
 test("the sentence under the field is the server's `summary_text`, word for word (10.10); no amount or no answer - nothing to word", () => {
   for (const [name, said] of [
-    ["e1_preview_250000", "Погасит 250 000 сум из долга 769 000 сум → оплачено до 12.10 · останется 519 000 сум"],
+    ["e1_preview_250000", "Погасит 250 000 сум из долга 769 000 сум → оплачено 481 000 из 500 000 сум · долг 519 000 сум"],
     ["e1_preview_790000", "Погасит долг 769 000 сум · Переплата 21 000 сум → аванс на следующий период (15.11–14.12), оплачено до 15.11"],
   ]) {
     const preview = L.normalizePreview(fixture(name));
