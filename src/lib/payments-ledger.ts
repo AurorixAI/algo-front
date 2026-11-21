@@ -752,7 +752,7 @@ export function openSums(statement: Pick<StatementOut, "rows" | "summary">): { d
   const total = { due: 0, debt: 0, advance: 0, paid: 0 };
   for (const row of statement.rows) {
     if (row.voided_at) continue;
-    for (const part of openParts(row)) if (part.name !== "forgiven") total[part.name] += sum(part.amount);
+    for (const part of openParts(row)) if (part.name === "due" || part.name === "debt" || part.name === "advance" || part.name === "paid") total[part.name] += sum(part.amount);
   }
   return total;
 }

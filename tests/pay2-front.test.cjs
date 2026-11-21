@@ -110,7 +110,7 @@ test("E1: previews of 250 000 / 300 000 / 769 000 / 790 000 show exactly where t
 
   const over = view("e1_preview_790000");
   assert.deepEqual(over.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 269000], ["current", 500000], ["advance", 21000]]);
-  assert.equal(plain(L.normalizePreview(fixture("e1_preview_790000")).result.after_text), "Оплачено до 15.11");
+  assert.equal(plain(L.normalizePreview(fixture("e1_preview_790000")).result.after_text), "Оплачено до 14.11");
   assert.match(plain(over.headline), /Переплата 21 000 сум → аванс на следующий период/); // the server's own words are shown as they come
   // the lines of every preview add up to the amount asked about
   for (const [name, amount] of [["e1_preview_250000", 250000], ["e1_preview_300000", 300000], ["e1_preview_769000", 769000], ["e1_preview_790000", 790000]]) {
@@ -124,7 +124,7 @@ test("E2/E3: a student who joined mid-month pays a part of the period; an overpa
   assert.deepEqual(L.dueBlock(e2).states.map((state) => state.key), ["debt"]);
   const e2over = L.previewView(L.normalizePreview(fixture("e2_preview_900000")));
   assert.deepEqual(e2over.lines.map((line) => line.bucket), ["current", "advance"]);
-  assert.equal(plain(L.normalizePreview(fixture("e2_preview_900000")).result.after_text), "Оплачено до 28.11");
+  assert.equal(plain(L.normalizePreview(fixture("e2_preview_900000")).result.after_text), "Оплачено до 31.10");
   const e3 = L.previewView(L.normalizePreview(fixture("e3_preview_100000")));
   assert.equal(plain(L.normalizePreview(fixture("e3_preview_100000")).result.after_text), "Останется: долг 113 000 сум");
 });
@@ -369,7 +369,7 @@ test("E1 statement (14Б.7): one timeline, «Остаток» is what is open on
   assert.match(withOffs[2].hint, /сумма, которую центр простил \(кнопка «Простить сумму»\)/);
   assert.match(withOffs[3].hint, /аванс, возвращённый ученику \(кнопка «Вернуть аванс»\)/);
   // the state on the right: the server's `state_text` when nothing is unpaid
-  assert.deepEqual(L.statementStates(statement.summary), [{ key: "state", text: "Оплачено до 15.11", sub: null, tone: "advance" }]);
+  assert.deepEqual(L.statementStates(statement.summary), [{ key: "state", text: "Оплачено до 14.11", sub: "вперёд оплачено 21\u00a0000\u00a0сум", tone: "advance" }]);
   // paid ahead: the upcoming period is listed
   assert.equal(statement.upcoming.length, 1);
   assert.match(plain(L.upcomingLine(statement.upcoming[0])), /^15\.11–14\.12: оплачено 21 000 сум из 500 000 сум$/);
@@ -383,7 +383,7 @@ test("the state of a statement: one or TWO big words of the server, the debt fir
     { key: "due", text: "К оплате 231 000 сум", sub: "до 24.11", tone: "due" },
   ]);
   assert.deepEqual(L.statementStates({ ...both, debt_amount: 0, debt_text: null, unpaid: 231000 }).map((state) => [state.key, state.text, state.tone]), [["due", "К оплате 231 000 сум", "due"]]);
-  assert.deepEqual(L.statementStates({ ...base, advance: 0, state: "paid", state_text: "Оплачено до 30.11" }), [{ key: "state", text: "Оплачено до 30.11", sub: null, tone: "paid" }]);
+  assert.deepEqual(L.statementStates({ ...base, advance: 0, state: "paid", state_text: "Оплачено до 30.11", state_sub: null }), [{ key: "state", text: "Оплачено до 30.11", sub: null, tone: "paid" }]);
   assert.deepEqual(L.statementStates({ ...base, advance: 0, state: "none", state_text: null }), [], "the server said nothing: nothing is shown");
   assert.deepEqual(L.statementStates({ ...both, debt_text: null, due_text: null, state_text: null }), []);
   assert.deepEqual(L.statementStates(null), []);
@@ -553,7 +553,7 @@ test("the statement draws E1: «Остаток» of a row is what is open on the
   const { StatementHeader, StatementTimeline } = require(path.join(root, "src/components/payments/statement-view.tsx"));
   const statement = L.normalizeStatement(fixture("e1_statement_790000"));
   const head = text(React.createElement(StatementHeader, { statement }));
-  for (const part of ["Хасанов Азиз", "Математика 7А", "Стоимость обучения", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Оплачено до 15.11"]) assert.ok(head.includes(part), part);
+  for (const part of ["Хасанов Азиз", "Математика 7А", "Стоимость обучения", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Оплачено до 14.11", "вперёд оплачено 21 000 сум"]) assert.ok(head.includes(part), part);
   assert.ok(!head.includes("Остаток"), "10.11: the total is no more a column total - the summary tells the state; «Остаток» is the heading of the column of the rows");
   // nothing forgiven or returned: no tiles for it; «Сходится» has no formula on screen (it is in the hint)
   assert.ok(!head.includes("Прощено") && !head.includes("Возвращено"));

@@ -52,13 +52,12 @@ export const recalcMoreText = (more: number): string => `и ещё ${more} ${plu
 
 /**
  * `others` (Б1.3, Б5.2): what the closing does to ANOTHER membership of the student - the server's sentences with the money in them («В группе «Английский 7»: 200 000 → 160 000 сум — сегодняшний урок оплачен в «Математике 7»»,
- * «Начисление в «Б» начнётся с 23.11»): a string, a list of strings or a list of `{text}`.
+ * «Начисление в «Б» начнётся с 23.11»): ALWAYS a list of strings (empty - nothing to say).
  */
 export function othersOf(source: unknown): string[] {
   const raw = record(source)?.others;
-  const list = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
-  return list.flatMap((item) => {
-    const text = clean(item) ?? clean(record(item)?.text);
+  return (Array.isArray(raw) ? raw : []).flatMap((item) => {
+    const text = clean(item);
     return text ? [text] : [];
   });
 }

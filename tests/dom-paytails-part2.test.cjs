@@ -75,10 +75,7 @@ test("frame 9 (a second group): the server's sentence with the MONEY of the othe
   const text = await dialogText(run.page);
   assert.equal(plain(await run.page.locator('[data-testid="settle-others"]').innerText()), plain(X.OTHERS_9));
   assert.ok(text.indexOf("Ноябрь:") < text.indexOf("В группе «Английский 7»") && text.indexOf("В группе «Английский 7»") < text.indexOf("Останется долг"), text);
-  // `others` as one string or as {text} objects: the same
-  const asString = await openLeave([X.LEAVE_DEBT({ others: X.OTHERS_9 })]);
-  assert.equal(plain(await asString.page.locator('[data-testid="settle-others"]').innerText()), plain(X.OTHERS_9));
-  await run.page.close(); await asString.page.close();
+  await run.page.close();
 });
 
 test("a sum «к оплате» that stays (another group remains) is not named a debt: «Оставить как есть»; the forgiveness names the sum", async () => {

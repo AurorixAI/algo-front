@@ -226,6 +226,10 @@ test("the statement of a settled closed membership: «Расчёт закрыт�
   const body = plain(await run.page.locator("body").innerText());
   assert.ok(body.includes("Прощено 220 000 сум") && body.includes("использовано 194 000 сум"), body.slice(0, 900));
   assert.equal((body.match(/использовано 194 000 сум/g) || []).length, 1, "said once");
+  // B6.12: a period closed by money AND a used forgiveness: the column «Остаток» says the server's «Закрыто» as a quiet word (not a chip, not «Оплачено», not «Прощено»)
+  const quiet = (await run.page.locator('[data-testid="statement-open-paid"]').allInnerTexts()).map(plain);
+  assert.ok(quiet.includes("Закрыто"), JSON.stringify(quiet));
+  assert.equal(await run.page.locator('[data-testid="statement-open-chip"]', { hasText: "Закрыто" }).count(), 0);
   await run.page.close();
 });
 

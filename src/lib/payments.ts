@@ -766,7 +766,8 @@ export interface StatementRow {
   void_reason: string | null;
 }
 
-export type OpenName = "paid" | "forgiven" | "due" | "debt" | "advance";
+/** `closed` (B6.12): a period closed by money AND a used forgiveness together - the server says «Закрыто»; the word is the server's, the screen only shows it quietly. */
+export type OpenName = "paid" | "forgiven" | "closed" | "due" | "debt" | "advance";
 
 export interface OpenPart {
   name: OpenName;

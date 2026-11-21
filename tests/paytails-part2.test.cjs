@@ -27,9 +27,9 @@ test("recalc: lines with a text only, the basis kept, a cut list says «и ещ�
   assert.equal(C.recalcOf(null), null);
 });
 
-test("others: a string, a list of strings or {text}; empty words are dropped", () => {
-  assert.deepEqual(C.othersOf({ others: "a" }), ["a"]);
-  assert.deepEqual(C.othersOf({ others: ["a", " ", { text: "b" }, null] }), ["a", "b"]);
+test("others: ALWAYS a list of strings (the server's form); empty words are dropped; any other form says nothing", () => {
+  assert.deepEqual(C.othersOf({ others: ["a", " ", "b", null] }), ["a", "b"]);
+  assert.deepEqual(C.othersOf({ others: "a" }), [], "no string form: the server never sends it");
   assert.deepEqual(C.othersOf({}), []);
 });
 
