@@ -11,6 +11,7 @@
     "e2e": "node e2e/scripts/run.mjs",
     "e2e:ui": "node e2e/scripts/run.mjs --headed",
     "e2e:down": "node e2e/scripts/run.mjs --down",
+    "e2e:phone-demo": "node e2e/scripts/phone-demo.mjs",
     "e2e:report": "playwright show-report e2e/playwright-report",
     "e2e:typecheck": "tsc -p e2e/tsconfig.json",
     "console:dev": "cd console && next dev -p 3100",

@@ -13,6 +13,8 @@
  *   EXAM_SERVICE_PATH   exam-service checkout (default ../exam-service-n13)
  *   E2E_EXAM=1          also start exam-service (+ content stub) and run the @exam scenarios
  *   E2E_KEEP=1          leave the stack and the front running afterwards (stop them with `npm run e2e:down`)
+ *   E2E_NO_TESTS=1      bring the stand up (stack, build, front, clock) and run NO tests; with E2E_KEEP=1 it stays up (used by e2e/scripts/phone-demo.mjs)
+ *   E2E_EXTRA_ORIGINS   comma-separated origins added to the services' CORS allow-list (the helper page of phone-demo.mjs)
  *   E2E_REUSE=1         reuse a stack that is already up (implies E2E_KEEP) and an existing .next-e2e build
  *   E2E_SKIP_BUILD=1    do not rebuild the front when .next-e2e exists
  *   E2E_FRONT_PORT / E2E_AUTH_PORT / E2E_EXAM_PORT   host ports (13000 / 18000 / 18003)
@@ -45,6 +47,7 @@ const repoDir = path.resolve(e2eDir, "..");
 const stateDir = path.join(e2eDir, ".state");
 const composeFile = path.join(e2eDir, "docker-compose.e2e.yml");
 const frontPidFile = path.join(stateDir, "front.pid");
+const phonePidFile = path.join(stateDir, "phone-demo.pid"); // the helper page of e2e/scripts/phone-demo.mjs
 
 const env = process.env;
 const FRONT_PORT = Number(env.E2E_FRONT_PORT || 13000);
@@ -66,7 +69,8 @@ const composeEnv = {
   EXAM_SERVICE_PATH: examPath,
   E2E_AUTH_PORT: String(AUTH_PORT),
   E2E_EXAM_PORT: String(EXAM_PORT),
-  E2E_FRONT_ORIGIN: FRONT_ORIGIN,
+  // more origins of the CORS allow-list (the phone helper page, phone-demo.mjs): the compose file writes the value inside a JSON list, so they are joined as list items
+  E2E_FRONT_ORIGIN: [FRONT_ORIGIN, ...(env.E2E_EXTRA_ORIGINS || "").split(",").filter(Boolean)].join('","'),
 };
 const composeBase = ["compose", "-p", PROJECT, "-f", composeFile, ...(WITH_EXAM ? ["--profile", "exam"] : [])];
 
@@ -212,7 +216,19 @@ async function standBusinessDate() {
   }
 }
 
+function stopPhonePage() {
+  if (!existsSync(phonePidFile)) return;
+  const pid = Number(readFileSync(phonePidFile, "utf8"));
+  rmSync(phonePidFile, { force: true });
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    /* already gone */
+  }
+}
+
 function stopFront() {
+  stopPhonePage();
   // Only the process this tool started (its pid is in .state/front.pid) - never anything else on the port.
   if (!existsSync(frontPidFile)) return;
   const pid = Number(readFileSync(frontPidFile, "utf8"));
@@ -360,34 +376,39 @@ try {
   await setUpStandClock(reused);
 
   // ------------------------------------------------------------------------------------------ tests
-  const userArgs = process.argv.slice(2);
-  const pwEnv = { ...env, E2E_FRONT_PORT: String(FRONT_PORT), E2E_AUTH_PORT: String(AUTH_PORT), E2E_EXAM_PORT: String(EXAM_PORT), E2E_EXAM: WITH_EXAM ? "1" : "" };
-  const runPlaywright = (extra) => {
-    log(`playwright ${[...extra, ...userArgs].join(" ")}`);
-    const args = ["playwright", "test", "-c", path.join(e2eDir, "playwright.config.ts"), ...extra, ...userArgs];
-    return spawnSync("npx", args, { cwd: repoDir, env: pwEnv, stdio: "inherit" }).status ?? 1;
-  };
-  // a filter of the caller (--grep, a path): the `days` project may then have nothing to run; without one it must run at least one test
-  const hasFilter = userArgs.some((a) => a === "-g" || a.startsWith("--grep") || !a.startsWith("-"));
-  if (chosenProjects.length > 0) {
-    exitCode = runPlaywright(chosenProjects.includes("days") ? ["--workers=1"] : []); // the caller chose the projects: nothing is split (days: one thread)
+  if (env.E2E_NO_TESTS === "1") {
+    log("E2E_NO_TESTS: the stand is up, no tests run");
+    exitCode = 0;
   } else {
-    // The ordinary projects first; the `days` project LAST and alone: it moves the stand clock to 2030+ and never back.
-    exitCode = runPlaywright(["--project=desktop", "--project=mobile"]);
-    if (WITH_DAYS) {
-      const now = await standBusinessDate();
-      if (now && now >= DAYS_FIRST_DATE) {
-        log(`project days: the stand clock shows ${now}, not before the first date of the project (${DAYS_FIRST_DATE}) and cannot go back - start a fresh stand (npm run e2e:down)`);
-        exitCode = exitCode || 1;
-      } else {
-        const daysCode = runPlaywright(["--project=days", "--workers=1", ...(hasFilter ? ["--pass-with-no-tests"] : [])]);
-        exitCode = exitCode || daysCode;
+    const userArgs = process.argv.slice(2);
+    const pwEnv = { ...env, E2E_FRONT_PORT: String(FRONT_PORT), E2E_AUTH_PORT: String(AUTH_PORT), E2E_EXAM_PORT: String(EXAM_PORT), E2E_EXAM: WITH_EXAM ? "1" : "" };
+    const runPlaywright = (extra) => {
+      log(`playwright ${[...extra, ...userArgs].join(" ")}`);
+      const args = ["playwright", "test", "-c", path.join(e2eDir, "playwright.config.ts"), ...extra, ...userArgs];
+      return spawnSync("npx", args, { cwd: repoDir, env: pwEnv, stdio: "inherit" }).status ?? 1;
+    };
+    // a filter of the caller (--grep, a path): the `days` project may then have nothing to run; without one it must run at least one test
+    const hasFilter = userArgs.some((a) => a === "-g" || a.startsWith("--grep") || !a.startsWith("-"));
+    if (chosenProjects.length > 0) {
+      exitCode = runPlaywright(chosenProjects.includes("days") ? ["--workers=1"] : []); // the caller chose the projects: nothing is split (days: one thread)
+    } else {
+      // The ordinary projects first; the `days` project LAST and alone: it moves the stand clock to 2030+ and never back.
+      exitCode = runPlaywright(["--project=desktop", "--project=mobile"]);
+      if (WITH_DAYS) {
+        const now = await standBusinessDate();
+        if (now && now >= DAYS_FIRST_DATE) {
+          log(`project days: the stand clock shows ${now}, not before the first date of the project (${DAYS_FIRST_DATE}) and cannot go back - start a fresh stand (npm run e2e:down)`);
+          exitCode = exitCode || 1;
+        } else {
+          const daysCode = runPlaywright(["--project=days", "--workers=1", ...(hasFilter ? ["--pass-with-no-tests"] : [])]);
+          exitCode = exitCode || daysCode;
+        }
       }
     }
-  }
-  if (exitCode !== 0) {
-    log("tests failed - the report: npx playwright show-report e2e/playwright-report ; traces: e2e/test-results");
-    if (KEEP) log("auth-service log: docker logs algo-e2e-auth-1 --tail 80");
+    if (exitCode !== 0) {
+      log("tests failed - the report: npx playwright show-report e2e/playwright-report ; traces: e2e/test-results");
+      if (KEEP) log("auth-service log: docker logs algo-e2e-auth-1 --tail 80");
+    }
   }
 } catch (e) {
   console.error(`${stamp()} ERROR: ${e.message}`);
