@@ -34,6 +34,7 @@ import {
 } from "@/lib/group-archive";
 import { ArchiveOpenBalances } from "./archive-open-balances";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { useTransferStale } from "@/lib/use-transfer-stale";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { groupHref, workspaceBases, workspaceOfPath } from "@/lib/ia-links";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
@@ -87,6 +88,7 @@ export function GroupArchiveDialog({
       setLoadError(opsErrorCode(failure) === "EXAM_SERVICE_UNAVAILABLE" ? EXAM_SERVICE_DOWN_TEXT : errorMessageOf(failure, "Не удалось проверить группу. Повторите попытку."));
     }
   }, [group.id]);
+  const onTransferStale = useTransferStale(() => void load(), showToast);
 
   useEffect(() => {
     if (!open) return;
@@ -180,6 +182,7 @@ export function GroupArchiveDialog({
         excludeGroupIds={[group.id]}
         groupsBasePath={groupsBasePath}
         onClose={() => setTransfer(null)}
+        onStale={onTransferStale}
         onAssigned={(_group, done) => { setTransfer(null); void load(); if (done) showToast(done.text, done.type, done.details); }}
       />
 

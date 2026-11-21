@@ -35,6 +35,7 @@ import { LESSON_TYPE_EDIT_NOTE, LESSON_TYPE_NO_RIGHT_NOTE, lessonTypeChangedInEd
 import { useToast } from "@/components/ui/toast";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { useTransferStale } from "@/lib/use-transfer-stale";
 import { GroupPriceAction } from "@/components/groups/group-price-action";
 import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupDueChipText, groupHeaderActions, groupJournalAccess, groupPageTabs, groupPriceChipText, groupTabQuery, groupWorkspacePaths, resolveGroupPageTab, type GroupDebtSummary, type GroupPageTab, type GroupWorkspace } from "@/lib/group-workspace";
 import { Chip } from "@/components/ui/chip";
@@ -154,6 +155,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
       setLoading(false);
     }
   }, [groupId, canManage]);
+  const onTransferStale = useTransferStale(() => void load(true), showToast);
 
   useEffect(() => { if (groupId) load(); }, [load]);
 
@@ -696,7 +698,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               excludeGroupIds={[group.id]}
               groupsBasePath={paths.groups}
               onClose={() => setTransferStudent(null)}
-              onStale={(message) => { void load(true); showToast(message, "error"); }}
+              onStale={onTransferStale}
               onAssigned={(_group, done) => { setTransferStudent(null); void load(true); if (done) showToast(done.text, done.type, done.details); }}
             />
           )}

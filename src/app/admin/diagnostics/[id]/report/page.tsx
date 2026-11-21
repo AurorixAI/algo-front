@@ -48,6 +48,8 @@ import { analyticsApi, orgApi } from "@/lib/api";
 import { INVITE_CANCELLED_MESSAGE, inviteCancelHint, isInviteCancelled } from "@/lib/diagnostic-invite";
 import { isArchivedStatus } from "@/lib/student-archive";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { useTransferStale } from "@/lib/use-transfer-stale";
+import { useToast } from "@/components/ui/toast";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { pickAnswerDisplayText } from "@/lib/task-display";
@@ -356,6 +358,8 @@ export default function DiagnosticReportPage() {
   const [pollPhase, setPollPhase] = useState<ReportPollerState["phase"] | null>(null);
   const acknowledgedInviteRef = useRef<string | null>(null);
   const [retryNonce, setRetryNonce]   = useState(0);
+  const { showToast, toastNode } = useToast();
+  const onTransferStale = useTransferStale(() => setRetryNonce((n) => n + 1), showToast);
   const [loading, setLoading]         = useState(true);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [currentStudentGroup, setCurrentStudentGroup] = useState<{ id: string; name: string } | null>(null);
@@ -601,6 +605,7 @@ export default function DiagnosticReportPage() {
 
   return (
     <div className="space-y-5 w-full min-w-0 max-w-[1200px] mx-auto">
+      {toastNode}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -704,6 +709,7 @@ export default function DiagnosticReportPage() {
           currentGroupName={currentStudentGroup?.name || null}
           groupsBasePath="/admin/groups"
           onClose={() => setAssignModalOpen(false)}
+          onStale={onTransferStale}
           onAssigned={(group) => {
             setAssignModalOpen(false);
             setInvite({ ...invite, student_status: "active" });
