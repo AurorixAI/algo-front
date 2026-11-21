@@ -1,4 +1,4 @@
-// «Деньги-1 / В», the receipts: the print is WRITTEN first (the first is the original, every next a «копия»), then the sheet is printed; «Состояние на дату выдачи», «Оплата отменена» once,
+// «Деньги-1 / В», the receipts: the print is WRITTEN first (the first is the original, every next a «копия»), then the sheet is printed; «Состояние на ДД.ММ.ГГГГ» (одна строка), «Оплата отменена» once,
 // «Не является фискальным чеком»; the new sheet «Квитанция о возврате В-n» with the signature line.
 const assert = require("node:assert/strict");
 const test = require("node:test");
@@ -16,7 +16,7 @@ const RECEIPT = {
   allocations: [{ segment_id: "seg:09", period_from: "2026-09-01", period_to: "2026-09-30", amount: 400000, days: 30, bucket: "past_debt", closes: true, label: "Погашен долг за 01.09–30.09", price: 400000, remaining_after: 0 }],
   debt_before: 1200000, debt_after: 800000, advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30", price_snapshot: { amount: 400000, source: "group" }, note: null, accepted_by_name: "Арслан Владелец",
   voided_at: null, void_reason: null, replaced_by_receipt_no: null, replaces_receipt_no: null, replaces_amount: null,
-  issued_at: "2026-11-07T09:20:00", state_on_issue: { as_of: "2026-11-07", debt: 100000, advance: 0, paid_until: "2026-11-14", text: `На 07.11.2026: долг 100${NB}000${NB}сум, оплачено до 14.11` },
+  issued_at: "2026-11-07T09:20:00", state_on_issue: { as_of: "2026-11-07", debt: 100000, advance: 0, paid_until: "2026-11-14" }, receipt_state_text: `не оплачено 100${NB}000${NB}сум, оплачено до 14.11`,
   is_copy: false, print_count: 0, void_note: null, disclaimer: "Не является фискальным чеком",
 };
 const REFUND = {
@@ -73,8 +73,10 @@ test("print: a failed write prints nothing and says so; a read page of a printed
 test("sheet: issued date, the state on the day of issue (the server's sentence, NBSP), the day-of-payment numbers apart, the disclaimer", async () => {
   const { page } = await receipt(1280);
   assert.equal(plain(await page.textContent('[data-testid="sheet-issued"]')), "Выдана 07.11.2026 · 14:20");
-  const state = await page.textContent('[data-testid="receipt-state-on-issue"]');
-  assert.match(plain(state), /Состояние на дату выдачиНа 07\.11\.2026: долг 100 000 сум, оплачено до 14\.11/);
+  const state = await page.textContent('[data-testid="receipt-state-text"]');
+  assert.equal(plain(state), "не оплачено 100 000 сум, оплачено до 14.11");
+  assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), /Состояние на 07\.11\.2026\s*не оплачено 100 000 сум, оплачено до 14\.11/);
+  assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0, "one state of the day of issue, no second block");
   assert.ok(state.includes(`100${NB}000${NB}сум`));
   const text = plain(await page.locator('[aria-label^="Квитанция"]').innerText());
   assert.match(text, /Останется неоплаченным после оплаты: 800 000 сум/);
@@ -156,19 +158,13 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("sheet: «Состояние на дату выдачи» is drawn only when its sentence differs from the row «Состояние» (no twin lines)", async () => {
-  {
-    const same = { ...RECEIPT, receipt_state_text: "оплачено до 14.11", state_on_issue: { ...RECEIPT.state_on_issue, text: "оплачено до 14.11" } };
-    const { page } = await receipt(1280, { receipt: same });
-    assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), "оплачено до 14.11");
-    assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0, "the same sentence twice: one line");
-    await page.close();
-  }
-  {
-    const differ = { ...RECEIPT, receipt_state_text: "оплачено до 30.11" };
-    const { page } = await receipt(1280, { receipt: differ });
-    assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), "оплачено до 30.11");
-    assert.match(plain(await page.textContent('[data-testid="receipt-state-on-issue"]')), /Состояние на дату выдачиНа 07\.11\.2026: долг/);
+test("sheet: ONE row «Состояние на ДД.ММ.ГГГГ» (the day of `as_of`) with the server's phrase as it is, a closed membership says «расчёт закрыт», no twin block", async () => {
+  for (const [phrase, asOf, label] of [["оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 05.11", "2026-11-07", "Состояние на 07.11.2026"], ["расчёт закрыт", "2026-11-09", "Состояние на 09.11.2026"]]) {
+    const { page } = await receipt(1280, { receipt: { ...RECEIPT, receipt_state_text: phrase, state_on_issue: { ...RECEIPT.state_on_issue, as_of: asOf } } });
+    assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), phrase);
+    assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), new RegExp(`${label.replace(/\./g, "\\.")}\\s*${phrase.replace(/[.·]/g, (c) => "\\" + c)}`));
+    assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0);
+    assert.equal((plain(await page.locator('[aria-label^="Квитанция"]').innerText()).match(/Состояние на/g) || []).length, 1, "one row");
     await page.close();
   }
 });

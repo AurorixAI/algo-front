@@ -191,12 +191,18 @@ test("the receipt (partial payment): `receipt_state_text` is printed as the serv
   }
 });
 
-test("the receipt (a period closed): «оплачено до 30.11» and no second line about the state of a closed one", async () => {
-  const run = await openPage(browser, "money.entry.tsx", () => null, { width: 1280, height: 900 });
-  await run.page.evaluate((r) => window.mount("receipt", undefined, { receipt: r }), fx("receipt_closed_period"));
-  await run.page.waitForSelector('[data-testid="receipt-state-text"]');
-  assert.equal(await run.page.locator('[data-testid="receipt-state-text"]').innerText(), "оплачено до 30.11");
-  await run.page.close();
+test("the receipt (a period closed / a closed membership): ONE row «Состояние на ДД.ММ.ГГГГ» (the day of `as_of`) with the server's phrase, no second block", async () => {
+  for (const [name, phrase, label] of [["receipt_closed_period", "всё оплачено, оплачено до 30.11", "Состояние на 01.11.2026"], ["receipt_closed_membership", "расчёт закрыт", "Состояние на 21.11.2026"]]) {
+    const run = await openPage(browser, "money.entry.tsx", () => null, { width: 1280, height: 900 });
+    await run.page.evaluate((r) => window.mount("receipt", undefined, { receipt: r }), fx(name));
+    await run.page.waitForSelector('[data-testid="receipt-state-text"]');
+    assert.equal(await run.page.locator('[data-testid="receipt-state-text"]').innerText(), phrase);
+    const sheet = plain(await run.page.locator('[aria-label^="Квитанция"]').innerText());
+    assert.ok(sheet.includes(`${label} ${phrase}`), sheet);
+    assert.equal((sheet.match(/Состояние на/g) || []).length, 1);
+    assert.equal(await run.page.locator('[data-testid="receipt-state-on-issue"]').count(), 0);
+    await run.page.close();
+  }
 });
 
 // ── the statement ────────────────────────────────────────────────────────────────────────────────────────

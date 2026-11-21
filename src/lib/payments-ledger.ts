@@ -382,7 +382,6 @@ export function normalizePreview(raw: unknown): PaymentPreview {
           overdue_days_after: nullableSum(result.overdue_days_after),
           advance_after: sum(result.advance_after),
           paid_until_before: result.paid_until_before ?? null,
-          paid_until_after: result.paid_until_after ?? null,
           status_after: result.status_after ?? "none",
           partial_credit_after: sum(result.partial_credit_after),
           lessons: result.lessons ?? null,

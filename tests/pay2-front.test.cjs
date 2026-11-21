@@ -480,8 +480,8 @@ test("the printed receipt of a new payment: method, where the money went, the re
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const { ReceiptSheet } = require(path.join(root, "src/components/payments/receipt-view.tsx"));
-  const html = plain(renderToStaticMarkup(React.createElement(ReceiptSheet, { receipt: { ...fixture("e1_receipt_300000"), receipt_state_text: "оплачено до 15.10" } })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Останется неоплаченным после оплаты: 469 000 сум", "Состояние", "оплачено до 15.10"]) {
+  const html = plain(renderToStaticMarkup(React.createElement(ReceiptSheet, { receipt: { ...fixture("e1_receipt_300000"), receipt_state_text: "оплачено до 15.10", state_on_issue: { as_of: "2026-10-15", debt: 469000, advance: 0, paid_until: "2026-10-15" } } })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Останется неоплаченным после оплаты: 469 000 сум", "Состояние на 15.10.2026", "оплачено до 15.10"]) {
     assert.ok(html.includes(text), text);
   }
   assert.ok(!html.includes("Период")); // the old «Период» row is for old receipts only

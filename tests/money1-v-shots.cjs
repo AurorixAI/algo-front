@@ -22,7 +22,7 @@ const RECEIPT = {
   allocations: [{ segment_id: "seg:09", period_from: "2026-09-01", period_to: "2026-09-30", amount: 400000, days: 30, bucket: "past_debt", closes: true, label: "Погашен долг за 01.09–30.09", price: 400000, remaining_after: 0 }],
   debt_before: 1200000, debt_after: 800000, advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30", price_snapshot: { amount: 400000, source: "group" }, note: null, accepted_by_name: "Арслан Владелец",
   voided_at: null, void_reason: null, replaced_by_receipt_no: null, replaces_receipt_no: null, replaces_amount: null,
-  issued_at: "2026-11-07T09:20:00", state_on_issue: { as_of: "2026-11-07", debt: 100000, advance: 0, paid_until: "2026-11-14", text: `На 07.11.2026: долг 100${NB}000${NB}сум, оплачено до 14.11` },
+  issued_at: "2026-11-07T09:20:00", state_on_issue: { as_of: "2026-11-07", debt: 100000, advance: 0, paid_until: "2026-11-14" }, receipt_state_text: `не оплачено 100${NB}000${NB}сум, оплачено до 14.11`,
   is_copy: false, print_count: 0, void_note: null, disclaimer: "Не является фискальным чеком",
 };
 const impact = (extra = {}) => ({ students_following: 3, students_with_override: 0, stale_payroll_sheets: 0, stale_sheets: [], money: null, warnings: [], correction: null, ...extra });

@@ -290,13 +290,12 @@ export interface ReceiptOut {
   disclaimer?: string | null;
 }
 
-/** «На 07.11.2026: долг 100 000 сум, оплачено до 14.11» - the server's own sentence (`text`) and the numbers behind it. */
+/** The account of the student on the day of issue (`as_of`); its words are `receipt_state_text` of the receipt. */
 export interface ReceiptState {
   as_of: string;
   debt: number;
   advance: number;
   paid_until: string | null;
-  text: string;
 }
 
 /** `GET /auth/org/refunds/{id}/receipt` (Money-1 V6): the sheet «Квитанция о возврате В-n».  No print counter and no «копия»: the number is enough (the receiver signs on paper). */
@@ -562,7 +561,6 @@ export interface PreviewResult {
   advance_after: number;
   /** Null in lessons mode. */
   paid_until_before: string | null;
-  paid_until_after: string | null;
   status_after: PaymentStatus;
   partial_credit_after: number;
   lessons: PreviewLessons | null;

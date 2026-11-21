@@ -46,10 +46,8 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   const place = [receipt.org_city, receipt.org_phone].filter(Boolean).join(" · ");
   // From the snapshot taken at the moment of payment: what the money covered then (a later correction does not rewrite it).
   const facts = receiptFacts(receipt);
-  // PAY-TAILS Б1.5: «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period) - the server's line; the screen counts no date
+  // the ONE state on the day of issue: the server's phrase (`receipt_state_text`) under the date of `state_on_issue.as_of`; the screen counts no date
   const stateText = receiptStateTextOf(receipt);
-  // the line is shown only when it says something the row «Состояние» does not (the server often gives the same sentence twice)
-  const issueText = receipt.state_on_issue?.text?.trim() && receipt.state_on_issue.text.trim() !== stateText?.trim() ? receipt.state_on_issue.text : null;
   const issued = receipt.issued_at ? `Выдана ${formatUtcNaiveAsBusinessDateTime(receipt.issued_at).replace(" ", " · ")}` : null;
   const stampLine = receipt.void_note ? receipt.void_reason || "причина не указана" : `${receipt.void_reason || "причина не указана"}${receipt.voided_at ? ` · ${formatUtcNaiveAsBusinessDate(receipt.voided_at)}` : ""}`;
 
@@ -86,7 +84,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             {facts.method && <SheetRow label="Способ оплаты">{facts.method}</SheetRow>}
           </>
         )}
-        {stateText && <SheetRow label="Состояние"><span data-testid="receipt-state-text" className="font-medium">{stateText}</span></SheetRow>}
+        {stateText && receipt.state_on_issue && <SheetRow label={`Состояние на ${formatDateRu(receipt.state_on_issue.as_of)}`}><span data-testid="receipt-state-text" className="font-medium">{stateText}</span></SheetRow>}
         {receipt.note && <SheetRow label="Комментарий"><span className="font-normal">{receipt.note}</span></SheetRow>}
       </dl>
 
@@ -115,14 +113,6 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             {facts.unpaidBefore && <p>{facts.unpaidBefore}</p>}
             {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}
           </div>
-        </section>
-      )}
-
-      {/* Money-1 V5: the account of the student ON THE DAY the sheet is issued - the server's own sentence; the numbers above are the day of the payment */}
-      {issueText && (
-        <section aria-label="Состояние на дату выдачи" className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm print:border-slate-400" data-testid="receipt-state-on-issue">
-          <h2 className="text-xs text-slate-500">Состояние на дату выдачи</h2>
-          <p className="mt-0.5 font-medium text-slate-800">{issueText}</p>
         </section>
       )}
 

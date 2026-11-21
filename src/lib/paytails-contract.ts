@@ -141,7 +141,7 @@ export function tabWordsOf(row: unknown): { text: string | null; sub: string | n
   return { text: clean(entry?.tab_text), sub: clean(entry?.tab_sub) };
 }
 
-/** `receipt_state_text` of a receipt (Б1.5): «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period). */
+/** `receipt_state_text` of a receipt: the ONE state on the day of issue, a whole phrase without a date: «не оплачено 100 000 сум, оплачено до 14.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / «расчёт закрыт». */
 export function receiptStateTextOf(receipt: unknown): string | null {
   return clean(record(receipt)?.receipt_state_text);
 }

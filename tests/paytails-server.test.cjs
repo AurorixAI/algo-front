@@ -18,8 +18,8 @@ const { fx, NAMES, plain } = require("./helpers/paytails-server.cjs");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]));
 
-test("the fixtures of the server are all here: the 20 answers of package Б", () => {
-  assert.equal(NAMES.length, 20, NAMES.join(", "));
+test("the fixtures of the server are all here: the 21 answers of package Б (with the closed membership)", () => {
+  assert.equal(NAMES.length, 21, NAMES.join(", "));
 });
 
 test("recalc of a leaving / an archiving / a transfer / a result: a list of lines of the server; the group is named in `others` by the server (printed as it is)", () => {
@@ -143,7 +143,9 @@ test("the receipt: `receipt_state_text` on the top level of the answer; the serv
   const partial = fx("receipt_partial_payment");
   assert.equal(C.receiptStateTextOf(partial), partial.receipt_state_text);
   assert.equal(plain(C.receiptStateTextOf(partial)), "оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 05.11");
-  assert.equal(C.receiptStateTextOf(fx("receipt_closed_period")), "оплачено до 30.11");
+  assert.equal(C.receiptStateTextOf(fx("receipt_closed_period")), "всё оплачено, оплачено до 30.11");
+  assert.equal(C.receiptStateTextOf(fx("receipt_closed_membership")), "расчёт закрыт");
+  for (const name of ["receipt_partial_payment", "receipt_closed_period", "receipt_closed_membership"]) assert.equal("text" in fx(name).state_on_issue, false, `${name}: the state of the day has no text of its own (one phrase: receipt_state_text)`);
   assert.match(partial.receipt_state_text, /100 000 из 420 000 сум · к оплате 320 000 сум до/, "no ordinary space inside a sum: the server's, the screen rewrites nothing");
   assert.equal(C.receiptStateTextOf({}), null);
 });
