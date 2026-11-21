@@ -108,6 +108,14 @@ test("covered_by of the server: `money` (green), `forgiven` («Прощено д
   assert.equal(S.payLabel({ state: "paid", covered_by: "opening", state_text: "Оплачено до 31.10" }, "worst").tone, S.payLabel({ state: "paid", covered_by: "money", state_text: "Оплачено до 31.10" }, "worst").tone);
 });
 
+test("a part-paid FUTURE period (the server's next round): «Оплачено до 30.11» + «вперёд оплачено 98 000 сум» are printed as they come (a stub: no fixture of the server has this state yet); a transfer sends the day of its probe", () => {
+  const label = S.payLabel({ state: "paid", covered_by: "money", state_text: "Оплачено до 30.11", state_sub: "вперёд оплачено 98 000 сум" }, "worst");
+  assert.deepEqual([label.text, label.sub, label.tone], ["Оплачено до 30.11", "вперёд оплачено 98 000 сум", S.payLabel({ state: "paid", covered_by: "money", state_text: "x" }, "worst").tone]);
+  const TE = require(path.join(root, "src/lib/transfer-effects.ts"));
+  assert.equal(TE.asOfOf(fx("transfer_probe_others")), "2026-11-20", "`as_of` of the probe rides back as `expected_as_of`");
+  assert.equal(TE.asOfOf({}), null);
+});
+
 test("the record of a forgiveness: `text` of the row (the same words as `details.text`) under the title; `details.amount` / `details.used` are not read - the column «Оплачено» is the used part", () => {
   const statement = fx("statement_settled_with_used_forgiveness");
   const record = statement.rows.find((row) => row.type === "writeoff");

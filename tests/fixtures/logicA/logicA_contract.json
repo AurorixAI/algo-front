@@ -32,7 +32,7 @@
           "refundable_delta": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable Delta",
             "type": "integer"
           }
@@ -51,6 +51,18 @@
       "AddStudentToGroupRequest": {
         "description": "Optional body of \"add a student to a group\".\n\nWithout a body the student follows the price of the group.  ``price_override`` is an explicit individual\nprice (sum + reason) and needs the right to manage payments.",
         "properties": {
+          "expected_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected As Of"
+          },
           "expected_carried": {
             "anyOf": [
               {
@@ -453,12 +465,13 @@
           },
           "recalc": {
             "anyOf": [
-              {},
+              {
+                "$ref": "#/components/schemas/RecalcCutOut"
+              },
               {
                 "type": "null"
               }
-            ],
-            "title": "Recalc"
+            ]
           },
           "sequence_number": {
             "anyOf": [
@@ -946,7 +959,7 @@
           "refundable": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable",
             "type": "integer"
           }
@@ -1614,14 +1627,14 @@
           "refundable_after": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable After",
             "type": "integer"
           },
           "refundable_before": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable Before",
             "type": "integer"
           }
@@ -1703,19 +1716,12 @@
           "recalc": {
             "anyOf": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/RecalcLineOut"
-                },
-                "type": "array"
-              },
-              {
                 "$ref": "#/components/schemas/RecalcCutOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Recalc"
+            ]
           }
         },
         "required": [
@@ -1791,7 +1797,7 @@
           "refundable": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable",
             "type": "integer"
           },
@@ -1892,19 +1898,12 @@
           "recalc": {
             "anyOf": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/RecalcLineOut"
-                },
-                "type": "array"
-              },
-              {
                 "$ref": "#/components/schemas/RecalcCutOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Recalc"
+            ]
           },
           "settled": {
             "items": {
@@ -2917,7 +2916,7 @@
           "refundable": {
             "default": 0,
             "deprecated": true,
-            "description": "Устарело: равно advance (снимается в пакете Б)",
+            "description": "Устарело: равно advance; экраны читают advance",
             "title": "Refundable",
             "type": "integer"
           },
@@ -7593,7 +7592,7 @@
         "type": "object"
       },
       "RecalcCutOut": {
-        "description": "The block when more than two periods change: the first two lines and the number of the rest («и ещё N периодов»).",
+        "description": "The block «что было -> что станет» (PAY-TAILS Б6.5: always this object, never a bare list): the first two periods as lines and the number of the rest (``more``, 0 when all are shown: «и ещё N периодов»).",
         "properties": {
           "lines": {
             "items": {

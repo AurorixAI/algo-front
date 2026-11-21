@@ -8,24 +8,10 @@ const path = require("node:path");
 
 const DIR = path.join(__dirname, "..", "fixtures", "paytails");
 const cache = new Map();
-/**
- * TEMPORARY (fixtures of auth 5e93ab6): that head still answers `recalc` of a leaving / an archive / a transfer as a bare list; the next head answers the object `{lines, more}` ALWAYS and the screens read only the object.
- * Until the fixtures are taken again this wraps the list - and does nothing to an answer that already has the object.  Delete it with the next pull of the fixtures.
- */
-const FIXTURES_AT = "5e93ab6";
-const withObjectRecalc = (value) => {
-  if (Array.isArray(value)) return value.map(withObjectRecalc);
-  if (!value || typeof value !== "object") return value;
-  const out = {};
-  for (const [key, inner] of Object.entries(value)) {
-    out[key] = key === "recalc" && Array.isArray(inner) && inner.some((line) => line && typeof line.text === "string" && "label" in line) ? { lines: inner, more: 0 } : withObjectRecalc(inner);
-  }
-  return out;
-};
 /** A fresh copy of the server's answer `name` (the file `tests/fixtures/paytails/<name>.json`): a test may change it. */
 const fx = (name) => {
   if (!cache.has(name)) cache.set(name, fs.readFileSync(path.join(DIR, `${name}.json`), "utf8"));
-  return withObjectRecalc(JSON.parse(cache.get(name)));
+  return JSON.parse(cache.get(name));
 };
 const NAMES = fs.readdirSync(DIR).filter((file) => file.endsWith(".json")).map((file) => file.slice(0, -5)).sort();
 
@@ -40,4 +26,4 @@ const advanceStatus = (query) => {
   return { ...fx("status_debtors_closed"), items: [], total: 0, students: 0, amount_total: 0 };
 };
 
-module.exports = { FIXTURES_AT, fx, NAMES, NB, plain, advanceStatus };
+module.exports = { fx, NAMES, NB, plain, advanceStatus };
