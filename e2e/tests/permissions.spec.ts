@@ -2,7 +2,7 @@ import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 
 /**
- * Who sees money. Owner: always. Admin: only after the owner switched «Администратор может вносить оплаты» on
+ * Who sees money. Owner: always. Admin: only after the owner switched «Администратор работает с деньгами» on
  * (then «Оплаты» appears in the menu and as a tab of the student card, and still no «Зарплата»). Teacher: never -
  * a direct link to an owner page sends him back to his own dashboard, and his student card has no «Оплаты» tab.
  */
@@ -47,7 +47,7 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   const owner = await signIn(org.owner);
   await owner.goto("/owner/settings?section=payments");
   const section = owner.getByRole("region", { name: "Оплаты" });
-  const toggle = section.getByRole("switch", { name: "Администратор может вносить оплаты" });
+  const toggle = section.getByRole("switch", { name: "Администратор работает с деньгами" });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await toggle.click();
   await section.getByRole("button", { name: "Сохранить" }).click();

@@ -452,8 +452,8 @@ function PaymentsSettingsSection({ draft, onNotify }: { draft: PaymentSettingsDr
 
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>
-          <p id="payments-admin-label" className="text-sm font-semibold text-slate-900">Администратор может вносить оплаты</p>
-          <p className="mt-0.5 text-xs text-slate-500">Администратор увидит суммы оплат; зарплата остаётся скрытой.</p>
+          <p id="payments-admin-label" className="text-sm font-semibold text-slate-900">Администратор работает с деньгами</p>
+          <p className="mt-0.5 text-xs text-slate-500">Принимает оплаты, исправляет и отменяет их, прощает суммы, возвращает деньги, меняет цены групп и остатки на начало. Зарплата остаётся скрытой.</p>
         </div>
         <button
           type="button"
