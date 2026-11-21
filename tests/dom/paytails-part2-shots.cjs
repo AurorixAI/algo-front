@@ -59,9 +59,9 @@ const listServer = (rows) => (r) => {
   const BIG = 12345678;
   const longDebt = X.LEAVE_DEBT({
     group_name: X.LONG_GROUP,
-    money: { unpaid: BIG, debt_amount: BIG, due_amount: 0, due_until: null, becomes_debt: 0, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false },
+    money: { unpaid: BIG, debt_amount: BIG, due_amount: 0, due_until: null, becomes_debt: 0, advance: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false },
     effects: { kind: "leave", moves: [], texts: [], ends: [], stays: [{ code: "debt", amount: BIG, text: `Останется долг ${X.money(BIG)}: это единственная группа ученика` }] },
-    recalc: [{ text: `Ноябрь: ${X.money(24850000)} → ${X.money(BIG)}`, basis_text: "пересчёт по день ухода · 9 уроков из 13" }, { text: `Декабрь не начнётся: ${X.money(24850000)} останутся авансом`, basis_text: null }],
+    recalc: X.recalcBlock([{ text: `Ноябрь: ${X.money(24850000)} → ${X.money(BIG)}`, basis_text: "пересчёт по день ухода · 9 уроков из 13" }, { text: `Декабрь не начнётся: ${X.money(24850000)} останутся авансом`, basis_text: null }]),
     others: [`В группе «${X.LONG_GROUP}»: ${X.money(24850000)} → ${X.money(BIG)} — сегодняшний урок оплачен в «${X.LONG_GROUP}»`],
   });
   const wordRows = X.WORD_ROWS;

@@ -24,7 +24,7 @@ function AssignDemo(props: any) {
   const [open, setOpen] = React.useState(true);
   return (
     <>
-      <AssignGroupModal open={open} studentId="st1" studentName={props.studentName ?? "Каримов Фарход"} studentGrade={props.studentGrade === undefined ? 8 : props.studentGrade} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => { log("close"); if (props.closeOnDone) setOpen(false); }} onAssigned={(_group, done) => { log("assigned"); if (done) showToast(done.text, done.type, done.details); }} />
+      <AssignGroupModal open={open} studentId="st1" studentName={props.studentName ?? "Каримов Фарход"} studentGrade={props.studentGrade === undefined ? 8 : props.studentGrade} mode={props.mode ?? "transfer"} currentGroupId={props.currentGroupId === undefined ? "ga" : props.currentGroupId} currentGroupName={props.currentGroupName ?? "Алгебра"} excludeGroupIds={props.excludeGroupIds} sourceGroups={props.sourceGroups} groupsBasePath={props.groupsBasePath} onClose={() => { log("close"); if (props.closeOnDone) setOpen(false); }} onAssigned={(_group, done) => { log("assigned"); if (done) showToast(done.text, done.type, done.details); }} onStale={props.withStale ? (message: string) => { log(`stale:${message}`); showToast(message, "error"); } : undefined} />
       {toastNode}
     </>
   );
@@ -90,7 +90,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<PauseDialog open membershipId="m-a" studentName="Каримов Фарход" groupName={props.groupName ?? "Алгебра"} onClose={() => log("close")} onChanged={(_row, text) => log(`changed:${text}`)} />);
       break;
     case "refund":
-      root.render(<RefundDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра", refundable: 390000, advance: 390000, debt: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);
+      root.render(<RefundDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра", advance: 390000, debt: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);
       break;
     case "decisions":
       root.render(<div className="mx-auto max-w-[1100px] p-4"><IncomeDecisions period={periodOf("month", "2026-11-10")} authors={props.authors ?? []} paymentsBase="/owner/payments" studentProfileBasePath="/owner/students" /></div>);

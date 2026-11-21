@@ -22,26 +22,28 @@ const record = (value: unknown): Record<string, unknown> | null => (value && typ
 export interface RecalcLine {
   text: string;
   basisText: string | null;
+  /** The line of the forgiveness that falls with the periods («Прощено: 600 000 → 415 000 сум», `label` «Прощено»): it stands AFTER «и ещё N периодов». */
+  isForgiven: boolean;
 }
 export interface RecalcBlock {
   lines: RecalcLine[];
-  /** «и ещё N периодов»: the server cut the list at two lines. */
+  /** «и ещё N периодов»: the server cut the periods at two lines. */
   more: number;
 }
 
 /**
- * `recalc` of a probe or a result of a leaving, an archiving of a student and a transfer (one membership of the preview, the whole answer of a transfer): a list of lines, or `{lines, more}`.
+ * `recalc` of a probe or a result of a leaving, an archiving of a student and a transfer (one membership of the preview, the whole answer of a transfer): ALWAYS the object `{lines, more}` (`more` 0 - everything is shown).
  * A line without its `text` is dropped (the server said nothing - nothing is drawn).  null when there is nothing to draw: no change of the charge - no block.
  */
 export function recalcOf(source: unknown): RecalcBlock | null {
-  const raw = record(source)?.recalc;
-  const rawLines = Array.isArray(raw) ? raw : Array.isArray(record(raw)?.lines) ? (record(raw)?.lines as unknown[]) : [];
+  const raw = record(record(source)?.recalc);
+  const rawLines = Array.isArray(raw?.lines) ? (raw?.lines as unknown[]) : [];
   const lines = rawLines.flatMap((item): RecalcLine[] => {
     const entry = record(item);
     const text = clean(entry?.text);
-    return text ? [{ text, basisText: clean(entry?.basis_text) }] : [];
+    return text ? [{ text, basisText: clean(entry?.basis_text), isForgiven: clean(entry?.label) === "Прощено" }] : [];
   });
-  const more = Array.isArray(raw) ? 0 : Math.max(0, whole(record(raw)?.more) ?? 0);
+  const more = Math.max(0, whole(raw?.more) ?? 0);
   return lines.length > 0 ? { lines, more } : null;
 }
 
@@ -64,7 +66,9 @@ export function othersOf(source: unknown): string[] {
 /** The sentences of a done action (the message after): the lines of `recalc` (past tense - the server's), then `others`.  Nothing to say - empty. */
 export function resultMoneyLines(answer: unknown): string[] {
   const block = recalcOf(answer);
-  return [...(block?.lines.map((line) => line.text) ?? []), ...(block && block.more > 0 ? [recalcMoreText(block.more)] : []), ...othersOf(answer)];
+  const periods = block?.lines.filter((line) => !line.isForgiven).map((line) => line.text) ?? [];
+  const forgiven = block?.lines.filter((line) => line.isForgiven).map((line) => line.text) ?? [];
+  return [...periods, ...(block && block.more > 0 ? [recalcMoreText(block.more)] : []), ...forgiven, ...othersOf(answer)];
 }
 
 // ── Б1.4 / Б5.3: the charge that has not begun ───────────────────────────────

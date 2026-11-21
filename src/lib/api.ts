@@ -1525,7 +1525,7 @@ export const orgApi = {
    * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
    * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
-  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null; pay_from?: string | null; /** Money-2 T1: the group a transfer leaves (needed when the student has several). */ from_group_id?: string | null; /** Money-2 T5: the sum of `effects.moves[code=money]` of the dry run. */ expected_carried?: number | null }) => {
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null; pay_from?: string | null; /** Money-2 T1: the group a transfer leaves (needed when the student has several). */ from_group_id?: string | null; /** Money-2 T5: the sum of `effects.moves[code=money]` of the dry run. */ expected_carried?: number | null; /** PAY-TAILS: the business day of the probe of a transfer; another day now -> 409 `BALANCE_CHANGED`. */ expected_as_of?: string | null }) => {
     const query = options?.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
     // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership ride along (needs access to money).
     // Money-1 B1: `pay_from` («Оплата с») is a day that changes the charge - the money right only.
@@ -1535,6 +1535,7 @@ export const orgApi = {
       ...(options?.pay_from ? { pay_from: options.pay_from } : {}),
       ...(options?.from_group_id ? { from_group_id: options.from_group_id } : {}),
       ...(typeof options?.expected_carried === "number" ? { expected_carried: options.expected_carried } : {}),
+      ...(options?.expected_as_of ? { expected_as_of: options.expected_as_of } : {}),
     };
     const body = Object.keys(extra).length > 0 ? extra : undefined;
     return api<{
@@ -1798,7 +1799,7 @@ export const orgApi = {
 
   // ── Payments (owner; admin only when the owner enabled it) ─────────────
   getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
-  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; age?: string; leftOnly?: boolean; limit?: number; offset?: number }) => {
+  getPaymentsStatus: (q: { bucket: PaymentBucket | "all" | "left_open"; groupId?: string; teacherId?: string; search?: string; age?: string; leftOnly?: boolean; limit?: number; offset?: number }) => {
     // PAY-DUE 10.2: the keys of the tabs are the server's (`debtors` / `to_pay` / `expiring` / `active` / `paused`, plus `all`)
     const params = new URLSearchParams({ bucket: q.bucket });
     if (q.groupId) params.set("group_id", q.groupId);

@@ -22,7 +22,7 @@ import { Notice } from "@/components/ui/notice";
 import { assignDoneToast, type EnrolToast } from "@/lib/group-enrol";
 import { pastBalancesOf } from "@/lib/past-balances";
 import { workspaceBases, workspaceOfPath } from "@/lib/ia-links";
-import { BALANCE_CHANGED_TEXT, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
+import { BALANCE_CHANGED_TEXT, asOfOf, expectedCarriedOf, isBalanceChanged, leaveUndoOf } from "@/lib/transfer-effects";
 import { SOURCE_LABEL, SOURCE_PLACEHOLDER, SOURCE_WHY, sourcesFromError, transferSource, type SourceGroup } from "@/lib/transfer-source";
 import { splitTransferNotes } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -85,6 +85,8 @@ interface AssignGroupModalProps {
   onClose: () => void;
   /** The window closes itself after a successful write: the caller shows `done` as its ordinary message (toast). */
   onAssigned: (group?: GroupInfo | null, done?: EnrolToast) => void;
+  /** The server refused a transfer because the money changed after the probe (409 `BALANCE_CHANGED`, «Сумма изменилась, откройте окно заново»): the window closes and the page says the server's words. Without it the words stand in the window. */
+  onStale?: (message: string) => void;
 }
 
 
@@ -101,6 +103,7 @@ export function AssignGroupModal({
   groupsBasePath,
   onClose,
   onAssigned,
+  onStale,
 }: AssignGroupModalProps) {
   const isAdd = mode === "add";
   const isTransfer = !isAdd && Boolean(currentGroupId || currentGroupName);
@@ -145,7 +148,7 @@ export function AssignGroupModal({
   const [fromGroupId, setFromGroupId] = useState("");
   const [serverSources, setServerSources] = useState<SourceGroup[] | null>(null);
   // Money-2 T5: the server refused the write because the money changed after the dry run (409 BALANCE_CHANGED): the numbers are asked again
-  const [balanceChanged, setBalanceChanged] = useState(false);
+  const [balanceChanged, setBalanceChanged] = useState<string | null>(null);
   // «По периодам» of the bar
   const [periodsOpen, setPeriodsOpen] = useState(false);
   const sources = serverSources ?? sourceGroups ?? (currentGroupId ? [{ id: currentGroupId, name: currentGroupName ?? "" }] : []);
@@ -244,7 +247,7 @@ export function AssignGroupModal({
     }
     setAssigning(true);
     setAssignmentError(null);
-    setBalanceChanged(false);
+    setBalanceChanged(null);
     try {
       const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, {
         mode,
@@ -253,6 +256,8 @@ export function AssignGroupModal({
         pay_from: payBody,
         from_group_id: source.id,
         // T5: the sum the window showed (only with the right to money: without it the server sends no sum)
+        // the business day of the probe rides back too: a midnight that passed between the probe and the button is refused by the server
+        expected_as_of: isTransfer && moneyAvailable ? asOfOf(transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : null,
         expected_carried: isTransfer && moneyAvailable ? expectedCarriedOf(transferPreview.preview.status === "ready" ? transferPreview.preview.answer : null) : null,
       });
       if (result.status === "unchanged") {
@@ -282,7 +287,11 @@ export function AssignGroupModal({
       onAssigned(targetGroup, done);
       onClose();
     } catch (e: any) {
-      if (isBalanceChanged(e)) { setBalanceChanged(true); transferPreview.retry(); return; }
+      if (isBalanceChanged(e)) {
+        const words = logicaError(e).message;
+        if (onStale && words) { onClose(); onStale(words); return; }
+        setBalanceChanged(words || BALANCE_CHANGED_TEXT); transferPreview.retry(); return;
+      }
       const askedSources = sourcesFromError(e);
       if (askedSources) { setServerSources(askedSources); setFromGroupId(""); }
       const failure = logicaError(e);
@@ -498,7 +507,7 @@ export function AssignGroupModal({
       </div>
 
       {/* Special: only when there is something to say about THIS student and THIS group */}
-      {selectedGroup && (noPrice || needsNotes || transferKey !== null || balanceChanged || refusedWords !== null) && (
+      {selectedGroup && (noPrice || needsNotes || transferKey !== null || balanceChanged !== null || refusedWords !== null) && (
         <EnrolExceptions>
           {refusedWords !== null && <EnrolRefusedRow id={studentId} name={studentName} reason={refusedWords} />}
           {noPrice && (
@@ -513,7 +522,7 @@ export function AssignGroupModal({
           )}
           {needsNotes && <EnrolNoteRows note={undoNote} paymentsBase={paymentsBase} />}
           {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} target={selectedGroup.name} className="" />}
-          {balanceChanged && <Notice variant="warning" compact testId="transfer-changed">{BALANCE_CHANGED_TEXT}</Notice>}
+          {balanceChanged !== null && <Notice variant="warning" compact testId="transfer-changed">{balanceChanged}</Notice>}
         </EnrolExceptions>
       )}
 

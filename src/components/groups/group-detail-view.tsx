@@ -696,6 +696,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               excludeGroupIds={[group.id]}
               groupsBasePath={paths.groups}
               onClose={() => setTransferStudent(null)}
+              onStale={(message) => { void load(true); showToast(message, "error"); }}
               onAssigned={(_group, done) => { setTransferStudent(null); void load(true); if (done) showToast(done.text, done.type, done.details); }}
             />
           )}

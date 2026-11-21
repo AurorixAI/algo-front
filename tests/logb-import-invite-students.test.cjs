@@ -168,5 +168,5 @@ test("[O12.R8] a teacher does not add students: the refusal is in the words of t
 test("[O17] nothing changes on the student's screen: the exam page does not mention the roster check, the front sends no `as_of`", () => {
   const exam = read("src/app/e/[code]/page.tsx");
   assert.doesNotMatch(exam, /as_of|resume_only/);
-  assert.doesNotMatch(read("src/lib/api.ts"), /as_of/);
+  assert.doesNotMatch(read("src/lib/api.ts"), /(?<![a-z_])as_of/, "no `as_of` of the roster check (`expected_as_of` of a transfer is another field: the business day of its probe)");
 });

@@ -65,28 +65,45 @@ test("А7: a field the structure lacks is not guessed - the sentence of the serv
   await run.page.close();
 });
 
-test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHANGED` -> the notice «Данные изменились — проверьте числа», a NEW dry run, the new sum is sent by the second press", async () => {
+test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHANGED` -> the server's words «Сумма изменилась, откройте окно заново» in the window, a NEW dry run, the day of the probe rides in `expected_as_of`, the new sum is sent by the second press", async () => {
   let carried = 440000;
   let writes = 0;
   const run = await open(1280, F.baseServer((request) => {
     if (request.path !== "/auth/org/groups/gt/students/st1") return null;
-    if (isDry(request)) return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, effects: F.transferEffects({ carried }) } };
+    if (isDry(request)) return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, as_of: "2026-11-21", effects: F.transferEffects({ carried }) } };
     writes += 1;
-    if (writes === 1) { carried = 465000; return { status: 409, json: { detail: { code: "BALANCE_CHANGED", message: "Данные оплат изменились — проверьте числа", fresh: [{ carried: 465000 }], carried: 440000 } } }; }
+    if (writes === 1) { carried = 465000; return { status: 409, json: { detail: { code: "BALANCE_CHANGED", message: "Сумма изменилась, откройте окно заново", fresh: [{ carried: 465000 }], carried: 440000 } } }; }
     return { json: { student_id: "st1", group_id: "gt", status: "added", effects: F.transferEffects({ carried }) } };
   }));
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
   assert.ok(/440 000/.test(plain(await run.page.textContent('[data-testid="effects-money"]'))));
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForSelector('[data-testid="transfer-changed"]');
-  assert.equal(plain(await run.page.textContent('[data-testid="transfer-changed"]')), "Данные изменились — проверьте числа");
+  assert.equal(plain(await run.page.textContent('[data-testid="transfer-changed"]')), "Сумма изменилась, откройте окно заново", "the words are the server's, not the screen's");
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[0].body.expected_carried, 440000);
+  assert.equal(posts(run.calls).filter((call) => !isDry(call))[0].body.expected_as_of, "2026-11-21", "the business day of the probe is sent back");
   await run.page.waitForFunction(() => /465 000/.test(document.querySelector('[data-testid="effects-money"]')?.textContent ?? ""));
   assert.equal(await run.page.locator('[data-tone]').count(), 0, "nothing is written, the window stays");
   assert.ok(posts(run.calls).filter((call) => isDry(call)).length >= 2, "the dry run is asked again");
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForSelector('[data-tone]');
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[1].body.expected_carried, 465000);
+  await run.page.close();
+});
+
+test("PAY-TAILS: a page that gives `onStale` - the refusal «Сумма изменилась, откройте окно заново» of a transfer closes the window and the page says the server's words; nothing is written", async () => {
+  const run = await open(1280, F.baseServer((request) => {
+    if (request.path !== "/auth/org/groups/gt/students/st1") return null;
+    if (isDry(request)) return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, as_of: "2026-11-21", effects: F.transferEffects({ carried: 440000 }) } };
+    return { status: 409, json: { detail: { code: "BALANCE_CHANGED", message: "Сумма изменилась, откройте окно заново" } } };
+  }), { props: { withStale: true } });
+  await run.page.waitForSelector('[data-testid="transfer-effects"]');
+  await run.page.click('[data-testid="assign-submit"]');
+  await run.page.waitForFunction(() => window.__log.some((line) => String(line).startsWith("stale:")));
+  const log = await run.page.evaluate(() => window.__log);
+  assert.ok(log.includes("close") && log.includes("stale:Сумма изменилась, откройте окно заново"), JSON.stringify(log));
+  assert.ok(!log.includes("assigned"));
+  assert.equal(await run.page.locator('[data-testid="transfer-changed"]').count(), 0, "the window is gone: no second notice");
   await run.page.close();
 });
 

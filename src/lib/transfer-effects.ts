@@ -133,6 +133,12 @@ export function expectedCarriedOf(answer: unknown): number | null {
   return typeof money?.amount === "number" && Number.isFinite(money.amount) ? money.amount : null;
 }
 
+/** The business day of the probe (`as_of` of the answer) - sent back as `expected_as_of`; null when the server did not say it. */
+export function asOfOf(answer: unknown): string | null {
+  const value = (answer as { as_of?: unknown } | null | undefined)?.as_of;
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
 /** T5: 409 `BALANCE_CHANGED` - nothing is written, the numbers must be looked at again. */
 export function isBalanceChanged(error: unknown): boolean {
   const source = error as { code?: unknown; detail?: { code?: unknown } | null } | null | undefined;

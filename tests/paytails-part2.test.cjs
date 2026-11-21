@@ -16,13 +16,14 @@ const N = (s) => String(s ?? "").replace(/[\s  ]+/g, " ").trim();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("recalc: lines with a text only, the basis kept, a cut list says «и ещё N периодов»; no block without lines", () => {
-  const block = C.recalcOf({ recalc: [X.RECALC_NOV, { text: "  " }, { basis_text: "x" }] });
-  assert.deepEqual(block, { lines: [{ text: "Ноябрь: 600 000 → 415 000 сум", basisText: "пересчёт по день ухода · 9 уроков из 13" }], more: 0 });
+  const block = C.recalcOf({ recalc: X.recalcBlock([X.RECALC_NOV, { text: "  " }, { basis_text: "x" }]) });
+  assert.deepEqual(block, { lines: [{ text: "Ноябрь: 600 000 → 415 000 сум", basisText: "пересчёт по день ухода · 9 уроков из 13", isForgiven: false }], more: 0 });
   assert.equal(C.recalcOf({ recalc: X.RECALC_CUT }).more, 2);
   assert.equal(C.recalcMoreText(2), "и ещё 2 периода");
   assert.equal(C.recalcMoreText(5), "и ещё 5 периодов");
   assert.equal(C.recalcOf({}), null);
-  assert.equal(C.recalcOf({ recalc: [] }), null);
+  assert.equal(C.recalcOf({ recalc: X.recalcBlock([]) }), null);
+  assert.equal(C.recalcOf({ recalc: [X.RECALC_NOV] }), null, "the server sends the object only: a bare list is not read");
   assert.equal(C.recalcOf(null), null);
 });
 
@@ -33,11 +34,11 @@ test("others: a string, a list of strings or {text}; empty words are dropped", (
 });
 
 test("resultMoneyLines: the done lines of `recalc`, the tail, then `others` - the message after an action", () => {
-  assert.deepEqual(C.resultMoneyLines({ recalc: X.RECALC_CUT, others: ["x"] }).map(N), ["Ноябрь: 600 000 → 415 000 сум", "Декабрь не начнётся: 300 000 сум останутся авансом", "и ещё 2 периода", "x"]);
+  assert.deepEqual(C.resultMoneyLines({ recalc: X.RECALC_CUT, others: ["x"] }).map(N), ["Ноябрь: 600 000 → 415 000 сум", "Декабрь не начнётся: 300 000 сум останутся авансом", "и ещё 2 периода", "Прощено: 600 000 → 415 000 сум", "x"]);
   assert.deepEqual(C.resultMoneyLines({}), []);
   const names = { s1: "Каримов", s2: "Юсупова" };
-  assert.deepEqual(C.bulkMoneyLines({ students: [{ student_id: "s1", recalc: [{ text: "a" }] }, { student_id: "s2", others: ["b"] }] }, (id) => names[id]), ["Каримов: a", "Юсупова: b"]);
-  assert.deepEqual(C.bulkMoneyLines({ students: [{ student_id: "s1", recalc: [{ text: "a" }] }] }, (id) => names[id]), ["a"], "one student - no name in front");
+  assert.deepEqual(C.bulkMoneyLines({ students: [{ student_id: "s1", recalc: X.recalcBlock([{ text: "a" }]) }, { student_id: "s2", others: ["b"] }] }, (id) => names[id]), ["Каримов: a", "Юсупова: b"]);
+  assert.deepEqual(C.bulkMoneyLines({ students: [{ student_id: "s1", recalc: X.recalcBlock([{ text: "a" }]) }] }, (id) => names[id]), ["a"], "one student - no name in front");
 });
 
 test("upcoming: of a row, of `billing`, of a student; no date - none; the total of a batch is the SERVER's; the message after", () => {

@@ -89,12 +89,14 @@ test("a sum «к оплате» that stays (another group remains) is not named 
   await run.page.close();
 });
 
-test("the list is cut by the server at two lines: «и ещё 2 периода»; a line without a text is dropped; no change of the charge - no block", async () => {
+test("the list is cut by the server at two periods: «и ещё 2 периода», then «Прощено: N → M» (above the two, after the tail); a line without a text is dropped; no change of the charge - no block", async () => {
   const cut = await openLeave([X.LEAVE_DEBT({ recalc: X.RECALC_CUT })]);
   const lines = (await cut.page.locator('[data-testid="recalc-line"] p:first-child').allInnerTexts()).map(plain);
-  assert.deepEqual(lines, ["Ноябрь: 600 000 → 415 000 сум", "Декабрь не начнётся: 300 000 сум останутся авансом"]);
+  assert.deepEqual(lines, ["Ноябрь: 600 000 → 415 000 сум", "Декабрь не начнётся: 300 000 сум останутся авансом", "Прощено: 600 000 → 415 000 сум"]);
   assert.equal(plain(await cut.page.locator('[data-testid="recalc-more"]').innerText()), "и ещё 2 периода");
-  const none = await openLeave([X.LEAVE_DEBT({ recalc: [{ label: "Ноябрь", before: 1, after: 2 }] })]);
+  const order = await cut.page.locator('[data-testid="settle-recalc"] > li').evaluateAll((items) => items.map((item) => item.getAttribute("data-testid")));
+  assert.deepEqual(order, ["recalc-line", "recalc-line", "recalc-more", "recalc-line"], "the tail of the periods stands before the forgiveness");
+  const none = await openLeave([X.LEAVE_DEBT({ recalc: X.recalcBlock([{ label: "Ноябрь", before: 1, after: 2 }]) })]);
   assert.equal(await none.page.locator('[data-testid="settle-recalc"]').count(), 0, "a line without the server's text is not drawn");
   const quiet = await openLeave([X.LEAVE_DEBT({ recalc: undefined })]);
   assert.equal(await quiet.page.locator('[data-testid="settle-recalc"]').count(), 0, "the server sent no recalc: no block, no invented words");
@@ -198,7 +200,7 @@ test("the probe of a TRANSFER: the lines `recalc` of the group the student leave
   const effects = F.transferEffects({ names: F.SHORT });
   const answer = (extra) => F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1"
     ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: /dry_run=true/.test(request.query), effects, ...extra } } : null, F.SHORT);
-  const run = await openPage(ctx.browser, "money2.entry.tsx", answer({ recalc: [X.RECALC_NOV], others: ["Начисление в «Физика 9» начнётся с 23.11"] }), { width: 1280, height: 900 });
+  const run = await openPage(ctx.browser, "money2.entry.tsx", answer({ recalc: X.recalcBlock([X.RECALC_NOV]), others: ["Начисление в «Физика 9» начнётся с 23.11"] }), { width: 1280, height: 900 });
   await run.page.evaluate((p) => window.mount("assign", { role: "owner", org_role: "owner" }, p), { moneyAvailable: true, sourceGroups: [F.SOURCES[0]], excludeGroupIds: ["ga"] });
   await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
   await run.page.waitForSelector('[data-testid="transfer-recalc"]');
@@ -221,9 +223,9 @@ test("LESSONS 155: the window of leaving and the archive at 1440 / 1280 / 1024 /
   const money = (n) => X.money(n);
   const long = X.LEAVE_DEBT({
     group_name: X.LONG_GROUP,
-    money: { unpaid: BIG, debt_amount: BIG, due_amount: 0, due_until: null, becomes_debt: 0, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false },
+    money: { unpaid: BIG, debt_amount: BIG, due_amount: 0, due_until: null, becomes_debt: 0, advance: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false },
     effects: { kind: "leave", moves: [], texts: [], ends: [], stays: [{ code: "debt", amount: BIG, text: `Останется долг ${money(BIG)}: это единственная группа ученика` }] },
-    recalc: [{ text: `Ноябрь: ${money(24850000)} → ${money(BIG)}`, basis_text: "пересчёт по день ухода · 9 уроков из 13" }, { text: `Декабрь не начнётся: ${money(24850000)} останутся авансом`, basis_text: null }],
+    recalc: X.recalcBlock([{ text: `Ноябрь: ${money(24850000)} → ${money(BIG)}`, basis_text: "пересчёт по день ухода · 9 уроков из 13" }, { text: `Декабрь не начнётся: ${money(24850000)} останутся авансом`, basis_text: null }]),
     others: [`В группе «${X.LONG_GROUP}»: ${money(24850000)} → ${money(BIG)} — сегодняшний урок оплачен в «${X.LONG_GROUP}»`],
   });
   for (const width of WIDTHS) {

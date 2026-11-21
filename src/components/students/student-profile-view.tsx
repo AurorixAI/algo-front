@@ -1072,6 +1072,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           sourceGroups={memberships.map((item) => ({ id: item.group_id, name: item.group_name }))}
           groupsBasePath={groupsBasePath}
           onClose={() => setAssignModalOpen(false)}
+          onStale={handleStale}
           onAssigned={(_group, done) => {
             setAssignModalOpen(false);
             loadProfile();
