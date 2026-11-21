@@ -152,15 +152,6 @@ export function allocationText(item: Pick<Allocation, "label" | "amount">): stri
 }
 
 /** Where the money of a saved payment went, for a toast: one line per period and the balance left. */
-/** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 300 000 сум» / «Остаток долга после оплаты: 0 сум» (UX pack §1, №14: the words of the receipt and the toast). */
-export function balanceAfterText(unpaidAfter: number | null | undefined, advanceAfter: number | null | undefined, lead = "после оплаты"): string {
-  const unpaid = sum(unpaidAfter);
-  const advance = sum(advanceAfter);
-  if (unpaid > 0) return `Останется неоплаченным ${lead}: ${formatMoney(unpaid)}`;
-  if (advance > 0) return `Аванс ${lead}: ${formatMoney(advance)}`;
-  return `Останется неоплаченным ${lead}: ${formatMoney(0)}`;
-}
-
 /** Where the money went, then the state after in the words of the server (`after_text`); the server said nothing - the screen adds nothing (LESSONS 151). */
 export function savedPaymentDetails(allocation: AllocationSummary | null | undefined, afterText?: string | null): string[] {
   if (!allocation) return [];
@@ -873,10 +864,24 @@ export interface ReceiptFacts {
   legacy: boolean;
   method: string | null;
   lines: AllocationLine[];
-  /** «Было не оплачено: 769 000 сум». */
-  unpaidBefore: string | null;
-  /** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 21 000 сум». */
-  after: string | null;
+  /** The total of the snapshot in the past tense, one line: «Было не оплачено 420 000 сум, после оплаты осталось 320 000 сум» / «… после оплаты аванс 21 000 сум» / «После оплаты долга нет». */
+  total: string | null;
+}
+
+/** The words of the receipt around the two snapshots (the numbers and phrases are the server's): the row of the state and the money block say WHICH day they speak of. */
+export const RECEIPT_STATE_LABEL = "Состояние";
+export const receiptStateDayNote = (asOf: string): string => `на день выдачи, ${formatDateRu(asOf)}`;
+export const receiptMoneyHeading = (paidOn: string): string => `Куда пошли деньги · на день оплаты ${formatDateRu(paidOn)}`;
+
+function receiptTotalText(before: number | null, debtAfter: number | null, advanceAfter: number | null): string | null {
+  const was = before !== null && before > 0 ? `Было не оплачено ${formatMoney(before)}` : null;
+  if (debtAfter === null && advanceAfter === null) return was;
+  const left = debtAfter !== null && debtAfter > 0
+    ? `${was ? "после оплаты осталось" : "После оплаты осталось не оплачено"} ${formatMoney(debtAfter)}`
+    : advanceAfter !== null && advanceAfter > 0
+      ? `${was ? "после оплаты" : "После оплаты"} аванс ${formatMoney(advanceAfter)}`
+      : `${was ? "после оплаты" : "После оплаты"} долга нет`;
+  return was ? `${was}, ${left}` : left;
 }
 
 /** The facts of a new receipt come from its snapshot; an old receipt (no allocations) is legacy. */
@@ -891,7 +896,7 @@ export function receiptFacts(receipt: {
   price_snapshot?: { amount: number | null; source: string } | null;
 }): ReceiptFacts {
   const legacy = !Array.isArray(receipt.allocations);
-  if (legacy) return { legacy: true, method: null, lines: [], unpaidBefore: null, after: null };
+  if (legacy) return { legacy: true, method: null, lines: [], total: null };
   const debtAfter = nullableSum(receipt.debt_after);
   const advanceAfter = nullableSum(receipt.advance_after);
   const unpaidBefore = nullableSum(receipt.debt_before);
@@ -899,8 +904,7 @@ export function receiptFacts(receipt: {
     legacy: false,
     method: receipt.method ? methodLabel(receipt.method) : null,
     lines: allocationLines(receipt.allocations),
-    unpaidBefore: unpaidBefore !== null && unpaidBefore > 0 ? `Было не оплачено: ${formatMoney(unpaidBefore)}` : null,
-    after: debtAfter === null && advanceAfter === null ? null : balanceAfterText(debtAfter, advanceAfter),
+    total: receiptTotalText(unpaidBefore, debtAfter, advanceAfter),
   };
 }
 

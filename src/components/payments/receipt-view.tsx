@@ -23,7 +23,7 @@ import {
   RECEIPT_VOID_STAMP,
   type ReceiptOut,
 } from "@/lib/payments";
-import { receiptFacts } from "@/lib/payments-ledger";
+import { RECEIPT_STATE_LABEL, receiptFacts, receiptMoneyHeading, receiptStateDayNote } from "@/lib/payments-ledger";
 import { receiptStateTextOf } from "@/lib/paytails-contract";
 import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import { statementHref } from "@/lib/payments";
@@ -84,22 +84,22 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             {facts.method && <SheetRow label="Способ оплаты">{facts.method}</SheetRow>}
           </>
         )}
-        {stateText && receipt.state_on_issue && <SheetRow label={`Состояние на ${formatDateRu(receipt.state_on_issue.as_of)}`}><span data-testid="receipt-state-text" className="font-medium">{stateText}</span></SheetRow>}
+        {stateText && receipt.state_on_issue && <SheetRow label={RECEIPT_STATE_LABEL}><span data-testid="receipt-state-text" className="font-medium">{stateText}</span><span data-testid="receipt-state-day" className="block text-xs font-normal text-slate-500">{receiptStateDayNote(receipt.state_on_issue.as_of)}</span></SheetRow>}
         {receipt.note && <SheetRow label="Комментарий"><span className="font-normal">{receipt.note}</span></SheetRow>}
       </dl>
 
       <SheetAmount label="Сумма" amount={formatMoney(receipt.amount)} words={receipt.amount_words} />
 
-      {!facts.legacy && (facts.lines.length > 0 || facts.after) && (
+      {!facts.legacy && (facts.lines.length > 0 || facts.total) && (
         <section aria-label="Куда пошли деньги" className="mt-4 text-sm">
-          <h2 className="text-xs text-slate-500">Куда пошли деньги</h2>
+          <h2 className="text-xs text-slate-500" data-testid="receipt-money-heading">{receiptMoneyHeading(receipt.paid_on)}</h2>
           {facts.lines.length > 0 && (
             <ul className="mt-1 divide-y divide-slate-100 print:divide-slate-300">
               {facts.lines.map((line, index) => (
                 <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3 py-1">
                   <span className="min-w-0">
                     {line.label}
-                    {!line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
+                    {facts.lines.length > 1 && !line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
                       <span className="block text-xs text-slate-500">по этому периоду осталось {formatMoney(line.remainingAfter)}</span>
                     )}
                   </span>
@@ -109,10 +109,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             </ul>
           )}
           <RecalcNote lines={receipt.recalc} testId="receipt-recalc" />
-          <div className="mt-2 space-y-0.5 text-xs text-slate-600">
-            {facts.unpaidBefore && <p>{facts.unpaidBefore}</p>}
-            {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}
-          </div>
+          {facts.total && <p className="mt-2 text-xs font-medium text-slate-800" data-testid="receipt-money-total">{facts.total}</p>}
         </section>
       )}
 

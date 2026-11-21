@@ -451,13 +451,16 @@ test("receipt: what the money covered at the moment of payment comes from the sn
   assert.equal(facts.legacy, false);
   assert.equal(facts.method, "Наличные");
   assert.deepEqual(facts.lines.map((line) => line.amount), [269000, 31000]);
-  assert.equal(plain(facts.unpaidBefore), "Было не оплачено: 769 000 сум"); // the stored snapshot keeps its `debt_*` keys (13.1), the words are neutral (3.3)
-  assert.equal(plain(facts.after), "Останется неоплаченным после оплаты: 469 000 сум");
+  assert.equal(plain(facts.total), "Было не оплачено 769 000 сум, после оплаты осталось 469 000 сум"); // the stored snapshot keeps its `debt_*` keys (13.1); ONE line, the past tense
+  assert.equal("unpaidBefore" in facts || "after" in facts, false, "no two lines of the old form");
   assert.equal("paidUntil" in facts, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal(facts.price, undefined, "UX pack №14: the receipt does not tell the price of the period");
   const advance = L.receiptFacts({ ...receipt, debt_after: 0, advance_after: 21000 });
-  assert.equal(plain(advance.after), "Аванс после оплаты: 21 000 сум");
-  assert.equal(L.receiptFacts({ ...receipt, debt_after: 0, advance_after: 0 }).after, `Останется неоплаченным после оплаты: ${P.formatMoney(0)}`);
+  assert.equal(plain(advance.total), "Было не оплачено 769 000 сум, после оплаты аванс 21 000 сум");
+  assert.equal(plain(L.receiptFacts({ ...receipt, debt_after: 0, advance_after: 0 }).total), "Было не оплачено 769 000 сум, после оплаты долга нет");
+  assert.equal(plain(L.receiptFacts({ ...receipt, debt_before: 0, debt_after: 320000, advance_after: 0 }).total), "После оплаты осталось не оплачено 320 000 сум", "no debt before: the sentence does not say «было»");
+  assert.equal(L.receiptMoneyHeading("2026-11-01"), "Куда пошли деньги · на день оплаты 01.11.2026");
+  assert.equal(L.receiptStateDayNote("2026-11-07"), "на день выдачи, 07.11.2026");
   // an old receipt: no allocations
   const old = L.receiptFacts({ receipt_no: 5, valid_from: "2026-09-01", valid_to: "2026-09-30" });
   assert.equal(old.legacy, true);
@@ -481,7 +484,7 @@ test("the printed receipt of a new payment: method, where the money went, the re
   const { renderToStaticMarkup } = require("react-dom/server");
   const { ReceiptSheet } = require(path.join(root, "src/components/payments/receipt-view.tsx"));
   const html = plain(renderToStaticMarkup(React.createElement(ReceiptSheet, { receipt: { ...fixture("e1_receipt_300000"), receipt_state_text: "оплачено до 15.10", state_on_issue: { as_of: "2026-10-15", debt: 469000, advance: 0, paid_until: "2026-10-15" } } })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Останется неоплаченным после оплаты: 469 000 сум", "Состояние на 15.10.2026", "оплачено до 15.10"]) {
+  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Куда пошли деньги · на день оплаты 21.10.2026", "Было не оплачено 769 000 сум, после оплаты осталось 469 000 сум", "Состояние", "на день выдачи, 15.10.2026", "оплачено до 15.10"]) {
     assert.ok(html.includes(text), text);
   }
   assert.ok(!html.includes("Период")); // the old «Период» row is for old receipts only

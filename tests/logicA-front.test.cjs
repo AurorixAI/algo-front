@@ -560,7 +560,7 @@ test("statement: a forgiven debt, a correction and the opening rows are told in 
   // «Простить сумму» everywhere (the action is named neutrally, the sum is in the button)
   assert.equal(require(path.join(root, "src/components/payments/writeoff-dialog.tsx")).WRITEOFF_ACTION_LABEL, "Простить сумму");
   assert.equal(L.validateWriteoff({ amount: "", all: true, reason: "ok ok" }, 0), "Долга нет — прощать нечего");
-  assert.equal(plain(L.balanceAfterText(469000, 0)), "Останется неоплаченным после оплаты: 469 000 сум");
+  assert.equal(L.balanceAfterText, undefined, "the old two-line form of the receipt total is gone (one past-tense line, `receiptFacts().total`)");
 });
 
 test("fix 10Д → PAY-DUE 9.7: the notice of the debt stands NOWHERE (its source test is money2-fix10e-banner.test.cjs); the summary is kept fresh by the shell", () => {

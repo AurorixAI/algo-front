@@ -75,11 +75,12 @@ test("sheet: issued date, the state on the day of issue (the server's sentence, 
   assert.equal(plain(await page.textContent('[data-testid="sheet-issued"]')), "Выдана 07.11.2026 · 14:20");
   const state = await page.textContent('[data-testid="receipt-state-text"]');
   assert.equal(plain(state), "не оплачено 100 000 сум, оплачено до 14.11");
-  assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), /Состояние на 07\.11\.2026\s*не оплачено 100 000 сум, оплачено до 14\.11/);
+  assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), /Состояние\s*не оплачено 100 000 сум, оплачено до 14\.11\s*на день выдачи, 07\.11\.2026/);
   assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0, "one state of the day of issue, no second block");
   assert.ok(state.includes(`100${NB}000${NB}сум`));
   const text = plain(await page.locator('[aria-label^="Квитанция"]').innerText());
-  assert.match(text, /Останется неоплаченным после оплаты: 800 000 сум/);
+  assert.match(text, /Было не оплачено 1 200 000 сум, после оплаты осталось 800 000 сум/);
+  assert.equal(plain(await page.textContent('[data-testid="receipt-money-heading"]')), "Куда пошли деньги · на день оплаты 05.11.2026");
   assert.equal(plain(await page.textContent('[data-testid="sheet-disclaimer"]')), "Не является фискальным чеком");
   await page.close();
 });
@@ -158,13 +159,14 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("sheet: ONE row «Состояние на ДД.ММ.ГГГГ» (the day of `as_of`) with the server's phrase as it is, a closed membership says «расчёт закрыт», no twin block", async () => {
-  for (const [phrase, asOf, label] of [["оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 05.11", "2026-11-07", "Состояние на 07.11.2026"], ["расчёт закрыт", "2026-11-09", "Состояние на 09.11.2026"]]) {
+test("sheet: ONE row «Состояние» with the server's phrase as it is and the quiet line «на день выдачи, ДД.ММ.ГГГГ» (`as_of`) under it, a closed membership says «расчёт закрыт», no twin block", async () => {
+  for (const [phrase, asOf, label] of [["оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 05.11", "2026-11-07", "на день выдачи, 07.11.2026"], ["расчёт закрыт", "2026-11-09", "на день выдачи, 09.11.2026"]]) {
     const { page } = await receipt(1280, { receipt: { ...RECEIPT, receipt_state_text: phrase, state_on_issue: { ...RECEIPT.state_on_issue, as_of: asOf } } });
     assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), phrase);
-    assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), new RegExp(`${label.replace(/\./g, "\\.")}\\s*${phrase.replace(/[.·]/g, (c) => "\\" + c)}`));
+    assert.match(plain(await page.locator('[aria-label^="Квитанция"]').innerText()), new RegExp(`Состояние\\s*${phrase.replace(/[.·]/g, (c) => "\\" + c)}\\s*${label.replace(/\./g, "\\.")}`));
+    assert.equal(plain(await page.textContent('[data-testid="receipt-state-day"]')), label);
     assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0);
-    assert.equal((plain(await page.locator('[aria-label^="Квитанция"]').innerText()).match(/Состояние на/g) || []).length, 1, "one row");
+    assert.equal((plain(await page.locator('[aria-label^="Квитанция"]').innerText()).match(/Состояние/g) || []).length, 1, "one row");
     await page.close();
   }
 });

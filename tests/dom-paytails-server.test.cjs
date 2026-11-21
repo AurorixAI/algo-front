@@ -191,15 +191,18 @@ test("the receipt (partial payment): `receipt_state_text` is printed as the serv
   }
 });
 
-test("the receipt (a period closed / a closed membership): ONE row «Состояние на ДД.ММ.ГГГГ» (the day of `as_of`) with the server's phrase, no second block", async () => {
-  for (const [name, phrase, label] of [["receipt_closed_period", "всё оплачено, оплачено до 30.11", "Состояние на 01.11.2026"], ["receipt_closed_membership", "расчёт закрыт", "Состояние на 21.11.2026"]]) {
+test("the receipt (a period closed / a closed membership): ONE row «Состояние» with the server's phrase and «на день выдачи, ДД.ММ.ГГГГ» under it (`as_of`), no second block; the money block is a snapshot of the payment day in the past tense", async () => {
+  for (const [name, phrase, label, total] of [["receipt_closed_period", "всё оплачено, оплачено до 30.11", "на день выдачи, 01.11.2026", "Было не оплачено 420 000 сум, после оплаты долга нет"], ["receipt_closed_membership", "расчёт закрыт", "на день выдачи, 21.11.2026", "Было не оплачено 420 000 сум, после оплаты осталось 320 000 сум"]]) {
     const run = await openPage(browser, "money.entry.tsx", () => null, { width: 1280, height: 900 });
     await run.page.evaluate((r) => window.mount("receipt", undefined, { receipt: r }), fx(name));
     await run.page.waitForSelector('[data-testid="receipt-state-text"]');
     assert.equal(await run.page.locator('[data-testid="receipt-state-text"]').innerText(), phrase);
     const sheet = plain(await run.page.locator('[aria-label^="Квитанция"]').innerText());
-    assert.ok(sheet.includes(`${label} ${phrase}`), sheet);
-    assert.equal((sheet.match(/Состояние на/g) || []).length, 1);
+    assert.ok(sheet.includes(`Состояние ${phrase} ${label}`), sheet);
+    assert.equal((sheet.match(/Состояние/g) || []).length, 1);
+    assert.equal(plain(await run.page.locator('[data-testid="receipt-money-heading"]').innerText()), "Куда пошли деньги · на день оплаты 01.11.2026");
+    assert.equal(plain(await run.page.locator('[data-testid="receipt-money-total"]').innerText()), total, "one line, the past tense: it does not contradict «расчёт закрыт»");
+    assert.ok(!/по этому периоду осталось|Останется неоплаченным/.test(sheet), "one allocation line: no sub-line, no future tense");
     assert.equal(await run.page.locator('[data-testid="receipt-state-on-issue"]').count(), 0);
     await run.page.close();
   }
