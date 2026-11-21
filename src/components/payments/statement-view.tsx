@@ -45,6 +45,7 @@ import {
   STATEMENT_HINTS,
   upcomingLine,
   type StatementEntry,
+  type StatementForecastItem,
   type StatementItem,
   type StatementState,
 } from "@/lib/payments-ledger";
@@ -66,6 +67,7 @@ import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PAY_STATE_TONE } from "@/lib/pay-state";
+import { forecastOf } from "@/lib/paytails-contract";
 import type { OpenPart } from "@/lib/payments";
 
 /** Date · operation · charged · paid · «Остаток» (what is open on the row ITSELF today, the server's words): a bank statement.  Text and the date LEFT, the three money columns CENTRED (their headers too), the actions («⋯») in their own ruled column. */
@@ -509,7 +511,7 @@ export function StatementTimeline({
 }) {
   const items = buildStatementItems(statement, month);
   const cancelled = statement.voided.map(statementRowView);
-  const hasRows = statement.rows.length > 0;
+  const hasRows = statement.rows.length > 0 || forecastOf(statement) !== null;
   return (
     <>
       {!hasRows ? (
@@ -606,7 +608,30 @@ function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; me
       </>
     );
   }
+  if (item.kind === "forecast") return <ForecastRow item={item} />;
   return <StatementRowItem entry={item} menu={menuFor(item)} extra={extraFor?.(item) ?? null} />;
+}
+
+/** PAY-TAILS Б2.6 (frame 12): the charge that has not begun - a grey row with a calendar icon; «Стоимость», «Оплачено» and «Остаток» stay empty (it is a forecast, not an entry). */
+function ForecastRow({ item }: { item: StatementForecastItem }) {
+  return (
+    <DataRow testId="statement-forecast">
+      <DataCell col="date"><span className="text-sm tabular-nums text-slate-500">{formatDateRu(item.date)}</span></DataCell>
+      <DataCell col="operation">
+        <div className="flex min-w-0 gap-2.5">
+          <StatementRowIcon entry={{ type: "charge", cancelled: false, replaced: null }} />
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm leading-6 text-slate-600">{item.title}</p>
+            {item.sub && <p data-testid="statement-forecast-sub" className="break-words text-xs text-slate-500">{item.sub}</p>}
+          </div>
+        </div>
+      </DataCell>
+      <DataCell col="charged" className="dt-card-hidden"><span /></DataCell>
+      <DataCell col="paid" className="dt-card-hidden"><span /></DataCell>
+      <DataCell col="balance" className="dt-card-hidden"><span /></DataCell>
+      <DataCell col="menu"><span /></DataCell>
+    </DataRow>
+  );
 }
 
 function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu: RowMenuItem[]; extra: ReactNode }) {

@@ -234,3 +234,221 @@ test("LESSONS 155: the window of leaving and the archive at 1440 / 1280 / 1024 /
     await run.page.close();
   }
 });
+
+// ── Б2.5: the windows of ADDING when the charge starts later (frames 10, 14) ─────────────────────────────────────────────────────────────────────────────────────
+
+const H = require("./helpers/enrol-v2.cjs");
+async function openAssign(server, { width = 1280, props = {}, user = OWNER } = {}) {
+  const run = await openPage(ctx.browser, "money2.entry.tsx", server, { width, height: width <= 375 ? 812 : 900 });
+  await run.page.evaluate(([u, p]) => window.mount("assign", u, p), [user, { moneyAvailable: true, groupsBasePath: "/owner/groups", mode: "add", currentGroupName: F.SHORT.A, excludeGroupIds: ["ga"], sourceGroups: [{ id: "ga", name: F.SHORT.A }], ...props }]);
+  await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
+  await run.page.waitForSelector('[data-testid="summary-bar-sum"], [data-testid="summary-bar-idle"]:not(:has-text("Считаем"))');
+  await run.page.waitForTimeout(400);
+  return run;
+}
+const barOf = async (page) => ({
+  label: plain(await page.locator('[data-testid="summary-bar-label"]').first().innerText().catch(() => "")),
+  sum: plain(await page.locator('[data-testid="summary-bar-sum"]').innerText().catch(() => "")),
+  line: plain(await page.locator('[data-testid="summary-bar-line"]').innerText().catch(() => "")),
+  idle: plain(await page.locator('[data-testid="summary-bar-idle"]').innerText().catch(() => "")),
+});
+
+test("frame 10: «Начисление с 24 ноября» / the forecast sum of the server / «2 урока из 8 в ноябре · платить до 28.11»; the sum is the server's `upcoming.amount`, not counted here", async () => {
+  const run = await openAssign(X.enrolServer());
+  assert.deepEqual(await barOf(run.page), { label: "Начисление с 24 ноября", sum: "120 000 сум", line: "2 урока из 8 в ноябре · платить до 28.11", idle: "" });
+  assert.ok(!(await dialogText(run.page)).includes("Сразу платить не нужно"), "the bar says when the charge starts, not that nothing is paid");
+  await run.page.close();
+});
+
+test("frame 10 (the message after): «<Имя> зачислен в «Группа»» and the server's sentence «Начисление с 24.11: 120 000 сум»", async () => {
+  const run = await openAssign(X.enrolServer());
+  await run.page.click('[data-testid="assign-submit"]');
+  await run.page.waitForSelector("[data-tone]");
+  const whole = plain(await run.page.locator("[data-tone]").first().innerText());
+  assert.ok(whole.startsWith(`Каримов Фарход зачислен в «${F.SHORT.T}»`) && whole.includes("Начисление с 24.11: 120 000 сум"), whole);
+  await run.page.close();
+});
+
+test("frame 14: the day was moved by the group the student left today - the terms say the server's note instead of the reason of the default day; the date and the sum are the shifted ones", async () => {
+  const run = await openAssign(X.enrolServer({ upcoming: X.UPCOMING_14, payFrom: "2026-11-23" }));
+  assert.deepEqual(await barOf(run.page), { label: "Начисление с 23 ноября", sum: "160 000 сум", line: "4 урока из 13 в ноябре · платить до 27.11", idle: "" });
+  assert.equal(plain(await run.page.locator('[data-testid="enrol-terms-why"]').innerText()), "сегодня ученик ещё числился в «Математике 7»");
+  assert.ok(!(await dialogText(run.page)).includes("ближайшее занятие группы"), "the note replaces the reason of the default day");
+  await run.page.close();
+});
+
+test("the server gave no sum (a role without the right / a forecast it could not make): the bar says only when the charge starts; no `upcoming` - nothing is added to the bar", async () => {
+  const noSum = await openAssign(X.enrolServer({ upcoming: { ...X.UPCOMING_10, amount: null, due_until: null, sub: null, lessons_text: null } }));
+  const bar = await barOf(noSum.page);
+  assert.equal(bar.sum, "");
+  assert.equal(bar.idle, "Начисление с 24 ноября");
+  await noSum.page.close();
+  const none = await openAssign(X.enrolServer({ upcoming: null }));
+  assert.equal(await none.page.locator('[data-testid="summary-bar-label"]').count(), 0);
+  assert.ok(!/Начисление с 24 ноября.*120/.test(await dialogText(none.page)));
+  await none.page.close();
+});
+
+test("the drawer (a batch): the bar takes the sum of `upcoming_total` of the server, never the sum of the students' forecasts; without it - the date only; the sentence of the message after is the server's (unit test)", async () => {
+  const withUpcoming = (inner, total) => (r) => {
+    const out = inner(r);
+    if (!out || !out.json || r.method !== "POST") return out;
+    const json = JSON.parse(JSON.stringify(out.json));
+    if (Array.isArray(json.students)) for (const student of json.students) if (student.billing) student.billing.upcoming = { ...X.UPCOMING_10, amount: 120000 };
+    if (total) json.upcoming_total = total;
+    return { ...out, json };
+  };
+  const TOTAL = { from: "2026-11-24", amount: 240000, lessons_text: "2 урока из 8 в ноябре", due_until: "2026-11-28", text: `Начисление с 24.11: ${X.money(240000)} (по 2 учеников)`, sub: "платить до 28.11" };
+  const run = await H.openDrawer(ctx, withUpcoming(H.server({ people: H.PEOPLE, defaultPayFrom: "2026-11-24" }), TOTAL), { props: { groupName: "М11 БС" } });
+  await H.pick(run.page, "Каримов", "Юсупова"); await H.settled(run.page);
+  assert.deepEqual(await barOf(run.page), { label: "Начисление с 24 ноября", sum: "240 000 сум", line: "2 урока из 8 в ноябре · платить до 28.11", idle: "" });
+  await run.page.close();
+  const quiet = await H.openDrawer(ctx, withUpcoming(H.server({ people: H.PEOPLE, defaultPayFrom: "2026-11-24" }), null), { props: { groupName: "М11 БС" } });
+  await H.pick(quiet.page, "Каримов", "Юсупова"); await H.settled(quiet.page);
+  const bar = await barOf(quiet.page);
+  assert.equal(bar.sum, "", "two forecasts are not added up by the screen");
+  assert.equal(bar.idle, "Начисление с 24 ноября");
+  await quiet.page.close();
+});
+
+test("LESSONS 155 (Б2.5): the bar of the window with an eight-digit forecast and the long note at 1440 / 1280 / 1024 / 768 / 375 - no sideways scroll", async () => {
+  const big = { ...X.UPCOMING_14, amount: 24850000, terms_note: "сегодня ученик ещё числился в «Подготовка к олимпиаде по математике, 7 класс (углублённый курс)»" };
+  for (const width of WIDTHS) {
+    const run = await openAssign(X.enrolServer({ upcoming: big, payFrom: "2026-11-23" }), { width });
+    assert.equal((await barOf(run.page)).sum, "24 850 000 сум");
+    await noOverflow(run.page, `enrol bar ${width}`);
+    await run.page.close();
+  }
+});
+
+// ── Б2.6: the words and the labels (frames 0, 11-13, 15-18) ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+const PX = require("./helpers/paytails-fixture.cjs");
+const paymentsServer = (rows) => (r) => {
+  if (r.path === "/auth/org/payments/summary") return { json: PX.SUMMARY };
+  if (r.path === "/auth/org/payments/status") return { json: PX.page(rows, { total: rows.length, students: rows.length }) };
+  if (r.path === "/auth/org/groups") return { json: [{ id: "g1", name: "Математика 7", teacher_id: "t1" }] };
+  if (r.path === "/auth/org/members") return { json: [] };
+  if (r.path === "/auth/org/opening-balances/summary") return { json: { accounting_start: "2026-09-01", state: "done", can_set_opening: true, totals: { left_available: 0, memberships: 40, missing: 0, needs_review: 0 } } };
+  return null;
+};
+async function openList(rows, width = 1280) {
+  const run = await openPage(ctx.browser, "paydue.entry.tsx", paymentsServer(rows), { width, height: width <= 375 ? 812 : 900 });
+  await run.page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { moneyAvailable: true, search: "bucket=debtors" }));
+  await run.page.waitForSelector('[data-testid="payments-table"], [data-testid="payments-phone-list"]');
+  await run.page.waitForTimeout(300);
+  return run;
+}
+const chipClass = (page, text) => page.locator('[data-testid="pay-label"]', { hasText: text }).first().getAttribute("class");
+
+test("frames 0, 11, 16, 17: «Начнётся 24.11» is a white label with a grey outline and its sub-line «≈ 120 000 сум»; «Прощено до» is grey, «Оплачено до» stays green with «из них прощено N сум»; the words are the server's", async () => {
+  const run = await openList(X.WORD_ROWS);
+  const rows = (await run.page.locator('[data-testid="payments-table"] li').allInnerTexts()).map(plain).filter((t) => /Алиев|Турсунова|Тошев|Умарова/.test(t));
+  assert.equal(rows.length, 4);
+  assert.match(rows[0], /Сардор Алиев.*Начнётся 24\.11.*≈ 120 000 сум/);
+  assert.match(rows[2], /Бекзод Тошев.*Оплачено до 30\.11.*из них прощено 300 000 сум/);
+  assert.match(rows[3], /Зарина Умарова.*Прощено до 30\.11/);
+  assert.match(await chipClass(run.page, "Начнётся 24.11"), /border-slate-300 bg-white/);
+  assert.match(await chipClass(run.page, "Прощено до 30.11"), /bg-slate-50/);
+  assert.match(await chipClass(run.page, "Оплачено до 30.11"), /bg-success-50/);
+  assert.ok(!(await chipClass(run.page, "Начнётся 24.11")).includes("bg-danger"), "red is for a debt only");
+  // the forecast is in no sum: the tabs and the card are the server's numbers
+  assert.equal(plain(await run.page.innerText('[data-testid="position-advance"]')).includes("120 000"), false);
+  await run.page.close();
+});
+
+test("frame 15 (a pack centre, no lessons yet): «Уроков ещё не было» + the server's «50 000 сум за урок · без оплаты 2 урока»", async () => {
+  const run = await openList([X.TIMUR_PACK]);
+  const row = plain(await run.page.locator('[data-testid="payments-table"] li').filter({ hasText: "Тимур" }).first().innerText());
+  assert.match(row, /Уроков ещё не было.*50 000 сум за урок · без оплаты 2 урока/);
+  await run.page.close();
+});
+
+test("frame 20-23 (a phone): the new labels stand in the compact row, one line each, nothing sticks out", async () => {
+  const run = await openList(X.WORD_ROWS, 375);
+  const text = plain(await run.page.locator('[data-testid="payments-phone-list"]').innerText());
+  assert.ok(text.includes("Начнётся 24.11") && text.includes("Прощено до 30.11"), text);
+  const facts = await run.page.evaluate(layoutProbe, '[data-testid="payments-phone-list"]');
+  assert.equal(facts.scroll, 0);
+  // the long group of a compact row is cut with an ellipsis by design (Б2.8)
+  assert.deepEqual(facts.bad.filter((b) => !/«· [^»]*»|leaves its block/.test(b)), []);
+  await run.page.close();
+});
+
+async function openStatement(key, width = 1280) {
+  const run = await openPage(ctx.browser, "money2.entry.tsx", F.baseServer((r) => (r.method === "GET" && r.path === "/auth/org/memberships/m-a/statement" ? { json: X.STATEMENTS[key] } : r.method === "GET" && r.path === "/auth/org/memberships/m-a/payments" ? { json: [] } : null)), { width, height: width <= 375 ? 812 : 900 });
+  await run.page.evaluate(() => window.mount("statement", { role: "owner", org_role: "owner" }, { moneyAvailable: true }));
+  await run.page.waitForSelector('[data-testid="statement-summary"]');
+  await run.page.waitForTimeout(300);
+  return run;
+}
+const stateOf = async (page) => plain(await page.locator('[data-testid="statement-state"]').innerText());
+
+test("frame 12 (the statement of a student whose charge has not begun): «Начнётся 24.11» + «платить до 28.11»; a grey forecast row «прогноз: начислится 120 000 сум»; «Стоимость» and «Оплачено» are 0 - the forecast is in no column", async () => {
+  const run = await openStatement("f12");
+  assert.equal(await stateOf(run.page), "Начнётся 24.11 платить до 28.11");
+  assert.ok(!(await run.page.locator('[data-testid="statement-state"] p').first().getAttribute("class")).includes("emerald"), "a plain word, not the green of money");
+  const forecast = plain(await run.page.locator('[data-testid="statement-forecast"]').innerText());
+  assert.match(forecast, /^24\.11\.2026 Ноябрь 2026 — неполный месяц \(с 24\.11, 2 урока из 8\) прогноз: начислится 120 000 сум$/);
+  assert.equal(await run.page.locator('[data-testid="statement-row-charge"]').count(), 0, "the forecast is not a charge row");
+  const summary = plain(await run.page.locator('[data-testid="statement-summary"]').innerText());
+  assert.match(summary, /Стоимость обучения 0 сум/);
+  assert.equal(await run.page.locator('[data-testid="statement-reconciles"]').count(), 0);
+  assert.equal(await run.page.getByText("В выписке пока нет записей").count(), 0);
+  await run.page.close();
+});
+
+test("frames 16, 17: «Прощено до 30.11» is a plain word beside the tiles «Прощено 600 000 сум»; «Оплачено до 30.11» keeps no sub-line the server did not send", async () => {
+  const f16 = await openStatement("f16");
+  assert.equal(await stateOf(f16.page), "Прощено до 30.11");
+  assert.match(plain(await f16.page.locator('[data-testid="statement-summary"]').innerText()), /Прощено.*600 000 сум/);
+  await f16.page.close();
+  const f17 = await openStatement("f17");
+  assert.equal(await stateOf(f17.page), "Оплачено до 30.11");
+  assert.match(await f17.page.locator('[data-testid="statement-state"] p').first().getAttribute("class"), /emerald/, "money covers the period: green");
+  await f17.page.close();
+});
+
+test("frame 18 (the left ones): «Расчёт закрыт» (paid; paid + forgiven) and «Расчётов нет» stand in the summary as a plain word, not as a label", async () => {
+  for (const [key, word] of [["f18a", "Расчёт закрыт"], ["f18b", "Расчёт закрыт"], ["f18c", "Расчётов нет"]]) {
+    const run = await openStatement(key);
+    assert.equal(await stateOf(run.page), word);
+    assert.equal(await run.page.locator('[data-testid="statement-state"] [data-kind="chip"], [data-testid="statement-state"] [data-kind="status-chip"]').count(), 0, "text, not a chip");
+    await run.page.close();
+  }
+  const longName = await openStatement("f18c", 375);
+  const facts = await longName.page.evaluate(layoutProbe, '[data-testid="statement-summary"]');
+  assert.equal(facts.scroll, 0);
+  await longName.page.close();
+});
+
+test("frame 5 (a forgiveness used in part): the server's «использовано 35 000 сум» under the record; the column «Оплачено» is the used part +35 000; the state «Расчёт закрыт»", async () => {
+  const run = await openStatement("f5");
+  const row = plain(await run.page.locator('[data-testid="statement-row-writeoff"]').innerText());
+  assert.match(row, /Прощено 220 000 сум — причина: семейные обстоятельства.*использовано 35 000 сум.*35 000/);
+  assert.equal(await stateOf(run.page), "Расчёт закрыт");
+  const tiles = plain(await run.page.locator('[data-testid="statement-summary"]').innerText());
+  assert.match(tiles, /Стоимость обучения 415 000 сум.*Оплачено 380 000 сум.*Прощено.*35 000 сум/);
+  await run.page.close();
+});
+
+test("LESSONS 155 (Б2.6): the statement with an eight-digit forecast, a long name and a long group at 1440 / 1280 / 1024 / 768 / 375 - no sideways scroll", async () => {
+  const wide = JSON.parse(JSON.stringify(X.STATEMENTS.f12));
+  wide.membership.student_name = X.LONG_NAME; wide.membership.group_name = X.LONG_GROUP;
+  wide.forecast.sub = "прогноз: начислится 24 850 000 сум";
+  for (const width of WIDTHS) {
+    const run = await openPage(ctx.browser, "money2.entry.tsx", F.baseServer((r) => (r.method === "GET" && r.path === "/auth/org/memberships/m-a/statement" ? { json: wide } : r.method === "GET" && r.path === "/auth/org/memberships/m-a/payments" ? { json: [] } : null)), { width, height: 900 });
+    await run.page.evaluate(() => window.mount("statement", { role: "owner", org_role: "owner" }, { moneyAvailable: true }));
+    await run.page.waitForSelector('[data-testid="statement-forecast"]');
+    const facts = await run.page.evaluate(() => ({ scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+    assert.ok(facts.scroll <= 0, `statement ${width}: scroll ${facts.scroll}`);
+    await run.page.close();
+  }
+  for (const width of WIDTHS) {
+    const rows = X.WORD_ROWS.map((r, i) => (i === 0 ? { ...r, student_name: X.LONG_NAME, group_name: X.LONG_GROUP, state_sub: "≈ 24 850 000 сум" } : r));
+    const run = await openList(rows, width);
+    const scroll = await run.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(scroll <= 0, `list ${width}: scroll ${scroll}`);
+    await run.page.close();
+  }
+});

@@ -4,9 +4,12 @@
  * Where the server said nothing the screen says nothing (LESSONS 151).  Pure: no React, so node:test loads it.
  */
 import type { ChipTone } from "./chip-tone";
+import { isNotMoneyCover, tabWordsOf } from "./paytails-contract";
 
 /** The worst state of a membership, in the server's keys (debt → to pay → payment ends soon → pause → paid / advance → free → no price). */
-export type PayState = "debt" | "to_pay" | "expiring" | "paused" | "paid" | "free" | "none";
+export type PayState = "debt" | "to_pay" | "expiring" | "paused" | "paid" | "free" | "none"
+  /** PAY-TAILS Б5.4: the charge has not begun («Начнётся 24.11», «Уроков ещё не было») / the closed membership is settled («Расчёт закрыт») / nothing was ever charged («Расчётов нет»). */
+  | "starts" | "settled" | "no_charges";
 
 /**
  * The ONE place the front reads «everything unpaid» of a row (`unpaid` = `debt_amount + due_amount`, the server's name since its second part): a sum, never a name (the name is `state`).
@@ -25,10 +28,13 @@ export const PAY_STATE_TONE: Record<PayState, ChipTone> = {
   paid: "ok",
   free: "neutral",
   none: "neutral",
+  starts: "outline",
+  settled: "neutral",
+  no_charges: "neutral",
 };
 
 /** The worse the state, the lower the number (the server's order of the worst state). */
-const SEVERITY: Record<PayState, number> = { debt: 0, to_pay: 1, expiring: 2, paused: 3, paid: 4, free: 5, none: 6 };
+const SEVERITY: Record<PayState, number> = { debt: 0, to_pay: 1, expiring: 2, paused: 3, paid: 4, starts: 5, settled: 6, no_charges: 7, free: 8, none: 9 };
 
 export function payStateTone(state: PayState | string | null | undefined): ChipTone {
   return PAY_STATE_TONE[state as PayState] ?? "neutral";
@@ -49,6 +55,11 @@ export interface PayFields {
   /** The second line of a row that holds BOTH sums, the server's words: «и долг 600 000 сум · просрочено 45 дней» / «и к оплате 231 000 сум до 24.11». */
   debt_also_text?: string | null;
   due_also_text?: string | null;
+  /** PAY-TAILS Б5.4: what covered the last paid period; `forgiven` / `recalc` is not money (a quiet grey label). */
+  covered_by?: string | null;
+  /** PAY-TAILS Б5.5: the words of the tab «Аванс» (`state_text` / `state_sub` are the same on every tab). */
+  tab_text?: string | null;
+  tab_sub?: string | null;
 }
 
 export interface PayLabel {
@@ -83,7 +94,13 @@ export function payLabel(row: PayFields, tab: "debtors" | "to_pay" | "worst" | s
   }
   // the other tabs and the single label: the worst state, in the server's words; a «К оплате» / «Долг» label carries its own sub
   const sub = state === "debt" ? clean(row.debt_sub) : state === "to_pay" ? clean(row.due_sub) : clean(row.state_sub);
-  return { text: clean(row.state_text), tone: payStateTone(state), sub, second: null, state };
+  // the tab «Аванс» says its own words (`tab_text` / `tab_sub`); a period covered by a forgiveness / a recalculation is «Прощено до» / «Оплата не нужна до» - grey, not the green of money
+  if (tab === "advance") {
+    const own = tabWordsOf(row);
+    if (own.text) return { text: own.text, tone: payStateTone(state), sub: own.sub ?? sub, second: null, state };
+  }
+  const tone = state === "paid" && isNotMoneyCover(row) ? "neutral" : payStateTone(state);
+  return { text: clean(row.state_text), tone, sub, second: null, state };
 }
 
 /** The worst row of a student's memberships (his card): the lowest severity wins; of equals the bigger part of the money, then the order of the server. */

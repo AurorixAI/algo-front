@@ -30,6 +30,18 @@ function AssignDemo(props: any) {
   );
 }
 
+/** PAY-TAILS frame 8: the leave window and the REAL message after it (the page shows «Ученик убран из группы» and the lines of the result). */
+function LeaveToastDemo() {
+  const { showToast, toastNode } = useToast();
+  const [open, setOpen] = React.useState(true);
+  return (
+    <>
+      <LeaveStudentDialog open={open} groupId="ga" studentId="st1" studentName="Лола Юсупова · Математика 7" onClose={() => setOpen(false)} onLeft={(lines) => showToast("Ученик убран из группы", "success", lines)} onStale={(message) => showToast(message, "error")} />
+      {toastNode}
+    </>
+  );
+}
+
 const w = window as any;
 w.__log = [] as string[];
 const log = (text: string) => w.__log.push(text);
@@ -47,6 +59,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "leave":
       root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" onClose={() => log("close")} onLeft={() => log("left")} />);
+      break;
+    case "leave-toast":
+      root.render(<LeaveToastDemo />);
       break;
     case "leave-lines":
       // PAY-TAILS Б2.4: the message after is the lines of the answer; a stale refusal is said in the server's words

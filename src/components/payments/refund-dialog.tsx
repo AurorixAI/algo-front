@@ -20,6 +20,8 @@ const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 export const REFUND_ACTION_LABEL = "Вернуть аванс";
 /** PAY-TAILS Б2.2: the button of a row of a CLOSED membership with an advance (frames 2, 4, 23); it opens this same window. */
 export const REFUND_ROW_LABEL = "Вернуть";
+/** PAY-TAILS frame 2a: the window is «Вернуть деньги» (the money of a student who left is given back), its button «Вернуть 37 000 сум»; the item of the «⋯» of an open membership stays «Вернуть аванс». */
+export const REFUND_WINDOW_TITLE = "Вернуть деньги";
 
 /**
  * «Вернуть аванс» (the student leaves): a record of a refund up to the part of the advance that can be given back.  The payments stay; the statement shows the refund.
@@ -98,14 +100,14 @@ export function RefundDialog({
   return (
     <Modal
       open={row !== null}
-      title={REFUND_ACTION_LABEL}
+      title={REFUND_WINDOW_TITLE}
       description={row ? `${studentName} · ${row.group_name}` : undefined}
       onClose={onClose}
       busy={busy}
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={(
         // UX pack №22 / rule 3: the main button names the action and the sum; off - with the line «почему»
-        <ConfirmFooter primary={`${REFUND_ACTION_LABEL}${refundAmount !== null && refundAmount > 0 ? ` ${formatMoney(refundAmount)}` : ""}`} submitFor="refund-form" busy={busy} disabled={blocker !== null} why={problem} whyId="refund-why" onCancel={onClose} testId="refund-submit" />
+        <ConfirmFooter primary={`${REFUND_ROW_LABEL}${refundAmount !== null && refundAmount > 0 ? ` ${formatMoney(refundAmount)}` : ""}`} submitFor="refund-form" busy={busy} disabled={blocker !== null} why={problem} whyId="refund-why" onCancel={onClose} testId="refund-submit" />
       )}
     >
       <form id="refund-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>

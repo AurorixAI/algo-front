@@ -34,7 +34,7 @@ test("refund: the reason is required - no «(необязательно)», the 
   assert.equal(await submit.isDisabled(), true);
   await page.fill("#refund-reason", "ушёл");
   assert.equal(await submit.isDisabled(), false);
-  assert.equal(plain(await submit.textContent()), `Вернуть аванс 344${NB}000 сум`.replace(NB, " "));
+  assert.equal(plain(await submit.textContent()), `Вернуть 344${NB}000 сум`.replace(NB, " "));
   assert.ok((await submit.textContent()).includes(`344${NB}000${NB}сум`), "NBSP in the sum of the button");
   await page.close();
 });
@@ -271,7 +271,7 @@ test("refund: the debt GREW (250 000 -> 300 000): «Продолжить с 300 
   await page.click('[data-testid="refund-submit"]');
   await page.click('[data-testid="balance-changed-continue"]');
   assert.equal(plain(await page.inputValue("#refund-amount")), "300 000");
-  assert.match(plain(await page.textContent('[data-testid="refund-submit"]')), /^Вернуть аванс 300 000 сум$/);
+  assert.match(plain(await page.textContent('[data-testid="refund-submit"]')), /^Вернуть 300 000 сум$/);
   await page.click('[data-testid="refund-submit"]');
   await page.waitForFunction(() => window.__log.includes("close"));
   assert.deepEqual(calls.filter((call) => call.method === "POST" && !/dry_run=true/.test(call.query)).map((call) => [call.body.amount, call.body.expected_refundable]), [[250000, 250000], [300000, 300000]]);

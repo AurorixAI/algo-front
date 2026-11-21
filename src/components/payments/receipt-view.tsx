@@ -24,6 +24,8 @@ import {
   type ReceiptOut,
 } from "@/lib/payments";
 import { receiptFacts } from "@/lib/payments-ledger";
+import { receiptStateTextOf } from "@/lib/paytails-contract";
+import { tidyMoneyText } from "@/lib/money-format";
 import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import { statementHref } from "@/lib/payments";
 import { useMoneyDenied } from "@/lib/payments-summary";
@@ -45,6 +47,8 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   const place = [receipt.org_city, receipt.org_phone].filter(Boolean).join(" · ");
   // From the snapshot taken at the moment of payment: what the money covered then (a later correction does not rewrite it).
   const facts = receiptFacts(receipt);
+  // PAY-TAILS Б1.5: «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period) - the server's line; the screen counts no date
+  const stateText = tidyMoneyText(receiptStateTextOf(receipt));
   const issued = receipt.issued_at ? `Выдана ${formatUtcNaiveAsBusinessDateTime(receipt.issued_at).replace(" ", " · ")}` : null;
   const stampLine = receipt.void_note ? receipt.void_reason || "причина не указана" : `${receipt.void_reason || "причина не указана"}${receipt.voided_at ? ` · ${formatUtcNaiveAsBusinessDate(receipt.voided_at)}` : ""}`;
 
@@ -79,9 +83,9 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
         ) : (
           <>
             {facts.method && <SheetRow label="Способ оплаты">{facts.method}</SheetRow>}
-            {facts.paidUntil && <SheetRow label="Оплачено до">{facts.paidUntil.replace(/^Оплачено до: /, "")}</SheetRow>}
           </>
         )}
+        {stateText && <SheetRow label="Состояние"><span data-testid="receipt-state-text" className="font-medium">{stateText}</span></SheetRow>}
         {receipt.note && <SheetRow label="Комментарий"><span className="font-normal">{receipt.note}</span></SheetRow>}
       </dl>
 

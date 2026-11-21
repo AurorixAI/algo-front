@@ -18,13 +18,16 @@ w.__log = [] as string[];
 
 /** Frame 0 of the layout - the map of tones on one strip: the SAME component and the same tone table the screens use. */
 function ToneMap() {
-  const cells: Array<[string, "debt" | "to_pay" | "paid" | "expiring" | "paused" | "free", string, string]> = [
+  const cells: Array<[string, "debt" | "to_pay" | "paid" | "expiring" | "paused" | "free" | "starts", string, string]> = [
     ["Долг", "debt", "", "Срок прошёл, сумма не оплачена"],
     ["К оплате", "to_pay", "", "Срок ещё идёт"],
     ["Оплачено до 30.11", "paid", "", "Период оплачен"],
     ["Заканчивается оплата", "expiring", "", "Оплачено, но период скоро кончится"],
     ["Аванс", "paid", "", "Оплачено вперёд"],
     ["Пауза", "paused", "", "Ученик на паузе"],
+    // PAY-TAILS Б2.6 (frame 0): two new words - white with a grey outline / a grey fill; «Расчёт закрыт» and «Расчётов нет» are plain text of the statement, not labels
+    ["Начнётся 24.11", "starts", "", "Начисление ещё не началось — денег пока нет"],
+    ["Прощено до 30.11", "free", "", "Период закрыт прощением, оплат не было"],
   ];
   return (
     <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-3 lg:grid-cols-6" data-testid="tone-map">
@@ -34,6 +37,7 @@ function ToneMap() {
           <p className="text-sm text-slate-500">{note}</p>
         </div>
       ))}
+      <div className="space-y-2 bg-white p-4" data-testid="tone-plain"><p className="text-base font-bold text-slate-900">Расчёт закрыт</p><p className="text-base font-bold text-slate-900">Расчётов нет</p><p className="text-sm text-slate-500">В сводке выписки ушедшего</p></div>
     </div>
   );
 }

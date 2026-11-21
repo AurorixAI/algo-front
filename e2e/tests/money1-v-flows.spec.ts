@@ -31,9 +31,9 @@ test("refund: the reason and the method are required -> «Аванс возвр�
   await page.getByRole("tab", { name: "Оплаты" }).click();
   await page.getByRole("button", { name: /^Действия по оплате:/ }).click();
   await page.getByRole("menuitem", { name: "Вернуть аванс" }).click();
-  const dialog = page.getByRole("dialog", { name: "Вернуть аванс" });
+  const dialog = page.getByRole("dialog", { name: "Вернуть деньги" });
   await expect(dialog.getByText(/^Можно вернуть:/)).toBeVisible();
-  const submit = dialog.getByRole("button", { name: /^Вернуть аванс\s/ });
+  const submit = dialog.getByRole("button", { name: /^Вернуть\s/ });
   await expect(submit).toBeDisabled();   // no method, no reason
   await dialog.getByRole("radio", { name: "Наличные" }).click();
   await expect(submit).toBeDisabled();

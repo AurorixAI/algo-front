@@ -31,7 +31,10 @@ const EXPIRING = { membership_id: "m6", student_id: "s6", state: "expiring", sta
 const SILENT = { membership_id: "m7", student_id: "s7", state: "none", state_text: null, debt_amount: 0, due_amount: 0, unpaid: 0 };
 
 test("the tone map: one tone per state, the five on the layout's map are all different, «К оплате» is a calm blue and only a debt is red", () => {
-  assert.deepEqual(S.PAY_STATE_TONE, { debt: "danger", to_pay: "due", expiring: "warn", paused: "neutral", paid: "ok", free: "neutral", none: "neutral" });
+  assert.deepEqual(S.PAY_STATE_TONE, { debt: "danger", to_pay: "due", expiring: "warn", paused: "neutral", paid: "ok", free: "neutral", none: "neutral", starts: "outline", settled: "neutral", no_charges: "neutral" });
+  // PAY-TAILS Б2.6: «Начнётся» is white with a grey outline - a sixth look, no colour of money or of a debt
+  assert.notEqual(C.chipClass({ tone: "outline" }), C.chipClass({ tone: "neutral" }));
+  assert.doesNotMatch(C.CHIP_TONE_CLASS.outline, /rose|danger|success|accent/);
   const classes = ["danger", "due", "warn", "ok", "neutral"].map((tone) => C.chipClass({ tone }));
   assert.equal(new Set(classes).size, 5, "debt / to pay / ends soon / paid / pause are five different looks");
   assert.match(C.CHIP_TONE_CLASS.due, /bg-accent-100/);

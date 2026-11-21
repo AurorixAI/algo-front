@@ -92,21 +92,21 @@ test("E1: previews of 250 000 / 300 000 / 769 000 / 790 000 show exactly where t
   const part = view("e1_preview_250000");
   assert.equal(plain(part.headline), "Погасит 250 000 сум из долга 769 000 сум → оплачено до 12.10 · останется 519 000 сум");
   assert.deepEqual(part.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 250000]]);
-  assert.equal(part.paidUntil, "Оплачено до: 27.09.2026 → 12.10.2026");
+  assert.equal("paidUntil" in part, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal("remaining" in part, false, "the window composes no sentence of its own about the state after the payment");
   assert.equal(plain(L.normalizePreview(fixture("e1_preview_250000")).result.after_text), "Останется: долг 519 000 сум"); // the server's words
 
   const mid = view("e1_preview_300000");
   assert.equal(plain(mid.headline), "Погасит 300 000 сум из долга 769 000 сум → оплачено до 15.10 · останется 469 000 сум");
   assert.deepEqual(mid.lines.map((line) => [plain(line.label), line.amount]), [["Погашено за 15.09–14.10", 269000], ["На текущий период 15.10–14.11", 31000]]);
-  assert.equal(mid.paidUntil, "Оплачено до: 27.09.2026 → 15.10.2026");
+  assert.equal("paidUntil" in mid, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal(plain(L.normalizePreview(fixture("e1_preview_300000")).result.after_text), "Останется: долг 469 000 сум");
 
   const full = view("e1_preview_769000");
   assert.equal(plain(full.headline), "Погасит долг 769 000 сум → оплачено до 14.11");
   assert.deepEqual(full.lines.map((line) => line.amount), [269000, 500000]);
   assert.equal(plain(L.normalizePreview(fixture("e1_preview_769000")).result.after_text), "Оплачено до 14.11");
-  assert.equal(full.paidUntil, "Оплачено до: 27.09.2026 → 14.11.2026");
+  assert.equal("paidUntil" in full, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
 
   const over = view("e1_preview_790000");
   assert.deepEqual(over.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 269000], ["current", 500000], ["advance", 21000]]);
@@ -131,7 +131,7 @@ test("E2/E3: a student who joined mid-month pays a part of the period; an overpa
 
 test("E5: the lessons variant: lessons paid, no «оплачено до»", () => {
   const view = L.previewView(L.normalizePreview(fixture("e5_preview_630000_held12")));
-  assert.equal(view.paidUntil, null);
+  assert.equal("paidUntil" in view, false);
   assert.equal(view.lessons, "Уроков оплачено: 0 → 12, осталось 0");
   assert.deepEqual(view.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 600000], ["advance", 30000]]);
   assert.equal(plain(L.dueBlock(L.normalizePreview(fixture("e5_preview_630000_held12"))).states[0].text), "Долг 500 000 сум · 10 уроков");
@@ -145,7 +145,7 @@ test("E9: a price rise ahead is a warning of its own, the other warnings stay a 
   assert.equal(view.priceAhead.length, 1);
   assert.match(plain(view.priceAhead[0]), /600 000 сум \(сейчас 500 000 сум\)/);
   assert.deepEqual(view.warnings, []);
-  assert.equal(view.paidUntil, "Оплачено до: 27.09.2026 → 29.11.2026");
+  assert.equal("paidUntil" in view, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
 });
 
 test("the amount: 1..10^10, the method is chosen, the body is money only", () => {
@@ -454,7 +454,7 @@ test("receipt: what the money covered at the moment of payment comes from the sn
   assert.deepEqual(facts.lines.map((line) => line.amount), [269000, 31000]);
   assert.equal(plain(facts.unpaidBefore), "Было не оплачено: 769 000 сум"); // the stored snapshot keeps its `debt_*` keys (13.1), the words are neutral (3.3)
   assert.equal(plain(facts.after), "Останется неоплаченным после оплаты: 469 000 сум");
-  assert.equal(facts.paidUntil, "Оплачено до: 15.10.2026 (было 27.09.2026)");
+  assert.equal("paidUntil" in facts, false, "the window composes no «оплачено до» of its own: the words are the server\'s (`after_text`)");
   assert.equal(facts.price, undefined, "UX pack №14: the receipt does not tell the price of the period");
   const advance = L.receiptFacts({ ...receipt, debt_after: 0, advance_after: 21000 });
   assert.equal(plain(advance.after), "Аванс после оплаты: 21 000 сум");
@@ -481,11 +481,12 @@ test("the printed receipt of a new payment: method, where the money went, the re
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const { ReceiptSheet } = require(path.join(root, "src/components/payments/receipt-view.tsx"));
-  const html = plain(renderToStaticMarkup(React.createElement(ReceiptSheet, { receipt: fixture("e1_receipt_300000") })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Останется неоплаченным после оплаты: 469 000 сум", "Оплачено до", "15.10.2026"]) {
+  const html = plain(renderToStaticMarkup(React.createElement(ReceiptSheet, { receipt: { ...fixture("e1_receipt_300000"), receipt_state_text: "оплачено до 15.10" } })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  for (const text of ["Квитанция № 18", "Триста тысяч сум", "Способ оплаты", "Наличные", "Куда пошли деньги", "Погашено за 15.09–14.10", "269 000 сум", "На текущий период 15.10–14.11", "31 000 сум", "Останется неоплаченным после оплаты: 469 000 сум", "Состояние", "оплачено до 15.10"]) {
     assert.ok(html.includes(text), text);
   }
   assert.ok(!html.includes("Период")); // the old «Период» row is for old receipts only
+  assert.ok(!html.includes("15.10.2026 (было"), "PAY-TAILS Б1.5: no «оплачено до» composed from two dates - the line is the server's `receipt_state_text`");
   Module._resolveFilename = resolveFilename;
 });
 

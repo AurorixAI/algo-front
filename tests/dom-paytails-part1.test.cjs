@@ -108,7 +108,7 @@ test("Б2.2: «Вернуть» of a closed row opens THE window of the refund (
   const { page } = await open(1280, 900, server(null, { status: (q) => (/bucket=debtors/.test(q) ? X.page([X.FERUZA], { students: 1 }) : X.statusOf(q)) }), payments("bucket=advance"));
   await listLoaded(page);
   await page.getByRole("button", { name: "Вернуть" }).first().click();
-  const dialog = page.getByRole("dialog", { name: "Вернуть аванс" });
+  const dialog = page.getByRole("dialog", { name: "Вернуть деньги" });
   await dialog.waitFor({ timeout: 5000 });
   assert.match(plain(await dialog.innerText()), /37 000/);
   await page.keyboard.press("Escape");

@@ -44,6 +44,7 @@ import { formatDayMonthRu, shiftMonthKey } from "./business-time";
 import { recalcAmountText, type RecalcLine } from "./payf";
 import { serverEffectsRows } from "./money-effects";
 import { rowUnpaid } from "./pay-state";
+import { forecastOf, isNewState, isNotMoneyCover } from "./paytails-contract";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
 
@@ -318,8 +319,6 @@ export interface PreviewView {
   /** The server's sentence about the whole calculation. */
   headline: string;
   lines: PreviewLine[];
-  /** «Оплачено до: 27.09.2026 → 15.10.2026»; null when it does not move (or in lessons mode). */
-  paidUntil: string | null;
   /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
   lessons: string | null;
   /** The D8 price-rise sentences. */
@@ -343,16 +342,11 @@ export function warningsAfterSave<T extends { code?: string }>(warnings: Readonl
 export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
   const result: PreviewResult | null | undefined = preview?.result;
   if (!preview || !result) return null;
-  const before = result.paid_until_before;
-  const after = result.paid_until_after;
   const lessons = result.lessons;
   const ahead = preview.warnings.filter((warning) => warning.code === "price_change_ahead").map((warning) => warning.message);
   return {
     headline: result.summary_text || "",
     lines: allocationLines(result.allocations),
-    paidUntil: after && after !== before
-      ? `Оплачено до: ${before ? `${formatDateRu(before)} → ` : ""}${formatDateRu(after)}`
-      : null,
     lessons: lessons
       ? `Уроков оплачено: ${sum(lessons.covered_before)} → ${sum(lessons.covered_after)}, осталось ${sum(lessons.left_after)}${sum(lessons.unpaid_after) > 0 ? `, не оплачено ${sum(lessons.unpaid_after)}` : ""}`
       : null,
@@ -732,7 +726,9 @@ export function statementStates(summary: StatementSummary | null | undefined): S
   if (sum(summary.due_amount) > 0 && dueText) out.push({ key: "due", text: dueText, sub: clean(summary.due_sub), tone: "due" });
   if (out.length === 0) {
     const text = clean(summary.state_text);
-    if (text) out.push({ key: "state", text, sub: null, tone: sum(summary.advance) > 0 ? "advance" : summary.state === "paid" ? "paid" : "plain" });
+    // PAY-TAILS Б2.6: the state and ITS `state_sub` only; «Начнётся», «Расчёт закрыт», «Расчётов нет» and a period covered by a forgiveness are a plain word, not the green of money
+    const plainWord = isNewState(summary.state) || isNotMoneyCover(summary);
+    if (text) out.push({ key: "state", text, sub: clean(summary.state_sub), tone: plainWord ? "plain" : sum(summary.advance) > 0 ? "advance" : summary.state === "paid" ? "paid" : "plain" });
   }
   return out;
 }
@@ -743,7 +739,7 @@ export function statementStates(summary: StatementSummary | null | undefined): S
  */
 export function statementAdvanceLine(summary: StatementSummary | null | undefined): string | null {
   if (!summary || sum(summary.advance) <= 0) return null;
-  if (statementStates(summary).some((state) => /^Аванс(?=[\s\u00a0\u202f]|$)/.test(state.text))) return null;
+  if (statementStates(summary).some((state) => /^Аванс(?=[\s\u00a0\u202f]|$)/.test(state.text) || /(^|[\s\u00a0\u202f])аванс/i.test(state.sub ?? ""))) return null;
   return `Аванс ${formatMoney(sum(summary.advance))}`;
 }
 
@@ -847,6 +843,8 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
       due_sub: summary.due_sub ?? null,
       state: summary.state ?? "none",
       state_text: summary.state_text ?? null,
+      state_sub: summary.state_sub ?? null,
+      covered_by: summary.covered_by ?? null,
       paid_until: summary.paid_until ?? null,
       status: summary.status ?? "none",
       reconciles: summary.reconciles !== false,
@@ -890,8 +888,6 @@ export interface ReceiptFacts {
   unpaidBefore: string | null;
   /** «Остаток долга после оплаты: 469 000 сум» / «Аванс после оплаты: 21 000 сум». */
   after: string | null;
-  /** «Оплачено до: 15.10.2026 (было 27.09.2026)». */
-  paidUntil: string | null;
 }
 
 /** The facts of a new receipt come from its snapshot; an old receipt (no allocations) is legacy. */
@@ -906,11 +902,9 @@ export function receiptFacts(receipt: {
   price_snapshot?: { amount: number | null; source: string } | null;
 }): ReceiptFacts {
   const legacy = !Array.isArray(receipt.allocations);
-  if (legacy) return { legacy: true, method: null, lines: [], unpaidBefore: null, after: null, paidUntil: null };
+  if (legacy) return { legacy: true, method: null, lines: [], unpaidBefore: null, after: null };
   const debtAfter = nullableSum(receipt.debt_after);
   const advanceAfter = nullableSum(receipt.advance_after);
-  const before = receipt.paid_until_before ?? null;
-  const after = receipt.paid_until_after ?? null;
   const unpaidBefore = nullableSum(receipt.debt_before);
   return {
     legacy: false,
@@ -918,7 +912,6 @@ export function receiptFacts(receipt: {
     lines: allocationLines(receipt.allocations),
     unpaidBefore: unpaidBefore !== null && unpaidBefore > 0 ? `Было не оплачено: ${formatMoney(unpaidBefore)}` : null,
     after: debtAfter === null && advanceAfter === null ? null : balanceAfterText(debtAfter, advanceAfter),
-    paidUntil: after ? `Оплачено до: ${formatDateRu(after)}${before && before !== after ? ` (было ${formatDateRu(before)})` : ""}` : null,
   };
 }
 
@@ -1092,7 +1085,15 @@ export interface StatementMonthItem {
   empty: boolean;
 }
 
-export type StatementItem = StatementMonthItem | StatementEntry;
+/** PAY-TAILS Б1.4: the grey row of the charge that has not begun («Ноябрь 2026 — неполный месяц (с 24.11, 2 урока из 8)» / «прогноз: начислится 120 000 сум»): in no column, in no total. */
+export interface StatementForecastItem {
+  kind: "forecast";
+  date: string;
+  title: string;
+  sub: string | null;
+}
+
+export type StatementItem = StatementMonthItem | StatementEntry | StatementForecastItem;
 
 // ── Statement: how a row is drawn (icon, amounts, balance chip, alignment) ───────────────────────────────
 
@@ -1263,7 +1264,8 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
       writeoffSeen = true;
       // the title is the server's («Прощено 40 000 сум — причина: …»); a row without one is named by the dictionary 3.3
       const title = row.title || `Прощено ${formatMoney(Number(row.credit) || 0)}${d.reason ? ` — причина: ${d.reason}` : ""}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
-      entries.push({ ...base, title, sub: null, tag: "прощено", charged: null, paid: sum(row.credit) });
+      // PAY-TAILS Б1.5: the server's line of the record - how much of the forgiveness was USED («использовано 35 000 сум»)
+      entries.push({ ...base, title, sub: typeof row.text === "string" && row.text.trim() ? row.text.trim() : null, tag: "прощено", charged: null, paid: sum(row.credit) });
     } else if (row.type === "recalc") {
       // PAY-F: the lesson the centre cancelled, taken off the money like a forgiven debt (the line is derived by the server, nothing was entered)
       entries.push({ ...base, title: row.title, sub: d.recalc ? recalcAmountText(d.recalc) : null, tag: "перерасчёт", charged: null, paid: sum(row.credit) });
@@ -1284,11 +1286,13 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
   }
 
   const items: StatementItem[] = [];
-  const keys = month ? [month] : [...new Set(entries.map((entry) => monthKey(entry.date)))];
+  const forecast = forecastOf(statement);
+  const keys = month ? [month] : [...new Set([...entries.map((entry) => monthKey(entry.date)), ...(forecast ? [monthKey(forecast.date)] : [])])];
   for (const key of keys) {
     const inMonth = entries.filter((entry) => monthKey(entry.date) === key);
-    items.push({ kind: "month", key, title: monthTitle(key), empty: Boolean(month) && inMonth.length === 0 });
-    items.push(...inMonth);
+    const ahead = forecast && monthKey(forecast.date) === key ? [{ kind: "forecast" as const, date: forecast.date, title: forecast.title, sub: forecast.sub }] : [];
+    items.push({ kind: "month", key, title: monthTitle(key), empty: Boolean(month) && inMonth.length + ahead.length === 0 });
+    items.push(...inMonth, ...ahead);
   }
   return items;
 }

@@ -25,17 +25,19 @@ const RECEIPT = { receipt_no: 21, org_name: "ALGO Math Center", org_city: "Та�
   allocations: [{ segment_id: "seg:09", period_from: "2026-09-01", period_to: "2026-09-30", amount: 400000, days: 30, bucket: "past_debt", closes: true, label: "Погашен долг за 01.09–30.09", price: 400000, segment_remaining_after: 0 }],
   debt_before: 1200000, debt_after: 800000, advance_after: 0, paid_until_before: "2026-08-31", paid_until_after: "2026-09-30", price_snapshot: { amount: 400000, source: "group" }, note: null, accepted_by_name: "Арслан", created_at: "2026-11-05T09:12:00",
   voided_at: null, void_reason: null, replaced_by_receipt_no: null, replaces_receipt_no: null, replaces_amount: null };
-async function open(width) {
+async function open(width, extra = { receipt_state_text: "оплачено до 30.09" }) {
   const run = await openPage(browser, "money.entry.tsx", () => null, { width, height: 900 });
-  await run.page.evaluate((receipt) => window.mount("receipt", undefined, { receipt }), RECEIPT);
+  await run.page.evaluate((receipt) => window.mount("receipt", undefined, { receipt }), { ...RECEIPT, ...extra });
   await run.page.waitForSelector('[aria-label^="Квитанция"]');
   return run;
 }
 
-test("№14: «Оплачено до 30.09.2026», the allocation with the label of the server and the sum, «Останется неоплаченным после оплаты: 800 000 сум»; no «Цена периода» and no «Покрытие»", async () => {
+test("№14: «оплачено до 30.09» (the server's line), the allocation with the label of the server and the sum, «Останется неоплаченным после оплаты: 800 000 сум»; no «Цена периода» and no «Покрытие»", async () => {
   const { page } = await open(1280);
   const text = plain(await page.locator('[aria-label^="Квитанция"]').innerText());
-  assert.match(text, /Оплачено до\s*30\.09\.2026/);
+  // PAY-TAILS Б1.5: the line about the state is the server's `receipt_state_text` (the screen no longer composes «Оплачено до» from two dates)
+  assert.match(text, /Состояние\s*оплачено до 30\.09/);
+  assert.ok(!/Оплачено до\s*30\.09\.2026/.test(text), text);
   assert.match(text, /Погашен долг за 01\.09–30\.09\s*400\s000\sсум/);
   assert.match(text, /Останется неоплаченным после оплаты: 800\s000\sсум/);
   assert.match(text, /Было не оплачено: 1\s200\s000\sсум/);
@@ -60,3 +62,19 @@ for (const width of [1280, 1024, 375]) {
     await page.close();
   });
 }
+
+test("PAY-TAILS Б1.5: a partial payment, a closed membership and a forgiven period - the server's line as it is, or none: the screen makes up no «оплачено до»", async () => {
+  const partial = await open(1280, { receipt_state_text: "оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11" });
+  assert.match(plain(await partial.page.locator('[aria-label^="Квитанция"]').innerText()), /Состояние\s*оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23\.11/);
+  await partial.page.close();
+  const none = await open(1280, { receipt_state_text: null });
+  const text = plain(await none.page.locator('[aria-label^="Квитанция"]').innerText());
+  assert.ok(!/Состояние|Оплачено до|оплачено до/.test(text), text);
+  assert.equal(await none.page.locator('[data-testid="receipt-state-text"]').count(), 0);
+  await none.page.close();
+  const narrow = await open(375, { receipt_state_text: "оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11" });
+  const facts = await narrow.page.evaluate(layoutProbe, '[aria-label^="Квитанция"]');
+  assert.equal(facts.scroll, 0);
+  assert.deepEqual(facts.bad, []);
+  await narrow.page.close();
+});

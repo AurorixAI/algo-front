@@ -409,6 +409,12 @@ export interface MembershipPaymentRow {
   state_text?: string | null;
   /** PAY-TAILS Б1.1: the quiet line under the label of a row the server words by its state («ушёл 28.10» / «оплачено до 31.12»). */
   state_sub?: string | null;
+  /** PAY-TAILS Б5.4 / Б5.5: what covered the last paid period (`money` / `forgiven` / `recalc` / `opening`), and the words of the tab «Аванс». */
+  covered_by?: string | null;
+  tab_text?: string | null;
+  tab_sub?: string | null;
+  /** PAY-TAILS Б1.4: the charge that starts later (read by `lib/paytails-contract.ts`). */
+  upcoming?: unknown;
   /** PAY-TAILS Б1.1: the day the membership was closed (ISO), null while it is open. */
   left_on?: string | null;
   /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
@@ -730,6 +736,8 @@ export interface StatementDetails {
 }
 
 export interface StatementRow {
+  /** PAY-TAILS Б1.5: the server's quiet line of a record («использовано 35 000 сум» of a forgiveness). */
+  text?: string | null;
   seq: number;
   date: string;
   type: StatementRowType;
@@ -795,6 +803,9 @@ export interface StatementSummary {
   due_sub?: string | null;
   state?: PayState;
   state_text?: string | null;
+  /** PAY-TAILS Б1.5 / Б5.4: the quiet line of the state («платить до 28.11») and what covered the last paid period. */
+  state_sub?: string | null;
+  covered_by?: string | null;
 }
 
 export interface StatementMembership {
@@ -817,6 +828,8 @@ export interface StatementOut {
   rows: StatementRow[];
   voided: StatementRow[];
   upcoming: Segment[];
+  /** PAY-TAILS Б1.4: the forecast row of a charge that has not begun (read by `lib/paytails-contract.ts`). */
+  forecast?: unknown;
 }
 
 export interface StatementQuery {
