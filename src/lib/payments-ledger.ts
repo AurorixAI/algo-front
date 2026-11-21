@@ -2,7 +2,7 @@
  * PAY-2 ledger rules of the front: how a balance (debt / advance) is worded, the form of the payment dialog and its live
  * preview, write-off and refund forms, the account statement of a student, and the tolerant reading of the server's answers.
  *
- * The sentences that describe a calculation (`summary_text`, the label of an allocation, `balance_text`, `days_text`)
+ * The sentences that describe a calculation (`summary_text`, the label of an allocation, `days_text`)
  * are written by the server and shown as they come; this file only arranges them.  Pure: no React, no network.
  */
 import { formatUtcNaiveAsBusinessDateTime } from "./business-time";
@@ -119,23 +119,14 @@ export function balanceView(row: Pick<MembershipPaymentRow, "debt" | "advance"> 
   return { kind: "none", amount: 0, text: "", className: BALANCE_TEXT_CLASS.none };
 }
 
-/** «Долг 269 000 сум» / «Аванс 21 000 сум» / «0» (the owner's «Баланс») from a signed balance (minus = debt, plus = advance). */
-export function signedBalanceText(balance: number | null | undefined): string {
-  if (balance === null || balance === undefined) return "";
-  const value = sum(balance);
-  if (value < 0) return debtLabel(-value);
-  if (value > 0) return advanceLabel(value);
-  return "0";
-}
-
 /** The write-off button is offered with a debt, to a role the server allowed. */
 export function canWriteOff(row: Pick<MembershipPaymentRow, "debt" | "writeoff_allowed">): boolean {
   return row.writeoff_allowed !== false && rowBalance(row).debt > 0;
 }
 
 /** The refund button is offered when the server says there is something to give back. */
-export function canRefund(row: Pick<MembershipPaymentRow, "refundable">): boolean {
-  return sum(row.refundable) > 0;
+export function canRefund(row: Pick<MembershipPaymentRow, "advance">): boolean {
+  return sum(row.advance) > 0;
 }
 
 // ── Allocation: where a payment went ───────────────────────────────────────
@@ -413,7 +404,6 @@ export function normalizeRow(row: MembershipPaymentRow): MembershipPaymentRow {
     debt: rowUnpaid(row),
     advance: sum(row.advance),
     partial_credit: sum(row.partial_credit),
-    refundable: sum(row.refundable),
     lessons_unpaid: sum(row.lessons_unpaid),
     price_missing: Boolean(row.price_missing),
     writeoff_allowed: row.writeoff_allowed !== false,
@@ -930,9 +920,6 @@ export interface StatementRowView {
   effect: string;
   /** Plus (money in) or minus (a charge, money out): the colour. */
   effectSign: "plus" | "minus" | "zero";
-  /** «Долг 269 000» (the server's words) — "" on a cancelled row. */
-  balance: string;
-  balanceKind: BalanceKind;
   allocations: AllocationLine[];
   paymentId: string | null;
   writeoffId: string | null;
@@ -945,8 +932,6 @@ export interface StatementRowView {
 
 export function statementRowView(row: StatementRow): StatementRowView {
   const effect = effectOf(row);
-  const balance = row.balance_after ?? null;
-  const balanceKind: BalanceKind = balance === null ? "none" : balance < 0 ? "debt" : balance > 0 ? "advance" : "none";
   const cancelled = Boolean(row.voided_at);
   return {
     seq: row.seq,
@@ -957,8 +942,6 @@ export function statementRowView(row: StatementRow): StatementRowView {
     notes: statementRowNotes(row),
     effect: effectText(row),
     effectSign: effect > 0 ? "plus" : effect < 0 ? "minus" : "zero",
-    balance: balance === null ? "" : row.balance_text || signedBalanceText(balance),
-    balanceKind,
     allocations: row.type === "payment" ? allocationLines(row.details.allocations) : [],
     paymentId: row.details.payment_id,
     writeoffId: row.details.writeoff_id,

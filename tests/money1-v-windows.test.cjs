@@ -261,7 +261,7 @@ test("cancel of a payment: ALREADY_VOIDED is told with the author; two presses a
 // ── walk of stage Д1: «Продолжить с N» puts N into the field, up as well as down ─────────────────────
 
 test("refund: the debt GREW (250 000 -> 300 000): «Продолжить с 300 000» puts 300 000 into the field and the button names it", async () => {
-  const row = { ...ROW, refundable: 250000 };
+  const row = { ...ROW, advance: 250000 };
   let n = 0;
   const run = await open(browser, "money-v.entry.tsx", "refund", { props: { row }, server: (request) => (request.method === "POST" ? (/dry_run=true/.test(request.query) ? writeoffDone : ++n === 1 ? conflict("BALANCE_CHANGED", "Сумма к возврату изменилась: было 250 000 сум, сейчас 300 000 сум", { refundable: 300000, advance: 300000 }) : done) : null) });
   const { page, calls } = run;

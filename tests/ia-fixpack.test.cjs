@@ -37,14 +37,14 @@ const GP = require(path.join(root, "src/lib/group-price.ts"));
 const price = (over = {}) => ({ amount: 500000, source: "group", valid_from: "2000-01-01", group_amount: 500000, reason: null, ...over });
 const row = (over = {}) => ({
   membership_id: "m1", student_id: "s1", student_name: "Каримова Дилноза", group_id: "g1", group_name: "Алгебра 8А", is_primary: true, is_active: true,
-  price: price(), status: "active", period_mode: "calendar", paid_until: "2026-11-15", debt: 0, past_debt: 0, current_due: 0, advance: 0, refundable: 0, ...over,
+  price: price(), status: "active", period_mode: "calendar", paid_until: "2026-11-15", debt: 0, past_debt: 0, current_due: 0, advance: 0, ...over,
 });
 
 // ── F1 / F13: the «⋯» of a membership row ───────────────────────────────────────────────────────────────
 
 test("F1: the row menu has at most three items, one per domain, in a fixed order; no pause, no histories, no navigation", () => {
   const states = [
-    row(), row({ debt: 100000 }), row({ refundable: 50000, advance: 50000 }), row({ debt: 100000, writeoff_allowed: false }),
+    row(), row({ debt: 100000 }), row({ advance: 50000 }), row({ debt: 100000, writeoff_allowed: false }),
     row({ opening: { id: "o", paid_until: "2026-10-01", debt_amount: null, debt_on: null } }), row({ is_active: false, debt: 10 }),
     row({ price: price({ source: "override", reason: "Сестра" }) }), row({ price: price({ scheduled: { row_id: "r", amount: 1, valid_from: "2027-01-01", reason: "x" } }) }),
   ];
@@ -57,7 +57,7 @@ test("F1: the row menu has at most three items, one per domain, in a fixed order
   }
   assert.deepEqual(M.membershipMenuLabels(row()), ["Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ debt: 100000 })), ["Простить сумму", "Индивидуальная цена…", "Внести остаток на начало…"]);
-  assert.deepEqual(M.membershipMenuLabels(row({ refundable: 50000 })), ["Вернуть аванс", "Индивидуальная цена…", "Внести остаток на начало…"]);
+  assert.deepEqual(M.membershipMenuLabels(row({ advance: 50000 })), ["Вернуть аванс", "Индивидуальная цена…", "Внести остаток на начало…"]);
   assert.deepEqual(M.membershipMenuLabels(row({ opening: { id: "o", paid_until: null, debt_amount: 1, debt_on: "2026-10-01" } })), ["Индивидуальная цена…", "Остаток на начало…"]);
   // a group the student has left keeps the money actions; so does an archived student (Money-2 T11), but not the price and the opening balance
   assert.deepEqual(M.membershipMenuLabels(row({ is_active: false, debt: 100000 })), ["Простить сумму"]);

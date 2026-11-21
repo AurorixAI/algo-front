@@ -265,7 +265,7 @@ test("leave: the dialog's blocks, the settle body with what the owner saw, BALAN
   assert.deepEqual(G.buildSettle(archive, forgive), [{ membership_id: debt.membership_id, action: "writeoff", expected_unpaid: 347000, expected_advance: debt.money.advance, expected_as_of: archive.as_of, reason: "договорённость с родителем" }]);
   // no money to see, no settlements, a hidden balance
   assert.equal(G.settleHeadline({ money: null, has_open_balance: true, allowed: ["keep"] }), "У ученика есть расчёты по оплате — их видит владелец");
-  assert.equal(G.settleHeadline({ money: { unpaid: 0, advance: 0, refundable: 0 }, has_open_balance: false, allowed: ["keep"] }), "Расчётов нет — можно убирать");
+  assert.equal(G.settleHeadline({ money: { unpaid: 0, advance: 0 }, has_open_balance: false, allowed: ["keep"] }), "Расчётов нет — можно убирать");
   assert.deepEqual(G.buildSettle({ memberships: [{ membership_id: "x", money: null, has_open_balance: true, allowed: ["keep"] }] }, {}), []);
   // an individual price ends with the stay (F13)
   assert.equal(G.normalizeLeavePreview(named("A12_")).memberships[0].money.individual_price_ends, true);
@@ -526,7 +526,8 @@ test("statement: Стоимость | Оплачено | Остаток, the mon
   assert.deepEqual(L.buildStatementItems(tweaked, null).filter((i) => i.kind === "row")[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 111 000)"]);
   // the totals and the balance
   assert.deepEqual(L.statementTotals(statement.summary).map((t) => t.label), ["Стоимость обучения", "Оплачено"]);       // 14Б.7: the state is on the right of the summary, not a tile
-  assert.equal(L.signedBalanceText(0), "0");
+  // the running balance of a row is the server's `balance_text` (PAY-TAILS: the screen makes no sentence of its own)
+  assert.equal(L.signedBalanceText, undefined);
 });
 
 test("statement: a forgiven debt, a correction and the opening rows are told in the owner's words", () => {

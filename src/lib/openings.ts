@@ -171,7 +171,6 @@ export interface OpeningBatchImpact {
   debtors_before: number;
   debtors_after: number;
   advance_delta: number;
-  refundable_delta: number;
   indirect_changed: number;
 }
 
@@ -323,7 +322,7 @@ export function normalizeList(raw: Raw | null | undefined): OpeningsList {
 
 const emptyImpact = (): OpeningBatchImpact => ({
   memberships_changed: 0, memberships_with_new_debt: 0, memberships_with_changed_advance: 0, debt_total_before: 0, debt_total_after: 0,
-  debt_delta: 0, debtors_before: 0, debtors_after: 0, advance_delta: 0, refundable_delta: 0, indirect_changed: 0,
+  debt_delta: 0, debtors_before: 0, debtors_after: 0, advance_delta: 0, indirect_changed: 0,
 });
 
 export function normalizeImpact(raw: Raw | null | undefined): OpeningBatchImpact {

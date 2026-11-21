@@ -128,7 +128,7 @@ test("transfer А -> Б on Monday 20.01 and the day after: what А charged, what
   await reconcile(org, "17.01 12:00");
 
   // 20.01 (Mon) 11:00: the transfer.  «А» keeps the days 17..20.01 (the day of leaving counts): lessons 17, 20 = 2 of 14.   600 000 x 2 / 14 = 85 714 -> 86 000.
-  // The money of «А» that has not been spent travels: 200 000 - 86 000 = 114 000 (refundable = min(advance, money received)).
+  // The money of «А» that has not been spent travels: 200 000 - 86 000 = 114 000 (the advance that can be given back = min(advance, money received)).
   await travel.toDate("2031-01-20", "11:00");
   await org.owner.api.post(`/auth/org/groups/${b.id}/students/${student.id}`, { from_group_id: a.id });
   const membershipB = await org.membershipId(student.id, b.id);
@@ -288,11 +288,11 @@ test("personal period: joins 15.09, period 15.09 - 14.10, paid; leaves 25.09 - w
   await reconcile(org, "15.09 paid");
 
   // 25.09 (Sat) 10:00: leaves.  The days of the stay 15.09 .. 25.09 = 11 of 30 (the day of leaving counts): 600 000 x 11 / 30 = 220 000 (to the thousand: exactly).
-  // Left: 600 000 - 220 000 = 380 000 = 19 calendar days (26.09 .. 14.10) at 20 000 a day - the advance, refundable.
+  // Left: 600 000 - 220 000 = 380 000 = 19 calendar days (26.09 .. 14.10) at 20 000 a day - the advance, which can be given back.
   await travel.toDate("2032-09-25", "10:00");
   const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
   const money = preview.memberships.find((m: any) => m.group_id === group.id).money;
-  expect([money.charged_after_leave, money.advance, money.refundable, money.unpaid], "the preview of the leaving").toEqual([220_000, 380_000, 380_000, 0]);
+  expect([money.charged_after_leave, money.advance, money.unpaid], "the preview of the leaving").toEqual([220_000, 380_000, 0]);
   await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
   sum = await summaryOf(org, student, group);
   expect([sum.charged, sum.paid, sum.unpaid, sum.advance], "after the leaving (the advance stays)").toEqual([220_000, 600_000, 0, 380_000]);
@@ -335,7 +335,7 @@ test("leave on Tue 21.12 and return on Wed 22.12: the debt of the first stay and
   for (const [student, debt, advance] of [[debtor, 129_000, 0], [payer, 0, 214_000]] as const) {                  // «Авансов»: 343 000 - 129 000 = 214 000
     const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
     const money = preview.memberships.find((m: any) => m.group_id === group.id).money;
-    expect([money.charged_after_leave, money.unpaid, money.advance, money.refundable], `the preview of ${student.fullName}`).toEqual([129_000, debt, advance, advance]);
+    expect([money.charged_after_leave, money.unpaid, money.advance], `the preview of ${student.fullName}`).toEqual([129_000, debt, advance]);
     await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
   }
   d = await summaryOf(org, debtor, group);

@@ -12,7 +12,7 @@ function leaveRow({ group = "Математика 7", amount = 231000, stay, bec
   const base = { membership_id: id, group_id: groupId, group_name: group };
   return {
     membership_id: id, group_id: groupId, group_name: group,
-    money: withMoney ? { unpaid: amount, debt_amount: becomes ? amount : (dueUntil ? 0 : amount), due_amount: dueUntil ? amount : 0, due_until: dueUntil, becomes_debt: becomes, advance: 0, refundable: 0, paid_until: null, charged_after_leave: amount, individual_price_ends: false } : null,
+    money: withMoney ? { unpaid: amount, debt_amount: becomes ? amount : (dueUntil ? 0 : amount), due_amount: dueUntil ? amount : 0, due_until: dueUntil, becomes_debt: becomes, advance: 0, paid_until: null, charged_after_leave: amount, individual_price_ends: false } : null,
     has_open_balance: true, allowed: withMoney ? ["keep", "writeoff"] : ["keep"],
     effects: { kind: "leave", moves: [], money_text: null, texts: [], ends: [], stays: [{ ...base, code: dueUntil && !becomes ? "due" : "debt", ...(withMoney ? { amount } : {}), text: stay }] },
   };

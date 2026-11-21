@@ -71,7 +71,6 @@ export interface AccountingStartImpact {
   /** Groups whose advance changes, by how much, and how much of it could be given back (older servers do not send them). */
   memberships_with_changed_advance?: number;
   advance_delta?: number;
-  refundable_delta?: number;
   /** S0: memberships whose live opening has «оплачено до» earlier than the new start − 1 (they need a second look in «Остатки на начало»; older servers do not send it). */
   openings_to_review?: number;
 }
@@ -387,8 +386,6 @@ export interface MembershipPaymentRow {
   partial_credit?: number;
   price_missing?: boolean;
   lessons_unpaid?: number;
-  /** How much of the advance may be given back. */
-  refundable?: number;
   writeoff_allowed?: boolean;
   /**
    * PAY-DUE 10.2: the unpaid sum is split by its TERM and named by the server (the screen never decides, LESSONS 143): `debt_amount` (the term has passed) and `due_amount` (still within it, until `due_until`),
@@ -487,6 +484,8 @@ export interface PaymentsStatusList {
   amount_total?: number;
   /** PAY-TAILS Б1.1 (`bucket=advance`): DISTINCT students of the filter who have left (the number of «Ушедшие»). */
   left_students?: number;
+  /** PAY-TAILS Б1.2 (`bucket=left_open` of a group): how many closed memberships of the group still have a settlement - the number of the band «Ушли из группы». */
+  left_count?: number;
 }
 
 // ── Preview «что закроет» (GET …/payments/preview) ─────────────────────────
@@ -750,7 +749,6 @@ export interface StatementRow {
   outflow: number;
   /** The RUNNING total (minus = debt, plus = advance).  The server drops it after the screens' part 2 (PAY-DUE 10.11): the column «Остаток» reads `open_*`, nothing reads these two any more. */
   balance_after?: number | null;
-  balance_text?: string | null;
   /**
    * PAY-DUE 10.11: what is open on the row ITSELF today, in the server's words.  A charge: the unpaid part of THIS charge named by the term (`paid` «Оплачено», `due` «К оплате N», `debt` «Долг N»); a payment (and a transfer
    * that brought money): `advance` («Аванс N») while a part of it is not laid on the charges yet, else null; a refund, a write-off, a transfer out: null.  `open_parts`: the same split by name - one element, or TWO
@@ -1339,8 +1337,6 @@ export function accountingStartImpactLines(impact: AccountingStartImpact | null 
   const advanceCount = Math.max(0, Math.round(impact.memberships_with_changed_advance ?? 0));
   const advanceDelta = Math.round(impact.advance_delta ?? 0);
   if (advanceCount > 0 || advanceDelta !== 0) lines.push(`Аванс изменится у ${advanceCount} ${pluralRu(advanceCount, "ученика", "учеников", "учеников")}: ${signed(advanceDelta)}`);
-  const refundable = Math.round(impact.refundable_delta ?? 0);
-  if (refundable !== 0) lines.push(`Можно будет вернуть: ${signed(refundable)}`);
   if (lines.length === 0) lines.push("Долг и аванс ни у кого не изменятся");
   const review = accountingStartOpeningsToReview(impact);
   if (review > 0) lines.push(`У ${review} ${pluralRu(review, "остатка", "остатков", "остатков")} «оплачено до» раньше нового начала — пересмотрите их в «Остатки на начало»`);

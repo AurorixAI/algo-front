@@ -147,7 +147,7 @@ async function override(server) {
 test("individual price: the same question and the box; the write carries confirm_unusual and the reason stays the one reason; a zero price is asked too", async () => {
   const { page, calls } = await override(overrideServer({
     dry: () => ({ json: { dry_run: true, impact: impact({ warnings: [{ code: "price_unusual", text: `Вы уверены: 0${NB}сум? Сейчас 300${NB}000${NB}сум` }] }), row: undefined } }),
-    write: () => ({ json: { row: { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0, refundable: 0 } } }),
+    write: () => ({ json: { row: { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0 } } }),
   }));
   await page.fill("#membership-price-amount", "0");
   await page.fill("#membership-price-reason", "стипендия");
@@ -166,7 +166,7 @@ test("individual price: the same question and the box; the write carries confirm
 test("individual price: a typo backdated - the switch (no second reason field), the write carries correction and the reason of the price as correction_reason", async () => {
   const { page, calls } = await override(overrideServer({
     dry: (request) => (request.body.correction ? { json: { dry_run: true, impact: impact({ correction: { students: 1, reason: "опечатка" } }) } } : blockedBody()),
-    write: () => ({ json: { row: { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0, refundable: 0 } } }),
+    write: () => ({ json: { row: { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0 } } }),
   }));
   await page.fill("#membership-price-amount", "30 000");
   await page.fill("#membership-price-reason", "опечатка");

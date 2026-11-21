@@ -145,8 +145,8 @@ function MembershipSettle({
 
       {kind === "advance" && money && (
         <div className="space-y-2">
-          {membership.allowed.includes("refund") && money.refundable > 0 && (
-            <ChoiceRow name={name} checked={choice.action === "refund"} onChange={() => onChoice({ action: "refund" })} disabled={disabled}>{SETTLE_LABEL.refund(money.refundable)}</ChoiceRow>
+          {membership.allowed.includes("refund") && money.advance > 0 && (
+            <ChoiceRow name={name} checked={choice.action === "refund"} onChange={() => onChoice({ action: "refund" })} disabled={disabled}>{SETTLE_LABEL.refund(money.advance)}</ChoiceRow>
           )}
           {choice.action === "refund" && (
             <div className="pl-6" role="radiogroup" aria-label="Как вернули деньги">

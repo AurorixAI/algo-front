@@ -31,12 +31,12 @@ export interface MembershipActionInput {
 }
 
 /**
- * The items of the menu in order.  `writeoff` / `refund` follow the server's own flags (`writeoff_allowed`, `refundable`) and
+ * The items of the menu in order.  `writeoff` / `refund` follow the server's own flags (`writeoff_allowed`, `advance`) and
  * stay for a group the student has left and for a student in the archive (the debt or the advance remains); the price and the opening balance need an active
  * membership of a student who is not archived.
  */
 export function membershipActionKeys(
-  row: Pick<MembershipPaymentRow, "is_active" | "debt" | "writeoff_allowed" | "refundable">,
+  row: Pick<MembershipPaymentRow, "is_active" | "debt" | "writeoff_allowed" | "advance">,
   input: MembershipActionInput = {},
 ): MembershipActionKey[] {
   const archived = Boolean(input.archived);
@@ -62,7 +62,7 @@ export function membershipActionLabel(key: MembershipActionKey, row: Pick<Member
 
 /** The labels of the menu, for tests and for any screen that wants to name them. */
 export function membershipMenuLabels(
-  row: Pick<MembershipPaymentRow, "is_active" | "debt" | "writeoff_allowed" | "refundable" | "opening">,
+  row: Pick<MembershipPaymentRow, "is_active" | "debt" | "writeoff_allowed" | "advance" | "opening">,
   input: MembershipActionInput = {},
 ): string[] {
   return membershipActionKeys(row, input).map((key) => membershipActionLabel(key, row));

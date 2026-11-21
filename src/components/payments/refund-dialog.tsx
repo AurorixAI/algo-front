@@ -39,7 +39,7 @@ export function RefundDialog({
   onDuplicate?: () => void;
 }) {
   const [fresh, setFresh] = useState<number | null>(null);
-  const refundable = fresh ?? Math.max(0, Math.round(row?.refundable ?? 0));
+  const refundable = fresh ?? Math.max(0, Math.round(row?.advance ?? 0));
   const today = useMemo(() => formatBusinessDate(), [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [values, setValues] = useState<RefundFormValues>({ amount: "", method: null, reason: "" });
   const [touched, setTouched] = useState(false);
@@ -49,7 +49,7 @@ export function RefundDialog({
 
   useEffect(() => {
     setFresh(null);
-    setValues({ amount: formatMoneyInput(Math.max(0, Math.round(row?.refundable ?? 0))), method: null, reason: "" });
+    setValues({ amount: formatMoneyInput(Math.max(0, Math.round(row?.advance ?? 0))), method: null, reason: "" });
     setTouched(false);
     setLowered(null);
   }, [row?.membership_id]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -99,10 +99,10 @@ test("16А.3 transfer: a sum that stays «к оплате» is a row «К опл
 
 test("16А.3 leaving: the headline of the block is the sentences of the server (stays `debt` / `due`), none of its own; a server without them - silent", () => {
   const stays = [{ code: "debt", text: "К оплате 86 000 сум. Это единственная группа ученика: после ухода сумма станет долгом" }, { code: "advance", text: "Аванс" }, { code: "due", text: "К оплате 10 000 сум до 24.11, срок не меняется" }];
-  const membership = { membership_id: "m", group_id: "g", group_name: "A", money: { unpaid: 96000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false }, has_open_balance: true, allowed: ["keep", "writeoff"], effects: { kind: "leave", moves: [], ends: [], stays } };
+  const membership = { membership_id: "m", group_id: "g", group_name: "A", money: { unpaid: 96000, advance: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: false }, has_open_balance: true, allowed: ["keep", "writeoff"], effects: { kind: "leave", moves: [], ends: [], stays } };
   // PAY-TAILS Б2.4: the outcome of the server by the kind of the block - the debt and the sum «к оплате» here (the advance has its own kind: `settleOutcomeLines`)
   assert.deepEqual(G.settleOutcomeLines(membership), [stays[0].text, stays[2].text]);
-  assert.deepEqual(G.settleOutcomeLines({ ...membership, money: { ...membership.money, unpaid: 0, advance: 5, refundable: 5 } }), [stays[1].text]);
+  assert.deepEqual(G.settleOutcomeLines({ ...membership, money: { ...membership.money, unpaid: 0, advance: 5 } }), [stays[1].text]);
   assert.equal(G.settleHeadline(membership), `${stays[0].text} ${stays[2].text}`);
   assert.deepEqual(G.settleOutcomeLines({ ...membership, effects: null }), []);
   assert.equal(G.SETTLE_LABEL.forgive(96000).replace(/\s/g, " "), "Простить 96 000 сум");

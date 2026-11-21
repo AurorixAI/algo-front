@@ -35,7 +35,6 @@ export interface Row {
   status: string;
   debt: number;
   advance: number;
-  refundable: number;
   paid_until: string | null;
   is_active: boolean;
   lessons_total: number | null;

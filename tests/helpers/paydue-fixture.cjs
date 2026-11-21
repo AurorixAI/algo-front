@@ -10,7 +10,7 @@ const base = (over) => ({
   membership_id: "m", student_id: "s", student_name: "X", display_id: null, class_level: 7, group_id: "g1", group_name: "Математика 7", teacher_id: "t1", teacher_name: "Каримова К.",
   is_primary: true, is_active: true, price: { amount: 600000, source: "group", valid_from: "2026-01-01", group_amount: 600000, reason: null }, monthly_fee: 600000,
   status: "active", period_mode: "calendar", paid_until: null, days_left: null, lessons_total: null, lessons_used: null, lessons_left: null, last_payment: null,
-  unpaid: 0, advance: 0, partial_credit: 0, price_missing: false, lessons_unpaid: 0, refundable: 0, writeoff_allowed: true,
+  unpaid: 0, advance: 0, partial_credit: 0, price_missing: false, lessons_unpaid: 0, writeoff_allowed: true,
   debt_amount: 0, due_amount: 0, due_until: null, overdue_days: null, due_lessons: null, debt_lessons: 0, debt_text: null, debt_sub: null, due_text: null, due_sub: null,
   state: "paid", state_text: null, debt_age_bucket: null, ...over,
 });

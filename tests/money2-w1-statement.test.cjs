@@ -99,10 +99,10 @@ test("Т11 (PAY-TAILS Б2.2): the student in the archive keeps «Вернуть�
   const M = require(path.join(root, "src/lib/membership-actions.ts"));
   const T = require(path.join(root, "src/lib/paytails.ts"));
   Module._resolveFilename = original;
-  const left = { is_active: false, debt: 100000, writeoff_allowed: true, refundable: 0 };
+  const left = { is_active: false, debt: 100000, writeoff_allowed: true, advance: 0 };
   assert.deepEqual(M.membershipMenuLabels(left, { archived: true }), ["Простить сумму"]);
-  assert.deepEqual(M.membershipMenuLabels({ ...left, debt: 0, refundable: 50000 }, { archived: true }), [], "the advance of an archived student is given back by the button of the row, not by the «⋯»");
-  assert.deepEqual(T.rowActionsOf({ ...left, debt: 0, refundable: 50000 }, true), { pay: false, refund: true, menuRefund: false });
-  assert.deepEqual(T.rowActionsOf({ ...left, refundable: 0 }, true), { pay: true, refund: false, menuRefund: false }, "a debt of an archived student can still be paid");
+  assert.deepEqual(M.membershipMenuLabels({ ...left, debt: 0, advance: 50000 }, { archived: true }), [], "the advance of an archived student is given back by the button of the row, not by the «⋯»");
+  assert.deepEqual(T.rowActionsOf({ ...left, debt: 0, advance: 50000 }, true), { pay: false, refund: true, menuRefund: false });
+  assert.deepEqual(T.rowActionsOf({ ...left, advance: 0 }, true), { pay: true, refund: false, menuRefund: false }, "a debt of an archived student can still be paid");
   assert.deepEqual(M.membershipMenuLabels({ ...left, is_active: true }, { archived: true }), ["Простить сумму"], "the price and the opening balance stay closed for an archived student");
 });

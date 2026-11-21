@@ -55,7 +55,7 @@ test("every response fixture reads through the tolerant parsers without NaN or m
   }
   // the documented nulls: an older server sends none of the PAY-2 numbers, a tolerant reader makes them 0
   const row = L.normalizeRow({ membership_id: "m", student_id: "s", student_name: "A", group_id: "g", group_name: "G", is_primary: true, is_active: true, status: "none" });
-  assert.deepEqual([row.debt, row.advance, row.refundable, row.lessons_unpaid], [0, 0, 0, 0]);       // PAY-DUE: `past_debt` / `current_due` are gone from the row
+  assert.deepEqual([row.debt, row.advance, row.lessons_unpaid], [0, 0, 0]);       // PAY-DUE: `past_debt` / `current_due` are gone from the row
   assert.ok(!("past_debt" in row) && !("current_due" in row));
   assert.equal(L.balanceView(row).kind, "none");
   const bare = L.normalizePreview({ as_of: "2026-10-21", due: {}, result: null });
@@ -280,7 +280,7 @@ test("errors.json: every documented code is told apart and keeps the server's te
 // ── balance of a group: «Долг» / «Аванс» ────────────────────────────────────────────────────────
 
 test("a row says «Долг N сум» or «Аванс N сум»; the actions follow the server's flags", () => {
-  const debtRow = { ...fixture("e1_row_after_790000"), debt: 469000, advance: 0, refundable: 0, writeoff_allowed: true };
+  const debtRow = { ...fixture("e1_row_after_790000"), debt: 469000, advance: 0, writeoff_allowed: true };
   const view = L.balanceView(debtRow);
   assert.equal(view.kind, "debt");
   assert.equal(plain(view.text), "Долг 469 000 сум");
@@ -291,10 +291,9 @@ test("a row says «Долг N сум» or «Аванс N сум»; the actions f
   assert.equal(plain(L.balanceView(advanceRow).text), "Аванс 21 000 сум");
   assert.match(L.balanceView(advanceRow).className, /emerald/);
   assert.equal(L.canWriteOff(advanceRow), false); // writeoff_allowed: false, and no debt
-  assert.equal(L.canRefund(advanceRow), true); // refundable 21 000
+  assert.equal(L.canRefund(advanceRow), true); // an advance of 21 000
   assert.equal(L.balanceView({ debt: 0, advance: 0 }).text, "");
-  assert.equal(L.signedBalanceText(-269000), `Долг ${P.formatMoney(269000)}`);
-  assert.equal(L.signedBalanceText(0), "0");
+  assert.equal(L.signedBalanceText, undefined, "the balance of a statement row is the server's `balance_text`; the screen made a sentence of its own before");
   // owner 21.10: the first tab is «Должники»; the debt is shown on its rows
   assert.equal(P.PAYMENT_BUCKETS[0].label, "Должники");
   assert.equal(P.payIsDue({ status: "active", last_payment: { id: "p" }, debt: 1000 }), true); // a debt keeps the main button filled
@@ -438,7 +437,7 @@ test("a statement that does not add up is called out, not hidden (the identity A
   assert.equal(L.statementReconciles({ ...statement, rows: withVoided }), true);
   const view = L.statementRowView({ ...withVoided[2], balance_after: null });
   assert.equal(view.cancelled, true);
-  assert.equal(view.balance, "");
+  assert.equal("balance" in view, false, "the running balance (`balance_text`) is not read: the column of a statement is `open_*`")
   assert.equal(view.cancelNote, "Отменено: ошибка · Рустам");
   assert.equal(L.validateStatementRange("2026-10-10", "2026-10-01"), "Конец периода раньше начала");
   assert.equal(L.validateStatementRange("", ""), null);
@@ -704,7 +703,6 @@ test("settings: the start of the accounting is an owner's date with the impact o
   assert.deepEqual(P.accountingStartImpactLines(dry.impact).map(plain), [
     "Долг изменится у 12 учеников: +5 400 000 сум",
     "Аванс изменится у 3 учеников: \u2212" + "1 200 000 сум",
-    "Можно будет вернуть: \u2212" + "900 000 сум",
   ]);
   assert.deepEqual(P.accountingStartImpactLines({ memberships_with_new_debt: 0, debt_delta: 0 }), ["Долг и аванс ни у кого не изменятся"]);
   assert.equal(P.validatePaymentSettings({ ...P.DEFAULT_PAYMENT_SETTINGS, accounting_start_date: "2019-12-31" }, "payments"), "Начало учёта оплат — не раньше 01.01.2020");

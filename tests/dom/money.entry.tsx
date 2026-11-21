@@ -43,7 +43,7 @@ w.__log = [] as string[];
 const log = (text: string) => w.__log.push(text);
 
 const MEMBERSHIP = { membership_id: "m1", group_id: "g1", student_name: "Иванов Иван", group_name: "7-А Алгебра" };
-const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, refundable: 344000 };
+const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, advance: 344000 };
 
 /** The queue of the decisions with the REAL toast of the page: what a person sees after «Оплатить». */
 function DecisionsWithToast({ items }: { items: any[] }) {

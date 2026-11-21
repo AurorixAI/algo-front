@@ -64,7 +64,7 @@ function leaveMembership(index, { money = true, kind = "leave", names = LONG } =
   const rub = (n) => `${String(n).replace(/\B(?=(\d{3})+$)/g, "\u00a0")}\u00a0сум`;
   return {
     membership_id: id, group_id: base.group_id, group_name: name,
-    money: money ? { unpaid: 120000, advance: 0, refundable: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: true } : null,
+    money: money ? { unpaid: 120000, advance: 0, paid_until: null, charged_after_leave: 0, individual_price_ends: true } : null,
     has_open_balance: true, allowed: money ? ["keep", "writeoff"] : ["keep"],
     effects: {
       kind, moves: [], money_text: null, texts: [],

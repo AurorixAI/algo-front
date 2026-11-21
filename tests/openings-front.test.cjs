@@ -56,7 +56,8 @@ test("the contract: every operation has a helper in orgApi, every golden answer 
     const preview = O.normalizePreview(raw);
     assert.equal(preview.digest, raw.digest);
     assert.equal(preview.items.length, raw.items.length);
-    assert.deepEqual(preview.impact, raw.impact);
+    const { refundable_delta: _deprecated, ...rawImpact } = raw.impact; // the server marks `refundable_delta` «устарело: равно advance_delta»: the screen does not read it
+    assert.deepEqual(preview.impact, rawImpact);
     assert.deepEqual(preview.summary, raw.summary);
   }
   const applied = O.normalizeApplied(fixture("O07_applied"));

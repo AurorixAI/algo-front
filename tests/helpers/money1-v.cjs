@@ -17,7 +17,7 @@ async function start() {
 const plain = (text) => String(text ?? "").replace(/[\s ]+/g, " ").trim();
 const conflict = (code, message, extra = {}) => ({ status: 409, json: { detail: { code, message, ...extra } } });
 const invalid = (code, message, extra = {}) => ({ status: 422, json: { detail: { code, message, ...extra } } });
-const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, refundable: 344000 };
+const ROW = { membership_id: "m1", student_id: "st1", student_name: "Иванов Иван", group_id: "g1", group_name: "7-А Алгебра", is_primary: true, is_active: true, status: "ok", debt: 350000, advance: 344000 };
 
 async function open(browser, entry, name, { width = 1280, user, props, server } = {}) {
   const run = await openPage(browser, entry, server, { width, height: 900 });

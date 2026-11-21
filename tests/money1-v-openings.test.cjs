@@ -18,7 +18,7 @@ test.after(async () => { await browser.close(); });
 
 const NB = " ";
 const WARNING = { code: "OPENING_OVER_PAYMENTS", message: `У ученика уже есть оплаты на 600${NB}000${NB}сум — покрытие станет до 20.01` };
-const row = { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0, refundable: 0 };
+const row = { membership_id: "m1", student_id: "st1", student_name: "Иванов", group_id: "g1", group_name: "7-А", is_primary: true, is_active: true, status: "ok", debt: 0 };
 const server = (warnings) => (request) => {
   if (request.method === "PUT" && request.path === "/auth/org/memberships/m1/opening-balance") {
     return { json: { opening: /dry_run/.test(request.query) ? null : { id: "o1" }, impact: { before: {}, after: {} }, dry_run: /dry_run/.test(request.query), row, warnings } };

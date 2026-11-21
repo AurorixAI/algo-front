@@ -86,7 +86,7 @@ test("a 403 OPENING_OWNER_ONLY is the server's words (kind other), not «Нет 
   assert.deepEqual([failure.kind, failure.message], ["other", LOCKED]);
   assert.equal(O.classifyOpeningsError({ status: 403 }).kind, "denied");
   assert.equal(O.OPENING_LOCKED_TEXT, LOCKED);
-  const row = { is_active: true, debt: 0, writeoff_allowed: false, refundable: 0 };
+  const row = { is_active: true, debt: 0, writeoff_allowed: false };
   assert.ok(M.membershipActionKeys(row, {}).includes("opening"));
   assert.ok(M.membershipActionKeys(row, { openingLocked: false }).includes("opening"));
   assert.ok(!M.membershipActionKeys(row, { openingLocked: true }).includes("opening"));

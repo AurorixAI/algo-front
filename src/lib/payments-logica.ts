@@ -44,8 +44,6 @@ export interface ImpactMoney {
   paid_until_before: string | null;
   paid_until_after: string | null;
   charged_delta: number;
-  refundable_before: number;
-  refundable_after: number;
 }
 
 export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): ImpactMoney | null {
@@ -58,8 +56,6 @@ export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): I
     paid_until_before: raw.paid_until_before ?? null,
     paid_until_after: raw.paid_until_after ?? null,
     charged_delta: num(raw.charged_delta),
-    refundable_before: num(raw.refundable_before),
-    refundable_after: num(raw.refundable_after),
   };
 }
 
@@ -90,7 +86,6 @@ export interface FreshBalance {
   membership_id: string;
   debt: number;
   advance: number;
-  refundable: number;
 }
 
 export interface LogicaError {
@@ -117,7 +112,7 @@ export function logicaError(error: unknown, fallback = "Не удалось вы
     message,
     dates: arr<string>(detail?.dates),
     students: arr<{ membership_id: string; student_name: string }>(detail?.students),
-    fresh: arr<FreshBalance>(detail?.fresh).map((item) => ({ membership_id: String(item.membership_id), debt: num(item.debt), advance: num(item.advance), refundable: num(item.refundable) })),
+    fresh: arr<FreshBalance>(detail?.fresh).map((item) => ({ membership_id: String(item.membership_id), debt: num(item.debt), advance: num(item.advance) })),
     debt: detail?.debt === null || detail?.debt === undefined ? null : num(detail.debt),
     payoutId: (detail?.payout_id as string | null | undefined) ?? null,
     canCorrect: detail?.can_correct === true,
@@ -506,7 +501,6 @@ export interface LeaveMoney {
   debt_amount: number;
   due_amount: number;
   advance: number;
-  refundable: number;
   paid_until: string | null;
   charged_after_leave: number;
   individual_price_ends: boolean;
@@ -566,7 +560,6 @@ export function normalizeLeavePreview(raw: unknown): LeavePreview {
             debt_amount: item.money.debt_amount === undefined ? num(item.money.unpaid) : num(item.money.debt_amount),
             due_amount: num(item.money.due_amount),
             advance: num(item.money.advance),
-            refundable: num(item.money.refundable),
             paid_until: item.money.paid_until ?? null,
             charged_after_leave: num(item.money.charged_after_leave),
             individual_price_ends: Boolean(item.money.individual_price_ends),
@@ -600,7 +593,7 @@ export type SettleKind = "none" | "hidden" | "debt" | "advance";
 export function settleKind(membership: LeaveMembership): SettleKind {
   if (!membership.money) return membership.has_open_balance ? "hidden" : "none";
   if (membership.money.unpaid > 0) return "debt";
-  if (membership.money.refundable > 0 || membership.money.advance > 0) return "advance";
+  if (membership.money.advance > 0) return "advance";
   return "none";
 }
 
@@ -665,8 +658,8 @@ export function buildSettle(preview: LeavePreview | null, choices: Record<string
     if (!membership.money) continue;
     const choice = choices[membership.membership_id] ?? defaultSettleChoice();
     const seen = { membership_id: membership.membership_id, expected_unpaid: membership.money.unpaid, expected_advance: membership.money.advance, expected_as_of: preview?.as_of || null };
-    if (choice.action === "refund" && membership.money.refundable > 0) {
-      out.push({ ...seen, action: "refund", expected_refundable: membership.money.refundable, method: choice.method });
+    if (choice.action === "refund" && membership.money.advance > 0) {
+      out.push({ ...seen, action: "refund", expected_refundable: membership.money.advance, method: choice.method });
     } else if (choice.action === "writeoff" && membership.money.unpaid > 0) {
       out.push({ ...seen, action: "writeoff", reason: choice.reason.trim() });
     } else {
