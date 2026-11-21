@@ -457,7 +457,6 @@ export interface AllocationSummary {
   unpaid_after: number;
   advance_after: number;
   paid_until_before: string | null;
-  paid_until_after: string | null;
 }
 
 export interface PaymentSaveResult {
