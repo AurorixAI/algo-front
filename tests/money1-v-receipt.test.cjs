@@ -155,3 +155,20 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+test("sheet: «Состояние на дату выдачи» is drawn only when its sentence differs from the row «Состояние» (no twin lines)", async () => {
+  {
+    const same = { ...RECEIPT, receipt_state_text: "оплачено до 14.11", state_on_issue: { ...RECEIPT.state_on_issue, text: "оплачено до 14.11" } };
+    const { page } = await receipt(1280, { receipt: same });
+    assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), "оплачено до 14.11");
+    assert.equal(await page.locator('[data-testid="receipt-state-on-issue"]').count(), 0, "the same sentence twice: one line");
+    await page.close();
+  }
+  {
+    const differ = { ...RECEIPT, receipt_state_text: "оплачено до 30.11" };
+    const { page } = await receipt(1280, { receipt: differ });
+    assert.equal(plain(await page.textContent('[data-testid="receipt-state-text"]')), "оплачено до 30.11");
+    assert.match(plain(await page.textContent('[data-testid="receipt-state-on-issue"]')), /Состояние на дату выдачиНа 07\.11\.2026: долг/);
+    await page.close();
+  }
+});

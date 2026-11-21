@@ -48,6 +48,8 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   const facts = receiptFacts(receipt);
   // PAY-TAILS Б1.5: «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period) - the server's line; the screen counts no date
   const stateText = receiptStateTextOf(receipt);
+  // the line is shown only when it says something the row «Состояние» does not (the server often gives the same sentence twice)
+  const issueText = receipt.state_on_issue?.text?.trim() && receipt.state_on_issue.text.trim() !== stateText?.trim() ? receipt.state_on_issue.text : null;
   const issued = receipt.issued_at ? `Выдана ${formatUtcNaiveAsBusinessDateTime(receipt.issued_at).replace(" ", " · ")}` : null;
   const stampLine = receipt.void_note ? receipt.void_reason || "причина не указана" : `${receipt.void_reason || "причина не указана"}${receipt.voided_at ? ` · ${formatUtcNaiveAsBusinessDate(receipt.voided_at)}` : ""}`;
 
@@ -117,10 +119,10 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
       )}
 
       {/* Money-1 V5: the account of the student ON THE DAY the sheet is issued - the server's own sentence; the numbers above are the day of the payment */}
-      {receipt.state_on_issue?.text && (
+      {issueText && (
         <section aria-label="Состояние на дату выдачи" className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm print:border-slate-400" data-testid="receipt-state-on-issue">
           <h2 className="text-xs text-slate-500">Состояние на дату выдачи</h2>
-          <p className="mt-0.5 font-medium text-slate-800">{receipt.state_on_issue.text}</p>
+          <p className="mt-0.5 font-medium text-slate-800">{issueText}</p>
         </section>
       )}
 
