@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import type { ChipTone } from "@/lib/chip-tone";
  * A press on the row opens the statement; the action does not (`stopPropagation`); the row has no «⋯».  Every word is the server's.
  * The row is ONE link stretched over the card and the button lifted over it, so the keyboard reaches each once and Enter / Space fire the button ONCE.
  */
-export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, line, second, action, testId = "money-row" }: {
+export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, sub, group, second, action, testId = "money-row" }: {
   name: string;
   /** Where the press on the row leads (the statement of the membership). */
   statementHref: string;
@@ -23,8 +22,10 @@ export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, li
   /** The label of the sum (the server's `state_text` / `debt_text` / `due_text`); null - the server said nothing. */
   label: string | null;
   tone: ChipTone;
-  /** «Математика 7 · просрочено 14 дней»: the group and the sub-line, already put together by the caller from the server's words. */
-  line: ReactNode;
+  /** The server's sub-line of the state («просрочено 45 дней», «ушёл 28.10»): it does not shrink. */
+  sub?: string | null;
+  /** The group: only its name is cut by an ellipsis («просрочено 45 дней · Математика 7»); the group's own tab has none. */
+  group?: string | null;
   second?: string | null;
   /** The action of the row by its state; null - the statement only. */
   action: { label: string; ariaLabel: string; onClick: () => void; testId?: string } | null;
@@ -44,7 +45,10 @@ export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, li
         {label && <Chip tone={tone} className="shrink-0" testId="pay-label">{label}</Chip>}
       </div>
       <div className="pointer-events-none relative mt-0.5 flex min-h-10 min-w-0 items-center justify-between gap-3">
-        <p className="min-w-0 flex-1 truncate text-sm text-slate-500" data-testid="money-row-line">{line}</p>
+        <p className="flex min-w-0 flex-1 text-sm text-slate-500" data-testid="money-row-line">
+          {sub && <span className="max-w-full shrink-0 truncate">{sub}</span>}
+          {group && <span className="min-w-0 truncate whitespace-pre">{sub ? " · " : ""}{group}</span>}
+        </p>
         {action && (
           <Button
             type="button"

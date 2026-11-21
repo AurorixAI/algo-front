@@ -86,8 +86,10 @@ export function OpeningsHeaderLink({ paymentsBase, summary: given }: { paymentsB
       <ClipboardList className="h-4 w-4 text-slate-500" aria-hidden="true" />
       {OPENINGS_TITLE}
       {badge !== null && (
-        <span data-testid="openings-header-badge" aria-label={`Не заполнено: ${badge}`} className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-800">{badge}</span>
+        <span data-testid="openings-header-badge" aria-label={`Не заполнено: ${badge}`} className="max-sm:hidden rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-800">{badge}</span>
       )}
+      {/* a phone: the notice is a label of this link (the banner above the list is not drawn there), as with the prices */}
+      {badge !== null && <span className="sm:hidden" data-testid="openings-header-label">· {badge} не заполнено</span>}
     </Link>
   );
 }

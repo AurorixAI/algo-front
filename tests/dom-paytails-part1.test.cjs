@@ -190,27 +190,54 @@ const wholeRows = (page, height) => page.evaluate((limit) => {
 }, height - NAV);
 const phoneServer = (rows, over = {}) => server(null, { ...BUSY, ...over, status: (q) => (/bucket=debtors/.test(q) ? X.page(rows, { total: 12, students: 12, amount_total: 3780000 }) : X.statusOf(q)) });
 
-test("Б2.8 (frames 20-21): 375×812 - the warning of the prices, the age of the debt, the empty anchor, the tabs: at least THREE whole rows over the bottom menu; 375×667 - at least two", async () => {
+test("Б2.8 (frames 20-21): 375×812 with EVERY conditional block at once (the label of the prices, the label of the openings, «Давность», the tabs): at least THREE whole rows over the bottom menu; 375×667 - at least two", async () => {
   for (const [height, min] of [[812, 3], [667, 2]]) {
-    const { page } = await open(375, height, phoneServer(ROWS5, { openings: { ...OPENINGS, state: "done" } }), payments("bucket=debtors"));
+    const { page } = await open(375, height, phoneServer(ROWS5), payments("bucket=debtors"));   // BUSY: the openings are pending, 38 missing
     await page.waitForSelector('[data-testid="payments-phone-list"] li', { timeout: 8000 });
     await page.waitForSelector('[data-testid="payments-price-label"]');
+    await page.waitForSelector('[data-testid="openings-header-label"]');
     await page.waitForSelector('[data-testid="debt-age-open"]');
+    assert.equal(await page.getByTestId("openings-banner").count(), 0, "a phone: no banner above the list");
+    assert.equal(plain(await page.innerText('[data-testid="openings-header-label"]')), "· 38 не заполнено");
+    assert.match(await page.getAttribute('[data-testid="openings-header-link"]', "href"), /\/payments\/openings$/);
     const fit = await wholeRows(page, height);
     assert.ok(fit.n >= min, `375×${height}: ${fit.n} whole rows over the menu (need ${min}); row heights ${fit.heights}, the first row starts at ${fit.top}`);
     await page.close();
   }
 });
 
-test("Б2.8: …and with the banner of the openings on the tab «Должники» as well (the biggest conditional block of the phone, 190 px): the numbers are kept - 375×812 at least ONE whole row, 375×667 the list starts over the menu (one scroll reaches it)", async () => {
-  for (const height of [812, 667]) {
-    const { page } = await open(375, height, phoneServer(ROWS5), payments("bucket=debtors"));
-    await page.waitForSelector('[data-testid="openings-banner"]', { timeout: 8000 });
-    const fit = await wholeRows(page, height);
-    assert.ok(fit.top < height - NAV, `375×${height} with the banner: the first row starts at ${fit.top}, under the menu (${height - NAV}); ${JSON.stringify(fit)}`);
-    if (height === 812) assert.ok(fit.n >= 1, `375×812 with the banner: ${fit.n} whole rows`);
-    await page.close();
-  }
+test("Б2.8: from 640 px the banner of the openings stays above the list; the label of the link is a phone's", async () => {
+  const { page } = await open(1280, 900, phoneServer(ROWS5), payments("bucket=debtors"));
+  await page.waitForSelector('[data-testid="openings-banner"]', { timeout: 8000 });
+  assert.equal(await page.getByTestId("openings-header-label").isVisible(), false);
+  await page.close();
+});
+
+test("the tab «Аванс» has no line «У N учеников не задана цена» (the other tabs keep it)", async () => {
+  const { page } = await open(1280, 900, server(null, { summary: { ...X.SUMMARY, price_missing: 5 } }), payments("bucket=advance"));
+  await listLoaded(page);
+  await page.waitForSelector('[data-testid="position-advance"]');
+  assert.equal(await page.getByTestId("payments-price-missing").count(), 0);
+  await page.close();
+  const other = await open(1280, 900, server(null, { summary: { ...X.SUMMARY, price_missing: 5 } }), payments("bucket=active"));
+  await other.page.waitForSelector('[data-testid="payments-price-missing"]', { timeout: 8000 });
+  await other.page.close();
+});
+
+test("the phone summary says «Аванс 748 000 сум · 5 уч.»", async () => {
+  const { page } = await open(375, 812, server(), payments("bucket=debtors"));
+  await page.waitForSelector('[data-testid="position-advance-compact"]');
+  assert.equal(plain(await page.innerText('[data-testid="position-advance-compact"]')), "Аванс 748 000 сум · 5 уч.");
+  await page.close();
+});
+
+test("the group's tab from 640: «Внести оплату» is the blue main button only where something is unpaid; «Оплачено до» and «Аванс» get an outline", async () => {
+  const { page } = await open(1280, 900, groupServer(), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+  await page.waitForSelector('[data-testid="group-payment-row"]', { timeout: 9000 });
+  await page.click('[data-testid="payments-left-toggle"]');
+  const kinds = await page.$$eval('[data-testid="group-payment-row"], [data-testid="group-payment-left-row"]', (els) => els.map((li) => { const b = [...li.querySelectorAll("button")].find((x) => /Внести оплату|Вернуть/.test(x.textContent)); return [li.innerText.split("\n")[0].trim(), b.dataset.variant]; }));
+  assert.deepEqual(Object.fromEntries(kinds), { "Анвар Каримов": "secondary", "Лола Юсупова": "primary", "Мадина Турсунова": "secondary", "Феруза Орипова": "primary", "Дилшод Эрматов": "primary", "Камола Эшонова": "secondary" });
+  await page.close();
 });
 
 test("Б2.8: the compact row - name and label on line 1 (the label does not shrink), «group · sub» and a 40 px button on line 2, a third small line only for the second sum; the row is ≤ 84 px", async () => {
@@ -225,7 +252,7 @@ test("Б2.8: the compact row - name and label on line 1 (the label does not shri
   const timur = rows[0], lola = rows[1];
   assert.equal(timur.name, "Тимур Рашидов");
   assert.equal(timur.label, "Долг 600 000 сум");
-  assert.equal(timur.line, "Математика 7 · просрочено 45 дней · оплачено до 30.09");
+  assert.equal(timur.line, "просрочено 45 дней · оплачено до 30.09 · Математика 7", "the state first, only the group is cut");
   assert.match(timur.second.replace(/[\u00A0\u202F]/g, " "), /^и к оплате 231 000 сум/);
   assert.equal(lola.second, null, "no third line without a second sum");
   assert.ok(lola.h <= 84, `an ordinary row is ${lola.h} px`);
@@ -247,12 +274,19 @@ test("Б2.8: a press on the row opens the statement; the button does not (stopPr
   assert.equal(await page.getByRole("dialog").count(), 1, "Enter opened ONE window");
   assert.equal(await page.evaluate(() => window.__nav), 0, "the press on the button did not open the statement");
   await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await button.focus();
+  await page.keyboard.press("Space");
+  await page.getByRole("dialog").waitFor({ timeout: 5000 });
+  assert.equal(await page.getByRole("dialog").count(), 1, "Space opened ONE window");
+  assert.equal(await page.evaluate(() => window.__nav), 0, "…and not the statement");
+  await page.keyboard.press("Escape");
   await page.close();
   const adv = await open(375, 812, server(), payments("bucket=advance"));
   await adv.page.waitForSelector('[data-testid="payments-phone-list"] li');
   const first = await adv.page.$eval('[data-testid="payments-phone-list"] > li', (li) => ({ t: li.innerText.replace(/\s+/g, " ").trim(), b: li.querySelector("button").textContent.trim() }));
   assert.equal(first.b, "Вернуть");
-  assert.match(first.t, /^Яхё Саидов Аванс 37 000 сум Математика 4 · ушёл 28\.10 Вернуть$/);
+  assert.match(first.t, /^Яхё Саидов Аванс 37 000 сум ушёл 28\.10 · Математика 4 Вернуть$/);
   await adv.page.close();
 });
 

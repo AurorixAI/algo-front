@@ -276,8 +276,8 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     const debtCall = calls.find((c) => c.path === "/auth/org/payments/status");
     assert.match(debtCall.query, /bucket=debtors/);
     await page.waitForSelector('li:has-text("Иванов Иван")');
-    // a phone (PAY-TAILS Б2.8): the compact row says «label · group · the server's sub-line» in one card; a table says the label and the sub-line under it
-    assert.match(plain(await page.locator("ul").first().innerText()), width < 640 ? /Долг 600 000 сум 7-А Алгебра · просрочено 20 дней/ : /Долг 600 000 сум просрочено 20 дней/);
+    // a phone (PAY-TAILS Б2.8): the compact row says «label · the server's sub-line · group» in one card; a table says the label and the sub-line under it
+    assert.match(plain(await page.locator("ul").first().innerText()), width < 640 ? /Долг 600 000 сум просрочено 20 дней · 7-А Алгебра/ : /Долг 600 000 сум просрочено 20 дней/);
     assert.ok(!/Петров/.test(await page.textContent("body")), "the student within his term is not among the debtors");
     const sfx = width >= 640 ? "" : "-compact";      // a phone: ONE compact summary instead of the cards
     // a phone: the row of the summary is a block with a stretched link (the words stand beside the link, not in it)
@@ -300,7 +300,7 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     assert.match(plain(await page.textContent('[role="tab"][aria-selected="true"]')), /^К оплате 1$/);
     assert.match(other.calls.find((c) => c.path === "/auth/org/payments/status").query, /bucket=to_pay/);
     const chipText = plain(await page.locator('li:has-text("Петров Пётр")').innerText());
-    assert.match(chipText, width < 640 ? /К оплате 300 000 сум 7-А Алгебра · до 07\.11/ : /К оплате 300 000 сум до 07\.11/);
+    assert.match(chipText, width < 640 ? /К оплате 300 000 сум до 07\.11 · 7-А Алгебра/ : /К оплате 300 000 сум до 07\.11/);
     assert.equal((chipText.match(/К оплате 300 000 сум/g) ?? []).length, 1, "said once");
     const chipColor = await page.evaluate(() => { const chip = document.querySelector('li [data-testid="pay-label"]'); return getComputedStyle(chip).color; });
     assert.ok(chipColor !== "rgb(185, 28, 28)" && chipColor !== "rgb(190, 18, 60)", `the chip within the term is not red/rose: ${chipColor}`);

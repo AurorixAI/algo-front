@@ -83,7 +83,7 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
       assert.equal(await page.locator('[data-testid="payments-position"]').isVisible(), false);
       const compactRows = (await page.locator('[data-testid="payments-position-compact"] > div').allInnerTexts()).map(plain);
       assert.deepEqual(compactRows, ["Долг 3 780 000 сум 12", "К оплате срок 5 дней 1 524 000 сум 6"]);
-      assert.equal(plain(await page.locator('[data-testid="payments-position-compact"] > p').innerText()), "Аванс 148 000 сум · 4");
+      assert.equal(plain(await page.locator('[data-testid="payments-position-compact"] > p').innerText()), "Аванс 148 000 сум · 4 уч.");
       // 14А.2(б): the term stands in the row of «К оплате» (not at the advance)
       assert.equal(await page.locator('[data-testid="payments-position-compact"] > div:has([data-testid="pay-due-term-compact"])').count(), 1);
       assert.match(plain(await page.locator('[data-testid="payments-position-compact"] > div:has([data-testid="pay-due-term-compact"])').innerText()), /^К оплате/);
@@ -104,7 +104,7 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     const rows = await page.locator("li").allInnerTexts();
     const kamila = plain(rows.find((t) => t.includes("Камила")));
     // a phone (PAY-TAILS Б2.8): the compact row says «label · group · the term» - the same words of the server, in the order of the card
-    const term = (text) => (width < 640 ? new RegExp(text.replace(" до ", " Математика 7 · до ")) : new RegExp(text));
+    const term = (text) => (width < 640 ? new RegExp(`${text} · Математика 7`) : new RegExp(text));
     assert.match(kamila, term("К оплате 323 000 сум до сегодня"));
     assert.match(plain(rows.find((t) => t.includes("Санжар"))), term("К оплате 277 000 сум до 22\\.11"));
     assert.match(plain(rows.find((t) => t.includes("Азиз"))), term("К оплате 231 000 сум до 24\\.11"));
@@ -116,7 +116,7 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     assert.equal(sum, X.SUMMARY.due_total);
     // a student with both sums: the second line says the debt, the term-first line stays «к оплате»
     const timur = plain(rows.find((t) => t.includes("Тимур")));
-    assert.match(timur, width < 640 ? /К оплате 231 000 сум Математика 7 · до 24\.11 Внести и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/ : /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/);
+    assert.match(timur, width < 640 ? /К оплате 231 000 сум до 24\.11 · Математика 7 Внести и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/ : /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/);
     // no notice above the page, no column of the price, no «Цена»
     assert.equal(await page.locator('[data-testid="payments-alert-banner"]').count(), 0);
     const body = plain(await page.locator("body").first().innerText());
@@ -137,9 +137,9 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
       // 14А.2: the first screen of a phone (375 × 812) holds the tabs and TWO rows of the list WHOLE (the bottom of the second card is inside the screen)
       const first = await page.evaluate(() => { const tabs = document.querySelector(`[role="tablist"]`).getBoundingClientRect(); const rows = [...document.querySelectorAll(`li`)].slice(0, 2).map((el) => el.getBoundingClientRect()); return { tabsBottom: Math.round(tabs.bottom), rows: rows.map((r) => [Math.round(r.top), Math.round(r.bottom)]) }; });
       assert.ok(first.tabsBottom <= 812 && first.rows.length === 2 && first.rows[1][1] <= 812, `tabs and two whole rows on 375 × 812: ${JSON.stringify(first)}`);
-      // the row is compact (PAY-TAILS Б2.8, frame 21): the group stands in ONE muted line with the server's term - «Математика 7 · до сегодня» - no column of its own, no class line; ≤ 84 px (≤ 100 with the third line)
+      // the row is compact (PAY-TAILS Б2.8, frame 21): the group stands in ONE muted line with the server's term - «до сегодня · Математика 7» - no column of its own, no class line; ≤ 84 px (≤ 100 with the third line)
       const card = await page.evaluate(() => { const li = document.querySelector(`[data-testid="payments-phone-list"] > li`); return { line: li.querySelector(`[data-testid="money-row-line"]`).innerText.replace(/\s+/g, " ").trim(), groupCellShown: [...li.querySelectorAll(`[data-testid="payment-row-group"]`)].some((el) => el.offsetParent !== null), height: Math.round(li.getBoundingClientRect().height) }; });
-      assert.equal(card.line, "Математика 7 · до сегодня");
+      assert.equal(card.line, "до сегодня · Математика 7");
       assert.equal(card.groupCellShown, false);
       assert.ok(card.height <= 84, `a compact row: ${card.height} px`);
     }

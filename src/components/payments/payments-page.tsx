@@ -398,7 +398,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             ))}
             {advanceCard && (
               <p className="flex flex-wrap items-center gap-x-3 border-t border-slate-100 py-2 text-xs text-slate-500">
-                <Link href={cardHref("advance")} data-testid="position-advance-compact" className="inline-flex min-h-6 items-center tabular-nums">Аванс {advanceCard.amount}{advanceCard.students ? ` · ${advanceCard.students}` : ""}</Link>
+                <Link href={cardHref("advance")} data-testid="position-advance-compact" className="inline-flex min-h-6 items-center tabular-nums">Аванс {advanceCard.amount}{advanceCard.students ? ` · ${advanceCard.students} уч.` : ""}</Link>
               </p>
             )}
           </section>
@@ -467,13 +467,13 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           ]}
         />
       )}
-      {bucket === "debtors" && <OpeningsBanner paymentsBase={paymentsBase} />}
+      {bucket === "debtors" && !phone && <OpeningsBanner paymentsBase={paymentsBase} />}
       {bucket === "debtors" && !narrowed && !phone && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
       {bucket === "debtors" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}
 
-      {noPrice && (
+      {noPrice && bucket !== "advance" && (
         <p role="status" className="-mt-2 text-sm text-amber-800 max-sm:hidden" data-testid="payments-price-missing">
           {noPrice} — <Link href={pricesBaseOf(groupsBasePath)} className="font-semibold text-primary-700 hover:underline">Задать</Link>
         </p>
@@ -514,7 +514,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                 onOpenStatement={() => markReceiptNavigation(row.membership_id)}
                 label={label.text}
                 tone={label.tone}
-                line={[row.group_name, label.sub].filter(Boolean).join(" · ")}
+                sub={label.sub}
+                group={row.group_name}
                 second={label.second}
                 action={action}
               />

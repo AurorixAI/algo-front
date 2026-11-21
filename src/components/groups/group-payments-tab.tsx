@@ -37,7 +37,6 @@ import { useRefundFlow } from "@/components/payments/refund-flow";
 import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
-  payIsDue,
   statementHref,
   type MembershipPaymentRow,
   type PaymentBucket,
@@ -406,7 +405,8 @@ function PaymentRow({ view, phone, closed = false, studentsBasePath, paymentsBas
   onPay: () => void;
   onRefund: () => void;
 }) {
-  const due = payIsDue(view.row);
+  // the main (blue) button only where something is unpaid (a debt or a sum to pay); the rest is an outline, as on the page «Оплаты»
+  const due = (Number(view.row.debt) || 0) > 0;
   const acts = rowActionsOf(view.row);
   const statement = statementHref(paymentsBasePath, view.membershipId);
   if (phone) {
@@ -421,7 +421,7 @@ function PaymentRow({ view, phone, closed = false, studentsBasePath, paymentsBas
         onOpenStatement={() => markReceiptNavigation(view.membershipId)}
         label={view.chip.label}
         tone={view.chip.tone}
-        line={view.chip.sub ?? ""}
+        sub={view.chip.sub}
         action={action}
       />
     );

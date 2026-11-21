@@ -117,7 +117,7 @@ test("fix5 → PAY-DUE: the status of a debtor - the label and ONE line under it
       // the compact row: the label is a chip on line 1, line 2 is «group · the server's days» - the days once, no second line of the age
       const row = run.page.locator('[data-testid="payments-phone-list"] > li').nth(1);
       const phone = await row.evaluate((el) => ({ line: el.querySelector('[data-testid="money-row-line"]').textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim(), paragraphs: el.querySelectorAll("p").length, label: el.querySelector('[data-testid="pay-label"]').textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim() }));
-      assert.deepEqual([phone.line, phone.paragraphs, phone.label], ["7-А Алгебра · просрочено 62 дней", 2, "Долг 450000 сум"], "the label is a chip, line 2 holds the group and ONE line of the days");
+      assert.deepEqual([phone.line, phone.paragraphs, phone.label], ["просрочено 62 дней · 7-А Алгебра", 2, "Долг 450000 сум"], "the label is a chip, line 2 holds the group and ONE line of the days");
     } else {
       const cell = run.page.locator('[data-testid="status-cell"]').nth(1);
       const lines = await cell.evaluate((el) => [...el.querySelectorAll("p")].map((p) => p.textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
