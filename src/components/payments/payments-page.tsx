@@ -3,7 +3,7 @@
 import { type CSSProperties, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, Undo2, XCircle } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Plus, Search, Tags, TrendingUp, Undo2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
   bucketCount,
@@ -32,7 +32,7 @@ import {
   refundReceiptHref,
 } from "@/lib/payments";
 import { payLabel } from "@/lib/pay-state";
-import { ADVANCE_EMPTY, advanceLeftOf, rowActionsOf } from "@/lib/paytails";
+import { ADVANCE_EMPTY, advanceLeftOf, isClosedRow, rowActionsOf } from "@/lib/paytails";
 import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import {
@@ -501,7 +501,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           {items.map((row) => {
             const label = payLabel(row, bucket);
             const acts = rowActionsOf(row);
-            const action = acts.pay
+            const action = acts.pay && !(bucket === "advance" && !isClosedRow(row))
               ? { label: "Внести", ariaLabel: `${PAY_ACTION_LABEL}: ${row.student_name}`, onClick: () => setForm({ kind: "create", row, payment: null }), testId: "payment-row-pay" }
               : acts.refund
                 ? { label: "Вернуть", ariaLabel: `${REFUND_ACTION_LABEL}: ${row.student_name}`, onClick: () => setRefundRow(row), testId: "payment-row-refund" }
@@ -619,9 +619,12 @@ function PaymentRow({
   // «Выписка» and the card of the student are links of the row (the statement icon, the name), never menu items.
   // PAY-TAILS Б2.2: the action of the row follows the STATE of the membership (`rowActionsOf`): a closed one with an advance gets «Вернуть» in the row, an open one keeps «Вернуть аванс» in the «⋯»
   const acts = rowActionsOf(row);
+  // the tab «Аванс»: an OPEN student has paid ahead - «Внести оплату» is not the button of the row but an item of the «⋯» (the statement stays a link)
+  const payInMenu = acts.pay && bucket === "advance" && !isClosedRow(row);
   const menu: RowMenuItem[] = [];
   if (canWriteOff(row)) menu.push({ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: onWriteoff });
   if (acts.menuRefund) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
+  if (payInMenu) menu.push({ key: "pay", label: PAY_ACTION_LABEL, icon: Plus, onSelect: onPay });
   if (last) {
     // A carry-over cannot be corrected (correct the payment it came from); cancelling it stays possible.
     if (!isCarryOver(last)) menu.push({ key: "correct", label: "Исправить последнюю оплату", icon: Pencil, onSelect: () => onCorrect(last) });
@@ -667,7 +670,7 @@ function PaymentRow({
         </div>
       </DataCell>
       <DataCell col="actions">
-        {acts.pay && <PayButton row={row} onPay={onPay} />}
+        {acts.pay && !payInMenu && <PayButton row={row} onPay={onPay} />}
         {acts.refund && <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="max-sm:flex-1" data-testid="payment-row-refund">{REFUND_ROW_LABEL}</Button>}
         <Link
           href={statementHref(paymentsBase, row.membership_id)}

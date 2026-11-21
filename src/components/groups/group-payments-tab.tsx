@@ -311,8 +311,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
       {leftViews.length > 0 && (
         <section aria-label={SETTLED_BAND_TITLE} data-testid="payments-left" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
           <button type="button" onClick={() => setShowLeft((value) => !value)} aria-expanded={showLeft} data-testid="payments-left-toggle" className="flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3.5 text-sm font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 lg:rounded-none lg:border-0">
-            <span>{SETTLED_BAND_TITLE} <span className="font-medium tabular-nums text-slate-500">{leftViews.length}</span></span>
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+            <span className="min-w-0 py-2 text-left">{SETTLED_BAND_TITLE} <span className="font-medium tabular-nums text-slate-500">{leftViews.length}</span></span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-500">
               <span className="max-sm:hidden">{showLeft ? "скрыть" : "показать"}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${showLeft ? "rotate-180" : ""}`} aria-hidden="true" />
             </span>

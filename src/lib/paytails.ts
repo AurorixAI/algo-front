@@ -79,8 +79,8 @@ export function settledRowsOf(lists: ReadonlyArray<ReadonlyArray<MembershipPayme
   return rows.sort((a, b) => weight(a) - weight(b) || size(b) - size(a) || a.student_name.localeCompare(b.student_name, "ru"));
 }
 
-/** «Ушедшие с расчётами 3» - the title of the band (the number is the count of its rows). */
-export const SETTLED_BAND_TITLE = "Ушедшие с расчётами";
+/** «Ушли из группы — расчёт не закрыт 3» - the title of the band (the number is the count of its rows). */
+export const SETTLED_BAND_TITLE = "Ушли из группы — расчёт не закрыт";
 
 /** The words of the empty tab «Аванс» (frame 3). */
 export const ADVANCE_EMPTY = { title: "Авансов нет", sub: "Никто не оплатил вперёд и возвращать некому" } as const;

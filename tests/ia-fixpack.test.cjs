@@ -489,7 +489,9 @@ test("F4 / d3: the menu of a row of «Оплаты» is «Простить су�
   assert.match(page, /data-testid="payment-row-statement"/);
   assert.match(page, /aria-label=\{`Выписка: \$\{row\.student_name\}`\}/);
   const keys = [...page.matchAll(/menu\.push\(\{ key: "(\w+)"/g)].map((match) => match[1]);
-  assert.deepEqual(keys, ["writeoff", "refund", "correct", "void"]); // at most one of the first two is offered (debt XOR advance); never more than 3 items
+  assert.deepEqual(keys, ["writeoff", "refund", "pay", "correct", "void"]); // at most one of the first two is offered (debt XOR advance); «Внести оплату» only in the tab «Аванс» for an OPEN student (frame 1)
+  assert.match(page, /const payInMenu = acts\.pay && bucket === "advance" && !isClosedRow\(row\);/);
+  assert.match(page, /\{acts\.pay && !payInMenu && <PayButton/); // every other tab keeps the button in the row
   assert.match(page, /label: "Исправить последнюю оплату"/);
   assert.match(page, /label: "Отменить последнюю оплату", icon: XCircle, danger: true/);
 });

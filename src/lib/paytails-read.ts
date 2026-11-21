@@ -19,7 +19,7 @@ async function allOf(query: { bucket: "debtors" | "to_pay" | "advance"; groupId:
 }
 
 /**
- * PAY-TAILS Б1.2: the closed memberships of a group with a settlement left - the band «Ушедшие с расчётами (N)»; `count` is the number of its rows.
+ * PAY-TAILS Б1.2: the closed memberships of a group with a settlement left - the band «Ушли из группы — расчёт не закрыт (N)»; `count` is the number of its rows.
  * TO SWAP: when the server gives them with any balance in ONE answer (and the number for the band), only this function changes.
  */
 export async function fetchGroupSettled(groupId: string, activeIds: ReadonlySet<string>): Promise<{ rows: MembershipPaymentRow[]; count: number }> {

@@ -122,7 +122,7 @@ export interface GroupPaymentRowView {
   hasDebt: boolean;
   /** Has a sum within its term («К оплате»): in the filter of its own, also when the student is a debtor too (the categories overlap). */
   hasDue: boolean;
-  /** The membership is closed (the student has left / is archived): shown in the band «Ушедшие с расчётами» (`lib/paytails.ts`). */
+  /** The membership is closed (the student has left / is archived): shown in the band «Ушли из группы — расчёт не закрыт» (`lib/paytails.ts`). */
   left: boolean;
   row: MembershipPaymentRow;
 }

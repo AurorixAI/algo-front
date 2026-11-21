@@ -59,15 +59,17 @@ test("Б2.1 (frame 2b): the tab «Аванс» - ушедшие first (the serve
   const rows = await page.$$eval('[data-testid="payments-table"] li.dt-li, [data-testid="payments-table"] li.dt-row', (els) => els.map((li) => li.innerText.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
   assert.equal(rows.length, 5);
   assert.match(rows[0], /^Яхё Саидов 4 класс Математика 4 .*Аванс 37 000 сум ушёл 28\.10 Вернуть/);
-  assert.match(rows[4], /^Анвар Каримов .* Аванс 600 000 сум оплачено до 31\.12 Внести оплату/);
+  assert.match(rows[4], /^Анвар Каримов .* Аванс 600 000 сум оплачено до 31\.12$/);
   const status = await page.$$eval('[data-testid="payments-table"] li', (els) => els.map((li) => ({ pay: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean), menu: Boolean(li.querySelector('button[aria-label^="Действия:"]')) })));
   const rowsOnly = status.filter((s) => s.pay.length || s.menu);
   assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.pay), [["Вернуть"], ["Вернуть"], ["Вернуть"], ["Вернуть"]]);
   assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.menu), [false, false, false, false], "a closed row with an advance has no «⋯» (nothing to put in it)");
-  assert.deepEqual(rowsOnly[4].pay, ["Внести оплату"]);
+  assert.deepEqual(rowsOnly[4].pay, [], "an open student who paid ahead: NO «Внести оплату» in the row (frame 1)");
+  assert.equal(await page.locator('[data-testid="payments-table"] li:has(button[aria-label="Действия: Анвар Каримов"]) a[data-testid="payment-row-statement"]').count(), 1, "…the statement icon stays");
   assert.equal(rowsOnly[4].menu, true, "an open row with an advance keeps «⋯»");
   await page.click('button[aria-label="Действия: Анвар Каримов"]');
   assert.ok(await page.getByRole("menuitem", { name: "Вернуть аванс" }).count() === 1, "…and «Вернуть аванс» stays in it");
+  assert.ok(await page.getByRole("menuitem", { name: "Внести оплату" }).count() === 1, "…and «Внести оплату» moves into it");
   await page.keyboard.press("Escape");
   const asked = calls.filter((c) => c.path === "/auth/org/payments/status" && /bucket=advance/.test(c.query) && /limit=50/.test(c.query));
   assert.ok(asked.length >= 1 && asked.every((c) => !/left_only/.test(c.query)), "«Все» asks without the filter");
@@ -129,10 +131,10 @@ const groupServer = () => server((r) => {
   return null;
 });
 
-test("Б2.3 (frame 4): the group's «Оплаты» - the open ones first, the band «Ушедшие с расчётами 3» FOLDED; open: debt «Внести оплату», «к оплате» «Внести оплату», an advance «Вернуть»; no label of the advance in the header", async () => {
+test("Б2.3 (frame 4): the group's «Оплаты» - the open ones first, the band «Ушли из группы — расчёт не закрыт 3» FOLDED; open: debt «Внести оплату», «к оплате» «Внести оплату», an advance «Вернуть»; no label of the advance in the header", async () => {
   const { page, calls } = await open(1280, 900, groupServer(), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
   await page.waitForSelector('[data-testid="payments-left-toggle"]', { timeout: 9000 });
-  assert.equal(plain(await page.innerText('[data-testid="payments-left-toggle"]')), "Ушедшие с расчётами 3 показать");
+  assert.equal(plain(await page.innerText('[data-testid="payments-left-toggle"]')), "Ушли из группы — расчёт не закрыт 3 показать");
   assert.equal(await page.getAttribute('[data-testid="payments-left-toggle"]', "aria-expanded"), "false");
   assert.equal(await page.getByTestId("group-payment-left-row").count(), 0, "folded: no closed row on the screen");
   assert.equal(await page.getByTestId("group-payment-row").count(), 3);
@@ -405,3 +407,4 @@ test("Б2.7: the settings of the owner - «Администратор работ
   assert.equal(await toggle.getAttribute("aria-checked"), "false", "the right itself is unchanged");
   await page.close();
 });
+
