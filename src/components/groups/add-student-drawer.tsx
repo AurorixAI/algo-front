@@ -36,7 +36,8 @@ import { BarDetails, BarMoreButton } from "./enrol-bar-details";
 import { EnrolExceptions, EnrolNoteRows, EnrolRefusedAllRow, EnrolRefusedRow, ExceptionRow, type EnrolNote } from "./enrol-exceptions";
 import { bulkSources, inGroupsLabel, MANY_GROUPS_TRANSFER_HINT } from "@/lib/transfer-source";
 import { bulkHeadline, bulkOutcomeOf, probeRefusalsOf, sameRefusalForAll } from "@/lib/bulk-outcome";
-import { enrolBarOf, enrolButtonLabel, type EnrolBarRow } from "@/lib/enrol-bar";
+import { enrolBarOf, enrolButtonLabel, forecastBarWords, type EnrolBarRow } from "@/lib/enrol-bar";
+import { bulkMoneyLines, forecastBarOf, upcomingEntriesOf, upcomingMessageOf, upcomingTotalOf } from "@/lib/paytails-contract";
 import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, priceInWords, type OwnPriceError } from "@/lib/enrol-terms";
 import { groupScheduleLine, type ScheduleSlotLike } from "@/lib/group-schedule-line";
 import { canManageMoney } from "@/lib/money-effects";
@@ -450,7 +451,8 @@ export function AddStudentDrawer({
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
         warnings: notes.warnings,
-        infos: [...returnedLines(returned, picked.length === 1, nameOf), ...notes.infos, ...(billingLine ? [billingLine] : [])],
+        // PAY-TAILS Б2.4 / Б2.5: what the move did to the charge (`recalc`, `others`) and the forecast of the charge that starts later («Начисление с 24.11: 120 000 сум») - the server's sentences
+        infos: [...returnedLines(returned, picked.length === 1, nameOf), ...bulkMoneyLines(result, nameOf), ...(upcomingMessageOf(result) ? [upcomingMessageOf(result) as string] : []), ...notes.infos, ...(billingLine ? [billingLine] : [])],
         groupName: groupName ?? groupNames[groupId],
         addedNames: perStudent.addedNames,
         payNowLine: paid && paid.words.length > 0 ? `${paid.words.join(" · ")} — на странице «Оплаты»` : null,
@@ -501,18 +503,24 @@ export function AddStudentDrawer({
   const stale = amountsState === "stale";
   // F10: nobody pays at once because the day of the charge is ahead: the muted line says when it starts (the day is the server's `pay_from`)
   const payStart = shownImmediate ? payStartOf(shownImmediate.answer) : null;
+  // PAY-TAILS Б2.5: the charge STARTS LATER (`upcoming` of each student, `upcoming_total` of the batch): «Начисление с 24 ноября», the sum of the server, the lessons and the term under it
+  const forecast = bar && bar.total === null && amountsState === "ready" && refusals.length === 0 && shownImmediate ? forecastBarOf(upcomingEntriesOf(shownImmediate.answer), upcomingTotalOf(shownImmediate.answer)) : null;
+  const forecastWords = forecast ? forecastBarWords(forecast, payDef?.today ?? today) : null;
+  const forecastSum = forecastWords?.totalText ? forecastWords : null;
   const idle = selected.size === 0
     ? "Выберите учеников"
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : firstCount ? "Считаем…"
     : bar && bar.total === null && amountsState === "ready" && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
+    : forecastWords && !forecastSum ? <span className="whitespace-nowrap">{forecastWords.caption}</span>
     : bar && bar.total === null && amountsState === "ready" && refusals.length === 0 && payStart && payStart > (payDef?.today ?? today) ? <span className="whitespace-nowrap">{payStartsLine(payStart, payDef?.today ?? today)}</span>
     : null;
   const whyOff = !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
   const line = stale ? (incomplete ? (payProblem ? <span data-testid="enrol-why">{payProblem}</span> : null) : "считаем…") : failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
     : whyOff ? <span id="enrol-why" data-testid="enrol-why">{whyOff}</span>
+    : forecastSum?.line ? forecastSum.line
     : bar && bar.total !== null && (bar.line || bar.expandable) ? (
       <>
         {bar.line}
@@ -570,6 +578,7 @@ export function AddStudentDrawer({
       onAmount={(text) => { setAddError(null); setPriceError(null); setExceptionAmount(text); }}
       onReason={(text) => { setAddError(null); setPriceError(null); setExceptionReason(text); }}
       priceError={priceError}
+      whyNote={forecast?.termsNote ?? null}
       openSignal={termsSignal}
       onOpenChange={setTermsOpen}
       opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}
@@ -602,9 +611,9 @@ export function AddStudentDrawer({
           {/* «По ученикам»: the list opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && byStudent && <BarDetails rows={barRows} />}
           <SummaryBar
-            label={bar?.captions}
-            amount={bar && bar.total !== null ? bar.totalText : null}
-            unit={bar?.unit}
+            label={forecastSum ? [forecastSum.caption] : bar?.captions}
+            amount={forecastSum ? forecastSum.totalText : bar && bar.total !== null ? bar.totalText : null}
+            unit={forecastSum ? forecastSum.unit : bar?.unit}
             dim={stale}
             idle={idle}
             line={line}

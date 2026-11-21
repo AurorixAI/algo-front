@@ -5,6 +5,9 @@
 import { formatMoney } from "./money-format";
 import { pluralRu } from "./plural";
 import { groupNameShown } from "./enrol-labels";
+import { formatDayMonthRu } from "./business-time";
+import { dayMonthWords } from "./enrol-terms";
+import type { ForecastBar } from "./paytails-contract";
 import type { ImmediatePart } from "./pay-from";
 
 /** The server names the month in the nominative («ноябрь»); a sentence about lessons wants «в ноябре». */
@@ -129,4 +132,26 @@ export function enrolBarOf(rows: readonly EnrolBarRow[], totalLines: readonly st
   // the periods in the order of the longest story (a student with two months says «октябрь, ноябрь»), a new one is added after them
   const labels = [...payers].sort((a, b) => b.parts.length - a.parts.length).flatMap((row) => row.parts.map((part) => part.label));
   return { ...base, line: periodsOf(labels) || null, expandable: payers.length > 1 || firstParts.length > 1 };
+}
+
+export interface ForecastBarWords {
+  /** «Начисление с 24 ноября» (a date, not money). */
+  caption: string;
+  /** «120 000» and «сум» apart (the big sum of the bar); null: the server gave none - the caption stands where the sum would. */
+  totalText: string | null;
+  unit: string;
+  /** «2 урока из 8 в ноябре · платить до 28.11»: the lessons and the term of the server (`lessons_text`, `due_until`); with no term - the server's `sub` («долг с первого дня»). */
+  line: string | null;
+}
+
+/** PAY-TAILS Б2.5: the bar of a window of adding when the charge STARTS LATER - the words of the server's fields arranged; nothing is added up or made up here. */
+export function forecastBarWords(forecast: ForecastBar, todayIso?: string | null): ForecastBarWords {
+  const shown = forecast.amount !== null ? splitMoney(forecast.amount) : null;
+  const term = forecast.dueUntil ? `платить до ${formatDayMonthRu(forecast.dueUntil)}` : forecast.sub;
+  return {
+    caption: `Начисление с ${dayMonthWords(forecast.from, todayIso)}`,
+    totalText: shown?.text ?? null,
+    unit: shown?.unit ?? "",
+    line: [forecast.lessonsText, term].filter(Boolean).join(" · ") || null,
+  };
 }

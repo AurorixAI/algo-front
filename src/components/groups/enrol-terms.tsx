@@ -26,7 +26,7 @@ export interface EnrolTermsOpening {
  * «Оплата с» (with «По умолчанию 19.11» as the way back), «Цена в месяц» (an own price) and, only when the price differs from the group's, the required «Почему своя цена»; the opening balance only where
  * it is offered.  After a change the line says the new state and the button stays.  A role without the right to money never gets this block (its caller draws nothing).
  */
-export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingStart, priceLabel, groupAmount, amount, reason, onAmount, onReason, priceError = null, opening = null, openSignal = 0, onOpenChange, showPayFrom = true }: {
+export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingStart, priceLabel, groupAmount, amount, reason, onAmount, onReason, priceError = null, opening = null, openSignal = 0, onOpenChange, showPayFrom = true, whyNote = null }: {
   idPrefix: string;
   /** the server's day by default; null while it is not known (the line then has no day) */
   payDef: PayFromDefault | null;
@@ -50,6 +50,8 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
   onOpenChange?: (open: boolean) => void;
   /** false: no «Оплата с» (a transfer has its own day) */
   showPayFrom?: boolean;
+  /** PAY-TAILS Б2.5 (frame 14): the muted line of the server about the day that another group moved («сегодня ученик ещё числился в «Математике 7»»); it stands in place of the reason of the default day. */
+  whyNote?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { if (openSignal > 0) setOpen(true); }, [openSignal]);
@@ -66,7 +68,7 @@ export function EnrolTerms({ idPrefix, payDef, payFrom, onPayFrom, accountingSta
   const changed = dayKnown && payFrom !== (payDef as PayFromDefault).default_pay_from;
   const range = payDef ? payFromRange(payDef.today, accountingStart) : null;
   const line = termsLine({ payFrom: dayKnown ? payFrom : "", today: payDef?.today, groupHasPrice: groupAmount !== null, ownAmount: own ? amount : "", opening: Boolean(opening?.on) });
-  const why: ReactNode = dayKnown ? (changed ? "дату выбрали вы" : payFromReason(payDef?.text)) : null;
+  const why: ReactNode = dayKnown ? (changed ? "дату выбрали вы" : whyNote ?? payFromReason(payDef?.text)) : null;
   return (
     <section aria-label="Условия" data-testid="enrol-terms" className="border-t border-slate-100 px-5 py-3 max-sm:px-4">
       <div className="flex items-start gap-3">

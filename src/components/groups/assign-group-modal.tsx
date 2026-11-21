@@ -36,8 +36,8 @@ import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
 import { EnrolExceptions, EnrolNoteRows, EnrolRefusedRow, ExceptionRow } from "./enrol-exceptions";
-import { enrolBarOf, enrolIntoLabel } from "@/lib/enrol-bar";
-import { resultMoneyLines } from "@/lib/paytails-contract";
+import { enrolBarOf, enrolIntoLabel, forecastBarWords } from "@/lib/enrol-bar";
+import { forecastBarOf, resultMoneyLines, upcomingMessageOf, upcomingOf } from "@/lib/paytails-contract";
 import { dryRunOverride, isOwnPrice, ownPriceError, payStartsLine, type OwnPriceError } from "@/lib/enrol-terms";
 import { probeRefusalOfError } from "@/lib/bulk-outcome";
 import { formatMoney } from "@/lib/money-format";
@@ -274,7 +274,7 @@ export function AssignGroupModal({
         undoText: undoDone?.undone ? undoDone.text : null,
         // the sum of the last probe, as the window of a group says it (only for a role that sees money; no sum - no line)
         payNowLine: bar && bar.words.length > 0 ? `${bar.words.join(" · ")} — на странице «Оплаты»` : null,
-        moneyLines: resultMoneyLines(result),
+        moneyLines: [...resultMoneyLines(result), ...(upcomingMessageOf(result) ? [upcomingMessageOf(result) as string] : [])],
         stays: isAdd ? (sourceGroups ?? []).filter((g) => g.id !== selectedGroupId).map((g) => g.name).filter(Boolean) : [],
         warnings: notes.warnings,
         infos: billingLine ? [...notes.infos, billingLine] : notes.infos,
@@ -349,16 +349,22 @@ export function AssignGroupModal({
   const whyOff = source.needed && !source.id ? SOURCE_WHY : !transferAllowed ? "Кнопка включится, когда будет посчитано, что изменится" : payProblem;
   // nobody pays at once because the day of the charge is ahead: the muted line says when it starts (the day is the server's `pay_from`)
   const payStart = ready ? payStartOf(ready.answer) : null;
+  // PAY-TAILS Б2.5: the charge STARTS LATER (`upcoming` of the probe): the bar says «Начисление с 24 ноября», the forecast sum of the server and the lessons / the term under it
+  const forecast = ready && bar && bar.total === null ? forecastBarOf([upcomingOf(ready.answer)], null) : null;
+  const forecastWords = forecast ? forecastBarWords(forecast, payDef?.today ?? formatBusinessDate()) : null;
+  const forecastSum = forecastWords?.totalText ? forecastWords : null;
   const idle = !selectedGroupId ? "Выберите группу"
     : noPrice ? "Сумма появится, когда у группы будет цена"
     : failed ? "Не удалось посчитать, сколько начислится сразу"
     : counting ? "Считаем…"
     : bar && bar.total === null && payFromIsPast(payFromValue, payDef) ? PAY_FROM_NOTHING_NOW
+    : forecastWords && !forecastSum ? <span className="whitespace-nowrap">{forecastWords.caption}</span>
     : bar && bar.total === null && payStart && payStart > (payDef?.today ?? formatBusinessDate()) ? <span className="whitespace-nowrap">{payStartsLine(payStart, payDef?.today ?? formatBusinessDate())}</span>
     : null;
   const line = failed
     ? <button type="button" onClick={payPreview.retry} data-testid="pay-from-retry" className="font-semibold text-primary-700 underline">Повторить</button>
     : whyOff ? <span id="assign-why" data-testid="assign-why">{whyOff}</span>
+    : forecastSum?.line ? forecastSum.line
     : bar && bar.total !== null && (bar.line || bar.expandable) ? <>{bar.line}{bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={periodsOpen} onToggle={() => setPeriodsOpen((value) => !value)} /></>}</> : null;
   const buttonText = assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : selectedGroup ? enrolIntoLabel(selectedGroup.name, verb) : isTransfer ? "Перевести" : "Зачислить";
   const submitOff = !selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id) || counting || refusedWords !== null;
@@ -399,9 +405,9 @@ export function AssignGroupModal({
           {/* «По периодам»: opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
           <SummaryBar
-            label={bar?.captions}
-            amount={bar && bar.total !== null ? bar.totalText : null}
-            unit={bar?.unit}
+            label={forecastSum ? [forecastSum.caption] : bar?.captions}
+            amount={forecastSum ? forecastSum.totalText : bar && bar.total !== null ? bar.totalText : null}
+            unit={forecastSum ? forecastSum.unit : bar?.unit}
             idle={idle}
             line={line}
             action={<Button type="button" size="lg" onClick={() => void handleAssign()} disabled={submitOff} loading={assigning} data-testid="assign-submit" title={buttonText} aria-describedby={selectedGroupId && whyOff ? "assign-why" : undefined} className="h-auto max-w-[18rem] whitespace-normal text-center max-sm:max-w-full"><span className="line-clamp-2 [overflow-wrap:anywhere]">{buttonText}</span></Button>}
@@ -527,6 +533,7 @@ export function AssignGroupModal({
           onAmount={(text) => { setAssignmentError(null); setPriceError(null); setExceptionAmount(text); }}
           onReason={(text) => { setAssignmentError(null); setPriceError(null); setExceptionReason(text); }}
           priceError={priceError}
+          whyNote={forecast?.termsNote ?? null}
           openSignal={termsSignal}
           opening={!isTransfer && openingShown ? { on: openingOn, onChange: (value) => { setAssignmentError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAssignmentError(null); setOpening(next); }, today: formatBusinessDate(), accountingStart, needsReason: openingNeedsReason } : null}
         />

@@ -78,8 +78,11 @@ export interface Upcoming {
   lessonsText: string | null;
   /** The last day to pay within the term; null: «долг с первого дня» (the sub-line says it) or the role sees no sums. */
   dueUntil: string | null;
+  /** The sentence of the message after adding («Начисление с 24.11: 120 000 сум»). */
   text: string | null;
   sub: string | null;
+  /** The muted line of the conditions when the day was moved by another group («сегодня ученик ещё числился в «Математике 7»»): the name of this field is not fixed by Б1.4 - read as `terms_note`. */
+  termsNote: string | null;
 }
 
 /** `upcoming` of a row of a status list, of a probe of adding, of a student of a bulk probe: `{from, amount, lessons_text, due_until, text, sub}`.  No `from` - nothing starts later: null. */
@@ -88,7 +91,7 @@ export function upcomingOf(source: unknown): Upcoming | null {
   const raw = record(entry?.upcoming) ?? record(record(entry?.billing)?.upcoming);
   const from = clean(raw?.from);
   if (!raw || !from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) return null;
-  return { from, amount: whole(raw.amount), lessonsText: clean(raw.lessons_text), dueUntil: clean(raw.due_until), text: clean(raw.text), sub: clean(raw.sub) };
+  return { from, amount: whole(raw.amount), lessonsText: clean(raw.lessons_text), dueUntil: clean(raw.due_until), text: clean(raw.text), sub: clean(raw.sub), termsNote: clean(raw.terms_note) };
 }
 
 /** The total of a batch (`upcoming_total`): the same shape; the server adds, the screen does not. */
@@ -138,4 +141,61 @@ export function tabWordsOf(row: unknown): { text: string | null; sub: string | n
 /** `receipt_state_text` of a receipt (Б1.5): «оплачено до 30.11» / «оплачено 100 000 из 420 000 сум · к оплате 320 000 сум до 23.11» / nothing (a closed membership, a forgiven period). */
 export function receiptStateTextOf(receipt: unknown): string | null {
   return clean(record(receipt)?.receipt_state_text);
+}
+
+/** The bottom bar of a window of adding (Б1.4, frames 10 and 14): «Начисление с 24 ноября» / the forecast sum / «2 урока из 8 в ноябре · платить до 28.11». */
+export interface ForecastBar {
+  /** The first day of the charge (the earliest of the students). */
+  from: string;
+  /** The sum of the server (`amount` of one student, `upcoming_total.amount` of a batch); null - none (a role without the right, a batch the server did not add up). */
+  amount: number | null;
+  lessonsText: string | null;
+  dueUntil: string | null;
+  sub: string | null;
+  termsNote: string | null;
+}
+
+/**
+ * What the bar of the window says about the students whose charge starts LATER: one student - his `upcoming`; several - `upcoming_total` of the server (the screen does not add the forecasts up; without it there is no sum).
+ * Nobody has an `upcoming` - null.
+ */
+export function forecastBarOf(entries: ReadonlyArray<Upcoming | null>, total: Upcoming | null): ForecastBar | null {
+  const list = entries.filter((entry): entry is Upcoming => entry !== null);
+  if (list.length === 0) return null;
+  const base = list.length === 1 ? list[0] : total;
+  const from = [...list.map((entry) => entry.from), ...(total ? [total.from] : [])].sort()[0];
+  return {
+    from,
+    amount: base?.amount ?? null,
+    lessonsText: base?.lessonsText ?? null,
+    dueUntil: base?.dueUntil ?? null,
+    sub: base?.sub ?? null,
+    termsNote: list.length === 1 ? list[0].termsNote : null,
+  };
+}
+
+/** The `upcoming` of every student of an answer: a bulk answer (`students[]`) or a single one (the answer itself); a student with none gives null. */
+export function upcomingEntriesOf(answer: unknown): Array<Upcoming | null> {
+  const students = record(answer)?.students;
+  return Array.isArray(students) ? students.map((student) => upcomingOf(student)) : [upcomingOf(answer)];
+}
+
+/** The sentence of the message after adding (Б1.4: «Начисление с 24.11: 120 000 сум»): the server's `upcoming_total.text` of a batch, else the `upcoming.text` of the only student; none - nothing is said. */
+export function upcomingMessageOf(answer: unknown): string | null {
+  const total = upcomingTotalOf(answer)?.text;
+  if (total) return total;
+  const entries = upcomingEntriesOf(answer).filter((entry): entry is Upcoming => entry !== null);
+  return entries.length === 1 ? entries[0].text : null;
+}
+
+/** What a done BULK move / add did to the charge of each student (`students[].recalc` / `.others`): the server's sentences, the name in front when there are several students. */
+export function bulkMoneyLines(answer: unknown, nameOf: (studentId: string) => string): string[] {
+  const students = record(answer)?.students;
+  if (!Array.isArray(students)) return resultMoneyLines(answer);
+  const several = students.length > 1;
+  return students.flatMap((student) => {
+    const lines = resultMoneyLines(student);
+    const id = clean(record(student)?.student_id);
+    return several && id ? lines.map((line) => `${nameOf(id)}: ${line}`) : lines;
+  });
 }
