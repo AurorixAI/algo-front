@@ -14,6 +14,8 @@ const F = require("./helpers/money2-fixture.cjs");
 const root = path.join(__dirname, "..");
 const LOCKED = "Учёт запущен — остаток на начало вносит и меняет владелец";
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/openings", `${name}.json`), "utf8"));
+// the server's answers carry the three flags explicitly (false); these tests are about «the flag is absent / true», so the base has none and each test says its own
+const bare = (name) => { const { can_set_opening, can_reopen_launch, launch_closed, ...rest } = fixture(name); return rest; };
 let browser;
 test.before(async () => {
   const css = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "algo-css-")), "tw.css");
@@ -23,8 +25,8 @@ test.before(async () => {
 });
 test.after(async () => { await browser.close(); });
 
-const summaryOf = (can) => ({ ...fixture("O03_summary_pending"), state: "done", ...(can === undefined ? {} : { can_set_opening: can }) });
-const listOf = (can) => ({ ...fixture("O01_list_pending"), state: "done", ...(can === undefined ? {} : { can_set_opening: can }) });
+const summaryOf = (can) => ({ ...bare("O03_summary_pending"), state: "done", ...(can === undefined ? {} : { can_set_opening: can }) });
+const listOf = (can) => ({ ...bare("O01_list_pending"), state: "done", ...(can === undefined ? {} : { can_set_opening: can }) });
 
 async function enrolWindow(can) {
   const answer = F.baseServer((r) => (r.method === "GET" && r.path === "/auth/org/opening-balances/summary" ? { json: summaryOf(can) } : null), F.SHORT);
@@ -121,8 +123,8 @@ test("the refusal in the enrolment window is shown once, in the server's words, 
 
 // ── round 4: «Вернуть запуск учёта» follows `can_reopen_launch` (the server's field, no role guess); the administrator's «Готово» says what it means
 const CLOSED = { left_available: 1, memberships: 9, missing: 0, needs_review: 0, shown: 0, with_opening: 8 };
-const closedOf = (extra) => ({ ...fixture("O03_summary_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
-const closedList = (extra) => ({ ...fixture("O01_list_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
+const closedOf = (extra) => ({ ...bare("O03_summary_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
+const closedList = (extra) => ({ ...bare("O01_list_pending"), state: "done", totals: CLOSED, launch_closed: true, ...extra });
 const CONSEQUENCE = "Пока запуск не завершён, остатки на начало вносит и администратор. После завершения — только владелец.";
 
 async function pageWith(flags, user, extra = null, base = null) {
@@ -167,7 +169,7 @@ test("can_reopen_launch true: the action is offered, one sentence confirms, POST
   assert.equal(await admin.page.locator('[data-testid="openings-locked"]').innerText(), LOCKED);
   await admin.page.close();
 
-  const open = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...fixture("O01_list_pending"), ...f }));
+  const open = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...bare("O01_list_pending"), ...f }));
   assert.equal(await open.page.locator('[data-testid="openings-reopen"]').count(), 0);
   assert.equal(await open.page.locator('[data-testid="openings-locked"]').count(), 0);
   await open.page.close();
@@ -184,7 +186,7 @@ test("a refusal of the return is the server's words, once; «Готово» says
   assert.equal((await run.page.locator('[data-testid="openings-reopen-error"]').innerText()).trim(), words);
   await run.page.close();
 
-  const pending = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...fixture("O01_list_pending"), ...f }));
+  const pending = await pageWith({ can_set_opening: true }, { role: "admin", org_role: "admin" }, null, (f) => ({ ...bare("O01_list_pending"), ...f }));
   await pending.page.click('[data-testid="openings-finish"]');
   assert.equal((await pending.page.locator('[data-testid="openings-close-consequence"]').innerText()).trim(), CONSEQUENCE);
   await pending.page.close();

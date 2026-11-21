@@ -116,6 +116,8 @@
           },
           "refundable_delta": {
             "default": 0,
+            "deprecated": true,
+            "description": "Устарело: равно advance_delta (снимается в пакете Б)",
             "title": "Refundable Delta",
             "type": "integer"
           }
@@ -137,7 +139,7 @@
         "type": "object"
       },
       "OpeningBatchItem": {
-        "description": "One membership of a batch: the item REPLACES the whole opening of the membership (the same as ``PUT .../opening-balance``).\n\n* ``paid_until`` / ``debt_amount`` + ``debt_on`` (a debt without a date gets ``max(first_day, accounting_start) - 1``);\n* ``lessons_left`` (a lessons-mode centre only, instead of ``paid_until``): the server turns «осталось K уроков» into «оплачено до» = the date of\n  the K-th lesson of the group from ``max(first_day, accounting_start)`` (K = 0: nothing is left = no opening);\n* ``clear`` = true: remove the live opening;\n* nothing at all = error ``EMPTY_ITEM``.\n``paid_until`` = the day before the accounting start means «nothing owed at the start» (no row; a live one is removed).",
+        "description": "One membership of a batch: the item REPLACES the whole opening of the membership (the same as ``PUT .../opening-balance``).\n\n* ``paid_until`` / ``debt_amount`` + ``debt_on`` (a debt without a date gets ``max(first_day, accounting_start) - 1``);\n* ``lessons_left`` (a lessons-mode centre only, instead of ``paid_until``): the server turns «осталось K уроков» into «оплачено до» = the date of\n  the K-th lesson of the group from ``max(first_day, accounting_start)`` (K = 0: nothing is left = «оплачено до» the day before the start, a reviewed row);\n* ``clear`` = true: remove the live opening;\n* nothing at all = error ``EMPTY_ITEM``.\n``paid_until`` = the day before the accounting start means «nothing owed at the start»: it is stored as a REAL opening (a reviewed row, so the\nrow leaves «не заполнено»); the ledger gives the same debt and charges with or without it.  ``lessons_left`` = 0 is the same.",
         "properties": {
           "clear": {
             "default": false,
@@ -486,7 +488,7 @@
         "type": "object"
       },
       "OpeningItemResult": {
-        "description": "The verdict of one item.  Error codes: ``NOT_FOUND`` ``STUDENT_ARCHIVED`` ``MEMBERSHIP_CLOSED`` ``DUPLICATE_ITEM`` ``STALE_VERSION`` ``EMPTY_ITEM``\n``CLEAR_WITH_VALUES`` ``OPENING_RANGE`` ``AMOUNT_RANGE`` ``OPENING_NOT_ALLOWED`` (a transfer) ``FREE_MEMBERSHIP`` ``VOID_BREAKS_REFUND``\n``LESSONS_NOT_APPLICABLE`` ``LESSONS_RANGE`` ``LESSONS_AND_PAID_UNTIL``.  ``target`` = what will be stored (after the defaults, the lessons\nconversion and the normalisation); null for an error.",
+        "description": "The verdict of one item.  Error codes: ``NOT_FOUND`` ``STUDENT_ARCHIVED`` ``MEMBERSHIP_CLOSED`` ``DUPLICATE_ITEM`` ``STALE_VERSION`` ``EMPTY_ITEM``\n``CLEAR_WITH_VALUES`` ``OPENING_RANGE`` ``AMOUNT_RANGE`` ``OPENING_NOT_ALLOWED`` (a transfer) ``FREE_MEMBERSHIP`` ``VOID_BREAKS_REFUND``\n``LESSONS_NOT_APPLICABLE`` ``LESSONS_RANGE`` ``LESSONS_AND_PAID_UNTIL``.  ``target`` = what will be stored (after the defaults, the lessons\nconversion); null for an error.",
         "properties": {
           "after": {
             "anyOf": [
@@ -791,6 +793,11 @@
             "title": "Mode",
             "type": "string"
           },
+          "needs_review": {
+            "default": false,
+            "title": "Needs Review",
+            "type": "boolean"
+          },
           "only_debt": {
             "default": false,
             "title": "Only Debt",
@@ -861,6 +868,7 @@
           "has_money_records",
           "missing",
           "floor",
+          "needs_review",
           "only_debt",
           "editable",
           "reason_not_editable"
@@ -928,6 +936,11 @@
             "title": "Missing",
             "type": "integer"
           },
+          "needs_review": {
+            "default": 0,
+            "title": "Needs Review",
+            "type": "integer"
+          },
           "shown": {
             "default": 0,
             "title": "Shown",
@@ -944,7 +957,8 @@
           "with_opening",
           "missing",
           "left_available",
-          "shown"
+          "shown",
+          "needs_review"
         ],
         "title": "OpeningTotals",
         "type": "object"
@@ -997,7 +1011,7 @@
         "type": "object"
       },
       "OpeningWarning": {
-        "description": "Soft: ``PAID_UNTIL_AT_START`` (normalised to no opening), ``PAID_UNTIL_FAR`` (> today + 120), ``DEBT_LARGE`` (> 12 prices), ``NO_PRICE``,\n``HAS_MONEY`` (the row has money records: a reason is needed), ``CLEARS_EXISTING`` (removes a live opening).",
+        "description": "Soft: ``PAID_UNTIL_AT_START`` (a reviewed «nothing owed» row), ``PAID_UNTIL_FAR`` (> today + 120), ``DEBT_LARGE`` (> 12 prices), ``NO_PRICE``,\n``HAS_MONEY`` (the row has money records: a reason is needed), ``CLEARS_EXISTING`` (removes a live opening).",
         "properties": {
           "code": {
             "title": "Code",
@@ -1129,12 +1143,24 @@
               }
             ],
             "title": "Refundable"
+          },
+          "unpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unpaid"
           }
         },
         "required": [
           "code",
           "message",
           "debt",
+          "unpaid",
           "refundable",
           "payment_id",
           "membership_ids",
@@ -1399,12 +1425,27 @@
             "title": "As Of",
             "type": "string"
           },
+          "can_reopen_launch": {
+            "default": false,
+            "title": "Can Reopen Launch",
+            "type": "boolean"
+          },
+          "can_set_opening": {
+            "default": false,
+            "title": "Can Set Opening",
+            "type": "boolean"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/OpeningGroupBlock"
             },
             "title": "Groups",
             "type": "array"
+          },
+          "launch_closed": {
+            "default": false,
+            "title": "Launch Closed",
+            "type": "boolean"
           },
           "paid_until_max": {
             "format": "date",
@@ -1439,6 +1480,9 @@
           "as_of",
           "accounting_start",
           "state",
+          "launch_closed",
+          "can_reopen_launch",
+          "can_set_opening",
           "period_mode",
           "paid_until_max",
           "totals",
@@ -1448,12 +1492,13 @@
         "type": "object"
       },
       "OpeningsStateIn": {
-        "description": "The owner / an admin with the right to money ends the checklist: ``done`` («Готово») or ``skipped`` («Не нужно»).  ``pending`` is set by the\nrelease script only (``scripts/set_openings_pending.py``).",
+        "description": "The owner / an admin with the right to money ends the checklist: ``done`` («Готово») or ``skipped`` («Не нужно»).  ``pending`` takes the launch back: the owner only\n(403 ``OPENING_OWNER_ONLY``); the administrator with the right to money puts the opening balances again.",
         "properties": {
           "state": {
             "enum": [
               "done",
-              "skipped"
+              "skipped",
+              "pending"
             ],
             "title": "State",
             "type": "string"
@@ -1473,6 +1518,21 @@
             "title": "Accounting Start",
             "type": "string"
           },
+          "can_reopen_launch": {
+            "default": false,
+            "title": "Can Reopen Launch",
+            "type": "boolean"
+          },
+          "can_set_opening": {
+            "default": false,
+            "title": "Can Set Opening",
+            "type": "boolean"
+          },
+          "launch_closed": {
+            "default": false,
+            "title": "Launch Closed",
+            "type": "boolean"
+          },
           "state": {
             "default": "none",
             "enum": [
@@ -1491,13 +1551,16 @@
         "required": [
           "accounting_start",
           "state",
+          "launch_closed",
+          "can_reopen_launch",
+          "can_set_opening",
           "totals"
         ],
         "title": "OpeningsSummary",
         "type": "object"
       },
       "PriceOut": {
-        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Оплата в месяц\" (calendar\nperiods) or \"Стоимость пакета\" (lesson packages) as the centre's billing mode says.",
+        "description": "The effective price of a membership on a day (ROADMAP #105, ``src/auth/pricing.py``).\n\n``source``: ``group`` - the price of the group; ``override`` - the individual price of the student (then\n``reason`` says why and ``group_amount`` is what the group price would be); ``none`` - not set anywhere.\n``valid_from`` - the day the row that gave the price started.  The sum means \"Цена в месяц\" (calendar\nperiods) or \"Цена пакета\" (lesson packages) as the centre's billing mode says.",
         "properties": {
           "amount": {
             "anyOf": [
@@ -1996,7 +2059,7 @@
     },
     "/org/opening-balances/export": {
       "get": {
-        "description": "Остатки файлом .xlsx, заполненным текущими значениями: колонки A–I как в импорте, ID ученика, ID членства, «Без остатка», справочные.",
+        "description": "Остатки файлом .xlsx, заполненным текущими значениями: первый лист «Инструкция», лист «Остатки» (заголовок, колонки импорта, справочные серые, «Итого», скрытые ID в конце); читается по названиям колонок.",
         "parameters": [
           {
             "in": "query",
@@ -2241,7 +2304,7 @@
     },
     "/org/opening-balances/state": {
       "post": {
-        "description": "«Готово» / «Не нужно»: состояние запуска остатков (``pending`` ставит только скрипт релиза).",
+        "description": "«Готово» / «Не нужно»: состояние запуска остатков; ``pending`` — вернуть запуск (только владелец).",
         "requestBody": {
           "content": {
             "application/json": {
