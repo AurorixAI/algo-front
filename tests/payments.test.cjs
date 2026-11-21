@@ -108,8 +108,8 @@ test("cancellation reason is 3..500 characters", () => {
 
 test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter (the server's students)", () => {
   // PAY-DUE 9.3 / 10.2: the keys are the server's; «Скоро платить» is «Заканчивается оплата»; «К оплате» is a tab of its own
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debtors", "to_pay", "expiring", "active"]);
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debtors", "to_pay", "expiring", "active", "advance"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга", "Аванс"]);
   assert.equal(rules.parseBucket("none"), "debtors"); // an old link opens the most urgent tab
   assert.equal(rules.parseBucket("due"), "debtors");
   assert.equal(rules.parseBucket("waiting"), "debtors");
@@ -118,8 +118,8 @@ test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter 
   assert.equal(rules.parseBucket("all"), "debtors");
   assert.equal(rules.parseBucket(null), "debtors");
   assert.equal(rules.parseBucket("<script>"), "debtors");
-  const counts = { debtors: 4, to_pay: 2, expiring: 3, active: 120, paused: null };
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(counts, b.key)), [4, 2, 3, 120]);
+  const counts = { debtors: 4, to_pay: 2, expiring: 3, active: 120, advance: 5, paused: null };
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(counts, b.key)), [4, 2, 3, 120, 5]);
   assert.equal(rules.bucketCount({ debtors: 0, expiring: 0, active: 0 }, "expiring"), 0);
   assert.equal(rules.bucketCount(null, "debtors"), null);
   assert.equal(rules.bucketCount({ debtors: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one

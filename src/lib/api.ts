@@ -1798,7 +1798,7 @@ export const orgApi = {
 
   // ── Payments (owner; admin only when the owner enabled it) ─────────────
   getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
-  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; age?: string; limit?: number; offset?: number }) => {
+  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; age?: string; leftOnly?: boolean; limit?: number; offset?: number }) => {
     // PAY-DUE 10.2: the keys of the tabs are the server's (`debtors` / `to_pay` / `expiring` / `active` / `paused`, plus `all`)
     const params = new URLSearchParams({ bucket: q.bucket });
     if (q.groupId) params.set("group_id", q.groupId);
@@ -1806,6 +1806,8 @@ export const orgApi = {
     if (q.search) params.set("search", q.search);
     // Money-2 Т18: the basket of the age of the debt (with the debtors only)
     if (q.age && q.bucket === "debtors") params.set("age", q.age);
+    // PAY-TAILS Б1.1: «Ушедшие» of the tab «Аванс» - the closed memberships only
+    if (q.leftOnly && q.bucket === "advance") params.set("left_only", "true");
     params.set("limit", String(q.limit ?? 50));
     params.set("offset", String(q.offset ?? 0));
     return api<PaymentsStatusList>(`/auth/org/payments/status?${params.toString()}`)

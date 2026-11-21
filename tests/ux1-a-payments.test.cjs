@@ -87,14 +87,14 @@ test("status: the label says the state, the line under it the term - both the se
   assert.equal(rules.statusTone("expired"), "danger");     // the bar of a package keeps its own tone function
 });
 
-test("tabs by money: «Должники», «К оплате», «Заканчивается оплата», «Без долга» and a counter on every tab", () => {
+test("tabs by money: «Должники», «К оплате», «Заканчивается оплата», «Без долга», «Аванс» and a counter on every tab", () => {
   assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none"), undefined);
-  const counts = { debtors: 12, to_pay: 6, expiring: 3, active: 48 };
+  const counts = { debtors: 12, to_pay: 6, expiring: 3, active: 48, advance: 5 };
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(counts, bucket.key))), [
-    "Должники 12", "К оплате 6", "Заканчивается оплата 3", "Без долга 48",
+    "Должники 12", "К оплате 6", "Заканчивается оплата 3", "Без долга 48", "Аванс 5",
   ]);
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(null, bucket.key))), [
-    "Должники", "К оплате", "Заканчивается оплата", "Без долга",
+    "Должники", "К оплате", "Заканчивается оплата", "Без долга", "Аванс",
   ]);
 });
 

@@ -112,7 +112,7 @@ for (const [state, price, expected] of CASES) {
       await run.page.waitForSelector('[data-testid="pay-label"]', { timeout: 8000 });
       assert.equal(await run.page.locator('[data-col="price"]').count(), 0, "нет колонки цены");
       assert.equal(await run.page.locator('[data-testid="payment-row-price-missing"]').count(), 0);
-      assert.ok(!/[Цц]ена/.test(plain(await run.page.locator('[data-testid="payments-table"]').textContent())), "слова «Цена» в таблице нет");
+      assert.ok(!/[Цц]ена/.test(plain(await run.page.locator('[data-testid="payments-table"], [data-testid="payments-phone-list"]').first().textContent())), "слова «Цена» в таблице (на телефоне — в ряду) нет");
       if (state === "в") await run.page.screenshot({ path: path.join(shots, `p5-payments-${width}.png`) });
       await run.page.close();
     }

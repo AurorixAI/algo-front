@@ -276,7 +276,8 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     const debtCall = calls.find((c) => c.path === "/auth/org/payments/status");
     assert.match(debtCall.query, /bucket=debtors/);
     await page.waitForSelector('li:has-text("Иванов Иван")');
-    assert.match(plain(await page.locator("ul").first().innerText()), /Долг 600 000 сум просрочено 20 дней/);
+    // a phone (PAY-TAILS Б2.8): the compact row says «label · group · the server's sub-line» in one card; a table says the label and the sub-line under it
+    assert.match(plain(await page.locator("ul").first().innerText()), width < 640 ? /Долг 600 000 сум 7-А Алгебра · просрочено 20 дней/ : /Долг 600 000 сум просрочено 20 дней/);
     assert.ok(!/Петров/.test(await page.textContent("body")), "the student within his term is not among the debtors");
     const sfx = width >= 640 ? "" : "-compact";      // a phone: ONE compact summary instead of the cards
     // a phone: the row of the summary is a block with a stretched link (the words stand beside the link, not in it)
@@ -285,7 +286,7 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     assert.match(plain(await spot("due").innerText()), width >= 640 ? /^К оплате 300 000 сум 1 ученик · ближайший срок завтра, 07\.11/ : /^К оплате срок \d+ (дн|день|дня|дней) 300 000 сум 1$/);
     if (width === 375) {
       // R3 №13: the buttons of a row are ≥ 40 px on a phone
-      const heights = await page.evaluate(() => ["button:has(+ *), li button", "a[data-testid=payment-row-statement]"].flatMap((sel) => [...document.querySelectorAll(sel)].filter((el) => el.offsetParent).map((el) => [el.textContent.trim().slice(0, 14) || el.getAttribute("aria-label") || sel, Math.round(el.getBoundingClientRect().height)])));
+      const heights = await page.evaluate(() => ["button:has(+ *), li button", "a[data-testid=payment-row-statement]", "a[data-testid=money-row-statement]"].flatMap((sel) => [...document.querySelectorAll(sel)].filter((el) => el.offsetParent).map((el) => [el.textContent.trim().slice(0, 14) || el.getAttribute("aria-label") || sel, Math.round(el.getBoundingClientRect().height)])));
       const small = heights.filter(([, h]) => h < 40);
       assert.deepEqual(small, [], `touch targets under 40 px: ${JSON.stringify(small)}`);
     }
@@ -299,7 +300,7 @@ test("Б7 → PAY-DUE: «К оплате» is a calm tab next to «Должни�
     assert.match(plain(await page.textContent('[role="tab"][aria-selected="true"]')), /^К оплате 1$/);
     assert.match(other.calls.find((c) => c.path === "/auth/org/payments/status").query, /bucket=to_pay/);
     const chipText = plain(await page.locator('li:has-text("Петров Пётр")').innerText());
-    assert.match(chipText, /К оплате 300 000 сум до 07\.11/);
+    assert.match(chipText, width < 640 ? /К оплате 300 000 сум 7-А Алгебра · до 07\.11/ : /К оплате 300 000 сум до 07\.11/);
     assert.equal((chipText.match(/К оплате 300 000 сум/g) ?? []).length, 1, "said once");
     const chipColor = await page.evaluate(() => { const chip = document.querySelector('li [data-testid="pay-label"]'); return getComputedStyle(chip).color; });
     assert.ok(chipColor !== "rgb(185, 28, 28)" && chipColor !== "rgb(190, 18, 60)", `the chip within the term is not red/rose: ${chipColor}`);

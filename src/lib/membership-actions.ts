@@ -9,7 +9,8 @@
  * (inside «Индивидуальная цена…»), navigation (links of the row).
  */
 import { formatDateRu, isCarryOver, paymentAmountLabel, type MembershipPaymentRow } from "./payments";
-import { canRefund, canWriteOff } from "./payments-ledger";
+import { canWriteOff } from "./payments-ledger";
+import { rowActionsOf } from "./paytails";
 
 export const WRITEOFF_MENU_LABEL = "Простить сумму";
 export const REFUND_MENU_LABEL = "Вернуть аванс";
@@ -43,7 +44,8 @@ export function membershipActionKeys(
   const out: MembershipActionKey[] = [];
   // Money-2 T11: the debt and the advance of a student in the archive can still be forgiven / given back (the server allows both)
   if (canWriteOff(row)) out.push("writeoff");
-  if (canRefund(row)) out.push("refund");
+  // PAY-TAILS Б2.2: the advance of a CLOSED membership is given back by the button of the row («Вернуть»), the «⋯» keeps the refund of an open one only
+  if (rowActionsOf(row, archived).menuRefund) out.push("refund");
   if (editable) out.push("price");
   if (!archived && row.is_active && !input.openingLocked) out.push("opening");
   return out;

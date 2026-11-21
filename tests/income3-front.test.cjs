@@ -155,7 +155,7 @@ test("tab counts under a group / teacher filter: each tab asks /payments/status 
   const page = read("src/components/payments/payments-page.tsx");
   // PAY-DUE 10.2: filteredTabCounts / narrowedTabSummary (the screen's own count of students) are deleted
   for (const gone of ["filteredTabCounts", "narrowedTabSummary"]) assert.equal(P[gone], undefined, gone);
-  assert.match(page, /const keys: PaymentBucket\[\] = \["debtors", "to_pay", "expiring", "active", "paused"\]/);
+  assert.match(page, /const keys: PaymentBucket\[\] = \["debtors", "to_pay", "expiring", "active", "advance", "paused"\]/);
   assert.match(page, /orgApi\.getPaymentsStatus\(\{ bucket: key, \.\.\.scope \}\)/);
   assert.match(page, /limit: 1, offset: 0/);
   assert.match(page, /typeof pages\[index\]\?\.students === "number"/);
@@ -163,8 +163,8 @@ test("tab counts under a group / teacher filter: each tab asks /payments/status 
   assert.match(page, /const scope = \{ groupId: filter\.groupId \|\| undefined, teacherId: filter\.groupId \? undefined : filter\.teacherId \|\| undefined, limit: 1, offset: 0 \}/); // the same filter as the list
   assert.match(page, /void loadNarrowedCounts\(\);\s*void refreshSummary\(true\)/); // refreshed after a payment
   // the tab bar reads the narrowed numbers: «Должники 2 / Без долга 7»; none while they are on their way
-  const counts = { debtors: 2, to_pay: 1, expiring: 1, active: 7, paused: 0 };
-  assert.deepEqual(P.visibleBuckets({ students_paused: counts.paused }, "debtors").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(counts, tab.key))), ["Должники 2", "К оплате 1", "Заканчивается оплата 1", "Без долга 7"]);
+  const counts = { debtors: 2, to_pay: 1, expiring: 1, active: 7, advance: 3, paused: 0 };
+  assert.deepEqual(P.visibleBuckets({ students_paused: counts.paused }, "debtors").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(counts, tab.key))), ["Должники 2", "К оплате 1", "Заканчивается оплата 1", "Без долга 7", "Аванс 3"]);
   assert.equal(P.bucketCount(null, "debtors"), null);
   assert.match(page, /const tabCounts: TabCounts \| null = narrowed \? narrowedCounts : summaryLoaded \? summaryTabs : null;/);
   // the badge of the menu is the centre's: it never reads the narrowed counts

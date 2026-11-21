@@ -644,7 +644,8 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(page, /data-testid="payment-row-statement"/); // IA audit F4: «Выписка» is an icon link of the row, not a menu item
   assert.doesNotMatch(page, /key: "statement"|key: "profile"/);
   assert.match(page, /canWriteOff\(row\)/);
-  assert.match(page, /canRefund\(row\)/);
+  assert.match(page, /rowActionsOf\(row\)/); // PAY-TAILS Б2.2: the refund of an OPEN membership stays in the «⋯», of a closed one is a button of the row
+  assert.match(page, /acts\.menuRefund/);
   assert.match(page, /incomeHref\(paymentsBase\)/); // «Поступления» is one click from «Оплаты»
   assert.match(page, /usePaymentsSummary\(\(state\) => state\.debtTotal\)/);
   assert.match(page, /usePaymentsSummary\(\(state\) => state\.dueTotal\)/);
@@ -652,7 +653,8 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(card, /<BalanceNote row=\{row\} \/>/);
   assert.match(card, /href=\{statement\}/);
   assert.match(read("src/lib/membership-actions.ts"), /canWriteOff\(row\)/);
-  assert.match(read("src/lib/membership-actions.ts"), /canRefund\(row\)/);
+  assert.match(read("src/lib/membership-actions.ts"), /rowActionsOf\(row, archived\)\.menuRefund/);
+  assert.match(read("src/lib/paytails.ts"), /canRefund\(row\)/);
   const statement = read("src/components/payments/statement-view.tsx");
   assert.match(statement, /aria-label="Куда пошли деньги"/); // every payment of the one history says where it went
   assert.doesNotMatch(statement, /window\.print\(\)|Printer|print:/); // the «Печать» button is gone (owner 23.10)

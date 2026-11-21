@@ -50,7 +50,7 @@ test("inc12-2 (26.10, 14А.4): group «Оплаты» - NO column of the price (
   assert.match(src, /<span>Ученик<\/span>\s*<span className="text-center">Оплата<\/span>/);
   assert.doesNotMatch(src, /<span>\{label\}<\/span>|lg:hidden">\{label\}/, "no header of the price, no phone label of it");
   assert.doesNotMatch(src, /Цена в месяц|Цена пакета/);
-  assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-center"><ChipView view=\{view\} \/><\/div>/g) || []).length, 2, "payment chip centred in both row kinds");
+  assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-center"><ChipView view=\{view\} \/><\/div>/g) || []).length, 1, "payment chip centred - ONE row component serves the open and the closed (the band) rows, PAY-TAILS Б2.3");
   assert.match(src, /flex-col items-start gap-1\.5 lg:items-center/, "the chip and the bar on one axis");
   assert.doesNotMatch(src, /<span className="text-sm text-slate-500 max-lg:hidden">—<\/span>/, "no placeholder cell of the price in the left row");
   assert.match(src, /lg:gap-x-6/, "the columns breathe: 24px between them");

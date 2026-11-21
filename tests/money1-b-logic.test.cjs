@@ -101,8 +101,8 @@ test("Б7 → PAY-DUE: the cards and the badge count the DEBTORS (the term has p
 test("Б7 → PAY-DUE: the tab «К оплате» stands next to «Должники» always; the row within its term is calm blue, never the red", () => {
   const PS = require(path.join(root, "src/lib/pay-state.ts"));
   const keys = (summary, open = "debtors") => P.visibleBuckets(summary, open).map((b) => b.key);
-  assert.deepEqual(keys({ students_paused: 0 }), ["debtors", "to_pay", "expiring", "active"]);
-  assert.deepEqual(keys({ students_paused: 2 }), ["debtors", "to_pay", "expiring", "active", "paused"]);
+  assert.deepEqual(keys({ students_paused: 0 }), ["debtors", "to_pay", "expiring", "active", "advance"]);
+  assert.deepEqual(keys({ students_paused: 2 }), ["debtors", "to_pay", "expiring", "active", "advance", "paused"]);
   assert.equal(P.bucketCount({ to_pay: 2, debtors: 7 }, "to_pay"), 2);
   assert.equal(P.bucketCount({ to_pay: 2, debtors: 7 }, "debtors"), 7);
   const row = { state: "to_pay", state_text: "К оплате 300 000 сум", due_amount: 300000, due_text: "К оплате 300 000 сум", due_sub: "до 07.11", debt: 300000 };

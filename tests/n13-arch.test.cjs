@@ -334,7 +334,8 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.match(actions, /const editable = row\.is_active && !archived;/);
   // Money-2 T11 (Э3): the debt and the advance of an archived student can still be forgiven / given back - the server allows both; the price and the opening balance stay closed
   assert.match(actions, /if \(canWriteOff\(row\)\) out\.push\("writeoff"\);/);
-  assert.match(actions, /if \(canRefund\(row\)\) out\.push\("refund"\);/);
+  assert.match(actions, /if \(rowActionsOf\(row, archived\)\.menuRefund\) out\.push\("refund"\);/); // PAY-TAILS Б2.2: the refund of a CLOSED membership (an archived student's too) is the button of the row
+  assert.match(read("src/lib/paytails.ts"), /menuRefund: canRefund\(row\)/);
   assert.match(actions, /if \(editable\) out\.push\("price"\);/);
   assert.match(actions, /if \(!archived && row\.is_active && !input\.openingLocked\) out\.push\("opening"\);/);
   // «Внести оплату / Продлить» and the status stay behind `editable`

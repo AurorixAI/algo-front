@@ -18,6 +18,8 @@ const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
 export const REFUND_ACTION_LABEL = "Вернуть аванс";
+/** PAY-TAILS Б2.2: the button of a row of a CLOSED membership with an advance (frames 2, 4, 23); it opens this same window. */
+export const REFUND_ROW_LABEL = "Вернуть";
 
 /**
  * «Вернуть аванс» (the student leaves): a record of a refund up to the part of the advance that can be given back.  The payments stay; the statement shows the refund.

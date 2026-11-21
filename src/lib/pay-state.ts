@@ -38,6 +38,8 @@ export function payStateTone(state: PayState | string | null | undefined): ChipT
 export interface PayFields {
   state?: PayState | null;
   state_text?: string | null;
+  /** PAY-TAILS Б1.1: the server's quiet line of a row by its state («ушёл 28.10» / «оплачено до 31.12»). */
+  state_sub?: string | null;
   debt_amount?: number | null;
   due_amount?: number | null;
   debt_text?: string | null;
@@ -80,7 +82,7 @@ export function payLabel(row: PayFields, tab: "debtors" | "to_pay" | "worst" | s
     return { text: clean(row.due_text), tone: PAY_STATE_TONE.to_pay, sub: clean(row.due_sub), second: other, state };
   }
   // the other tabs and the single label: the worst state, in the server's words; a «К оплате» / «Долг» label carries its own sub
-  const sub = state === "debt" ? clean(row.debt_sub) : state === "to_pay" ? clean(row.due_sub) : null;
+  const sub = state === "debt" ? clean(row.debt_sub) : state === "to_pay" ? clean(row.due_sub) : clean(row.state_sub);
   return { text: clean(row.state_text), tone: payStateTone(state), sub, second: null, state };
 }
 

@@ -49,8 +49,9 @@ const server = (request) => {
 async function open(width) {
   const run = await openPage(browser, "money-b.entry.tsx", server, { width, height: width === 375 ? 800 : 900 });
   await run.page.evaluate(() => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: "bucket=debtors" }));
-  await run.page.waitForSelector('[data-testid="debt-ages"]');
-  await run.page.waitForSelector('[data-testid="payments-table"] [data-testid="status-cell"]');
+  // a phone (PAY-TAILS Б2.8): the baskets are the button «Давность: все» and a bottom sheet, the rows are the compact rows of money
+  await run.page.waitForSelector(width < 640 ? '[data-testid="debt-age-open"]' : '[data-testid="debt-ages"]');
+  await run.page.waitForSelector(width < 640 ? '[data-testid="payments-phone-list"] li' : '[data-testid="payments-table"] [data-testid="status-cell"]');
   return run;
 }
 const chips = (page) => page.locator('[data-testid="debt-ages"] button').evaluateAll((list) => list.map((b) => b.innerText.replace(/[\s ]+/g, " ").trim()));
@@ -85,18 +86,22 @@ test("Э8 → PAY-DUE: the days of the overdue stand on a row ONCE, in the serve
   await run.page.close();
 });
 
-test("Э8 (375): the baskets are ONE scrollable row, every chip whole; the page has no horizontal scroll", async () => {
+test("Э8 (375, PAY-TAILS Б2.8): the baskets are ONE button «Давность: все» in the row of the search and a bottom sheet - every variant whole (the students and the sum), an empty one («31–60 дней») is not offered; the page has no horizontal scroll; a choice is a filter", async () => {
   const run = await open(375);
+  assert.equal(await run.page.locator('[data-testid="debt-ages"]').count(), 0, "no strip of chips on a phone");
+  await run.page.click('[data-testid="debt-age-open"]');
+  await run.page.waitForSelector('[data-testid="debt-age-sheet"]');
   const facts = await run.page.evaluate(() => {
-    const strip = document.querySelector('[data-testid="debt-ages"]');
-    const buttons = [...strip.querySelectorAll("button")];
-    const tops = new Set(buttons.map((b) => Math.round(b.getBoundingClientRect().top)));
-    return { rows: tops.size, cut: buttons.filter((b) => [...b.querySelectorAll("span")].some((s) => s.scrollWidth > s.clientWidth + 1)).length, page: document.documentElement.scrollWidth > window.innerWidth + 1, scrolls: strip.scrollWidth > strip.clientWidth };
+    const labels = [...document.querySelectorAll('[data-testid="debt-age-sheet"] label')];
+    return { texts: labels.map((l) => l.innerText.replace(/[\s\u00A0\u202F]+/g, " ").trim()), cut: labels.filter((l) => [...l.querySelectorAll(":scope > span:not([data-touch-zone])")].some((s) => s.scrollWidth > s.clientWidth + 1)).length, page: document.documentElement.scrollWidth > window.innerWidth + 1 };
   });
-  assert.equal(facts.rows, 1, "one row");
+  assert.deepEqual(facts.texts, ["Все 4 уч.", "До 30 дней 2 уч. · 450 000 сум", "61–90 дней 1 уч. · 450 000 сум", "Старше 90 дней 1 уч. · 600 000 сум"]);
   assert.equal(facts.cut, 0, "no cut text");
   assert.equal(facts.page, false);
-  assert.equal(facts.scrolls, true, "it scrolls sideways");
+  await run.page.click('[data-testid="debt-age-option-61_90"]');
+  await run.page.waitForFunction(() => document.querySelectorAll('[data-testid="payments-phone-list"] > li').length === 1);
+  assert.ok(statusCalls(run).some((call) => /(?:^|&)age=61_90(&|$)/.test(call.query)));
+  assert.match(plain(await run.page.textContent('[data-testid="debt-age-open"]')), /Давность: 61–90 дней/);
   await run.page.close();
 });
 
@@ -108,9 +113,16 @@ test("Э8: the filter lives in the address (`age=`) only on «Должники»
 test("fix5 → PAY-DUE: the status of a debtor - the label and ONE line under it (the server's days), at 1280 and 375", async () => {
   for (const width of [1280, 375]) {
     const run = await open(width);
-    const cell = run.page.locator('[data-testid="status-cell"]').nth(1);
-    const lines = await cell.evaluate((el) => [...el.querySelectorAll("p")].map((p) => p.textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
-    assert.deepEqual(lines, ["просрочено 62 дней"], "the label is a chip, under it ONE line");
+    if (width < 640) {
+      // the compact row: the label is a chip on line 1, line 2 is «group · the server's days» - the days once, no second line of the age
+      const row = run.page.locator('[data-testid="payments-phone-list"] > li').nth(1);
+      const phone = await row.evaluate((el) => ({ line: el.querySelector('[data-testid="money-row-line"]').textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim(), paragraphs: el.querySelectorAll("p").length, label: el.querySelector('[data-testid="pay-label"]').textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim() }));
+      assert.deepEqual([phone.line, phone.paragraphs, phone.label], ["7-А Алгебра · просрочено 62 дней", 2, "Долг 450000 сум"], "the label is a chip, line 2 holds the group and ONE line of the days");
+    } else {
+      const cell = run.page.locator('[data-testid="status-cell"]').nth(1);
+      const lines = await cell.evaluate((el) => [...el.querySelectorAll("p")].map((p) => p.textContent.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
+      assert.deepEqual(lines, ["просрочено 62 дней"], "the label is a chip, under it ONE line");
+    }
     assert.equal(await run.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false);
     await run.page.close();
   }

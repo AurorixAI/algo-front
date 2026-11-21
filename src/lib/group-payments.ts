@@ -122,7 +122,7 @@ export interface GroupPaymentRowView {
   hasDebt: boolean;
   /** Has a sum within its term («К оплате»): in the filter of its own, also when the student is a debtor too (the categories overlap). */
   hasDue: boolean;
-  /** The membership is closed (the student has left / is archived): shown only through «Показать ушедших с долгом». */
+  /** The membership is closed (the student has left / is archived): shown in the band «Ушедшие с расчётами» (`lib/paytails.ts`). */
   left: boolean;
   row: MembershipPaymentRow;
 }
@@ -221,17 +221,6 @@ export function emptyFilterText(filter: PaymentsFilter, search: string): string 
   if (filter === "debt") return "Долгов нет";
   if (filter === "due") return "К оплате никого нет";
   return "В группе пока нет учеников";
-}
-
-/** The memberships that owe and are no longer in the group (the debtors list of the group minus the active ones), the biggest debt first. */
-export function leftDebtRows(debtRows: ReadonlyArray<MembershipPaymentRow>, activeIds: ReadonlySet<string>): MembershipPaymentRow[] {
-  return debtRows
-    .filter((row) => !activeIds.has(row.membership_id) && (Number(row.debt_amount) || 0) > 0)
-    .sort((a, b) => (Number(b.debt_amount) || 0) - (Number(a.debt_amount) || 0) || a.student_name.localeCompare(b.student_name, "ru"));
-}
-
-export function leftDebtToggleLabel(count: number, shown: boolean): string {
-  return shown ? "Скрыть ушедших с долгом" : `Показать ушедших с долгом (${count})`;
 }
 
 // ── What the extra call «price-override» tells ─────────────────────────────

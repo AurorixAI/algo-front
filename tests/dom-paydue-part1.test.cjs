@@ -98,14 +98,16 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     }
     // the tabs: the server's students
     const tabs = (await page.locator('[role="tab"]').allInnerTexts()).map(plain);
-    assert.deepEqual(tabs, ["Должники 12", "К оплате 6", "Заканчивается оплата 0", "Без долга 5"]);
+    assert.deepEqual(tabs, ["Должники 12", "К оплате 6", "Заканчивается оплата 0", "Без долга 5", "Аванс 4"]);
     assert.equal(plain(await page.locator('[role="tab"][aria-selected="true"]').first().innerText()), "К оплате 6");
     // the rows: the label of the server, the term under it; the label stands once
     const rows = await page.locator("li").allInnerTexts();
     const kamila = plain(rows.find((t) => t.includes("Камила")));
-    assert.match(kamila, /К оплате 323 000 сум до сегодня/);
-    assert.match(plain(rows.find((t) => t.includes("Санжар"))), /К оплате 277 000 сум до 22\.11/);
-    assert.match(plain(rows.find((t) => t.includes("Азиз"))), /К оплате 231 000 сум до 24\.11/);
+    // a phone (PAY-TAILS Б2.8): the compact row says «label · group · the term» - the same words of the server, in the order of the card
+    const term = (text) => (width < 640 ? new RegExp(text.replace(" до ", " Математика 7 · до ")) : new RegExp(text));
+    assert.match(kamila, term("К оплате 323 000 сум до сегодня"));
+    assert.match(plain(rows.find((t) => t.includes("Санжар"))), term("К оплате 277 000 сум до 22\\.11"));
+    assert.match(plain(rows.find((t) => t.includes("Азиз"))), term("К оплате 231 000 сум до 24\\.11"));
     // the sum of the rows of the tab = the card (the invariant 9.1): 323 000 + 277 000 + 4 × 231 000 = 1 524 000
     const labels = (await page.locator('[data-testid="pay-label"]').allInnerTexts()).map(plain);
     const sum = labels.map((t) => Number(/К оплате ([\d ]+) сум/.exec(t)[1].replace(/\s/g, ""))).reduce((a, b) => a + b, 0);
@@ -114,7 +116,7 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
     assert.equal(sum, X.SUMMARY.due_total);
     // a student with both sums: the second line says the debt, the term-first line stays «к оплате»
     const timur = plain(rows.find((t) => t.includes("Тимур")));
-    assert.match(timur, /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/);
+    assert.match(timur, width < 640 ? /К оплате 231 000 сум Математика 7 · до 24\.11 Внести и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/ : /К оплате 231 000 сум до 24\.11 и долг 600 000 сум · просрочено 45 дней(?! · оплачено)/);
     // no notice above the page, no column of the price, no «Цена»
     assert.equal(await page.locator('[data-testid="payments-alert-banner"]').count(), 0);
     const body = plain(await page.locator("body").first().innerText());
@@ -135,11 +137,11 @@ test("«Оплаты», tab «К оплате»: three cards, the sums of the se
       // 14А.2: the first screen of a phone (375 × 812) holds the tabs and TWO rows of the list WHOLE (the bottom of the second card is inside the screen)
       const first = await page.evaluate(() => { const tabs = document.querySelector(`[role="tablist"]`).getBoundingClientRect(); const rows = [...document.querySelectorAll(`li`)].slice(0, 2).map((el) => el.getBoundingClientRect()); return { tabsBottom: Math.round(tabs.bottom), rows: rows.map((r) => [Math.round(r.top), Math.round(r.bottom)]) }; });
       assert.ok(first.tabsBottom <= 812 && first.rows.length === 2 && first.rows[1][1] <= 812, `tabs and two whole rows on 375 × 812: ${JSON.stringify(first)}`);
-      // the card is compact: the group stands in the muted line with the class, no column of its own, no gaps (the name, the meta line, the label, the buttons)
-      const card = await page.evaluate(() => { const li = document.querySelector(`li`); return { meta: li.querySelector(`[data-testid="payment-row-meta"]`)?.innerText.replace(/\s+/g, " ").trim(), groupCellShown: [...li.querySelectorAll(`[data-testid="payment-row-group"]`)].some((el) => el.offsetParent !== null), height: Math.round(li.getBoundingClientRect().height) }; });
-      assert.equal(card.meta, "7 класс · Математика 7");
+      // the row is compact (PAY-TAILS Б2.8, frame 21): the group stands in ONE muted line with the server's term - «Математика 7 · до сегодня» - no column of its own, no class line; ≤ 84 px (≤ 100 with the third line)
+      const card = await page.evaluate(() => { const li = document.querySelector(`[data-testid="payments-phone-list"] > li`); return { line: li.querySelector(`[data-testid="money-row-line"]`).innerText.replace(/\s+/g, " ").trim(), groupCellShown: [...li.querySelectorAll(`[data-testid="payment-row-group"]`)].some((el) => el.offsetParent !== null), height: Math.round(li.getBoundingClientRect().height) }; });
+      assert.equal(card.line, "Математика 7 · до сегодня");
       assert.equal(card.groupCellShown, false);
-      assert.ok(card.height <= 190, `a compact card: ${card.height} px`);
+      assert.ok(card.height <= 84, `a compact row: ${card.height} px`);
     }
     await page.close();
   }
@@ -190,16 +192,16 @@ test("«Оплаты» narrowed to a group: each tab asks the server for ONE row
   const { page, calls } = await open(1280, 700, server((r) => {
     if (r.path === "/auth/org/payments/status" && /group_id=g1/.test(r.query)) {
       const p = X.statusPage(r.query);
-      return { json: { ...p, students: { debtors: 2, to_pay: 3, expiring: 1, active: 4, paused: 0 }[/bucket=([a-z_]+)/.exec(r.query)[1]] } };
+      return { json: { ...p, students: { debtors: 2, to_pay: 3, expiring: 1, active: 4, advance: 1, paused: 0 }[/bucket=([a-z_]+)/.exec(r.query)[1]] } };
     }
     return null;
   }), ["payments", OWNER, { search: "bucket=debtors&group_id=g1" }]);
-  await until(() => calls.filter((c) => c.path === "/auth/org/payments/status" && /limit=1&/.test(c.query)).length >= 5, "five one-row asks");
+  await until(() => calls.filter((c) => c.path === "/auth/org/payments/status" && /limit=1&/.test(c.query)).length >= 6, "six one-row asks");
   await page.waitForFunction(() => /Должники 2/.test(document.body.textContent));
   const tabs = (await page.locator('[role="tab"]').allInnerTexts()).map(plain);
-  assert.deepEqual(tabs, ["Должники 2", "К оплате 3", "Заканчивается оплата 1", "Без долга 4"]);
+  assert.deepEqual(tabs, ["Должники 2", "К оплате 3", "Заканчивается оплата 1", "Без долга 4", "Аванс 1"]);
   const asks = calls.filter((c) => c.path === "/auth/org/payments/status" && /limit=1&/.test(c.query));
-  assert.deepEqual(asks.map((c) => /bucket=([a-z_]+)/.exec(c.query)[1]).sort(), ["active", "debtors", "expiring", "paused", "to_pay"]);
+  assert.deepEqual(asks.map((c) => /bucket=([a-z_]+)/.exec(c.query)[1]).sort(), ["active", "advance", "debtors", "expiring", "paused", "to_pay"]);
   assert.ok(asks.every((c) => /group_id=g1/.test(c.query)), "the same filter as the list");
   await page.close();
 });

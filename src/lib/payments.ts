@@ -26,7 +26,7 @@ export type PeriodMode = "calendar" | "lessons";
 export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
 /** The tabs of «Оплаты» (the server's keys, PAY-DUE 10.2): «Должники» (`debtors`), «К оплате» (`to_pay`), «Заканчивается оплата», «Без долга», «На паузе».  A student with both sums is in both of the first two. */
-export type PaymentBucket = "debtors" | "to_pay" | "expiring" | "active" | "paused";
+export type PaymentBucket = "debtors" | "to_pay" | "expiring" | "active" | "advance" | "paused";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
 export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
@@ -116,7 +116,10 @@ export interface PaymentsSummary {
   /** LOGIC-A: memberships on a pause today. */
   paused?: number;
   /** Memberships of each tab (the same sets `payments/status?bucket=` lists); `debtors` and `to_pay` overlap. */
-  buckets?: { debtors: number; to_pay: number; expiring: number; active: number; paused: number };
+  buckets?: { debtors: number; to_pay: number; expiring: number; active: number; advance?: number; paused: number };
+  /** PAY-TAILS Б1.1: how many of the students with an advance have left, and the server's sub-line of the card «Аванс» («5 учеников · из них 4 ушли»; "" at zero).  Read through `lib/paytails.ts`. */
+  advance_left_students?: number;
+  advance_text?: string | null;
   /** Distinct students on a pause (the badge of «На паузе»). */
   students_paused?: number;
   students_with_advance?: number;
@@ -404,6 +407,10 @@ export interface MembershipPaymentRow {
   /** The WORST state of the membership (debt → to pay → payment ends soon → pause → paid / advance → free → no price) and its one label: the single chip of a group / a card reads these two. */
   state?: PayState;
   state_text?: string | null;
+  /** PAY-TAILS Б1.1: the quiet line under the label of a row the server words by its state («ушёл 28.10» / «оплачено до 31.12»). */
+  state_sub?: string | null;
+  /** PAY-TAILS Б1.1: the day the membership was closed (ISO), null while it is open. */
+  left_on?: string | null;
   /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
   paused?: PausedRange | null;
   /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
@@ -472,6 +479,8 @@ export interface PaymentsStatusList {
   /** PAY-DUE 10.2: DISTINCT students of the filter - the number of the tab; `amount_total`: the tab's part of the money over ALL its rows (`debtors`: `debt_amount`, `to_pay`: `due_amount`). */
   students?: number;
   amount_total?: number;
+  /** PAY-TAILS Б1.1 (`bucket=advance`): DISTINCT students of the filter who have left (the number of «Ушедшие»). */
+  left_students?: number;
 }
 
 // ── Preview «что закроет» (GET …/payments/preview) ─────────────────────────
@@ -897,6 +906,8 @@ export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "to_pay", label: "К оплате" },
   { key: "expiring", label: "Заканчивается оплата" },
   { key: "active", label: "Без долга" },
+  // PAY-TAILS Б2.1: the advance has a tab of its own (frame 1), always shown: with nobody it says «Авансов нет»
+  { key: "advance", label: "Аванс" },
 ];
 
 /** «На паузе»: a fifth tab, shown while somebody is on a pause (or while it is the open one). */
@@ -920,6 +931,8 @@ export interface PaymentsListState {
   page: number;
   /** Money-2 Т18: the basket of the age of the debt (only «Должники»); "" - all. */
   age: DebtAge | "";
+  /** PAY-TAILS Б2.1: «Ушедшие» of the tab «Аванс» (`left=1` in the address). */
+  leftOnly: boolean;
 }
 
 export function parsePaymentsListQuery(params: { get(name: string): string | null } | null | undefined): PaymentsListState {
@@ -931,6 +944,7 @@ export function parsePaymentsListQuery(params: { get(name: string): string | nul
     q: (params?.get("q") ?? "").slice(0, 80),
     page: Number.isFinite(page) && page >= 2 ? page - 1 : 0,
     age: parseBucket(params?.get("bucket")) === "debtors" ? parseDebtAge(params?.get("age")) : "",
+    leftOnly: parseBucket(params?.get("bucket")) === "advance" && params?.get("left") === "1",
   };
 }
 
@@ -940,6 +954,7 @@ export function paymentsListQueryString(state: PaymentsListState): string {
   else if (state.teacherId) params.set("teacher_id", state.teacherId);
   if (state.q.trim()) params.set("q", state.q.trim());
   if (state.bucket === "debtors" && state.age) params.set("age", state.age);
+  if (state.bucket === "advance" && state.leftOnly) params.set("left", "1");
   if (state.page > 0) params.set("page", String(state.page + 1));
   return `?${params.toString()}`;
 }
@@ -951,7 +966,7 @@ export function visibleBuckets(summary: { paused?: number | null; students_pause
 }
 
 /** The number on a tab: STUDENTS (the server's counts - never counted on the screen); null while it is not known. */
-export interface TabCounts { debtors: number | null; to_pay: number | null; expiring: number | null; active: number | null; paused: number | null }
+export interface TabCounts { debtors: number | null; to_pay: number | null; expiring: number | null; active: number | null; advance: number | null; paused: number | null }
 export function bucketCount(counts: Partial<TabCounts> | null | undefined, key: PaymentBucket): number | null {
   const value = counts?.[key];
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
@@ -1450,6 +1465,8 @@ export interface PositionCard {
 }
 
 const studentsText = (n: number) => `${n} ${pluralRu(n, "ученик", "ученика", "учеников")}`;
+/** The sub-line of «Аванс»: the server's words as they are; the plain count only for a server that does not send them yet. */
+const advanceSub = (text: string | null | undefined, ahead: number | null): string => (typeof text === "string" ? text.trim() : ahead === null || ahead === 0 ? "" : studentsText(ahead));
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null);
 
 /**
@@ -1477,6 +1494,8 @@ export function positionCards(summary: {
   due_nearest?: { text?: string | null } | null;
   advance_total?: number | null;
   students_with_advance?: number | null;
+  /** PAY-TAILS Б1.1: the server's sub-line of the card («5 учеников · из них 4 ушли»); an older server has none - then the plain count stays. */
+  advance_text?: string | null;
 } | null | undefined): PositionCard[] {
   const money = (value: unknown) => Math.max(0, Math.round(Number(value) || 0));
   const debt = money(summary?.debt_total);
@@ -1490,7 +1509,7 @@ export function positionCards(summary: {
   return [
     { key: "debt", label: "Долг", amount: formatMoney(debt), sub: debtors === null || debtors === 0 ? "" : `${studentsText(debtors)} · срок прошёл`, students: debtors, tone: debt > 0 ? "debt" : "none" },
     { key: "due", label: "К оплате", amount: formatMoney(due), sub: dueSub, students: dueStudents, tone: due > 0 ? "due" : "none" },
-    { key: "advance", label: "Аванс", amount: formatMoney(advance), sub: ahead === null || ahead === 0 ? "" : studentsText(ahead), students: ahead, tone: advance > 0 ? "advance" : "none" },
+    { key: "advance", label: "Аванс", amount: formatMoney(advance), sub: advanceSub(summary?.advance_text, ahead), students: ahead, tone: advance > 0 ? "advance" : "none" },
   ];
 }
 

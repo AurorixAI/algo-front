@@ -450,9 +450,9 @@ test("ia-links: every link is built from the workspace; money screens lead to th
   assert.equal(INC.dueHref("/owner/payments"), "/owner/payments?bucket=to_pay");
 });
 
-test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of the same page; «Аванс» to its card on «Поступления» (#advance)", () => {
+test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of the same page; «Аванс» to its OWN tab (PAY-TAILS Б2.1; its card on «Поступления» stays #advance)", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : key === "due" \? `\$\{paymentsBase\}\?bucket=to_pay#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
+  assert.match(page, /key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : key === "due" \? `\$\{paymentsBase\}\?bucket=to_pay#payments-list` : `\$\{paymentsBase\}\?bucket=advance#payments-list`/);
   assert.match(page, /id="payments-list"/);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Аванс" id="advance"/);
   assert.match(read("src/components/payments/income-page.tsx"), /window\.location\.hash === "#advance"/);
@@ -460,8 +460,8 @@ test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of
   assert.deepEqual(cards.map((card) => card.label), ["Долг", "К оплате", "Аванс"]);
 });
 
-test("F18: «Долг» is the name of the card here and in «Поступления»; the tabs are «Должники» / «К оплате» / «Заканчивается оплата» / «Без долга»; «Оплачено» stays an amount and a chip", () => {
-  assert.deepEqual(PAY.PAYMENT_BUCKETS.map((bucket) => bucket.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга"]);
+test("F18: «Долг» is the name of the card here and in «Поступления»; the tabs are «Должники» / «К оплате» / «Заканчивается оплата» / «Без долга» / «Аванс»; «Оплачено» stays an amount and a chip", () => {
+  assert.deepEqual(PAY.PAYMENT_BUCKETS.map((bucket) => bucket.label), ["Должники", "К оплате", "Заканчивается оплата", "Без долга", "Аванс"]);
   assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Долг" id="position"/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /Долг на сегодня"/);
   assert.equal(require(path.join(root, "src/lib/pay-state.ts")).payLabel({ state: "paid", state_text: "Оплачено до 15.11" }).text, "Оплачено до 15.11");
@@ -644,8 +644,9 @@ test("F34: the filters and sub-tabs are in the address - payments list, income p
   assert.equal(url({}), "?bucket=debtors");
   assert.equal(url({ bucket: "active", groupId: "g1", q: "али", page: 2 }), "?bucket=active&group_id=g1&q=%D0%B0%D0%BB%D0%B8&page=3");
   assert.equal(url({ teacherId: "t1" }), "?bucket=debtors&teacher_id=t1");
-  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3, age: "" });
-  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debtors", groupId: "", teacherId: "", q: "", page: 0, age: "" });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3, age: "", leftOnly: false });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debtors", groupId: "", teacherId: "", q: "", page: 0, age: "", leftOnly: false });
+  assert.equal(PAY.paymentsListQueryString({ bucket: "advance", groupId: "", teacherId: "", q: "", page: 0, age: "", leftOnly: true }), "?bucket=advance&left=1", "PAY-TAILS: «Ушедшие» of the advance is in the address");
   const today = "2026-10-22";
   const period = (kind, from, to) => ({ kind, from, to });
   assert.equal(INC.incomeQueryString(INC.periodOf("month", today), "journal", today), "?");

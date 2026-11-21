@@ -36,9 +36,23 @@ const textLeft = `(el) => { const w = document.createTreeWalker(el, NodeFilter.S
 
 for (const bucket of ["debtors", "to_pay"]) {
   for (const [width, height] of [[1280, 900], [375, 812]]) {
-    test(`«Оплаты», вкладка ${bucket}, ${width}: the text of the chip, the line under it and (from 1280) the header «Статус» have one left edge`, async () => {
+    test(`«Оплаты», вкладка ${bucket}, ${width}: the text of the chip, the line under it and (from 1280) the header «Статус» have one left edge (a phone: the compact row - one left edge of the name and the line, one right edge of the label and the button)`, async () => {
       const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer, { width, height });
       await page.evaluate((b) => window.mount("payments", { role: "owner", org_role: "owner" }, { refresh: true, search: `bucket=${b}` }), bucket);
+      if (width < 640) {
+        // a phone (PAY-TAILS Б2.8): the compact row - the label of the sum is the RIGHT edge of line 1, the action the right edge of line 2 (one right edge); the name and the line under it share the LEFT edge
+        await page.waitForSelector('[data-testid="payments-phone-list"] [data-testid="pay-label"]');
+        await page.waitForTimeout(400);
+        const edges = await page.evaluate(`(() => {
+          const left = ${textLeft};
+          const rows = [...document.querySelectorAll('[data-testid="payments-phone-list"] > li')];
+          return rows.map((li) => ({ name: left(li.querySelector('[data-testid="money-row-name"]')), line: left(li.querySelector('[data-testid="money-row-line"]')), chipRight: li.querySelector('[data-testid="pay-label"]').getBoundingClientRect().right, buttonRight: li.querySelector("button").getBoundingClientRect().right }));
+        })()`);
+        assert.ok(edges.length > 0, "there are rows");
+        for (const e of edges) { assert.ok(Math.abs(e.name - e.line) <= 1, `name ${e.name} vs the line under it ${e.line}`); assert.ok(Math.abs(e.chipRight - e.buttonRight) <= 1, `label right ${e.chipRight} vs button right ${e.buttonRight}`); }
+        await page.close();
+        return;
+      }
       await page.waitForSelector('[data-testid="status-cell"] [data-bleed]');
       await page.waitForTimeout(400);
       const m = await page.evaluate(`(() => {

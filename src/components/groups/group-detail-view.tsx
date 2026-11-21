@@ -490,13 +490,13 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
                     {(priceChip || debtChip || dueChip) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="group-money-chips">
                         {priceChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id)} data-testid="group-price-chip" className={`max-w-full min-w-0 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center rounded-md border px-2 py-0.5 text-xs font-semibold hover:underline ${group.price_current ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{priceChip}</Link>
                         )}
                         {debtChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center hover:underline"><Chip tone="danger">{debtChip}</Chip></Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id, "debt")} data-testid="group-debt-chip" className="max-w-full min-w-0 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center hover:underline"><Chip tone="danger" className="!whitespace-normal">{debtChip}</Chip></Link>
                         )}
                         {dueChip && (
-                          <Link href={groupPaymentsHref(paths.groups, group.id, "due")} data-testid="group-due-chip" className="max-sm:inline-flex max-sm:min-h-10 max-sm:items-center hover:underline"><Chip tone="due">{dueChip}</Chip></Link>
+                          <Link href={groupPaymentsHref(paths.groups, group.id, "due")} data-testid="group-due-chip" className="max-w-full min-w-0 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center hover:underline"><Chip tone="due" className="!whitespace-normal">{dueChip}</Chip></Link>
                         )}
                       </div>
                     )}

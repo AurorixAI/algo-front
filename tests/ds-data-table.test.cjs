@@ -42,6 +42,21 @@ for (const width of [1280, 1024, 375]) {
   test(`${width}: «Оплаты» - the name and the group are not cut, text is LEFT (no money column: PAY-DUE 9.7 removed the price and the last payment); ${width >= 1280 ? "a table" : "cards"}`, async () => {
     const { page } = await openPage(browser, "money-b.entry.tsx", paymentsServer, { width, height: 900 });
     await mountWith(page, width, "payments", { refresh: true, search: "bucket=debtors" });
+    if (width < 640) {
+      // a phone (PAY-TAILS Б2.8): the compact row of money - the name is ONE line with an ellipsis BY DESIGN, its whole text is in the page; the label of the sum is whole; no sideways scroll
+      await page.waitForSelector('[data-testid="money-row"]', WAIT);
+      const phone = await page.evaluate(() => ({
+        name: document.querySelector('[data-testid="money-row-name"]').textContent.trim(),
+        label: (() => { const l = document.querySelector('[data-testid="pay-label"]'); return l.scrollWidth <= l.clientWidth + 1; })(),
+        scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth, rows: document.querySelectorAll('[data-testid="money-row"]').length, table: document.querySelectorAll(".dt-head").length,
+      }));
+      assert.ok(phone.name.includes("Иванов"), "the whole name is in the row");
+      assert.equal(phone.label, true, "the label of the sum is whole");
+      assert.deepEqual([phone.scroll, phone.table], [0, 0], "no sideways scroll, no table on a phone");
+      assert.ok(phone.rows >= 1);
+      await page.close();
+      return;
+    }
     await page.waitForSelector(".dt-row", WAIT);
     await page.waitForFunction(() => document.querySelector('[data-col="student"] a')?.textContent?.includes("Иванов"), null, WAIT);
     const mode = await page.evaluate(MODE);
@@ -329,7 +344,7 @@ const GRID_PROBE = `(() => {
   return { bad, seen, scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth };
 })()`;
 const REAL_SCREENS = [
-  { name: "payments-real", entry: "money-b.entry.tsx", server: R.paymentsRealServer, mount: "payments", props: { refresh: true, search: "bucket=debtors" }, wait: ".dt-row", ready: () => document.querySelectorAll(".dt-row").length >= 5, shots: "payments-real" },
+  { name: "payments-real", entry: "money-b.entry.tsx", server: R.paymentsRealServer, mount: "payments", props: { refresh: true, search: "bucket=debtors" }, wait: ".dt-row", ready: () => document.querySelectorAll(".dt-row").length >= 5, phoneWait: "[data-testid=money-row]", phoneReady: () => document.querySelectorAll("[data-testid=money-row]").length >= 5, shots: "payments-real" },
   { name: "income-decisions-real", entry: "money-v.entry.tsx", server: R.decisionsRealServer, mount: "decisions", props: {}, wait: '[data-testid="decision-row"]', ready: () => document.querySelectorAll('[data-testid="decision-row"]').length >= 5, shots: "income-decisions-real" },
   { name: "roster-real", entry: "ds.entry.tsx", server: () => null, mount: "roster", props: { students: R.STUDENTS_REAL }, wait: ".dt-row", shots: "roster-real" },
   { name: "income-groups-real", entry: "ds.entry.tsx", server: () => null, mount: "collection", props: { collection: R.COLLECTION_REAL }, wait: ".dt-row", shots: "income-groups-real" },
@@ -383,7 +398,7 @@ test("1280: «Оплаты» on real data - the long group name wraps by words I
 const openPayments = async (width, pad) => {
   const { page } = await openPage(browser, "money-b.entry.tsx", R.paymentsRealServer, { width, height: 900 });
   await setPage(page, pad, REAL_SCREENS[0]);
-  await page.waitForFunction(() => document.querySelectorAll(".dt-row").length >= 5, null, WAIT);
+  await page.waitForFunction(() => document.querySelectorAll(".dt-row, [data-testid=money-row]").length >= 5, null, WAIT);
   await page.waitForTimeout(300);
   return page;
 };
@@ -540,8 +555,8 @@ for (const width of [375, 1280]) {
       const { page } = await openPage(browser, shot.entry, shot.server, { width, height: 900 });
       await page.addStyleTag({ content: ".max-w-\\[1100px\\]{max-width:none !important}" });
       await setPage(page, width === 1280 ? 240 : 0, shot);
-      await page.waitForSelector(shot.wait, WAIT);
-      if (shot.ready) await page.waitForFunction(shot.ready, null, WAIT);
+      await page.waitForSelector(width === 375 && shot.phoneWait ? shot.phoneWait : shot.wait, WAIT);
+      if (shot.ready) await page.waitForFunction(width === 375 && shot.phoneReady ? shot.phoneReady : shot.ready, null, WAIT);
       await page.waitForTimeout(300);
       const names = [...new Set(NAMES_OF[shot.name])];
       const facts = await page.evaluate(`${WORDS_PROBE}(${JSON.stringify(names)})`);

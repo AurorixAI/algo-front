@@ -3,7 +3,7 @@
 import { TAP_ZONE, TAP_ZONE_ROWS } from "@/lib/tap-zone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, Search, Users } from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2, Search, Users } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
@@ -18,8 +18,6 @@ import {
   extrasFromHistory,
   filterChipLabel,
   filterPaymentRows,
-  leftDebtRows,
-  leftDebtToggleLabel,
   needsExtras,
   paymentRowViews,
   paymentsCounts,
@@ -29,7 +27,13 @@ import {
   type PaymentsFilter,
   type PriceExtras,
 } from "@/lib/group-payments";
-import { canPayLeftDebt } from "@/lib/payments-logica";
+import { canWriteOff } from "@/lib/payments-ledger";
+import { fetchGroupSettled } from "@/lib/paytails-read";
+import { rowActionsOf, SETTLED_BAND_TITLE } from "@/lib/paytails";
+import { useMediaQuery, PHONE_QUERY } from "@/lib/use-media-query";
+import { MoneyRow } from "@/components/payments/money-row";
+import { REFUND_ACTION_LABEL, REFUND_ROW_LABEL } from "@/components/payments/refund-dialog";
+import { useRefundFlow } from "@/components/payments/refund-flow";
 import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
@@ -114,6 +118,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
 
   const [rows, setRows] = useState<MembershipPaymentRow[] | null>(null);
   const [leftRows, setLeftRows] = useState<MembershipPaymentRow[]>([]);
+  const phone = useMediaQuery(PHONE_QUERY);
   const [extras, setExtras] = useState<Record<string, PriceExtras>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
@@ -130,10 +135,12 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     if (!silent) setRows(null);
     setLoadError(null);
     try {
-      const [active, debtors] = await Promise.all([fetchAll("all", groupId), fetchAll("debtors", groupId)]);
+      // PAY-TAILS Б1.2: the closed memberships with ANY settlement (debt, «к оплате», advance), one reading place (`lib/paytails-read.ts`)
+      const [active, settled] = await Promise.all([fetchAll("all", groupId), fetchGroupSettled(groupId, new Set())]);
       if (!requests.current.isCurrent(token)) return;
+      const activeIds = new Set(active.map((row) => row.membership_id));
       setRows(active);
-      setLeftRows(leftDebtRows(debtors, new Set(active.map((row) => row.membership_id))));
+      setLeftRows(settled.rows.filter((row) => !activeIds.has(row.membership_id)));
       extrasAsked.current = new Set();
       setExtras({});
     } catch (cause) {
@@ -193,13 +200,16 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     void refreshSummary(true);
   };
 
+  // PAY-TAILS Б2.2: «Вернуть» of a closed membership with an advance - the window of the refund, one flow with the student's card
+  const refund = useRefundFlow({ onRowChange: (next) => changed(next), onNotify: showToast, onDuplicate: () => void load(true), paymentsBasePath });
+
   const openPay = (view: GroupPaymentRowView) => { setPayTarget(view.membershipId); setPayOpen(true); };
 
   const everyRow = [...(rows ?? []), ...leftRows];
   const payRow = everyRow.find((row) => row.membership_id === payTarget) ?? null;
 
   /** IA audit F1 / F13: the «⋯» of a row is the student card's own (`MembershipRowActions`), so the two menus never diverge. */
-  const actionsFor = (view: GroupPaymentRowView) => (
+  const actionsFor = (view: GroupPaymentRowView) => (!view.row.is_active && !canWriteOff(view.row) ? null : (
     <MembershipRowActions
       row={view.row}
       studentName={view.row.student_name}
@@ -210,7 +220,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
       onNotify={showToast}
       paymentsBasePath={paymentsBasePath}
     />
-  );
+  ));
 
   if (denied) {
     return <MoneyAccessDenied framed />;
@@ -286,29 +296,46 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
               <PaymentRow
                 key={view.key}
                 view={view}
+                phone={phone}
                 studentsBasePath={studentsBasePath}
                 paymentsBasePath={paymentsBasePath}
                 actions={actionsFor(view)}
                 onPay={() => openPay(view)}
+                onRefund={() => refund.open(view.row)}
               />
             ))}
           </ul>
         </section>
       )}
 
+      {/* PAY-TAILS Б2.3 (frames 4, 23б): the closed memberships with a settlement - folded, a band of the design system; the header of the group has no label of the advance */}
       {leftViews.length > 0 && (
-        <div className="space-y-2">
-          <button type="button" onClick={() => setShowLeft((value) => !value)} aria-expanded={showLeft} data-testid="payments-left-toggle" className="text-sm font-semibold text-primary-700 hover:underline">
-            {leftDebtToggleLabel(leftViews.length, showLeft)}
+        <section aria-label={SETTLED_BAND_TITLE} data-testid="payments-left" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
+          <button type="button" onClick={() => setShowLeft((value) => !value)} aria-expanded={showLeft} data-testid="payments-left-toggle" className="flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3.5 text-sm font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 lg:rounded-none lg:border-0">
+            <span>{SETTLED_BAND_TITLE} <span className="font-medium tabular-nums text-slate-500">{leftViews.length}</span></span>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+              <span className="max-sm:hidden">{showLeft ? "скрыть" : "показать"}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${showLeft ? "rotate-180" : ""}`} aria-hidden="true" />
+            </span>
           </button>
           {showLeft && (
-            <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white" aria-label="Ушедшие с долгом">
+            <ul className="mt-2.5 space-y-2.5 lg:mt-0 lg:space-y-0 lg:divide-y lg:divide-slate-100" aria-label={SETTLED_BAND_TITLE} data-testid="payments-left-list">
               {leftViews.map((view) => (
-                <LeftRow key={view.key} view={view} studentsBasePath={studentsBasePath} paymentsBasePath={paymentsBasePath} onPay={() => openPay(view)} />
+                <PaymentRow
+                  key={view.key}
+                  view={view}
+                  phone={phone}
+                  closed
+                  studentsBasePath={studentsBasePath}
+                  paymentsBasePath={paymentsBasePath}
+                  actions={actionsFor(view)}
+                  onPay={() => openPay(view)}
+                  onRefund={() => refund.open(view.row)}
+                />
               ))}
             </ul>
           )}
-        </div>
+        </section>
       )}
 
       {payRow && (
@@ -323,6 +350,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
           onDuplicate={(notice) => { showToast(notice.text, notice.tone); void load(true); }}
         />
       )}
+      {refund.dialog}
       {toastNode}
     </div>
   );
@@ -364,59 +392,65 @@ function StudentCell({ view, studentsBasePath, marks = false }: { view: GroupPay
 
 const ROW = `flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-center lg:gap-x-6 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${GRID_COLS}`;
 
-function PaymentRow({ view, studentsBasePath, paymentsBasePath, actions, onPay }: {
+/**
+ * One row of the group's money, OPEN or CLOSED (`closed`: a student who left, in the band).  A phone (< 640): the common compact row (`MoneyRow`, frames 20-23б); the group is the page itself, so its line is the sub-line of the state only.
+ * The action follows the STATE (`rowActionsOf`, Б2.2): «Внести оплату» / «Вернуть» / only the statement; a closed row has no price marks and no «⋯» unless there is a debt to forgive.
+ */
+function PaymentRow({ view, phone, closed = false, studentsBasePath, paymentsBasePath, actions, onPay, onRefund }: {
   view: GroupPaymentRowView;
+  phone: boolean;
+  closed?: boolean;
   studentsBasePath: string;
   paymentsBasePath: string;
   actions: ReactNode;
   onPay: () => void;
+  onRefund: () => void;
 }) {
   const due = payIsDue(view.row);
+  const acts = rowActionsOf(view.row);
+  const statement = statementHref(paymentsBasePath, view.membershipId);
+  if (phone) {
+    const action = acts.pay
+      ? { label: "Внести", ariaLabel: `${PAY_ACTION_LABEL}: ${view.name}`, onClick: onPay, testId: "payment-row-pay" }
+      : acts.refund ? { label: REFUND_ROW_LABEL, ariaLabel: `${REFUND_ACTION_LABEL}: ${view.name}`, onClick: onRefund, testId: "payment-row-refund" } : null;
+    return (
+      <MoneyRow
+        testId={closed ? "group-payment-left-row" : "group-payment-row"}
+        name={view.name}
+        statementHref={statement}
+        onOpenStatement={() => markReceiptNavigation(view.membershipId)}
+        label={view.chip.label}
+        tone={view.chip.tone}
+        line={view.chip.sub ?? ""}
+        action={action}
+      />
+    );
+  }
   return (
-    <li className={ROW} data-testid="group-payment-row" data-membership-id={view.membershipId} data-individual={view.individual ? "true" : "false"}>
-      <StudentCell view={view} studentsBasePath={studentsBasePath} marks />
+    <li className={ROW} data-testid={closed ? "group-payment-left-row" : "group-payment-row"} data-membership-id={view.membershipId} data-individual={view.individual ? "true" : "false"}>
+      <StudentCell view={view} studentsBasePath={studentsBasePath} marks={!closed} />
 
       <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
 
       <div className="flex items-center gap-2 lg:justify-end">
-        <Button type="button" onClick={onPay} variant={due ? "primary" : "secondary"} size="sm" className="min-w-0 flex-1 lg:flex-none">
-          {PAY_ACTION_LABEL}
-        </Button>
+        {acts.pay && (
+          <Button type="button" onClick={onPay} variant={due ? "primary" : "secondary"} size="sm" className="min-w-0 flex-1 lg:flex-none">
+            {PAY_ACTION_LABEL}
+          </Button>
+        )}
+        {acts.refund && (
+          <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="min-w-0 flex-1 lg:flex-none" data-testid="payment-row-refund">
+            {REFUND_ROW_LABEL}
+          </Button>
+        )}
         <Link
-          href={statementHref(paymentsBasePath, view.membershipId)}
+          href={statement}
           onClick={() => markReceiptNavigation(view.membershipId)}
           className={`${buttonClass({ variant: "secondary", size: "sm" })} text-center`}
         >
           Выписка
         </Link>
         {actions}
-      </div>
-    </li>
-  );
-}
-
-/** A student who has left but still owes: the debt, the statement and (at most the debt) the payment. */
-function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: GroupPaymentRowView; studentsBasePath: string; paymentsBasePath: string; onPay: () => void }) {
-  return (
-    <li className={ROW} data-testid="group-payment-left-row" data-membership-id={view.membershipId}>
-      <div className="min-w-0">
-        <StudentCell view={view} studentsBasePath={studentsBasePath} />
-        <p className="text-xs text-slate-500">ушёл из группы</p>
-      </div>
-      <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
-      <div className="flex items-center gap-2 lg:justify-end">
-        {canPayLeftDebt(view.row) && (
-          <Button type="button" onClick={onPay} variant="primary" size="sm" className="min-w-0 flex-1 lg:flex-none">
-            Оплатить долг
-          </Button>
-        )}
-        <Link
-          href={statementHref(paymentsBasePath, view.membershipId)}
-          onClick={() => markReceiptNavigation(view.membershipId)}
-          className={`${buttonClass({ variant: "secondary", size: "sm" })} text-center`}
-        >
-          Выписка
-        </Link>
       </div>
     </li>
   );

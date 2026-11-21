@@ -97,13 +97,13 @@ test("the worst state of a student's groups (his card): debt → to pay → ends
 });
 
 test("the tabs of «Оплаты»: the server's keys, the old links open «Должники», the counts are the server's students", () => {
-  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => [b.key, b.label]), [["debtors", "Должники"], ["to_pay", "К оплате"], ["expiring", "Заканчивается оплата"], ["active", "Без долга"]]);
-  for (const key of ["debtors", "to_pay", "expiring", "active", "paused"]) assert.equal(P.parseBucket(key), key);
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => [b.key, b.label]), [["debtors", "Должники"], ["to_pay", "К оплате"], ["expiring", "Заканчивается оплата"], ["active", "Без долга"], ["advance", "Аванс"]]);
+  for (const key of ["debtors", "to_pay", "expiring", "active", "advance", "paused"]) assert.equal(P.parseBucket(key), key);
   for (const old of ["debt", "waiting", "due", "none", "", null, undefined, "x"]) assert.equal(P.parseBucket(old), "debtors", String(old));
   // the tab «На паузе» appears only while somebody is on a pause (or is the open one)
-  assert.equal(P.visibleBuckets({ students_paused: 0 }, "debtors").length, 4);
-  assert.equal(P.visibleBuckets({ students_paused: 2 }, "debtors").length, 5);
-  assert.equal(P.visibleBuckets({ students_paused: 0 }, "paused").length, 5);
+  assert.equal(P.visibleBuckets({ students_paused: 0 }, "debtors").length, 5);
+  assert.equal(P.visibleBuckets({ students_paused: 2 }, "debtors").length, 6);
+  assert.equal(P.visibleBuckets({ students_paused: 0 }, "paused").length, 6);
   assert.equal(P.bucketTabLabel("Должники", 12), "Должники 12");
   assert.equal(P.bucketTabLabel("Должники", null), "Должники");
   assert.equal(P.bucketCount({ debtors: 12, to_pay: 6 }, "to_pay"), 6);
@@ -132,7 +132,7 @@ test("the summary is read as the server sends it: the numbers of the cards, the 
   assert.equal(323000 + 277000 + 4 * 231000, 1524000);
   assert.deepEqual([state.debtTotal, state.debtors, state.dueTotal, state.dueStudents, state.advanceTotal, state.studentsWithAdvance], [3780000, 12, 1524000, 6, 148000, 4]);
   assert.deepEqual(state.dueNearest, { date: "2026-11-20", text: "сегодня" });
-  assert.deepEqual(state.tabs, { debtors: 12, to_pay: 6, expiring: 0, active: 5, paused: 0 });
+  assert.deepEqual(state.tabs, { debtors: 12, to_pay: 6, expiring: 0, active: 5, advance: 4, paused: 0 }, "the tab «Аванс» counts the students with an advance (an older server: the card's number)");
   assert.deepEqual([state.payDueDays, state.payDueLessons], [5, 2]);
   // the old fields are not read any more: a server without the new ones has nothing to show (and shows nothing)
   const old = SUM.summaryToState({ debt_split: { debtors: 7, debtors_debt_total: 999 }, students_with_debt: 9, period_mode: "calendar" });
@@ -253,9 +253,9 @@ test("the group's tab «Оплаты»: one label per student (the worst state),
   assert.equal(GP.parsePaymentsFilter("due"), "due");
   assert.equal(GP.parsePaymentsFilter("waiting"), "all", "the old filter is gone");
   assert.equal(GP.emptyFilterText("due", ""), "К оплате никого нет");
-  // the ones who left with a debt: the debt part decides, not the sum of everything
-  const left = GP.leftDebtRows([row({ ...ANVAR, membership_id: "x1" }), row({ ...LOLA, membership_id: "x2" })], new Set());
-  assert.deepEqual(left.map((r) => r.membership_id), ["x2"]);
+  // the ones who left (PAY-TAILS Б1.2: with ANY settlement - a debt, a sum to pay, an advance): the debt part leads, then «к оплате» - not the sum of everything
+  const left = require(path.join(root, "src/lib/paytails.ts")).settledRowsOf([[row({ ...ANVAR, membership_id: "x1", is_active: false }), row({ ...LOLA, membership_id: "x2", is_active: false })]], new Set());
+  assert.deepEqual(left.map((r) => r.membership_id), ["x2", "x1"], "the debt before the sum within its term");
 });
 
 test("the student's card: ONE label - the worst state of his groups in the server's words; two groups in one state are added up with the same word", () => {

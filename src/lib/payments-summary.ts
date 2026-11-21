@@ -29,6 +29,9 @@ interface PaymentsSummaryState {
   dueStudents: number | null;
   dueNearest: { date: string; text: string } | null;
   advanceTotal: number;
+  /** PAY-TAILS Б1.1: the server's sub-line of the card «Аванс» and how many of its students have left (read by `lib/paytails.ts`; null - an older server). */
+  advanceText: string | null;
+  advanceLeftStudents: number | null;
   /** The numbers of the tabs - STUDENTS, the server's (null until it sends them). */
   tabs: TabCounts | null;
   /** The term of the centre in days / lessons - READ ONLY here (PAY-DUE 10.6); null until the server sends it. */
@@ -57,6 +60,7 @@ interface PaymentsSummaryState {
 }
 
 import { debtAgesOf, type DebtAgeBasket } from "./debt-ages";
+import { advanceSummaryOf } from "./paytails";
 import type { TabCounts } from "./payments";
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 /** A count the server may leave out: null when it is missing or not a number. */
@@ -79,6 +83,8 @@ const EMPTY = {
   dueStudents: null as number | null,
   dueNearest: null as { date: string; text: string } | null,
   advanceTotal: 0,
+  advanceText: null as string | null,
+  advanceLeftStudents: null as number | null,
   tabs: null as TabCounts | null,
   payDueDays: null as number | null,
   payDueLessons: null as number | null,
@@ -152,9 +158,11 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     dueStudents,
     dueNearest: nearest && typeof nearest.text === "string" && nearest.text ? { date: String(nearest.date), text: nearest.text } : null,
     advanceTotal: count(summary?.advance_total),
+    advanceText: advanceSummaryOf(summary).text,
+    advanceLeftStudents: advanceSummaryOf(summary).leftStudents,
     tabs: summary?.buckets
       // the numbers of the tabs are the server's `buckets` (STUDENTS, 14А.6); `students_paused` stays the badge of «На паузе» when the server sends it
-      ? { debtors: optionalCount(summary.buckets.debtors), to_pay: optionalCount(summary.buckets.to_pay), expiring: optionalCount(summary.buckets.expiring), active: optionalCount(summary.buckets.active), paused: optionalCount(summary?.students_paused) ?? optionalCount(summary.buckets.paused) }
+      ? { debtors: optionalCount(summary.buckets.debtors), to_pay: optionalCount(summary.buckets.to_pay), expiring: optionalCount(summary.buckets.expiring), active: optionalCount(summary.buckets.active), advance: advanceSummaryOf(summary).students, paused: optionalCount(summary?.students_paused) ?? optionalCount(summary.buckets.paused) }
       : null,
     payDueDays: optionalCount(summary?.pay_due_days),
     payDueLessons: optionalCount(summary?.pay_due_lessons),

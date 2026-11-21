@@ -14,7 +14,8 @@ import {
 } from "@/lib/payments";
 import { studentToast } from "@/lib/money-effects";
 import { lastPaymentLine } from "@/lib/membership-actions";
-import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
+import { openingSummary } from "@/lib/payments-logica";
+import { rowActionsOf } from "@/lib/paytails";
 import { savedPaymentToastDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
@@ -25,6 +26,8 @@ import { BalanceNote } from "./balance-note";
 import { MembershipPriceLine } from "./membership-price";
 import { MembershipRowActions } from "./membership-row-actions";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
+import { REFUND_ROW_LABEL } from "./refund-dialog";
+import { useRefundFlow } from "./refund-flow";
 import { Button } from "@/components/ui/button";
 
 interface MembershipPaymentsProps {
@@ -64,11 +67,15 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
   const pathname = usePathname();
   const editable = row.is_active && !archived;
   const [form, setForm] = useState<{ kind: PaymentFormKind } | null>(null);
+  // PAY-TAILS Б2.2: a closed membership - «Внести оплату» with a debt / a sum to pay, «Вернуть» with an advance, else the statement only
+  const acts = rowActionsOf(row, archived);
 
   const changed = (next: MembershipPaymentRow) => {
     onRowChange(next);
     void refreshSummary(true);
   };
+
+  const refund = useRefundFlow({ onRowChange: changed, onNotify, paymentsBasePath });
 
   const onSaved = (result: PaymentSaveResult) => {
     changed(result.row);
@@ -149,13 +156,18 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
           <BalanceNote row={row} />
           <Link href={statement} onClick={() => markReceiptNavigation(row.membership_id)} className="text-xs font-medium text-primary-700 hover:underline">Выписка</Link>
           {/* S-5: the debt of a student who has left can still be paid (at most the debt) */}
-          {canPayLeftDebt(row, archived) && (
+          {acts.pay && (
             <Button
               type="button"
               onClick={() => setForm({ kind: "create" })}
               variant="primary" size="sm"
             >
-              Оплатить долг
+              {PAY_ACTION_LABEL}
+            </Button>
+          )}
+          {acts.refund && (
+            <Button type="button" onClick={() => refund.open(row)} variant="secondary" size="sm" data-testid="membership-refund">
+              {REFUND_ROW_LABEL}
             </Button>
           )}
         </div>
@@ -176,6 +188,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         {lastLine && <p className="min-w-0 text-xs text-slate-500 [grid-area:last]" data-testid="membership-last-payment">{lastLine}</p>}
       </div>
 
+      {refund.dialog}
       <PaymentDialog
         open={form !== null}
         kind="create"

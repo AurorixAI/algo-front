@@ -21,6 +21,7 @@ if (!Module.__gpAlias) {
   Module.__gpAlias = true;
 }
 const G = require(path.join(root, "src/lib/group-payments.ts"));
+const T = require(path.join(root, "src/lib/paytails.ts"));
 const P = require(path.join(root, "src/lib/payments.ts"));
 const GW = require(path.join(root, "src/lib/group-workspace.ts"));
 const GP = require(path.join(root, "src/lib/group-price.ts"));
@@ -215,12 +216,11 @@ test("a student in two groups: the tab asks for this group only (group_id) and r
   assert.equal(two[0].studentId, two[1].studentId);
 });
 
-test("students who left: only those with a debt, not among the active ones, the biggest debt first", () => {
+test("students who left: only those with a settlement (PAY-TAILS Б1.2: a debt, a sum to pay or an advance), not among the active ones, the biggest debt first", () => {
   const debtors = [row(6, "Ёрова", { debt: 900, debt_amount: 900 }), row(21, "Ушёл А", { is_active: false, debt: 100, debt_amount: 100 }), row(22, "Ушёл Б", { is_active: false, debt: 700, debt_amount: 700 }), row(23, "Ушёл В", { is_active: false, debt: 0 })];
-  const left = G.leftDebtRows(debtors, new Set(["m-6"]));
-  assert.deepEqual(left.map((r) => r.student_name), ["Ушёл Б", "Ушёл А"]);
-  assert.equal(G.leftDebtToggleLabel(2, false), "Показать ушедших с долгом (2)");
-  assert.equal(G.leftDebtToggleLabel(2, true), "Скрыть ушедших с долгом");
+  const left = T.settledRowsOf([debtors], new Set(["m-6"]));
+  assert.deepEqual(left.map((r) => r.student_name), ["Ушёл Б", "Ушёл А"], "the left one without any settlement («Ушёл В») is not in the band");
+  for (const gone of ["leftDebtRows", "leftDebtToggleLabel"]) assert.equal(G[gone], undefined, `${gone} is replaced by the band «Ушедшие с расчётами»`);
   const leftView = G.paymentRowViews(left, { periodMode: "calendar", today: TODAY })[0];
   assert.equal(leftView.left, true);
 });
@@ -257,7 +257,7 @@ test("no summary line: no price/individual/collection sentence is built any more
 
 test("the tab: columns, actions and the shared dialogs (payment, individual price, opening balance), cards on a phone", () => {
   const src = read("src/components/groups/group-payments-tab.tsx");
-  for (const word of ["Ученик", "Оплата", "PAY_ACTION_LABEL", "Выписка", "индивидуальная", "Оплатить долг"]) assert.ok(src.includes(word), word);
+  for (const word of ["Ученик", "Оплата", "PAY_ACTION_LABEL", "Выписка", "индивидуальная", "SETTLED_BAND_TITLE"]) assert.ok(src.includes(word), word);
   assert.ok(src.includes("<PaymentDialog"));
   assert.doesNotMatch(src, /<span>\{label\}<\/span>/); // 14А.4: no column of the price - no header named by the mode of the centre
   // IA audit F1 / F13: the «⋯» of a row is the student card's own component (the dialogs and the rules live there)

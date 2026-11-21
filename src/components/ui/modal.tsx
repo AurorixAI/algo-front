@@ -8,6 +8,7 @@ import { lockScroll } from "@/lib/scroll-lock";
 import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
 import { modalLayout, shouldRememberOpener, type ModalSize } from "@/lib/modal-layout";
 import { Button } from "@/components/ui/button";
+import { useSwipeDown } from "@/lib/use-swipe-down";
 import { DotSeparated } from "@/components/ui/words";
 
 /**
@@ -142,6 +143,8 @@ interface ModalProps {
   placement?: "center" | "right" | "sheet";
   /** Over a panel that has its own full-screen layer above the usual dialogs (the lesson panels of the teacher's cabinet, z 99999). */
   aboveLessonPanel?: boolean;
+  /** PAY-TAILS Б2.8: a bottom sheet on a phone closes by a swipe down on its header (and by the backdrop, as every dialog does). */
+  swipeToClose?: boolean;
 }
 
 /**
@@ -156,7 +159,7 @@ const SCROLL_EDGE = {
 
 export function Modal({
   open, title, description, onClose, children, footer, size, maxWidthClassName, busy = false,
-  bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false,
+  bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false, swipeToClose = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -177,9 +180,11 @@ export function Modal({
   // A bottom sheet slides up, a side sheet slides in; the choice is made when the dialog opens (the viewport is known by then).
   const slideUp = placement === "sheet" && mounted && typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
   const layout = modalLayout({ placement, size, maxWidthClassName, bodyClassName, footerClassName });
+  const swipe = swipeToClose && slideUp;
+  const onHeaderDown = useSwipeDown(dialogRef, swipe, onClose);
 
   const header = (
-    <div className={layout.header} data-modal-part="header">
+    <div className={`${layout.header}${swipe ? " touch-none" : ""}`} data-modal-part="header" onPointerDown={swipe ? onHeaderDown : undefined}>
       <div className="min-w-0">
         <h2 id={titleId} className={layout.title}>{title}</h2>
         {description && <div className="mt-1 text-xs text-slate-500">{typeof description === "string" ? <DotSeparated text={description} /> : description}</div>}

@@ -32,9 +32,10 @@ import {
   refundReceiptHref,
 } from "@/lib/payments";
 import { payLabel } from "@/lib/pay-state";
+import { ADVANCE_EMPTY, advanceLeftOf, rowActionsOf } from "@/lib/paytails";
+import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { serverEffectsRows, studentToast } from "@/lib/money-effects";
 import {
-  canRefund,
   canWriteOff,
   savedPaymentToastDetails,
 } from "@/lib/payments-ledger";
@@ -45,6 +46,8 @@ import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { formatBusinessDate } from "@/lib/business-time";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
+import { MoneyRow } from "./money-row";
+import { DebtAgeSheet } from "./debt-age-sheet";
 import { DebtAgeStrip } from "./debt-age-strip";
 import { type DebtAge } from "@/lib/debt-ages";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -55,9 +58,11 @@ import { useToast } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
 import { DataCell, DataRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Words } from "@/components/ui/words";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SegmentedControl } from "@/components/ui/radio";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
-import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
+import { RefundDialog, REFUND_ACTION_LABEL, REFUND_ROW_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
@@ -82,6 +87,7 @@ const EMPTY_TEXT: Record<PaymentBucket, string> = {
   to_pay: "К оплате никого нет",
   expiring: "Сейчас ни у кого оплата не заканчивается",
   active: "Учеников без долга пока нет",
+  advance: ADVANCE_EMPTY.title,
   paused: "Сейчас никто не на паузе",
 };
 
@@ -112,6 +118,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
   const priceMissing = usePaymentsSummary((state) => state.priceMissing);
   const advanceTotal = usePaymentsSummary((state) => state.advanceTotal);
+  const advanceText = usePaymentsSummary((state) => state.advanceText);
+  const advanceLeftStudents = usePaymentsSummary((state) => state.advanceLeftStudents);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   // the owner leads to the setting of the term, the administrator (with the right to money) only reads it
   const isOwner = paymentsBaseOf(groupsBasePath).startsWith("/owner");
@@ -124,6 +132,10 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const [page, setPage] = useState(urlState.page);
   // Money-2 Т18: the basket of the age of the debt («Должники» only)
   const [age, setAge] = useState<DebtAge | "">(urlState.age);
+  // PAY-TAILS Б2.1: «Ушедшие» of the tab «Аванс» (the closed memberships only) and the number of them the server named for the filter
+  const [leftOnly, setLeftOnly] = useState(urlState.leftOnly);
+  const [leftStudentsPage, setLeftStudentsPage] = useState<number | null>(null);
+  const phone = useMediaQuery(PHONE_QUERY);
   const debtAges = usePaymentsSummary((state) => state.debtAges);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -153,7 +165,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     const start = tab.getBoundingClientRect().left - list.getBoundingClientRect().left + list.scrollLeft;
     list.scrollLeft = Math.max(0, start - (list.clientWidth - tab.offsetWidth) / 2);
     // the counters widen the labels once the summary has arrived
-  }, [bucket, summaryLoaded]);
+  }, [bucket, summaryLoaded, summaryTabs]);
 
   // The summary is also read by the layout; this keeps the page's own numbers fresh on entry.
   useEffect(() => { void refreshSummary(true); }, [refreshSummary]);
@@ -161,11 +173,11 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   // IA audit F34: the tab, the filter, the search and the page are written to the address (the tab itself comes from it)
   const currentQuery = searchParams?.toString() ?? "";
   useEffect(() => {
-    const next = paymentsListQueryString({ bucket, groupId: filter.groupId, teacherId: filter.teacherId, q: debouncedSearch, page, age });
+    const next = paymentsListQueryString({ bucket, groupId: filter.groupId, teacherId: filter.teacherId, q: debouncedSearch, page, age, leftOnly });
     if (next.slice(1) !== currentQuery) router.replace(next, { scroll: false });
     // `currentQuery` follows from this write; only a change of the page's own state writes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bucket, filter.groupId, filter.teacherId, debouncedSearch, page, age]);
+  }, [bucket, filter.groupId, filter.teacherId, debouncedSearch, page, age, leftOnly]);
 
   useEffect(() => {
     if (search.trim() === debouncedSearch) return undefined;
@@ -209,6 +221,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
         search: debouncedSearch || undefined,
         age: age || undefined,
+        leftOnly: bucket === "advance" && leftOnly ? true : undefined,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
@@ -220,6 +233,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       }
       setItems(data.items || []);
       setTotal(data.total ?? 0);
+      setLeftStudentsPage(bucket === "advance" ? advanceLeftOf(data) : null);
     } catch (error) {
       if (!requests.current.isCurrent(token)) return;
       const status = (error as { status?: number } | null)?.status;
@@ -228,7 +242,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page, age, noRight]);
+  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page, age, leftOnly, noRight]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -241,10 +255,10 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     const token = countsRequests.current.next();
     const scope = { groupId: filter.groupId || undefined, teacherId: filter.groupId ? undefined : filter.teacherId || undefined, limit: 1, offset: 0 };
     try {
-      const keys: PaymentBucket[] = ["debtors", "to_pay", "expiring", "active", "paused"];
+      const keys: PaymentBucket[] = ["debtors", "to_pay", "expiring", "active", "advance", "paused"];
       const pages = await Promise.all(keys.map((key) => orgApi.getPaymentsStatus({ bucket: key, ...scope })));
       const read = (index: number) => (typeof pages[index]?.students === "number" ? (pages[index].students as number) : null);
-      if (countsRequests.current.isCurrent(token)) setNarrowedCounts({ debtors: read(0), to_pay: read(1), expiring: read(2), active: read(3), paused: read(4) });
+      if (countsRequests.current.isCurrent(token)) setNarrowedCounts({ debtors: read(0), to_pay: read(1), expiring: read(2), active: read(3), advance: read(4), paused: read(5) });
     } catch {
       // a failed count leaves the tabs without numbers (never the centre's): the list itself has its own error line
       if (countsRequests.current.isCurrent(token)) setNarrowedCounts(null);
@@ -258,6 +272,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const switchBucket = (next: PaymentBucket) => {
     setPage(0);
+    setLeftOnly(false);
     const params = new URLSearchParams({ bucket: next });
     if (filter.groupId) params.set("group_id", filter.groupId);
     else if (filter.teacherId) params.set("teacher_id", filter.teacherId);
@@ -302,10 +317,12 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   // Every tab carries its number - STUDENTS, the server's: the centre's from the summary, a narrowed list's from the pages of `status`; none while it is not known.
   const tabCounts: TabCounts | null = narrowed ? narrowedCounts : summaryLoaded ? summaryTabs : null;
-  const cards = positionCards({ debt_total: debtTotal, debtors, due_total: dueTotal, due_students: dueStudents, due_nearest: dueNearest, advance_total: advanceTotal, students_with_advance: studentsWithAdvance });
+  const cards = positionCards({ debt_total: debtTotal, debtors, due_total: dueTotal, due_students: dueStudents, due_nearest: dueNearest, advance_total: advanceTotal, students_with_advance: studentsWithAdvance, advance_text: advanceText });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
+  // «Ушедшие» of the tab «Аванс»: the server's number for the filter on the screen; the centre's from the summary while the list does not tell
+  const leftCount = bucket === "advance" ? (leftStudentsPage ?? (narrowed ? null : advanceLeftStudents)) : null;
   const advanceCard = cards.find((card) => card.key === "advance");
-  const cardHref = (key: "debt" | "due" | "advance") => (key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : key === "due" ? `${paymentsBase}?bucket=to_pay#payments-list` : `${incomeHref(paymentsBase)}#advance`);
+  const cardHref = (key: "debt" | "due" | "advance") => (key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : key === "due" ? `${paymentsBase}?bucket=to_pay#payments-list` : `${paymentsBase}?bucket=advance#payments-list`);
   // the term of the centre: the owner's link to the setting, the administrator's plain text (PAY-DUE 9.7)
   const term = payDueTermText(periodMode, payDueDays, payDueLessons);
   const termNode = (linkClass: string) => (isOwner
@@ -313,7 +330,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     : <span className="text-slate-500">{term}</span>);
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-5">
+    <div className="mx-auto w-full max-w-[1400px] space-y-3 sm:space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
@@ -333,7 +350,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 max-sm:min-h-10"
           >
             <Tags className="h-4 w-4 text-slate-500" aria-hidden="true" />
+            {/* a phone: the warning about the prices is a label of this link (frame 20), not a line of its own over the list */}
             Цены групп
+            {noPrice && <span className="sm:hidden" data-testid="payments-price-label">· {priceMissing} без цены</span>}
           </Link>
           <OpeningsHeaderLink paymentsBase={paymentsBase} />
         </ScrollHint>
@@ -429,23 +448,39 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             onChange={(value) => { setFilter(value); setPage(0); }}
             iconOnPhone
           />
+          {/* a phone: the age of the debt is ONE button in this row, the choice is a bottom sheet (PAY-TAILS Б2.8) */}
+          {bucket === "debtors" && !narrowed && phone && <DebtAgeSheet baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
         </div>
       </div>
 
+      {/* PAY-TAILS Б2.1 (frame 1): «Все N · Ушедшие M» - only while somebody of the advance has left (the numbers are the server's) */}
+      {bucket === "advance" && leftCount !== null && leftCount > 0 && (
+        <SegmentedControl
+          value={leftOnly ? "left" : "all"}
+          onChange={(next) => { setLeftOnly(next === "left"); setPage(0); }}
+          ariaLabel="Кого показать"
+          testId="advance-left-toggle"
+          className="inline-grid w-fit grid-flow-col auto-cols-max" buttonClassName="px-3.5 text-sm font-medium"
+          options={[
+            { value: "all", label: bucketTabLabel("Все", bucketCount(tabCounts, "advance")) },
+            { value: "left", label: bucketTabLabel("Ушедшие", leftCount) },
+          ]}
+        />
+      )}
       {bucket === "debtors" && <OpeningsBanner paymentsBase={paymentsBase} />}
-      {bucket === "debtors" && !narrowed && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
+      {bucket === "debtors" && !narrowed && !phone && <DebtAgeStrip baskets={debtAges} total={{ students: debtors ?? 0 }} active={age} onChange={(next) => { setAge(next); setPage(0); }} />}
       {bucket === "debtors" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}
 
       {noPrice && (
-        <p role="status" className="-mt-2 text-sm text-amber-800" data-testid="payments-price-missing">
+        <p role="status" className="-mt-2 text-sm text-amber-800 max-sm:hidden" data-testid="payments-price-missing">
           {noPrice} — <Link href={pricesBaseOf(groupsBasePath)} className="font-semibold text-primary-700 hover:underline">Задать</Link>
         </p>
       )}
 
       {/* List */}
-      <div id="payments-list" className="scroll-mt-20" />
+      <div id="payments-list" className="!mt-0 h-0 scroll-mt-20" />
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
           <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
@@ -458,7 +493,34 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
         </div>
       ) : items.length === 0 ? (
-        <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
+        bucket === "advance" && !filtered && !leftOnly
+          ? <EmptyState variant="card" title={ADVANCE_EMPTY.title} hint={ADVANCE_EMPTY.sub} testId="advance-empty" />
+          : <p className="py-14 text-center text-sm text-slate-500">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
+      ) : phone ? (
+        <ul role="list" aria-label="Оплаты учеников" data-testid="payments-phone-list" className="space-y-2">
+          {items.map((row) => {
+            const label = payLabel(row, bucket);
+            const acts = rowActionsOf(row);
+            const action = acts.pay
+              ? { label: "Внести", ariaLabel: `${PAY_ACTION_LABEL}: ${row.student_name}`, onClick: () => setForm({ kind: "create", row, payment: null }), testId: "payment-row-pay" }
+              : acts.refund
+                ? { label: "Вернуть", ariaLabel: `${REFUND_ACTION_LABEL}: ${row.student_name}`, onClick: () => setRefundRow(row), testId: "payment-row-refund" }
+                : null;
+            return (
+              <MoneyRow
+                key={row.membership_id}
+                name={row.student_name}
+                statementHref={statementHref(paymentsBase, row.membership_id)}
+                onOpenStatement={() => markReceiptNavigation(row.membership_id)}
+                label={label.text}
+                tone={label.tone}
+                line={[row.group_name, label.sub].filter(Boolean).join(" · ")}
+                second={label.second}
+                action={action}
+              />
+            );
+          })}
+        </ul>
       ) : (
         <DataTable columns={PAYMENT_COLUMNS} minWidth={760} gap="1.5rem" lowBelow={1100} testId="payments-table">
           {items.map((row) => (
@@ -554,9 +616,11 @@ function PaymentRow({
 
   // IA audit F4 / d3: at most three items - forgive the debt OR give the advance back, correct the last payment, cancel it (danger last).
   // «Выписка» and the card of the student are links of the row (the statement icon, the name), never menu items.
+  // PAY-TAILS Б2.2: the action of the row follows the STATE of the membership (`rowActionsOf`): a closed one with an advance gets «Вернуть» in the row, an open one keeps «Вернуть аванс» in the «⋯»
+  const acts = rowActionsOf(row);
   const menu: RowMenuItem[] = [];
   if (canWriteOff(row)) menu.push({ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: onWriteoff });
-  if (canRefund(row)) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
+  if (acts.menuRefund) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
   if (last) {
     // A carry-over cannot be corrected (correct the payment it came from); cancelling it stays possible.
     if (!isCarryOver(last)) menu.push({ key: "correct", label: "Исправить последнюю оплату", icon: Pencil, onSelect: () => onCorrect(last) });
@@ -602,7 +666,8 @@ function PaymentRow({
         </div>
       </DataCell>
       <DataCell col="actions">
-        <PayButton row={row} onPay={onPay} />
+        {acts.pay && <PayButton row={row} onPay={onPay} />}
+        {acts.refund && <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="max-sm:flex-1" data-testid="payment-row-refund">{REFUND_ROW_LABEL}</Button>}
         <Link
           href={statementHref(paymentsBase, row.membership_id)}
           onClick={() => markReceiptNavigation(row.membership_id)}
@@ -613,7 +678,7 @@ function PaymentRow({
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
         </Link>
-        <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />
+        {menu.length > 0 && <RowMenu items={menu} label={`Действия: ${row.student_name}`} triggerClassName={ROW_MENU_TRIGGER} />}
       </DataCell>
     </DataRow>
   );
