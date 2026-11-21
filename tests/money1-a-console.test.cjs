@@ -54,7 +54,7 @@ test("the words: the status of a run, the letter, the invariants", () => {
   assert.equal(M.mailLabel("skipped").label, "Письмо не нужно: нового нет");
   assert.deepEqual(M.mailLabel("failed"), { label: "Письмо не ушло", tone: "red" });
   assert.equal(M.mailLabel(null).label, "—");
-  assert.deepEqual(M.INVARIANTS.map((i) => i.label), ["Долг и оплаты", "«Оплачено до»", "Сохранённые ведомости", "Закрытые месяцы"]);
+  assert.deepEqual(M.INVARIANTS.map((i) => i.label), ["Долг и оплаты", "«Оплачено до»", "Сохранённые ведомости", "Закрытые месяцы", "Пробная запись меняет счёт неверно"]);
   assert.equal(M.invariantLabel("I-3"), "Сохранённые ведомости");
   assert.equal(M.invariantLabel("I-9"), "I-9");
 });
@@ -183,4 +183,32 @@ test("R3 M3: no sum is named a number of lessons and no count is named a sum; a 
 
 test("R3 M3: the stable key of a divergence is the centre, the invariant and the subject (not the id of a run)", () => {
   assert.equal(M.findingKey({ orgId: "o1", invariant: "I-3", subjectKey: "sheet-drift:s1" }), "o1|I-3|sheet-drift:s1");
+});
+
+// ── PAY-TAILS Б9.8 / Б10: the kind I-6 «пробная запись меняет счёт неверно» - the sentence of the server instead of a pair of sums ───────────
+const SENTENCE = "Проба оплаты 1 000 сум сегодня увеличила долг: было 500 000 сум, стало 599 000 сум";
+const draw = (props = {}) => html(React.createElement(MoneyReconcileView, { data: DATA, loading: false, refreshing: false, error: null, onReload() {}, ...props }));
+const I6 = (over = {}) => ({ id: "f6", orgId: "o3", orgName: "Центр «Гамма»", invariant: "I-6", what: "пробная запись меняет счёт не так, как должна", subjectKey: "membership:m6:pay_today:debt_grows", subjectId: "m6", month: null, expected: 500000, actual: 599000, text: SENTENCE, details: { probe: "pay_today", rule: "debt_grows", text: SENTENCE }, isNew: true, ...over });
+
+test("I-6: the kind is in the list of kinds, with a label in the tone of the others; the filter keeps only it", () => {
+  assert.deepEqual(M.INVARIANTS.map((item) => item.value), ["I-1", "I-2", "I-3", "I-4", "I-6"]);
+  assert.equal(M.invariantLabel("I-6"), "Пробная запись меняет счёт неверно");
+  assert.deepEqual(M.visibleFindings([...FINDINGS, I6()], "I-6").map((item) => item.id), ["f6"]);
+  assert.equal(M.visibleFindings([...FINDINGS, I6()], "").length, 5);
+  const markup = draw({ data: { ...DATA, findings: [...FINDINGS, I6()] } });
+  assert.ok(textOf(markup).includes("Пробная запись меняет счёт неверно"), "the option / the row names the kind");
+});
+
+test("I-6: the row and the card show the ready sentence of the server (top-level `text`, else `details.text`), not a pair of sums; no sentence - the pair as before", () => {
+  assert.equal(plain(M.findingAmount(I6())), SENTENCE);
+  assert.equal(plain(M.findingAmount(I6({ text: undefined }))), SENTENCE, "details.text when the top level has none");
+  assert.equal(plain(M.findingAmount(I6({ text: "  ", details: { probe: "x" } }))), "500 000 сум → 599 000 сум", "no sentence: the fallback of the pair");
+  assert.equal(M.findingAmount(I6({ text: null, expected: null, actual: null, details: null })), "—");
+  const row = textOf(draw({ data: { ...DATA, findings: [I6()] } }));
+  assert.ok(plain(row).includes(SENTENCE), row);
+  assert.doesNotMatch(plain(row), /500 000 сум → 599 000 сум/, "no pair next to the sentence");
+  const card = textOf(html(React.createElement(FindingDetail, { finding: I6() })));
+  assert.ok(plain(card).includes(SENTENCE) && card.includes("Пробная запись меняет счёт неверно (I-6)") && card.includes("Новое: в прошлой проверке этого центра не было"), card);
+  // the sentence wraps (a long one does not push the page wide): no `whitespace-nowrap` on the cell of I-6
+  assert.match(read("console/src/components/money-reconcile.tsx"), /r\.invariant === "I-6" \? "block min-w-0 max-w-md break-words" : "whitespace-nowrap"/);
 });

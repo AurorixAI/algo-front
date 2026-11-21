@@ -334,7 +334,7 @@ export interface MoneyRun {
   error: string | null;
 }
 
-export type MoneyInvariant = "I-1" | "I-2" | "I-3" | "I-4";
+export type MoneyInvariant = "I-1" | "I-2" | "I-3" | "I-4" | "I-6";
 
 /** One divergence of the newest run.  Ids, months and sums only - no name of a person (the server promises it). */
 export interface MoneyFinding {
@@ -350,6 +350,8 @@ export interface MoneyFinding {
   month: string | null;
   expected: number | null;
   actual: number | null;
+  /** I-6: the ready sentence of the server («Проба оплаты 1 000 сум сегодня увеличила долг: …»); absent for the other kinds. */
+  text?: string | null;
   details: Record<string, unknown> | null;
   /** Was not in the previous check of the same centre. */
   isNew: boolean;
