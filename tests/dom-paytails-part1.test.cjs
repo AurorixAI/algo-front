@@ -58,11 +58,11 @@ test("Б2.1 (frame 2b): the tab «Аванс» - ушедшие first (the serve
   assert.equal(plain(await page.innerText('[role="tab"][aria-selected="true"]')), "Аванс 5");
   const rows = await page.$$eval('[data-testid="payments-table"] li.dt-li, [data-testid="payments-table"] li.dt-row', (els) => els.map((li) => li.innerText.replace(/[\s\u00A0\u202F]+/g, " ").trim()));
   assert.equal(rows.length, 5);
-  assert.match(rows[0], new RegExp(`^Яхё Саидов ${X.YAHYO.display_id} · 4 класс Математика 4 .*Аванс 37 000 сум ушёл 28\\.10 Вернуть`));
+  assert.match(rows[0], new RegExp(`^Яхё Саидов ${X.YAHYO.display_id} · 4 класс Математика 4 .*Аванс 37 000 сум ушёл 28\\.10 Вернуть аванс`));
   assert.match(rows[4], new RegExp(`^Анвар Каримов ${X.ANVAR_ADV.display_id} · .* Аванс 600 000 сум оплачено до 31\\.12$`));
   const status = await page.$$eval('[data-testid="payments-table"] li', (els) => els.map((li) => ({ pay: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean), menu: Boolean(li.querySelector('button[aria-label^="Действия:"]')) })));
   const rowsOnly = status.filter((s) => s.pay.length || s.menu);
-  assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.pay), [["Вернуть"], ["Вернуть"], ["Вернуть"], ["Вернуть"]]);
+  assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.pay), [["Вернуть аванс"], ["Вернуть аванс"], ["Вернуть аванс"], ["Вернуть аванс"]]);
   assert.deepEqual(rowsOnly.slice(0, 4).map((s) => s.menu), [false, false, false, false], "a closed row with an advance has no «⋯» (nothing to put in it)");
   assert.deepEqual(rowsOnly[4].pay, [], "an open student who paid ahead: NO «Внести оплату» in the row (frame 1)");
   assert.equal(await page.locator('[data-testid="payments-table"] li:has(button[aria-label="Действия: Анвар Каримов"]) a[data-testid="payment-row-statement"]').count(), 1, "…the statement icon stays");
@@ -85,7 +85,7 @@ test("Б2.1: «Все 5 · Ушедшие 4» - the numbers are the server's; «
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="payments-table"] li button').length === 4);
   assert.ok(calls.some((c) => /bucket=advance/.test(c.query) && /left_only=true/.test(c.query)));
   const buttons = await page.$$eval('[data-testid="payments-table"] li button', (els) => els.map((b) => b.textContent.trim()));
-  assert.deepEqual(buttons, ["Вернуть", "Вернуть", "Вернуть", "Вернуть"]);
+  assert.deepEqual(buttons, ["Вернуть аванс", "Вернуть аванс", "Вернуть аванс", "Вернуть аванс"]);   // Б11.22 п.7: not «Вернуть» (it reads as «back into the group»)
   assert.equal(plain(await toggle.innerText()), "Все 5 Ушедшие 4", "the numbers do not move with the filter");
   await page.getByRole("radio", { name: /^Все/ }).click();
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="payments-table"] li button').length >= 5);
@@ -194,8 +194,8 @@ const wholeRows = (page, height) => page.evaluate((limit) => {
 }, height - NAV);
 const phoneServer = (rows, over = {}) => server(null, { ...BUSY, ...over, status: (q) => (/bucket=debtors/.test(q) ? X.page(rows, { total: 12, students: 12, amount_total: 3780000 }) : X.statusOf(q)) });
 
-test("Б2.8 (frames 20-21): 375×812 with EVERY conditional block at once (the label of the prices, the label of the openings, «Давность», the tabs): at least THREE whole rows over the bottom menu; 375×667 - at least two", async () => {
-  for (const [height, min] of [[812, 3], [667, 2]]) {
+test("Б2.8 (frames 20-21): 375×812 with EVERY conditional block at once (the label of the prices, the label of the openings, «Давность», the tabs): at least THREE whole rows over the bottom menu; 375×667 - at least one (Б11.22 п.8: the second line WRAPS, a row is up to ~102 px instead of 84)", async () => {
+  for (const [height, min] of [[812, 3], [667, 1]]) {
     const { page } = await open(375, height, phoneServer(ROWS5), payments("bucket=debtors"));   // BUSY: the openings are pending, 38 missing
     await page.waitForSelector('[data-testid="payments-phone-list"] li', { timeout: 8000 });
     await page.waitForSelector('[data-testid="payments-price-label"]');
@@ -235,16 +235,16 @@ test("the phone summary says «Аванс 748 000 сум · 5 уч.»", async ()
   await page.close();
 });
 
-test("the group's tab from 640: «Внести оплату» is the blue main button only where something is unpaid; «Оплачено до» and «Аванс» get an outline", async () => {
+test("the group's tab from 640: «Внести оплату» is ONE look - the outline - for a debtor and for a paid one alike, as in «Оплатах» (Б11.22 п.11; it was blue for the debtor); «Вернуть аванс» too", async () => {
   const { page } = await open(1280, 900, groupServer(), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
   await page.waitForSelector('[data-testid="group-payment-row"]', { timeout: 9000 });
   await page.click('[data-testid="payments-left-toggle"]');
   const kinds = await page.$$eval('[data-testid="group-payment-row"], [data-testid="group-payment-left-row"]', (els) => els.map((li) => { const b = [...li.querySelectorAll("button")].find((x) => /Внести оплату|Вернуть/.test(x.textContent)); return [li.innerText.split("\n")[0].trim(), b.dataset.variant]; }));
-  assert.deepEqual(Object.fromEntries(kinds), { "Анвар Каримов": "secondary", "Лола Юсупова": "primary", "Мадина Турсунова": "secondary", "Феруза Орипова": "primary", "Дилшод Эрматов": "primary", "Камола Эшонова": "secondary" });
+  assert.deepEqual(Object.fromEntries(kinds), { "Анвар Каримов": "secondary", "Лола Юсупова": "secondary", "Мадина Турсунова": "secondary", "Феруза Орипова": "secondary", "Дилшод Эрматов": "secondary", "Камола Эшонова": "secondary" });
   await page.close();
 });
 
-test("Б2.8: the compact row - name and label on line 1 (the label does not shrink), «group · sub» and a 40 px button on line 2, a third small line only for the second sum; the row is ≤ 84 px", async () => {
+test("Б2.8: the compact row - name and label on line 1 (the label does not shrink), «group · sub» and a 40 px button on line 2, a third small line only for the second sum; the row is ≤ 110 px (its second line wraps, Б11.22 п.8)", async () => {
   const { page } = await open(375, 812, phoneServer([X.TIMUR, X.LOLA, X.base({ ...X.LOLA, membership_id: "m-z", student_id: "s-z", student_name: X.LONG_NAME, group_name: X.LONG_GROUP })]), payments("bucket=debtors"));
   await page.waitForSelector('[data-testid="payments-phone-list"] li');
   const rows = await page.$$eval('[data-testid="payments-phone-list"] > li', (els) => els.map((li) => ({
@@ -259,7 +259,7 @@ test("Б2.8: the compact row - name and label on line 1 (the label does not shri
   assert.equal(timur.line, "просрочено 45 дней · оплачено до 30.09 · Математика 7", "the state first, only the group is cut");
   assert.match(timur.second.replace(/[\u00A0\u202F]/g, " "), /^и к оплате 231 000 сум/);
   assert.equal(lola.second, null, "no third line without a second sum");
-  assert.ok(lola.h <= 84, `an ordinary row is ${lola.h} px`);
+  assert.ok(lola.h <= 110, `an ordinary row is ${lola.h} px (Б11.22 п.8: the state line wraps to two lines instead of «…»; it was ≤ 84 with the cut)`);
   for (const row of rows) { assert.deepEqual(row.button.map((b) => b.t), ["Внести"]); assert.ok(row.button[0].h >= 40, "the button is 40 px"); assert.equal(row.menu, false, "no «⋯» in a compact row"); }
   assert.deepEqual(await page.evaluate(touchTargets, '[data-testid="payments-phone-list"]'), [], "every tap target is 40 px");
   await page.close();
@@ -289,8 +289,8 @@ test("Б2.8: a press on the row opens the statement; the button does not (stopPr
   const adv = await open(375, 812, server(), payments("bucket=advance"));
   await adv.page.waitForSelector('[data-testid="payments-phone-list"] li');
   const first = await adv.page.$eval('[data-testid="payments-phone-list"] > li', (li) => ({ t: li.innerText.replace(/\s+/g, " ").trim(), b: li.querySelector("button").textContent.trim() }));
-  assert.equal(first.b, "Вернуть");
-  assert.match(first.t, /^Яхё Саидов Аванс 37 000 сум ушёл 28\.10 · Математика 4 Вернуть$/);
+  assert.equal(first.b, "Вернуть аванс");
+  assert.match(first.t, /^Яхё Саидов Аванс 37 000 сум ушёл 28\.10 · Математика 4 Вернуть аванс$/);
   await adv.page.close();
 });
 
@@ -386,7 +386,7 @@ test("Б2.8 (frame 23б): the group on a phone - the same compact row, «Вне�
   assert.ok(open1.every((r) => r.h <= 84), `heights ${open1.map((r) => r.h)}`);
   await page.click('[data-testid="payments-left-toggle"]');
   const closed = await page.$$eval('[data-testid="group-payment-left-row"]', (els) => els.map((li) => ({ t: li.innerText.replace(/\s+/g, " ").trim(), b: [...li.querySelectorAll("button")].map((b) => b.textContent.trim()) })));
-  assert.deepEqual(closed.map((r) => r.b), [["Внести"], ["Внести"], ["Вернуть"]]);
+  assert.deepEqual(closed.map((r) => r.b), [["Внести"], ["Внести"], ["Вернуть аванс"]]);
   assert.match(closed[0].t, /^Феруза Орипова Долг 415 000 сум ушёл 20\.11 · просрочено 14 дней Внести$/);
   assert.equal(await page.locator('[data-testid="group-payment-left-row"] button[aria-label^="Действия"]').count(), 0);
   await page.close();

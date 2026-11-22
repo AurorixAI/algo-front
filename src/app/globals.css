@@ -80,6 +80,14 @@ body {
 .dt-cell.dt-card-hidden { display: none; }   /* a labelled cell is flex: the hidden one must still win on a card */
 /* a table of 880 that is still narrow (880-1119): the line under a sum keeps only «было …»; the full text is in its title */
 @container dt (min-width: 880px) and (max-width: 1119px) { .dt-cap-long { display: none; } }
+/* PAY-TAILS Б11.22 п.2: the opened «решение» of a PHONE card stays INSIDE the frame of its card (one border round the row and its details); a table row keeps its own look.
+   «Решение принял(а)» is said in the details only where the table has no column «Кто» (880-1119): a card and a wide table show the person once, in «Кто». */
+@container dt (max-width: 879px) {
+  .dt-li:has(> .dec-detail) { border: 1px solid theme(colors.slate.200); border-radius: 0.75rem; background: #fff; overflow: hidden; }
+  .dt-li:has(> .dec-detail) > .dt-row { border: 0; border-radius: 0; }
+}
+.dec-who { display: none; }
+@container dt (min-width: 880px) and (max-width: 1119px) { .dec-who { display: block; } }
 /* a button of a row in a narrow table is compact (less padding), still a button with its text */
 @container dt (min-width: 640px) and (max-width: 959px) { .dt-row .dt-btn-fit { padding-left: 0.625rem; padding-right: 0.625rem; } }
 /* a COMPACT card (`compact` on a table of 880) on a middle place (560 to the width of the table): the title and, on its right, the status and a button of its own size; under them the numbers (the cells with a caption) in equal columns, the caption above the value.  Narrower than 560 it is the plain card (a column, the button over the whole width). */

@@ -71,12 +71,12 @@ import { PAY_STATE_TONE } from "@/lib/pay-state";
 import { forecastOf } from "@/lib/paytails-contract";
 import type { OpenPart } from "@/lib/payments";
 
-/** Date · operation · charged · paid · «Остаток» (what is open on the row ITSELF today, the server's words): a bank statement.  Text and the date LEFT, the three money columns CENTRED (their headers too), the actions («⋯») in their own ruled column. */
+/** Date · operation · charged · paid · «Остаток» (what is open on the row ITSELF today, the server's words): a bank statement.  Text and the date LEFT, «Стоимость» and «Оплачено» RIGHT (digits under digits, their headers too; Б11.22 п.6), «Остаток» (the chips) CENTRED, the actions («⋯») in their own ruled column. */
 const STATEMENT_COLUMNS: DataColumn[] = [
   { key: "date", header: "Дата", width: "max-content" },
   { key: "operation", header: "Операция", width: "minmax(10rem,1fr)" },
-  { key: "charged", header: "Стоимость", align: "center", numeric: "center", width: "max-content", cardLabel: "Стоимость" },
-  { key: "paid", header: "Оплачено", align: "center", numeric: "center", width: "max-content", cardLabel: "Оплачено" },
+  { key: "charged", header: "Стоимость", align: "end", numeric: true, width: "max-content", cardLabel: "Стоимость" },
+  { key: "paid", header: "Оплачено", align: "end", numeric: true, width: "max-content", cardLabel: "Оплачено" },
   { key: "balance", header: "Остаток", align: "center", numeric: "center", width: "max-content", cardLabel: "Остаток" },
   { key: "menu", header: "", align: "center", ruled: true, width: "max-content", actions: true },
 ];
@@ -662,7 +662,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="charged" testId="statement-cell-charged" className={chargedText ? undefined : "dt-card-hidden"}><span className={STATEMENT_AMOUNT_CLASS}>{chargedText}</span></DataCell>
       <DataCell col="paid" testId="statement-cell-paid" className={paidText ? undefined : "dt-card-hidden"}>
-        {isForgivenessWithoutMoney(entry) ? <DataEmpty /> : <span className={STATEMENT_PAID_CLASS}>{paidText}</span>}
+        {isForgivenessWithoutMoney(entry) ? <DataEmpty flush /> : <span className={STATEMENT_PAID_CLASS}>{paidText}</span>}
       </DataCell>
       {/* PAY-TAILS Б11.21 п.7: a row with nothing open has no «Остаток» caption on a phone card */}
       <DataCell col="balance" testId="statement-cell-balance" className={entry.open.length > 0 ? undefined : "dt-card-hidden"}><OpenCell parts={entry.open} /></DataCell>

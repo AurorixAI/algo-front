@@ -17,13 +17,14 @@ async function open(width) {
 /** column -> centre of the heading text, centre of the value of every row (the text), the column of the lines */
 const measure = () => {
   const centre = (el) => { const r = document.createRange(); r.selectNodeContents(el); const b = r.getBoundingClientRect(); return b.left + b.width / 2; };
+  const rightOf = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().right; };
   const head = document.querySelector('[data-testid="statement-table"] .dt-head');
   const out = {};
   for (const col of ["charged", "paid", "balance"]) {
     const h = head.querySelector(`[data-col="${col}"]`);
     const rows = [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row .dt-cell[data-col="${col}"]`)].filter((c) => (col === "balance" ? c.querySelector('[data-testid="statement-open"]') : c.textContent.trim() !== ""));
     const cell = h.getBoundingClientRect();
-    out[col] = { head: centre(h), values: rows.map((c) => centre(c.querySelector(".dt-value"))), cellCentre: cell.left + cell.width / 2, chips: rows.filter((c) => c.querySelector('[data-testid="statement-open"]')).length };
+    out[col] = { head: centre(h), headRight: rightOf(h), valuesRight: rows.map((c) => rightOf(c.querySelector(".dt-value"))), values: rows.map((c) => centre(c.querySelector(".dt-value"))), cellCentre: cell.left + cell.width / 2, chips: rows.filter((c) => c.querySelector('[data-testid="statement-open"]')).length };
   }
   const lines = {};
   for (const col of ["charged", "paid", "balance", "menu"]) {
@@ -35,12 +36,13 @@ const measure = () => {
   return { out, lines };
 };
 
-test("statement 1280: heading, value and chip stand at ONE centre in every money column (<= 1 px), every row", async () => {
+test("statement 1280: «Остаток» - heading, value and chip stand at ONE centre (<= 1 px), every row; «Стоимость» / «Оплачено» - the heading and every sum end on ONE right edge (Б11.22 п.6)", async () => {
   const run = await open(1280);
   const { out } = await run.page.evaluate(measure);
   for (const [col, m] of Object.entries(out)) {
     assert.ok(m.values.length >= (col === "balance" ? 2 : 3), col);          // «Остаток»: only the rows the server named something for (the two charges)
-    for (const v of m.values) assert.ok(Math.abs(v - m.head) <= 1, `${col}: value ${v} heading ${m.head}`);
+    if (col === "balance") for (const v of m.values) assert.ok(Math.abs(v - m.head) <= 1, `${col}: value ${v} heading ${m.head}`);
+    else for (const v of m.valuesRight) assert.ok(Math.abs(v - m.headRight) <= 1.5, `${col}: right edge of a sum ${v}, of the heading ${m.headRight}`);
   }
   assert.ok(out.balance.chips >= 2, "the cells of «Остаток» (word or chip) are measured too");
   await run.page.close();

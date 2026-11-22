@@ -62,7 +62,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/radio";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
-import { RefundDialog, REFUND_ACTION_LABEL, REFUND_ROW_LABEL } from "./refund-dialog";
+import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 import { MoneyAccessDenied } from "@/components/payments/money-access-denied";
@@ -506,7 +506,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             const action = acts.pay && !(bucket === "advance" && !isClosedRow(row))
               ? { label: "Внести", ariaLabel: `${PAY_ACTION_LABEL}: ${row.student_name}`, onClick: () => setForm({ kind: "create", row, payment: null }), testId: "payment-row-pay" }
               : acts.refund
-                ? { label: "Вернуть", ariaLabel: `${REFUND_ACTION_LABEL}: ${row.student_name}`, onClick: () => setRefundRow(row), testId: "payment-row-refund" }
+                ? { label: REFUND_ACTION_LABEL, ariaLabel: `${REFUND_ACTION_LABEL}: ${row.student_name}`, onClick: () => setRefundRow(row), testId: "payment-row-refund" }
                 : null;
             return (
               <MoneyRow
@@ -673,7 +673,7 @@ function PaymentRow({
       </DataCell>
       <DataCell col="actions">
         {acts.pay && !payInMenu && <PayButton row={row} onPay={onPay} />}
-        {acts.refund && <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="max-sm:flex-1" data-testid="payment-row-refund">{REFUND_ROW_LABEL}</Button>}
+        {acts.refund && <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="max-sm:flex-1" data-testid="payment-row-refund">{REFUND_ACTION_LABEL}</Button>}
         <Link
           href={statementHref(paymentsBase, row.membership_id)}
           onClick={() => markReceiptNavigation(row.membership_id)}

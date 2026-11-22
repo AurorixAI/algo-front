@@ -146,11 +146,13 @@ test("inc13-5 (wave 3): the date and «Операция» are LEFT, the three mo
   const cols = src.match(/const STATEMENT_COLUMNS: DataColumn\[\] = \[([\s\S]*?)\];/)[1];
   assert.match(cols, /key: "date", header: "Дата", width: "max-content"/);
   assert.match(cols, /key: "operation", header: "Операция"/);
-  for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"], ["balance", "Остаток"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "center", numeric: "center"`), word);
+  // PAY-TAILS Б11.22 п.6: the sums («Стоимость», «Оплачено») stand on the RIGHT edge with tabular digits (digits under digits); «Остаток» (chips and words) stays centred
+  for (const [key, word] of [["charged", "Стоимость"], ["paid", "Оплачено"]]) assert.match(cols, new RegExp(`key: "${key}", header: "${word}", align: "end", numeric: true`), word);
+  assert.match(cols, /key: "balance", header: "Остаток", align: "center", numeric: "center"/);
   const { React, html } = renderer();
   const markup = html(React.createElement(View().StatementTimeline, { statement: statementOf(), menuFor: () => [], withVoided: false }));
-  for (const id of ["charged", "paid", "balance"]) {
-    const cells = markup.match(new RegExp(`<div class="dt-cell[^"]*"[^>]*data-align="center"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
+  for (const [id, align] of [["charged", "end"], ["paid", "end"], ["balance", "center"]]) {
+    const cells = markup.match(new RegExp(`<div class="dt-cell[^"]*"[^>]*data-align="${align}"[^>]*data-testid="statement-cell-${id}"`, "g")) || [];
     assert.ok(cells.length >= 4, id);
   }
   assert.match(markup, /data-col="date" data-align="start"[^>]*><div class="dt-value"><span class="text-sm tabular-nums text-slate-700">\d\d\.\d\d\.\d{4}/);

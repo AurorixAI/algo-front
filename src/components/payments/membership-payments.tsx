@@ -26,7 +26,7 @@ import { BalanceNote } from "./balance-note";
 import { MembershipPriceLine } from "./membership-price";
 import { MembershipRowActions } from "./membership-row-actions";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
-import { REFUND_ROW_LABEL } from "./refund-dialog";
+import { REFUND_ACTION_LABEL } from "./refund-dialog";
 import { useRefundFlow } from "./refund-flow";
 import { Button } from "@/components/ui/button";
 
@@ -167,7 +167,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
           )}
           {acts.refund && (
             <Button type="button" onClick={() => refund.open(row)} variant="secondary" size="sm" data-testid="membership-refund">
-              {REFUND_ROW_LABEL}
+              {REFUND_ACTION_LABEL}
             </Button>
           )}
         </div>

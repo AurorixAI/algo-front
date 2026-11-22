@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { Words } from "@/components/ui/words";
@@ -9,9 +10,9 @@ import type { ChipTone } from "@/lib/chip-tone";
 /**
  * PAY-TAILS Б2.8: THE compact row of a list of money on a PHONE (< 640) - one component for the tabs of «Оплаты» and for the «Оплаты» of a group (frames 20-23):
  *  line 1 - the name (one line, an ellipsis) and the label of the sum (does not shrink);
- *  line 2 - «group · the sub-line of the state» (one line, an ellipsis) and the action, a 40 px button (does not shrink);
+ *  line 2 - «the sub-line of the state · group» (it WRAPS, never cut by an ellipsis: «оплачено до 31.12» must be read whole) and the action, a 40 px button (does not shrink);
  *  line 3 (small) - only for the second sum («и к оплате 231 000 до 24.11»).
- * A press on the row opens the statement; the action does not (`stopPropagation`); the row has no «⋯».  Every word is the server's.
+ * A press on the row opens the statement (the arrow on the right says so, PAY-TAILS Б11.22 п.8); the action does not (`stopPropagation`); the row has no «⋯».  Every word is the server's.
  * The row is ONE link stretched over the card and the button lifted over it, so the keyboard reaches each once and Enter / Space fire the button ONCE.
  */
 export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, sub, group, second, action, testId = "money-row" }: {
@@ -32,7 +33,7 @@ export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, su
   testId?: string;
 }) {
   return (
-    <li data-testid={testId} className="relative min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2">
+    <li data-testid={testId} className="relative flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white py-2 pl-3.5 pr-2.5">
       <Link
         href={statementHref}
         onClick={onOpenStatement}
@@ -40,14 +41,14 @@ export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, su
         data-testid="money-row-statement"
         className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       />
+      <div className="min-w-0 flex-1">
       <div className="pointer-events-none relative flex min-w-0 items-center justify-between gap-3">
         <p className="min-w-0 truncate text-sm font-semibold text-slate-900" data-testid="money-row-name"><Words text={name} /></p>
         {label && <Chip tone={tone} className="shrink-0" testId="pay-label">{label}</Chip>}
       </div>
       <div className="pointer-events-none relative mt-0.5 flex min-h-10 min-w-0 items-center justify-between gap-3">
-        <p className="flex min-w-0 flex-1 text-sm text-slate-500" data-testid="money-row-line">
-          {sub && <span className="max-w-full shrink-0 truncate">{sub}</span>}
-          {group && <span className="min-w-0 truncate whitespace-pre">{sub ? " · " : ""}{group}</span>}
+        <p className="min-w-0 flex-1 text-sm text-slate-500 [overflow-wrap:anywhere]" data-testid="money-row-line">
+          {sub}{group && <>{sub ? " · " : ""}{group}</>}
         </p>
         {action && (
           <Button
@@ -64,6 +65,8 @@ export function MoneyRow({ name, statementHref, onOpenStatement, label, tone, su
         )}
       </div>
       {second && <p className="pointer-events-none relative -mt-0.5 pb-0.5 text-xs text-slate-500" data-testid="pay-second">{second}</p>}
+      </div>
+      <ChevronRight aria-hidden data-testid="money-row-chevron" className="pointer-events-none relative h-4 w-4 shrink-0 text-slate-500" />
     </li>
   );
 }

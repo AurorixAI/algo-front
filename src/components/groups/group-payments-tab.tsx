@@ -32,7 +32,7 @@ import { fetchGroupSettled } from "@/lib/paytails-read";
 import { rowActionsOf, SETTLED_BAND_TITLE } from "@/lib/paytails";
 import { useMediaQuery, PHONE_QUERY } from "@/lib/use-media-query";
 import { MoneyRow } from "@/components/payments/money-row";
-import { REFUND_ACTION_LABEL, REFUND_ROW_LABEL } from "@/components/payments/refund-dialog";
+import { REFUND_ACTION_LABEL } from "@/components/payments/refund-dialog";
 import { useRefundFlow } from "@/components/payments/refund-flow";
 import {
   PAY_ACTION_LABEL,
@@ -425,14 +425,13 @@ function PaymentRow({ view, phone, closed = false, studentsBasePath, paymentsBas
   onPay: () => void;
   onRefund: () => void;
 }) {
-  // the main (blue) button only where something is unpaid (a debt or a sum to pay); the rest is an outline, as on the page «Оплаты»
-  const due = (Number(view.row.debt) || 0) > 0;
+  // PAY-TAILS Б11.22 п.11: the button of the row is ONE look here and on the page «Оплаты» (frames 1-4, 23 of the mock): the outline, never the blue one
   const acts = rowActionsOf(view.row);
   const statement = statementHref(paymentsBasePath, view.membershipId);
   if (phone) {
     const action = acts.pay
       ? { label: "Внести", ariaLabel: `${PAY_ACTION_LABEL}: ${view.name}`, onClick: onPay, testId: "payment-row-pay" }
-      : acts.refund ? { label: REFUND_ROW_LABEL, ariaLabel: `${REFUND_ACTION_LABEL}: ${view.name}`, onClick: onRefund, testId: "payment-row-refund" } : null;
+      : acts.refund ? { label: REFUND_ACTION_LABEL, ariaLabel: `${REFUND_ACTION_LABEL}: ${view.name}`, onClick: onRefund, testId: "payment-row-refund" } : null;
     return (
       <MoneyRow
         testId={closed ? "group-payment-left-row" : "group-payment-row"}
@@ -454,13 +453,13 @@ function PaymentRow({ view, phone, closed = false, studentsBasePath, paymentsBas
 
       <div className="flex items-center gap-2 lg:justify-end">
         {acts.pay && (
-          <Button type="button" onClick={onPay} variant={due ? "primary" : "secondary"} size="sm" className="min-w-0 flex-1 lg:flex-none">
+          <Button type="button" onClick={onPay} variant="secondary" size="sm" className="min-w-0 flex-1 lg:flex-none">
             {PAY_ACTION_LABEL}
           </Button>
         )}
         {acts.refund && (
           <Button type="button" onClick={onRefund} variant="secondary" size="sm" className="min-w-0 flex-1 lg:flex-none" data-testid="payment-row-refund">
-            {REFUND_ROW_LABEL}
+            {REFUND_ACTION_LABEL}
           </Button>
         )}
         <Link

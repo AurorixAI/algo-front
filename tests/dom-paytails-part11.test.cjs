@@ -3,7 +3,7 @@
 // The 409 `BALANCE_CHANGED` of п.4 is in dom-paytails-part2 / money2-w1-effects; the console (п.9) is in dom-paytails-part11-console.  PNGs: node tests/dom/paytails-part11-shots.cjs <dir>.
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { setup, plain, mount, F, OWNER } = require("./helpers/money2-w2.cjs");
+const { setup, plain, mount, isDry, F, OWNER } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
 const { statementServer, statementAllKinds } = require("./helpers/statement-all-kinds.cjs");
@@ -35,7 +35,22 @@ for (const width of [1280, 375]) {
     assert.equal(await run.page.locator('[data-testid="decision-used"]').count(), 1);
     assert.match(await rows.nth(0).locator('[data-testid="decision-used"]').getAttribute("class"), /text-xs text-slate-500/, "quiet: small and grey");
     await rows.nth(0).click();
-    assert.equal(plain(await run.page.locator('[data-testid="decision-used-detail"]').innerText()), "использовано 94 000 сум");
+    // Б11.22 п.2: the opened row does NOT say it a second time (the row does), and the person who decided is said once - in «Кто» (a card and a wide table show it), not again in the opened row
+    assert.equal(await run.page.locator('[data-testid="decision-used-detail"]').count(), 0, "«использовано…» only in the row");
+    assert.equal(await run.page.locator('[data-testid="decision-used"]').count(), 1, "and it is still in the row");
+    // «Кто» is a column of the table from 1100 up and a line of a card; between 880 and 1119 the column goes and the opened row says who decided
+    const tableWidth = await run.page.evaluate(() => document.querySelector(".dt").getBoundingClientRect().width);
+    assert.equal(await run.page.locator('[data-testid="decision-actor-detail"]').isVisible(), tableWidth >= 880 && tableWidth < 1120, `«Решение принял(а)» does not repeat «Кто» (table ${tableWidth})`);
+    // the opened row stays INSIDE the frame of its card on a phone: one border round the row and the details (a table row has no frame of its own)
+    const frame = await run.page.evaluate(() => {
+      const details = document.querySelector('[data-testid="decision-details"]');
+      const li = details.closest("li");
+      const box = li.getBoundingClientRect();
+      const inner = details.getBoundingClientRect();
+      return { border: getComputedStyle(li).borderTopWidth, inside: inner.left >= box.left && inner.right <= box.right && inner.bottom <= box.bottom + 0.5 };
+    });
+    assert.equal(frame.inside, true);
+    assert.equal(frame.border, width === 375 ? "1px" : "0px", "the card has the frame; the table row has none");
     const probe = await run.page.evaluate(layoutProbe, '[data-testid="income-decisions"]');
     assert.deepEqual(probe.bad, []);
     assert.equal(probe.scroll, 0);
@@ -62,7 +77,17 @@ for (const width of [1280, 375]) {
     await run.page.waitForTimeout(500);
     const text = plain(await run.page.locator('[role="dialog"]').innerText());
     assert.ok(!text.includes("Кнопка включится"), text);
-    assert.equal(plain(await run.page.locator('[data-testid="price-blocked"] p').first().innerText()), FORGIVENESS, "the server's words as they came, with the full stop");
+    // Б11.22 п.3: the FIRST sentence is the refusal (bold), the second the way out (plain); together they are the words of the server as they came, with the full stop
+    const first = run.page.locator('[data-testid="price-blocked"] p').first();
+    const way = run.page.locator('[data-testid="price-blocked-way"]');
+    assert.equal(plain(await first.innerText()), "У 1 ученика исправление превратит прощённый долг в переплату.");
+    assert.equal(plain(await way.innerText()), "Сначала отмените прощение долга, затем исправьте цену.");
+    assert.equal(plain(await run.page.locator('[data-testid="price-blocked"]').innerText()).includes(FORGIVENESS), true, "the whole sentence of the server, in order");
+    assert.ok(Number(await first.evaluate((el) => getComputedStyle(el).fontWeight)) >= 600, "the first sentence is bold");
+    assert.ok(Number(await way.evaluate((el) => getComputedStyle(el).fontWeight)) <= 500, "the way out is plain");
+    // the refusal stands ALONE: no grey frame, no «Что изменится» round it
+    assert.ok(!text.includes("Что изменится"), "no «Что изменится» over a refusal");
+    assert.equal(await run.page.locator('[role="dialog"] .bg-slate-50.border-slate-200').count(), 0, "no grey frame round the refusal");
     // one yellow block: the notice of the refusal; the warning «Дата в прошлом…» is not a second one next to it
     const yellow = await run.page.locator('[role="dialog"] [data-variant="blocked"], [role="dialog"] [data-variant="warning"], [role="dialog"] .bg-amber-50').count();
     assert.equal(yellow, 1, `one yellow block, got ${yellow}`);
@@ -250,4 +275,236 @@ test("п.6: a payment of a student who left, made from the card of the group, ch
   assert.equal(await run.page.locator('[data-testid="group-payment-left-row"]').count(), 2, "the open band shows two rows now");
   assert.doesNotMatch(plain(await run.page.locator("body").innerText()), /расчёт не закрыт 3|Долг 615 000/);
   await run.page.close();
+});
+
+// ══ Б11.22: the finish after the acceptance of the screens ═══════════════════════════════════════════════════════════════════════
+const X2 = require("./helpers/paytails-fixture2.cjs");
+const F2 = require("./helpers/money2-fixture.cjs");
+const STALE_LINE = "Счёт изменился, пока окно было открыто. Проверьте числа и подтвердите ещё раз.";
+const STALE_409 = { status: 409, json: { detail: { code: "BALANCE_CHANGED", message: "Сумма изменилась, откройте окно заново", fresh: [] } } };
+
+/** The calm sentence stands right under the heading, OUT of the scroll, inside the screen, above the footer - whatever the body scrolls to. */
+async function assertStaleInView(page, label) {
+  const facts = await page.evaluate(() => {
+    const notice = document.querySelector('[data-testid="balance-stale"]');
+    const rect = notice.getBoundingClientRect();
+    const part = (name) => document.querySelector(`[role="dialog"] [data-modal-part="${name}"]`)?.getBoundingClientRect();
+    const header = part("header"); const body = part("body"); const footer = part("footer");
+    return { inBody: Boolean(notice.closest('[data-modal-part="body"]')), top: rect.top, bottom: rect.bottom, height: rect.height, viewport: window.innerHeight, header: header && header.bottom, body: body && body.top, footerTop: footer && footer.top };
+  });
+  assert.equal(facts.inBody, false, `${label}: the sentence is not inside the scrolling body`);
+  assert.ok(facts.top >= facts.header - 1 && facts.bottom <= facts.body + 1, `${label}: it stands between the heading and the body ${JSON.stringify(facts)}`);
+  assert.ok(facts.top >= 0 && facts.bottom <= facts.footerTop && facts.bottom <= facts.viewport, `${label}: in view, above the footer ${JSON.stringify(facts)}`);
+}
+
+for (const width of [1280, 375]) {
+  test(`п.1 (${width}): «Счёт изменился…» stands under the heading, out of the scroll, in view above the footer - in the window of leaving, of a transfer and of the archive of a student`, async () => {
+    // leaving
+    const memberships = [X2.LEAVE_DEBT()];
+    const leave = await openPage(ctx.browser, "money2.entry.tsx", F2.baseServer(X2.leaveServer(memberships, () => X2.STALE_409)), { width, height: width === 375 ? 812 : 900 });
+    await leave.page.evaluate(() => window.mount("leave-lines", { role: "owner", org_role: "owner" }, { groupName: "Алгебра 7" }));
+    await leave.page.waitForSelector('[data-testid="settle-membership"]');
+    await leave.page.getByRole("button", { name: "Убрать из группы" }).click();
+    await leave.page.waitForSelector('[data-testid="balance-stale"]');
+    assert.equal(plain(await leave.page.locator('[data-testid="balance-stale"]').innerText()), STALE_LINE);
+    await assertStaleInView(leave.page, "leave");
+    await leave.page.close();
+    // the archive of a student
+    const archive = await openPage(ctx.browser, "money2.entry.tsx", F2.baseServer(X2.archiveServer([X2.LEAVE_DEBT()], () => X2.STALE_409)), { width, height: width === 375 ? 812 : 900 });
+    await archive.page.evaluate(() => window.mount("archive-lines", { role: "owner", org_role: "owner" }, { groupNames: ["Математика 7"] }));
+    await archive.page.waitForSelector('[data-testid="settle-membership"]');
+    await archive.page.getByRole("button", { name: "В архив" }).click();
+    await archive.page.waitForSelector('[data-testid="balance-stale"]');
+    await assertStaleInView(archive.page, "student archive");
+    await archive.page.close();
+    // a transfer
+    let writes = 0;
+    const transfer = await mount(ctx, F2.baseServer((request) => {
+      if (request.path !== "/auth/org/groups/gt/students/st1") return null;
+      if (isDry(request)) return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, as_of: "2026-11-21", effects: F2.transferEffects({ carried: 440000 }) } };
+      writes += 1;
+      return STALE_409;
+    }), "assign", OWNER, { moneyAvailable: true, sourceGroups: [F2.SOURCES[0]], excludeGroupIds: ["ga"] }, width);
+    await transfer.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
+    await transfer.page.waitForSelector('[data-testid="transfer-effects"]');
+    await transfer.page.click('[data-testid="assign-submit"]');
+    await transfer.page.waitForSelector('[data-testid="balance-stale"]');
+    assert.equal(writes, 1);
+    await assertStaleInView(transfer.page, "transfer");
+    await transfer.page.close();
+  });
+}
+
+test("п.4: the window of leaving names the student AND the group under the heading («Каримов Фарход · Алгебра 7»)", async () => {
+  const run = await openPage(ctx.browser, "money2.entry.tsx", F2.baseServer(X2.leaveServer([X2.LEAVE_DEBT()])), { width: 1280, height: 900 });
+  await run.page.evaluate(() => window.mount("leave-lines", { role: "owner", org_role: "owner" }, { groupName: "Алгебра 7" }));
+  await run.page.waitForSelector('[data-testid="settle-membership"]');
+  const header = run.page.locator('[role="dialog"] [data-modal-part="header"]');
+  assert.match(plain(await header.innerText()), /Убрать ученика из группы\?\s*Каримов Фарход · Алгебра 7/);
+  await run.page.close();
+});
+
+for (const width of [1280, 375]) {
+  test(`п.5 (${width}): the transfer - the main button says «Перевести» (not the name of the group), the bottom is the one of every window (the same footer, the divider, «Отмена»); the group is named in the list and in the block «Перейдёт в…»`, async () => {
+    const run = await mount(ctx, F2.baseServer((request) => (request.path === "/auth/org/groups/gt/students/st1"
+      ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: isDry(request), as_of: "2026-11-21", effects: F2.transferEffects({ carried: 440000 }) } } : null)),
+    "assign", OWNER, { moneyAvailable: true, sourceGroups: [F2.SOURCES[0]], excludeGroupIds: ["ga"] }, width);
+    await run.page.click('[data-testid="assign-group-card"][data-group="gt"] [data-testid="group-card-name"]');
+    await run.page.waitForSelector('[data-testid="transfer-effects"]');
+    const submit = run.page.locator('[data-testid="assign-submit"]');
+    assert.equal(plain(await submit.innerText()), "Перевести");
+    assert.equal(await run.page.locator('[data-testid="summary-bar"]').count(), 0, "a transfer has no sum: no bar of its own");
+    const cancel = run.page.locator('[role="dialog"] [data-modal-part="footer"] [data-testid="confirm-cancel"]');
+    assert.equal(plain(await cancel.innerText()), "Отмена");
+    const footer = await run.page.locator('[role="dialog"] [data-modal-part="footer"]').evaluate((el) => ({ border: getComputedStyle(el).borderTopWidth, bg: getComputedStyle(el).backgroundColor }));
+    assert.equal(footer.border, "1px", "the divider of the footer");
+    assert.equal(footer.bg, "rgba(0, 0, 0, 0)", "the same (white) ground as the other windows");
+    const box = await submit.evaluate((el) => ({ h: el.getBoundingClientRect().height, scroll: el.scrollWidth > el.clientWidth + 1 }));
+    assert.ok(box.h <= 48, `one line, got ${box.h}`);
+    assert.equal(box.scroll, false);
+    const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
+    assert.deepEqual(probe.bad, []);
+    await run.page.close();
+  });
+}
+
+test("п.5: a first enrolment keeps its bar with the sum and the button «Зачислить в «…»» (the sum is the reason of the bar)", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/components/groups/assign-group-modal.tsx"), "utf8");
+  assert.match(src, /isTransfer \? "Перевести" : selectedGroup \? enrolIntoLabel\(selectedGroup\.name, verb\) : "Зачислить"/);
+  assert.match(src, /<SummaryBar\b/, "the enrolment still has its bar");
+});
+
+test("п.6 (1280): «Стоимость» and «Оплачено» stand on the RIGHT edge with tabular digits - digits under digits, their headers over the same edge; «Остаток» stays in the centre", async () => {
+  // a forgiveness without money has «—» in «Оплачено»: it stands on the SAME right edge as the digits (the edge of the TEXT is measured)
+  const run = await statement(1280, (data) => { data.rows.find((row) => row.type === "writeoff").credit = 0; });
+  const facts = await run.page.evaluate(() => {
+    const textRight = (el) => { const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((rect) => rect.width > 0); return Math.round(Math.max(...rects.map((rect) => rect.right)) * 10) / 10; };
+    const edge = (col) => [...document.querySelectorAll(`[data-testid="statement-table"] .dt-row [data-col="${col}"] .dt-value`)].filter((el) => el.textContent.trim().length > 0 && el.getBoundingClientRect().width > 0)
+      .map((el) => ({ right: textRight(el), align: getComputedStyle(el.closest(".dt-cell")).textAlign, tabular: getComputedStyle(el).fontVariantNumeric.includes("tabular-nums") || getComputedStyle(el.firstElementChild ?? el).fontVariantNumeric.includes("tabular-nums") }));
+    const head = (col) => getComputedStyle(document.querySelector(`[data-testid="statement-table"] .dt-head-cell[data-col="${col}"]`)).textAlign;
+    return { charged: edge("charged"), paid: edge("paid"), headCharged: head("charged"), headPaid: head("paid"), headBalance: head("balance") };
+  });
+  for (const key of ["charged", "paid"]) {
+    assert.ok(facts[key].length >= 2, `${key}: rows with a sum`);
+    assert.equal(new Set(facts[key].map((cell) => cell.right)).size, 1, `${key}: one right edge ${JSON.stringify(facts[key])}`);
+    assert.ok(facts[key].every((cell) => cell.align === "right" && cell.tabular), `${key}: right and tabular`);
+  }
+  assert.equal(facts.headCharged, "right");
+  assert.equal(facts.headPaid, "right");
+  assert.equal(facts.headBalance, "center");
+  await run.page.close();
+});
+
+const dueServer = (total) => groupServer((query) => (new URLSearchParams(query).get("bucket") === "to_pay" ? X.page([X.LOLA], { total: 1, students: 3, amount_total: total }) : X.groupStatus(query)));
+test("п.7: the plate «К оплате» of the card of a group is not shown at the sum 0 (it is shown at a real sum, with the students); «Долг» is as before", async () => {
+  const zero = await paydue(1280, dueServer(0), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+  await zero.page.waitForSelector('[data-testid="group-debt-chip"], [data-testid="group-price-chip"]', { timeout: 9000 });
+  await zero.page.waitForTimeout(600);
+  assert.equal(await zero.page.locator('[data-testid="group-due-chip"]').count(), 0, "no plate at 0");
+  assert.doesNotMatch(plain(await zero.page.locator("body").innerText()), /К оплате 0 сум|Долг 0 сум/, "and no «Долг 0 сум» either: a sum of nothing is no plate");
+  await zero.page.close();
+  const some = await paydue(1280, dueServer(92000), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+  await some.page.waitForSelector('[data-testid="group-due-chip"]', { timeout: 9000 });
+  assert.match(plain(await some.page.locator('[data-testid="group-due-chip"]').innerText()), /^К оплате 92 000 сум · 3 ученика/);
+  await some.page.close();
+});
+
+for (const width of [1280, 375]) {
+  test(`п.7 (${width}): the action of a student who left with an advance says «Вернуть аванс» - in the band of the group and in the tab «Аванс» of «Оплаты»`, async () => {
+    const group = await paydue(width, groupServer(X.groupStatus), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+    await group.page.waitForSelector('[data-testid="payments-left-toggle"]', { timeout: 9000 });
+    await group.page.click('[data-testid="payments-left-toggle"]');
+    await group.page.locator('[data-testid="group-payment-left-row"]').first().waitFor();
+    const refunds = await group.page.locator('[data-testid="group-payment-left-row"] [data-testid="payment-row-refund"]').allInnerTexts();
+    assert.ok(refunds.length >= 1 && refunds.every((text) => plain(text) === "Вернуть аванс"), JSON.stringify(refunds));
+    await group.page.close();
+    const centre = await paydue(width, paymentsServer(), ["payments", OWNER, { moneyAvailable: true, search: "bucket=advance" }]);
+    await centre.page.waitForSelector('[data-testid="payment-row-refund"]', { timeout: 9000 });
+    const words = (await centre.page.locator('[data-testid="payment-row-refund"]').allInnerTexts()).map(plain);
+    assert.ok(words.length >= 1 && words.every((text) => text === "Вернуть аванс"), JSON.stringify(words));
+    await centre.page.close();
+  });
+}
+
+test("п.8 (375): the second line of a compact row of money is WRAPPED, not cut by «…» («оплачено до 31.07» is read whole); a row that opens the statement has the arrow on the right", async () => {
+  const long = X.longRow("long");
+  const run = await paydue(375, paymentsServer((request) => (request.path === "/auth/org/payments/status" ? { json: X.page([long], { total: 1, students: 1, amount_total: 12345678 }) } : null)), ["payments", OWNER, { moneyAvailable: true, search: "bucket=debtors" }]);
+  const row = run.page.locator('[data-testid="payments-phone-list"] > li').first();
+  await row.waitFor();
+  const facts = await row.evaluate((li) => {
+    const line = li.querySelector('[data-testid="money-row-line"]');
+    const chevron = li.querySelector('[data-testid="money-row-chevron"]');
+    const button = li.querySelector("button");
+    const box = li.getBoundingClientRect();
+    return {
+      text: line.innerText.replace(/[\s  ]+/g, " ").trim(), ellipsis: getComputedStyle(line).textOverflow === "ellipsis", cutWidth: line.scrollWidth > line.clientWidth + 1, cutHeight: line.scrollHeight > line.clientHeight + 1,
+      chevron: chevron ? { right: chevron.getBoundingClientRect().right, left: chevron.getBoundingClientRect().left } : null, button: button ? button.getBoundingClientRect().right : null, li: { left: box.left, right: box.right },
+    };
+  });
+  assert.match(facts.text, /оплачено до 31\.07/, "the key words are all there");
+  assert.equal(facts.ellipsis, false);
+  assert.equal(facts.cutWidth || facts.cutHeight, false, "nothing is clipped");
+  assert.ok(facts.chevron && facts.chevron.left >= facts.button && facts.chevron.right <= facts.li.right, `the arrow stands right of the button inside the card ${JSON.stringify(facts)}`);
+  const probe = await run.page.evaluate(layoutProbe, '[data-testid="payments-phone-list"]');
+  assert.deepEqual(probe.bad.filter((line) => !line.startsWith("p[money-row-name]")), [], "the name keeps its one line with «…» (it is not this point)");
+  assert.equal(probe.scroll, 0);
+  await run.page.close();
+});
+
+for (const width of [1280, 375]) {
+  test(`п.9 (${width}): the archive of a group says the instruction ONCE (in the warning, not again over the button); the action of a student's row is «Ученика в архив», the button of the window stays «В архив»`, async () => {
+    const run = await mount(ctx, F.baseServer((request) => (request.path === "/auth/org/groups/gz/archive-impact" ? { json: archiveImpact() } : null), F.SHORT), "group-archive", OWNER, { moneyAvailable: true, groupsBasePath: "/owner/groups" }, width);
+    const block = run.page.locator('[data-testid="archive-students-stop"]');
+    await block.waitFor();
+    assert.equal(await block.getByRole("button", { name: "Ученика в архив" }).count(), 2);
+    assert.equal(await block.getByRole("button", { name: "В архив", exact: true }).count(), 0, "no second meaning of «В архив» in the list");
+    assert.equal(await run.page.locator('[role="dialog"] [data-modal-part="footer"]').getByRole("button", { name: "В архив", exact: true }).count(), 1);
+    assert.equal(await run.page.locator("#group-archive-why").count(), 0, "no line over the button");
+    const text = plain(await run.page.locator('[role="dialog"]').innerText());
+    assert.equal((text.match(/отправьте в архив/g) ?? []).length, 1, "the instruction is said once");
+    assert.equal(await run.page.locator('[role="dialog"] [data-modal-part="footer"] button[form], [role="dialog"] [data-modal-part="footer"] [data-testid="group-archive-submit"]').first().isDisabled(), true, "the button stays off");
+    await run.page.close();
+  });
+}
+
+test("п.10: the pause - the block of a future pause is headed «Отменить будущую паузу»; its button «Отменить паузу» is secondary (the one main button of the window is «Поставить на паузу»); «Назад», not «Не надо»; «эти дни придётся оплатить»", async () => {
+  const future = pauseRow("pf", day(10), day(13));
+  const answer = F.baseServer((request) => {
+    if (request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: [future] };
+    if (request.method === "POST" && request.path === "/auth/org/pauses/pf/void") return { json: { pause: future, impact: null, row: null, dry_run: true, other_groups_text: null } };
+    return null;
+  });
+  const run = await mount(ctx, answer, "pause", OWNER, { moneyAvailable: true });
+  await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
+  assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0, "the heading comes with the confirmation");
+  await run.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await run.page.locator("#pause-act-reason").waitFor();
+  assert.equal(plain(await run.page.locator('[data-testid="pause-cancel-title"]').innerText()), "Отменить будущую паузу");
+  const block = run.page.locator('section[aria-label="Паузы ученика"] li').first();
+  const text = plain(await block.innerText());
+  assert.match(text, /Пауза ещё не началась: она будет отменена, эти дни придётся оплатить\./);
+  assert.ok(!text.includes("останутся платными") && !text.includes("Не надо"), text);
+  assert.equal(await block.getByRole("button", { name: "Назад", exact: true }).count(), 1);
+  const colour = async (locator) => locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const confirm = block.getByRole("button", { name: "Отменить паузу" });
+  const main = run.page.locator('button[form="pause-form"]');
+  assert.notEqual(await colour(confirm), await colour(main), "the confirmation is not the look of the main button");
+  assert.equal(await colour(confirm), "rgb(255, 255, 255)", "it is the outline button");
+  await run.page.close();
+});
+
+test("п.11 (1280): «Внести оплату» of a debtor has ONE look in «Оплатах» and in the card of a group - the outline of the design system (frames 1-4, 23), never the blue one", async () => {
+  const look = (locator) => locator.evaluate((el) => { const s = getComputedStyle(el); return { bg: s.backgroundColor, border: s.borderTopColor, colour: s.color, height: Math.round(el.getBoundingClientRect().height), radius: s.borderTopLeftRadius, weight: s.fontWeight, size: s.fontSize }; });
+  const centre = await paydue(1280, paymentsServer(), ["payments", OWNER, { moneyAvailable: true, search: "bucket=debtors" }]);
+  const centreButton = centre.page.getByRole("button", { name: "Внести оплату" }).first();
+  await centreButton.waitFor({ timeout: 9000 });
+  const a = await look(centreButton);
+  await centre.page.close();
+  const group = await paydue(1280, groupServer(X.groupStatus), ["group", OWNER, { moneyAvailable: true, search: "tab=payments" }]);
+  const debtorRow = group.page.locator('[data-testid="group-payment-row"]', { hasText: "Долг" }).first();
+  await debtorRow.waitFor({ timeout: 9000 });
+  const b = await look(debtorRow.getByRole("button", { name: "Внести оплату" }));
+  await group.page.close();
+  assert.deepEqual(b, a);
+  assert.equal(a.bg, "rgb(255, 255, 255)");
 });

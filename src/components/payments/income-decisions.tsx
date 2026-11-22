@@ -150,10 +150,9 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       onActivate={onToggle}
       expanded={open}
       detail={open && (
-        <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
+        <div className="dt-detail dec-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
           {row.text && <p className="break-words font-medium text-slate-900" data-testid="decision-text">{tidyMoneyText(row.text)}</p>}
-          {row.used_text && <p className="break-words text-slate-600" data-testid="decision-used-detail">{tidyMoneyText(row.used_text)}</p>}
-          {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
+          {row.actor_name && <p className="dec-who" data-testid="decision-actor-detail">Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.consequence && <p className="break-words" data-testid="decision-consequence">{row.consequence}</p>}
           {decisionRestoredText(row) && <p className="break-words" data-testid="decision-restored">{decisionRestoredText(row)}</p>}

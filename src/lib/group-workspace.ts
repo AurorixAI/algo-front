@@ -144,12 +144,12 @@ const studentsWord = (count: number) => `${count} ${pluralRu(count, ["учени
 
 /** «Долг 1 200 000 сум · 2 ученика»; null when nobody owes. */
 export function groupDebtChipText(summary: GroupDebtSummary): string | null {
-  return summary.count > 0 ? `Долг ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
+  return summary.count > 0 && summary.total > 0 ? `Долг ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
 }
 
 /** «К оплате 462 000 сум · 2 ученика» - the sum still within its term; null when there is none.  Calm blue, never the red of the debt. */
 export function groupDueChipText(summary: GroupDebtSummary | null | undefined): string | null {
-  return summary && summary.count > 0 ? `К оплате ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
+  return summary && summary.count > 0 && summary.total > 0 ? `К оплате ${formatMoney(summary.total)} · ${studentsWord(summary.count)}` : null;
 }
 
 /** The price chip of the header: «Цена 500 000 сум/мес» (the centre's mode names the unit) or the warning «Цена группы не задана»; null: the role has no money or the price is planned from a day. */

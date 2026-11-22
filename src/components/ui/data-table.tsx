@@ -203,9 +203,10 @@ export function DataCell({ col, children, className, testId, title }: { col: str
  * A column is as wide as its longest value, so the heading can be narrower than the column; an invisible copy of the heading (`dt-ghost`, the width of the heading text and
  * of its sort / hint icon) gives the sign a box of exactly the heading's width, which `.dt-empty` centres the sign in and sets to the same edge as the heading.
  */
-export function DataEmpty({ testId }: { testId?: string }) {
+/** `flush`: the sign stands on the edge of its cell, not under the heading (a column of SUMS aligned to the right: the dash is where the last digit would be - PAY-TAILS Б11.22 п.6). */
+export function DataEmpty({ testId, flush = false }: { testId?: string; flush?: boolean }) {
   const column = useContext(CellColumnContext);
-  const ghost = column && typeof column.header === "string" && column.header ? column.header : null;
+  const ghost = !flush && column && typeof column.header === "string" && column.header ? column.header : null;
   return (
     <span className="dt-empty" data-testid={testId}>
       {ghost && <span className="dt-ghost" aria-hidden="true">{ghost}{(column?.sortKey || column?.hint) && <span className="inline-block w-[18px]" />}</span>}
