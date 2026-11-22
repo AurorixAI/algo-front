@@ -35,6 +35,7 @@ for (const [setName, names] of [["short", F.SHORT], ["long", F.LONG]]) for (cons
     const { page, errors } = await open(width, names);
     const data = await page.evaluate((cols) => {
       const textEdge = (el) => { const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((rect) => rect.width > 0); return rects.length ? (Math.min(...rects.map((rect) => rect.left)) + Math.max(...rects.map((rect) => rect.right))) / 2 : null; };   // fix 10: the money columns are CENTRED - the centre of the text
+      const textRight = (el) => { const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((rect) => rect.width > 0); return rects.length ? Math.max(...rects.map((rect) => rect.right)) : null; };   // Б11.22 п.6: «Стоимость» and «Оплачено» go by the RIGHT edge of the text
       const head = document.querySelector(".dt-head");
       const headBox = head.getBoundingClientRect();
       const out = { overflow: document.documentElement.scrollWidth > window.innerWidth + 1, cols: {}, rows: [] };
@@ -44,11 +45,11 @@ for (const [setName, names] of [["short", F.SHORT], ["long", F.LONG]]) for (cons
         const headCellBox = headCell.getBoundingClientRect();
         const cells = [...document.querySelectorAll(`.dt-body .dt-cell[data-col="${col}"]`)];
         out.cols[col] = {
-          headEdge: textEdge(headCell), headBorder: headStyle.borderLeftWidth, headFull: headCellBox.top <= headBox.top + 0.5 && headCellBox.bottom >= headBox.top + head.clientHeight - 0.5,
+          headEdge: textEdge(headCell), headRight: textRight(headCell), headBorder: headStyle.borderLeftWidth, headFull: headCellBox.top <= headBox.top + 0.5 && headCellBox.bottom >= headBox.top + head.clientHeight - 0.5,
           cells: cells.map((cell) => {
             const row = cell.closest(".dt-row"); const rowBox = row.getBoundingClientRect(); const box = cell.getBoundingClientRect(); const value = cell.querySelector(".dt-value");
             const chip = value.querySelector('[data-kind="chip"]');
-            return { text: value.innerText.trim(), edge: value.innerText.trim() ? textEdge(chip ?? value) : null, border: getComputedStyle(cell).borderLeftWidth, full: box.top <= rowBox.top + 0.5 && box.bottom >= rowBox.bottom - 0.5, left: box.left };
+            return { text: value.innerText.trim(), edge: value.innerText.trim() ? textEdge(chip ?? value) : null, right: value.innerText.trim() ? textRight(chip ?? value) : null, border: getComputedStyle(cell).borderLeftWidth, full: box.top <= rowBox.top + 0.5 && box.bottom >= rowBox.bottom - 0.5, left: box.left };
           }),
         };
       }
@@ -66,7 +67,9 @@ for (const [setName, names] of [["short", F.SHORT], ["long", F.LONG]]) for (cons
       for (const cell of c.cells) {
         assert.equal(cell.border, "1px", `${col}: у ячейки левая граница 1px`);
         assert.equal(cell.full, true, `${col}: ячейка на всю высоту строки`);
-        if (cell.edge !== null) assert.ok(Math.abs(cell.edge - c.headEdge) <= 1, `${col}: «${cell.text}» центр ${cell.edge} против заголовка ${c.headEdge}`);
+        // Б11.22 п.6: «Стоимость» and «Оплачено» - the right edge of the number is the right edge of its heading (the digits of one place stand one under another); «Остаток» - the centre, as before
+        if (cell.edge !== null && col === "balance") assert.ok(Math.abs(cell.edge - c.headEdge) <= 1, `${col}: «${cell.text}» центр ${cell.edge} против заголовка ${c.headEdge}`);
+        if (cell.right !== null && col !== "balance") assert.ok(Math.abs(cell.right - c.headRight) <= 1, `${col}: «${cell.text}» правый край ${cell.right} против заголовка ${c.headRight}`);
       }
     }
     for (const cell of data.cols.paid.cells) if (cell.text) assert.match(cell.text, SIGNED, `«Оплачено» — только число со знаком: «${cell.text}»`);

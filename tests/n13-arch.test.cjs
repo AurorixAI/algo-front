@@ -298,8 +298,9 @@ test("the return refreshes the card at once, whether or not the dialog stays ope
   assert.match(view, /const loadProfile = useCallback\(async \(options\?: \{ silent\?: boolean \}\) => \{/);
   assert.match(view, /if \(!silent\) setLoading\(true\);/);
   assert.match(view, /if \(silent\) showToast\("Не удалось обновить карточку ученика — обновите страницу", "error"\);\s*else setError\(/);
-  // the only callers of reloadCard with `silent` are the restore handler
-  assert.equal((view.match(/reloadCard\(\{ silent:/g) || []).length, 1);
+  // the only callers of reloadCard with `silent` are the restore handler (above: one reload, inside it) and the «Счёт изменился» answer of the archive window of a student (PAY-TAILS Б11.21 п.4: the window stays open, the card behind it is read again quietly)
+  assert.equal((view.match(/reloadCard\(\{ silent:/g) || []).length, 2);
+  assert.equal((view.match(/onBalanceChanged=\{\(\) => reloadCard\(\{ silent: true \}\)\}/g) || []).length, 1, "the second caller is the 409 BALANCE_CHANGED of the archive window, not the return");
   // the archive direction has no dialog that stays open: it closes, toasts and reloads behind the spinner
   const archived = view.match(/const handleArchived = \(result: StudentArchiveResult\) => \{[\s\S]*?\n  \};/)[0];
   assert.match(archived, /setArchiveOpen\(false\);\s*showToast\(ARCHIVED_TOAST, "success", archiveResultDetails\(result\)\);\s*reloadCard\(\);/);

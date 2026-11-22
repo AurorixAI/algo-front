@@ -51,6 +51,8 @@ for (const width of [1280, 375]) {
     });
     assert.equal(frame.inside, true);
     assert.equal(frame.border, width === 375 ? "1px" : "0px", "the card has the frame; the table row has none");
+    // the chevron of the opened row turns for 150 ms; a box measured in the middle of the turn is wider than itself - wait for the end of the motion, then measure
+    await run.page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
     const probe = await run.page.evaluate(layoutProbe, '[data-testid="income-decisions"]');
     assert.deepEqual(probe.bad, []);
     assert.equal(probe.scroll, 0);

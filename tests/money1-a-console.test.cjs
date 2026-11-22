@@ -210,8 +210,20 @@ test("I-6: the row and the card show the ready sentence of the server (top-level
   assert.doesNotMatch(plain(row), /500 000 сум → 599 000 сум/, "no pair next to the sentence");
   const card = textOf(html(React.createElement(FindingDetail, { finding: I6() })));
   assert.ok(plain(card).includes(SENTENCE) && card.includes("Пробные записи (I-6)") && card.includes("Новое: в прошлой проверке этого центра не было"), card);
-  // the sentence wraps (a long one does not push the page wide): no `whitespace-nowrap` on the cell of I-6
-  assert.match(read("console/src/components/money-reconcile.tsx"), /r\.invariant === "I-6" \|\| r\.invariant === "I-5" \? "block min-w-0 max-w-md break-words" : "whitespace-nowrap"/);
+  // the sentence wraps (a long one does not push the page wide): the RENDERED cell «Сколько» of I-6 and I-5 holds the sentence / the label in a wrapping box, never `whitespace-nowrap`;
+  // since PAY-TAILS Б11.21 п.9 every kind wraps in this cell (the status column is no longer cut), so the pair of sums of another kind stands in the same wrapping box
+  const cells = (rows) => [...draw({ data: { ...DATA, findings: rows } }).matchAll(/<span class="([^"]*)" data-testid="money-amount">(.*?)<\/span>/g)].map((m) => ({ cls: m[1], text: plain(textOf(m[2])) }));
+  const [i6] = cells([I6()]);
+  assert.equal(i6.text, SENTENCE);
+  assert.match(i6.cls, /\bbreak-words\b/);
+  assert.doesNotMatch(i6.cls, /whitespace-nowrap/);
+  const [i5] = cells([I5[0]]);
+  assert.equal(i5.text, I5_LABELS[I5[0].details.code]);
+  assert.match(i5.cls, /\bbreak-words\b/);
+  assert.doesNotMatch(i5.cls, /whitespace-nowrap/);
+  const pair = cells([I6({ text: "  ", details: { probe: "x" } })]);
+  assert.equal(pair[0].text, "500 000 сум → 599 000 сум", "no sentence: the pair stands in the same cell");
+  assert.match(pair[0].cls, /\bbreak-words\b/);
 });
 
 // ── PAY-TAILS Б9.9: the kind I-5 «запись денег изменена, удалена или отменена мимо журнала» - the fixture is in the form of the server (Found -> the router: was / now = expected / actual, `details.what` = the words of the code) ───
