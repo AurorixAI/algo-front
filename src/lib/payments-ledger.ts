@@ -1119,9 +1119,12 @@ export function statementChargedText(entry: Pick<StatementEntry, "charged">): st
   return entry.charged === null ? "" : digitsOf(entry.charged);
 }
 
+/** PAY-TAILS Б11.21 п.5: a forgiveness brings no money in: its «Оплачено» is a dash («—» of the table), not «0». */
+export const isForgivenessWithoutMoney = (entry: Pick<StatementEntry, "paid"> & Partial<Pick<StatementEntry, "type">>): boolean => entry.type === "writeoff" && entry.paid === 0;
+
 /** The «Оплачено» cell: money in is «+600 000» (a write-off and a transfer in too), money out «−500 000» (a true minus), nothing is empty. */
-export function statementPaidText(entry: Pick<StatementEntry, "paid">): string {
-  if (entry.paid === null) return "";
+export function statementPaidText(entry: Pick<StatementEntry, "paid"> & Partial<Pick<StatementEntry, "type">>): string {
+  if (entry.paid === null || isForgivenessWithoutMoney(entry)) return "";
   if (entry.paid > 0) return `+${digitsOf(entry.paid)}`;
   if (entry.paid < 0) return `${MINUS}${digitsOf(-entry.paid)}`;
   return "0";

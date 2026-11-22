@@ -220,7 +220,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
       busy={saving}
       size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={<ConfirmFooter primary={`Сохранить цену${check.request ? ` ${formatMoney(check.request.amount)}` : ""}`} submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : unusualText !== null && !confirmed && !blockedNow ? null : reasonProblem ? reasonProblem : ready ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
+      footer={<ConfirmFooter primary={`Сохранить цену${check.request ? ` ${formatMoney(check.request.amount)}` : ""}`} submitFor="group-price-form" busy={saving} disabled={!canSave} why={noop ? "Такая цена с этой даты уже сохранена" : unusualText !== null && !confirmed && !blockedNow ? null : reasonProblem ? reasonProblem : ready || blockedNow ? null : "Кнопка включится, когда будут показаны последствия"} whyId="group-price-why" onCancel={onClose} testId="group-price-save" />}
     >
       <form id="group-price-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-3.5 pb-2" noValidate>
         <div>
@@ -268,7 +268,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
 
         {problem && <p role="alert" className="text-xs font-medium text-rose-700">{problem}</p>}
 
-        {past && (
+        {past && !blockedNow && (
           <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-900">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>{past}</span>

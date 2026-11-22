@@ -62,7 +62,7 @@ export function MoneyReconcileView({ data, loading, refreshing, error, onReload 
   const findingColumns: Column<MoneyFinding>[] = [
     { key: "org", header: "Центр", primary: true, cell: (r) => r.orgName ?? DASH },
     { key: "what", header: "Что не сошлось", cell: (r) => <span className="block"><span className="block font-medium text-slate-800">{invariantLabel(r.invariant)}</span><span className="block text-xs text-slate-500">{r.what ?? DASH}</span></span> },
-    { key: "amount", header: "Сколько", cell: (r) => <span className={r.invariant === "I-6" || r.invariant === "I-5" ? "block min-w-0 max-w-md break-words" : "whitespace-nowrap"}>{findingAmount(r)}</span> },
+    { key: "amount", header: "Сколько", cell: (r) => <span className="block min-w-0 max-w-md break-words" data-testid="money-amount">{findingAmount(r)}</span> },
     { key: "month", header: "Месяц", cell: (r) => <span className="whitespace-nowrap text-slate-600">{findingMonth(r)}</span> },
     { key: "new", header: "", cell: (r) => (r.isNew ? <Pill tone="amber">Новое</Pill> : <Pill tone="slate">Было и раньше</Pill>) },
   ];

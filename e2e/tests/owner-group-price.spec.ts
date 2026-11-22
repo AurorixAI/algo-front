@@ -184,7 +184,8 @@ test("@mobile the page «Цены групп» and its dialog fit a phone; the g
   await expect(page.getByTestId("group-price-current")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Цена группы" })).toHaveCount(0);
   await page.goto("/owner/payments");
-  await page.getByRole("link", { name: "Цены групп" }).click();
+  // PAY-TAILS Б11.21 п.7: a phone with a group without a price says «Цены · N без цены» (a wide screen: «Цены групп …»)
+  await page.getByRole("link", { name: /^Цены(\s|$)/ }).click();
   await expect(page).toHaveURL(/\/owner\/payments\/prices$/);
   const block = page.locator(`[data-group-id="${group.id}"]`);
   await expect(block).toContainText("Не задана");

@@ -32,6 +32,7 @@ import {
   statementMonthLabel,
   statementMonthParam,
   statementPaidText,
+  isForgivenessWithoutMoney,
   type StatementIconKind,
   type StatementMonthChoice,
   statementDiff,
@@ -62,7 +63,7 @@ import { PaymentVoidModal, paymentRestoreTarget, type VoidablePayment } from "./
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DataCell, DataRow, DataSpanRow, DataTable, type DataColumn } from "@/components/ui/data-table";
+import { DataCell, DataEmpty, DataRow, DataSpanRow, DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -661,9 +662,10 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
       </DataCell>
       <DataCell col="charged" testId="statement-cell-charged" className={chargedText ? undefined : "dt-card-hidden"}><span className={STATEMENT_AMOUNT_CLASS}>{chargedText}</span></DataCell>
       <DataCell col="paid" testId="statement-cell-paid" className={paidText ? undefined : "dt-card-hidden"}>
-        <span className={STATEMENT_PAID_CLASS}>{paidText}</span>
+        {isForgivenessWithoutMoney(entry) ? <DataEmpty /> : <span className={STATEMENT_PAID_CLASS}>{paidText}</span>}
       </DataCell>
-      <DataCell col="balance" testId="statement-cell-balance"><OpenCell parts={entry.open} /></DataCell>
+      {/* PAY-TAILS Б11.21 п.7: a row with nothing open has no «Остаток» caption on a phone card */}
+      <DataCell col="balance" testId="statement-cell-balance" className={entry.open.length > 0 ? undefined : "dt-card-hidden"}><OpenCell parts={entry.open} /></DataCell>
       <DataCell col="menu">
         {menu.length > 0 ? <RowMenu items={menu} label={`Действия с записью: ${entry.title}`} tooltip="Действия с записью" width={220} /> : null}
       </DataCell>

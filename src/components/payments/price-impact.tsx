@@ -25,7 +25,7 @@ export function PriceImpactMoneyBlock({ money, single = false }: { money: PriceI
  */
 export function PriceBlockedBanner({ error }: { error: LogicaError }) {
   return (
-    <Notice variant="blocked" role="alert" testId="price-blocked" title={error.message}>
+    <Notice variant="blocked" role="alert" testId="price-blocked" title={/[.!?]$/.test(error.message) ? error.message : `${error.message}.`}>
       {error.students.length > 0 && <span className="break-words">{error.students.map((student) => student.student_name).join(", ")}</span>}
     </Notice>
   );

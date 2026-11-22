@@ -17,6 +17,8 @@ export interface DecisionRow {
   student_name: string;
   group_name: string | null;
   amount: number;
+  /** PAY-TAILS Б11.21 п.1: a forgiveness that covered only a part of what was entered - «использовано N сум» in the words of the server (absent when all of it was used). */
+  used_text?: string | null;
   /** A corrected payment: the new sum. */
   new_amount: number | null;
   receipt_no: number | null;
@@ -72,7 +74,7 @@ export function normalizeDecisions(raw: Partial<DecisionsPage> | null | undefine
       receipt_no: numOrNull(row?.receipt_no), reason: textOrNull(row?.reason), actor_name: textOrNull(row?.actor_name),
       debt_before: numOrNull(row?.debt_before), debt_after: numOrNull(row?.debt_after), consequence: textOrNull(row?.consequence), text: textOrNull(row?.text),
       from_group_name: textOrNull(row?.from_group_name), to_group_name: textOrNull(row?.to_group_name), first_day: textOrNull(row?.first_day), last_day: textOrNull(row?.last_day),
-      new_receipt_no: numOrNull(row?.new_receipt_no), paid_on: textOrNull(row?.paid_on), carried_pay_from: textOrNull(row?.carried_pay_from),
+      new_receipt_no: numOrNull(row?.new_receipt_no), paid_on: textOrNull(row?.paid_on), used_text: textOrNull(row?.used_text), carried_pay_from: textOrNull(row?.carried_pay_from),
       restored: row?.restored && typeof row.restored === "object" && !Array.isArray(row.restored) ? (row.restored as Record<string, number>) : null,
     })),
   };

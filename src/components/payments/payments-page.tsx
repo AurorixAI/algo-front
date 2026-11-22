@@ -351,7 +351,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           >
             <Tags className="h-4 w-4 text-slate-500" aria-hidden="true" />
             {/* a phone: the warning about the prices is a label of this link (frame 20), not a line of its own over the list */}
-            Цены групп
+            {/* PAY-TAILS Б11.21 п.7: with the warning the phone says «Цены · 5 без цены» (frame 20б) - the whole label stands in the row, not cut at the edge */}
+            <span className={noPrice ? "max-sm:hidden" : undefined}>Цены групп</span>
+            {noPrice && <span className="sm:hidden">Цены</span>}
             {noPrice && <span className="sm:hidden" data-testid="payments-price-label">· {priceMissing} без цены</span>}
           </Link>
           <OpeningsHeaderLink paymentsBase={paymentsBase} />

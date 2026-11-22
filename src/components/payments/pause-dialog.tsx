@@ -298,7 +298,10 @@ export function PauseDialog({
                       {actPreview?.status === "ready" && <OtherGroupsRows answer={actPreview.answer} testId="pause-act-effects" />}
                       {actPreview?.status === "failed" && <p role="alert" data-testid="pause-act-effects" className="font-medium text-rose-700">{actPreview.message}</p>}
                       {(acting?.action === "cancel" || endNeedsReason) && (
-                        <input aria-label={acting?.action === "cancel" ? "Причина отмены паузы" : "Причина изменения паузы"} value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Причина отмены" : "Причина изменения"} className={PRICE_FIELD} autoComplete="off" />
+                        <div>
+                          <label htmlFor="pause-act-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
+                          <input id="pause-act-reason" data-testid="pause-act-reason" value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Например: ученик передумал" : "Например: ошиблись в дате"} className={PRICE_FIELD} autoComplete="off" />
+                        </div>
                       )}
                       <div className="flex gap-2">
                         <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="primary" size="sm">

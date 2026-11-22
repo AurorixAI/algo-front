@@ -152,6 +152,7 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
       detail={open && (
         <div className="dt-detail space-y-1 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="decision-details">
           {row.text && <p className="break-words font-medium text-slate-900" data-testid="decision-text">{tidyMoneyText(row.text)}</p>}
+          {row.used_text && <p className="break-words text-slate-600" data-testid="decision-used-detail">{tidyMoneyText(row.used_text)}</p>}
           {row.actor_name && <p>Решение принял(а): <span className="font-medium text-slate-900">{row.actor_name}</span></p>}
           <p>Причина: <span className="break-words font-medium text-slate-900">{row.reason ?? "не указана"}</span></p>
           {row.consequence && <p className="break-words" data-testid="decision-consequence">{row.consequence}</p>}
@@ -173,6 +174,8 @@ function DecisionLine({ row, open, onToggle, studentLink }: { row: DecisionRow; 
         </span>
         {/* Money-2 А8: a transfer / a restoration / an undone leaving / a moved pause: ONE short line from the structure of the row; the whole sentence of the server is in the opened row */}
         {summary && <span className="mt-0.5 block text-sm text-slate-700 [overflow-wrap:anywhere]" data-testid="decision-line">{tidyMoneyText(summary)}</span>}
+        {/* PAY-TAILS Б11.21 п.1: a forgiveness used only in part says it quietly, the words are the server's */}
+        {row.used_text && <span className="mt-0.5 block text-xs text-slate-500 [overflow-wrap:anywhere]" data-testid="decision-used">{tidyMoneyText(row.used_text)}</span>}
       </DataCell>
       <DataCell col="amount" className={hideEmpty(noAmount)}><span className="whitespace-nowrap text-sm font-medium text-slate-800" data-testid="decision-amount">{noAmount ? <DataEmpty /> : decisionAmountText(row)}</span></DataCell>
       <DataCell col="debt" className={hideEmpty(debt === "—")}><span className="whitespace-nowrap text-sm text-slate-600" data-testid="decision-debt">{debt === "—" ? <DataEmpty /> : debt}</span></DataCell>
