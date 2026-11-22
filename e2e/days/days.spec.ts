@@ -658,6 +658,6 @@ test("leave of the only group before the term: the window says the sum becomes a
   // Sun 19.08 23:50 -> Mon 20.08 00:10: the old term (19.08) has passed: the debt is overdue by 1 day (the days go by rule 2)
   await travel.toDate("2035-08-20", "00:10");
   row = await statusRow(org, "Единственный", "debtors");
-  expect([row.state, row.debt_amount, row.overdue_days, row.debt_sub], "20.08 00:10").toEqual(["debt", 86_000, 1, "просрочено 1 день"]);
+  expect([row.state, row.debt_amount, row.overdue_days, row.debt_sub], "20.08 00:10").toEqual(["debt", 86_000, 1, "ушёл 17.08 · просрочено 1 день"]);      // PAY-TAILS Б5.4: a closed membership names its leaving before the days
   await reconcile(org, "20.08 00:10");
 });

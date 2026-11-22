@@ -156,9 +156,14 @@ export function plusDays(iso: string, days: number): string {
 
 /** The group's schedule tab, on the week of `date` (the page opens on the week of the stand's today). */
 export async function openWeek(page: Page, group: GroupInfo, date: string): Promise<void> {
-  await page.goto(`/owner/groups/${group.id}?tab=schedule`);
-  const weeks = (Date.parse(mondayOf(date)) - Date.parse(mondayOf(businessNow().date))) / (7 * 24 * 3600 * 1000);
-  for (let i = 0; i < weeks; i++) await page.getByRole("button", { name: "Следующая неделя" }).click();
+  const weekLoaded = (monday: string) => page.waitForResponse((r) => r.url().includes(`/attendance?date_from=${monday}`) && r.ok(), { timeout: 20_000 });
+  const first = mondayOf(businessNow().date);
+  const weeks = (Date.parse(mondayOf(date)) - Date.parse(first)) / (7 * 24 * 3600 * 1000);
+  // every step waits for the answer of the week it asks for: a click before the first week has loaded (a busy stand) moves nothing, and a card is looked for on a week that is not on the screen
+  await Promise.all([weekLoaded(first), page.goto(`/owner/groups/${group.id}?tab=schedule`)]);
+  for (let i = 1; i <= weeks; i++) {
+    await Promise.all([weekLoaded(plusDays(first, 7 * i)), page.getByRole("button", { name: "Следующая неделя" }).click()]);
+  }
 }
 
 /** The card of the lesson (found by its topic, one per weekday) and its sheet. */
