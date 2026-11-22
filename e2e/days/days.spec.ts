@@ -642,7 +642,8 @@ test("leave of the only group before the term: the window says the sum becomes a
   const page = await signIn(org.owner);
   const preview = await org.owner.api.get(`/auth/org/groups/${group.id}/students/${student.id}/leave-preview`);
   const stay = preview.memberships[0].effects.stays.find((item: any) => item.code === "debt");
-  expect(String(stay.text).replace(/\u00a0/g, " "), "the server's sentence in the window").toBe("К оплате 86 000 сум. Это единственная группа ученика: после ухода сумма станет долгом");
+  expect(String(stay.text).replace(/\u00a0/g, " "), "the server's sentence in the window").toBe("Останется долг 86 000 сум: это единственная группа ученика");      // PAY-TAILS Б1.3 (leave_effects.py:343): the total in one short sentence
+  expect([stay.amount, stay.turns], "the part that turns from «к оплате» into a debt BY the leaving: all of it (the difference stays in the numbers)").toEqual([86_000, 86_000]);
   await org.owner.api.post(`/auth/org/groups/${group.id}/students/${student.id}/leave`, { settle: [] });
 
   // after the leaving: a DEBT of 86 000 at once, the term was 19.08 (it has not come): no words about being late
