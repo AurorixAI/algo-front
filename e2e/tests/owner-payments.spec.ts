@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dmy, expectNoHorizontalScroll, expectStatementReconciles, statementRowMenu, money, moneyPattern, toast } from "../support/ui";
+import { dmy, expectNoHorizontalScroll, expectStatementReconciles, statementRowMenu, money, moneyPattern, toast, studentLink } from "../support/ui";
 
 /**
  * Owner: «Оплаты» (PAY-2: a payment is money; the server distributes it).  A brand-new student of a group WITHOUT a price is
@@ -148,12 +148,18 @@ test("@mobile the payments list and the debtor row fit a phone", async ({ signIn
   const page = await signIn(org.owner);
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
-  await expect(page.getByText(/не задана цена/)).toBeVisible(); // the group has no price yet: the warning above the list, no row
+  // the group has no price yet: the warning, no row.  A phone (Б2.8, frame 20) says it as the label of the link «Цены групп · N без цены» (the line over the list is for the wider screens)
+  if ((page.viewportSize()?.width ?? 1280) < 640) {
+    await expect(page.getByTestId("payments-price-label")).toHaveText(/^· [1-9]\d* без цены$/);
+    await expect(page.getByTestId("payments-price-missing")).toBeHidden();
+  } else {
+    await expect(page.getByText(/не задана цена/)).toBeVisible();
+  }
   await expectNoHorizontalScroll(page);
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
   await page.getByRole("tab", { name: /К оплате/ }).click();   // PAY-DUE: her period began today, the term is running
-  const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
+  const row = page.getByRole("listitem").filter({ has: studentLink(page, "Телефонова Мадина") });
   await expect(row).toContainText(/К оплате\s.*\sсум/); // the words of the server carry non-breaking spaces around the sum: \s, not a plain space (PAY-DUE 19.4)
   await expect(row).toContainText(/до (сегодня|завтра, \d\d\.\d\d|\d\d\.\d\d)/);
   await expect(row.getByRole("textbox")).toHaveCount(0);

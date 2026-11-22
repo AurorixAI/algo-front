@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dm, expectNoHorizontalScroll, expectStatementReconciles, fillDate } from "../support/ui";
+import { dm, expectNoHorizontalScroll, expectStatementReconciles, fillDate, studentLink } from "../support/ui";
 
 /**
  * LOGIC-A «Пауза»: «Пауза…» in the menu of a group of the «Обучение» tab (IA audit 22.10: a pause is a property of the enrolment, not of the
@@ -55,7 +55,7 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
 
   // --- the tab «На паузе» holds him, «Должники» does not
   await page.goto("/owner/payments");
-  const rowOf = (name: string) => page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
+  const rowOf = (name: string) => page.getByRole("listitem").filter({ has: studentLink(page, name) });
   // the tabs read «Название N» (the count is a separate badge, no brackets): the tab «На паузе» with the count 1 is there and leads to the list of the paused
   const pausedTab = page.getByRole("tab", { name: /^На паузе\s*1$/ });
   await expect(pausedTab).toBeVisible();

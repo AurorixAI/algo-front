@@ -115,8 +115,15 @@ test("@mobile the tab fits a phone: cards, no horizontal scroll, the badge opens
   await expect(page.getByTestId("group-payment-row")).toHaveCount(9);
   await expectNoHorizontalScroll(page);
   await expect(page.getByLabel("Поиск ученика по имени или ID")).toBeVisible(); // from 9 rows
-  await page.getByTestId("individual-badge").first().click(); // a tap is a click for the page (the desktop project has no touch)
-  await expect(page.getByRole("tooltip")).toContainText("Сестра ученика");
+  if ((page.viewportSize()?.width ?? 1280) < 640) {
+    // PAY-TAILS Б2.8: a phone has the compact row (name, label, action) - no badge under the name; a tap on the row opens the statement, which marks the individual price in the words of the server
+    await expect(page.getByTestId("individual-badge")).toHaveCount(0);
+    await page.getByRole("link", { name: "Выписка: Длиннофамильный-Двойной Ученик0", exact: true }).click();
+    await expect(page.getByText(/цена\s400\s000\sсум в месяц · индивидуальная цена/)).toBeVisible();
+  } else {
+    await page.getByTestId("individual-badge").first().click(); // a tap is a click for the page (the desktop project has no touch)
+    await expect(page.getByRole("tooltip")).toContainText("Сестра ученика");
+  }
   await expectNoHorizontalScroll(page);
 });
 

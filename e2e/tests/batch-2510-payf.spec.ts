@@ -176,10 +176,17 @@ test.describe("package centre", () => {
     await page.goto(`/owner/groups/${group.id}?tab=payments`);
     const small = page.getByTestId("package-progress-compact");
     // PAY-DUE 14А.6: the count of lessons is the SERVER's label next to the bar («Осталось 12 уроков», `state_text`); the compact line does not repeat it (bar + the date only)
-    await expect(page.getByTestId("membership-chip")).toHaveText(/^Осталось\s12\sуроков$/);
-    await expect(small).not.toContainText("12/12");
-    await expect(small).toContainText(`до ${dm(twelfth)}`);
-    await expect(small.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
+    if (project === "mobile") {
+      // PAY-TAILS Б2.8 (frames 20-23): a phone has the compact row of money - the label of the server (`pay-label`), the sub-line and the action; no bar and no date line in the row
+      // (the bar and «до ~dd.mm» of the package are on the card of the student, checked above on the phone too)
+      await expect(page.getByTestId("group-payment-row").getByTestId("pay-label")).toHaveText(/^Осталось\s12\sуроков$/);
+      await expect(page.getByTestId("membership-chip")).toHaveCount(0);
+    } else {
+      await expect(page.getByTestId("membership-chip")).toHaveText(/^Осталось\s12\sуроков$/);
+      await expect(small).not.toContainText("12/12");
+      await expect(small).toContainText(`до ${dm(twelfth)}`);
+      await expect(small.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
+    }
     await expectNoHorizontalScroll(page);
     await shot(page, `26-group-payments-table-${project}`);
     if (project === "desktop") {                                              // the columns have room at 1440 too
@@ -191,8 +198,10 @@ test.describe("package centre", () => {
     await page.goto("/owner/payments");
     await page.getByRole("tab", { name: /Без долга/ }).click();
     await expect(page.getByTestId("pay-label").first()).toHaveText(/^Осталось\s12\sуроков$/);   // the server's words of the row; the bar under them carries the date
-    await expect(page.getByTestId("package-progress-compact").first()).toContainText(`до ${dm(twelfth)}`);
-    await expect(page.getByTestId("package-progress-compact").first().getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
+    if (project !== "mobile") {      // a phone: the compact row has no bar (Б2.8); the label above is its whole answer
+      await expect(page.getByTestId("package-progress-compact").first()).toContainText(`до ${dm(twelfth)}`);
+      await expect(page.getByTestId("package-progress-compact").first().getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
+    }
     await expectNoHorizontalScroll(page);
     await shot(page, `26-payments-list-${project}`);
 
@@ -244,9 +253,7 @@ test.describe("monthly centre", () => {
     const group = await org.createGroup({ name: "Группа ПФ-2", teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
     const days = await threeWeekdays(org, group);
-    const student = await org.addStudent(group, "Тимур", "Помесячный");
     await org.setPaymentSettings({ accounting_start_date: today() });
-    const membership = await org.membershipId(student.id, group.id);
     const page = await signIn(org.owner);
 
     // --- 1. the setting: «Общий месяц для всех» + «Уменьшать долг сразу»
@@ -262,6 +269,12 @@ test.describe("monthly centre", () => {
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ billing_anchor: "fixed_day", centre_cancel_recalc: true });
     // (the amount is whatever the server says: the checks below compare it with itself)
+
+    // the student joins AFTER the switch (the premise «the common month starts TODAY»): his first period is the common month from today, 4 weeks of lessons ahead.  A student added BEFORE the switch keeps
+    // the calendar month he joined in until its end (the new mode starts with the next period), so on a day late in a month the second lesson fell into a period that had not begun and had no line
+    // (the same on the server f1846f9 of the prod: found 22.11 on the stand clock 23.11)
+    const student = await org.addStudent(group, "Тимур", "Помесячный");
+    const membership = await org.membershipId(student.id, group.id);
 
     // --- 2. before any cancellation: no lines, the dialog proposes the amount A0
     const before = await openPayDialog(page, "Помесячный");

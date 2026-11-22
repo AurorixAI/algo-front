@@ -54,6 +54,15 @@ export function deadlineWords(daysLeft: number): string {
   return `${verb} ${daysLeft} ${noun(daysLeft)}`;
 }
 
+/**
+ * The link that opens the statement of a student in a list of money (the tabs of «Оплаты», the «Оплаты» of a group).  A table (>= 640 px) links the NAME;
+ * the compact row of a phone (< 640, PAY-TAILS Б2.8) is ONE link stretched over the card whose accessible name is «Выписка: <name>» - a person finds the row by that name.
+ */
+export function studentLink(page: Page, name: string): Locator {
+  const phone = (page.viewportSize()?.width ?? 1280) < 640;
+  return page.getByRole("link", { name: phone ? `Выписка: ${name}` : name, exact: true });
+}
+
 /** The page must never scroll sideways (a regression class on 375px phones). */
 export async function expectNoHorizontalScroll(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

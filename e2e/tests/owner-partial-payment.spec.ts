@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
 import { readSheet, readZip } from "../support/xlsx-lite";
-import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern } from "../support/ui";
+import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern, studentLink } from "../support/ui";
 
 /**
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
@@ -31,7 +31,7 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   const membership = await org.membershipId(student.id, group.id);
 
   const page = await signIn(org.owner);
-  const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Частичная Дилдора", exact: true }) });
+  const row = () => page.getByRole("listitem").filter({ has: studentLink(page, "Частичная Дилдора") });
 
   // --- «Должники»: the label says what is missing, the line under it how long, both in the server's words (PAY-DUE: the old «Не доплачено за …» line is gone)
   await page.goto("/owner/payments");

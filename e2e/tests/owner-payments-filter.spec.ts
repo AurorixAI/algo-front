@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { expectNoHorizontalScroll, expectWithinViewport } from "../support/ui";
+import { expectNoHorizontalScroll, expectWithinViewport, studentLink } from "../support/ui";
 
 /**
  * The teacher / group filter of «Оплаты»: an in-panel drill-down. A teacher row selects the teacher (all his groups),
@@ -28,7 +28,7 @@ test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher
   await page.getByRole("tab", { name: /К оплате/ }).click();
   const names = ["Ивановский Анвар", "Геометрова Мадина", "Физиков Булат"];
   const visible = async () =>
-    (await Promise.all(names.map(async (n) => ((await page.getByRole("link", { name: n, exact: true }).count()) > 0 ? n : null)))).filter(Boolean);
+    (await Promise.all(names.map(async (n) => ((await studentLink(page, n).count()) > 0 ? n : null)))).filter(Boolean);
   await expect.poll(visible).toEqual(names);
 
   // --- open the panel

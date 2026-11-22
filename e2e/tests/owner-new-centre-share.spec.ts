@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { businessNow, sharedMonthCharge } from "../support/time";
-import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
+import { expectNoHorizontalScroll, moneyPattern, studentLink } from "../support/ui";
 
 /**
  * Money-2 T16: a NEW centre is in «Общий месяц» (a calendar month, the payment day the 1st).  A student who joins in the middle of the month owes a SHARE of the
@@ -34,7 +34,7 @@ test("a new centre: the mode is «Общий месяц»; a student who joins t
   // --- the row says the share
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /К оплате/ }).click();
-  const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Серединный Анвар", exact: true }) });
+  const row = page.getByRole("listitem").filter({ has: studentLink(page, "Серединный Анвар") });
   await expect(row).toContainText(new RegExp(`К оплате ${moneyPattern(share)}`));
   await expectNoHorizontalScroll(page);
 });
