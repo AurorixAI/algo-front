@@ -294,3 +294,21 @@ for (const width of [1280, 375]) {
   });
 }
 
+
+// ── PAY-TAILS Б11.10 п. 4: «Вернуть цену группы» - a refusal of the write by the model (409 PRICE_CORRECTION_FORGIVENESS) is the blocked notice of the same path, not a bare error line ───────────
+test("return to the group price: the write refused with PRICE_CORRECTION_FORGIVENESS - the notice has the phrase of the server and the names, the window stays, no error line, the price is not changed", async () => {
+  const { page, calls } = await open(browser, "money-v.entry.tsx", "returnPrice", { server: overrideServer({
+    dry: () => ({ json: { dry_run: true, impact: impact() } }),
+    write: () => forgiveness(2),
+  }) });
+  await page.waitForSelector('[data-testid="membership-price-return-save"]');
+  await page.click('[data-testid="membership-price-return-save"]');
+  await page.waitForSelector('[data-testid="price-blocked"]');
+  const text = plain(await page.textContent('[data-testid="price-blocked"]'));
+  assert.ok(text.includes(PHRASE(2)) && text.includes("Тошматов Бобур") && text.includes("Каримова Дилноза"), text);
+  assert.deepEqual(await page.evaluate(() => window.__log), [], "the window did not close");
+  assert.equal(await page.locator('[role="dialog"]').count(), 1);
+  assert.equal(await page.locator('[role="alert"]:not([data-testid="price-blocked"])').count(), 0, "no second error line");
+  assert.equal(calls.filter((call) => call.method === "PUT" && !/dry_run/.test(call.query)).length, 1);
+  await page.close();
+});

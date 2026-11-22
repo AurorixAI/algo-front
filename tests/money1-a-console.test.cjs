@@ -241,6 +241,22 @@ for (const row of I5) {
   });
 }
 
+test("I-5: the card says the kind of the record in the words of the app next to its number; an unknown kind has no word (never English); other invariants have none", () => {
+  const WORDS = { payment: "Оплата", refund: "Возврат", writeoff: "Прощение долга", opening: "Остаток на начало", transfer: "Перенос ученика", payout: "Выплата преподавателю", rate: "Ставка преподавателя" };
+  for (const [kind, word] of Object.entries(WORDS)) assert.deepEqual(M.findingObject({ invariant: "I-5", details: { kind }, subjectId: "id1", subjectKey: "k" }), { word, id: "id1" });
+  assert.deepEqual(M.findingObject({ invariant: "I-5", details: { kind: "something_new" }, subjectId: null, subjectKey: "k" }), { word: null, id: "k" });
+  assert.deepEqual(M.findingObject({ invariant: "I-5", details: null, subjectId: "id1", subjectKey: "k" }), { word: null, id: "id1" });
+  assert.equal(M.findingObject({ invariant: "I-2", details: { kind: "payment" }, subjectId: "id1", subjectKey: "k" }).word, null);
+  const card = plain(textOf(html(React.createElement(FindingDetail, { finding: I5[0] }))));
+  assert.ok(card.includes(`Оплата · ${I5[0].subjectId}`), card);
+  const refund = plain(textOf(html(React.createElement(FindingDetail, { finding: I5[1] }))));
+  assert.ok(refund.includes(`Возврат · ${I5[1].subjectId}`), refund);
+});
+
+test("the subtitle of the page: one sentence of what is done and who sees it, no list of the kinds", () => {
+  assert.equal(M.MONEY_PAGE_SUBTITLE, "Каждую ночь сервер сверяет деньги всех центров. Центры расхождений не видят, имена людей сюда не попадают.");
+});
+
 test("I-5: a finding with no words and no sums reads as a dash, never as «undefined»", () => {
   assert.equal(M.findingAmount({ invariant: "I-5", expected: null, actual: null, details: null }), "—");
 });

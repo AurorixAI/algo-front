@@ -18,6 +18,7 @@ import {
   findingAmount,
   findingKey,
   findingFacts,
+  findingObject,
   findingMonth,
   invariantLabel,
   mailLabel,
@@ -141,6 +142,7 @@ export function MoneyReconcileView({ data, loading, refreshing, error, onReload 
 
 /** The open divergence: the centre (a link to its card), what does not add up, the sums, the month, the id of the object and the facts of the server's `details`. */
 export function FindingDetail({ finding }: { finding: MoneyFinding }) {
+  const object = findingObject(finding);
   return (
     <div className="space-y-5" data-testid="money-finding">
       <Facts
@@ -149,7 +151,7 @@ export function FindingDetail({ finding }: { finding: MoneyFinding }) {
           { label: "Что не сошлось", value: `${invariantLabel(finding.invariant)} (${finding.invariant})` },
           { label: "Сколько", value: findingAmount(finding) },
           { label: "Месяц", value: findingMonth(finding) },
-          { label: "Объект", value: <span className="break-all font-mono text-xs">{finding.subjectId ?? finding.subjectKey}</span> },
+          { label: "Объект", value: <span>{object.word ? <span className="font-medium">{object.word} · </span> : null}<span className="break-all font-mono text-xs">{object.id}</span></span> },
           { label: "Состояние", value: finding.isNew ? "Новое: в прошлой проверке этого центра не было" : "Было и в прошлой проверке" },
           ...findingFacts(finding).map((row) => ({ label: row.label, value: row.value })),
         ]}

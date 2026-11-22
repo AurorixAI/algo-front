@@ -490,7 +490,7 @@ export function ReturnPriceDialog({
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
-      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
+      else if (isPriceBlocked(logicaError(cause).code)) setBlocked(logicaError(cause));
       else setError(cause instanceof Error ? cause.message : "Не удалось вернуть цену группы");
     } finally {
       setBusy(false);

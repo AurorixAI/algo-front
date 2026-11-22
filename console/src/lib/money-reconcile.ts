@@ -9,7 +9,7 @@ import type { Tone } from "./labels";
 import type { MoneyFinding, MoneyInvariant, MoneyRun, MoneyRunMail, MoneyRunStatus } from "./types";
 
 export const MONEY_PAGE_TITLE = "Сверка денег";
-export const MONEY_PAGE_SUBTITLE = "Каждую ночь сервер сверяет деньги всех центров: долги и оплаты, «оплачено до», сохранённые ведомости, закрытые месяцы. Центры расхождений не видят, имена людей сюда не попадают.";
+export const MONEY_PAGE_SUBTITLE = "Каждую ночь сервер сверяет деньги всех центров. Центры расхождений не видят, имена людей сюда не попадают.";
 
 export function runStatus(status: MoneyRunStatus | string): { label: string; tone: Tone } {
   switch (status) {
@@ -135,6 +135,21 @@ export function findingKey(finding: Pick<MoneyFinding, "orgId" | "invariant" | "
 }
 
 /** The extra facts of the open divergence (ids and counts of the server's `details`, in words); never a name. */
+/** The kind of a money record of I-5 (`details.kind` of the server) in the words the app uses; an unknown kind has no word. */
+const ROW_KIND_LABEL: Record<string, string> = {
+  payment: "Оплата",
+  refund: "Возврат",
+  writeoff: "Прощение долга",
+  opening: "Остаток на начало",
+  transfer: "Перенос ученика",
+  payout: "Выплата преподавателю",
+  rate: "Ставка преподавателя",
+};
+export function findingObject(finding: Pick<MoneyFinding, "invariant" | "details" | "subjectId" | "subjectKey">): { word: string | null; id: string } {
+  const kind = finding.invariant === "I-5" ? finding.details?.kind : null;
+  return { word: typeof kind === "string" ? ROW_KIND_LABEL[kind] ?? null : null, id: finding.subjectId ?? finding.subjectKey };
+}
+
 export function findingFacts(finding: Pick<MoneyFinding, "invariant" | "details">): Array<{ label: string; value: string }> {
   const details = finding.details ?? {};
   const out: Array<{ label: string; value: string }> = [];
