@@ -141,7 +141,7 @@ const ROW_KIND_LABEL: Record<string, string> = {
   refund: "Возврат",
   writeoff: "Прощение долга",
   opening: "Остаток на начало",
-  transfer: "Перенос ученика",
+  transfer: "Перевод ученика",
   payout: "Выплата преподавателю",
   rate: "Ставка преподавателя",
 };

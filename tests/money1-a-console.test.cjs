@@ -242,7 +242,7 @@ for (const row of I5) {
 }
 
 test("I-5: the card says the kind of the record in the words of the app next to its number; an unknown kind has no word (never English); other invariants have none", () => {
-  const WORDS = { payment: "Оплата", refund: "Возврат", writeoff: "Прощение долга", opening: "Остаток на начало", transfer: "Перенос ученика", payout: "Выплата преподавателю", rate: "Ставка преподавателя" };
+  const WORDS = { payment: "Оплата", refund: "Возврат", writeoff: "Прощение долга", opening: "Остаток на начало", transfer: "Перевод ученика", payout: "Выплата преподавателю", rate: "Ставка преподавателя" };
   for (const [kind, word] of Object.entries(WORDS)) assert.deepEqual(M.findingObject({ invariant: "I-5", details: { kind }, subjectId: "id1", subjectKey: "k" }), { word, id: "id1" });
   assert.deepEqual(M.findingObject({ invariant: "I-5", details: { kind: "something_new" }, subjectId: null, subjectKey: "k" }), { word: null, id: "k" });
   assert.deepEqual(M.findingObject({ invariant: "I-5", details: null, subjectId: "id1", subjectKey: "k" }), { word: null, id: "id1" });
