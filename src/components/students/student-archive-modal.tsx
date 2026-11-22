@@ -18,6 +18,8 @@ import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { useStaleWindow } from "@/lib/use-transfer-stale";
+import { StaleNotice } from "@/components/money/stale-notice";
 
 interface StudentArchiveModalProps {
   open: boolean;
@@ -31,21 +33,24 @@ interface StudentArchiveModalProps {
   onArchived: (result: StudentArchiveResult) => void;
   /** «Ученик уже в архиве» (409): the card is out of date and must be read again. Other refusals stay in the dialog. */
   onStale: (message: string) => void;
+  /** 409 `BALANCE_CHANGED`: the window stays open and says it; the page behind reads its data again. */
+  onBalanceChanged?: () => void;
 }
 
 /** «Ученик ушёл из центра?»: the groups he leaves, an optional reason of up to 300 characters, what stays. */
-export function StudentArchiveModal({ open, studentId, studentName, groupNames, diagnostics, onClose, onArchived, onStale }: StudentArchiveModalProps) {
+export function StudentArchiveModal({ open, studentId, studentName, groupNames, diagnostics, onClose, onArchived, onStale, onBalanceChanged }: StudentArchiveModalProps) {
   const diagnosticLines = archiveDiagnosticLines(diagnostics ?? { cancel: 0, running: 0 });
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { stale, markStale, clearStale } = useStaleWindow();
   // LOGIC-A F9: what is left on the account of each group after leaving, and what to do with it (keep / forgive / give back).
   const settle = useSettle(() => orgApi.getArchivePreview(studentId), open, studentId);
 
   // A dialog that opens again (or for another student) never keeps the old draft or the old error.
   useEffect(() => {
-    if (open) { setReason(""); setBusy(false); setError(null); }
-  }, [open, studentId]);
+    if (open) { setReason(""); setBusy(false); setError(null); clearStale(); }
+  }, [open, studentId, clearStale]);
 
   const submit = async () => {
     if (busy) return;
@@ -55,6 +60,7 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
     if (!settle.preview && !settle.failure?.refused) return;
     setBusy(true);
     setError(null);
+    clearStale();
     try {
       const result = settle.preview
         ? await orgApi.archiveStudentSettled(studentId, { reason: normalizeArchiveReason(reason), settle: settle.settle })
@@ -62,8 +68,8 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       onArchived(result);
     } catch (cause) {
       const failed = logicaError(cause);
-      // PAY-TAILS Б5.1: the shown numbers are out of date - nothing is written; the dialog closes and the server's words are said (the next opening reads the probe again)
-      if (isShownChanged(failed)) { onStale(failed.message); return; }
+      // PAY-TAILS Б5.1: the shown numbers are out of date - nothing is written; the dialog STAYS, says it calmly above the numbers and reads the probe again
+      if (isShownChanged(failed)) { markStale(); settle.reload(); onBalanceChanged?.(); return; }
       const message = cause instanceof Error ? cause.message : "Не удалось отправить ученика в архив";
       // 409 «Ученик уже в архиве» = a stale card; 409 «…пока идёт урок…» and the rest: the server's text, the dialog stays.
       if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("archive", message)) onStale(message);
@@ -83,6 +89,7 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="В архив" submitFor="student-archive-form" tone="danger" disabled={busy || (!settle.preview && !settle.failure?.refused)} busy={busy} onCancel={onClose} />}
     >
       <form id="student-archive-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
+        {stale && <StaleNotice />}
         <div>
           <p id="student-archive-groups" className="text-sm text-slate-700">{archiveGroupsHeading(groupNames.length)}</p>
           {settle.preview && settle.preview.memberships.length > 0 ? (

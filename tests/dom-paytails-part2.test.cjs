@@ -12,6 +12,7 @@ const { launch, openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
 const X = require("./helpers/paytails-fixture2.cjs");
 const F = require("./helpers/money2-fixture.cjs");
+const P3 = require("./helpers/paydue-part3.cjs");
 
 const root = path.join(__dirname, "..");
 const ctx = { browser: null };
@@ -153,13 +154,29 @@ test("frame 8 (the message after): the lines of the result - what the charge bec
   await second.page.close();
 });
 
-test("Б5.1: «Сумма изменилась, откройте окно заново» (a payment came in / the midnight passed): the window closes, the server's words go to the page, nothing is written twice; no old «Данные оплат изменились»", async () => {
-  const run = await openLeave([X.LEAVE_DEBT()], { post: () => X.STALE_409 });
+const STALE_LINE = "Счёт изменился, пока окно было открыто. Проверьте числа и подтвердите ещё раз.";
+test("Б5.1 + Б11.21 п.4: a payment came in / the midnight passed (409 `BALANCE_CHANGED`) - the window STAYS, the calm sentence stands ABOVE the numbers, the numbers are read again (the NEW debt), the page behind is told, nothing is written; the second press sends the new numbers; no old «Данные оплат изменились»", async () => {
+  const memberships = [X.LEAVE_DEBT()];
+  let writes = 0;
+  const run = await openLeave(memberships, { post: () => {
+    writes += 1;
+    if (writes > 1) return { json: X.LEAVE_RESULT_DEBT };
+    memberships[0] = X.LEAVE_DEBT(P3.leaveRow({ group: "Математика 7", amount: 430000, becomes: 430000, stay: "Останется долг 430 000 сум" }));
+    return X.STALE_409;
+  } });
   await run.page.getByRole("button", { name: "Убрать из группы" }).click();
-  await run.page.waitForFunction(() => window.__log.length > 0);
-  assert.deepEqual(await log(run.page), ["close", "stale:Сумма изменилась, откройте окно заново"]);
-  assert.equal(run.calls.filter((call) => call.method === "POST").length, 1, "one write attempt, no repeat");
+  await run.page.waitForSelector('[data-testid="balance-stale"]');
+  assert.equal(plain(await run.page.locator('[data-testid="balance-stale"]').innerText()), STALE_LINE);
+  await run.page.waitForFunction(() => /Останется долг 430/.test(document.querySelector('[role="dialog"]')?.innerText.replace(/\s/g, " ") ?? ""));
+  const box = async (selector) => (await run.page.locator(selector).first().boundingBox()).y;
+  assert.ok(await box('[data-testid="balance-stale"]') < await box('[data-testid="settle-words"]'), "the sentence is above the numbers");
+  assert.deepEqual(await log(run.page), ["stale:Сумма изменилась, откройте окно заново"], "the page is told; the window did not close");
+  assert.equal(run.calls.filter((call) => call.method === "POST").length, 1, "one write attempt so far");
+  assert.equal(run.calls.filter((call) => call.method === "GET" && /leave-preview/.test(call.path)).length, 2, "the numbers were read again");
   assert.ok(!(await dialogText(run.page)).includes("Данные оплат изменились"));
+  await run.page.getByRole("button", { name: "Убрать из группы" }).click();
+  await run.page.waitForFunction(() => window.__log.some((line) => String(line).startsWith("left:")));
+  assert.equal(run.calls.filter((call) => call.method === "POST" && /\/leave$/.test(call.path)).at(-1).body.settle[0].expected_unpaid, 430000, "the second press sends the NEW number");
   await run.page.close();
 });
 
@@ -183,13 +200,17 @@ test("the archive of a student: each group has its block; every membership is an
   await run.page.close();
 });
 
-test("the archive of a student: «Сумма изменилась…» - the window is left to the page with the server's words, nothing is written", async () => {
+test("the archive of a student, Б11.21 п.4: a 409 `BALANCE_CHANGED` - the window STAYS with the calm sentence above the numbers, the probe is read again, the page behind is told (`balance`), nothing is written", async () => {
   const run = await openPage(ctx.browser, "money2.entry.tsx", X.F.baseServer(X.archiveServer([X.LEAVE_DEBT()], () => X.STALE_409)), { width: 1280, height: 900 });
   await run.page.evaluate(() => window.mount("archive-lines", { role: "owner", org_role: "owner" }, { groupNames: ["Математика 7"] }));
   await run.page.waitForSelector('[data-testid="settle-membership"]');
   await run.page.getByRole("button", { name: "В архив" }).click();
-  await run.page.waitForFunction(() => window.__log.length > 0);
-  assert.deepEqual(await log(run.page), ["stale:Сумма изменилась, откройте окно заново"]);
+  await run.page.waitForSelector('[data-testid="balance-stale"]');
+  assert.equal(plain(await run.page.locator('[data-testid="balance-stale"]').innerText()), STALE_LINE);
+  assert.deepEqual(await log(run.page), ["balance"], "the page is told; the window did not close and `stale` (an archived card) is not said");
+  assert.equal(run.calls.filter((call) => call.method === "POST").length, 1);
+  await run.page.waitForFunction(() => document.querySelectorAll('[data-testid="settle-membership"]').length === 1);
+  assert.equal(run.calls.filter((call) => call.method === "GET" && /archive-preview/.test(call.path)).length, 2, "the probe was read again");
   await run.page.close();
 });
 

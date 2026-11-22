@@ -359,7 +359,7 @@ export default function DiagnosticReportPage() {
   const acknowledgedInviteRef = useRef<string | null>(null);
   const [retryNonce, setRetryNonce]   = useState(0);
   const { showToast, toastNode } = useToast();
-  const onTransferStale = useTransferStale(() => setRetryNonce((n) => n + 1), showToast);
+  const onTransferStale = useTransferStale(() => setRetryNonce((n) => n + 1));
   const [loading, setLoading]         = useState(true);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [currentStudentGroup, setCurrentStudentGroup] = useState<{ id: string; name: string } | null>(null);

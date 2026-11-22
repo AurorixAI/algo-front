@@ -101,6 +101,8 @@ interface GroupPaymentsTabProps {
   joinedAt: Readonly<Record<string, string | null | undefined>>;
   filter: PaymentsFilter;
   onFilterChange: (filter: PaymentsFilter) => void;
+  /** PAY-TAILS Б11.21 п.6: the money of a row changed (a payment, a refund, a forgiveness): the page reads «Долг» / «К оплате» of its header again. */
+  onMoneyChanged?: () => void;
 }
 
 /**
@@ -108,7 +110,7 @@ interface GroupPaymentsTabProps {
  * One request for the rows (`payments/status?group_id=`); the price, the chip and every action are the student card's own
  * (`membershipChip`, the payment / opening / individual-price dialogs).  Spec: artifacts/partner_doc_check/group_payments_tab_spec.md.
  */
-export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupScheduledPrice = null, groupsBasePath, studentsBasePath, paymentsBasePath, joinedAt, filter, onFilterChange }: GroupPaymentsTabProps) {
+export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupScheduledPrice = null, groupsBasePath, studentsBasePath, paymentsBasePath, joinedAt, filter, onFilterChange, onMoneyChanged }: GroupPaymentsTabProps) {
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const { showToast, toastNode } = useToast();
@@ -195,11 +197,26 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupSchedule
     setRows((previous) => previous?.map((row) => (row.membership_id === next.membership_id ? next : row)) ?? previous);
     setLeftRows((previous) => previous.map((row) => (row.membership_id === next.membership_id ? next : row)));
   };
+  const rowsRef = useRef<MembershipPaymentRow[] | null>(null);
+  rowsRef.current = rows;
+  const refreshLeftBand = useCallback(async () => {
+    try {
+      const settled = await fetchGroupSettled(groupId);
+      const activeIds = new Set((rowsRef.current ?? []).map((row) => row.membership_id));
+      setLeftRows(settled.rows.filter((row) => !activeIds.has(row.membership_id)));
+      setLeftCount(settled.count);
+    } catch {
+      // the band keeps what it showed; the next reading corrects it
+    }
+  }, [groupId]);
   /** The server accepted a change: its row replaces ours; the menu badge and the banner are read again. */
   const changed = (next: MembershipPaymentRow, priceChanged = false) => {
     replaceRow(next);
     if (priceChanged) void fetchExtras(next.membership_id);
     void refreshSummary(true);
+    // PAY-TAILS Б11.21 п.6: a payment can close the settlement of a student who left (or open one): the band and the number of the header follow at once
+    void refreshLeftBand();
+    onMoneyChanged?.();
   };
 
   // PAY-TAILS Б2.2: «Вернуть» of a closed membership with an advance - the window of the refund, one flow with the student's card

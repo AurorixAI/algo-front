@@ -1072,7 +1072,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           sourceGroups={memberships.map((item) => ({ id: item.group_id, name: item.group_name }))}
           groupsBasePath={groupsBasePath}
           onClose={() => setAssignModalOpen(false)}
-          onStale={handleStale}
+          onStale={() => void loadProfile({ silent: true })}
           onAssigned={(_group, done) => {
             setAssignModalOpen(false);
             loadProfile();
@@ -1092,6 +1092,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           onClose={() => setArchiveOpen(false)}
           onArchived={handleArchived}
           onStale={handleStale}
+          onBalanceChanged={() => reloadCard({ silent: true })}
         />
       )}
       {/* Stays mounted while its notice is open: the reload that follows a return turns `canRestore` off. */}

@@ -48,7 +48,6 @@ export function restoredNames(restored: Record<string, number> | null | undefine
   }
   return out;
 }
-export const BALANCE_CHANGED_TEXT = "Данные изменились — проверьте числа";
 
 const items = (value: unknown): EffectItem[] =>
   Array.isArray(value)

@@ -65,7 +65,7 @@ test("А7: a field the structure lacks is not guessed - the sentence of the serv
   await run.page.close();
 });
 
-test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHANGED` -> the server's words «Сумма изменилась, откройте окно заново» in the window, a NEW dry run, the day of the probe rides in `expected_as_of`, the new sum is sent by the second press", async () => {
+test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHANGED` -> the calm sentence of the screen «Счёт изменился, пока окно было открыто…» (Б11.21 п.4) in the window, a NEW dry run, the day of the probe rides in `expected_as_of`, the new sum is sent by the second press", async () => {
   let carried = 440000;
   let writes = 0;
   const run = await open(1280, F.baseServer((request) => {
@@ -78,8 +78,9 @@ test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHAN
   await run.page.waitForSelector('[data-testid="transfer-effects"]');
   assert.ok(/440 000/.test(plain(await run.page.textContent('[data-testid="effects-money"]'))));
   await run.page.click('[data-testid="assign-submit"]');
-  await run.page.waitForSelector('[data-testid="transfer-changed"]');
-  assert.equal(plain(await run.page.textContent('[data-testid="transfer-changed"]')), "Сумма изменилась, откройте окно заново", "the words are the server's, not the screen's");
+  await run.page.waitForSelector('[data-testid="balance-stale"]');
+  assert.equal(plain(await run.page.textContent('[data-testid="balance-stale"]')), "Счёт изменился, пока окно было открыто. Проверьте числа и подтвердите ещё раз.");
+  assert.ok(await run.page.evaluate(() => document.querySelector('[data-testid="balance-stale"]').compareDocumentPosition(document.querySelector('[data-testid="transfer-effects"]')) & Node.DOCUMENT_POSITION_FOLLOWING), "the sentence is above the numbers");
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[0].body.expected_carried, 440000);
   assert.equal(posts(run.calls).filter((call) => !isDry(call))[0].body.expected_as_of, "2026-11-21", "the business day of the probe is sent back");
   await run.page.waitForFunction(() => /465 000/.test(document.querySelector('[data-testid="effects-money"]')?.textContent ?? ""));
@@ -91,7 +92,7 @@ test("Т5: the sum of the dry run rides in `expected_carried`; 409 `BALANCE_CHAN
   await run.page.close();
 });
 
-test("PAY-TAILS: a page that gives `onStale` - the refusal «Сумма изменилась, откройте окно заново» of a transfer closes the window and the page says the server's words; nothing is written", async () => {
+test("PAY-TAILS Б11.21 п.4: a page that gives `onStale` - the refusal (409 `BALANCE_CHANGED`) of a transfer does NOT close the window: the page behind is told (it reads its data again), the calm sentence stands in the window; nothing is written", async () => {
   const run = await open(1280, F.baseServer((request) => {
     if (request.path !== "/auth/org/groups/gt/students/st1") return null;
     if (isDry(request)) return { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, as_of: "2026-11-21", effects: F.transferEffects({ carried: 440000 }) } };
@@ -101,9 +102,9 @@ test("PAY-TAILS: a page that gives `onStale` - the refusal «Сумма изме
   await run.page.click('[data-testid="assign-submit"]');
   await run.page.waitForFunction(() => window.__log.some((line) => String(line).startsWith("stale:")));
   const log = await run.page.evaluate(() => window.__log);
-  assert.ok(log.includes("close") && log.includes("stale:Сумма изменилась, откройте окно заново"), JSON.stringify(log));
+  assert.ok(log.includes("stale:Сумма изменилась, откройте окно заново") && !log.includes("close"), JSON.stringify(log));
   assert.ok(!log.includes("assigned"));
-  assert.equal(await run.page.locator('[data-testid="transfer-changed"]').count(), 0, "the window is gone: no second notice");
+  assert.equal(await run.page.locator('[data-testid="balance-stale"]').count(), 1, "the window is still here and says it once");
   await run.page.close();
 });
 

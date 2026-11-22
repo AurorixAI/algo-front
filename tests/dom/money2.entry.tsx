@@ -68,7 +68,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" onClose={() => log("close")} onLeft={(lines) => log(`left:${lines.join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} />);
       break;
     case "archive-lines":
-      root.render(<StudentArchiveModal open studentId="st1" studentName="Каримов Фарход" groupNames={props.groupNames ?? []} onClose={() => log("close")} onArchived={(result) => log(`archived:${archiveResultDetails(result).join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} />);
+      root.render(<StudentArchiveModal open studentId="st1" studentName="Каримов Фарход" groupNames={props.groupNames ?? []} onClose={() => log("close")} onArchived={(result) => log(`archived:${archiveResultDetails(result).join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} onBalanceChanged={() => log("balance")} />);
       break;
     case "archive":
       root.render(<StudentArchiveModal open studentId="st1" studentName="Каримов Фарход" groupNames={props.groupNames ?? []} onClose={() => log("close")} onArchived={() => log("archived")} onStale={() => log("stale")} />);

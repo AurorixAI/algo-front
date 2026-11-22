@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { orgApi } from "@/lib/api";
 import { isShownChanged, leaveToastLines, logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 import { ModalActions } from "@/components/ui/modal-actions";
 import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
+import { useStaleWindow } from "@/lib/use-transfer-stale";
+import { StaleNotice } from "@/components/money/stale-notice";
 
 /**
  * «Убрать ученика из группы?» with the money: the server says what is left on the account after leaving; the owner chooses per
  * membership (keep / forgive the debt / give the advance back) and everything runs in one transaction after the stay is closed.
- * A payment that came in meanwhile (or a midnight) is caught (409 `BALANCE_CHANGED`, «Сумма изменилась, откройте окно заново»): nothing is written, the window closes, the server's words are said (`onStale`), the next opening reads the probe again.
+ * A payment that came in meanwhile (or a midnight) is caught (409 `BALANCE_CHANGED`, «Сумма изменилась, откройте окно заново»): nothing is written, the window STAYS open, the calm sentence stands above the numbers, the numbers are read again and the page behind is told (`onStale`); the next opening reads the probe again.
  * A role the server does not give the preview to (or an older server) leaves the plain way.
  */
 export function LeaveStudentDialog({
@@ -26,18 +28,21 @@ export function LeaveStudentDialog({
   onLeft: (lines: string[]) => void;
   /** The preview is not offered to this role: leave the old way (the caller's own removal). */
   onLegacy?: () => Promise<void> | void;
-  /** The shown numbers are out of date (the server refused, nothing written): the caller says the server's words. */
+  /** The shown numbers are out of date (the server refused, nothing written): the page behind reads its data again; the window itself stays and says it. */
   onStale?: (message: string) => void;
 }) {
   const settle = useSettle(() => orgApi.getLeavePreview(groupId, studentId), open, `${groupId}:${studentId}`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { stale, markStale, clearStale } = useStaleWindow();
+  useEffect(() => { if (open) clearStale(); }, [open, groupId, studentId, clearStale]);
 
   const legacy = Boolean(settle.failure?.refused);
 
   const submit = async () => {
     if (busy) return;
     setError(null);
+    clearStale();
     if (legacy) {
       setBusy(true);
       try {
@@ -60,7 +65,7 @@ export function LeaveStudentDialog({
       onClose();
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось убрать ученика");
-      if (isShownChanged(failure) && onStale) { onClose(); onStale(failure.message); }
+      if (isShownChanged(failure)) { markStale(); settle.reload(); onStale?.(failure.message); }
       else setError(failure.message);
     } finally {
       setBusy(false);
@@ -79,6 +84,7 @@ export function LeaveStudentDialog({
       footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Убрать из группы" onPrimary={() => void submit()} tone="danger" disabled={busy || !ready} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-3 pb-2">
+        {stale && <StaleNotice />}
         <SettleStatus loading={settle.loading} failure={settle.failure} onRetry={settle.reload} />
         {settle.preview && !legacy && (
           <SettleBlock preview={settle.preview} choices={settle.choices} onChoice={settle.setChoice} disabled={busy} showGroup={settle.preview.memberships.length > 1} />

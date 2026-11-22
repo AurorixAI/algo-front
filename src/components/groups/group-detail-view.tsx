@@ -155,7 +155,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
       setLoading(false);
     }
   }, [groupId, canManage]);
-  const onTransferStale = useTransferStale(() => void load(true), showToast);
+  const onTransferStale = useTransferStale(() => void load(true));
 
   useEffect(() => { if (groupId) load(); }, [load]);
 
@@ -578,7 +578,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               studentBasePath={paths.students}
               groupId={groupId}
               onLeft={handleStudentLeft}
-              onStale={(message) => { setDebtTick((n) => n + 1); showToast(message, "error"); }}
+              onStale={() => setDebtTick((n) => n + 1)}
               canRemove={canManage && group.status === "active"}
               onTransfer={setTransferStudent}
             />
@@ -608,6 +608,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               joinedAt={Object.fromEntries(group.students.map((student) => [student.id, student.joined_at]))}
               filter={paymentsFilter}
               onFilterChange={setPaymentsFilter}
+              onMoneyChanged={() => setDebtTick((n) => n + 1)}
             />
           </motion.div>
         )}

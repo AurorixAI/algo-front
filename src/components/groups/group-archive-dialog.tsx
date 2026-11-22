@@ -88,7 +88,7 @@ export function GroupArchiveDialog({
       setLoadError(opsErrorCode(failure) === "EXAM_SERVICE_UNAVAILABLE" ? EXAM_SERVICE_DOWN_TEXT : errorMessageOf(failure, "Не удалось проверить группу. Повторите попытку."));
     }
   }, [group.id]);
-  const onTransferStale = useTransferStale(() => void load(), showToast);
+  const onTransferStale = useTransferStale(() => void load());
 
   useEffect(() => {
     if (!open) return;
@@ -194,6 +194,7 @@ export function GroupArchiveDialog({
         onClose={() => setArchiveStudent(null)}
         onArchived={() => { setArchiveStudent(null); void load(); }}
         onStale={(message) => { setArchiveStudent(null); void load(); showToast(message, "error"); }}
+        onBalanceChanged={() => void load()}
       />
       {toastNode}
     </>
@@ -247,11 +248,12 @@ export function ArchiveDialogBody({
   return (
     <div className="space-y-4 pb-1">
       {studentStop && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5">
-          <p className="flex items-start gap-2 text-sm font-medium text-rose-900">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{studentStop.text}</span>
+        // PAY-TAILS Б11.21 п.8: the instruction «В группе N учеников…» is a calm warning (the way out is below it), not the red look of an error
+        <div data-testid="archive-students-stop" data-variant="warning" className="rounded-control border border-warning-200 bg-warning-50 p-3.5">
+          <p className="flex items-start gap-2 text-sm font-medium text-warning-900">
+            <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-warning-700" /> <span>{studentStop.text}</span>
           </p>
-          <ul className="mt-3 divide-y divide-rose-100 rounded-lg bg-white">
+          <ul className="mt-3 divide-y divide-slate-100 rounded-lg bg-white">
             {view.students.map((student) => (
               <li key={student.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2">
                 <p className="min-w-0 text-sm text-slate-900">
