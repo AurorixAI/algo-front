@@ -180,3 +180,117 @@ test("individual price: a typo backdated - the switch (no second reason field), 
   assert.deepEqual([write.body.correction, write.body.correction_reason], [true, "опечатка"]);
   await page.close();
 });
+
+// ── PAY-TAILS Б11.8 п. 9: the refusal of a «typo» that would turn a forgiven debt into an advance (409 PRICE_CORRECTION_FORGIVENESS) - the blocked notice of the existing path ───────────
+const PEOPLE = [{ membership_id: "m1", student_name: "Тошматов Бобур" }, { membership_id: "m2", student_name: "Каримова Дилноза" }, { membership_id: "m3", student_name: "Юсупов Бек" }];
+const forgiveness = (n) => conflict(
+  "PRICE_CORRECTION_FORGIVENESS",
+  `У ${n} ${n === 1 ? "ученика" : "учеников"} исправление превратит прощённый долг в переплату. Сначала отмените прощение долга, затем исправьте цену.`,
+  { count: n, students: PEOPLE.slice(0, n) },
+);
+const PHRASE = (n) => `У ${n} ${n === 1 ? "ученика" : "учеников"} исправление превратит прощённый долг в переплату. Сначала отмените прощение долга, затем исправьте цену`;   // the window shows a title without the final dot, as the neighbour refusal does
+
+for (const n of [1, 3]) {
+  test(`group price, ${n} student(s): the dry run of the correction is refused - the notice has the phrase of the server and the names, the window stays, the typed values stay, nothing is written`, async () => {
+    const { page, calls } = await group(1280, groupServer({ dry: (request) => (request.body.correction ? forgiveness(n) : blockedBody()) }));
+    await page.fill("#group-price-amount", "30 000");
+    await page.waitForSelector('[data-testid="price-blocked"]');
+    await page.check('[data-testid="price-correction-on"]');
+    await page.waitForFunction(() => /исправление превратит/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+    const text = plain(await page.textContent('[data-testid="price-blocked"]'));
+    assert.ok(text.includes(PHRASE(n)), text);
+    for (const student of PEOPLE.slice(0, n)) assert.ok(text.includes(student.student_name), text);
+    assert.equal(await page.locator('[data-testid="price-correction-on"]').isVisible(), true, "the switch stays: the person can untick it");
+    assert.equal(plain(await page.inputValue("#group-price-amount")), "30 000", "the typed sum is kept");
+    assert.equal(await page.isChecked('[data-testid="price-correction-on"]'), true);
+    assert.equal(await page.locator('button[form="group-price-form"]').isDisabled(), true, "a refused change cannot be saved");
+    assert.deepEqual(await page.evaluate(() => window.__log), [], "the window did not close");
+    assert.equal(await page.locator('[role="dialog"]').count(), 1);
+    assert.equal(calls.filter((call) => call.method === "PUT" && !/dry_run/.test(call.query)).length, 0, "the price did not change: no write");
+    assert.equal(await page.locator('[data-testid="price-blocked"]').getAttribute("role"), "alert");
+    await page.close();
+  });
+}
+
+test("group price: the write itself is refused (a race after a clean check) - the same notice, the window stays, the button works again, the price did not change", async () => {
+  let writes = 0;
+  const { page, calls } = await group(1280, groupServer({
+    dry: (request) => (request.body.correction ? { json: { dry_run: true, impact: impact({ correction: { students: 2, reason: null } }) } } : blockedBody()),
+    write: () => { writes += 1; return forgiveness(3); },
+  }));
+  await page.fill("#group-price-amount", "30 000");
+  await page.waitForSelector('[data-testid="price-blocked"]');
+  await page.check('[data-testid="price-correction-on"]');
+  await page.waitForSelector('[data-testid="correction-impact"]');
+  await page.fill("#price-correction-reason", "ошибся в нуле");
+  const save = page.locator('button[form="group-price-form"]');
+  await save.click();
+  await page.waitForFunction(() => /исправление превратит/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+  const text = plain(await page.textContent('[data-testid="price-blocked"]'));
+  assert.ok(text.includes(PHRASE(3)) && text.includes("Тошматов Бобур") && text.includes("Юсупов Бек"), text);
+  assert.equal(writes, 1);
+  assert.equal(plain(await page.inputValue("#group-price-amount")), "30 000");
+  assert.equal(await page.inputValue("#price-correction-reason"), "ошибся в нуле", "the reason is kept");
+  assert.deepEqual(await page.evaluate(() => window.__log), [], "the window did not close");
+  await page.uncheck('[data-testid="price-correction-on"]');                                   // the way out: not a typo - the plain refusal of the backdated price again
+  await page.waitForFunction(() => /задним числом/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+  assert.equal(await save.isDisabled(), true);
+  assert.equal(await save.evaluate((el) => el.getAttribute("aria-busy")), null, "no busy state is left behind");
+  assert.equal(calls.filter((call) => call.method === "PUT" && !/dry_run/.test(call.query)).length, 1);
+  await page.close();
+});
+
+test("individual price: the dry run of the correction is refused - the same notice (phrase and names), the window and the values stay, nothing is written", async () => {
+  const { page, calls } = await override(overrideServer({
+    dry: (request) => (request.body.correction ? forgiveness(1) : blockedBody()),
+    write: () => { throw new Error("must not be written"); },
+  }));
+  await page.fill("#membership-price-amount", "30 000");
+  await page.fill("#membership-price-reason", "опечатка");
+  await page.waitForSelector('[data-testid="price-blocked"]');
+  await page.check('[data-testid="price-correction-on"]');
+  await page.waitForFunction(() => /исправление превратит/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+  const text = plain(await page.textContent('[data-testid="price-blocked"]'));
+  assert.ok(text.includes(PHRASE(1)) && text.includes("Тошматов Бобур"), text);
+  assert.equal(plain(await page.inputValue("#membership-price-amount")), "30 000");
+  assert.equal(await page.inputValue("#membership-price-reason"), "опечатка");
+  assert.equal(await page.locator('[data-testid="membership-price-save"]').isDisabled(), false, "as with the neighbour refusal of this window: the button is not left off");
+  assert.deepEqual(await page.evaluate(() => window.__log), []);
+  assert.equal(calls.filter((call) => call.method === "PUT" && !/dry_run/.test(call.query)).length, 0);
+  await page.close();
+});
+
+test("individual price: the write is refused (a race) - the notice, the window stays, the reason is kept", async () => {
+  const { page } = await override(overrideServer({
+    dry: (request) => (request.body.correction ? { json: { dry_run: true, impact: impact({ correction: { students: 1, reason: "опечатка" } }) } } : blockedBody()),
+    write: () => forgiveness(1),
+  }));
+  await page.fill("#membership-price-amount", "30 000");
+  await page.fill("#membership-price-reason", "опечатка");
+  await page.waitForSelector('[data-testid="price-blocked"]');
+  await page.check('[data-testid="price-correction-on"]');
+  await page.waitForFunction(() => !document.querySelector('[data-testid="price-blocked"]'));
+  await page.click('[data-testid="membership-price-save"]');
+  await page.waitForFunction(() => /исправление превратит/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+  assert.ok(plain(await page.textContent('[data-testid="price-blocked"]')).includes(PHRASE(1)));
+  assert.equal(await page.inputValue("#membership-price-reason"), "опечатка");
+  assert.deepEqual(await page.evaluate(() => window.__log), [], "the window did not close");
+  await page.close();
+});
+
+for (const width of [1280, 375]) {
+  test(`${width}: the refusal of the correction fits the window - the phrase is not cut, the buttons are reachable`, async () => {
+    const { page } = await group(width, groupServer({ dry: (request) => (request.body.correction ? forgiveness(3) : blockedBody()) }));
+    await page.fill("#group-price-amount", "30 000");
+    await page.waitForSelector('[data-testid="price-blocked"]');
+    await page.check('[data-testid="price-correction-on"]');
+    await page.waitForFunction(() => /исправление превратит/.test(document.querySelector('[data-testid="price-blocked"]')?.textContent ?? ""));
+    await page.waitForTimeout(500);
+    const facts = await page.evaluate(layoutProbe, '[role="dialog"]');
+    assert.deepEqual(facts.bad, [], JSON.stringify(facts.bad));
+    assert.equal(facts.scroll, 0);
+    assert.equal(await page.locator('button[form="group-price-form"]').isVisible(), true);
+    await page.close();
+  });
+}
+

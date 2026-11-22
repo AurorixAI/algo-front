@@ -18,6 +18,7 @@ import {
   CHANGE_GROUP_PRICE_LABEL,
   groupPlannedFromHistory,
   groupPriceNotSetText,
+  isPriceBlocked,
   isPriceConflict,
   priceColumnLabel,
   PAID_NEVER_CHANGE_TEXT,
@@ -143,7 +144,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           setImpact(null);
           setChecking(false);
           const refusal = logicaError(cause);
-          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS" || refusedInWords(refusal)) { setBlocked({ key: askedKey, error: refusal }); if (refusal.canCorrect) setOfferKey(baseKey); return; }
+          if (isPriceBlocked(refusal.code) || refusedInWords(refusal)) { setBlocked({ key: askedKey, error: refusal }); if (refusal.canCorrect) setOfferKey(baseKey); return; }
           setBlocked(null);
           setCheckError(cause instanceof Error ? cause.message : "Не удалось проверить последствия");
         });
@@ -193,7 +194,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         setImpact(null);
         setNonce((value) => value + 1);
         setError(PRICE_CONFLICT_TEXT);
-      } else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") {
+      } else if (isPriceBlocked(logicaError(cause).code)) {
         setBlocked({ key, error: logicaError(cause) });
         if (logicaError(cause).canCorrect) setOfferKey(baseKey);
       } else if (logicaError(cause).code === "PRICE_UNUSUAL") {

@@ -33,6 +33,7 @@ import {
   othersPayText,
   priceOfRow,
   PRICE_CONFLICT_TEXT,
+  isPriceBlocked,
   sinceText,
   staleSheetsText,
   type MembershipPrice,
@@ -284,7 +285,7 @@ function useOverrideImpact(open: boolean, membershipId: string, request: PriceOv
         .catch((cause) => {
           if (cancelled) return;
           const failure = logicaError(cause);
-          setState({ key, impact: null, blocked: failure.code === "PRICE_BACKDATE_WITH_PAYMENTS" || refusedInWords(failure) ? failure : null });
+          setState({ key, impact: null, blocked: isPriceBlocked(failure.code) || refusedInWords(failure) ? failure : null });
           setChecking(false);
         });
     }, 350);
@@ -393,7 +394,7 @@ export function AssignOverrideDialog({
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
-      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked(logicaError(cause)); if (logicaError(cause).canCorrect) setOffered(true); }
+      else if (isPriceBlocked(logicaError(cause).code)) { setBlocked(logicaError(cause)); if (logicaError(cause).canCorrect) setOffered(true); }
       else if (logicaError(cause).code === "PRICE_UNUSUAL") { setUnusual409({ key: askKey, text: logicaError(cause).message }); setConfirmedKey(null); }
       else setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
     } finally {

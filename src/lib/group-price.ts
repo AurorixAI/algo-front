@@ -582,6 +582,14 @@ export function isPriceConflict(cause: unknown): boolean {
   return (cause as { code?: string } | null)?.code === "PRICE_CONFLICT";
 }
 
+/**
+ * A 409 the price window shows as its blocked notice (the server's sentence and the names): the backdated price over a paid period (`PRICE_BACKDATE_WITH_PAYMENTS`) and the refused «typo»
+ * correction that would turn a forgiven debt into an advance (`PRICE_CORRECTION_FORGIVENESS`, Б11.8 п. 9).
+ */
+export function isPriceBlocked(code: string | null | undefined): boolean {
+  return code === "PRICE_BACKDATE_WITH_PAYMENTS" || code === "PRICE_CORRECTION_FORGIVENESS";
+}
+
 export function reasonProblem(reason: string): string | null {
   const text = reason.trim();
   if (text.length < OVERRIDE_REASON_MIN) return `Укажите причину — от ${OVERRIDE_REASON_MIN} до ${OVERRIDE_REASON_MAX} символов`;
