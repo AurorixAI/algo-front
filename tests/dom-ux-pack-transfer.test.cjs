@@ -84,7 +84,7 @@ test("В2: «Перевести в другую группу» - who and from wh
     assert.equal(facts.scrolled, 0, `${width}: the body of the window was not scrolled by the window itself`);
     assert.ok(facts.listHeight <= facts.rows * 150 + 60, `${width}: the list is as tall as its groups, not a fixed box (it was 220 / 340 px with one group): ${JSON.stringify(facts)}`);
     assert.ok(facts.blockBottom <= facts.submitTop + 1, `${width}: «Что изменится» is above the button: ${JSON.stringify(facts)}`);
-    assert.match(facts.submitText, /^Перевести в «/, "the button names the action and the group");
+    assert.match(facts.submitText, /^Перевести$/, "Б11.22 п.5: the button names the action; the group is in the list and in «Перейдёт в…»");
     assert.ok(facts.submitHeight <= 48, `${width}: one line: ${JSON.stringify(facts)}`);
     await page.close();
   }

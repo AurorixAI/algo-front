@@ -437,11 +437,11 @@ test("the card window of a transfer: the title and the button say «Переве
   await run.page.evaluate(([u, p]) => window.mount("card", u, p), [H.OWNER, { mode: "transfer", currentGroupId: "g7", currentGroupName: "Алгебра 7", sourceGroups: [{ id: "g7", name: "Алгебра 7" }] }]);
   await run.page.waitForSelector('[data-testid="assign-group-card"]');
   assert.equal(await run.page.getByRole("dialog", { name: "Перевести: Анвар Каримов" }).count(), 1);
-  assert.equal(await text(run.page, '[data-testid="summary-bar-idle"]'), "Выберите группу");
+  assert.equal(await text(run.page, '[data-testid="assign-why"]'), "Выберите группу", "Б11.22 п.5: the off button says why over the footer (ModalActions)");
   assert.equal(await buttonOf(run.page, "assign-submit").isDisabled(), true);
   await run.page.getByRole("radio", { name: "М11 БС" }).check();
   await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
-  assert.equal(await text(run.page, '[data-testid="assign-submit"]'), "Перевести в «М11 БС»");
+  assert.equal(await text(run.page, '[data-testid="assign-submit"]'), "Перевести", "the group is not in the button any more");
   assert.match(await text(run.page, '[data-testid="transfer-preview"]'), /перейдёт 555 000 сум/);
   assert.equal(await run.page.locator('[data-testid="summary-bar-sum"]').count(), 0, "the transfer says its money in the server's words, not in the bar");
   assert.equal(await run.page.locator("#assign-group-pay-from").count(), 0, "a transfer has no «Оплата с»");

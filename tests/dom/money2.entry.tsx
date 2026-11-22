@@ -65,7 +65,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "leave-lines":
       // PAY-TAILS Б2.4: the message after is the lines of the answer; a stale refusal is said in the server's words
-      root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" onClose={() => log("close")} onLeft={(lines) => log(`left:${lines.join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} />);
+      root.render(<LeaveStudentDialog open groupId="ga" studentId="st1" studentName="Каримов Фарход" groupName={props.groupName} onClose={() => log("close")} onLeft={(lines) => log(`left:${lines.join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} />);
       break;
     case "archive-lines":
       root.render(<StudentArchiveModal open studentId="st1" studentName="Каримов Фарход" groupNames={props.groupNames ?? []} onClose={() => log("close")} onArchived={(result) => log(`archived:${archiveResultDetails(result).join(" | ")}`)} onStale={(message) => log(`stale:${message}`)} onBalanceChanged={() => log("balance")} />);

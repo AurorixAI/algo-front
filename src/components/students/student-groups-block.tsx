@@ -185,6 +185,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
         <LeaveStudentDialog
           open
           groupId={leaveFor.group_id}
+          groupName={leaveFor.group_name}
           studentId={profile.student.id}
           studentName={studentName}
           onClose={() => setLeaveFor(null)}

@@ -30,6 +30,8 @@ interface GroupStudentTableProps {
    * `onLeft` is called after the server took the student out.  Without them (a teacher) a row has no menu.
    */
   groupId?: string;
+  /** The name of the group (the subtitle of the window of leaving). */
+  groupName?: string;
   onLeft?: (studentId: string, settledLines: string[]) => void;
   /** The numbers the window showed were out of date (the server refused, nothing written): the page says the server's words. */
   onStale?: (message: string) => void;
@@ -41,7 +43,7 @@ interface GroupStudentTableProps {
  * The roster of a group.  The name is the link to the card of the student; the «⋯» of a row has at most two items (IA audit F4, d2):
  * «Перевести в другую группу…» and «Убрать из группы…» (the one dialog with the money).  The card of the student is the link of the name.
  */
-export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, onLeft, onStale, onTransfer }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, groupName, onLeft, onStale, onTransfer }: GroupStudentTableProps) {
   const pathname = usePathname();
   const isTeacher = pathname?.startsWith("/teacher");
   const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
@@ -155,6 +157,7 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
         <LeaveStudentDialog
           open={leaveTarget !== null}
           groupId={groupId}
+          groupName={groupName}
           studentId={leaveTarget?.id ?? ""}
           studentName={leaveTarget ? (leaveTarget.full_name || `${leaveTarget.last_name} ${leaveTarget.first_name}`) : ""}
           onClose={() => setLeaveTarget(null)}

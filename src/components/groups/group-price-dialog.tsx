@@ -285,12 +285,12 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
           />
         )}
 
-        {check.request && (
+        {/* PAY-TAILS Б11.22 п.3: a refusal stands ALONE - the yellow block, no grey frame and no «Что изменится» round a thing that will not change */}
+        {check.request && blockedNow && <PriceBlockedBanner error={blockedNow} />}
+        {check.request && !blockedNow && (
           <div aria-live="polite" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700">
             <p className="font-semibold text-slate-800">Что изменится</p>
-            {blockedNow ? (
-              <PriceBlockedBanner error={blockedNow} />
-            ) : checking || (!shownImpact && !checkError) ? (
+            {checking || (!shownImpact && !checkError) ? (
               <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем последствия…</p>
             ) : checkError ? (
               <p role="alert" className="text-rose-700">
@@ -320,7 +320,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
                 {!past && <p className="text-slate-500">{PAID_NEVER_CHANGE_TEXT}</p>}
               </>
             ) : null}
-            {unusualText !== null && !blockedNow && <UnusualPriceConfirm text={unusualText} checked={confirmed} onChange={(next) => setConfirmedKey(next ? key : null)} />}
+            {unusualText !== null && <UnusualPriceConfirm text={unusualText} checked={confirmed} onChange={(next) => setConfirmedKey(next ? key : null)} />}
             {future && <p className="text-slate-500">{future}</p>}
             {noop && <p className="font-medium text-slate-700">Такая цена с этой даты уже сохранена — менять нечего.</p>}
           </div>

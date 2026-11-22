@@ -39,6 +39,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
 
 const CALC_DEBOUNCE_MS = 350;
+/** PAY-TAILS Б11.22 п.10: the heading of the block that cancels a pause which has not begun. */
+const PAUSE_CANCEL_FUTURE_TITLE = "Отменить будущую паузу";
 
 /**
  * «Пауза ученика» (group «⋯» → «Пауза…»): from / to / reason.  A pause is not charged, the place in the group stays.  Under the form
@@ -280,6 +282,8 @@ export function PauseDialog({
               const active = acting?.pause.id === pause.id;
               return (
                 <li key={pause.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                  {/* PAY-TAILS Б11.22 п.10: the block of a pause that has not begun names what is being done to it */}
+                  {action === "cancel" && active && <p className="mb-1 font-semibold text-slate-900" data-testid="pause-cancel-title">{PAUSE_CANCEL_FUTURE_TITLE}</p>}
                   <p className="text-slate-800">{pauseLine(pause)}</p>
                   {pause.last_day >= today && pause.first_day <= today && <p className="text-amber-800">Идёт сейчас, до {formatDateRu(pause.last_day)}</p>}
                   {action && !active && (
@@ -292,7 +296,7 @@ export function PauseDialog({
                       <p className="text-slate-600">
                         {acting?.action === "end"
                           ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
-                          : "Пауза ещё не началась: она будет отменена, дни останутся платными."}
+                          : "Пауза ещё не началась: она будет отменена, эти дни придётся оплатить."}
                       </p>
                       {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
                       {actPreview?.status === "ready" && <OtherGroupsRows answer={actPreview.answer} testId="pause-act-effects" />}
@@ -304,11 +308,11 @@ export function PauseDialog({
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="primary" size="sm">
+                        <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="secondary" size="sm">
                           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           {acting?.action === "end" ? "Закончить паузу" : "Отменить паузу"}
                         </Button>
-                        <Button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} variant="ghost" size="sm">Не надо</Button>
+                        <Button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} variant="ghost" size="sm">Назад</Button>
                       </div>
                     </div>
                   )}

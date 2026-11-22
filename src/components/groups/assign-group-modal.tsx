@@ -43,6 +43,8 @@ import { probeRefusalOfError } from "@/lib/bulk-outcome";
 import { formatMoney } from "@/lib/money-format";
 import { enrolCardTitle, groupNameShown, serverPhraseShown } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
+import { ModalActions } from "@/components/ui/modal-actions";
+import { MODAL_ACTIONS_FOOTER_CLASS } from "@/lib/modal-layout";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { SummaryBar } from "@/components/ui/summary-bar";
@@ -374,7 +376,7 @@ export function AssignGroupModal({
     : whyOff ? <span id="assign-why" data-testid="assign-why">{whyOff}</span>
     : forecastSum?.line ? forecastSum.line
     : bar && bar.total !== null && (bar.line || bar.expandable) ? <>{bar.line}{bar.expandable && <>{" "}<BarMoreButton rows={barRows} open={periodsOpen} onToggle={() => setPeriodsOpen((value) => !value)} /></>}</> : null;
-  const buttonText = assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : selectedGroup ? enrolIntoLabel(selectedGroup.name, verb) : isTransfer ? "Перевести" : "Зачислить";
+  const buttonText = assigning ? (isTransfer ? "Переводим…" : "Зачисляем…") : isTransfer ? "Перевести" : selectedGroup ? enrolIntoLabel(selectedGroup.name, verb) : "Зачислить";
   const submitOff = !selectedGroupId || excluded.has(selectedGroupId) || assigning || !transferAllowed || payProblem !== null || (source.needed && !source.id) || counting || refusedWords !== null;
   const notes = addPreview.preview.status === "ready" ? pastBalancesOf(addPreview.preview.answer) : [];
   const undoNote = leaveUndo ? { id: studentId, name: null, past: notes, rewrite: leaveUndo.undone ? null : leaveUndo, undone: leaveUndo.undone ? leaveUndo : null } : { id: studentId, name: null, past: notes, rewrite: null, undone: null };
@@ -400,11 +402,12 @@ export function AssignGroupModal({
       busy={assigning}
       size="md"
       bodyClassName="overflow-y-auto overscroll-contain min-h-0 flex flex-col"
-      footerClassName="flex flex-col"
+      notice={balanceChanged ? <StaleNotice /> : undefined}
+      footerClassName={isTransfer ? MODAL_ACTIONS_FOOTER_CLASS : "flex flex-col"}
       footer={(
         <>
           {assignmentError && (
-            <div role="alert" className="mx-5 mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium leading-relaxed text-rose-800 max-sm:mx-4">
+            <div role="alert" className={`${isTransfer ? "" : "mx-5 mt-3 max-sm:mx-4 "}flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium leading-relaxed text-rose-800`}>
               <X className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{serverPhraseShown(assignmentError)}</span>
               {assignmentStale && <Button type="button" variant="secondary" size="sm" data-testid="assign-refresh" onClick={() => { onClose(); window.location.reload(); }}>{REFRESH_LABEL}</Button>}
@@ -412,6 +415,10 @@ export function AssignGroupModal({
           )}
           {/* «По периодам»: opens here, over the bar, in view on every width (a part of the pinned block, at most 40% of the screen, its own scroll) */}
           {bar?.expandable && periodsOpen && <BarDetails rows={barRows} />}
+          {isTransfer ? (
+            // PAY-TAILS Б11.22 п.5: a transfer carries no sum of its own - the bottom of the window is the one of every window of money: the main button names the action, «Отмена» beside it
+            <ModalActions primary={buttonText} onPrimary={() => void handleAssign()} disabled={submitOff} busy={assigning} why={!selectedGroupId ? "Выберите группу" : whyOff} whyId="assign-why" testId="assign-submit" onCancel={onClose} />
+          ) : (
           <SummaryBar
             label={forecastSum ? [forecastSum.caption] : bar?.captions}
             amount={forecastSum ? forecastSum.totalText : bar && bar.total !== null ? bar.totalText : null}
@@ -420,6 +427,7 @@ export function AssignGroupModal({
             line={line}
             action={<Button type="button" size="lg" onClick={() => void handleAssign()} disabled={submitOff} loading={assigning} data-testid="assign-submit" title={buttonText} aria-describedby={selectedGroupId && whyOff ? "assign-why" : undefined} className="h-auto max-w-[18rem] whitespace-normal text-center max-sm:max-w-full"><span className="line-clamp-2 [overflow-wrap:anywhere]">{buttonText}</span></Button>}
           />
+          )}
         </>
       )}
     >
@@ -506,7 +514,7 @@ export function AssignGroupModal({
       </div>
 
       {/* Special: only when there is something to say about THIS student and THIS group */}
-      {selectedGroup && (noPrice || needsNotes || transferKey !== null || balanceChanged || refusedWords !== null) && (
+      {selectedGroup && (noPrice || needsNotes || transferKey !== null || refusedWords !== null) && (
         <EnrolExceptions>
           {refusedWords !== null && <EnrolRefusedRow id={studentId} name={studentName} reason={refusedWords} />}
           {noPrice && (
@@ -520,7 +528,6 @@ export function AssignGroupModal({
             </ExceptionRow>
           )}
           {needsNotes && <EnrolNoteRows note={undoNote} paymentsBase={paymentsBase} />}
-          {balanceChanged && <StaleNotice />}
           {transferKey !== null && <TransferPreviewBlock preview={transferPreview.preview} onRetry={transferPreview.retry} target={selectedGroup.name} className="" />}
         </EnrolExceptions>
       )}

@@ -122,6 +122,8 @@ interface ModalProps {
   title: string;
   /** A line under the title; a node when it carries emphasis («Ученик: Иванов 9 класс»). */
   description?: ReactNode;
+  /** A line that must stay in view whatever the body scrolls to (PAY-TAILS Б11.22 п.1: «Счёт изменился…»): right under the heading, outside the scroll. */
+  notice?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   /** Buttons row; rendered under the body with a divider. */
@@ -158,7 +160,7 @@ const SCROLL_EDGE = {
 } as const;
 
 export function Modal({
-  open, title, description, onClose, children, footer, size, maxWidthClassName, busy = false,
+  open, title, description, notice, onClose, children, footer, size, maxWidthClassName, busy = false,
   bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false, swipeToClose = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -201,6 +203,8 @@ export function Modal({
     </div>
   );
 
+  const noticeRow = notice ? <div className="shrink-0 px-5 pb-2 sm:px-6" data-modal-part="notice">{notice}</div> : null;
+
   // re-audit Н12: a body that scrolls says so - a soft grey edge appears at the bottom (and the top) only while there is more to scroll (not coloured; the white covers it at the end of the scroll)
   const body = <div className={`${layout.body} scroll-soft`} style={SCROLL_EDGE} data-modal-part="body">{children}</div>;
 
@@ -234,6 +238,7 @@ export function Modal({
                 className={layout.card}
               >
                 {header}
+                {noticeRow}
                 {body}
                 {footerRow}
               </motion.div>
@@ -254,6 +259,7 @@ export function Modal({
                 className={layout.card}
               >
                 {header}
+                {noticeRow}
                 {body}
                 {footerRow}
               </motion.div>

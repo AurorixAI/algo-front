@@ -84,12 +84,12 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       open={open}
       title="Ученик ушёл из центра?"
       description={studentName}
+      notice={stale ? <StaleNotice /> : undefined}
       onClose={onClose}
       busy={busy}
       footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="В архив" submitFor="student-archive-form" tone="danger" disabled={busy || (!settle.preview && !settle.failure?.refused)} busy={busy} onCancel={onClose} />}
     >
       <form id="student-archive-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
-        {stale && <StaleNotice />}
         <div>
           <p id="student-archive-groups" className="text-sm text-slate-700">{archiveGroupsHeading(groupNames.length)}</p>
           {settle.preview && settle.preview.memberships.length > 0 ? (

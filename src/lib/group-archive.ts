@@ -10,6 +10,8 @@ import { pluralRu } from "./plural";
 import { archiveRequestsText } from "./substitutions";
 
 export const ARCHIVE_BUTTON = "В архив";
+/** PAY-TAILS Б11.22 п.9: the action of a STUDENT's row in the dialog of a group's archive - not the same words as the main button («В архив» archives the group). */
+export const ARCHIVE_STUDENT_BUTTON = "Ученика в архив";
 export const RESTORE_BUTTON = "Вернуть из архива";
 export const EXAM_SERVICE_DOWN_TEXT = "Не удалось проверить экзамены группы. Повторите попытку.";
 /** UX pack №6: the choice of the checkbox («Урока не было — отменить его при архивации»), said for one lesson or for several. */

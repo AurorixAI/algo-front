@@ -17,12 +17,14 @@ import { StaleNotice } from "@/components/money/stale-notice";
  * A role the server does not give the preview to (or an older server) leaves the plain way.
  */
 export function LeaveStudentDialog({
-  open, groupId, studentId, studentName, onClose, onLeft, onLegacy, onStale,
+  open, groupId, studentId, studentName, groupName, onClose, onLeft, onLegacy, onStale,
 }: {
   open: boolean;
   groupId: string;
   studentId: string;
   studentName: string;
+  /** PAY-TAILS Б11.22 п.4: the group the student is taken out of - from a card of a student with several groups it is not otherwise seen. */
+  groupName?: string;
   onClose: () => void;
   /** The student left; `lines` are the settled sums for a toast («Возвращено 135 000 сум»). */
   onLeft: (lines: string[]) => void;
@@ -78,13 +80,13 @@ export function LeaveStudentDialog({
     <Modal
       open={open}
       title="Убрать ученика из группы?"
-      description={studentName}
+      description={groupName ? `${studentName} · ${groupName}` : studentName}
+      notice={stale ? <StaleNotice /> : undefined}
       onClose={onClose}
       busy={busy}
       footerClassName={MODAL_ACTIONS_FOOTER_CLASS} footer={<ModalActions primary="Убрать из группы" onPrimary={() => void submit()} tone="danger" disabled={busy || !ready} busy={busy} onCancel={onClose} />}
     >
       <div className="space-y-3 pb-2">
-        {stale && <StaleNotice />}
         <SettleStatus loading={settle.loading} failure={settle.failure} onRetry={settle.reload} />
         {settle.preview && !legacy && (
           <SettleBlock preview={settle.preview} choices={settle.choices} onChoice={settle.setChoice} disabled={busy} showGroup={settle.preview.memberships.length > 1} />

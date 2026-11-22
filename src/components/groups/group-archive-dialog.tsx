@@ -13,6 +13,7 @@ import { substitutionErrorText } from "@/lib/substitutions";
 import type { ArchiveImpact } from "@/lib/ops-b-types";
 import {
   ARCHIVE_BUTTON,
+  ARCHIVE_STUDENT_BUTTON,
   EXAM_SERVICE_DOWN_TEXT,
   RESTORE_BUTTON,
   RESTORE_NO_TEACHER,
@@ -145,7 +146,8 @@ export function GroupArchiveDialog({
             onPrimary={() => void submit()}
             busy={busy}
             disabled={!view?.canSubmit || Boolean(reasonProblem)}
-            why={reasonProblem ?? (view ? archiveWhy(view.stops) : null)}
+            // PAY-TAILS Б11.22 п.9: the instruction of «В группе N учеников…» stands ONCE, in the warning above the list - not repeated over the button
+            why={reasonProblem ?? (view ? archiveWhy(view.stops.filter((stop) => stop.code !== "ACTIVE_STUDENTS")) : null)}
             whyId="group-archive-why"
             onCancel={onClose}
             testId="group-archive-submit"
@@ -265,7 +267,7 @@ export function ArchiveDialogBody({
                     {TRANSFER_STUDENTS_BUTTON}
                   </Button>
                   <Button type="button" disabled={busy} onClick={() => onArchiveStudent({ id: student.id, name: student.name })} variant="secondary" size="sm">
-                    В архив
+                    {ARCHIVE_STUDENT_BUTTON}
                   </Button>
                 </span>
               </li>

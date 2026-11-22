@@ -24,9 +24,13 @@ export function PriceImpactMoneyBlock({ money, single = false }: { money: PriceI
  * The ways out: forgive the debt / give the money back - or, for a typo, `CorrectionSwitch` below it.
  */
 export function PriceBlockedBanner({ error }: { error: LogicaError }) {
+  const message = /[.!?]$/.test(error.message) ? error.message : `${error.message}.`;
+  // PAY-TAILS Б11.22 п.3: the FIRST sentence is the refusal (bold), the second is the way out («Сначала отмените…») - plain
+  const split = /^(.+?[.!?])\s+(\S[\s\S]*)$/.exec(message);
   return (
-    <Notice variant="blocked" role="alert" testId="price-blocked" title={/[.!?]$/.test(error.message) ? error.message : `${error.message}.`}>
-      {error.students.length > 0 && <span className="break-words">{error.students.map((student) => student.student_name).join(", ")}</span>}
+    <Notice variant="blocked" role="alert" testId="price-blocked" title={split ? `${split[1]} ` : message}>
+      {split && <span className="block" data-testid="price-blocked-way">{split[2]}</span>}
+      {error.students.length > 0 && <span className="block break-words">{error.students.map((student) => student.student_name).join(", ")}</span>}
     </Notice>
   );
 }
