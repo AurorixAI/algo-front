@@ -1,0 +1,97 @@
+{
+ "_note": "I-5 in the form of the server: Found (money_reconcile.py _row_found) through platform_reconcile_router; was/now = expected/actual, `text` absent",
+ "findings": [
+  {
+   "id": "f51",
+   "orgId": "00000000-0000-0000-0000-0000000000a2",
+   "orgName": "Центр «Бета»",
+   "invariant": "I-5",
+   "what": "запись денег изменена, удалена или отменена мимо журнала",
+   "subjectKey": "payment:00000000-0000-0000-0000-0000000000c1:changed",
+   "subjectId": "00000000-0000-0000-0000-0000000000c1",
+   "month": null,
+   "expected": 300000,
+   "actual": 250000,
+   "text": null,
+   "details": {
+    "kind": "payment",
+    "code": "changed",
+    "what": "запись изменена на месте",
+    "state": {
+     "fingerprint": "9c1e",
+     "voided": false,
+     "void_fingerprint": null
+    }
+   },
+   "isNew": true
+  },
+  {
+   "id": "f52",
+   "orgId": "00000000-0000-0000-0000-0000000000a2",
+   "orgName": "Центр «Бета»",
+   "invariant": "I-5",
+   "what": "запись денег изменена, удалена или отменена мимо журнала",
+   "subjectKey": "refund:00000000-0000-0000-0000-0000000000c2:deleted",
+   "subjectId": "00000000-0000-0000-0000-0000000000c2",
+   "month": null,
+   "expected": 40000,
+   "actual": null,
+   "text": null,
+   "details": {
+    "kind": "refund",
+    "code": "deleted",
+    "what": "запись удалена",
+    "state": null
+   },
+   "isNew": true
+  },
+  {
+   "id": "f53",
+   "orgId": "00000000-0000-0000-0000-0000000000a2",
+   "orgName": "Центр «Бета»",
+   "invariant": "I-5",
+   "what": "запись денег изменена, удалена или отменена мимо журнала",
+   "subjectKey": "payment:00000000-0000-0000-0000-0000000000c3:no_journal",
+   "subjectId": "00000000-0000-0000-0000-0000000000c3",
+   "month": null,
+   "expected": null,
+   "actual": 300000,
+   "text": null,
+   "details": {
+    "kind": "payment",
+    "code": "no_journal",
+    "what": "запись отменена без строки в журнале",
+    "state": {
+     "fingerprint": "9c1e",
+     "voided": true,
+     "void_fingerprint": null
+    }
+   },
+   "isNew": false
+  },
+  {
+   "id": "f54",
+   "orgId": "00000000-0000-0000-0000-0000000000a2",
+   "orgName": "Центр «Бета»",
+   "invariant": "I-5",
+   "what": "запись денег изменена, удалена или отменена мимо журнала",
+   "subjectKey": "payout:00000000-0000-0000-0000-0000000000c4:foreign",
+   "subjectId": "00000000-0000-0000-0000-0000000000c4",
+   "month": null,
+   "expected": null,
+   "actual": null,
+   "text": null,
+   "details": {
+    "kind": "payout",
+    "code": "foreign",
+    "what": "запись не своего участия",
+    "state": {
+     "fingerprint": "9c1e",
+     "voided": false,
+     "void_fingerprint": null
+    }
+   },
+   "isNew": false
+  }
+ ]
+}

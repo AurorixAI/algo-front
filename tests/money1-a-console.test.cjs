@@ -54,7 +54,7 @@ test("the words: the status of a run, the letter, the invariants", () => {
   assert.equal(M.mailLabel("skipped").label, "Письмо не нужно: нового нет");
   assert.deepEqual(M.mailLabel("failed"), { label: "Письмо не ушло", tone: "red" });
   assert.equal(M.mailLabel(null).label, "—");
-  assert.deepEqual(M.INVARIANTS.map((i) => i.label), ["Долг и оплаты", "«Оплачено до»", "Сохранённые ведомости", "Закрытые месяцы", "Пробная запись меняет счёт неверно"]);
+  assert.deepEqual(M.INVARIANTS.map((i) => i.label), ["Долг и оплаты", "«Оплачено до»", "Сохранённые ведомости", "Закрытые месяцы", "Записи мимо журнала", "Пробные записи"]);
   assert.equal(M.invariantLabel("I-3"), "Сохранённые ведомости");
   assert.equal(M.invariantLabel("I-9"), "I-9");
 });
@@ -191,12 +191,13 @@ const draw = (props = {}) => html(React.createElement(MoneyReconcileView, { data
 const I6 = (over = {}) => ({ id: "f6", orgId: "o3", orgName: "Центр «Гамма»", invariant: "I-6", what: "пробная запись меняет счёт не так, как должна", subjectKey: "membership:m6:pay_today:debt_grows", subjectId: "m6", month: null, expected: 500000, actual: 599000, text: SENTENCE, details: { probe: "pay_today", rule: "debt_grows", text: SENTENCE }, isNew: true, ...over });
 
 test("I-6: the kind is in the list of kinds, with a label in the tone of the others; the filter keeps only it", () => {
-  assert.deepEqual(M.INVARIANTS.map((item) => item.value), ["I-1", "I-2", "I-3", "I-4", "I-6"]);
-  assert.equal(M.invariantLabel("I-6"), "Пробная запись меняет счёт неверно");
+  assert.deepEqual(M.INVARIANTS.map((item) => item.value), ["I-1", "I-2", "I-3", "I-4", "I-5", "I-6"]);
+  assert.equal(M.invariantLabel("I-6"), "Пробные записи", "a noun, as «Долг и оплаты»: the grey line under it is the sentence of the server");
+  assert.equal(M.invariantLabel("I-5"), "Записи мимо журнала");
   assert.deepEqual(M.visibleFindings([...FINDINGS, I6()], "I-6").map((item) => item.id), ["f6"]);
   assert.equal(M.visibleFindings([...FINDINGS, I6()], "").length, 5);
   const markup = draw({ data: { ...DATA, findings: [...FINDINGS, I6()] } });
-  assert.ok(textOf(markup).includes("Пробная запись меняет счёт неверно"), "the option / the row names the kind");
+  assert.ok(textOf(markup).includes("Пробные записи"), "the option / the row names the kind");
 });
 
 test("I-6: the row and the card show the ready sentence of the server (top-level `text`, else `details.text`), not a pair of sums; no sentence - the pair as before", () => {
@@ -208,7 +209,38 @@ test("I-6: the row and the card show the ready sentence of the server (top-level
   assert.ok(plain(row).includes(SENTENCE), row);
   assert.doesNotMatch(plain(row), /500 000 сум → 599 000 сум/, "no pair next to the sentence");
   const card = textOf(html(React.createElement(FindingDetail, { finding: I6() })));
-  assert.ok(plain(card).includes(SENTENCE) && card.includes("Пробная запись меняет счёт неверно (I-6)") && card.includes("Новое: в прошлой проверке этого центра не было"), card);
+  assert.ok(plain(card).includes(SENTENCE) && card.includes("Пробные записи (I-6)") && card.includes("Новое: в прошлой проверке этого центра не было"), card);
   // the sentence wraps (a long one does not push the page wide): no `whitespace-nowrap` on the cell of I-6
-  assert.match(read("console/src/components/money-reconcile.tsx"), /r\.invariant === "I-6" \? "block min-w-0 max-w-md break-words" : "whitespace-nowrap"/);
+  assert.match(read("console/src/components/money-reconcile.tsx"), /r\.invariant === "I-6" \|\| r\.invariant === "I-5" \? "block min-w-0 max-w-md break-words" : "whitespace-nowrap"/);
+});
+
+// ── PAY-TAILS Б9.9: the kind I-5 «запись денег изменена, удалена или отменена мимо журнала» - the fixture is in the form of the server (Found -> the router: was / now = expected / actual, `details.what` = the words of the code) ───
+const I5 = require(path.join(root, "tests/fixtures/money-reconcile/findings-i5.json")).findings;
+const I5_LABELS = {
+  changed: "Запись изменена на месте · было 300 000 сум → стало 250 000 сум",
+  deleted: "Запись удалена · было 40 000 сум → стало —",
+  no_journal: "Запись отменена без строки в журнале · было — → стало 300 000 сум",
+  foreign: "Запись не своего участия",
+};
+
+test("I-5: the label is in the list and in the filter, the filter keeps only I-5 (and I-6 stays apart)", () => {
+  assert.equal(M.INVARIANTS.find((item) => item.value === "I-5").label, "Записи мимо журнала");
+  assert.deepEqual(M.visibleFindings([...FINDINGS, ...I5, I6()], "I-5").map((item) => item.id).sort(), ["f51", "f52", "f53", "f54"]);
+  assert.deepEqual(M.visibleFindings([...FINDINGS, ...I5, I6()], "I-6").map((item) => item.id), ["f6"]);
+  const markup = draw({ data: { ...DATA, findings: [...FINDINGS, ...I5, I6()] } });
+  assert.ok(textOf(markup).includes("Записи мимо журнала") && textOf(markup).includes("Пробные записи"));
+});
+
+for (const row of I5) {
+  test(`I-5 (${row.details.code}): the row says what happened to the record and its sums; the card says it too`, () => {
+    assert.equal(plain(M.findingAmount(row)), I5_LABELS[row.details.code]);
+    const list = plain(textOf(draw({ data: { ...DATA, findings: [row] } })));
+    assert.ok(list.includes("Записи мимо журнала") && list.includes(I5_LABELS[row.details.code]), list);
+    const card = plain(textOf(html(React.createElement(FindingDetail, { finding: row }))));
+    assert.ok(card.includes("Записи мимо журнала (I-5)") && card.includes(I5_LABELS[row.details.code]) && card.includes(row.subjectId), card);
+  });
+}
+
+test("I-5: a finding with no words and no sums reads as a dash, never as «undefined»", () => {
+  assert.equal(M.findingAmount({ invariant: "I-5", expected: null, actual: null, details: null }), "—");
 });

@@ -35,7 +35,8 @@ export const INVARIANTS: Array<{ value: MoneyInvariant; label: string }> = [
   { value: "I-2", label: "«Оплачено до»" },
   { value: "I-3", label: "Сохранённые ведомости" },
   { value: "I-4", label: "Закрытые месяцы" },
-  { value: "I-6", label: "Пробная запись меняет счёт неверно" },
+  { value: "I-5", label: "Записи мимо журнала" },
+  { value: "I-6", label: "Пробные записи" },
 ];
 
 export function invariantLabel(invariant: string): string {
@@ -90,6 +91,14 @@ export function findingText(finding: Pick<MoneyFinding, "text" | "details">): st
   return typeof inner === "string" && inner.trim() ? inner.trim() : null;
 }
 
+/** I-5: what happened to the row (`details.what` of the server: «запись изменена на месте», «запись удалена», …) and its sum «было → стало» when the server gives one; a dash when it gives neither. */
+function rowFindingText(expected: number | null, actual: number | null, details: Record<string, unknown>): string {
+  const what = typeof details.what === "string" ? details.what.trim() : "";
+  const sentence = what ? what.charAt(0).toUpperCase() + what.slice(1) : "";
+  const sums = expected === null && actual === null ? "" : `было ${money(expected)} → стало ${money(actual)}`;
+  return [sentence, sums].filter(Boolean).join(" · ") || DASH;
+}
+
 /** «Строки 475 000 сум · итог 600 000 сум» / «Оплаты по записям … · в расчёте …» / «Строк без оплаченных отметок: 2»: what does not add up, by the invariant and the kind. */
 export function findingAmount(finding: Pick<MoneyFinding, "invariant" | "expected" | "actual" | "details"> & { text?: string | null }): string {
   const expected = num(finding.expected);
@@ -113,6 +122,7 @@ export function findingAmount(finding: Pick<MoneyFinding, "invariant" | "expecte
       const kind = typeof details.what === "string" ? PAIRS[details.what] : undefined;
       return kind ? kind(expected, actual, details) : `Ожидалось ${expected ?? DASH} · найдено ${actual ?? DASH}`;
     }
+    case "I-5": return rowFindingText(expected, actual, details);
     case "I-6": return findingText(finding) ?? (expected === null && actual === null ? DASH : `${money(expected)} → ${money(actual)}`);
     case "I-4": return `Неразобранных уроков: ${actual ?? DASH}`;
     default: return expected === null && actual === null ? DASH : `${money(expected)} → ${money(actual)}`;

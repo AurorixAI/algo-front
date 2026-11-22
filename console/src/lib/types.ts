@@ -334,7 +334,7 @@ export interface MoneyRun {
   error: string | null;
 }
 
-export type MoneyInvariant = "I-1" | "I-2" | "I-3" | "I-4" | "I-6";
+export type MoneyInvariant = "I-1" | "I-2" | "I-3" | "I-4" | "I-5" | "I-6";
 
 /** One divergence of the newest run.  Ids, months and sums only - no name of a person (the server promises it). */
 export interface MoneyFinding {
