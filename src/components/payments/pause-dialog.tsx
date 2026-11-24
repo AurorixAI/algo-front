@@ -351,7 +351,7 @@ export function PauseDialog({
                   {acting?.action === "cancel" && active && !locked && !running && <p className="mb-1 font-semibold text-slate-900" data-testid="pause-cancel-title">{PAUSE_CANCEL_FUTURE_TITLE}</p>}
                   {/* Б11.34 п.2: the FACTS first (the days are text, not editable), under them ONE calm sentence of the server */}
                   <p className="text-slate-800" data-testid={locked ? "pause-locked-days" : undefined}>{pauseLine(locked ? { ...pause, reason: null } : pause)}</p>
-                  {running && <p className="text-amber-800">Идёт сейчас</p>}
+                  {running && !locked && <p className="text-amber-800">Идёт сейчас</p>}
                   {locked && pause.days_locked_text && <p className="mt-1 text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
                   {locked && (
                     <div className="mt-2 space-y-1.5">

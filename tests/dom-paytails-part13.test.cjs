@@ -146,15 +146,24 @@ for (const width of [1280, 375]) {
           return box(element).height > line * 1.4;
         }).map((element) => element.textContent);
         const frame = box(document.querySelector('[data-testid="payment-calc"]'));
-        const outside = [...document.querySelectorAll('[data-testid="payment-split"] *')].filter((element) => getComputedStyle(element).display !== "contents" && (box(element).right > frame.right + 0.5 || box(element).left < frame.left - 0.5)).map((element) => element.textContent);
+        const outside = [...document.querySelectorAll('[data-testid="payment-split"] *')].filter((element) => !["contents", "none"].includes(getComputedStyle(element).display) && (box(element).right > frame.right + 0.5 || box(element).left < frame.left - 0.5)).map((element) => element.textContent);
         const firstAmount = document.querySelector('[data-testid="payment-split-amount"]');
-        return { rights, marksRight: marks.map((cell) => Math.round(box(cell).right)), marksLeft: marks.map((cell) => Math.round(box(cell).left)), edge, total: total ? Math.round(box(total).right) : null, broken, outside, firstAmountRight: Math.round(box(firstAmount).right) };
+        const pairs = [...document.querySelectorAll('[data-testid="payment-split-row"]')].map((item) => { const mark = item.querySelector('[data-testid="payment-split-mark"]'); const sum = item.querySelector('[data-testid="payment-split-amount"]'); return mark ? { markRight: Math.round(box(mark).right), sumRight: Math.round(box(sum).right), markTop: box(mark).top, sumBottom: box(sum).bottom } : null; }).filter(Boolean);
+        return { pairs, rights, marksRight: marks.map((cell) => Math.round(box(cell).right)), marksLeft: marks.map((cell) => Math.round(box(cell).left)), edge, total: total ? Math.round(box(total).right) : null, broken, outside, firstAmountRight: Math.round(box(firstAmount).right) };
       });
       assert.equal(new Set(geometry.rights).size, 1, `the sums of the rows (the advance row too) are right-aligned on one line: ${geometry.rights}`);
       assert.equal(geometry.rights.length, got.rows.length);
       assert.ok(geometry.marksRight.every((right) => Math.abs(right - geometry.edge) <= 1), `the marks end at the right edge of the block: ${geometry.marksRight} / ${geometry.edge}`);
-      assert.equal(new Set(geometry.marksLeft).size <= 1, true, `the marks stand in one column: ${geometry.marksLeft}`);
-      assert.ok(geometry.marksLeft.every((left) => left >= geometry.firstAmountRight - 1), "the marks stand after the sums");
+      if (width >= 640) {
+        assert.equal(new Set(geometry.marksLeft).size <= 1, true, `the marks stand in one column: ${geometry.marksLeft}`);
+        assert.ok(geometry.marksLeft.every((left) => left >= geometry.firstAmountRight - 1), "the marks stand after the sums");
+      } else {
+        // Б11.38 п.1: on a phone two columns - the quiet mark is the second line UNDER the sum of its own row, on the right
+        for (const pair of geometry.pairs) {
+          assert.ok(Math.abs(pair.markRight - pair.sumRight) <= 1, `the mark ends where its sum ends: ${JSON.stringify(pair)}`);
+          assert.ok(pair.markTop >= pair.sumBottom - 1, `the mark stands under its sum: ${JSON.stringify(pair)}`);
+        }
+      }
       if (geometry.total !== null) assert.ok(Math.abs(geometry.total - geometry.edge) <= 1, "the total ends at the right edge too");
       assert.deepEqual(geometry.broken, [], "no sum or mark is broken into two lines");
       assert.deepEqual(geometry.outside, []);
@@ -167,6 +176,24 @@ for (const width of [1280, 375]) {
     });
   }
 }
+
+test("А (Б11.38 п.1): on a phone (375) a label of up to 20 signs stays on ONE line beside a sum of seven digits; the sum and the mark are one line each", async () => {
+  const { page } = await openWindow("four_periods_fold_advance", 375);
+  await page.waitForSelector('[data-testid="payment-split"]');
+  const rows = await page.locator('[data-testid="payment-split-row"]').evaluateAll((items) => items.map((item) => {
+    const lines = (element) => (element ? Math.round(element.getBoundingClientRect().height / (parseFloat(getComputedStyle(element).lineHeight) || 20) * 10) / 10 : null);
+    const label = item.querySelector('[data-testid="payment-split-label"]');
+    return { text: label.textContent, labelLines: lines(label), sumLines: lines(item.querySelector('[data-testid="payment-split-amount"]')), markLines: lines(item.querySelector('[data-testid="payment-split-mark"]')), sum: item.querySelector('[data-testid="payment-split-amount"]').textContent };
+  }));
+  console.log("Б11.38 п.1 measure 375:", JSON.stringify(rows));
+  assert.ok(rows.some((row) => row.sum.replace(/\D/g, "").length >= 7), "a sum of seven digits is among the rows");
+  for (const row of rows) {
+    if ([...row.text].length <= 20) assert.equal(row.labelLines, 1, `a label of up to 20 signs is one line: ${JSON.stringify(row)}`);
+    assert.equal(row.sumLines, 1, JSON.stringify(row));
+    if (row.markLines !== null) assert.equal(row.markLines, 1, JSON.stringify(row));
+  }
+  await page.close();
+});
 
 test("А: the labels wrap, the sums do not - a long label of a period with two years on a phone", async () => {
   const { previewFor } = require("./helpers/paytails-part13.cjs");
@@ -269,7 +296,7 @@ for (const width of [1280, 375]) {
     assert.equal(await days.locator("input").count(), 0);
     assert.match(plain(await days.innerText()), /^с \d\d\.\d\d по \d\d\.\d\d · /);
     assert.ok(!plain(await days.innerText()).includes("уехал"), "the reason is in its field, not twice");
-    assert.equal(plain(await run.page.locator('section[aria-label="Паузы ученика"] p', { hasText: "Идёт сейчас" }).innerText()), "Идёт сейчас", "no date of the end repeated");
+    assert.equal(await run.page.locator('section[aria-label="Паузы ученика"] p', { hasText: "Идёт сейчас" }).count(), 0, "Б11.38 п.2: a pause closed by a leaving / transfer does not run - no «Идёт сейчас» next to the sentence of the server");
     // the calm sentence is not an alarm: no red, no amber frame
     assert.doesNotMatch(await text.getAttribute("class"), /rose|amber|border/);
     const list = run.page.locator('section[aria-label="Паузы ученика"]');

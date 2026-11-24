@@ -26,7 +26,17 @@ async function check(page, errors, label, scope) {
   const pageScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (probe.bad.length || probe.scroll > 0 || pageScroll > 0 || errors.length) suspicious.push(`${label}: scroll ${pageScroll}/${probe.scroll} bad ${JSON.stringify(probe.bad).slice(0, 200)} errors ${errors.length}`);
 }
-const shot = (page, name) => page.screenshot({ path: path.join(out, `${name}.png`) });
+// Б11.38: the height of the shot of a phone is the height of the content (no empty grey field over and under the window): the viewport is fitted to the dialog, twice (the window may be taller than the first guess)
+const shot = async (page, name) => {
+  if (name.endsWith("-375")) {
+    // the window is as tall as its content only when the viewport is tall enough: measure the natural height in a tall viewport, then cut the viewport to it plus the margins of the window
+    await page.setViewportSize({ width: 375, height: 4000 });
+    await page.waitForTimeout(250);
+    const height = await page.evaluate(() => { const box = document.querySelector('[role="dialog"]'); return box ? Math.ceil(box.getBoundingClientRect().height) : null; });
+    if (height) { await page.setViewportSize({ width: 375, height: height + 24 }); await page.waitForTimeout(250); }
+  }
+  await page.screenshot({ path: path.join(out, `${name}.png`) });
+};
 
 (async () => {
   const browser = await launch();
@@ -74,16 +84,18 @@ const shot = (page, name) => page.screenshot({ path: path.join(out, `${name}.png
     // Б
     const day = (shift) => new Date(Date.now() + shift * 86400000).toISOString().slice(0, 10);
     const pauseOf = (id, first, last, over = {}) => ({ id, membership_id: "m-a", first_day: first, last_day: last, days: 13, reason: "уехал к родственникам", created_by_name: null, created_at: null, voided_at: null, void_reason: null, days_locked: false, days_locked_text: null, ...over });
+    // Б11.38 п.3: the pauses are the REAL answers of the server (fixtures part14), as they come; the window opens as it does for the student (no form of a new pause for one who has left / been moved out)
+    const real = (name, over = {}) => ({ ...readReal(name), membership_id: "m-a", ...over });
     const lockedText = readReal("pause_closed_by_leave_later").days_locked_text;
-    const locked = (over = {}) => pauseOf("pl", day(-3), day(9), { days_locked: true, days_locked_text: lockedText, ...over });
+    const locked = (over = {}) => real("pause_closed_by_leave_later", over);
     for (const [state, pauses, props, act] of [
-      ["no_cut", [pauseOf("pa", day(-3), day(9))], {}, async () => {}],
+      ["no_cut", [real("pause_without_cut")], {}, async () => {}],
       ["cut_by_leaving", [locked()], {}, async () => {}],
-      ["closed_by_transfer_today", [pauseOf("pt", day(-3), day(9), { days_locked: true, days_locked_text: readReal("pause_closed_by_transfer_today").days_locked_text })], {}, async () => {}],
-      ["closed_by_transfer_later", [pauseOf("pu", day(-3), day(9), { days_locked: true, days_locked_text: readReal("pause_closed_by_transfer_later").days_locked_text })], {}, async () => {}],
+      ["closed_by_transfer_today", [real("pause_closed_by_transfer_today")], { active: false }, async () => {}],
+      ["closed_by_transfer_later", [real("pause_closed_by_transfer_later")], {}, async () => {}],
       ["cut_reason_changed", [locked()], {}, async (page) => { await page.fill('[data-testid="pause-locked-reason"]', "уехал к родственникам в Самарканд"); }],
-      ["left_student_no_form", [locked()], { active: false }, async () => {}],
-      ["returned_student_form_and_locked", [locked()], {}, async () => {}],
+      ["left_student_no_form", [real("pause_closed_by_leave_today")], { active: false }, async () => {}],
+      ["returned_student_form_and_locked", [real("pause_closed_by_leave_today")], {}, async () => {}],
       ["long_names_long_reason", [locked({ reason: "уехал к родственникам в Самарканд на всё лето, вернётся к началу занятий, связь через отца" })], { active: true, groupName: "Подготовка к олимпиаде по математике, 9 класс, старшая группа" }, async () => {}],
       ["race_409_becomes_locked", [pauseOf("pr", day(-3), day(9))], { race: true }, async (page) => {
         await page.getByRole("button", { name: "Закончить сегодня" }).click();
