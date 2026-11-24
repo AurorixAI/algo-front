@@ -1044,10 +1044,10 @@ function periodName(from: string, to: string, kind?: "period" | "package"): stri
   return isCalendarMonthPeriod(from, to) ? monthWord(monthKey(from)) : `${formatDayMonthRu(from)}–${formatDayMonthRu(to)}`;
 }
 
-/** «август закрыт» for a month, «период закрыт» / «пакет закрыт» otherwise. */
+/** «август оплачен» for a month, «период оплачен» / «пакет оплачен» otherwise. */
 function closedWords(name: string, kind: "period" | "package" | undefined, line: Pick<Allocation, "period_from" | "period_to">): string {
-  if (kind === "package") return "пакет закрыт";
-  return isCalendarMonthPeriod(line.period_from, line.period_to) ? `${name} закрыт` : "период закрыт";
+  if (kind === "package") return "пакет оплачен";
+  return isCalendarMonthPeriod(line.period_from, line.period_to) ? `${name} оплачен` : "период оплачен";
 }
 
 export interface StatementEntry {
@@ -1065,7 +1065,7 @@ export interface StatementEntry {
   paid: number | null;
   /** What is open on the row itself, by name, in the server's words (PAY-DUE 10.11): none = the cell is empty. */
   open: OpenPart[];
-  /** «за август — 69 000 (август закрыт)» lines of a payment. */
+  /** «за август — 69 000 (август оплачен)» lines of a payment. */
   allocations: string[];
   /** «исправлена: было 450 000» / «исправление оплаты № 17». */
   replaced: string | null;

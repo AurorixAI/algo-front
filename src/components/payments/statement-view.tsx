@@ -100,7 +100,7 @@ const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5
 /**
  * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Стоимость | Оплачено | Остаток.
  * Charges are told in words (the month, the part of it, the price and where the price comes from), a payment says how it
- * was made and where each part of it went («за август — 69 000 (август закрыт)»), write-offs, refunds and transfers carry a
+ * was made and where each part of it went («за август — 69 000 (август оплачен)»), write-offs, refunds and transfers carry a
  * tag.  A light row per month names it; the switcher shows one month (with a line about the balance carried in) or all of them.
  * Excel (built by the server) follows the month on screen.  Shared by /owner/payments/statement/[id] and /admin/….
  */

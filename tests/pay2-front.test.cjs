@@ -352,7 +352,7 @@ test("E1 statement (14Б.7): one timeline, «Остаток» is what is open on
   assert.match(rows[1].title, /^Оплата № 17 · наличные · внёс /);
   // where each payment went, per period, with the outcome
   assert.deepEqual(rows[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 269 000)"]);
-  assert.deepEqual(rows[3].allocations.map(plain), ["за 15.09–14.10 — 269 000 (период закрыт)", "за 15.10–14.11 — 500 000 (период закрыт)", "аванс на 15.11–14.12 — 21 000"]);
+  assert.deepEqual(rows[3].allocations.map(plain), ["за 15.09–14.10 — 269 000 (период оплачен)", "за 15.10–14.11 — 500 000 (период оплачен)", "аванс на 15.11–14.12 — 21 000"]);
   // a light row per month names it (the figures are in the columns)
   const months = items.filter((item) => item.kind === "month");
   assert.deepEqual(months.map((item) => item.title), ["Сентябрь 2026", "Октябрь 2026"]);
