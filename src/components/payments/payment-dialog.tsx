@@ -55,6 +55,7 @@ import { EFFECTS_TITLE } from "@/lib/money-effects";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { groupPriceHref } from "@/lib/group-price";
 import { duplicateNotice, PAYMENT_WORDS, rememberFirstSend, type DuplicateNotice, type FirstSend } from "@/lib/send-attempt";
+import { PlanSplitRows } from "@/components/payments/plan-split";
 import { Modal } from "@/components/ui/modal";
 import { StatusChip } from "@/components/ui/chip";
 import { PAY_STATE_TONE } from "@/lib/pay-state";
@@ -193,7 +194,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const leftDebt = due?.unpaid ?? 0;
   const leftCeiling = kind === "replace" ? latest?.suggested_amount ?? 0 : leftDebt; const leftWords = latest?.warnings.find((warning) => warning.code === "left_debt_only")?.message ?? null;      // К1 круг 3: the server's own sentence, once (the plan does not repeat it)
   const leftProblem = kind === "create" && leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;      // G3M С1: a correction has no text of its own - its ceiling is the server's (`suggested_amount`), the refusal comes in its words
-  const plan = amountNow !== null ? planView(fresh) : null;
+  const plan = amountNow !== null ? planView(fresh, amountNow) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
   const priceNote = due !== null && due.unpaid === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
   const blocker = payBlocker(values, today, leftProblem, kind) ?? replace.why;
@@ -353,7 +354,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
           {/* 2. What saving will do to the STUDENT (UX pack §5.1): a table - the name on the left, the number on the right; the server's live calculation, future tense */}
           {!replace.refused && <section aria-label={EFFECTS_TITLE} id="payment-calc" aria-live="polite" data-testid="payment-calc" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
-            <h3 className="text-xs font-semibold text-slate-600">{EFFECTS_TITLE}</h3>
+            <h3 className="text-xs font-semibold text-slate-600" data-testid="payment-calc-title">{plan?.split?.title ?? EFFECTS_TITLE}</h3>
             <div className="mt-2">
               {state.error ? (
                 <p role="alert" className="text-xs font-medium text-amber-900">{state.error}</p>
@@ -465,6 +466,7 @@ export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?:
   return (
     <div className={`space-y-2 transition-opacity ${loading ? "opacity-60" : ""}`} data-testid="payment-plan">
       {plan.sentence && <p className="text-sm font-medium text-slate-900" data-testid="payment-plan-sentence">{plan.sentence}</p>}
+      {plan.split && <PlanSplitRows split={plan.split} />}
       {plan.lessons && <p className="text-xs text-slate-600">{plan.lessons}</p>}
       {plan.priceAhead.length > 0 && (
         <div role="note" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">

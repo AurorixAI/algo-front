@@ -568,6 +568,27 @@ export interface PreviewResult {
   summary_text: string;
   /** The state after the payment in the words of the server (15А.1): «Останется: долг 100 000 сум · к оплате 50 000 сум» / «Оплачено до 15.11» / «Аванс 21 000 сум». It repeats the end of `summary_text`, so the window shows the sentence once. */
   after_text: string;
+  /** PAY-TAILS Б11.33 п.2: where the typed amount goes, period by period (oldest first; the server builds it with the receipt's one function).  Absent on an older server. */
+  money_rows?: PreviewMoneyRow[];
+  /** What stays unpaid after the payment, by period (oldest first); empty - no debt.  The sum is `debt_after`. */
+  debt_rest?: PreviewDebtRest[];
+  /** The debt after the payment (the sum of `debt_rest`); a server that does not send it is read by `debt_amount_after`. */
+  debt_after?: number | null;
+}
+
+export interface PreviewMoneyRow {
+  label: string;
+  amount: number;
+  /** What was unpaid in the period before this payment - only for `state` «part». */
+  of: number | null;
+  state: "closed" | "part" | "advance";
+  /** How many closed periods the row folds (1 for a single one). */
+  periods: number;
+}
+
+export interface PreviewDebtRest {
+  label: string;
+  amount: number;
 }
 
 export interface PaymentPreview {

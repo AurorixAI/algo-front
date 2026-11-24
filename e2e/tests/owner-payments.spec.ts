@@ -54,7 +54,10 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(payDialog.getByTestId("payment-due")).toContainText(new RegExp(`К оплате ${moneyPattern(450000)}`)); // the top block says what is due, in the server's words (PAY-DUE 10.10)
   await expect(payDialog.getByLabel("Сумма", { exact: true })).not.toHaveValue(""); // the amount starts as everything that is due
   await payDialog.getByLabel("Сумма", { exact: true }).fill("450000");
-  await expect(payDialog.getByTestId("payment-plan-sentence")).toContainText(/Погасит|Закроет/); // what saving will do to the STUDENT: the server's one sentence (10.10)
+  // PAY-TAILS Б11.33: what saving will do to the STUDENT is the server's rows «Куда пойдут N сум» (a row per period, the total under a line); it was the one sentence «Погасит…» (10.10)
+  await expect(payDialog.getByTestId("payment-calc-title")).toHaveText(new RegExp(`Куда пойдут ${moneyPattern(450000)}`));
+  await expect(payDialog.getByTestId("payment-split-row").first()).toBeVisible();
+  await expect(payDialog.getByTestId("payment-split-total")).toContainText(/Долг закрыт|Долга не останется|Останется долг/);
   // the method is chosen, not guessed: the button waits for it and says why
   await expect(payDialog.getByRole("button", { name: /^Внести/ })).toBeDisabled();
   await expect(payDialog.getByTestId("payment-blocker")).toContainText("Выберите способ оплаты");
