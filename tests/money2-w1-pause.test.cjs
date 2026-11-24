@@ -61,14 +61,14 @@ test("Т9 (создание): the sentence about the other group stands once und
 
 test("Т9 (отмена и окончание): the dry run is asked when the action opens, its sentence is shown once, the write follows", async () => {
   const run = await open(1280, server());
-  await run.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.equal(dryCalls(run, /\/pauses\/pf\/void$/).length, 1, "the cancel asks the dry run");
   assert.equal(plain(await run.page.textContent('[data-testid="pause-act-effects"]')), plain(OTHER));
   await run.page.close();
 
   const ending = await open(1280, server());
-  await ending.page.getByRole("button", { name: "Закончить паузу" }).first().click();
+  await ending.page.getByRole("button", { name: "Закончить сегодня" }).first().click();
   await ending.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.equal(dryCalls(ending, /\/pauses\/pr$/).length, 1);
   assert.equal(plain(await ending.page.textContent('[data-testid="pause-act-effects"]')), plain(OTHER));
@@ -77,17 +77,17 @@ test("Т9 (отмена и окончание): the dry run is asked when the ac
 
 test("Т9: 409 `PAUSE_BREAKS_REFUND` - the server's text (with the name of the group), the button is off; without the right to money no sentence and no dead end", async () => {
   const run = await open(1280, server({ breaks: true }));
-  await run.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.equal(plain(await run.page.textContent('[data-testid="pause-act-effects"]')), plain(BREAKS));
-  const confirm = run.page.locator('section[aria-label="Паузы ученика"] button', { hasText: "Отменить паузу" }).last();
+  const confirm = run.page.locator('[data-testid="pause-act-confirm"]');
   assert.equal(await confirm.isDisabled(), true);
   await run.page.close();
 
   const blind = await open(1280, server({ text: null }));
-  await blind.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await blind.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
   await blind.page.waitForTimeout(700);
   assert.equal(await blind.page.locator('[data-testid="pause-act-effects"]').count(), 0);
-  assert.equal(await blind.page.locator('section[aria-label="Паузы ученика"] button', { hasText: "Отменить паузу" }).last().isDisabled(), false);
+  assert.equal(await blind.page.locator('[data-testid="pause-act-confirm"]').isDisabled(), false);
   await blind.page.close();
 });

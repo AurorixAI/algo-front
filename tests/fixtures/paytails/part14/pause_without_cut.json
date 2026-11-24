@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-11-09T07:00:00.000017",
+  "created_by_name": "Иван Owner",
+  "days": 14,
+  "days_locked": false,
+  "days_locked_text": null,
+  "first_day": "2026-11-17",
+  "id": "d10188b2-bd29-42d3-a760-89d3cbc4da75",
+  "last_day": "2026-11-30",
+  "membership_id": "643ad3db-391b-46ff-b255-6a815ecd2d51",
+  "reason": "Болезнь",
+  "void_reason": null,
+  "voided_at": null
+}

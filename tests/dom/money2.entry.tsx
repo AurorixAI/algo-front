@@ -87,7 +87,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<WriteoffDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра 7", debt: 190000, advance: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);
       break;
     case "pause":
-      root.render(<PauseDialog open membershipId="m-a" studentName="Каримов Фарход" groupName={props.groupName ?? "Алгебра"} onClose={() => log("close")} onChanged={(_row, text) => log(`changed:${text}`)} />);
+      root.render(<PauseDialog open membershipId="m-a" studentName="Каримов Фарход" groupName={props.groupName ?? "Алгебра"} active={props.active} onClose={() => log("close")} onChanged={(_row, text) => log(`changed:${text}`)} />);
       break;
     case "refund":
       root.render(<RefundDialog row={{ membership_id: "m-a", group_id: "ga", group_name: props.groupName ?? "Алгебра", advance: 390000, debt: 0, is_active: false } as never} studentName="Каримов Фарход" onClose={() => log("close")} onDone={() => log("done")} />);

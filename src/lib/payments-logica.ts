@@ -472,7 +472,7 @@ export function pausedChipText(paused: { from: string; to: string } | null | und
   return paused?.to ? `На паузе до ${formatDayMonthRu(paused.to)}` : "На паузе";
 }
 
-/** A pause that is on today («Закончить паузу» shortens it to yesterday) vs one that has not begun («Отменить паузу»). */
+/** A pause that is on today (the window's «Закончить сегодня» shortens it to yesterday) vs one that has not begun (taken off whole, «Снять паузу целиком»). */
 export function pauseEndAction(pause: Pick<PauseOut, "first_day" | "last_day">, today: string): "end" | "cancel" | null {
   if (pause.last_day < today) return null;
   return pause.first_day < today ? "end" : "cancel";

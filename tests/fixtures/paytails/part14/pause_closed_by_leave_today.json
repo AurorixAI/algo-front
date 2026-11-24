@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-11-09T07:00:00.000017",
+  "created_by_name": "Иван Owner",
+  "days": 3,
+  "days_locked": true,
+  "days_locked_text": "Пауза закрыта уходом ученика. Верните ученика в группу, затем измените паузу.",
+  "first_day": "2026-11-17",
+  "id": "feeb37e2-0ea6-4851-9923-96215ef159b9",
+  "last_day": "2026-11-19",
+  "membership_id": "6e736766-2b69-49fc-a37c-e587b7d2fd85",
+  "reason": "Болезнь",
+  "void_reason": null,
+  "voided_at": null
+}

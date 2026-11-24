@@ -31,6 +31,12 @@ export function profileMemberships(profile: Pick<StudentProfile, "groups" | "gro
   }];
 }
 
+/** The stay in the group goes on (its last period has no end); a membership without periods is the current one. */
+const membershipIsOpen = (item: StudentGroupMembership): boolean => {
+  const last = item.periods && item.periods.length > 0 ? item.periods[item.periods.length - 1] : null;
+  return last === null || last.left_at === null;
+};
+
 interface StudentGroupsBlockProps {
   profile: StudentProfile;
   groupsBasePath: string;
@@ -177,6 +183,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, moneyRi
           membershipId={pauseFor.membership_id}
           studentName={studentName}
           groupName={pauseFor.group_name}
+          active={membershipIsOpen(pauseFor)}
           onClose={() => setPauseFor(null)}
           onChanged={(_row, text) => { onNotify?.(text, "success"); void loadPauses(); onChanged?.("pause"); }}
         />

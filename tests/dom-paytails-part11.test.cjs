@@ -121,7 +121,7 @@ test("п.3: the field of the reason of a cancelled / ended pause has a VISIBLE l
   });
   const run = await mount(ctx, answer, "pause", OWNER, { moneyAvailable: true });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
-  await run.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
   const field = run.page.locator("#pause-act-reason");
   await field.waitFor();
   const label = run.page.locator('label[for="pause-act-reason"]');
@@ -469,7 +469,7 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("п.10: the pause - the block of a future pause is headed «Отменить будущую паузу»; its button «Отменить паузу» is secondary (the one main button of the window is «Поставить на паузу»); «Назад», not «Не надо»; «эти дни придётся оплатить»", async () => {
+test("п.10: the pause - the block of a future pause is headed «Отменить будущую паузу»; its button «Снять паузу целиком» is secondary (the one main button of the window is «Поставить на паузу»); «Назад», not «Не надо»; «эти дни придётся оплатить»", async () => {
   const future = pauseRow("pf", day(10), day(13));
   const answer = F.baseServer((request) => {
     if (request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: [future] };
@@ -479,7 +479,7 @@ test("п.10: the pause - the block of a future pause is headed «Отменит�
   const run = await mount(ctx, answer, "pause", OWNER, { moneyAvailable: true });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
   assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0, "the heading comes with the confirmation");
-  await run.page.getByRole("button", { name: "Отменить паузу" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
   await run.page.locator("#pause-act-reason").waitFor();
   assert.equal(plain(await run.page.locator('[data-testid="pause-cancel-title"]').innerText()), "Отменить будущую паузу");
   const block = run.page.locator('section[aria-label="Паузы ученика"] li').first();
@@ -488,7 +488,7 @@ test("п.10: the pause - the block of a future pause is headed «Отменит�
   assert.ok(!text.includes("останутся платными") && !text.includes("Не надо"), text);
   assert.equal(await block.getByRole("button", { name: "Назад", exact: true }).count(), 1);
   const colour = async (locator) => locator.evaluate((el) => getComputedStyle(el).backgroundColor);
-  const confirm = block.getByRole("button", { name: "Отменить паузу" });
+  const confirm = block.getByRole("button", { name: "Снять паузу целиком" });
   const main = run.page.locator('button[form="pause-form"]');
   assert.notEqual(await colour(confirm), await colour(main), "the confirmation is not the look of the main button");
   assert.equal(await colour(confirm), "rgb(255, 255, 255)", "it is the outline button");
