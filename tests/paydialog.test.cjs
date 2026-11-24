@@ -47,11 +47,12 @@ test("the old screen arithmetic of the window is gone: no chips, no rows of the 
   for (const gone of ["dueView", "splitDueSegments"]) assert.equal(L[gone], undefined, `${gone} must be deleted`);
   const dialog = read("src/components/payments/payment-dialog.tsx");
   assert.doesNotMatch(dialog, /payment-chips|payment-debt-now|payment-nodebt|plan\.rows|quickAmounts|debtNowLine/);
-  // PAY-TAILS Б11.33: «Останется долг» is now the label of the total of «Куда пойдут N сум» (the number under it is the server's `debt_after`, read, never counted): it stands ONCE, as a constant, and nothing in the file adds, folds or subtracts a сум
+  // PAY-TAILS Б11.34: «Останется долг» is the label of the total of «Куда пойдут деньги» (the number under it is the server's `debt_amount_after`, read, never counted; the quiet «к оплате» is `due_after`): it stands ONCE, as a constant, and nothing in the file adds, folds or subtracts a сум
   const plan = read("src/lib/payment-plan.ts");
+  assert.doesNotMatch(plan, /\bdebt_after\b/, "the debt after the payment is `debt_amount_after`: no second name of it is read");
   assert.doesNotMatch(plan, /Всего долга останется|Погасит часть долга|past_debt_after|current_due_after|past_debt\b/);
   assert.equal((plan.match(/Останется долг/g) ?? []).length, 1, "the label of the total is one constant");
-  assert.doesNotMatch(plan, /\.reduce\(|Math\.(min|max|round)\(|debt_after\s*[-+*]|[-+]\s*[a-z.]*debt_after/, "the total is read from the answer, not counted");
+  assert.doesNotMatch(plan, /\.reduce\(|Math\.(min|max|round)\(|(debt_amount_after|due_after)\s*[-+*]|[-+]\s*[a-z.]*(debt_amount_after|due_after)/, "the total is read from the answer, not counted");
 });
 
 // ── the sentence under the field: the server's, BEFORE the button ─────────────────────────────
@@ -103,10 +104,12 @@ test("every preview of the contract reads through the tolerant parser: the new n
     if (p.result) {
       assert.equal(typeof p.result.summary_text, "string", name);
       for (const old of ["past_debt_after", "current_due_after"]) assert.equal(old in p.result, false, `${name}: ${old}`);
-      // Б11.33: an older answer has no rows - they read as an empty list, `debt_after` as «not said», and the window keeps the sentence
+      // Б11.34: an older answer has no rows - they read as an empty list, `due_after` as «not said», the debt after is the old `debt_amount_after` (no `debt_after` is read), and the window keeps the sentence
       assert.deepEqual(p.result.money_rows, [], name);
       assert.deepEqual(p.result.debt_rest, [], name);
-      assert.equal(p.result.debt_after, null, name);
+      assert.deepEqual(p.result.due_rest, [], name);
+      assert.equal(p.result.due_after, null, name);
+      assert.equal("debt_after" in p.result, false, name);
     }
     const view = X.planView(p);
     if (!p.result) assert.equal(view, null, name); else { assert.equal(view.sentence, p.result.summary_text, name); assert.equal(view.split, null, name); }
@@ -223,10 +226,10 @@ test("the dialog layout: both sums on top, the amount, the server's sentence, th
 
 // ── PAY-TAILS Б11.33 п.2: the rows of the contract through the parser and the words (the files are written by hand from the contract) ──────────────────────────────
 
-test("Б11.33: the preview with money_rows reads through the parser as it is, and the plan says rows + a total; every sum on it is found as a sum of the others (174)", () => {
+test("Б11.34: the preview with money_rows reads through the parser as it is, and the plan says rows + a total; every sum on it is found as a sum of the others (174)", () => {
   const dir = path.join(__dirname, "fixtures/paytails/part13");
-  const files = fs.readdirSync(dir).filter((name) => name.startsWith("preview_") && name.endsWith("_по_договору_Б11.33.json"));
-  assert.equal(files.length, 8);
+  const files = fs.readdirSync(dir).filter((name) => name.startsWith("preview_") && name.endsWith("_по_договору_Б11.34.json"));
+  assert.equal(files.length, 4, "the states the worlds of the server do not have are written by hand; the others are REAL answers (part14/, below)");
   for (const file of files) {
     const over = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
     const raw = { ...fixture("e1_preview_250000"), amount: over.amount };
@@ -234,14 +237,43 @@ test("Б11.33: the preview with money_rows reads through the parser as it is, an
     const p = L.normalizePreview(raw);
     assert.equal(p.result.money_rows.length, over.money_rows.length, file);
     assert.equal(p.result.money_rows.reduce((total, row) => total + row.amount, 0), over.amount, `${file}: the rows add up to the amount`);
-    assert.equal(p.result.debt_rest.reduce((total, row) => total + row.amount, 0), over.debt_after, `${file}: the debt by periods adds up to the debt after`);
+    assert.equal(p.result.debt_rest.reduce((total, row) => total + row.amount, 0), over.debt_amount_after, `${file}: the debt by periods adds up to the debt after`);
+    assert.equal(p.result.due_rest.reduce((total, row) => total + row.amount, 0), over.due_after, `${file}: the sum to pay by periods adds up to the sum to pay after`);
+    assert.equal(p.result.due_after, over.due_after, file);
+    assert.equal("debt_after" in p.result, false, `${file}: the parser reads no second name of the debt`);
     const view = X.planView(p, over.amount);
     assert.equal(view.sentence, "", file);
-    assert.equal(view.split.title, `Куда пойдут ${P.formatMoney(over.amount)}`, file);
+    assert.equal(view.split.title, "Куда пойдут деньги", file);
     assert.equal(view.split.rows.length, over.money_rows.length, file);
-    assert.equal(view.split.total.kind, over.debt_after > 0 ? "debt" : over.advance_after > 0 ? "advance" : "closed", file);
-    assert.equal(view.split.debtRest.length, over.debt_rest.length, file);
+    // the three views of the total by the numbers of the answer: a debt (+ the quiet «к оплате ещё»), only «к оплате», all paid (an advance is a row, not a total)
+    assert.equal(view.split.total.kind, over.debt_amount_after > 0 ? "debt" : over.due_after > 0 ? "due" : "paid", file);
+    assert.equal(view.split.alsoDue !== null, over.debt_amount_after > 0 && over.due_after > 0, file);
+    assert.equal(view.split.debtRest.length, over.debt_amount_after > 0 && over.debt_rest.length >= 2 ? over.debt_rest.length : 0, `${file}: the breakdown only for two periods and more`);
   }
   // rows + no amount typed: nothing to word; a row without a state of the contract is read as a partial one
   assert.equal(X.planView(L.normalizePreview({ ...fixture("e1_preview_250000"), amount: null, result: null }), null), null);
+});
+
+test("Б11.34: the REAL answers of the server (part14/) read through the parser as they came; the header of the window and the block close in each (174), the words are the server's", () => {
+  const dir = path.join(__dirname, "fixtures/paytails/part14");
+  const files = fs.readdirSync(dir).filter((name) => name.startsWith("payment_probe_"));
+  assert.equal(files.length, 9);
+  for (const file of files) {
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+    const p = L.normalizePreview(raw);
+    const r = p.result;
+    assert.equal("debt_after" in r, false, file);
+    assert.equal(r.money_rows.reduce((total, row) => total + row.amount, 0), raw.amount, `${file}: the rows add up to the amount`);
+    assert.equal(r.debt_rest.reduce((total, row) => total + row.amount, 0), r.debt_amount_after, `${file}: the debt by periods adds up to the debt after`);
+    assert.equal(r.due_rest.reduce((total, row) => total + row.amount, 0), r.due_after, `${file}: the sum to pay by periods adds up to the sum to pay after`);
+    // the header (before) = what the rows pay without the advance + what stays
+    assert.equal(p.due.debt_amount + p.due.due_amount, raw.amount - r.advance_after + r.debt_amount_after + r.due_after, `${file}: the header and the block close`);
+    const view = X.planView(p, raw.amount);
+    assert.equal(view.sentence, "", file);
+    assert.equal(view.split.title, "Куда пойдут деньги", file);
+    assert.equal(view.split.total.kind, r.debt_amount_after > 0 ? "debt" : r.due_after > 0 ? "due" : "paid", file);
+    assert.equal(view.split.alsoDue !== null, r.debt_amount_after > 0 && r.due_after > 0, file);
+    assert.equal(view.split.debtRest.length > 0, r.debt_amount_after > 0 && r.debt_rest.length >= 2, file);
+    assert.equal(view.split.rows.filter((row) => row.mark?.kind === "paid").length, r.money_rows.filter((row) => row.state === "closed").length, file);
+  }
 });

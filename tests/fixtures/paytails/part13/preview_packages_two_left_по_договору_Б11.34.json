@@ -1,0 +1,38 @@
+{
+ "header": {
+  "debt": 800000,
+  "due": 0
+ },
+ "amount": 150000,
+ "mode": "lessons",
+ "money_rows": [
+  {
+   "label": "Пакет № 3",
+   "amount": 150000,
+   "of": 400000,
+   "state": "part",
+   "periods": 1
+  }
+ ],
+ "debt_rest": [
+  {
+   "label": "Пакет № 3",
+   "amount": 250000
+  },
+  {
+   "label": "Пакет № 4",
+   "amount": 400000
+  }
+ ],
+ "debt_amount_after": 650000,
+ "due_after": 0,
+ "due_rest": [],
+ "advance_after": 0,
+ "due_amount_after": 0,
+ "lessons": {
+  "covered_before": 0,
+  "covered_after": 4,
+  "left_after": 0,
+  "unpaid_after": 20
+ }
+}

@@ -303,7 +303,7 @@ export interface PreviewView {
   /** The server's sentence about the whole calculation. */
   headline: string;
   lines: PreviewLine[];
-  /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
+  /** «Оплачено уроков: 12 · не оплачено: 8» in lessons mode (Б11.34 п.6: the numbers are the server's, no «0 → 12»). */
   lessons: string | null;
   /** The D8 price-rise sentences. */
   priceAhead: string[];
@@ -332,7 +332,7 @@ export function previewView(preview: PaymentPreview | null | undefined): Preview
     headline: result.summary_text || "",
     lines: allocationLines(result.allocations),
     lessons: lessons
-      ? `Уроков оплачено: ${sum(lessons.covered_before)} → ${sum(lessons.covered_after)}, осталось ${sum(lessons.left_after)}${sum(lessons.unpaid_after) > 0 ? `, не оплачено ${sum(lessons.unpaid_after)}` : ""}`
+      ? `Оплачено уроков: ${sum(lessons.covered_after)} · не оплачено: ${sum(lessons.unpaid_after)}`
       : null,
     priceAhead: ahead,
     warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead" && warning.code !== PAYMENT_REPEATED_CODE && warning.code !== "left_debt_only").map((warning) => warning.message),
@@ -389,7 +389,8 @@ export function normalizePreview(raw: unknown): PaymentPreview {
             periods: Math.max(1, sum(row.periods) || 1),
           })),
           debt_rest: list<Partial<PreviewDebtRest>>(result.debt_rest).map((row) => ({ label: String(row.label ?? ""), amount: sum(row.amount) })),
-          debt_after: nullableSum(result.debt_after),
+          due_rest: list<Partial<PreviewDebtRest>>(result.due_rest).map((row) => ({ label: String(row.label ?? ""), amount: sum(row.amount) })),
+          due_after: nullableSum(result.due_after),
         }
       : null,
     warnings: list<PaymentWarning>(data.warnings),

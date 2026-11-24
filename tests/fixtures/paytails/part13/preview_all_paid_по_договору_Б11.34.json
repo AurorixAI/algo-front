@@ -1,0 +1,22 @@
+{
+ "header": {
+  "debt": 1100000,
+  "due": 0
+ },
+ "amount": 1100000,
+ "money_rows": [
+  {
+   "label": "Октябрь – ноябрь",
+   "amount": 1100000,
+   "of": null,
+   "state": "closed",
+   "periods": 2
+  }
+ ],
+ "debt_rest": [],
+ "debt_amount_after": 0,
+ "due_after": 0,
+ "due_rest": [],
+ "advance_after": 0,
+ "due_amount_after": 0
+}

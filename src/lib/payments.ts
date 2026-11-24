@@ -572,8 +572,10 @@ export interface PreviewResult {
   money_rows?: PreviewMoneyRow[];
   /** What stays unpaid after the payment, by period (oldest first); empty - no debt.  The sum is `debt_after`. */
   debt_rest?: PreviewDebtRest[];
-  /** The debt after the payment (the sum of `debt_rest`); a server that does not send it is read by `debt_amount_after`. */
-  debt_after?: number | null;
+  /** Б11.34: what stays «к оплате» (within its term) after the payment, by period, oldest first; empty - nothing.  The sum is `due_after`.  (The debt after the payment is `debt_amount_after`, the sum of `debt_rest`.) */
+  due_rest?: PreviewDebtRest[];
+  /** Б11.34: how much stays «к оплате» after the payment (the sum of `due_rest`); absent on an older server. */
+  due_after?: number | null;
 }
 
 export interface PreviewMoneyRow {

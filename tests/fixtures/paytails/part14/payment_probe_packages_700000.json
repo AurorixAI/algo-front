@@ -1,0 +1,197 @@
+{
+  "amount": 700000,
+  "as_of": "2026-10-21",
+  "due": {
+    "advance": 0,
+    "debt_amount": 350000,
+    "debt_sub": "просрочено 16 дней",
+    "debt_text": "Долг 350 000 сум · 7 уроков",
+    "due_amount": 100000,
+    "due_sub": "до следующего урока",
+    "due_text": "К оплате 100 000 сум · 2 урока",
+    "due_until": "2026-10-30",
+    "overdue_days": 16,
+    "paid_until": null,
+    "segments": [
+      {
+        "basis": "lessons",
+        "billable_days": 8,
+        "bucket": "past_debt",
+        "charge": 400000,
+        "covered_days": 0,
+        "covered_through": null,
+        "days_text": null,
+        "id": "seg:0:pkg1",
+        "kind": "package",
+        "lessons": {
+          "in_part": 8,
+          "in_period": 8
+        },
+        "paid": 0,
+        "partial_credit": 0,
+        "parts": [
+          {
+            "due_until": null,
+            "lessons": 7,
+            "name": "debt",
+            "unpaid": 350000
+          },
+          {
+            "due_until": "2026-10-30",
+            "lessons": 1,
+            "name": "due",
+            "unpaid": 50000
+          }
+        ],
+        "period_from": "2026-10-01",
+        "period_to": "2026-10-16",
+        "price": {
+          "amount": 400000,
+          "group_amount": 400000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 0,
+        "remaining": 400000,
+        "state": "open",
+        "unpaid": 400000,
+        "written_off": 0
+      },
+      {
+        "basis": "lessons",
+        "billable_days": 1,
+        "bucket": "current",
+        "charge": 50000,
+        "covered_days": 0,
+        "covered_through": null,
+        "days_text": null,
+        "id": "seg:0:pkg2",
+        "kind": "package",
+        "lessons": {
+          "in_part": 1,
+          "in_period": 8
+        },
+        "paid": 0,
+        "partial_credit": 0,
+        "parts": [
+          {
+            "due_until": "2026-11-03",
+            "lessons": 1,
+            "name": "due",
+            "unpaid": 50000
+          }
+        ],
+        "period_from": "2026-10-20",
+        "period_to": "2026-10-20",
+        "price": {
+          "amount": 400000,
+          "group_amount": 400000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 0,
+        "remaining": 50000,
+        "state": "open",
+        "unpaid": 50000,
+        "written_off": 0
+      }
+    ],
+    "unpaid": 450000
+  },
+  "mode": "lessons",
+  "price": {
+    "amount": 400000,
+    "group_amount": 400000,
+    "reason": null,
+    "scheduled": null,
+    "set_by_name": null,
+    "source": "group",
+    "valid_from": "2000-01-01"
+  },
+  "recalc": [],
+  "result": {
+    "advance_after": 250000,
+    "after_text": "Осталось 5 уроков",
+    "allocations": [
+      {
+        "amount": 400000,
+        "bucket": "past_debt",
+        "closes": true,
+        "days": 8,
+        "label": "Погашено за пакет №1 (01.10–16.10)",
+        "period_from": "2026-10-01",
+        "period_to": "2026-10-16",
+        "price": 400000,
+        "segment_id": "seg:0:pkg1",
+        "segment_remaining_after": 0
+      },
+      {
+        "amount": 50000,
+        "bucket": "current",
+        "closes": true,
+        "days": 1,
+        "label": "На текущий пакет №2 (20.10)",
+        "period_from": "2026-10-20",
+        "period_to": "2026-10-20",
+        "price": 400000,
+        "segment_id": "seg:0:pkg2",
+        "segment_remaining_after": 0
+      },
+      {
+        "amount": 250000,
+        "bucket": "advance",
+        "closes": false,
+        "days": 5,
+        "label": "Аванс на следующие уроки",
+        "period_from": "2026-10-21",
+        "period_to": "2026-10-21",
+        "price": null,
+        "segment_id": "advance",
+        "segment_remaining_after": null
+      }
+    ],
+    "debt_amount_after": 0,
+    "debt_rest": [],
+    "due_after": 0,
+    "due_amount_after": 0,
+    "due_rest": [],
+    "due_until_after": null,
+    "lessons": {
+      "covered_after": 14,
+      "covered_before": 0,
+      "left_after": 5,
+      "unpaid_after": 0
+    },
+    "money_rows": [
+      {
+        "amount": 450000,
+        "label": "Пакеты № 1–2",
+        "of": null,
+        "periods": 2,
+        "state": "closed"
+      },
+      {
+        "amount": 250000,
+        "label": "Аванс: уроки следующего пакета",
+        "of": null,
+        "periods": 1,
+        "state": "advance"
+      }
+    ],
+    "overdue_days_after": null,
+    "paid_until_before": null,
+    "partial_credit_after": 0,
+    "price_ahead": [],
+    "status_after": "active",
+    "summary_text": "Погасит долг 350 000 сум · к оплате 100 000 сум → оплачено уроков 14, осталось 5 · аванс 250 000 сум",
+    "unpaid_after": 0
+  },
+  "suggested_amount": 450000,
+  "warnings": []
+}

@@ -1,0 +1,116 @@
+{
+  "amount": 231000,
+  "as_of": "2026-12-02",
+  "due": {
+    "advance": 0,
+    "debt_amount": 0,
+    "debt_sub": null,
+    "debt_text": null,
+    "due_amount": 550000,
+    "due_sub": "до 05.12",
+    "due_text": "К оплате 550 000 сум",
+    "due_until": "2026-12-05",
+    "overdue_days": null,
+    "paid_until": null,
+    "segments": [
+      {
+        "basis": "full",
+        "billable_days": 31,
+        "bucket": "current",
+        "charge": 550000,
+        "covered_days": 0,
+        "covered_through": null,
+        "days_text": null,
+        "id": "seg:0:2026-12-01",
+        "kind": "period",
+        "lessons": null,
+        "paid": 0,
+        "partial_credit": 0,
+        "parts": [
+          {
+            "due_until": "2026-12-05",
+            "lessons": null,
+            "name": "due",
+            "unpaid": 550000
+          }
+        ],
+        "period_from": "2026-12-01",
+        "period_to": "2026-12-31",
+        "price": {
+          "amount": 550000,
+          "group_amount": 550000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 0,
+        "remaining": 550000,
+        "state": "open",
+        "unpaid": 550000,
+        "written_off": 0
+      }
+    ],
+    "unpaid": 550000
+  },
+  "mode": "calendar",
+  "price": {
+    "amount": 550000,
+    "group_amount": 550000,
+    "reason": null,
+    "scheduled": null,
+    "set_by_name": null,
+    "source": "group",
+    "valid_from": "2000-01-01"
+  },
+  "recalc": [],
+  "result": {
+    "advance_after": 0,
+    "after_text": "Останется: к оплате 319 000 сум",
+    "allocations": [
+      {
+        "amount": 231000,
+        "bucket": "current",
+        "closes": false,
+        "days": 13,
+        "label": "На текущий период 01.12–31.12",
+        "period_from": "2026-12-01",
+        "period_to": "2026-12-31",
+        "price": 550000,
+        "segment_id": "seg:0:2026-12-01",
+        "segment_remaining_after": 319000
+      }
+    ],
+    "debt_amount_after": 0,
+    "debt_rest": [],
+    "due_after": 319000,
+    "due_amount_after": 319000,
+    "due_rest": [
+      {
+        "amount": 319000,
+        "label": "Декабрь"
+      }
+    ],
+    "due_until_after": "2026-12-05",
+    "lessons": null,
+    "money_rows": [
+      {
+        "amount": 231000,
+        "label": "Декабрь",
+        "of": 550000,
+        "periods": 1,
+        "state": "part"
+      }
+    ],
+    "overdue_days_after": null,
+    "paid_until_before": null,
+    "partial_credit_after": 355,
+    "price_ahead": [],
+    "status_after": "active",
+    "summary_text": "Закроет 231 000 сум из «К оплате» 550 000 сум → оплачено 231 000 из 550 000 сум · к оплате 319 000 сум до 05.12",
+    "unpaid_after": 319000
+  },
+  "suggested_amount": 550000,
+  "warnings": []
+}

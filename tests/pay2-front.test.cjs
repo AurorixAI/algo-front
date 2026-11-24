@@ -132,11 +132,11 @@ test("E2/E3: a student who joined mid-month pays a part of the period; an overpa
 test("E5: the lessons variant: lessons paid, no «оплачено до»", () => {
   const view = L.previewView(L.normalizePreview(fixture("e5_preview_630000_held12")));
   assert.equal("paidUntil" in view, false);
-  assert.equal(view.lessons, "Уроков оплачено: 0 → 12, осталось 0");
+  assert.equal(view.lessons, "Оплачено уроков: 12 · не оплачено: 0");
   assert.deepEqual(view.lines.map((line) => [line.bucket, line.amount]), [["past_debt", 600000], ["advance", 30000]]);
   assert.equal(plain(L.dueBlock(L.normalizePreview(fixture("e5_preview_630000_held12"))).states[0].text), "Долг 500 000 сум · 10 уроков");
   const partial = L.previewView(L.normalizePreview(fixture("e5_preview_650000_held14")));
-  assert.equal(partial.lessons, "Уроков оплачено: 0 → 13, осталось 0, не оплачено 1"); // 14 held lessons, 13 paid: the unpaid one is said
+  assert.equal(partial.lessons, "Оплачено уроков: 13 · не оплачено: 1"); // 14 held lessons, 13 paid: the unpaid one is said
   assert.equal(L.dueBlock(L.normalizePreview(fixture("e5_preview_650000_held14"))).states.length, 2); // a package that is a debt, the lessons after it «к оплате»
 });
 
@@ -544,7 +544,7 @@ test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (the
   assert.match(plain(rise), /аванс/);
   // E5: lessons
   const lessons = text(React.createElement(PlanBlock, { plan: plan("e5_preview_630000_held12") }));
-  assert.ok(lessons.includes("Уроков оплачено: 0 → 12, осталось 0"));
+  assert.ok(lessons.includes("Оплачено уроков: 12 · не оплачено: 0"));
   assert.ok(/аванс|будущие уроки/.test(lessons));
   assert.ok(!lessons.includes("Оплачено до"));
   assert.ok(read("src/components/payments/payment-dialog.tsx").includes("PRICE_NOT_SET_TEXT") && L.PRICE_NOT_SET_TEXT === "Цена группы не задана — введите сумму вручную");

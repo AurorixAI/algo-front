@@ -1,0 +1,173 @@
+{
+  "amount": 500000,
+  "as_of": "2026-11-20",
+  "due": {
+    "advance": 0,
+    "debt_amount": 740000,
+    "debt_sub": "просрочено 32 дня",
+    "debt_text": "Долг 740 000 сум",
+    "due_amount": 0,
+    "due_sub": null,
+    "due_text": null,
+    "due_until": null,
+    "overdue_days": 32,
+    "paid_until": "2026-10-21",
+    "segments": [
+      {
+        "basis": "full",
+        "billable_days": 31,
+        "bucket": "past_debt",
+        "charge": 420000,
+        "covered_days": 7,
+        "covered_through": "2026-10-21",
+        "days_text": null,
+        "id": "seg:0:2026-10-15",
+        "kind": "period",
+        "lessons": null,
+        "paid": 100000,
+        "partial_credit": 5162,
+        "parts": [
+          {
+            "due_until": null,
+            "lessons": null,
+            "name": "debt",
+            "unpaid": 320000
+          }
+        ],
+        "period_from": "2026-10-15",
+        "period_to": "2026-11-14",
+        "price": {
+          "amount": 420000,
+          "group_amount": 420000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 0,
+        "remaining": 320000,
+        "state": "partial",
+        "unpaid": 320000,
+        "written_off": 0
+      },
+      {
+        "basis": "full",
+        "billable_days": 30,
+        "bucket": "current",
+        "charge": 420000,
+        "covered_days": 0,
+        "covered_through": null,
+        "days_text": null,
+        "id": "seg:0:2026-11-15",
+        "kind": "period",
+        "lessons": null,
+        "paid": 0,
+        "partial_credit": 0,
+        "parts": [
+          {
+            "due_until": null,
+            "lessons": null,
+            "name": "debt",
+            "unpaid": 420000
+          }
+        ],
+        "period_from": "2026-11-15",
+        "period_to": "2026-12-14",
+        "price": {
+          "amount": 420000,
+          "group_amount": 420000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 0,
+        "remaining": 420000,
+        "state": "open",
+        "unpaid": 420000,
+        "written_off": 0
+      }
+    ],
+    "unpaid": 740000
+  },
+  "mode": "calendar",
+  "price": {
+    "amount": 420000,
+    "group_amount": 420000,
+    "reason": null,
+    "scheduled": null,
+    "set_by_name": null,
+    "source": "group",
+    "valid_from": "2000-01-01"
+  },
+  "recalc": [],
+  "result": {
+    "advance_after": 0,
+    "after_text": "Останется: долг 240 000 сум",
+    "allocations": [
+      {
+        "amount": 320000,
+        "bucket": "past_debt",
+        "closes": true,
+        "days": 24,
+        "label": "Погашено за 15.10–14.11",
+        "period_from": "2026-10-15",
+        "period_to": "2026-11-14",
+        "price": 420000,
+        "segment_id": "seg:0:2026-10-15",
+        "segment_remaining_after": 0
+      },
+      {
+        "amount": 180000,
+        "bucket": "current",
+        "closes": false,
+        "days": 12,
+        "label": "На текущий период 15.11–14.12",
+        "period_from": "2026-11-15",
+        "period_to": "2026-12-14",
+        "price": 420000,
+        "segment_id": "seg:0:2026-11-15",
+        "segment_remaining_after": 240000
+      }
+    ],
+    "debt_amount_after": 240000,
+    "debt_rest": [
+      {
+        "amount": 240000,
+        "label": "15.11–14.12"
+      }
+    ],
+    "due_after": 0,
+    "due_amount_after": 0,
+    "due_rest": [],
+    "due_until_after": null,
+    "lessons": null,
+    "money_rows": [
+      {
+        "amount": 320000,
+        "label": "15.10–14.11, остаток",
+        "of": null,
+        "periods": 1,
+        "state": "closed"
+      },
+      {
+        "amount": 180000,
+        "label": "15.11–14.12",
+        "of": 420000,
+        "periods": 1,
+        "state": "part"
+      }
+    ],
+    "overdue_days_after": 1,
+    "paid_until_before": "2026-10-21",
+    "partial_credit_after": 12000,
+    "price_ahead": [],
+    "status_after": "active",
+    "summary_text": "Погасит 500 000 сум из долга 740 000 сум → оплачено 180 000 из 420 000 сум · долг 240 000 сум",
+    "unpaid_after": 240000
+  },
+  "suggested_amount": 740000,
+  "warnings": []
+}

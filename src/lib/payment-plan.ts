@@ -23,68 +23,79 @@ export const PLAN_LOADING_TEXT = "Считаем, куда пойдут день
 export interface PlanView {
   /** BEFORE the button: what the typed amount does, the server's words («Погасит долг 187 000 сум · к оплате 44 000 сум»).  Empty when `split` is there: the rows say it. */
   sentence: string;
-  /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
+  /** «Оплачено уроков: 12 · не оплачено: 8» in lessons mode. */
   lessons: string | null;
   priceAhead: string[];
   warnings: string[];
   repeated: string | null;
-  /** Б11.33 п.2: «Куда пойдут N сум» - the rows of the server, as they are; null on an older server (or no amount): the sentence stays. */
+  /** Б11.33 п.2 / Б11.34: «Куда пойдут деньги» - the rows of the server, as they are; null on an older server (or no amount): the sentence stays. */
   split: PlanSplit | null;
 }
 
 export interface PlanSplitRow {
   label: string;
-  /** «508 000» (a number, no unit: the heading and the total say «сум»). */
+  /** «508 000» (a number, no unit: the total says «сум»). */
   amount: string;
-  /** The quiet mark after the amount: «из 550 000» / «✓ закрыт» / «✓ закрыты»; null for an advance. */
-  mark: { kind: "of" | "closed"; text: string } | null;
+  /** The quiet mark after the amount: «из 550 000» / «✓ оплачен» / «✓ оплачены»; null for an advance. */
+  mark: { kind: "of" | "paid"; text: string } | null;
 }
 
 export interface PlanSplit {
   title: string;
   rows: PlanSplitRow[];
-  /** The line under the rows: the debt that stays, no debt, or no debt and an advance (the words and the numbers are the server's, only written). */
-  total: { kind: "debt" | "closed" | "advance"; label: string; amount: string | null };
-  /** «октябрь — 42 000 · ноябрь — 550 000 · декабрь — 550 000» as pieces (a dash: «пакет № 4 250 000» would read as 4 250 000) (a phone breaks the line between them); empty without a debt. */
+  /**
+   * The line under the rows, by the numbers of the answer (Б11.34 п.1): `debt` - the debt line (and, when a sum within its term stays too, the quiet `alsoDue` under it); `due` - «Останется к оплате M сум»;
+   * `paid` - «Всё оплачено».  An advance is not said again here: it is a row of its own.
+   */
+  total: { kind: "debt" | "due" | "paid"; label: string; amount: string | null };
+  /** «и к оплате ещё 550 000 сум» under a debt that is not the only unpaid sum; null otherwise. */
+  alsoDue: string | null;
+  /** «октябрь 42 000» · «ноябрь 550 000» (a dash only after a label that ends in a digit: «пакет № 4 — 250 000») as pieces (a phone breaks the line between them); only when the rest lies in two or more periods, else empty. */
   debtRest: string[];
 }
 
-export const SPLIT_CLOSED_ONE = "✓ закрыт";
-export const SPLIT_CLOSED_MANY = "✓ закрыты";
+export const SPLIT_PAID_ONE = "✓ оплачен";
+export const SPLIT_PAID_MANY = "✓ оплачены";
 export const SPLIT_DEBT_LEFT = "Останется долг";
-export const SPLIT_DEBT_CLOSED = "Долг закрыт";
-export const SPLIT_NO_DEBT_LEFT = "Долга не останется";
-
-/** The title of the block, the one word as the receipt («Куда пошли деньги»): «Куда пойдут 550 000 сум». */
-export function splitTitle(amount: number): string {
-  return `Куда пойдут ${formatMoney(amount)}`;
-}
+export const SPLIT_DUE_LEFT = "Останется к оплате";
+export const SPLIT_ALSO_DUE = "и к оплате ещё";
+export const SPLIT_ALL_PAID = "Всё оплачено";
+/** The title of the block - the pair of the receipt's «Куда пошли деньги» (the sum is in the field above and on the button). */
+export const SPLIT_TITLE = "Куда пойдут деньги";
 
 const digits = (value: number) => formatMoney(value).replace(/[\s\u00a0]сум$/, "");
+
+/** «октябрь 42 000»; «пакет № 4 — 250 000» (the dash only keeps a number of the label from joining the sum). */
+function restPiece(label: string, amount: number): string {
+  const name = label.toLocaleLowerCase("ru").trim();
+  return /\d$/.test(name) ? `${name} — ${digits(amount)}` : `${name} ${digits(amount)}`;
+}
 
 function splitOf(result: NonNullable<PaymentPreview["result"]>, amount: number | null): PlanSplit | null {
   const rows = result.money_rows ?? [];
   if (rows.length === 0 || amount === null) return null;
-  const debt = result.debt_after ?? result.debt_amount_after;
-  const advance = result.advance_after;
+  const debt = result.debt_amount_after;
+  const due = result.due_after ?? 0;
   const total: PlanSplit["total"] = debt > 0
     ? { kind: "debt", label: SPLIT_DEBT_LEFT, amount: formatMoney(debt) }
-    : advance > 0
-      ? { kind: "advance", label: SPLIT_NO_DEBT_LEFT, amount: `аванс ${formatMoney(advance)}` }
-      : { kind: "closed", label: SPLIT_DEBT_CLOSED, amount: null };
+    : due > 0
+      ? { kind: "due", label: SPLIT_DUE_LEFT, amount: formatMoney(due) }
+      : { kind: "paid", label: SPLIT_ALL_PAID, amount: null };
+  const rest = result.debt_rest ?? [];
   return {
-    title: splitTitle(amount),
+    title: SPLIT_TITLE,
     rows: rows.map((row) => ({
       label: tidyMoneyText(row.label),
       amount: digits(row.amount),
       mark: row.state === "closed"
-        ? { kind: "closed", text: row.periods > 1 ? SPLIT_CLOSED_MANY : SPLIT_CLOSED_ONE }
+        ? { kind: "paid", text: row.periods > 1 ? SPLIT_PAID_MANY : SPLIT_PAID_ONE }
         : row.state === "part" && row.of !== null
           ? { kind: "of", text: `из ${digits(row.of)}` }
           : null,
     })),
     total,
-    debtRest: debt > 0 ? (result.debt_rest ?? []).map((item) => `${item.label.toLocaleLowerCase("ru")} — ${digits(item.amount)}`) : [],
+    alsoDue: debt > 0 && due > 0 ? `${SPLIT_ALSO_DUE} ${formatMoney(due)}` : null,
+    debtRest: debt > 0 && rest.length > 1 ? rest.map((item) => restPiece(item.label, item.amount)) : [],
   };
 }
 
