@@ -76,7 +76,7 @@ const shot = async (page, name, full = false) => page.screenshot({ path: path.jo
       const { page, errors } = await openPage(browser, "money2.entry.tsx", answer, size);
       await page.evaluate(() => window.mount("pause", { role: "owner", org_role: "owner" }, { moneyAvailable: true }));
       await page.waitForSelector('section[aria-label="Паузы ученика"]');
-      await page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
+      await page.getByRole("button", { name: "Снять паузу", exact: true }).click();     // Б11.39: a pause that has not begun is taken off with «Снять паузу»
       await page.waitForSelector("#pause-act-reason");
       await page.waitForTimeout(500);
       await check(page, errors, `3-${width}`, '[role="dialog"]');

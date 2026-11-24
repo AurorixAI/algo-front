@@ -121,7 +121,7 @@ test("п.3: the field of the reason of a cancelled / ended pause has a VISIBLE l
   });
   const run = await mount(ctx, answer, "pause", OWNER, { moneyAvailable: true });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
-  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();         // Б11.39 Э2: a pause that has not begun - «Снять паузу»
   const field = run.page.locator("#pause-act-reason");
   await field.waitFor();
   const label = run.page.locator('label[for="pause-act-reason"]');
@@ -469,7 +469,7 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("п.10: the pause - the block of a future pause is headed «Отменить будущую паузу»; its button «Снять паузу целиком» is secondary (the one main button of the window is «Поставить на паузу»); «Назад», not «Не надо»; «эти дни придётся оплатить»", async () => {
+test("п.10 (Б11.39 Э3 / Э7'): the pause that has not begun - «Снять паузу» is secondary, the confirmation stands in the card (the card squeezed into a row, ONE sentence, a reason, «Снять паузу» + «Назад»); the heading «Отменить будущую паузу» is gone; the one main button of the window is not blue here (there is none: «Закрыть»)", async () => {
   const future = pauseRow("pf", day(10), day(13));
   const answer = F.baseServer((request) => {
     if (request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: [future] };
@@ -478,20 +478,21 @@ test("п.10: the pause - the block of a future pause is headed «Отменит�
   });
   const run = await mount(ctx, answer, "pause", OWNER, { moneyAvailable: true });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
-  assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0, "the heading comes with the confirmation");
-  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
+  assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0, "the heading «Отменить будущую паузу» is gone for good");
+  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();
   await run.page.locator("#pause-act-reason").waitFor();
-  assert.equal(plain(await run.page.locator('[data-testid="pause-cancel-title"]').innerText()), "Отменить будущую паузу");
-  const block = run.page.locator('section[aria-label="Паузы ученика"] li').first();
+  assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0);
+  const block = run.page.locator('[data-testid="pause-card-acting"]');
+  assert.match(plain(await block.locator('[data-testid="pause-summary"]').innerText()), /^Пауза запланирована · с \d\d\.\d\d по \d\d\.\d\d$/, "the card is squeezed into one row");
+  assert.equal(plain(await block.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся, её дни войдут в стоимость.");
   const text = plain(await block.innerText());
-  assert.match(text, /Пауза ещё не началась: она будет отменена, эти дни придётся оплатить\./);
-  assert.ok(!text.includes("останутся платными") && !text.includes("Не надо"), text);
+  assert.ok(!text.includes("останутся платными") && !text.includes("Не надо") && !text.includes("придётся оплатить"), text);
   assert.equal(await block.getByRole("button", { name: "Назад", exact: true }).count(), 1);
   const colour = async (locator) => locator.evaluate((el) => getComputedStyle(el).backgroundColor);
-  const confirm = block.getByRole("button", { name: "Снять паузу целиком" });
-  const main = run.page.locator('button[form="pause-form"]');
-  assert.notEqual(await colour(confirm), await colour(main), "the confirmation is not the look of the main button");
+  const confirm = block.getByRole("button", { name: "Снять паузу", exact: true });
   assert.equal(await colour(confirm), "rgb(255, 255, 255)", "it is the outline button");
+  assert.equal(await run.page.locator('button[form="pause-form"]').count(), 0, "no form of a new pause, no blue main button under a confirmation");
+  assert.equal(plain(await run.page.locator('[role="dialog"] [data-modal-part="footer"] [data-testid="confirm-cancel"]').innerText()), "Закрыть", "the only way out is «Закрыть»");
   await run.page.close();
 });
 

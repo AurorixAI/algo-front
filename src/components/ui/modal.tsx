@@ -147,6 +147,8 @@ interface ModalProps {
   aboveLessonPanel?: boolean;
   /** PAY-TAILS Б2.8: a bottom sheet on a phone closes by a swipe down on its header (and by the backdrop, as every dialog does). */
   swipeToClose?: boolean;
+  /** `dialog`: on open the focus stays on the window itself (a phone: no field takes it, so no keyboard opens); default `first` = the first field / control. */
+  initialFocus?: "first" | "dialog";
 }
 
 /**
@@ -161,7 +163,7 @@ const SCROLL_EDGE = {
 
 export function Modal({
   open, title, description, notice, onClose, children, footer, size, maxWidthClassName, busy = false,
-  bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false, swipeToClose = false,
+  bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false, swipeToClose = false, initialFocus = "first",
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -174,7 +176,7 @@ export function Modal({
   useDialogKeys(open, dialogRef, { busy, onClose });
 
   // On open focus the first field (or the first control); on close return focus to the opener.
-  useDialogFocus(open, dialogRef, { ready: mounted });
+  useDialogFocus(open, dialogRef, { ready: mounted, initial: initialFocus });
 
   // LESSONS 94: the dialog is named by its own heading.
   const titleId = useId();

@@ -1,11 +1,10 @@
 "use client";
 
-import { refusedInWords } from "@/lib/money-preview";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatBusinessDate } from "@/lib/business-time";
-import { formatDateRu, REASON_MIN, type MembershipPaymentRow } from "@/lib/payments";
+import { formatBusinessDate, formatDayMonthRu } from "@/lib/business-time";
+import { REASON_MIN, type MembershipPaymentRow } from "@/lib/payments";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   attendedText,
@@ -14,11 +13,16 @@ import {
   isReasonRequired,
   livePauses,
   logicaError,
-  PAUSE_BACKDATE_HINT,
   pauseCalcLines,
+  pauseCalcTail,
   pauseEndAction,
   pauseEndDay,
+  pauseFacts,
+  pauseGroups,
+  pauseIsRunning,
   pauseLine,
+  pauseMoneyModel,
+  pauseSpan,
   pauseWarnings,
   validatePause,
   PAUSE_REASON_MAX,
@@ -32,40 +36,63 @@ import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Modal } from "@/components/ui/modal";
 import { EFFECTS_LOADING_TEXT } from "@/lib/money-effects";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
+import { otherGroupsOf } from "@/lib/other-groups";
 import { OtherGroupsRows } from "@/components/money/other-groups-rows";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
+import { PauseMoneyBox } from "@/components/payments/pause-money";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 const CALC_DEBOUNCE_MS = 350;
-/** PAY-TAILS Б11.22 п.10: the heading of the block that cancels a pause which has not begun. */
-const PAUSE_CANCEL_FUTURE_TITLE = "Отменить будущую паузу";
-/** Б11.34 п.3: the two actions of a pause by their meaning - one word, one meaning («Снять паузу целиком» is the void in every case). */
+/** Б11.34 п.3: the two actions of a pause by their meaning - one word, one meaning («Снять паузу целиком» is the void in every case but a pause that has not begun). */
 const PAUSE_END_LABEL = "Закончить сегодня";
+const PAUSE_END_CONFIRM_LABEL = "Закончить паузу";
 const PAUSE_VOID_LABEL = "Снять паузу целиком";
+const PAUSE_VOID_PLANNED_LABEL = "Снять паузу";
 /** The code of the refusal to change the days of a pause that a leaving cut meanwhile (409). */
 const CLOSED_BY_LEAVE = "PAUSE_CLOSED_BY_LEAVE";
+/** Б11.39 Э7: the ONE quiet line under the dates while there is no calculation. */
+const PAUSE_FORM_HINT = "Дни паузы не входят в стоимость, место в группе сохраняется.";
+const CALC_FAILED_TEXT = "Не удалось посчитать паузу.";
+const ACT_FAILED_TEXT = "Не удалось посчитать, что изменится.";
 
-/** Б11.34 п.5: the reason of a pause closed by a leaving - two lines with a wrap, and taller when the text is longer (nothing is cut). */
-function ReasonField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
-  const field = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${element.scrollHeight + 2}px`;     // + the border
-  }, [value]);
-  return <Textarea ref={field} id={id} data-testid="pause-locked-reason" rows={2} value={value} maxLength={PAUSE_REASON_MAX} autoComplete="off" onChange={(event) => onChange(event.target.value)} className="resize-none overflow-hidden rounded-lg px-3 py-2 text-sm" />;
+/** The words of a failure of a probe: the server's own (it sent a text or a code) or, when nothing came from it (the network, a broken answer), our one sentence. */
+function probeWords(cause: unknown, failure: { code: string | null; message: string }, ours: string): string {
+  const detail = (cause as { detail?: unknown } | null | undefined)?.detail;
+  const serverText = detail && typeof detail === "object" && typeof (detail as { message?: unknown }).message === "string" && (detail as { message: string }).message.trim() !== "";
+  return failure.code || serverText ? failure.message : ours;
+}
+/** `sm` of the design system: below it the field «С» does not take the focus on open (no keyboard over a window that is read first). */
+const WIDE_QUERY = "(min-width: 640px)";
+
+const QUIET_LINK = "-ml-3 min-h-8 text-primary-700 hover:text-primary-800";
+
+/** The state of a pause in the window: the dot and the words (amber = it is on today, calm blue-grey = it has not begun). */
+function StateTitle({ state }: { state: "running" | "planned" }) {
+  return (
+    <span className="inline-flex items-center gap-2 font-semibold text-slate-900">
+      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${state === "running" ? "bg-warning-600" : "bg-info-600"}`} />
+      {state === "running" ? "Сейчас на паузе" : "Пауза запланирована"}
+    </span>
+  );
+}
+
+/** A pause squeezed into ONE row (a confirmation is under it; a new pause is below it): «● Сейчас на паузе · с 17.11 по 30.11». */
+function PauseSummaryRow({ pause, today, state }: { pause: PauseOut; today: string; state: "running" | "planned" | null }) {
+  return (
+    <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700" data-testid="pause-summary">
+      {state && <><StateTitle state={state} /> · </>}
+      <span className={`whitespace-nowrap ${state ? "" : "font-semibold text-slate-900"}`}>{pauseSpan(pause, today)}</span>
+    </p>
+  );
 }
 
 /**
- * «Пауза ученика» (group «⋯» → «Пауза…»): from / to / reason.  A pause is not charged, the place in the group stays.  Under the form
- * the server's calculation (a dry run): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется. Оплачено до
- * станет 09.11.» (the sum only for a role that sees money) and the warnings: a backdated pause (lessons are not counted for anybody),
- * attended lessons (the pause cannot cover them), the payroll sheets that go «Есть изменения».  The pauses already there are listed
- * below: a running one is shortened to yesterday («Закончить сегодня») or taken off whole («Снять паузу целиком», the only action of one that has not begun or was cut by a leaving).
+ * «Пауза ученика» (group «⋯» → «Пауза…» / «Закончить паузу»; PAY-TAILS Б11.39 / Б11.40).  The window shows first what it was opened for: no live pause - the form of a new one; a live one (running now / planned) - its
+ * card with the actions «Закончить сегодня» / «Снять паузу целиком», the new pause behind «+ Новая пауза»; the past ones are one quiet fold «Прошлые паузы · N».  The confirmation of an action stands IN the card: the card
+ * is squeezed into a row, under it one sentence and the money of the pause as rows (the server's `charge_rows`: the period, the lessons, the sum).  A student who has left gets no form - only the pauses with locked days
+ * (a leaving / a transfer cut them), and each can be taken off whole.  The days of a pause are never edited here; the server's words are the screen's words.
  */
 export function PauseDialog({
   open, membershipId, studentName, groupName, active: participating = true, onClose, onChanged,
@@ -84,40 +111,45 @@ export function PauseDialog({
   const [values, setValues] = useState<PauseFormValues>(() => emptyPauseValues(today));
   const [pauses, setPauses] = useState<PauseOut[] | null>(null);
   const [calc, setCalc] = useState<PauseSaved | null>(null);
-  const [calcFailure, setCalcFailure] = useState<{ message: string; code?: string | null; dates: string[]; closed: PeriodClosedInfo | null } | null>(null);
+  /** `retry`: the failure has no code (the network, a broken answer) - «Повторить» can change it; a refusal in the server's words cannot be repeated away. */
+  const [calcFailure, setCalcFailure] = useState<{ message: string; code?: string | null; dates: string[]; closed: PeriodClosedInfo | null; retry: boolean } | null>(null);
   /** Money-1 A1: the month of the teacher is closed (422 `PAUSE_LOCKED`): the sentence of the server and «Переоткрыть месяц» (the right) instead of a bare red line. */
   const [errorClosed, setErrorClosed] = useState<PeriodClosedInfo | null>(null);
   const [calcNonce, setCalcNonce] = useState(0);
+  const [actNonce, setActNonce] = useState(0);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** The pause being ended / cancelled and the cancel reason. */
   const [acting, setActing] = useState<{ pause: PauseOut; action: "end" | "cancel" } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
-  /** Б11.33 п.1: the reasons being edited on the pauses whose days are locked (by id) and the refusal of the server to a save, said on the spot. */
-  const [reasonDrafts, setReasonDrafts] = useState<Record<string, string>>({});
-  const [lockedFailure, setLockedFailure] = useState<{ id: string; message: string } | null>(null);
+  /** The form of a new pause was opened over the cards («+ Новая пауза»). */
+  const [newOpen, setNewOpen] = useState(false);
+  /** The fold «Прошлые паузы»: null = by default (closed; open for a student who has left and has no card). */
+  const [pastOpen, setPastOpen] = useState<boolean | null>(null);
   /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
   const [endNeedsReason, setEndNeedsReason] = useState(false);
-  /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the sentence about the other groups, or the refusal of the server (`blocked`: «PAUSE_BREAKS_REFUND» - nothing can be done here). */
-  const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; answer: unknown } | { status: "failed"; message: string; blocked: boolean } | null>(null);
+  /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the money of it (`charge_rows`, the other groups), or the refusal of the server (any refusal blocks the button; closed month - the notice, no code - «Повторить»). */
+  const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; answer: unknown } | { status: "failed"; message: string; closed: PeriodClosedInfo | null; retry: boolean } | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const sequence = useRef(createRequestSequence());
 
   const loadPauses = (): Promise<PauseOut[]> => orgApi.listPauses(membershipId).then((list) => { const live = livePauses(list); setPauses(live); return live; }).catch(() => { setPauses([]); return []; });
+
+  const clearError = () => { setError(null); setErrorClosed(null); };
 
   useEffect(() => {
     if (!open) return;
     setValues(emptyPauseValues(today));
     setCalc(null);
     setCalcFailure(null);
-    setError(null);
+    clearError();
     setBusy(false);
     setActing(null);
     setCancelReason("");
-    setReasonDrafts({});
-    setLockedFailure(null);
     setEndNeedsReason(false);
+    setNewOpen(false);
+    setPastOpen(null);
     setPauses(null);
     idempotencyKey.current = newIdempotencyKey();
     void loadPauses();
@@ -125,9 +157,19 @@ export function PauseDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, membershipId]);
 
-  const problem = values.last ? validatePause(values, today) : null;
-  const ready = Boolean(values.last) && !problem;
+  const groups = useMemo(() => pauseGroups(pauses, today, participating), [pauses, today, participating]);
+  /** Б11.39 Э1: the form is the first thing only while there is no live pause (or it was asked for); never for a student who has left; never while an action is being confirmed. */
+  const showForm = participating && pauses !== null && acting === null && (groups.cards.length === 0 || newOpen);
+
+  const problem = showForm && values.last ? validatePause(values, today) : null;
+  const ready = showForm && Boolean(values.last) && !problem;
   const key = `${values.first}|${values.last}|${values.reason}`;
+
+  // Б11.39 Э7: on a wide screen the field «С» takes the focus when the form appears; below `sm` it does not (no keyboard)
+  useEffect(() => {
+    if (!open || !showForm || typeof window === "undefined" || typeof window.matchMedia !== "function" || !window.matchMedia(WIDE_QUERY).matches) return;
+    document.getElementById("pause-first")?.focus();
+  }, [open, showForm]);
 
   // The server's calculation of exactly this range (dry run).
   useEffect(() => {
@@ -144,7 +186,7 @@ export function PauseDialog({
           if (!sequence.current.isCurrent(token)) return;
           const failure = logicaError(cause, "Не удалось посчитать паузу");
           setChecking(false);
-          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : failure.message, code: failure.code, dates: failure.dates, closed: periodClosedOf(cause) });
+          setCalcFailure({ message: failure.code === "PAUSE_OVERLAPS_ATTENDED" && failure.dates.length > 0 ? attendedText(failure.dates) : probeWords(cause, failure, CALC_FAILED_TEXT), code: failure.code, dates: failure.dates, closed: periodClosedOf(cause), retry: !failure.code });
         });
     }, CALC_DEBOUNCE_MS);
     return () => { clearTimeout(timer); sequence.current.next(); };
@@ -152,7 +194,7 @@ export function PauseDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, membershipId, ready, key, calcNonce]);
 
-  // Money-2 T9: the ending and the cancel of a pause move money in the groups tied by a transfer - the server's dry run says it BEFORE the button
+  // Money-2 T9: the ending and the cancel of a pause move money (here and in the groups tied by a transfer) - the server's dry run says it BEFORE the button
   const actingId = acting?.pause.id ?? null;
   const actingAction = acting?.action ?? null;
   useEffect(() => {
@@ -171,12 +213,12 @@ export function PauseDialog({
         if (isReasonRequired(failure)) { setEndNeedsReason(true); setActPreview({ status: "ready", answer: null }); return; }
         // Б11.34 п.4: a leaving cut the pause meanwhile - read the pauses again, the card becomes closed and says it once
         if (failure.code === CLOSED_BY_LEAVE) { void closedMeanwhile(actingId, failure.message); return; }
-        setActPreview({ status: "failed", message: failure.message, blocked: failure.code === "PAUSE_BREAKS_REFUND" });
+        setActPreview({ status: "failed", message: probeWords(cause, failure, ACT_FAILED_TEXT), closed: periodClosedOf(cause), retry: !failure.code });
       });
     return () => { current = false; };
     // `today` is fixed for an open dialog
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, actingId, actingAction]);
+  }, [open, actingId, actingAction, actNonce]);
 
   /** Б11.34 п.4: the 409 of a pause that was NOT closed when the window opened (a race with a leaving): the window reads the pauses again; the card is closed now and shows the sentence of the server once (if the answer still has no sentence, the refusal is said as it came). */
   const closedMeanwhile = async (pauseId: string, message: string) => {
@@ -185,16 +227,17 @@ export function PauseDialog({
     setCancelReason("");
     setEndNeedsReason(false);
     const fresh = await loadPauses();
-    setError(fresh.some((pause) => pause.id === pauseId && pause.days_locked === true) ? null : message);
+    if (fresh.some((pause) => pause.id === pauseId && pause.days_locked === true)) clearError();
+    else { setErrorClosed(null); setError(message); }
   };
 
   const save = async () => {
     // the button of the footer waits for the calculation; the form must wait for it too (a submit from elsewhere - Enter in a field, a window inside it - is not a press of the button)
     if (busy || checking || calcFailure !== null || !ready) return;
     const refusal = validatePause(values, today);
-    if (refusal) { setError(refusal); return; }
+    if (refusal) { setErrorClosed(null); setError(refusal); return; }
     setBusy(true);
-    setError(null);
+    clearError();
     try {
       const result = await orgApi.createPause(membershipId, buildPauseBody(values), { idempotencyKey: idempotencyKey.current });
       onChanged(result.row, `Пауза поставлена: ${pauseLine(result.pause)}`);
@@ -210,9 +253,9 @@ export function PauseDialog({
 
   const finish = async () => {
     if (!acting || busy) return;
-    if ((acting.action === "cancel" || endNeedsReason) && cancelReason.trim().length < REASON_MIN) { setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
+    if ((acting.action === "cancel" || endNeedsReason) && cancelReason.trim().length < REASON_MIN) { setErrorClosed(null); setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
     setBusy(true);
-    setError(null);
+    clearError();
     try {
       if (acting.action === "end") {
         const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today), ...(endNeedsReason ? { reason: cancelReason.trim() } : {}) });
@@ -237,27 +280,189 @@ export function PauseDialog({
     }
   };
 
-  /** Б11.33 п.1: only the reason of a pause with locked days; a race (the leaving came meanwhile) is the 409 in the server's words, the window stays. */
-  const saveReason = async (pause: PauseOut) => {
-    const draft = (reasonDrafts[pause.id] ?? pause.reason ?? "").trim();
-    if (busy || draft === (pause.reason ?? "")) return;
-    setBusy(true);
-    setLockedFailure(null);
-    try {
-      const result = await orgApi.patchPause(pause.id, { reason: draft === "" ? null : draft });
-      onChanged(result.row, "Причина паузы сохранена");
-      setReasonDrafts((previous) => { const next = { ...previous }; delete next[pause.id]; return next; });
-      await loadPauses();
-    } catch (cause) {
-      setLockedFailure({ id: pause.id, message: logicaError(cause, "Не удалось сохранить причину").message });
-    } finally {
-      setBusy(false);
-    }
+  const startAction = (pause: PauseOut, action: "end" | "cancel") => { clearError(); setActing({ pause, action }); setCancelReason(""); setEndNeedsReason(false); };
+  const backFromAction = () => { setActing(null); clearError(); setEndNeedsReason(false); };
+  const closeNewForm = () => {
+    setNewOpen(false);
+    setValues(emptyPauseValues(today));
+    setCalc(null);
+    setCalcFailure(null);
+    clearError();
   };
 
+  const stateOf = (pause: PauseOut): "running" | "planned" | null => (participating && pause.last_day >= today ? (pauseIsRunning(pause, today) ? "running" : "planned") : null);
+  const voidLabelOf = (pause: PauseOut) => (pause.days_locked !== true && pause.first_day > today ? PAUSE_VOID_PLANNED_LABEL : PAUSE_VOID_LABEL);
+
   const warnings = pauseWarnings(calc, today);
-  const lines = pauseCalcLines(calc);
-  const hasPauses = (pauses ?? []).length > 0;
+  const calcModel = pauseMoneyModel(calc, "set");
+  const calcTail = pauseCalcTail(calc?.impact);
+  const hasList = groups.cards.length > 0 || groups.past.length > 0;
+
+  /** The refusal / failure of an action stands where the person pressed: in the form, in the confirmation of the card, or (when neither is on screen) under the cards. */
+  const errorNode = error && (errorClosed
+    ? <PeriodClosedNotice purpose="pause" info={errorClosed} onReopened={() => { clearError(); setCalcNonce((value) => value + 1); setActNonce((value) => value + 1); }} />
+    : <p role="alert" data-testid="pause-error" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>);
+
+  const retryButton = (onClick: () => void) => (
+    <Button type="button" variant="ghost" size="sm" onClick={onClick} data-testid="pause-retry" className="!min-h-0 !px-1 !py-0 align-baseline font-semibold text-rose-800 underline hover:bg-transparent hover:text-rose-900">Повторить</Button>
+  );
+
+  // ── the confirmation of an action (in the card) ──
+  const renderActing = () => {
+    if (!acting) return null;
+    const { pause, action } = acting;
+    const state = stateOf(pause);
+    const kind = action === "end" ? "end" : "void";
+    const answer = actPreview?.status === "ready" ? (actPreview.answer as Partial<PauseSaved> | null) : null;
+    const model = pauseMoneyModel(answer, kind);
+    const tail = pauseCalcTail(answer?.impact);
+    const hasOther = otherGroupsOf(answer).rows.length > 0;
+    const sentence = action === "end"
+      ? `Последний день паузы — вчера, ${formatDayMonthRu(pauseEndDay(today))}.`
+      : pause.days_locked !== true && pause.first_day > today
+        ? "Пауза не начнётся, её дни войдут в стоимость."
+        : "Пауза будет снята целиком, как будто её не было.";
+    const blocked = actPreview?.status === "failed";
+    return (
+      <li className="space-y-3 list-none" data-testid="pause-card-acting">
+        <PauseSummaryRow pause={pause} today={today} state={state} />
+        <p className="text-sm text-slate-800" data-testid="pause-act-sentence">{sentence}</p>
+        {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-sm text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
+        {actPreview?.status === "ready" && (model || tail.length > 0 || hasOther) && (
+          <PauseMoneyBox model={model} testId="pause-act-calc">
+            {tail.map((line) => <p key={line} className="text-xs text-slate-700">{line}</p>)}
+            <OtherGroupsRows answer={answer} testId="pause-act-effects" />
+          </PauseMoneyBox>
+        )}
+        {actPreview?.status === "failed" && (actPreview.closed
+          ? <PeriodClosedNotice purpose="pause" info={actPreview.closed} onReopened={() => setActNonce((value) => value + 1)} />
+          : <p role="alert" data-testid="pause-act-effects" className="text-sm font-medium text-rose-700">{actPreview.message}{actPreview.retry && <> {retryButton(() => setActNonce((value) => value + 1))}</>}</p>)}
+        {(action === "cancel" || endNeedsReason) && (
+          <div>
+            <label htmlFor="pause-act-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
+            <input id="pause-act-reason" data-testid="pause-act-reason" value={cancelReason} onChange={(event) => { clearError(); setCancelReason(event.target.value); }} placeholder={action === "cancel" ? "Например: ученик передумал" : "Например: ошиблись в дате"} className={PRICE_FIELD} autoComplete="off" />
+          </div>
+        )}
+        {errorNode}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || blocked} loading={busy} variant={action === "end" ? "primary" : "secondary"} size="md" data-testid="pause-act-confirm" className="w-full sm:w-auto">
+            {action === "end" ? PAUSE_END_CONFIRM_LABEL : voidLabelOf(pause)}
+          </Button>
+          <Button type="button" onClick={backFromAction} disabled={busy} variant="secondary" size="md" data-testid="pause-act-back" className="w-full sm:w-auto">Назад</Button>
+        </div>
+      </li>
+    );
+  };
+
+  // ── a card of a live pause (or of a pause of a student who has left) ──
+  const renderCard = (pause: PauseOut) => {
+    const state = stateOf(pause);
+    const locked = pause.days_locked === true;
+    // a pause with locked days cannot be shortened: the only way to take it off is whole; a free one running since before today can be ended today or taken off; one that began today or has not begun - taken off
+    const canEnd = state === "running" && !locked && pauseEndAction(pause, today) === "end";
+    return (
+      <li key={pause.id} className={`rounded-xl border border-slate-200 px-4 py-3.5 ${state ? "bg-white" : "bg-slate-50"}`} data-testid="pause-card" data-state={state ?? "left"}>
+        {state && <p className="text-sm" data-testid="pause-state"><StateTitle state={state} /></p>}
+        <p className={state ? "mt-1.5 text-sm text-slate-900" : "text-sm font-semibold text-slate-900"} data-testid="pause-facts">{pauseFacts(pause, today)}</p>
+        {pause.reason && <p className="mt-1 text-xs text-slate-600" data-testid="pause-reason">{pause.reason}</p>}
+        {locked && pause.days_locked_text && <p className="mt-1 text-xs text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          {canEnd && <Button type="button" variant="primary" size="md" data-testid="pause-end" className="w-full sm:w-auto" onClick={() => startAction(pause, "end")}>{PAUSE_END_LABEL}</Button>}
+          <Button type="button" variant="secondary" size="md" data-testid="pause-void" className="w-full sm:w-auto" onClick={() => startAction(pause, "cancel")}>{voidLabelOf(pause)}</Button>
+        </div>
+      </li>
+    );
+  };
+
+  // ── the fold of the past pauses ──
+  const renderPast = () => {
+    if (groups.past.length === 0) return null;
+    const isOpen = pastOpen ?? (!participating && groups.cards.length === 0);
+    return (
+      <details open={isOpen} onToggle={(event) => setPastOpen(event.currentTarget.open)} className="group/past border-t border-slate-100 pt-2" data-testid="pause-past">
+        <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 text-sm text-slate-600 marker:hidden [&::-webkit-details-marker]:hidden" data-testid="pause-past-summary">
+          <ChevronRight aria-hidden="true" className="h-4 w-4 transition-transform group-open/past:rotate-90" />
+          Прошлые паузы · {groups.past.length}
+        </summary>
+        <ul className="mt-2 space-y-2.5">
+          {groups.past.map((pause) => {
+            const locked = pause.days_locked === true;
+            return (
+              <li key={pause.id} className="flex gap-2 text-sm text-slate-800" data-testid="pause-past-row">
+                <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+                <div className="min-w-0">
+                  <p data-testid="pause-facts">{pauseFacts(pause, today)}{pause.reason ? ` · ${pause.reason}` : ""}</p>
+                  {locked && pause.days_locked_text && <p className="mt-0.5 text-xs text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
+                  {locked && <Button type="button" variant="ghost" size="sm" data-testid="pause-void" className={QUIET_LINK} onClick={() => startAction(pause, "cancel")}>{PAUSE_VOID_LABEL}</Button>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+    );
+  };
+
+  // ── the form of a new pause ──
+  const refusalText = ready && !checking && calcFailure && !calcFailure.closed && !calcFailure.retry ? calcFailure.message : null;
+  const calcZone = ready && (checking || calc || (calcFailure && (calcFailure.closed || calcFailure.retry)));
+  const renderForm = () => (
+    <form id="pause-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4 pb-2" noValidate>
+      {groups.cards.length > 0 && <h3 className="text-sm font-semibold text-slate-900" data-testid="pause-new-title">Новая пауза</h3>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="pause-first" className={PRICE_LABEL}>С</label>
+          <DateInput id="pause-first" value={values.first} onChange={(next) => { clearError(); setValues({ ...values, first: next }); }} className={PRICE_FIELD} />
+        </div>
+        <div>
+          <label htmlFor="pause-last" className={PRICE_LABEL}>По</label>
+          <DateInput id="pause-last" value={values.last} min={values.first || undefined} onChange={(next) => { clearError(); setValues({ ...values, last: next }); }} className={PRICE_FIELD} />
+        </div>
+      </div>
+      {refusalText
+        ? <div data-testid="pause-calc" className="-mt-2"><p role="alert" className="text-sm font-medium text-rose-700">{refusalText}</p></div>
+        : !calcZone && !problem && <p className="-mt-2 text-xs text-slate-600" data-testid="pause-hint">{PAUSE_FORM_HINT}</p>}
+
+      <div>
+        <label htmlFor="pause-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(необязательно)</span></label>
+        <input id="pause-reason" value={values.reason} maxLength={PAUSE_REASON_MAX} onChange={(event) => { clearError(); setValues({ ...values, reason: event.target.value }); }} autoComplete="off" placeholder="Например: уехал к родственникам" className={PRICE_FIELD} />
+      </div>
+
+      {problem && <p role="alert" className="text-xs font-medium text-rose-700">{problem}</p>}
+
+      {calcZone && (
+        checking ? (
+          <div aria-live="polite" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm" data-testid="pause-calc"><p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p></div>
+        ) : calcFailure ? (
+          calcFailure.closed
+            ? <div data-testid="pause-calc"><PeriodClosedNotice purpose="pause" info={calcFailure.closed} onReopened={() => setCalcNonce((value) => value + 1)} /></div>
+            : <div data-testid="pause-calc"><p role="alert" className="rounded-xl bg-rose-50 px-3.5 py-3 text-sm font-medium text-rose-800">{calcFailure.message} {retryButton(() => setCalcNonce((value) => value + 1))}</p></div>
+        ) : (
+          <div className="space-y-2" data-testid="pause-calc-wrap">
+            <PauseMoneyBox model={calcModel} testId="pause-calc">
+              {!calcModel && <p className="text-sm">{pauseCalcLines(calc)[0]}</p>}
+              {calcTail.map((line) => <p key={line} className="text-xs text-slate-700">{line}</p>)}
+              <OtherGroupsRows answer={calc} testId="pause-other-groups" />
+            </PauseMoneyBox>
+            {warnings.length > 0 && (
+              <div className="space-y-2" data-testid="pause-warnings">
+                {warnings.map((line) => (
+                  <p key={line} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{line}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      )}
+
+      {errorNode}
+    </form>
+  );
+
+  const loadingList = pauses === null;
 
   return (
     <Modal
@@ -266,144 +471,49 @@ export function PauseDialog({
       description={`${studentName} · ${groupName}`}
       onClose={onClose}
       busy={busy}
+      initialFocus="dialog"
       footerClassName={CONFIRM_FOOTER_CLASS}
-      footer={!participating ? (
-        // Б11.34 п.1: a student who has left - nothing to confirm, only the way out
-        <ConfirmFooter primary={null} onCancel={onClose} testId="pause-close" />
-      ) : (
-        // UX pack №12 / rule 3: the pause can be ended - blue; the main button names the action; off - with the line «почему»
+      footer={showForm ? (
+        // UX pack №12 / rule 3: the pause can be set - blue; the main button names the action; off - with the line «почему» only while the server counts (a refusal stands in the form in the server's words)
         <ConfirmFooter
           primary="Поставить на паузу"
           submitFor="pause-form"
           busy={busy && acting === null}
           disabled={busy || !ready || checking || calcFailure !== null}
-          why={checking ? EFFECTS_LOADING_TEXT : calcFailure !== null ? (refusedInWords({ code: calcFailure.code, message: calcFailure.message }) ? null : "Не удалось посчитать паузу — повторите.") : "Укажите, с какого по какое число пауза."}
+          why={checking ? EFFECTS_LOADING_TEXT : null}
           whyId="pause-why"
-          onCancel={onClose}
+          onCancel={groups.cards.length > 0 ? closeNewForm : onClose}
           testId="pause-submit"
         />
+      ) : (
+        // nothing to confirm (the cards, a confirmation in a card, a student who has left): the only way out
+        <ConfirmFooter primary={null} onCancel={onClose} testId="pause-close" />
       )}
     >
-      {participating && <form id="pause-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4 pb-2" noValidate>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="pause-first" className={PRICE_LABEL}>С</label>
-            <DateInput id="pause-first" value={values.first} onChange={(next) => { setError(null); setValues({ ...values, first: next }); }} className={PRICE_FIELD} />
-          </div>
-          <div>
-            <label htmlFor="pause-last" className={PRICE_LABEL}>По</label>
-            <DateInput id="pause-last" value={values.last} min={values.first || undefined} onChange={(next) => { setError(null); setValues({ ...values, last: next }); }} className={PRICE_FIELD} />
-          </div>
-        </div>
-        <p className="-mt-2 text-xs text-slate-500">{PAUSE_BACKDATE_HINT}. Дни паузы не входят в стоимость, место в группе сохраняется.</p>
+      {loadingList && <p className="inline-flex items-center gap-1.5 text-sm text-slate-500" data-testid="pause-loading"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загрузка…</p>}
 
-        <div>
-          <label htmlFor="pause-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(необязательно)</span></label>
-          <input id="pause-reason" value={values.reason} maxLength={PAUSE_REASON_MAX} onChange={(event) => { setError(null); setValues({ ...values, reason: event.target.value }); }} autoComplete="off" placeholder="Например: уехал к родственникам" className={PRICE_FIELD} />
-        </div>
-
-        {problem && <p role="alert" className="text-xs font-medium text-rose-700">{problem}</p>}
-
-        {ready && (checking || calc || calcFailure) && (
-          <div aria-live="polite" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700" data-testid="pause-calc">
-            {checking ? (
-              <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>
-            ) : calcFailure ? (
-              calcFailure.closed
-                ? <PeriodClosedNotice info={calcFailure.closed} onReopened={() => setCalcNonce((value) => value + 1)} />
-                : <p role="alert" className="font-medium text-rose-700">{calcFailure.message}</p>
-            ) : (
-              <>
-                {lines.map((line) => <p key={line}>{line}</p>)}
-                <OtherGroupsRows answer={calc} testId="pause-other-groups" />
-                {warnings.map((line) => (
-                  <p key={line} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    <span>{line}</span>
-                  </p>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-
-        {error && (errorClosed
-          ? <PeriodClosedNotice info={errorClosed} onReopened={() => { setError(null); setErrorClosed(null); setCalcNonce((value) => value + 1); }} />
-          : <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>)}
-      </form>}
-
-      {hasPauses && (
-        <section aria-label="Паузы ученика" className={participating ? "mt-1 border-t border-slate-100 pt-3" : undefined}>
-          <h3 className="text-xs font-semibold text-slate-700">Уже есть</h3>
-          <ul className="mt-1.5 space-y-2">
-            {(pauses ?? []).map((pause) => {
-              const locked = pause.days_locked === true;
-              // a pause with locked days cannot be shortened: the only way to take it off is whole, whatever its dates; a free one running now can be ended today or taken off; one not begun - taken off
-              const canEnd = !locked && pauseEndAction(pause, today) === "end";
-              const canVoid = locked || pause.last_day >= today;
-              const active = acting?.pause.id === pause.id;
-              const running = pause.last_day >= today && pause.first_day <= today;
-              const draft = reasonDrafts[pause.id] ?? pause.reason ?? "";
-              const reasonChanged = locked && draft.trim() !== (pause.reason ?? "");
-              return (
-                <li key={pause.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs">
-                  {/* PAY-TAILS Б11.22 п.10: the block of a pause that has not begun names what is being done to it */}
-                  {acting?.action === "cancel" && active && !locked && !running && <p className="mb-1 font-semibold text-slate-900" data-testid="pause-cancel-title">{PAUSE_CANCEL_FUTURE_TITLE}</p>}
-                  {/* Б11.34 п.2: the FACTS first (the days are text, not editable), under them ONE calm sentence of the server */}
-                  <p className="text-slate-800" data-testid={locked ? "pause-locked-days" : undefined}>{pauseLine(locked ? { ...pause, reason: null } : pause)}</p>
-                  {running && !locked && <p className="text-amber-800">Идёт сейчас</p>}
-                  {locked && pause.days_locked_text && <p className="mt-1 text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
-                  {locked && (
-                    <div className="mt-2 space-y-1.5">
-                      <div>
-                        <label htmlFor={`pause-locked-reason-${pause.id}`} className={PRICE_LABEL}>Причина</label>
-                        <ReasonField id={`pause-locked-reason-${pause.id}`} value={draft} onChange={(next) => { setLockedFailure(null); setReasonDrafts({ ...reasonDrafts, [pause.id]: next }); }} />
-                      </div>
-                    </div>
-                  )}
-                  {locked && lockedFailure?.id === pause.id && <p role="alert" className="mt-1 font-medium text-rose-700" data-testid="pause-locked-failure">{lockedFailure.message}</p>}
-                  {(canEnd || canVoid || reasonChanged) && !active && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {/* the button of the reason stands only while the reason is changed (no grey button that does nothing) */}
-                      {reasonChanged && <Button type="button" variant="secondary" size="sm" data-testid="pause-locked-save" onClick={() => void saveReason(pause)} disabled={busy}>Сохранить причину</Button>}
-                      {canEnd && <Button type="button" variant="secondary" size="sm" data-testid="pause-end" onClick={() => { setError(null); setActing({ pause, action: "end" }); setCancelReason(""); }}>{PAUSE_END_LABEL}</Button>}
-                      {canVoid && <Button type="button" variant="secondary" size="sm" data-testid="pause-void" onClick={() => { setError(null); setActing({ pause, action: "cancel" }); setCancelReason(""); }}>{PAUSE_VOID_LABEL}</Button>}
-                    </div>
-                  )}
-                  {active && acting && (
-                    <div className="mt-2 space-y-1.5">
-                      <p className="text-slate-600">
-                        {acting.action === "end"
-                          ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
-                          : locked
-                            ? "Пауза будет снята целиком."
-                            : running
-                              ? "Пауза будет снята целиком: её дни снова входят в стоимость."
-                              : "Пауза ещё не началась: она будет отменена, эти дни придётся оплатить."}
-                      </p>
-                      {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
-                      {actPreview?.status === "ready" && <OtherGroupsRows answer={actPreview.answer} testId="pause-act-effects" />}
-                      {actPreview?.status === "failed" && <p role="alert" data-testid="pause-act-effects" className="font-medium text-rose-700">{actPreview.message}</p>}
-                      {(acting.action === "cancel" || endNeedsReason) && (
-                        <div>
-                          <label htmlFor="pause-act-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
-                          <input id="pause-act-reason" data-testid="pause-act-reason" value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting.action === "cancel" ? "Например: ученик передумал" : "Например: ошиблись в дате"} className={PRICE_FIELD} autoComplete="off" />
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="secondary" size="sm" data-testid="pause-act-confirm">
-                          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                          {acting.action === "end" ? PAUSE_END_LABEL : PAUSE_VOID_LABEL}
-                        </Button>
-                        <Button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} variant="ghost" size="sm">Назад</Button>
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+      {!loadingList && acting && (
+        <section aria-label="Паузы ученика">
+          <ul>{renderActing()}</ul>
         </section>
+      )}
+
+      {!loadingList && !acting && (
+        <div className="space-y-4">
+          {hasList && groups.cards.length > 0 && (
+            <section aria-label="Паузы ученика" className="space-y-3">
+              {showForm
+                ? <ul className="space-y-2">{groups.cards.map((pause) => <li key={pause.id}><PauseSummaryRow pause={pause} today={today} state={stateOf(pause)} /></li>)}</ul>
+                : <ul className="space-y-3">{groups.cards.map(renderCard)}</ul>}
+              {participating && !showForm && (
+                <Button type="button" variant="ghost" size="sm" data-testid="pause-new" className={QUIET_LINK} onClick={() => { clearError(); setNewOpen(true); }}>+ Новая пауза</Button>
+              )}
+            </section>
+          )}
+          {showForm && (groups.cards.length > 0 ? <div className="border-t border-slate-100 pt-3">{renderForm()}</div> : renderForm())}
+          {!showForm && errorNode}
+          {hasList && groups.past.length > 0 && <section aria-label={groups.cards.length > 0 ? "Прошлые паузы" : "Паузы ученика"}>{renderPast()}</section>}
+        </div>
       )}
     </Modal>
   );

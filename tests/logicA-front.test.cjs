@@ -196,7 +196,7 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   assert.equal(G.PAUSE_BACKDATE_DAYS, undefined);
   assert.equal(G.validatePause({ first: "2026-10-20", last: "2026-10-24", reason: "" }, today), null);
   assert.equal(G.validatePause({ first: "2026-09-01", last: "2026-10-24", reason: "" }, today), null);
-  assert.equal(G.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц не закрыт");
+  assert.equal(G.PAUSE_BACKDATE_HINT, undefined, "Б11.39 Э7: the line «Задним числом можно, пока месяц не закрыт» is gone from the window (the warning of a backdated pause under the calculation says what matters)");
   assert.match(G.validatePause({ first: "2026-10-24", last: "2026-10-20", reason: "" }, today), /раньше, чем начинается/);
   assert.match(G.validatePause({ first: "2026-10-20", last: "2028-01-01", reason: "" }, today), /не длиннее 366 дней/);
   assert.equal(G.pauseDays("2026-10-20", "2026-10-24"), 5);

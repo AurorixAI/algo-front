@@ -1,5 +1,5 @@
 // PAY-TAILS Б11.33 / Б11.34: `node tests/dom/paytails-part13-shots.cjs <out dir>` - the PNGs of the two screens, 1280 and 375, named «<правка>-<состояние>-<ширина>.png»
-// (А - «Куда пойдут N сум» of the window «Внести оплату», Б - the pause closed by a leaving).  Prints ONLY suspicious things (sideways scroll, text off its block, a console error).
+// (А - «Куда пойдут N сум» of the window «Внести оплату»; the window of a pause is in paytails-part16-shots.cjs).  Prints ONLY suspicious things (sideways scroll, text off its block, a console error).
 // Run with TMPDIR in `artifacts/money1-stage/.cache` (the css of the run goes there).
 const fs = require("node:fs");
 const os = require("node:os");
@@ -81,43 +81,6 @@ const shot = async (page, name) => {
       await page.close();
     }
 
-    // Б
-    const day = (shift) => new Date(Date.now() + shift * 86400000).toISOString().slice(0, 10);
-    const pauseOf = (id, first, last, over = {}) => ({ id, membership_id: "m-a", first_day: first, last_day: last, days: 13, reason: "уехал к родственникам", created_by_name: null, created_at: null, voided_at: null, void_reason: null, days_locked: false, days_locked_text: null, ...over });
-    // Б11.38 п.3: the pauses are the REAL answers of the server (fixtures part14), as they come; the window opens as it does for the student (no form of a new pause for one who has left / been moved out)
-    const real = (name, over = {}) => ({ ...readReal(name), membership_id: "m-a", ...over });
-    const lockedText = readReal("pause_closed_by_leave_later").days_locked_text;
-    const locked = (over = {}) => real("pause_closed_by_leave_later", over);
-    for (const [state, pauses, props, act] of [
-      ["no_cut", [real("pause_without_cut")], {}, async () => {}],
-      ["cut_by_leaving", [locked()], {}, async () => {}],
-      ["closed_by_transfer_today", [real("pause_closed_by_transfer_today")], { active: false }, async () => {}],
-      ["closed_by_transfer_later", [real("pause_closed_by_transfer_later")], {}, async () => {}],
-      ["cut_reason_changed", [locked()], {}, async (page) => { await page.fill('[data-testid="pause-locked-reason"]', "уехал к родственникам в Самарканд"); }],
-      ["left_student_no_form", [real("pause_closed_by_leave_today")], { active: false }, async () => {}],
-      ["returned_student_form_and_locked", [real("pause_closed_by_leave_today")], {}, async () => {}],
-      ["long_names_long_reason", [locked({ reason: "уехал к родственникам в Самарканд на всё лето, вернётся к началу занятий, связь через отца" })], { active: true, groupName: "Подготовка к олимпиаде по математике, 9 класс, старшая группа" }, async () => {}],
-      ["race_409_becomes_locked", [pauseOf("pr", day(-3), day(9))], { race: true }, async (page) => {
-        await page.getByRole("button", { name: "Закончить сегодня" }).click();
-        await page.waitForSelector('[data-testid="pause-locked-text"]');
-      }],
-    ]) {
-      let raced = false;
-      const answer = F.baseServer((request) => {
-        if (props.race && request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: raced ? [locked({ id: "pr" })] : pauses };
-        if (props.race && request.method === "PATCH" && request.path === "/auth/org/pauses/pr") { raced = true; return { status: 409, json: { detail: { code: "PAUSE_CLOSED_BY_LEAVE", message: lockedText } } }; }
-        if (request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: pauses };
-        return null;
-      });
-      const { page, errors } = await openPage(browser, "money2.entry.tsx", answer, dims(width));
-      await page.evaluate(([n, u, p]) => window.mount(n, u, p), ["pause", OWNER, { moneyAvailable: true, ...props }]);
-      await page.waitForSelector('section[aria-label="Паузы ученика"]');
-      await act(page);
-      await page.waitForTimeout(500);
-      await check(page, errors, `Б-${state}-${width}`, '[role="dialog"]');
-      await shot(page, `Б-${state}-${width}`);
-      await page.close();
-    }
   }
   await browser.close();
   console.log(suspicious.length ? suspicious.join("\n") : "no suspicious");

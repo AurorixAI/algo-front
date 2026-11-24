@@ -565,7 +565,8 @@ test("F19 / Q4: no «Начисл…» on the money screens of the student; the 
     "src/components/payments/membership-payments.tsx", "src/components/payments/membership-price.tsx", "src/components/payments/pause-dialog.tsx", "src/components/groups/group-payments-tab.tsx",
     "src/lib/payments-income-v2.ts", "src/lib/payments-logica.ts", "src/lib/payments.ts", "src/lib/payments-ledger.ts", "src/lib/group-price.ts", "src/lib/membership-actions.ts",
   ];
-  for (const file of files) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""), /[Нн]ачисл/, file);
+  // Б11.40 Э6': the ONE sentence of the owner's spec «… — период ещё не начислен, эти дни в него (не) войдут.» (a period of a month that has not been charged yet) is the only place where the word stays
+  for (const file of files) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/ — период ещё не начислен, эти дни в него /g, ""), /[Нн]ачисл/, file);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /<th scope="col" className=\{`\$\{HEAD\} text-right`\}>Заработано<\/th>/);
   assert.match(read("src/components/payroll/sheet-controls.tsx"), />Заработано<\/th>/);
   assert.doesNotMatch(read("src/components/payroll/sheet-table.tsx").replace(/\/\*[\s\S]*?\*\//g, ""), /<th[^>]*>Начислено/);

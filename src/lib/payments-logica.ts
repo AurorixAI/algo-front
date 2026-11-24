@@ -8,7 +8,7 @@
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
 import { MONTHS_NOMINATIVE } from "./ru-calendar";
-import { formatMoneyInput, tidyMoneyText } from "./money-format";
+import { formatMoneyInput, formatSignedMoney, tidyMoneyText } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -22,7 +22,7 @@ import {
   type PaymentPreview,
 } from "./payments";
 import { addIsoDays, daysBetween, daysBetweenInclusive, formatDayMonthRu } from "./business-time";
-import { daysLabel, pluralRu } from "./plural";
+import { daysLabel, daysWord, lessonsWord, pluralRu } from "./plural";
 import { effectsOfAnswer, type TransferEffects } from "./transfer-effects";
 import { othersOf, recalcOf, resultMoneyLines, type RecalcBlock } from "./paytails-contract";
 
@@ -366,6 +366,27 @@ export interface PauseLessonMark {
   marks: string | null;
 }
 
+/**
+ * Б11.39 С1' / Б11.40: one row of «что изменилось в начислении по периодам» - the words and the numbers are the SERVER's (the screen adds nothing up).  `label`: the days the change touched
+ * («24.11–30.11»); `lessons` null = the period is not counted by lessons (the row says days); `lessons_passed` only where days RETURN into the cost; `amount` null for a role without the right to money.
+ */
+export interface ChargeRow {
+  label: string;
+  first_day: string;
+  last_day: string;
+  days: number;
+  lessons: number | null;
+  lessons_passed: number | null;
+  amount: number | null;
+}
+
+/** Б11.40 С3': the days of the change that fall into a period which is not charged yet (no sum): one record. */
+export interface ChargeLater {
+  first_day: string;
+  last_day: string;
+  label: string;
+}
+
 export interface PauseSaved {
   pause: PauseOut;
   impact: ImpactMoney | null;
@@ -376,6 +397,9 @@ export interface PauseSaved {
   row: MembershipPaymentRow | null;
   /** Money-2 T9: what the pause does in the OTHER groups of the student (the sentence of the server; only with the right to money). */
   other_groups_text?: string | null;
+  /** Б11.39 С1' (step 8.14.9): absent on an old server - the window then shows the old one line. */
+  charge_rows?: ChargeRow[] | null;
+  charge_later?: ChargeLater | null;
 }
 
 export interface PauseVoided {
@@ -383,6 +407,8 @@ export interface PauseVoided {
   impact: ImpactMoney | null;
   row: MembershipPaymentRow | null;
   other_groups_text?: string | null;
+  charge_rows?: ChargeRow[] | null;
+  charge_later?: ChargeLater | null;
 }
 
 export interface PauseFormValues {
@@ -394,12 +420,6 @@ export interface PauseFormValues {
 export function emptyPauseValues(today: string): PauseFormValues {
   return { first: today, last: "", reason: "" };
 }
-
-/**
- * Money-1 A1: a pause may start in the past as long as the month of the teacher of the group is not closed by a saved sheet (the server judges: 422 `PAUSE_LOCKED` with the month and the
- * teacher).  It used to be «не больше 30 дней» - a rule of its own; the closed month is now the one rule of every action with the past.
- */
-export const PAUSE_BACKDATE_HINT = "Задним числом можно, пока месяц не закрыт";
 
 /** Number of days of a pause, both ends included (0 for a broken range). */
 export function pauseDays(first: string, last: string): number {
@@ -423,9 +443,18 @@ export function buildPauseBody(values: PauseFormValues): { first_day: string; la
   return body;
 }
 
+/** Б11.39 Э6: the quiet lines UNDER the block of money (and under the old one line): «Оплачено до станет 09.11.» and the debt / advance line - `impact` only, so only for a role that sees money. */
+export function pauseCalcTail(impact: ImpactMoney | null | undefined): string[] {
+  const lines: string[] = [];
+  if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
+  const balance = impactBalanceLine(impact);
+  if (balance) lines.push(balance);
+  return lines;
+}
+
 /**
- * The calculation under the form (the server's dry run): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется.
- * Оплачено до станет 09.11.» — the money part only for a role that sees money (`impact` is null otherwise).
+ * The OLD calculation under the form (an old server without `charge_rows`, a personal period, packages): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется.
+ * Оплачено до станет 09.11.» - the money part only for a role that sees money (`impact` is null otherwise).
  */
 export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "other_groups_text"> | null | undefined): string[] {
   if (!saved) return [];
@@ -434,11 +463,48 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "oth
   const head = impact && impact.charged_delta !== 0
     ? `Дни паузы не входят в стоимость: ${daysLabel(days)}, ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
     : `Дни паузы не входят в стоимость: ${daysLabel(days)}.`;
-  const lines = [`${head} Место в группе сохраняется.`];
-  if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
-  const balance = impactBalanceLine(impact);
-  if (balance) lines.push(balance);
-  return lines;
+  return [`${head} Место в группе сохраняется.`, ...pauseCalcTail(impact)];
+}
+
+/** What a block of money of a pause is about: a pause being set, a running one ended today, a pause taken off whole. */
+export type PauseMoneyAction = "set" | "end" | "void";
+
+export interface PauseMoneyModel {
+  /** By the ACTION, not by the sign (Б11.40 Э5'): «Не входят в стоимость» for a new pause, «Снова входят в стоимость» for an ending and a void. */
+  heading: string;
+  rows: Array<{ key: string; label: string; amount: string | null }>;
+  /** «Итого» under a line: two rows and more, for a role that sees money. */
+  total: string | null;
+  /** The days of the change that fall into a period not charged yet - one quiet line. */
+  later: string | null;
+  /** «Место в группе сохраняется.» - only when a pause is set. */
+  note: string | null;
+}
+
+/** «24.11–30.11 · 3 урока», «… · 6 уроков, из них 3 уже прошли», «… · 4 дня» (the period is not counted by lessons): the label of the server and the counts of the server. */
+export function chargeRowLabel(row: ChargeRow): string {
+  const count = row.lessons !== null && row.lessons !== undefined ? `${row.lessons} ${lessonsWord(row.lessons)}` : `${row.days} ${daysWord(row.days)}`;
+  const passed = row.lessons_passed && row.lessons_passed > 0 ? `, из них ${row.lessons_passed} уже ${pluralRu(row.lessons_passed, "прошёл", "прошли", "прошли")}` : "";
+  return `${row.label} · ${count}${passed}`;
+}
+
+/**
+ * Б11.39 Э6 + Б11.40 С1'-С5', Э5'-Э6': the block of money of a pause, from the answer of the server (a dry run or the real one).  `null` = the old one line stays: no `charge_rows`
+ * (an old server), or both `charge_rows` and `charge_later` empty (a personal period, packages, a period without lessons in the changed days).  Nothing is added up here: «Итого» is `impact.charged_delta`.
+ */
+export function pauseMoneyModel(saved: { charge_rows?: ChargeRow[] | null; charge_later?: ChargeLater | null; impact?: ImpactMoney | null } | null | undefined, action: PauseMoneyAction): PauseMoneyModel | null {
+  if (!saved) return null;
+  const rows = arr<ChargeRow>(saved.charge_rows);
+  const later = saved.charge_later && saved.charge_later.label ? saved.charge_later : null;
+  if (rows.length === 0 && !later) return null;
+  const set = action === "set";
+  return {
+    heading: set ? "Не входят в стоимость" : "Снова входят в стоимость",
+    rows: rows.map((row, index) => ({ key: `${row.first_day}-${row.last_day}-${index}`, label: chargeRowLabel(row), amount: row.amount === null || row.amount === undefined ? null : formatSignedMoney(row.amount) })),
+    total: rows.length >= 2 && saved.impact ? formatSignedMoney(saved.impact.charged_delta) : null,
+    later: later ? `${later.label} — период ещё не начислен, эти дни в него ${set ? "не войдут" : "войдут"}.` : null,
+    note: set ? "Место в группе сохраняется." : null,
+  };
 }
 
 /** The warnings of a pause: a backdated one (lessons are not counted for anybody), attended lessons, the saved payroll sheets. */
@@ -486,6 +552,47 @@ export function pauseEndDay(today: string): string {
 /** The pauses worth listing in the dialog: not cancelled, the freshest first. */
 export function livePauses(list: PauseOut[] | null | undefined): PauseOut[] {
   return arr<PauseOut>(list).filter((pause) => !pause.voided_at).sort((a, b) => (a.first_day < b.first_day ? 1 : -1));
+}
+
+/** Б11.39 Э4: «с 17.11 по 30.11 · 14 дней» - the days of a pause; the year is written (to both dates) when one of them is not in the year of `today`. */
+export function pauseFacts(pause: Pick<PauseOut, "first_day" | "last_day" | "days">, today: string): string {
+  const days = pause.days || pauseDays(pause.first_day, pause.last_day);
+  const otherYear = pause.first_day.slice(0, 4) !== today.slice(0, 4) || pause.last_day.slice(0, 4) !== today.slice(0, 4);
+  const write = otherYear ? formatDateRu : formatDayMonthRu;
+  return `с ${write(pause.first_day)} по ${write(pause.last_day)} · ${daysLabel(days)}`;
+}
+
+/** «с 17.11 по 30.11» - the days without the count (the collapsed row of a pause); the year as in `pauseFacts`. */
+export function pauseSpan(pause: Pick<PauseOut, "first_day" | "last_day">, today: string): string {
+  const otherYear = pause.first_day.slice(0, 4) !== today.slice(0, 4) || pause.last_day.slice(0, 4) !== today.slice(0, 4);
+  const write = otherYear ? formatDateRu : formatDayMonthRu;
+  return `с ${write(pause.first_day)} по ${write(pause.last_day)}`;
+}
+
+/** A pause that is on today (it began, its last day is not over) vs one that has not begun. */
+export function pauseIsRunning(pause: Pick<PauseOut, "first_day" | "last_day">, today: string): boolean {
+  return pause.first_day <= today && pause.last_day >= today;
+}
+
+/**
+ * Б11.39 Э1 / Э4 / Э5 + Б11.40 Э4': what the window of a pause lists.  `cards` - the pauses the window was opened for: alive ones (not taken off, the last day not before today; the running one first, then the planned
+ * ones by the first day) of a student in the group; for a student who has LEFT only the pauses with locked days (they can still be taken off whole).  `past` - the rest, the newest first (rows without actions,
+ * except the one with locked days: its sentence and «Снять паузу целиком»).
+ */
+export function pauseGroups(list: PauseOut[] | null | undefined, today: string, participating: boolean): { cards: PauseOut[]; past: PauseOut[] } {
+  const live = arr<PauseOut>(list).filter((pause) => !pause.voided_at);
+  const isCard = (pause: PauseOut) => (participating ? pause.last_day >= today : pause.days_locked === true);
+  const cards = live.filter(isCard).sort((a, b) => {
+    if (participating) {
+      const ar = a.first_day <= today ? 0 : 1;
+      const br = b.first_day <= today ? 0 : 1;
+      if (ar !== br) return ar - br;
+      return a.first_day < b.first_day ? -1 : a.first_day > b.first_day ? 1 : 0;
+    }
+    return a.first_day < b.first_day ? 1 : -1;
+  });
+  const past = live.filter((pause) => !isCard(pause)).sort((a, b) => (a.first_day < b.first_day ? 1 : a.first_day > b.first_day ? -1 : 0));
+  return { cards, past };
 }
 
 /** «с 11.10 по 20.10 · 10 дней · уехал к родственникам». */

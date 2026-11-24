@@ -26,7 +26,7 @@ function pauseServer({ money = true } = {}) {
 test("А7 (пауза): cancelling a pause says the other group as ONE short row «Аванс в «Физика 9» · −30 000 сум»; the sentence of the server is under «Подробнее»", async () => {
   const run = await mount(ctx, pauseServer(), "pause", OWNER, { moneyAvailable: true, groupName: SHORT.A });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
-  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();      // a pause that has not begun: «Снять паузу» (Б11.39 Э2)
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.deepEqual(await rowsOf(run.page, '[data-testid="pause-act-effects"]'), [["Аванс в «Физика 9»", "−30 000 сум"]]);
   assert.ok(!(await visible(run.page, '[data-testid="pause-act-effects"]')).includes("уменьшится"), "the whole sentence is folded");
@@ -38,7 +38,7 @@ test("А7 (пауза): cancelling a pause says the other group as ONE short row
 test("А7 (пауза): a role without money - the sentence of the server (no digits) is the one row", async () => {
   const run = await mount(ctx, pauseServer({ money: false }), "pause", ADMIN, { moneyAvailable: false, groupName: SHORT.A });
   await run.page.waitForSelector('section[aria-label="Паузы ученика"]');
-  await run.page.getByRole("button", { name: "Снять паузу целиком" }).first().click();
+  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();      // a pause that has not begun: «Снять паузу» (Б11.39 Э2)
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.deepEqual(await rowsOf(run.page, '[data-testid="pause-act-effects"]'), [[`В группе «${SHORT.T}» аванс уменьшится`]]);
   await run.page.close();

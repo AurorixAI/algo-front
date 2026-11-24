@@ -389,7 +389,7 @@ test("the archive (C2, the server's fixture): the missed lessons are LISTED and 
 test("the pause: the 30 days are gone from the form (the closed month is the rule); a lesson in progress and a closed month are said in the server's words, with the way out", () => {
   assert.equal(PAY.validatePause({ first: "2026-08-01", last: "2026-08-10", reason: "" }, "2026-11-05"), null);
   assert.equal(PAY.pauseEarliest, undefined);
-  assert.equal(PAY.PAUSE_BACKDATE_HINT, "Задним числом можно, пока месяц не закрыт");
+  assert.equal(PAY.PAUSE_BACKDATE_HINT, undefined, "Б11.39 Э7: the hint line is gone");
   assert.match(PAY.validatePause({ first: "2026-10-10", last: "2028-01-01", reason: "" }, "2026-11-05"), /не длиннее 366 дней/);
   const inProgress = { status: 409, code: "LESSON_IN_PROGRESS", message: "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены", detail: { code: "LESSON_IN_PROGRESS", message: "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены" } };
   assert.equal(PAY.logicaError(inProgress).message, "Сейчас идёт урок группы: поставить паузу можно после его завершения или отмены");
@@ -398,10 +398,11 @@ test("the pause: the 30 days are gone from the form (the closed month is the rul
   assert.equal(CP.periodClosedOf(locked).teacherId, "t1");
   const dialog = read("src/components/payments/pause-dialog.tsx");
   assert.doesNotMatch(dialog, /min=\{pauseEarliest/);
-  assert.match(dialog, /\{PAUSE_BACKDATE_HINT\}\. Дни паузы не входят/);
+  assert.doesNotMatch(dialog, /PAUSE_BACKDATE_HINT|Задним числом можно/);
+  assert.match(dialog, /PAUSE_FORM_HINT = "Дни паузы не входят в стоимость, место в группе сохраняется\."/);
   assert.match(dialog, /closed: periodClosedOf\(cause\)/);
   assert.match(dialog, /setErrorClosed\(periodClosedOf\(cause\)\)/);
-  assert.match(dialog, /<PeriodClosedNotice info=\{errorClosed\}/);
+  assert.match(dialog, /<PeriodClosedNotice purpose="pause" info=\{errorClosed\}/);   // the sentence says «изменить паузу», not «изменить урок»
 });
 
 // ── the decision on an additional lesson ───────────────────────────────────────────────────────────────
