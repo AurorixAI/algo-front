@@ -74,6 +74,9 @@ export function PauseDialog({
   /** The pause being ended / cancelled and the cancel reason. */
   const [acting, setActing] = useState<{ pause: PauseOut; action: "end" | "cancel" } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  /** Б11.33 п.1: the reasons being edited on the pauses whose days are locked (by id) and the refusal of the server to a save, said on the spot. */
+  const [reasonDrafts, setReasonDrafts] = useState<Record<string, string>>({});
+  const [lockedFailure, setLockedFailure] = useState<{ id: string; message: string } | null>(null);
   /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
   const [endNeedsReason, setEndNeedsReason] = useState(false);
   /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the sentence about the other groups, or the refusal of the server (`blocked`: «PAUSE_BREAKS_REFUND» - nothing can be done here). */
@@ -92,6 +95,8 @@ export function PauseDialog({
     setBusy(false);
     setActing(null);
     setCancelReason("");
+    setReasonDrafts({});
+    setLockedFailure(null);
     setEndNeedsReason(false);
     setPauses(null);
     idempotencyKey.current = newIdempotencyKey();
@@ -199,6 +204,24 @@ export function PauseDialog({
     }
   };
 
+  /** Б11.33 п.1: only the reason of a pause with locked days; a race (the leaving came meanwhile) is the 409 in the server's words, the window stays. */
+  const saveReason = async (pause: PauseOut) => {
+    const draft = (reasonDrafts[pause.id] ?? pause.reason ?? "").trim();
+    if (busy || draft === (pause.reason ?? "")) return;
+    setBusy(true);
+    setLockedFailure(null);
+    try {
+      const result = await orgApi.patchPause(pause.id, { reason: draft === "" ? null : draft });
+      onChanged(result.row, "Причина паузы сохранена");
+      setReasonDrafts((previous) => { const next = { ...previous }; delete next[pause.id]; return next; });
+      await loadPauses();
+    } catch (cause) {
+      setLockedFailure({ id: pause.id, message: logicaError(cause, "Не удалось сохранить причину").message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const warnings = pauseWarnings(calc, today);
   const lines = pauseCalcLines(calc);
   const hasPauses = (pauses ?? []).length > 0;
@@ -278,25 +301,43 @@ export function PauseDialog({
           <h3 className="text-xs font-semibold text-slate-700">Уже есть</h3>
           <ul className="mt-1.5 space-y-2">
             {(pauses ?? []).map((pause) => {
-              const action = pauseEndAction(pause, today);
+              const locked = pause.days_locked === true;
+              // a pause with locked days cannot be shortened: the only way to take it off is whole («Снять паузу»), whatever its dates
+              const action = locked ? "cancel" : pauseEndAction(pause, today);
               const active = acting?.pause.id === pause.id;
               return (
                 <li key={pause.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs">
                   {/* PAY-TAILS Б11.22 п.10: the block of a pause that has not begun names what is being done to it */}
-                  {action === "cancel" && active && <p className="mb-1 font-semibold text-slate-900" data-testid="pause-cancel-title">{PAUSE_CANCEL_FUTURE_TITLE}</p>}
-                  <p className="text-slate-800">{pauseLine(pause)}</p>
+                  {action === "cancel" && active && !locked && <p className="mb-1 font-semibold text-slate-900" data-testid="pause-cancel-title">{PAUSE_CANCEL_FUTURE_TITLE}</p>}
+                  {/* Б11.33 п.1: the days are shown as text (not editable) and ONE calm sentence of the server says why */}
+                  {locked && pause.days_locked_text && <p className="mb-1 text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
+                  <p className="text-slate-800" data-testid={locked ? "pause-locked-days" : undefined}>{pauseLine(locked ? { ...pause, reason: null } : pause)}</p>
                   {pause.last_day >= today && pause.first_day <= today && <p className="text-amber-800">Идёт сейчас, до {formatDateRu(pause.last_day)}</p>}
+                  {locked && (
+                    <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1">
+                        <label htmlFor={`pause-locked-reason-${pause.id}`} className={PRICE_LABEL}>Причина</label>
+                        <input id={`pause-locked-reason-${pause.id}`} data-testid="pause-locked-reason" value={reasonDrafts[pause.id] ?? pause.reason ?? ""} maxLength={PAUSE_REASON_MAX} autoComplete="off"
+                          onChange={(event) => { setLockedFailure(null); setReasonDrafts({ ...reasonDrafts, [pause.id]: event.target.value }); }} className={PRICE_FIELD} />
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" data-testid="pause-locked-save" onClick={() => void saveReason(pause)}
+                        disabled={busy || (reasonDrafts[pause.id] ?? pause.reason ?? "").trim() === (pause.reason ?? "")}>Сохранить причину</Button>
+                    </div>
+                  )}
+                  {locked && lockedFailure?.id === pause.id && <p role="alert" className="mt-1 font-medium text-rose-700" data-testid="pause-locked-failure">{lockedFailure.message}</p>}
                   {action && !active && (
                     <button type="button" onClick={() => { setError(null); setActing({ pause, action }); setCancelReason(""); }} className="mt-1 font-semibold text-primary-700 hover:underline">
-                      {action === "end" ? "Закончить паузу" : "Отменить паузу"}
+                      {locked ? "Снять паузу" : action === "end" ? "Закончить паузу" : "Отменить паузу"}
                     </button>
                   )}
                   {action && active && (
                     <div className="mt-1.5 space-y-1.5">
                       <p className="text-slate-600">
-                        {acting?.action === "end"
-                          ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
-                          : "Пауза ещё не началась: она будет отменена, эти дни придётся оплатить."}
+                        {locked
+                          ? "Пауза будет снята целиком."
+                          : acting?.action === "end"
+                            ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
+                            : "Пауза ещё не началась: она будет отменена, эти дни придётся оплатить."}
                       </p>
                       {actPreview?.status === "loading" && <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем…</p>}
                       {actPreview?.status === "ready" && <OtherGroupsRows answer={actPreview.answer} testId="pause-act-effects" />}
@@ -310,7 +351,7 @@ export function PauseDialog({
                       <div className="flex gap-2">
                         <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || (actPreview?.status === "failed" && actPreview.blocked)} variant="secondary" size="sm">
                           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                          {acting?.action === "end" ? "Закончить паузу" : "Отменить паузу"}
+                          {locked ? "Снять паузу" : acting?.action === "end" ? "Закончить паузу" : "Отменить паузу"}
                         </Button>
                         <Button type="button" onClick={() => { setActing(null); setError(null); }} disabled={busy} variant="ghost" size="sm">Назад</Button>
                       </div>

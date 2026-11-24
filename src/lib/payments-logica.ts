@@ -355,6 +355,10 @@ export interface PauseOut {
   created_at: string | null;
   voided_at: string | null;
   void_reason: string | null;
+  /** PAY-TAILS Б11.33 п.1: a leaving / transfer / archive cut the pause - its days cannot be changed (409 `PAUSE_CLOSED_BY_LEAVE`); the reason can, and the pause can be taken off whole. */
+  days_locked?: boolean;
+  /** The server's calm sentence of that case (the same as the refusal); null when `days_locked` is not true. */
+  days_locked_text?: string | null;
 }
 
 export interface PauseLessonMark {

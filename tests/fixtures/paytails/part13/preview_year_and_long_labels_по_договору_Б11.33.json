@@ -1,0 +1,33 @@
+{
+ "amount": 200000,
+ "money_rows": [
+  {
+   "label": "Декабрь 2025, остаток",
+   "amount": 80000,
+   "of": null,
+   "state": "closed",
+   "periods": 1
+  },
+  {
+   "label": "Январь 2026",
+   "amount": 120000,
+   "of": 600000,
+   "state": "part",
+   "periods": 1
+  }
+ ],
+ "debt_rest": [
+  {
+   "label": "Январь 2026",
+   "amount": 480000
+  },
+  {
+   "label": "Февраль 2026",
+   "amount": 600000
+  }
+ ],
+ "debt_after": 1080000,
+ "debt_amount_after": 1080000,
+ "due_amount_after": 0,
+ "advance_after": 0
+}

@@ -1,0 +1,17 @@
+{
+ "amount": 231000,
+ "money_rows": [
+  {
+   "label": "Ноябрь",
+   "amount": 231000,
+   "of": 550000,
+   "state": "part",
+   "periods": 1
+  }
+ ],
+ "debt_rest": [],
+ "debt_after": 0,
+ "debt_amount_after": 0,
+ "due_amount_after": 319000,
+ "advance_after": 0
+}

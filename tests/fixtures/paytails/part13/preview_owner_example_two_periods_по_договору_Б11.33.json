@@ -1,0 +1,37 @@
+{
+ "amount": 550000,
+ "money_rows": [
+  {
+   "label": "Сентябрь, остаток",
+   "amount": 42000,
+   "of": null,
+   "state": "closed",
+   "periods": 1
+  },
+  {
+   "label": "Октябрь",
+   "amount": 508000,
+   "of": 550000,
+   "state": "part",
+   "periods": 1
+  }
+ ],
+ "debt_rest": [
+  {
+   "label": "Октябрь",
+   "amount": 42000
+  },
+  {
+   "label": "Ноябрь",
+   "amount": 550000
+  },
+  {
+   "label": "Декабрь",
+   "amount": 550000
+  }
+ ],
+ "debt_after": 1142000,
+ "debt_amount_after": 1142000,
+ "due_amount_after": 0,
+ "advance_after": 0
+}
