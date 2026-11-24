@@ -13,6 +13,7 @@ const PLATE = '[data-testid="enrol-note-shared"]';
 const NAMES = ["Новый", "Второй", "Третий", "Четвёртый"];
 const PEOPLE = NAMES.map((first, i) => H.STUDENT(`st${9 - i}`, first, "Ученик"));
 const SLOW_MS = 700;
+const STAND_IN_REASON = "Проверка последствий";     // `DRY_RUN_REASON` of src/lib/dry-run.ts: what a dry run asks while the own reason is not typed
 
 // the bulk dry run answers slowly (like a real network under load); everything else at once
 function slowServer(undoneIds) {
@@ -46,7 +47,17 @@ test("the remark stays while the price form is filled: a price entered shows it 
   assert.equal(await run.page.locator('[data-testid="enrol-note-undone"]').count(), 1, "the row does not blink either");
   await run.page.waitForTimeout(SLOW_MS + 300);
   assert.equal(await plates(run.page), 1, "the new answer came");
-  assert.equal(X.bulkProbes(run.calls).length - before, 1, "ONE probe for the finished form, none for the half filled one");
+  // the PROPERTY, not a count by the clock (a slow machine sends a probe in a pause of the typing): no probe went out with a half typed reason of its own (the stand-in reason or a prefix of the typed one);
+  // the last probe carries the finished form; after the answer no new probe comes
+  const sent = X.bulkProbes(run.calls).slice(before).map((c) => c.body.price_override);
+  assert.ok(sent.length >= 1, "the finished form was asked");
+  for (const own of sent) {
+    assert.equal(own.amount, 380000, "every probe carries the amount entered");
+    assert.ok(own.reason === STAND_IN_REASON || "Скидка".startsWith(own.reason), `a probe with an unrelated reason: ${own.reason}`);
+  }
+  assert.deepEqual(sent[sent.length - 1], { amount: 380000, reason: "Скидка" }, "the LAST probe carries the finished form");
+  await run.page.waitForTimeout(600);
+  assert.equal(X.bulkProbes(run.calls).length - before, sent.length, "no new probe after the answer");
   await run.page.fill("#add-student-price-reason", "");
   assert.equal(await plates(run.page), 1, "the reason erased: the price is still entered - the remark stays (the write will ask for the reason at its field)");
   await run.page.fill("#add-student-price-amount", "");

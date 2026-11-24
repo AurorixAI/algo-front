@@ -43,16 +43,18 @@ const EXPECTED = {
   // real answers of the server (part14/)
   owner_example_two_periods: {
     rows: [["Сентябрь, остаток", "42 000", "✓ оплачен"], ["Октябрь", "508 000", "из 550 000"]],
-    totalLabel: "Останется долг", totalAmount: "1 142 000 сум", alsoDue: null, rest: "октябрь 42 000 · ноябрь 550 000 · декабрь 550 000",
+    totalLabel: "Останется долг", totalAmount: "1 142 000 сум", alsoDue: null, rest: "Октябрь 42 000 · Ноябрь 550 000 · Декабрь 550 000",
   },
   four_periods_fold_advance: {
-    rows: [["Сентябрь, остаток", "42 000", "✓ оплачен"], ["Октябрь – Декабрь", "1 650 000", "✓ оплачены"], ["Аванс на январь 2027", "108 000", null]],
+    rows: [["Сентябрь, остаток", "42 000", "✓ оплачен"], ["Октябрь – декабрь", "1 650 000", "✓ оплачены"], ["Аванс на январь 2027", "108 000", null]],
     totalLabel: "Всё оплачено", totalAmount: null, alsoDue: null, rest: null,
   },
+  // PAY-TAILS Б11.37: two closed months that do not touch - two rows as the server sent them, not folded
+  closed_months_gap: { rows: [["Октябрь", "550 000", "✓ оплачен"], ["Декабрь", "550 000", "✓ оплачен"]], totalLabel: "Всё оплачено", totalAmount: null, alsoDue: null, rest: null },
   within_term_part_due: { rows: [["Декабрь", "231 000", "из 550 000"]], totalLabel: "Останется к оплате", totalAmount: "319 000 сум", alsoDue: null, rest: null },
   debt_and_due: {
     rows: [["Сентябрь, остаток", "42 000", "✓ оплачен"], ["Октябрь", "508 000", "из 550 000"]],
-    totalLabel: "Останется долг", totalAmount: "592 000 сум", alsoDue: "и к оплате ещё 550 000 сум", rest: "октябрь 42 000 · ноябрь 550 000",
+    totalLabel: "Останется долг", totalAmount: "592 000 сум", alsoDue: "и к оплате ещё 550 000 сум", rest: "Октябрь 42 000 · Ноябрь 550 000",
   },
   packages: { rows: [["Пакет № 1", "300 000", "из 400 000"]], totalLabel: "Останется долг", totalAmount: "50 000 сум", alsoDue: "и к оплате ещё 100 000 сум", rest: null },
   packages_advance: {
@@ -63,13 +65,13 @@ const EXPECTED = {
   },
   personal_month_dates: { rows: [["01.11–30.11", "200 000", "из 420 000"]], totalLabel: "Останется долг", totalAmount: "220 000 сум", alsoDue: null, rest: null },
   year_and_long_labels: {
-    rows: [["Декабрь 2026", "550 000", "✓ оплачен"], ["Январь", "450 000", "из 550 000"]], totalLabel: "Останется долг", totalAmount: "650 000 сум", alsoDue: null, rest: "январь 100 000 · февраль 550 000",
+    rows: [["Декабрь 2026", "550 000", "✓ оплачен"], ["Январь", "450 000", "из 550 000"]], totalLabel: "Останется долг", totalAmount: "650 000 сум", alsoDue: null, rest: "Январь 100 000 · Февраль 550 000",
   },
   // written by hand from the contract (the worlds of the server do not have them)
-  partial_one_period: { rows: [["Октябрь", "200 000", "из 550 000"]], totalLabel: "Останется долг", totalAmount: "900 000 сум", alsoDue: null, rest: "октябрь 350 000 · ноябрь 550 000" },
+  partial_one_period: { rows: [["Октябрь", "200 000", "из 550 000"]], totalLabel: "Останется долг", totalAmount: "900 000 сум", alsoDue: null, rest: "Октябрь 350 000 · Ноябрь 550 000" },
   single_closed: { rows: [["Октябрь", "550 000", "✓ оплачен"]], totalLabel: "Всё оплачено", totalAmount: null, alsoDue: null, rest: null },
   all_paid: { rows: [["Октябрь – ноябрь", "1 100 000", "✓ оплачены"]], totalLabel: "Всё оплачено", totalAmount: null, alsoDue: null, rest: null },
-  packages_two_left: { rows: [["Пакет № 3", "150 000", "из 400 000"]], totalLabel: "Останется долг", totalAmount: "650 000 сум", alsoDue: null, rest: "пакет № 3 — 250 000 · пакет № 4 — 400 000" },
+  packages_two_left: { rows: [["Пакет № 3", "150 000", "из 400 000"]], totalLabel: "Останется долг", totalAmount: "650 000 сум", alsoDue: null, rest: "Пакет № 3 — 250 000 · Пакет № 4 — 400 000" },
 };
 
 for (const width of [1280, 375]) {
@@ -414,6 +416,21 @@ test("Б: «Снять паузу целиком» of a cut pause - a reason is 
   await run.page.waitForFunction(() => !document.querySelector('section[aria-label="Паузы ученика"]'));
   assert.equal(calls.at(-1).dry, false);
   assert.equal(calls.at(-1).body.reason, "ученик ушёл насовсем");
+  await run.page.close();
+});
+
+test("Б11.37: the REAL pauses closed by a TRANSFER (the way back / no way back) - each card says the sentence of the server as it came, once; the reason is editable, the days are not", async () => {
+  const today = readReal("pause_closed_by_transfer_today");
+  const later = readReal("pause_closed_by_transfer_later");
+  assert.equal(today.days_locked, true);
+  assert.equal(later.days_locked, true);
+  assert.notEqual(today.days_locked_text, later.days_locked_text);
+  const run = await mount(ctx, pauseServer([{ ...today, membership_id: "m-a" }, { ...later, membership_id: "m-a" }]), "pause", OWNER, { moneyAvailable: true });
+  await run.page.waitForSelector('[data-testid="pause-locked-text"]');
+  const sentences = (await run.page.locator('[data-testid="pause-locked-text"]').allInnerTexts()).map(plain);
+  assert.deepEqual([...sentences].sort(), [today.days_locked_text, later.days_locked_text].map(plain).sort(), "the words of the server, not built or changed on the screen");
+  assert.equal(await run.page.locator('[data-testid="pause-locked-reason"]').count(), 2);
+  assert.equal(await run.page.locator('[data-testid="pause-locked-days"]').count(), 2, "the days of a locked pause are a line, not a field");
   await run.page.close();
 });
 

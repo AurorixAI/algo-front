@@ -65,9 +65,9 @@ export const SPLIT_TITLE = "Куда пойдут деньги";
 
 const digits = (value: number) => formatMoney(value).replace(/[\s\u00a0]сум$/, "");
 
-/** «октябрь 42 000»; «пакет № 4 — 250 000» (the dash only keeps a number of the label from joining the sum). */
+/** «Октябрь 42 000»; «Пакет № 4 — 250 000» - the label is the server's word as it came (no change of its case; the dash only keeps a number of the label from joining the sum). */
 function restPiece(label: string, amount: number): string {
-  const name = label.toLocaleLowerCase("ru").trim();
+  const name = label.trim();
   return /\d$/.test(name) ? `${name} — ${digits(amount)}` : `${name} ${digits(amount)}`;
 }
 

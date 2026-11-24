@@ -240,6 +240,8 @@ export interface SnapshotPrice {
 /** `GET /auth/org/payments/{id}/receipt`.  A new receipt reads the snapshot; a pre-PAY-2 one still has a period. */
 export interface ReceiptOut {
   receipt_no: number;
+  /** PAY-TAILS Б11.37: the rows «куда пошли деньги» of the server (the same as the probe's); the receipt does not read them yet (all three views move to them together - DESIGN-PASS). */
+  money_rows?: PreviewMoneyRow[];
   org_name: string;
   org_city?: string | null;
   org_phone?: string | null;

@@ -13,6 +13,7 @@ const read = (name) => JSON.parse(fs.readFileSync(path.join(contractDir, `${name
 const REAL = {
   owner_example_two_periods: "payment_probe_owner_550000",
   four_periods_fold_advance: "payment_probe_owner_1800000",
+  closed_months_gap: "payment_probe_gap_1100000",
   within_term_part_due: "payment_probe_within_term_231000",
   debt_and_due: "payment_probe_debt_and_due_550000",
   packages: "payment_probe_packages_300000",

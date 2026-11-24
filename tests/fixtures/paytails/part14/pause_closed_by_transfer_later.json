@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-11-09T07:00:00.000017",
+  "created_by_name": "Иван Owner",
+  "days": 3,
+  "days_locked": true,
+  "days_locked_text": "Пауза закрыта переводом ученика, изменить её нельзя. Можно снять паузу целиком.",
+  "first_day": "2026-11-17",
+  "id": "9f3426f1-25c8-4ffd-ba92-1603d79469b5",
+  "last_day": "2026-11-19",
+  "membership_id": "9fbc0f75-1bbf-4fd9-a34a-54223aeb4b88",
+  "reason": "Болезнь",
+  "void_reason": null,
+  "voided_at": null
+}

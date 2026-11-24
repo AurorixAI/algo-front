@@ -79,6 +79,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(out, `${name}.png
     for (const [state, pauses, props, act] of [
       ["no_cut", [pauseOf("pa", day(-3), day(9))], {}, async () => {}],
       ["cut_by_leaving", [locked()], {}, async () => {}],
+      ["closed_by_transfer_today", [pauseOf("pt", day(-3), day(9), { days_locked: true, days_locked_text: readReal("pause_closed_by_transfer_today").days_locked_text })], {}, async () => {}],
+      ["closed_by_transfer_later", [pauseOf("pu", day(-3), day(9), { days_locked: true, days_locked_text: readReal("pause_closed_by_transfer_later").days_locked_text })], {}, async () => {}],
       ["cut_reason_changed", [locked()], {}, async (page) => { await page.fill('[data-testid="pause-locked-reason"]', "уехал к родственникам в Самарканд"); }],
       ["left_student_no_form", [locked()], { active: false }, async () => {}],
       ["returned_student_form_and_locked", [locked()], {}, async () => {}],

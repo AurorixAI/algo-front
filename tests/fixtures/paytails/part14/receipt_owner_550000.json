@@ -1,0 +1,94 @@
+{
+  "accepted_by_name": "Иван Owner",
+  "advance_after": 0,
+  "allocations": [
+    {
+      "amount": 42000,
+      "bucket": "past_debt",
+      "closes": true,
+      "days": 3,
+      "label": "Погашено за 01.09–30.09",
+      "period_from": "2026-09-01",
+      "period_to": "2026-09-30",
+      "price": 550000,
+      "segment_id": "seg:0:2026-09-01",
+      "segment_remaining_after": 0
+    },
+    {
+      "amount": 508000,
+      "bucket": "past_debt",
+      "closes": false,
+      "days": 28,
+      "label": "Частично погашено за 01.10–31.10",
+      "period_from": "2026-10-01",
+      "period_to": "2026-10-31",
+      "price": 550000,
+      "segment_id": "seg:0:2026-10-01",
+      "segment_remaining_after": 42000
+    }
+  ],
+  "amount": 550000,
+  "amount_words": "Пятьсот пятьдесят тысяч сум",
+  "created_at": "2026-12-10T07:00:00.000020",
+  "currency": "UZS",
+  "debt_after": 1142000,
+  "debt_before": 1692000,
+  "disclaimer": "Не является фискальным чеком",
+  "display_id": "NO-001",
+  "group_id": "05f6fd4a-d0ec-4485-8554-3ba345149e13",
+  "group_name": "Общий",
+  "is_copy": false,
+  "issued_at": "2026-12-10T07:00:00.000022",
+  "lessons_count": null,
+  "membership_id": "8d7dbfaa-d4c4-406e-8157-d92c9770eb27",
+  "method": "cash",
+  "mode": "calendar",
+  "money_rows": [
+    {
+      "amount": 42000,
+      "label": "Сентябрь, остаток",
+      "of": null,
+      "periods": 1,
+      "state": "closed"
+    },
+    {
+      "amount": 508000,
+      "label": "Октябрь",
+      "of": 550000,
+      "periods": 1,
+      "state": "part"
+    }
+  ],
+  "note": null,
+  "org_city": null,
+  "org_name": "N13 org",
+  "org_phone": null,
+  "paid_on": "2026-12-10",
+  "paid_until_after": "2026-10-28",
+  "paid_until_before": "2026-09-27",
+  "partial_period": false,
+  "price_snapshot": {
+    "amount": 550000,
+    "source": "group"
+  },
+  "print_count": 0,
+  "recalc": [],
+  "receipt_no": 2,
+  "receipt_state_text": "оплачено 508 000 из 550 000 сум · долг 1 142 000 сум",
+  "replaced_by_receipt_no": null,
+  "replaces_amount": null,
+  "replaces_receipt_no": null,
+  "state_on_issue": {
+    "advance": 0,
+    "as_of": "2026-12-10",
+    "debt": 1142000,
+    "paid_until": "2026-10-28"
+  },
+  "student_id": "8d019859-fc98-49b9-b4f0-561d541e3592",
+  "student_name": "Ученик Ученик ОМ",
+  "valid_from": "2026-09-01",
+  "valid_to": "2026-10-28",
+  "void_note": null,
+  "void_reason": null,
+  "voided_at": null
+}

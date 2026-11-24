@@ -94,3 +94,24 @@ test("PAY-TAILS Б1.5: a partial payment, a closed membership and a forgiven per
   assert.deepEqual(facts.bad, []);
   await narrow.page.close();
 });
+
+// PAY-TAILS Б11.37: the REAL receipts of the server carry `money_rows`; the type of the answer allows the field and the receipt looks the same with it and without it (the move of the three views is later)
+test("Б11.37: a real receipt with money_rows draws exactly as the same one without them; the type of the answer has the field", async () => {
+  const types = fs.readFileSync(path.join(root, "src", "lib", "payments.ts"), "utf8");
+  assert.match(/export interface ReceiptOut \{[\s\S]*?\n\}/.exec(types)[0], /money_rows\?: PreviewMoneyRow\[\];/);
+  for (const name of ["receipt_owner_1800000", "receipt_owner_550000", "receipt_personal_500000"]) {
+    const real = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "paytails", "part14", `${name}.json`), "utf8"));
+    assert.ok(Array.isArray(real.money_rows) && real.money_rows.length > 0, name);
+    assert.equal(real.money_rows.reduce((total, row) => total + row.amount, 0), real.amount, `${name}: the rows add up to the receipt`);
+    const { money_rows, ...without } = real;
+    const texts = [];
+    for (const receipt of [real, without]) {
+      const run = await openPage(browser, "money.entry.tsx", () => null, { width: 1280, height: 1100 });
+      await run.page.evaluate((r) => window.mount("receipt", undefined, { receipt: r }), receipt);
+      await run.page.waitForSelector('[aria-label^="Квитанция"]');
+      texts.push(plain(await run.page.locator('[aria-label^="Квитанция"]').innerText()));
+      await run.page.close();
+    }
+    assert.equal(texts[0], texts[1], `${name}: the field changes nothing on the screen`);
+  }
+});

@@ -257,7 +257,7 @@ test("Б11.34: the preview with money_rows reads through the parser as it is, an
 test("Б11.34: the REAL answers of the server (part14/) read through the parser as they came; the header of the window and the block close in each (174), the words are the server's", () => {
   const dir = path.join(__dirname, "fixtures/paytails/part14");
   const files = fs.readdirSync(dir).filter((name) => name.startsWith("payment_probe_"));
-  assert.equal(files.length, 9);
+  assert.equal(files.length, 10);
   for (const file of files) {
     const raw = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
     const p = L.normalizePreview(raw);
