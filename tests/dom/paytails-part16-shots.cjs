@@ -116,10 +116,10 @@ async function compare(page, label, [sampleName, scope]) {
   const moved = (answer.charge_rows ?? []).filter((row) => row.period_label);
   if (lines.length !== moved.length) suspicious.push(`${label}: ${lines.length} lines of moved periods, ${moved.length} in the sample`);
   const text = plain(await page.locator(scope).innerText());
-  const balance = text.match(/Остаток: долг ([\d\s]+) сум → долг ([\d\s]+) сум/);
+  const balance = text.match(/Было: долг ([\d\s]+) сум → станет: долг ([\d\s]+) сум/);
   if (balance) {
     const rowsSum = shown.reduce((total, [, amount]) => total + (amount ? (amount.startsWith("−") ? -1 : 1) * num(amount) : 0), 0);
-    const movedSum = lines.reduce((total, line) => total + (/начнётся/.test(line) ? -1 : 1) * num(line.match(/оплата ([\d\s]+) сум/)[1]), 0);
+    const movedSum = lines.reduce((total, line) => total + (/появятся/.test(line) ? -1 : 1) * num(line.match(/: ([\d\s]+) сум/)[1]), 0);
     if (num(balance[1]) + rowsSum + movedSum !== num(balance[2])) suspicious.push(`${label}: debt ${balance[1]} + rows ${rowsSum} + moved ${movedSum} is not debt ${balance[2]}`);
   }
 }

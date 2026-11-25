@@ -41,12 +41,12 @@ async function money(page, scope = "") {
     };
   });
 }
-/** «Остаток: долг X сум → долг Y сум» read from the screen: X + Σ rows on the screen + Σ moved periods on the screen = Y (nothing from the answer: the numbers a person reads). */
+/** «Было: долг X сум → станет: долг Y сум» read from the screen: X + Σ rows on the screen + Σ moved periods on the screen = Y (nothing from the answer: the numbers a person reads). */
 function reconcile(text, read, label) {
-  const [, before, after] = text.match(/Остаток: долг ([\d\s]+) сум → долг ([\d\s]+) сум/);
+  const [, before, after] = text.match(/Было: долг ([\d\s]+) сум → станет: долг ([\d\s]+) сум/);
   const num = (value) => Number(value.replace(/\D/g, ""));
   const rowsSum = read.rows.reduce((total, [, amount]) => total + digits(amount), 0);
-  const movedSum = read.deferred.reduce((total, line) => total + (/начнётся/.test(line) ? -1 : 1) * num(line.match(/оплата ([\d\s]+) сум/)[1]), 0);
+  const movedSum = read.deferred.reduce((total, line) => total + (/появятся/.test(line) ? -1 : 1) * num(line.match(/: ([\d\s]+) сум/)[1]), 0);
   assert.equal(num(before) + rowsSum + movedSum, num(after), `${label}: debt ${before} + rows ${rowsSum} + moved ${movedSum} = debt ${after}`);
 }
 const calcOf = async (page) => { await page.waitForSelector('[data-testid="pause-calc-wrap"], [data-testid="pause-calc"] [role="alert"]'); return page; };
@@ -213,7 +213,7 @@ for (const width of [1280, 375]) {
     assert.equal(await run.page.locator('[data-testid="pause-card"]').count(), 0, "the card is squeezed");
     assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), width === 1280 ? /^Сейчас на паузе · с \d\d\.\d\d по \d\d\.\d\d$/ : /^Сейчас на паузе с \d\d\.\d\d по \d\d\.\d\d$/, "below sm the dates stand on their own line, no separator");
     assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), `Последний день паузы — вчера, ${dateOf(day(-1))}.`);
-    assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["24.11–30.11 · 3 урока", "+150 000 сум"]], total: null, deferred: [], later: null, note: null });
+    assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "За эти уроки снова нужно платить", rows: [["24.11–30.11 · 3 урока", "+150 000 сум"]], total: null, deferred: [], later: null, note: null });
     assert.equal(await run.page.locator("#pause-act-reason").count(), 0, "a plain ending asks no reason until the server wants it");
     assert.equal(await acting.getByRole("button", { name: "Закончить паузу", exact: true }).getAttribute("data-variant"), "primary");
     assert.equal(await acting.getByRole("button", { name: "Назад", exact: true }).count(), 1);
@@ -236,7 +236,7 @@ test("Э3 / Э6 / Э7' «Снять паузу целиком» (running): the s
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const acting = run.page.locator('[data-testid="pause-card-acting"]');
   assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза будет снята целиком, как будто её не было.");
-  assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["17.11–30.11 · 6 уроков, из них 3 уже прошли", "+300 000 сум"]], total: null, deferred: [], later: null, note: null });
+  assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "За эти уроки снова нужно платить", rows: [["17.11–30.11 · 6 уроков, из них 3 уже прошли", "+300 000 сум"]], total: null, deferred: [], later: null, note: null });
   const label = acting.locator('label[for="pause-act-reason"]');
   assert.equal(plain(await label.innerText()), "Причина (обязательно)");
   assert.ok((await acting.locator('[data-testid="pause-money"]').boundingBox()).y < (await label.boundingBox()).y, "the reason stands under the money");
@@ -262,7 +262,7 @@ test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не
   const acting = run.page.locator('[data-testid="pause-card-acting"]');
   assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), /^Пауза запланирована · с /);
   assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся, её дни войдут в стоимость.");
-  assert.deepEqual(await money(run.page), { heading: null, rows: [], total: null, deferred: [], later: "01.12–10.12 — следующий период: эти дни в стоимость войдут.", note: null }, "only the quiet line: NO heading over it (Б11.45 Э2)");
+  assert.deepEqual(await money(run.page), { heading: null, rows: [], total: null, deferred: [], later: "01.12–10.12 — следующий период: за эти дни снова нужно платить.", note: null }, "only the quiet line: NO heading over it (Б11.45 Э2)");
   assert.equal(await acting.getByRole("button", { name: "Снять паузу", exact: true }).count(), 1);
   await acting.getByRole("button", { name: "Назад", exact: true }).click();
   await run.page.waitForSelector('[data-testid="pause-card"]');
@@ -429,8 +429,8 @@ test("Э4' a student who has left and has NO card (only a pause without locked d
 
 // ── Э6 / Э7: the calculation under the form ─────────────────────────────────────────────────────────────
 
-const LATER_SET = (label) => `${label} — следующий период: эти дни в стоимость не войдут.`;
-const DEFER_CREATE = (label, sum, from) => `${label}: оплата ${sum} сум начнётся ${from} — до этого дня она в долг не входит.`;
+const LATER_SET = (label) => `${label} — следующий период: за эти дни тоже платить не нужно.`;
+const DEFER_CREATE = (label, sum, from) => `${label}: ${sum} сум появятся в долге ${from}, после паузы.`;
 const CALC_CASES = [
   { name: "pause_probe_create_week", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, deferred: [], later: null },
   { name: "pause_probe_create_two_months", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, deferred: [], later: LATER_SET("01.12–03.12") },
@@ -443,7 +443,7 @@ const CALC_CASES = [
 ];
 for (const width of [1280, 375]) {
   for (const one of CALC_CASES) {
-    test(`Э6 (${width}) ${one.name}: heading «Не входят в стоимость», the rows ARE the charge_rows of the answer${one.total !== null ? ", «Итого» under a line" : ""}, «Место в группе сохраняется.»; the line under the dates is gone`, async () => {
+    test(`Э6 (${width}) ${one.name}: heading «За эти уроки платить не нужно», the rows ARE the charge_rows of the answer${one.total !== null ? ", «Итого» under a line" : ""}, «Место в группе сохраняется.»; the line under the dates is gone`, async () => {
       setWorld(worldDay(one.name));
       const answer = contract(one.name);
       const run = await open(pauseServer({ pauses: [], create: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
@@ -453,13 +453,13 @@ for (const width of [1280, 375]) {
       const read = await money(run.page, '[data-testid="pause-calc"]');
       assert.deepEqual(read.rows.map(([label, amount]) => [label, amount && Number(amount.replace(/[^\d]/g, "")) * (amount.startsWith("−") ? -1 : 1)]), one.rows.map(([label, amount]) => [label, amount]));
       for (const [index, [, amount]] of read.rows.entries()) assert.equal(amount, sum(one.rows[index][1]), "a real minus sign and a space that does not break");
-      assert.equal(read.heading, one.heading === undefined ? "Не входят в стоимость" : one.heading);
+      assert.equal(read.heading, one.heading === undefined ? "За эти уроки платить не нужно" : one.heading);
       assert.equal(read.total, one.total === null ? null : sum(one.total));
       assert.deepEqual(read.deferred, one.deferred, "one quiet line per moved period, the server's label first");
       assert.equal(read.later, one.later);
       // the check of the number on the screen: the debt before + the rows + what the move puts in / takes out of the bill = the debt after
       const balance = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
-      if (/Остаток: долг/.test(balance)) reconcile(balance, read, one.name);
+      if (/Было: долг/.test(balance)) reconcile(balance, read, one.name);
       assert.equal(answer.charge_rows.length, one.rows.length, "the sample is the one the test describes");
       assert.equal(read.note, "Место в группе сохраняется.");
       assert.equal(answer.charge_rows.reduce((total, row) => total + row.amount + (row.deferred ?? 0), 0), answer.impact.charged_delta, "the sample itself keeps «Σ amount + Σ deferred = charged_delta» (Б11.45)");
@@ -486,7 +486,7 @@ test("Э6 the lines under the rows: «Оплачено до станет …» a
   const box = run.page.locator('[data-testid="pause-calc"]');
   const text = plain(await box.innerText());
   assert.ok(text.includes("Оплачено до станет 30.11."), text);
-  assert.ok(text.includes("Остаток: долг 600 000 сум → долг 450 000 сум"), text);
+  assert.ok(text.includes("Было: долг 600 000 сум → станет: долг 450 000 сум"), text);
   assert.ok((await box.locator('[data-testid="pause-money-note"]').boundingBox()).y < (await box.getByText("Оплачено до станет 30.11.").boundingBox()).y, "under the rows and the note");
   await footer(run.page).getByRole("button", { name: "Поставить на паузу" }).click();
   await run.page.waitForFunction(() => window.__log.some((line) => line.startsWith("changed:Пауза поставлена")));
@@ -501,7 +501,7 @@ test("Э6 a role WITHOUT the right to money: the rows have the period and the le
   await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const read = await money(run.page, '[data-testid="pause-calc"]');
-  assert.deepEqual(read, { heading: "Не входят в стоимость", rows: [["24.11–30.11 · 3 урока", null]], total: null, deferred: [], later: LATER_SET("01.12–03.12"), note: "Место в группе сохраняется." });
+  assert.deepEqual(read, { heading: "За эти уроки платить не нужно", rows: [["24.11–30.11 · 3 урока", null]], total: null, deferred: [], later: LATER_SET("01.12–03.12"), note: "Место в группе сохраняется." });
   assert.ok(!/сум|\d{3}/.test(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()).replace(/\d\d\.\d\d/g, "")), "no money digits");
   await run.page.close();
 });
@@ -529,7 +529,7 @@ test("Э6 an OLD server (no `charge_rows`, no `charge_later` in the answer at al
   await fill(run.page, day(0), day(6));
   await run.page.waitForSelector('[data-testid="pause-calc-wrap"]');
   assert.equal(await run.page.locator('[data-testid="pause-money"]').count(), 0);
-  assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), "Дни паузы не входят в стоимость: 7 дней, −150 000 сум. Место в группе сохраняется. Остаток: долг 600 000 сум → долг 450 000 сум");
+  assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), "Дни паузы не входят в стоимость: 7 дней, −150 000 сум. Место в группе сохраняется. Было: долг 600 000 сум → станет: долг 450 000 сум");
   await run.page.close();
 });
 
@@ -541,7 +541,7 @@ test("Э7 the warnings (backdated, attended lessons, payroll) are SEPARATE yello
   await run.page.waitForSelector('[data-testid="pause-warnings"]');
   const lines = (await run.page.locator('[data-testid="pause-warnings"] p').allInnerTexts()).map(plain);
   assert.equal(lines.length, 3);
-  assert.match(lines[0], /^Пауза задним числом: уроки с \d\d\.\d\d по \d\d\.\d\d не будут засчитаны ни ученику, ни преподавателю$/);
+  assert.match(lines[0], /^Пауза начинается в прошлом: за уже прошедшие уроки \(\d\d\.\d\d–\d\d\.\d\d\) ученик не платит, преподавателю за него они не засчитываются\.$/);
   assert.match(lines[1], /^Ученик был отмечен на уроках \d\d\.\d\d — на эти даты паузу поставить нельзя$/);
   assert.equal(lines[2], "Зарплата за ноябрь изменится — потом сохраните новую сумму");
   const money = await run.page.locator('[data-testid="pause-calc"]').boundingBox();
@@ -669,10 +669,10 @@ test("«окно = ответ»: for EVERY sample of the contract the rows on th
     // the quiet line of every row that has `period_label`
     const moved = (answer.charge_rows ?? []).filter((row) => row.period_label);
     const lines = (await run.page.locator(`${scope} [data-testid="pause-money-deferred"]`).allInnerTexts()).map(plain);
-    assert.deepEqual(lines, moved.map((row) => `${row.period_label}: оплата ${unsigned(row.deferred)} ${row.deferred < 0 ? "начнётся" : "началась"} ${dm(row.period_begins)} ${row.deferred < 0 ? "— до этого дня она в долг не входит." : "и снова входит в долг."}`), name);
+    assert.deepEqual(lines, moved.map((row) => `${row.period_label}: ${unsigned(row.deferred)} ${row.deferred < 0 ? `появятся в долге ${dm(row.period_begins)}, после паузы.` : `снова в долге с ${dm(row.period_begins)}.`}`), name);
     const later = await run.page.locator(`${scope} [data-testid="pause-money-later"]`).count();
     assert.equal(later, answer.charge_later ? 1 : 0, `${name}: the line of the period that is not charged yet`);
-    if (answer.charge_later) assert.ok(plain(await run.page.locator(`${scope} [data-testid="pause-money-later"]`).innerText()).startsWith(`${answer.charge_later.label} — следующий период: эти дни в стоимость`));
+    if (answer.charge_later) assert.ok(plain(await run.page.locator(`${scope} [data-testid="pause-money-later"]`).innerText()).startsWith(`${answer.charge_later.label} — следующий период: за эти дни`));
     await run.page.close();
   }
 });
@@ -732,7 +732,7 @@ test("Б11.37 / Б11.34 the REAL pause objects of the server (closed by a transf
 
 /** What the text of the block says, read from the screen: the sum of the rows, the sum the move takes out / puts back, the debts before / after - the reconciliation of the person. */
 for (const width of [1280, 375]) {
-  test(`Б11.45 (${width}) «Снять паузу целиком» (the world 02.12): the row of December is an ordinary one «01.12–03.12 · 2 урока, из них 1 уже прошёл» +86 000, the quiet line says 514 000 «началась 01.12 и снова входит в долг»; the debt 450 000 + 236 000 + 514 000 = 1 200 000`, async () => {
+  test(`Б11.45 (${width}) «Снять паузу целиком» (the world 02.12): the row of December is an ordinary one «01.12–03.12 · 2 урока, из них 1 уже прошёл» +86 000, the quiet line says 514 000 «снова в долге с 01.12»; the debt 450 000 + 236 000 + 514 000 = 1 200 000`, async () => {
     setWorld(worldDay("pause_probe_void_two_months_0212"));
     const answer = contract("pause_probe_void_two_months_0212");
     const run = await open(pauseServer({ pauses: [pauseBefore("pause_probe_void_two_months_0212")], void: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
@@ -740,13 +740,13 @@ for (const width of [1280, 375]) {
     await run.page.waitForSelector('[data-testid="pause-money"]');
     const read = await money(run.page, '[data-testid="pause-card-acting"]');
     assert.deepEqual(read, {
-      heading: "Снова входят в стоимость",
+      heading: "За эти уроки снова нужно платить",
       rows: [["24.11–30.11 · 3 урока, из них 3 уже прошли", "+150 000 сум"], ["01.12–03.12 · 2 урока, из них 1 уже прошёл", "+86 000 сум"]],
-      total: "+236 000 сум", deferred: ["Декабрь: оплата 514 000 сум началась 01.12 и снова входит в долг."], later: null, note: null,
+      total: "+236 000 сум", deferred: ["Декабрь: 514 000 сум снова в долге с 01.12."], later: null, note: null,
     });
     const text = plain(await run.page.locator('[data-testid="pause-card-acting"]').innerText());
     reconcile(text, read, "void_two_months_0212");
-    assert.ok(text.includes("Остаток: долг 450 000 сум → долг 1 200 000 сум"), text);
+    assert.ok(text.includes("Было: долг 450 000 сум → станет: долг 1 200 000 сум"), text);
     assert.ok(!/оплата периода|период входит/.test(text));
     const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(probe.bad, []);
@@ -755,7 +755,7 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("Б11.45 the same worlds, the debt of the window: «Остаток: долг … → долг …» of the three real answers = the debt before + Σ rows + Σ moved, read from the screen", async () => {
+test("Б11.45 the same worlds, the debt of the window: «Было: долг … → станет: долг …» of the three real answers = the debt before + Σ rows + Σ moved, read from the screen", async () => {
   for (const [name, kind] of [["pause_probe_create_two_months_begun_0212", "create"], ["pause_probe_create_backdated_month_start", "create"], ["pause_probe_void_two_months_0212", "void"]]) {
     setWorld(worldDay(name));
     const answer = contract(name);
@@ -766,15 +766,15 @@ test("Б11.45 the same worlds, the debt of the window: «Остаток: дол�
     const scope = kind === "create" ? '[data-testid="pause-calc"]' : '[data-testid="pause-card-acting"]';
     const read = await money(run.page, scope);
     const text = plain(await run.page.locator(scope).innerText());
-    assert.match(text, /Остаток: долг [\d\s]+ сум → долг [\d\s]+ сум/, name);
+    assert.match(text, /Было: долг [\d\s]+ сум → станет: долг [\d\s]+ сум/, name);
     reconcile(text, read, name);
     await run.page.close();
   }
 });
 
-test("Б11.45 a role WITHOUT money: the same real worlds, the moved period is a quiet line WITHOUT a sum («начнётся 04.12» / «началась 01.12»), the rows have no sums, no «Итого»", async () => {
+test("Б11.45 a role WITHOUT money: the same real worlds, the moved period is a quiet line WITHOUT a sum («появится в долге 04.12» / «снова в долге с 01.12»), the rows have no sums, no «Итого»", async () => {
   const stripped = (name) => ({ ...contract(name), impact: null, charge_rows: contract(name).charge_rows.map((row) => ({ ...row, amount: null, deferred: null })) });
-  for (const [name, kind, line] of [["pause_probe_create_two_months_begun_0212", "create", "Декабрь: оплата начнётся 04.12."], ["pause_probe_void_two_months_0212", "void", "Декабрь: оплата началась 01.12."]]) {
+  for (const [name, kind, line] of [["pause_probe_create_two_months_begun_0212", "create", "Декабрь: оплата появится в долге 04.12, после паузы."], ["pause_probe_void_two_months_0212", "void", "Декабрь: оплата снова в долге с 01.12."]]) {
     setWorld(worldDay(name));
     const answer = stripped(name);
     const run = kind === "create"
@@ -789,7 +789,7 @@ test("Б11.45 a role WITHOUT money: the same real worlds, the moved period is a 
   }
 });
 
-test("stress_ Б11.45 a pause on a day without a lesson at the start of the period: the real answer of the backdated month start with `amount` 0 and `lessons` 0 (a SYNTHETIC change of two fields) - no row, no heading, no «Итого»: only the quiet line «Декабрь: оплата 600 000 сум начнётся 11.12 …»; «из них прошло» is not written", async () => {
+test("stress_ Б11.45 a pause on a day without a lesson at the start of the period: the real answer of the backdated month start with `amount` 0 and `lessons` 0 (a SYNTHETIC change of two fields) - no row, no heading, no «Итого»: only the quiet line «Декабрь: 600 000 сум появятся в долге 11.12, после паузы.»; «из них прошло» is not written", async () => {
   setWorld(worldDay("pause_probe_create_backdated_month_start"));
   const real = contract("pause_probe_create_backdated_month_start");
   const answer = { ...real, charge_rows: real.charge_rows.map((row) => ({ ...row, lessons: 0, lessons_passed: null, amount: 0, deferred: -600000 })) };
@@ -819,7 +819,7 @@ test("stress_ Б11.45 (375) the quiet line of a moved period with a seven-digit 
   await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const read = await money(run.page, '[data-testid="pause-calc"]');
-  assert.deepEqual(read.deferred, ["11.01.2027–30.01.2027: оплата 7 654 321 сум начнётся 31.01 — до этого дня она в долг не входит."]);
+  assert.deepEqual(read.deferred, ["11.01.2027–30.01.2027: 7 654 321 сум появятся в долге 31.01, после паузы."]);
   assert.equal(read.total, "−3 111 110 сум");
   reconcile(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), read, "stress deferred");
   const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
@@ -853,7 +853,7 @@ test("Б11.45 Э3 the warning of a backdated pause of ONE day (the real answer o
   await run.page.waitForSelector("#pause-first");
   await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-warnings"]');
-  assert.equal(plain(await run.page.locator('[data-testid="pause-warnings"] p').first().innerText()), "Пауза задним числом: уроки за 01.12 не будут засчитаны ни ученику, ни преподавателю");
+  assert.equal(plain(await run.page.locator('[data-testid="pause-warnings"] p').first().innerText()), "Пауза начинается в прошлом: за уже прошедшие уроки (01.12) ученик не платит, преподавателю за него они не засчитываются.");
   await run.page.close();
 });
 

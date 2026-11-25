@@ -67,11 +67,12 @@ export function balanceWords(debt: number, advance: number): string {
 }
 
 /** «Остаток: долг 20 000 сум → аванс 80 000 сум»; "" when nothing moves. */
-export function impactBalanceLine(impact: ImpactMoney | null | undefined): string {
+export function impactBalanceLine(impact: ImpactMoney | null | undefined, wording: "rest" | "was" = "rest"): string {
   if (!impact) return "";
   const before = balanceWords(impact.debt_before, impact.advance_before);
   const after = balanceWords(impact.debt_after, impact.advance_after);
-  return before === after ? "" : `Остаток: ${before} → ${after}`;
+  if (before === after) return "";
+  return wording === "was" ? `Было: ${before} → станет: ${after}` : `Остаток: ${before} → ${after}`;
 }
 
 /** «Оплачено до: 30.10.2026 → 03.11.2026»; "" when it does not move. */
@@ -465,7 +466,7 @@ export function buildPauseBody(values: PauseFormValues): { first_day: string; la
 export function pauseCalcTail(impact: ImpactMoney | null | undefined): string[] {
   const lines: string[] = [];
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
-  const balance = impactBalanceLine(impact);
+  const balance = impactBalanceLine(impact, "was");
   if (balance) lines.push(balance);
   return lines;
 }
@@ -488,12 +489,12 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "oth
 export type PauseMoneyAction = "set" | "end" | "void";
 
 export interface PauseMoneyModel {
-  /** By the ACTION, not by the sign (Б11.40 Э5'): «Не входят в стоимость» for a new pause, «Снова входят в стоимость» for an ending and a void. */
+  /** By the ACTION, not by the sign (Б11.40 Э5'): «За эти уроки платить не нужно» for a new pause, «За эти уроки снова нужно платить» for an ending and a void. */
   heading: string | null;
   rows: Array<{ key: string; label: string; amount: string | null }>;
   /** «Итого» under a line: two rows and more, for a role that sees money. */
   total: string | null;
-  /** Б11.45: one quiet line per period the action moves across the working day («Декабрь: оплата 514 000 сум начнётся 04.12 — …»). */
+  /** Б11.45: one quiet line per period the action moves across the working day («Декабрь: 514 000 сум появятся в долге 04.12, после паузы.»). */
   deferrals: string[];
   /** The days of the change that fall into a period not charged yet - one quiet line. */
   later: string | null;
@@ -518,16 +519,16 @@ function chargeRowShown(row: ChargeRow): boolean {
 }
 
 /**
- * Б11.45: the quiet line of a period that has `period_label` (the server's words, capitalised, put FIRST): «Декабрь: оплата 514 000 сум начнётся 04.12 — до этого дня она в долг не входит.» /
- * «Декабрь: оплата 514 000 сум началась 01.12 и снова входит в долг.»; a role without money (`deferred` null): «Декабрь: оплата начнётся 04.12.» (the begin is after the working day) / «… началась 01.12.».
+ * Б11.45 / Б11.49: the quiet line of a period that has `period_label` (the server's words, capitalised, put FIRST): «Декабрь: 514 000 сум появятся в долге 04.12, после паузы.» /
+ * «Декабрь: 514 000 сум снова в долге с 01.12.»; a role without money (`deferred` null): «Декабрь: оплата появится в долге 04.12, после паузы.» (the begin is after the working day) / «Декабрь: оплата снова в долге с 01.12.».
  */
 export function chargeDeferralText(row: ChargeRow, today: string): string | null {
   if (!row.period_label || !row.period_begins) return null;
   const from = formatDayMonthRu(row.period_begins);
-  if (row.deferred === null || row.deferred === undefined) return `${row.period_label}: оплата ${row.period_begins > today ? "начнётся" : "началась"} ${from}.`;
+  if (row.deferred === null || row.deferred === undefined) return row.period_begins > today ? `${row.period_label}: оплата появится в долге ${from}, после паузы.` : `${row.period_label}: оплата снова в долге с ${from}.`;
   if (row.deferred === 0) return null;
   const sum = formatMoney(Math.abs(row.deferred));
-  return row.deferred < 0 ? `${row.period_label}: оплата ${sum} начнётся ${from} — до этого дня она в долг не входит.` : `${row.period_label}: оплата ${sum} началась ${from} и снова входит в долг.`;
+  return row.deferred < 0 ? `${row.period_label}: ${sum} появятся в долге ${from}, после паузы.` : `${row.period_label}: ${sum} снова в долге с ${from}.`;
 }
 
 /**
@@ -544,11 +545,11 @@ export function pauseMoneyModel(saved: { charge_rows?: ChargeRow[] | null; charg
   const set = action === "set";
   const withSums = rows.filter((row) => row.amount !== null && row.amount !== undefined);
   return {
-    heading: rows.length > 0 ? (set ? "Не входят в стоимость" : "Снова входят в стоимость") : null,
+    heading: rows.length > 0 ? (set ? "За эти уроки платить не нужно" : "За эти уроки снова нужно платить") : null,
     rows: rows.map((row, index) => ({ key: `${row.first_day}-${row.last_day}-${index}`, label: chargeRowLabel(row), amount: row.amount === null || row.amount === undefined ? null : formatSignedMoney(row.amount) })),
     total: withSums.length >= 2 && withSums.length === rows.length ? formatSignedMoney(withSums.reduce((total, row) => total + (row.amount ?? 0), 0)) : null,
     deferrals,
-    later: later ? `${later.label} — следующий период: эти дни в стоимость ${set ? "не войдут" : "войдут"}.` : null,
+    later: later ? `${later.label} — следующий период: ${set ? "за эти дни тоже платить не нужно" : "за эти дни снова нужно платить"}.` : null,
     note: set ? "Место в группе сохраняется." : null,
   };
 }
@@ -560,7 +561,7 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   const { pause } = saved;
   if (pause.first_day < today) {
     const to = pause.last_day < today ? pause.last_day : addIsoDays(today, -1);
-    out.push(`Пауза задним числом: уроки ${to === pause.first_day ? `за ${formatDayMonthRu(to)}` : `с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(to)}`} не будут засчитаны ни ученику, ни преподавателю`);
+    out.push(`Пауза начинается в прошлом: за уже прошедшие уроки (${to === pause.first_day ? formatDayMonthRu(to) : `${formatDayMonthRu(pause.first_day)}–${formatDayMonthRu(to)}`}) ученик не платит, преподавателю за него они не засчитываются.`);
   }
   const attended = arr<PauseLessonMark>(saved.lessons?.attended);
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));

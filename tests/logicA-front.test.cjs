@@ -204,12 +204,12 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   const saved = named("A06_");
   const calc = { pause: saved.pause, impact: G.normalizeImpact(saved.impact) };
   assert.deepEqual(G.pauseCalcLines(calc).map(plain), [
-    "Дни паузы не входят в стоимость: 5 дней, −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Остаток: долг 20 000 сум → аванс 80 000 сум",
+    "Дни паузы не входят в стоимость: 5 дней, −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Было: долг 20 000 сум → станет: аванс 80 000 сум",
   ]);
   // a role without money sees no sum
   assert.deepEqual(G.pauseCalcLines({ pause: saved.pause, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
   const warnings = G.pauseWarnings(saved, today);
-  assert.ok(warnings[0].startsWith("Пауза задним числом: уроки за 20.10 не будут засчитаны ни ученику, ни преподавателю"));
+  assert.ok(warnings[0].startsWith("Пауза начинается в прошлом: за уже прошедшие уроки (20.10) ученик не платит, преподавателю за него они не засчитываются."));
   assert.ok(warnings.some((line) => /Зарплата за октябрь изменится — потом сохраните новую сумму/.test(line)));
   assert.match(G.attendedText(["2026-10-12", "2026-10-14"]), /^Ученик был отмечен на уроках 12\.10, 14\.10 — на эти даты паузу поставить нельзя$/);
   // the chip: «На паузе до 20.10»; in the list and in the card
