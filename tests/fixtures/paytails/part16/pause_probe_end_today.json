@@ -5,12 +5,14 @@
     {
       "amount": 150000,
       "days": 7,
+      "deferred": null,
       "first_day": "2026-11-24",
       "label": "24.11–30.11",
       "last_day": "2026-11-30",
       "lessons": 3,
       "lessons_passed": 0,
-      "period_begins": null
+      "period_begins": null,
+      "period_label": null
     }
   ],
   "dry_run": true,
@@ -39,9 +41,9 @@
     "days_locked": false,
     "days_locked_text": null,
     "first_day": "2026-11-17",
-    "id": "99055dbe-1bff-49ce-b9c0-072c4c9caa4d",
+    "id": "cabf5c3c-9d92-47a7-961f-adfa240e13e0",
     "last_day": "2026-11-23",
-    "membership_id": "6ee609a5-aa8f-4810-81aa-c176fc8b77f9",
+    "membership_id": "7927a02e-c764-4121-ba35-c292a5e355f1",
     "reason": "Поправили",
     "void_reason": null,
     "voided_at": null

@@ -28,9 +28,9 @@
     "days_locked": false,
     "days_locked_text": null,
     "first_day": "2026-12-01",
-    "id": "87ea4c7f-1025-4199-b735-7affd9585cb0",
+    "id": "e248d43f-8f79-4854-bd23-dc1beaff0443",
     "last_day": "2026-12-10",
-    "membership_id": "0bc2b36a-d995-48bb-8625-4dd343e10054",
+    "membership_id": "4c8b6d50-3e55-4340-b02a-c507c9382e1f",
     "reason": "Болезнь",
     "void_reason": "Передумали",
     "voided_at": "2026-11-24T07:00:00.000016"

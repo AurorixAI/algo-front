@@ -3,14 +3,16 @@
   "charge_later": null,
   "charge_rows": [
     {
-      "amount": -600000,
+      "amount": -214000,
       "days": 10,
+      "deferred": -386000,
       "first_day": "2026-12-01",
       "label": "01.12–10.12",
       "last_day": "2026-12-10",
       "lessons": 5,
       "lessons_passed": null,
-      "period_begins": "2026-12-11"
+      "period_begins": "2026-12-11",
+      "period_label": "Декабрь"
     }
   ],
   "dry_run": true,
@@ -39,9 +41,9 @@
     "days_locked": false,
     "days_locked_text": null,
     "first_day": "2026-12-01",
-    "id": "a654ab25-ba09-4ff4-9b54-2bde76d9a008",
+    "id": "e931475f-9992-4aea-a1fa-1ecac848db34",
     "last_day": "2026-12-10",
-    "membership_id": "ef112115-f9c4-43a1-9fc7-57ea639a1eb5",
+    "membership_id": "b0312fff-3919-4eca-b971-2da68ac54e7c",
     "reason": "Болезнь",
     "void_reason": null,
     "voided_at": null
