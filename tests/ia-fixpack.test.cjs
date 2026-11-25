@@ -573,7 +573,7 @@ test("F19 / Q4: no «Начисл…» on the money screens of the student; the 
   assert.match(read("src/components/payroll/sheet-controls.tsx"), />Заработано<\/th>/);
   assert.doesNotMatch(read("src/components/payroll/sheet-table.tsx").replace(/\/\*[\s\S]*?\*\//g, ""), /<th[^>]*>Начислено/);
   const L3 = require(path.join(root, "src/lib/payments-logica.ts"));
-  assert.deepEqual(L3.pauseCalcLines({ pause: { first_day: "2026-10-20", last_day: "2026-10-24", days: 5 }, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
+  assert.deepEqual(L3.pauseCalcLines({ pause: { first_day: "2026-10-20", last_day: "2026-10-24", days: 5 }, impact: null }), ["За дни паузы платить не нужно: 5 дней. Место в группе сохраняется."]);
 });
 
 test("F22 / F23 / F24: «Прикрепить» + object, «Настройки» everywhere, one H1 size on the owner / admin screens", () => {

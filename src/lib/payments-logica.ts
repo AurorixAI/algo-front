@@ -472,7 +472,7 @@ export function pauseCalcTail(impact: ImpactMoney | null | undefined): string[] 
 }
 
 /**
- * The OLD calculation under the form (an old server without `charge_rows`, a personal period, packages): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется.
+ * The OLD calculation under the form (an old server without `charge_rows`, a personal period, packages): «За дни паузы платить не нужно: 10 дней, −200 000 сум. Место в группе сохраняется.
  * Оплачено до станет 09.11.» - the money part only for a role that sees money (`impact` is null otherwise).
  */
 export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "other_groups_text"> | null | undefined): string[] {
@@ -480,8 +480,8 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact" | "oth
   const { pause, impact } = saved;
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
   const head = impact && impact.charged_delta !== 0
-    ? `Дни паузы не входят в стоимость: ${daysLabel(days)}, ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
-    : `Дни паузы не входят в стоимость: ${daysLabel(days)}.`;
+    ? `За дни паузы платить не нужно: ${daysLabel(days)}, ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
+    : `За дни паузы платить не нужно: ${daysLabel(days)}.`;
   return [`${head} Место в группе сохраняется.`, ...pauseCalcTail(impact)];
 }
 
@@ -561,7 +561,10 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   const { pause } = saved;
   if (pause.first_day < today) {
     const to = pause.last_day < today ? pause.last_day : addIsoDays(today, -1);
-    out.push(`Пауза начинается в прошлом: за уже прошедшие уроки (${to === pause.first_day ? formatDayMonthRu(to) : `${formatDayMonthRu(pause.first_day)}–${formatDayMonthRu(to)}`}) ученик не платит, преподавателю за него они не засчитываются.`);
+    const range = to === pause.first_day ? formatDayMonthRu(to) : `${formatDayMonthRu(pause.first_day)}–${formatDayMonthRu(to)}`;
+    out.push(to === pause.first_day
+      ? `Пауза в прошлом: урок ${range} ученик не оплачивает, преподавателю он не засчитывается.`
+      : `Пауза в прошлом: уроки ${range} ученик не оплачивает, преподавателю они не засчитываются.`);
   }
   const attended = arr<PauseLessonMark>(saved.lessons?.attended);
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));

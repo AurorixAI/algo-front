@@ -484,7 +484,7 @@ test("п.10 (Б11.39 Э3 / Э7'): the pause that has not begun - «Снять п
   assert.equal(await run.page.locator('[data-testid="pause-cancel-title"]').count(), 0);
   const block = run.page.locator('[data-testid="pause-card-acting"]');
   assert.match(plain(await block.locator('[data-testid="pause-summary"]').innerText()), /^Пауза запланирована · с \d\d\.\d\d по \d\d\.\d\d$/, "the card is squeezed into one row");
-  assert.equal(plain(await block.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся, её дни войдут в стоимость.");
+  assert.equal(plain(await block.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся: за её дни нужно будет платить.");
   const text = plain(await block.innerText());
   assert.ok(!text.includes("останутся платными") && !text.includes("Не надо") && !text.includes("придётся оплатить"), text);
   assert.equal(await block.getByRole("button", { name: "Назад", exact: true }).count(), 1);

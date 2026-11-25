@@ -54,7 +54,7 @@ const PAUSE_VOID_PLANNED_LABEL = "Снять паузу";
 /** The code of the refusal to change the days of a pause that a leaving cut meanwhile (409). */
 const CLOSED_BY_LEAVE = "PAUSE_CLOSED_BY_LEAVE";
 /** Б11.39 Э7: the ONE quiet line under the dates while there is no calculation. */
-const PAUSE_FORM_HINT = "Дни паузы не входят в стоимость, место в группе сохраняется.";
+const PAUSE_FORM_HINT = "За дни паузы платить не нужно, место в группе сохраняется.";
 const CALC_FAILED_TEXT = "Не удалось посчитать паузу.";
 const ACT_FAILED_TEXT = "Не удалось посчитать, что изменится.";
 
@@ -326,7 +326,7 @@ export function PauseDialog({
     const sentence = action === "end"
       ? `Последний день паузы — вчера, ${formatDayMonthRu(pauseEndDay(today))}.`
       : pause.days_locked !== true && pause.first_day > today
-        ? "Пауза не начнётся, её дни войдут в стоимость."
+        ? "Пауза не начнётся: за её дни нужно будет платить."
         : "Пауза будет снята целиком, как будто её не было.";
     const blocked = actPreview?.status === "failed";
     return (

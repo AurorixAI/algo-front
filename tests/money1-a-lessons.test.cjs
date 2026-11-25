@@ -399,7 +399,7 @@ test("the pause: the 30 days are gone from the form (the closed month is the rul
   const dialog = read("src/components/payments/pause-dialog.tsx");
   assert.doesNotMatch(dialog, /min=\{pauseEarliest/);
   assert.doesNotMatch(dialog, /PAUSE_BACKDATE_HINT|Задним числом можно/);
-  assert.match(dialog, /PAUSE_FORM_HINT = "Дни паузы не входят в стоимость, место в группе сохраняется\."/);
+  assert.match(dialog, /PAUSE_FORM_HINT = "За дни паузы платить не нужно, место в группе сохраняется\."/);
   assert.match(dialog, /closed: periodClosedOf\(cause\)/);
   assert.match(dialog, /setErrorClosed\(periodClosedOf\(cause\)\)/);
   assert.match(dialog, /<PeriodClosedNotice purpose="pause" info=\{errorClosed\}/);   // the sentence says «изменить паузу», not «изменить урок»

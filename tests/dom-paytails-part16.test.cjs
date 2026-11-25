@@ -64,7 +64,7 @@ for (const width of [1280, 375]) {
     await run.page.waitForSelector("#pause-first");
     await run.page.waitForTimeout(300);
     assert.equal(await run.page.locator('[data-testid="pause-card"], [data-testid="pause-new"], [data-testid="pause-past"], [data-testid="pause-new-title"]').count(), 0);
-    assert.equal(plain(await run.page.locator('[data-testid="pause-hint"]').innerText()), "Дни паузы не входят в стоимость, место в группе сохраняется.");
+    assert.equal(plain(await run.page.locator('[data-testid="pause-hint"]').innerText()), "За дни паузы платить не нужно, место в группе сохраняется.");
     const text = await dialogText(run.page);
     for (const gone of ["Уже есть", "Задним числом можно", "Укажите, с какого по какое"]) assert.ok(!text.includes(gone), gone);
     assert.deepEqual(await footerButtons(run.page), ["Отмена", "Поставить на паузу"]);
@@ -253,7 +253,7 @@ test("Э3 / Э6 / Э7' «Снять паузу целиком» (running): the s
   await run.page.close();
 });
 
-test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не начнётся, её дни войдут в стоимость.»; no rows, only the quiet line of the period that is not charged yet; «Назад» returns to the cards", async () => {
+test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не начнётся: за её дни нужно будет платить.»; no rows, only the quiet line of the period that is not charged yet; «Назад» returns to the cards", async () => {
   const answer = contract("pause_probe_void_future");
   const server = pauseServer({ pauses: [PLANNED()], void: { ...answer } });
   const run = await open(server);
@@ -261,7 +261,7 @@ test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const acting = run.page.locator('[data-testid="pause-card-acting"]');
   assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), /^Пауза запланирована · с /);
-  assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся, её дни войдут в стоимость.");
+  assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся: за её дни нужно будет платить.");
   assert.deepEqual(await money(run.page), { heading: null, rows: [], total: null, deferred: [], later: "01.12–10.12 — следующий период: за эти дни снова нужно платить.", note: null }, "only the quiet line: NO heading over it (Б11.45 Э2)");
   assert.equal(await acting.getByRole("button", { name: "Снять паузу", exact: true }).count(), 1);
   await acting.getByRole("button", { name: "Назад", exact: true }).click();
@@ -465,7 +465,7 @@ for (const width of [1280, 375]) {
       assert.equal(answer.charge_rows.reduce((total, row) => total + row.amount + (row.deferred ?? 0), 0), answer.impact.charged_delta, "the sample itself keeps «Σ amount + Σ deferred = charged_delta» (Б11.45)");
       assert.equal(await run.page.locator('[data-testid="pause-hint"]').count(), 0, "the calculation replaces the quiet line");
       const text = await dialogText(run.page);
-      assert.ok(!text.includes("Дни паузы не входят в стоимость:"), "no old line next to the rows");
+      assert.ok(!text.includes("За дни паузы платить не нужно:"), "no old line next to the rows");
       assert.equal(await run.page.locator('[data-testid="pause-why"]').count(), 0);
       assert.equal(await run.page.locator('button[form="pause-form"]').isEnabled(), true);
       const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
@@ -515,7 +515,7 @@ for (const name of ["pause_probe_create_packages", "pause_probe_create_personal"
     await run.page.waitForSelector('[data-testid="pause-calc-wrap"]');
     assert.equal(await run.page.locator('[data-testid="pause-money"]').count(), 0);
     // the real answers: the pause has `days` 15 (packages) / 7 (personal); the sum of the change is 0, so the sentence has no sum
-    assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), `Дни паузы не входят в стоимость: ${answer.pause.days} дней. Место в группе сохраняется.`);
+    assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), `За дни паузы платить не нужно: ${answer.pause.days} дней. Место в группе сохраняется.`);
     await run.page.close();
   });
 }
@@ -529,7 +529,7 @@ test("Э6 an OLD server (no `charge_rows`, no `charge_later` in the answer at al
   await fill(run.page, day(0), day(6));
   await run.page.waitForSelector('[data-testid="pause-calc-wrap"]');
   assert.equal(await run.page.locator('[data-testid="pause-money"]').count(), 0);
-  assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), "Дни паузы не входят в стоимость: 7 дней, −150 000 сум. Место в группе сохраняется. Было: долг 600 000 сум → станет: долг 450 000 сум");
+  assert.equal(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), "За дни паузы платить не нужно: 7 дней, −150 000 сум. Место в группе сохраняется. Было: долг 600 000 сум → станет: долг 450 000 сум");
   await run.page.close();
 });
 
@@ -541,7 +541,7 @@ test("Э7 the warnings (backdated, attended lessons, payroll) are SEPARATE yello
   await run.page.waitForSelector('[data-testid="pause-warnings"]');
   const lines = (await run.page.locator('[data-testid="pause-warnings"] p').allInnerTexts()).map(plain);
   assert.equal(lines.length, 3);
-  assert.match(lines[0], /^Пауза начинается в прошлом: за уже прошедшие уроки \(\d\d\.\d\d–\d\d\.\d\d\) ученик не платит, преподавателю за него они не засчитываются\.$/);
+  assert.match(lines[0], /^Пауза в прошлом: уроки \d\d\.\d\d–\d\d\.\d\d ученик не оплачивает, преподавателю они не засчитываются\.$/);
   assert.match(lines[1], /^Ученик был отмечен на уроках \d\d\.\d\d — на эти даты паузу поставить нельзя$/);
   assert.equal(lines[2], "Зарплата за ноябрь изменится — потом сохраните новую сумму");
   const money = await run.page.locator('[data-testid="pause-calc"]').boundingBox();
@@ -853,7 +853,7 @@ test("Б11.45 Э3 the warning of a backdated pause of ONE day (the real answer o
   await run.page.waitForSelector("#pause-first");
   await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-warnings"]');
-  assert.equal(plain(await run.page.locator('[data-testid="pause-warnings"] p').first().innerText()), "Пауза начинается в прошлом: за уже прошедшие уроки (01.12) ученик не платит, преподавателю за него они не засчитываются.");
+  assert.equal(plain(await run.page.locator('[data-testid="pause-warnings"] p').first().innerText()), "Пауза в прошлом: урок 01.12 ученик не оплачивает, преподавателю он не засчитывается.");
   await run.page.close();
 });
 
