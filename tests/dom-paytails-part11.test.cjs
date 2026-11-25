@@ -469,7 +469,7 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("п.10 (Б11.39 Э3 / Э7'): the pause that has not begun - «Снять паузу» is secondary, the confirmation stands in the card (the card squeezed into a row, ONE sentence, a reason, «Снять паузу» + «Назад»); the heading «Отменить будущую паузу» is gone; the one main button of the window is not blue here (there is none: «Закрыть»)", async () => {
+test("п.10 (Б11.39 Э3 / Э7'): the pause that has not begun - the confirmation «Снять паузу» is the main button, it stands in the card (the card squeezed into a row, ONE sentence, a reason, «Снять паузу» + «Назад»); the heading «Отменить будущую паузу» is gone; the one main button of the window is not blue here (there is none: «Закрыть»)", async () => {
   const future = pauseRow("pf", day(10), day(13));
   const answer = F.baseServer((request) => {
     if (request.method === "GET" && request.path === "/auth/org/memberships/m-a/pauses") return { json: [future] };
@@ -490,7 +490,9 @@ test("п.10 (Б11.39 Э3 / Э7'): the pause that has not begun - «Снять п
   assert.equal(await block.getByRole("button", { name: "Назад", exact: true }).count(), 1);
   const colour = async (locator) => locator.evaluate((el) => getComputedStyle(el).backgroundColor);
   const confirm = block.getByRole("button", { name: "Снять паузу", exact: true });
-  assert.equal(await colour(confirm), "rgb(255, 255, 255)", "it is the outline button");
+  assert.notEqual(await colour(confirm), "rgb(255, 255, 255)", "Б11.47 п.1: the confirmation of the removal is the MAIN (filled) button");
+  assert.equal(await block.locator('[data-testid="pause-act-confirm"]').count(), 1);
+  assert.equal(await colour(block.getByRole("button", { name: "Назад", exact: true })), "rgb(255, 255, 255)", "«Назад» stays the outline one");
   assert.equal(await run.page.locator('button[form="pause-form"]').count(), 0, "no form of a new pause, no blue main button under a confirmation");
   assert.equal(plain(await run.page.locator('[role="dialog"] [data-modal-part="footer"] [data-testid="confirm-cancel"]').innerText()), "Закрыть", "the only way out is «Закрыть»");
   await run.page.close();

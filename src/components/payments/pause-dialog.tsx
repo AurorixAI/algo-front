@@ -261,7 +261,7 @@ export function PauseDialog({
     try {
       if (acting.action === "end") {
         const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today), ...(endNeedsReason ? { reason: cancelReason.trim() } : {}) });
-        onChanged(result.row, "Пауза закончена: дни с сегодняшнего снова считаются в стоимость");
+        onChanged(result.row, "Пауза закончена: с сегодняшнего дня за уроки снова нужно платить");
       } else {
         const result = await orgApi.voidPause(acting.pause.id, cancelReason.trim());
         onChanged(result.row, "Пауза снята");
