@@ -176,6 +176,29 @@ for (const live of [1, 2]) {
   });
 }
 
+// Б11.47 п.2: the day «С» of a new pause over live ones is the first free day not before today.
+for (const [name, pauses, expected] of [
+  ["one running (today inside it) - the day after its last day", () => [RUNNING()], () => day(7)],
+  ["running and planned back to back - after the planned one", () => [pauseOf("pr1", day(-7), day(6)), pauseOf("pf1", day(7), day(13))], () => day(14)],
+  ["running, a gap, then planned - the gap day right after the running one", () => [RUNNING(), PLANNED()], () => day(7)],
+  ["only a planned one (today is free) - today", () => [PLANNED()], () => day(0)],
+]) {
+  test(`Б11.47 «+ Новая пауза»: «С» = ${name}`, async () => {
+    const run = await open(pauseServer({ pauses: pauses() }));
+    await run.page.locator('[data-testid="pause-new"]').click();
+    await run.page.waitForSelector("#pause-first");
+    assert.equal(await run.page.locator("#pause-first").inputValue(), dmy(expected()));
+    await run.page.close();
+  });
+}
+
+test("Б11.47 no live pauses: the form is open at once and «С» = today", async () => {
+  const run = await open(pauseServer({ pauses: [] }));
+  await run.page.waitForSelector("#pause-first");
+  assert.equal(await run.page.locator("#pause-first").inputValue(), dmy(day(0)));
+  await run.page.close();
+});
+
 // ── Э3: the confirmation in the card ───────────────────────────────────────────────────────────────────
 
 for (const width of [1280, 375]) {
@@ -218,7 +241,8 @@ test("Э3 / Э6 / Э7' «Снять паузу целиком» (running): the s
   assert.equal(plain(await label.innerText()), "Причина (обязательно)");
   assert.ok((await acting.locator('[data-testid="pause-money"]').boundingBox()).y < (await label.boundingBox()).y, "the reason stands under the money");
   assert.ok((await label.boundingBox()).y < (await acting.getByRole("button", { name: "Снять паузу целиком" }).boundingBox()).y, "and over the buttons");
-  assert.equal(await acting.getByRole("button", { name: "Снять паузу целиком" }).getAttribute("data-variant"), "secondary");
+  assert.equal(await acting.getByRole("button", { name: "Снять паузу целиком" }).getAttribute("data-variant"), "primary", "Б11.47: the one main button of the confirmation");
+  assert.equal(await acting.getByRole("button", { name: "Назад", exact: true }).getAttribute("data-variant"), "secondary");
   await acting.getByRole("button", { name: "Снять паузу целиком" }).click();
   assert.match(plain(await acting.locator('[role="alert"]').innerText()), /^Укажите причину/, "the refusal of an empty reason stands in the card where the person pressed");
   assert.equal(askedFor(run, "POST", /\/void$/, false).length, 0);

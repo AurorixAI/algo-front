@@ -10,6 +10,7 @@ import {
   attendedText,
   buildPauseBody,
   emptyPauseValues,
+  firstFreePauseDay,
   isReasonRequired,
   livePauses,
   logicaError,
@@ -350,7 +351,7 @@ export function PauseDialog({
         )}
         {errorNode}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || blocked} loading={busy} variant={action === "end" ? "primary" : "secondary"} size="md" data-testid="pause-act-confirm" className="w-full sm:w-auto">
+          <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || blocked} loading={busy} variant="primary" size="md" data-testid="pause-act-confirm" className="w-full sm:w-auto">
             {action === "end" ? PAUSE_END_CONFIRM_LABEL : voidLabelOf(pause)}
           </Button>
           <Button type="button" onClick={backFromAction} disabled={busy} variant="secondary" size="md" data-testid="pause-act-back" className="w-full sm:w-auto">Назад</Button>
@@ -511,7 +512,7 @@ export function PauseDialog({
                 ? <ul className="space-y-2">{groups.cards.map((pause) => <li key={pause.id}><PauseSummaryRow pause={pause} today={today} state={stateOf(pause)} /></li>)}</ul>
                 : <ul className="space-y-3">{groups.cards.map(renderCard)}</ul>}
               {participating && !showForm && (
-                <Button type="button" variant="ghost" size="sm" data-testid="pause-new" className={QUIET_LINK} onClick={() => { clearError(); setNewOpen(true); }}>+ Новая пауза</Button>
+                <Button type="button" variant="ghost" size="sm" data-testid="pause-new" className={QUIET_LINK} onClick={() => { clearError(); setValues({ first: firstFreePauseDay(pauses, today), last: "", reason: "" }); setNewOpen(true); }}>+ Новая пауза</Button>
               )}
             </section>
           )}

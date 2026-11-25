@@ -427,6 +427,18 @@ export function emptyPauseValues(today: string): PauseFormValues {
   return { first: today, last: "", reason: "" };
 }
 
+/** Б11.47: the day «С» of a new pause over live ones: the first free day not before today (inside a live pause - the day after its last day; taken by the next one - after it too). */
+export function firstFreePauseDay(list: PauseOut[] | null | undefined, today: string): string {
+  const live = arr<PauseOut>(list).filter((pause) => !pause.voided_at);
+  let day = today;
+  for (let guard = 0; guard <= live.length; guard += 1) {
+    const hit = live.find((pause) => pause.first_day <= day && day <= pause.last_day);
+    if (!hit) break;
+    day = addIsoDays(hit.last_day, 1);
+  }
+  return day;
+}
+
 /** Number of days of a pause, both ends included (0 for a broken range). */
 export function pauseDays(first: string, last: string): number {
   if (!isIsoDate(first) || !isIsoDate(last) || last < first) return 0;
