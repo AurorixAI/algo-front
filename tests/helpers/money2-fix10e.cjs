@@ -6,7 +6,7 @@ const PART = (label, from, amount, lessons, inPeriod, whole = false) => ({ label
 const NOV = [PART("ноябрь", "2026-11-19", 188000, 5, 12)];
 const DEBT_SAME = { group_id: "g2", group_name: "M11 БС Вт-Чт-Сб", membership_id: "m-same", left_on: "2026-11-19", kind: "debt", amount: 15000, same_group: true, text: "В этой группе с прошлого раза остался долг 15 000 сум" };
 const ADVANCE_OTHER = { group_id: "g9", group_name: "Физика 9", membership_id: "m-other", left_on: "2026-11-17", kind: "advance", amount: 40000, same_group: false, text: "В группе «Физика 9» остался аванс 40 000 сум" };
-const REWRITE = "Ученика убрали сегодня, но после этого ему простили долг 15 000 сум — поэтому он записывается заново: прежние индивидуальная цена и паузы не возвращаются.";
+const REWRITE = "Ученика убрали сегодня, но после этого ему простили долг 15 000 сум — поэтому уход не отменяется, ученик зачисляется обычным порядком: прежние индивидуальная цена и паузы не возвращаются.";
 const UNDO = "Ученика убрали сегодня — возвращаем как было: индивидуальная цена 300 000 сум.";
 const sumOf = (parts) => parts.reduce((s, p) => s + p.amount, 0);
 const nameOf = ([, last, first = "Ученик"]) => `${last} ${first}`;

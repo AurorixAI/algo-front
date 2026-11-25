@@ -26,8 +26,10 @@
     "charged_delta": -150000,
     "debt_after": 450000,
     "debt_before": 600000,
+    "forgiven_delta": 0,
     "paid_until_after": "2026-11-02",
     "paid_until_before": "2026-11-02",
+    "recalc_delta": 0,
     "refundable_after": 0,
     "refundable_before": 0
   },
@@ -45,9 +47,9 @@
     "days_locked": false,
     "days_locked_text": null,
     "first_day": "2026-11-24",
-    "id": "79aac53d-fafc-4ea9-9994-2c1d9225f648",
+    "id": "ece66619-b69a-4066-ac13-aebae22a9eff",
     "last_day": "2026-12-03",
-    "membership_id": "c6b1fd68-1d94-4139-8dfa-077ef4ae64a5",
+    "membership_id": "08c7143c-e01a-4db0-88ac-e1f22c801e69",
     "reason": "Болезнь",
     "void_reason": null,
     "voided_at": null

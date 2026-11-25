@@ -31,7 +31,7 @@ import { openingOffered } from "@/lib/openings";
 import { useOpeningsSummary } from "@/lib/openings-summary";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
-import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, payStartSentenceOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview } from "@/lib/use-pay-from";
 import { EnrolTerms } from "./enrol-terms";
 import { BarDetails, BarMoreButton } from "./enrol-bar-details";
@@ -548,7 +548,7 @@ export function AssignGroupModal({
           onAmount={(text) => { setAssignmentError(null); setPriceError(null); setExceptionAmount(text); }}
           onReason={(text) => { setAssignmentError(null); setPriceError(null); setExceptionReason(text); }}
           priceError={priceError}
-          whyNote={forecast?.termsNote ?? null}
+          whyNote={forecast?.termsNote ?? (ready ? payStartSentenceOf(ready.answer) : null)}
           openSignal={termsSignal}
           opening={!isTransfer && openingShown ? { on: openingOn, onChange: (value) => { setAssignmentError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAssignmentError(null); setOpening(next); }, today: formatBusinessDate(), accountingStart, needsReason: openingNeedsReason } : null}
         />

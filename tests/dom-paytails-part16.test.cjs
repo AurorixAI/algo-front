@@ -48,7 +48,13 @@ function reconcile(text, read, label) {
   const num = (value) => Number(String(value ?? "0").replace(/\D/g, ""));
   const rowsSum = read.rows.reduce((total, [, amount]) => total + digits(amount), 0);
   const movedSum = read.deferred.reduce((total, line) => total + (/появятся/.test(line) ? -1 : 1) * num(line.match(/: ([\d\s]+) сум/)[1]), 0);
-  assert.equal(num(before) + rowsSum + movedSum, num(after), `${label}: debt ${before} + rows ${rowsSum} + moved ${movedSum} = debt ${after}`);
+  // Б11.51 С3': (debt - advance) after - before = charged_delta - recalc_delta - forgiven_delta; the two quiet lines of the screen carry the last two (a sign by the word: «меньше» is a negative delta)
+  const signed = (word, value) => (word === "меньше" ? -1 : 1) * num(value);
+  const recalcHit = text.match(/Вычет за отменённые центром уроки стал (меньше|больше) на ([\d\s]+) сум/);
+  const forgivenHit = text.match(/Прощение покрывает на ([\d\s]+) сум (меньше|больше)/);
+  const recalc = recalcHit ? signed(recalcHit[1], recalcHit[2]) : 0;
+  const forgiven = forgivenHit ? signed(forgivenHit[2], forgivenHit[1]) : 0;
+  assert.equal(num(before) + rowsSum + movedSum - recalc - forgiven, num(after), `${label}: debt ${before} + rows ${rowsSum} + moved ${movedSum} - recalc ${recalc} - forgiven ${forgiven} = debt ${after}`);
 }
 const calcOf = async (page) => { await page.waitForSelector('[data-testid="pause-calc-wrap"], [data-testid="pause-calc"] [role="alert"]'); return page; };
 const sum = (n) => `${n < 0 ? "−" : "+"}${String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`;
@@ -661,7 +667,7 @@ test("stress_ Э6 (375) the sum of a row stands in ONE line on the right and doe
 
 test("«окно = ответ»: for EVERY sample of the contract the rows on the screen (label, count word, sign and digits of the sum) and the quiet lines of the moved periods are the rows of the answer; a row without sum or lessons is not a row", async () => {
   const names = fs.readdirSync(path.join(root, "tests", "fixtures", "paytails", "part16")).filter((file) => /^pause_probe_(create|end|void).*\.json$/.test(file)).map((file) => file.replace(/\.json$/, ""));
-  assert.equal(names.length, 14, names.join());
+  assert.equal(names.length, 16, names.join());   // 14 + the two of Б11.51 (centre cancel, forgiveness cut)
   const wordFor = (n) => (n % 10 === 1 && n % 100 !== 11 ? "урок" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "урока" : "уроков");
   const unsigned = (n) => sum(Math.abs(n)).slice(1);
   for (const name of names) {
@@ -979,4 +985,62 @@ test("Э8' / Э7 the old things are GONE from the window (the field of the reaso
   for (const gone of ["pause-locked-reason", "pause-locked-save", "Сохранить причину", "reasonDrafts", "Уже есть", "Идёт сейчас", "PAUSE_BACKDATE_HINT", "Укажите, с какого по какое число пауза", "Отменить будущую паузу", "pause-cancel-title"]) assert.ok(!source.includes(gone), gone);
   const api = fs.readFileSync(path.join(root, "src", "lib", "api.ts"), "utf8");
   assert.match(api, /patchPause/, "the route of the server stays (the reason of a pause is changed through the API)");
+});
+
+// ── Б11.51 С3': what else moves the debt - the deductions for the lessons the centre cancelled and the forgiveness (`impact.recalc_delta`, `impact.forgiven_delta`) ─────────────────
+
+const PROBES = fs.readdirSync(path.join(root, "tests", "fixtures", "paytails", "part16")).filter((name) => /^pause_probe_/.test(name)).map((name) => name.replace(/\.json$/, ""));
+test("Б11.51 С3' the identity on EVERY real answer of a pause with `impact`: (debt - advance) after - before = charged_delta - recalc_delta - forgiven_delta (the two fields are there; null without the right to money)", () => {
+  let checked = 0;
+  for (const name of PROBES) {
+    const { impact } = contract(name);
+    if (impact === null) continue;
+    assert.equal(typeof impact.recalc_delta, "number", `${name}: recalc_delta is in the answer`);
+    assert.equal(typeof impact.forgiven_delta, "number", `${name}: forgiven_delta is in the answer`);
+    assert.equal((impact.debt_after - impact.advance_after) - (impact.debt_before - impact.advance_before), impact.charged_delta - impact.recalc_delta - impact.forgiven_delta, name);
+    checked += 1;
+  }
+  assert.ok(checked >= 10, `the identity was checked on ${checked} answers`);
+});
+
+const SET_LINES = [
+  ["pause_probe_create_with_centre_cancel", ["Вычет за отменённые центром уроки стал меньше на 40 000 сум."], "Было: долг 200 000 сум → станет: долг 160 000 сум"],
+  ["pause_probe_create_with_forgiveness_cut", ["Вычет за отменённые центром уроки стал меньше на 40 000 сум.", "Прощение покрывает на 40 000 сум меньше."], null],
+];
+for (const width of [1280, 375]) {
+  for (const [name, lines, balance] of SET_LINES) {
+    test(`Б11.51 С3' (${width}) ${name}: the quiet lines «${lines.join(" ")}» under the rows of the lessons; the debt line of the window holds the identity read from the screen`, async () => {
+      const answer = contract(name);
+      const run = await open(pauseServer({ pauses: [], create: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
+      await run.page.waitForSelector("#pause-first");
+      await fillOf(run.page, answer);
+      await run.page.waitForSelector('[data-testid="pause-money"]');
+      const text = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
+      const quiet = await run.page.locator('[data-testid="pause-calc"] p.text-xs').allInnerTexts();
+      assert.deepEqual(quiet.map(plain).filter((line) => /^(Вычет|Прощение)/.test(line)), lines, "exactly these quiet lines, in this order, as written");
+      const rows = text.indexOf("26.11–30.11 · 2 урока"), first = text.indexOf(lines[0]);
+      assert.ok(rows >= 0 && first > rows, `the lines stand UNDER the rows of the lessons: ${text}`);
+      assert.ok(!/в эти дни/.test(text), "no «в эти дни»");
+      if (balance) assert.ok(text.includes(balance), text);
+      const read = await money(run.page, '[data-testid="pause-calc"]');
+      if (/Было: долг/.test(text)) reconcile(text, read, name);
+      assert.deepEqual((await run.page.evaluate(layoutProbe, '[role="dialog"]')).bad, []);
+      await run.page.close();
+    });
+  }
+}
+
+test("Б11.51 С3' the answer with zeros (`recalc_delta` 0, `forgiven_delta` 0): no such lines; an OLD server (the fields are absent) and a role without money (`impact` null): none either", async () => {
+  const real = contract("pause_probe_create_week");
+  assert.deepEqual([real.impact.recalc_delta, real.impact.forgiven_delta], [0, 0], "the real answer of a world without cancelled lessons");
+  const old = { ...real, impact: Object.fromEntries(Object.entries(real.impact).filter(([key]) => !/^(recalc|forgiven)_delta$/.test(key))) };
+  for (const [label, answer, props] of [["zeros", real, {}], ["old server", old, {}], ["no money", { ...real, impact: null }, { moneyAvailable: false }]]) {
+    const run = await open(pauseServer({ pauses: [], create: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), props);
+    await run.page.waitForSelector("#pause-first");
+    await fillOf(run.page, answer);
+    await run.page.waitForSelector('[data-testid="pause-calc"] [data-testid="pause-money"], [data-testid="pause-calc"] p');
+    const text = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
+    assert.ok(!/Вычет за отменённые|Прощение покрывает/.test(text), `${label}: ${text}`);
+    await run.page.close();
+  }
 });

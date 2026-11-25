@@ -16,9 +16,9 @@ import {
 } from "@/lib/group-price";
 import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
-import { formatBusinessDate, formatDateRu } from "@/lib/business-time";
+import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, payStartSentenceOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview, type PayFromPreview } from "@/lib/use-pay-from";
 import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, groupNameShown, serverPhraseShown } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -440,7 +440,6 @@ export function AddStudentDrawer({
       setSelected(new Map());
       if (!singleRoute) returned = leaveReturnsOfBulk(result).undone;
       const notes = splitTransferNotes(result.warnings, nameOf);
-      if (payBody && !billingLine && result.added > 0) billingLine = `Оплата считается с ${formatDateRu(payBody)}: так выбрал сотрудник`;
       const perStudent = bulkOutcomeOf(result, picked.map((item) => item.id), nameOf);
       const skippedIds = new Set(perStudent.skipped.map((row) => row.id));
       // what the ones who got in pay at once: the sums of the probe, none for a role without money / a transfer
@@ -578,7 +577,7 @@ export function AddStudentDrawer({
       onAmount={(text) => { setAddError(null); setPriceError(null); setExceptionAmount(text); }}
       onReason={(text) => { setAddError(null); setPriceError(null); setExceptionReason(text); }}
       priceError={priceError}
-      whyNote={forecast?.termsNote ?? null}
+      whyNote={forecast?.termsNote ?? (shownImmediate ? payStartSentenceOf(shownImmediate.answer) : null)}
       openSignal={termsSignal}
       onOpenChange={setTermsOpen}
       opening={openingAllowed ? { on: openingOn, onChange: (value) => { setAddError(null); setOpeningOn(value); }, values: opening, onValues: (next) => { setAddError(null); setOpening(next); }, today, accountingStart, needsReason: openingNeedsReason } : null}

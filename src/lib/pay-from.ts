@@ -168,6 +168,15 @@ export function payStartOf(answer: unknown): string | null {
   return days.length === 1 ? days[0] : null;
 }
 
+/**
+ * The sentence of the server about the day the charge starts, from the dry run of adding ONE student (`billing.text`): the sentence of a return that stays in its period /
+ * «Оплата считается с 24.11.2026 — с первого занятия группы».  A bulk answer (`students[]`) has no single sentence: null.  The screen shows it as it came.
+ */
+export function payStartSentenceOf(answer: unknown): string | null {
+  const r = (answer ?? {}) as { students?: unknown; billing?: unknown };
+  return Array.isArray(r.students) ? null : normalizeBilling(r.billing)?.text || null;
+}
+
 /** The field cannot be sent: an empty or impossible date. */
 export function payFromProblem(value: string, def: PayFromDefault | null, range: { min: string; max: string }): string | null {
   if (!def) return null;

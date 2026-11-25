@@ -44,7 +44,13 @@ export interface ImpactMoney {
   paid_until_before: string | null;
   paid_until_after: string | null;
   charged_delta: number;
+  /** The deductions for lessons the centre cancelled: «after» minus «before» (Б11.51 С3'); absent from an old server, null without the right to money. */
+  recalc_delta?: number | null;
+  /** The forgiveness the period used: «after» minus «before»; the same absences.  (debt − advance) after − before = charged_delta − recalc_delta − forgiven_delta. */
+  forgiven_delta?: number | null;
 }
+
+const optionalNum = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): ImpactMoney | null {
   if (!raw) return null;
@@ -56,6 +62,8 @@ export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): I
     paid_until_before: raw.paid_until_before ?? null,
     paid_until_after: raw.paid_until_after ?? null,
     charged_delta: num(raw.charged_delta),
+    recalc_delta: optionalNum(raw.recalc_delta),
+    forgiven_delta: optionalNum(raw.forgiven_delta),
   };
 }
 
@@ -468,6 +476,11 @@ export function buildPauseBody(values: PauseFormValues): { first_day: string; la
 /** Б11.39 Э6: the quiet lines UNDER the block of money (and under the old one line): «Оплачено до станет 09.11.» and the debt / advance line - `impact` only, so only for a role that sees money. */
 export function pauseCalcTail(impact: ImpactMoney | null | undefined): string[] {
   const lines: string[] = [];
+  // Б11.51 С3': what else moves the debt - the deductions for the lessons the centre cancelled and the forgiveness; the server's two numbers, the sentences are the screen's
+  const recalc = impact?.recalc_delta ?? 0;
+  if (recalc !== 0) lines.push(`Вычет за отменённые центром уроки стал ${recalc < 0 ? "меньше" : "больше"} на ${formatMoney(Math.abs(recalc))}.`);
+  const forgiven = impact?.forgiven_delta ?? 0;
+  if (forgiven !== 0) lines.push(`Прощение покрывает на ${formatMoney(Math.abs(forgiven))} ${forgiven < 0 ? "меньше" : "больше"}.`);
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
   const balance = impactBalanceLine(impact, "was");
   if (balance) lines.push(balance);

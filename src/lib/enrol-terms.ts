@@ -24,7 +24,8 @@ export function dayMonthWords(iso: string | null | undefined, todayIso?: string 
 export function payFromReason(text: string | null | undefined): string | null {
   const full = (text ?? "").trim();
   if (!full) return null;
-  const cut = /\s[—–]\s|:\s/.exec(full);
+  // only a sentence about the DAY («Оплата с … — причина», «Оплата считается с …: причина») is cut to its reason; any other sentence of the server (the sentence of a return) is shown whole
+  const cut = /^Оплата\s/.test(full) ? /\s[—–]\s|:\s/.exec(full) : null;
   const tail = cut ? full.slice(cut.index + cut[0].length).trim() : full;
   return tail || full;
 }

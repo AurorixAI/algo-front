@@ -1,0 +1,64 @@
+{
+  "as_of": "2026-11-26",
+  "billing": {
+    "default_pay_from": "2026-11-26",
+    "explicit": false,
+    "first_lesson": "2026-11-26",
+    "immediate": {
+      "amount": 100000,
+      "debt_amount": 100000,
+      "due_amount": 0,
+      "due_until": null,
+      "lessons": 2,
+      "lines": [
+        "Долг сразу: 100 000 сум (за 2 урока) · срок был 07.11"
+      ],
+      "parts": [
+        {
+          "amount": 100000,
+          "due_until": null,
+          "from": null,
+          "label": "ноябрь",
+          "lessons": 2,
+          "lessons_in_period": 12,
+          "name": "debt",
+          "period_start": "2026-11-01",
+          "whole": false
+        }
+      ],
+      "term_was": "2026-11-07",
+      "text": "Долг сразу: 100 000 сум (за 2 урока) · срок был 07.11"
+    },
+    "pay_from": "2026-11-26",
+    "text": "Возврат в том же периоде: ноябрь уже в счёте и заново не считается.",
+    "upcoming": null
+  },
+  "carried": [],
+  "carry_after": null,
+  "closing_prices": [],
+  "display_id": "NO-001",
+  "dry_run": true,
+  "effects": null,
+  "group_id": "ff301cec-58ec-443c-b248-317f1e7a5d9e",
+  "individual_price_ends": false,
+  "leave_undo": null,
+  "membership_id": "1773d9e0-e8c1-422a-8ad1-4e84f2529cb0",
+  "mode": "add",
+  "others": [],
+  "past_balances": [
+    {
+      "amount": 500000,
+      "group_id": "ff301cec-58ec-443c-b248-317f1e7a5d9e",
+      "group_name": "Общий",
+      "kind": "debt",
+      "left_on": "2026-11-25",
+      "membership_id": "1773d9e0-e8c1-422a-8ad1-4e84f2529cb0",
+      "same_group": true,
+      "text": "Уже был в этой группе, ушёл 25.11.2026 — остался долг 500 000 сум"
+    }
+  ],
+  "recalc": null,
+  "status": "added",
+  "student_id": "5ed6ad11-c9a3-4a7a-ab05-132485d70ba2",
+  "warnings": []
+}

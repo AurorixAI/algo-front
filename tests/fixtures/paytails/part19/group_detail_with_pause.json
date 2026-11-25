@@ -4,11 +4,11 @@
   "class_level": 9,
   "created_at": "2026-11-01T07:00:00.000002",
   "description": null,
-  "id": "8a399fe8-e468-45f6-8fbc-819c140dedd3",
+  "id": "ad35c61a-f4ba-48eb-866c-a0d9b271ba9b",
   "lesson_type": "group",
   "max_students": 30,
   "name": "Общий",
-  "org_id": "d877626b-9401-4ed1-a8c8-49b3de19956e",
+  "org_id": "2f6a9c84-fe82-4fd0-80c7-33fb5d9716ca",
   "price_current": {
     "amount": 600000,
     "valid_from": "2000-01-01"
@@ -44,10 +44,10 @@
   "students": [
     {
       "class_level": 9,
-      "display_id": "NO1-001",
+      "display_id": "NO27-001",
       "first_name": "Ученик ОМ",
       "full_name": "Ученик Ученик ОМ",
-      "id": "d3467d31-5ea9-4d79-abe6-737342a5c579",
+      "id": "251105ec-bec2-47f2-b04b-5bb710806109",
       "joined_at": "2026-11-01T07:00:00.000008",
       "last_class_equivalent": null,
       "last_diagnosed_at": null,
@@ -56,7 +56,7 @@
       "last_level_status": null,
       "last_name": "Ученик",
       "last_theta": null,
-      "membership_id": "99c307b7-58a2-4523-b871-72594d4dba85",
+      "membership_id": "c126e185-c083-4915-9d0a-82b9b1de3ec5",
       "on_pause": true,
       "paused_until": "2026-11-30",
       "periods": [
@@ -70,10 +70,10 @@
     },
     {
       "class_level": 9,
-      "display_id": "NO1-002",
+      "display_id": "NO27-002",
       "first_name": "Ученик без паузы",
       "full_name": "Ученик Ученик без паузы",
-      "id": "d061a096-e355-450c-a46b-e0c301c6d91f",
+      "id": "63b56f1b-2b4a-4c80-bbf3-c4b70f36541c",
       "joined_at": "2026-11-24T07:00:00.000015",
       "last_class_equivalent": null,
       "last_diagnosed_at": null,
@@ -82,7 +82,7 @@
       "last_level_status": null,
       "last_name": "Ученик",
       "last_theta": null,
-      "membership_id": "a68f3373-e42a-4bb8-b829-c1248f8128d3",
+      "membership_id": "60fc801e-984e-4a11-97f1-a35d1e86ffa4",
       "on_pause": false,
       "paused_until": null,
       "periods": [
@@ -96,6 +96,6 @@
     }
   ],
   "substitution": false,
-  "teacher_id": "26372ca0-3c59-4d02-b209-4018efe7a69b",
+  "teacher_id": "5b2f353f-b65b-4ac5-80eb-884bd74fb7f9",
   "teacher_name": "Пётр Teacher"
 }

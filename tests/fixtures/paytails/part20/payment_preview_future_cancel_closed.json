@@ -1,0 +1,139 @@
+{
+  "amount": 200000,
+  "as_of": "2026-11-25",
+  "due": {
+    "advance": 0,
+    "debt_amount": 200000,
+    "debt_sub": "просрочено 19 дней",
+    "debt_text": "Долг 200 000 сум",
+    "due_amount": 0,
+    "due_sub": null,
+    "due_text": null,
+    "due_until": null,
+    "overdue_days": 19,
+    "paid_until": null,
+    "segments": [
+      {
+        "basis": "lessons",
+        "billable_days": 29,
+        "bucket": "current",
+        "charge": 360000,
+        "covered_days": 12,
+        "covered_through": "2026-11-13",
+        "days_text": "с 02.11 (9 уроков из 9)",
+        "id": "seg:0:2026-11-01",
+        "kind": "period",
+        "lessons": {
+          "in_part": 9,
+          "in_period": 9
+        },
+        "paid": 0,
+        "partial_credit": 11035,
+        "parts": [
+          {
+            "due_until": null,
+            "lessons": null,
+            "name": "debt",
+            "unpaid": 200000
+          }
+        ],
+        "period_from": "2026-11-01",
+        "period_to": "2026-11-30",
+        "price": {
+          "amount": 360000,
+          "group_amount": 360000,
+          "reason": null,
+          "scheduled": null,
+          "set_by_name": null,
+          "source": "group",
+          "valid_from": "2000-01-01"
+        },
+        "recalculated": 160000,
+        "remaining": 200000,
+        "state": "partial",
+        "unpaid": 200000,
+        "written_off": 0
+      }
+    ],
+    "unpaid": 200000
+  },
+  "mode": "calendar",
+  "price": {
+    "amount": 360000,
+    "group_amount": 360000,
+    "reason": null,
+    "scheduled": null,
+    "set_by_name": null,
+    "source": "group",
+    "valid_from": "2000-01-01"
+  },
+  "recalc": [
+    {
+      "amount": 40000,
+      "lesson_date": "2026-11-09",
+      "lesson_id": "s1",
+      "text": "−40 000 сум: урок 09.11 отменён центром"
+    },
+    {
+      "amount": 40000,
+      "lesson_date": "2026-11-12",
+      "lesson_id": "s4",
+      "text": "−40 000 сум: урок 12.11 отменён центром"
+    },
+    {
+      "amount": 40000,
+      "lesson_date": "2026-11-23",
+      "lesson_id": "s1",
+      "text": "−40 000 сум: урок 23.11 отменён центром"
+    },
+    {
+      "amount": 40000,
+      "lesson_date": "2026-11-26",
+      "lesson_id": "s4",
+      "text": "−40 000 сум: урок 26.11 отменён центром"
+    }
+  ],
+  "result": {
+    "advance_after": 0,
+    "after_text": "Оплачено до 30.11",
+    "allocations": [
+      {
+        "amount": 200000,
+        "bucket": "current",
+        "closes": true,
+        "days": 16,
+        "label": "На текущий период 01.11–30.11",
+        "period_from": "2026-11-01",
+        "period_to": "2026-11-30",
+        "price": 360000,
+        "segment_id": "seg:0:2026-11-01",
+        "segment_remaining_after": 0
+      }
+    ],
+    "debt_amount_after": 0,
+    "debt_rest": [],
+    "due_after": 0,
+    "due_amount_after": 0,
+    "due_rest": [],
+    "due_until_after": null,
+    "lessons": null,
+    "money_rows": [
+      {
+        "amount": 200000,
+        "label": "Ноябрь",
+        "of": null,
+        "periods": 1,
+        "state": "closed"
+      }
+    ],
+    "overdue_days_after": null,
+    "paid_until_before": null,
+    "partial_credit_after": 0,
+    "price_ahead": [],
+    "status_after": "active",
+    "summary_text": "Погасит долг 200 000 сум → оплачено до 30.11",
+    "unpaid_after": 0
+  },
+  "suggested_amount": 200000,
+  "warnings": []
+}
