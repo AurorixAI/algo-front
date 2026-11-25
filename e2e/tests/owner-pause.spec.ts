@@ -97,4 +97,18 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await expect(page.getByTestId("learning-pause-chip")).toContainText(`На паузе до ${dm(last)}`);
   await page.getByRole("button", { name: /^Действия по группе:/ }).click();
   await expect(page.getByRole("menuitem", { name: "Закончить паузу" })).toBeVisible();
+
+  // --- the same window (PAY-TAILS Б11.39-Б11.41): a live pause is a CARD (no form), it began today, so it is taken off whole with a reason; the last pause is gone - the window closes by itself
+  await page.getByRole("menuitem", { name: "Закончить паузу" }).dispatchEvent("click");
+  const card = page.getByRole("dialog", { name: "Пауза ученика" });
+  await expect(card.getByTestId("pause-card")).toHaveCount(1);
+  await expect(card.getByTestId("pause-state")).toContainText("Сейчас на паузе");
+  await expect(card.locator("#pause-first")).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Закончить сегодня" })).toHaveCount(0);
+  await card.getByRole("button", { name: "Снять паузу целиком" }).click();
+  await card.getByTestId("pause-act-reason").fill("Ошиблись в датах");
+  await expect(card.getByTestId("pause-act-confirm")).toBeEnabled();
+  await card.getByTestId("pause-act-confirm").click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("learning-pause-chip")).toHaveCount(0);
 });
