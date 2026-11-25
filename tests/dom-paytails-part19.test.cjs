@@ -164,6 +164,7 @@ test("Б11.48 a running pause is ended from the row: «Закончить пау
   await card.waitFor();
   await card.getByRole("button", { name: "Закончить сегодня" }).click();
   await run.page.waitForSelector('[data-testid="pause-money"]');
+  await run.page.fill("#pause-act-reason", "ошиблись в дате");   // Б11.50 Э1: the reason is asked at once
   await run.page.locator('[data-testid="pause-card-acting"]').getByRole("button", { name: "Закончить паузу", exact: true }).click();
   await run.page.waitForSelector('[role="dialog"]', { state: "detached" });
   await run.page.waitForFunction(() => document.querySelectorAll('[data-testid="roster-table"] [data-kind="chip"]').length === 0);

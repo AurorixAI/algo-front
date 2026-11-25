@@ -11,7 +11,6 @@ import {
   buildPauseBody,
   emptyPauseValues,
   firstFreePauseDay,
-  isReasonRequired,
   livePauses,
   logicaError,
   pauseCalcLines,
@@ -129,8 +128,6 @@ export function PauseDialog({
   const [newOpen, setNewOpen] = useState(false);
   /** The fold «Прошлые паузы»: null = by default (closed; open for a student who has left and has no card). */
   const [pastOpen, setPastOpen] = useState<boolean | null>(null);
-  /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
-  const [endNeedsReason, setEndNeedsReason] = useState(false);
   /** Money-2 T9: the dry run of the ending / the cancel being confirmed: the money of it (`charge_rows`, the other groups), or the refusal of the server (any refusal blocks the button; closed month - the notice, no code - «Повторить»). */
   const [actPreview, setActPreview] = useState<{ status: "loading" } | { status: "ready"; answer: unknown } | { status: "failed"; message: string; closed: PeriodClosedInfo | null; retry: boolean } | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
@@ -149,7 +146,6 @@ export function PauseDialog({
     setBusy(false);
     setActing(null);
     setCancelReason("");
-    setEndNeedsReason(false);
     setNewOpen(false);
     setPastOpen(null);
     setPauses(null);
@@ -204,15 +200,13 @@ export function PauseDialog({
     let current = true;
     setActPreview({ status: "loading" });
     const asked = actingAction === "end"
-      ? orgApi.patchPause(actingId, { last_day: pauseEndDay(today) }, { dryRun: true })
+      ? orgApi.patchPause(actingId, { last_day: pauseEndDay(today), reason: DRY_RUN_REASON }, { dryRun: true })
       : orgApi.voidPause(actingId, DRY_RUN_REASON, { dryRun: true });
     asked
       .then((result) => { if (current) setActPreview({ status: "ready", answer: result }); })
       .catch((cause) => {
         if (!current) return;
         const failure = logicaError(cause, "Не удалось посчитать, что изменится");
-        // «укажите причину» is asked by the real press (the field opens there); it is not a refusal
-        if (isReasonRequired(failure)) { setEndNeedsReason(true); setActPreview({ status: "ready", answer: null }); return; }
         // Б11.34 п.4: a leaving cut the pause meanwhile - read the pauses again, the card becomes closed and says it once
         if (failure.code === CLOSED_BY_LEAVE) { void closedMeanwhile(actingId, failure.message); return; }
         setActPreview({ status: "failed", message: probeWords(cause, failure, ACT_FAILED_TEXT), closed: periodClosedOf(cause), retry: !failure.code });
@@ -227,7 +221,6 @@ export function PauseDialog({
     setActing(null);
     setActPreview(null);
     setCancelReason("");
-    setEndNeedsReason(false);
     const fresh = await loadPauses();
     if (fresh.some((pause) => pause.id === pauseId && pause.days_locked === true)) clearError();
     else { setErrorClosed(null); setError(message); }
@@ -255,19 +248,18 @@ export function PauseDialog({
 
   const finish = async () => {
     if (!acting || busy) return;
-    if ((acting.action === "cancel" || endNeedsReason) && cancelReason.trim().length < REASON_MIN) { setErrorClosed(null); setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
+    if (cancelReason.trim().length < REASON_MIN) { setErrorClosed(null); setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
     setBusy(true);
     clearError();
     try {
       if (acting.action === "end") {
-        const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today), ...(endNeedsReason ? { reason: cancelReason.trim() } : {}) });
+        const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today), reason: cancelReason.trim() });
         onChanged(result.row, "Пауза закончена: с сегодняшнего дня за уроки снова нужно платить");
       } else {
         const result = await orgApi.voidPause(acting.pause.id, cancelReason.trim());
         onChanged(result.row, "Пауза снята");
       }
       setCancelReason("");
-      setEndNeedsReason(false);
       const fresh = await loadPauses();
       // Б11.41 п. 2: the change is done; no live pause left - there is nothing more to do here (the toast says it), otherwise the window stays on the cards (the form of a new pause does not open by itself)
       if (pauseGroups(fresh, today, participating).cards.length === 0) { setActing(null); onClose(); return; }
@@ -277,15 +269,14 @@ export function PauseDialog({
       // REASON_REQUIRED: money is affected, the reason field opens; PAUSE_RANGE (a day older than 30 days) says so inline
       setErrorClosed(periodClosedOf(cause));
       if (failure.code === CLOSED_BY_LEAVE) { setBusy(false); await closedMeanwhile(acting.pause.id, failure.message); return; }
-      if (isReasonRequired(failure) && acting.action === "end") { setEndNeedsReason(true); setError(`${failure.message}. Укажите причину.`); }
-      else setError(failure.message);
+      setError(failure.message);
     } finally {
       setBusy(false);
     }
   };
 
-  const startAction = (pause: PauseOut, action: "end" | "cancel") => { clearError(); setActing({ pause, action }); setCancelReason(""); setEndNeedsReason(false); };
-  const backFromAction = () => { setActing(null); clearError(); setEndNeedsReason(false); };
+  const startAction = (pause: PauseOut, action: "end" | "cancel") => { clearError(); setActing({ pause, action }); setCancelReason(""); };
+  const backFromAction = () => { setActing(null); clearError(); };
   const closeNewForm = () => {
     setNewOpen(false);
     setValues(emptyPauseValues(today));
@@ -343,12 +334,10 @@ export function PauseDialog({
         {actPreview?.status === "failed" && (actPreview.closed
           ? <PeriodClosedNotice purpose="pause" info={actPreview.closed} onReopened={() => setActNonce((value) => value + 1)} />
           : <p role="alert" data-testid="pause-act-effects" className="text-sm font-medium text-rose-700">{actPreview.message}{actPreview.retry && <> {retryButton(() => setActNonce((value) => value + 1))}</>}</p>)}
-        {(action === "cancel" || endNeedsReason) && (
-          <div>
-            <label htmlFor="pause-act-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
-            <input id="pause-act-reason" data-testid="pause-act-reason" value={cancelReason} onChange={(event) => { clearError(); setCancelReason(event.target.value); }} placeholder={action === "cancel" ? "Например: ученик передумал" : "Например: ошиблись в дате"} className={PRICE_FIELD} autoComplete="off" />
-          </div>
-        )}
+        <div>
+          <label htmlFor="pause-act-reason" className={PRICE_LABEL}>Причина <span className="font-normal text-slate-500">(обязательно)</span></label>
+          <input id="pause-act-reason" data-testid="pause-act-reason" value={cancelReason} onChange={(event) => { clearError(); setCancelReason(event.target.value); }} placeholder={action === "cancel" ? "Например: ученик передумал" : "Например: ошиблись в дате"} className={PRICE_FIELD} autoComplete="off" />
+        </div>
         {errorNode}
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" onClick={() => void finish()} disabled={busy || actPreview?.status === "loading" || blocked} loading={busy} variant="primary" size="md" data-testid="pause-act-confirm" className="w-full sm:w-auto">

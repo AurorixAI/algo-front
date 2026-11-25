@@ -43,8 +43,9 @@ async function money(page, scope = "") {
 }
 /** «Было: долг X сум → станет: долг Y сум» read from the screen: X + Σ rows on the screen + Σ moved periods on the screen = Y (nothing from the answer: the numbers a person reads). */
 function reconcile(text, read, label) {
-  const [, before, after] = text.match(/Было: долг ([\d\s]+) сум → станет: долг ([\d\s]+) сум/);
-  const num = (value) => Number(value.replace(/\D/g, ""));
+  // Б11.50 Э3: «долга нет» is the zero of the debt on either side
+  const [, before, after] = text.match(/Было: (?:долг ([\d\s]+) сум|долга нет) → станет: (?:долг ([\d\s]+) сум|долга нет)/);
+  const num = (value) => Number(String(value ?? "0").replace(/\D/g, ""));
   const rowsSum = read.rows.reduce((total, [, amount]) => total + digits(amount), 0);
   const movedSum = read.deferred.reduce((total, line) => total + (/появятся/.test(line) ? -1 : 1) * num(line.match(/: ([\d\s]+) сум/)[1]), 0);
   assert.equal(num(before) + rowsSum + movedSum, num(after), `${label}: debt ${before} + rows ${rowsSum} + moved ${movedSum} = debt ${after}`);
@@ -214,7 +215,11 @@ for (const width of [1280, 375]) {
     assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), width === 1280 ? /^Сейчас на паузе · с \d\d\.\d\d по \d\d\.\d\d$/ : /^Сейчас на паузе с \d\d\.\d\d по \d\d\.\d\d$/, "below sm the dates stand on their own line, no separator");
     assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), `Последний день паузы — вчера, ${dateOf(day(-1))}.`);
     assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "За эти уроки снова нужно платить", rows: [["24.11–30.11 · 3 урока", "+150 000 сум"]], total: null, deferred: [], later: null, note: null });
-    assert.equal(await run.page.locator("#pause-act-reason").count(), 0, "a plain ending asks no reason until the server wants it");
+    // Б11.50 Э1: the reason is asked at once (the server wants it for any change of a pause), before the main button; the dry run carries a reason too
+    assert.equal(await run.page.locator("#pause-act-reason").count(), 1, "the field of the reason stands in the confirmation at once");
+    assert.equal(plain(await acting.locator('label[for="pause-act-reason"]').innerText()), "Причина (обязательно)");
+    assert.equal(typeof askedFor(run, "PATCH", /\/pauses\/pr1$/, true).at(-1).body.reason, "string", "the dry run of the ending carries a reason (the server asks it of any edit)");
+    await run.page.fill("#pause-act-reason", "ошиблись в дате");
     assert.equal(await acting.getByRole("button", { name: "Закончить паузу", exact: true }).getAttribute("data-variant"), "primary");
     assert.equal(await acting.getByRole("button", { name: "Назад", exact: true }).count(), 1);
     assert.deepEqual(await footerButtons(run.page), ["Закрыть"]);
@@ -224,6 +229,7 @@ for (const width of [1280, 375]) {
     await acting.getByRole("button", { name: "Закончить паузу", exact: true }).click();
     await run.page.waitForFunction(() => window.__log.some((line) => line.startsWith("changed:Пауза закончена")));
     assert.equal(askedFor(run, "PATCH", /\/pauses\/pr1$/, false).at(-1).body.last_day, day(-1));
+    assert.equal(askedFor(run, "PATCH", /\/pauses\/pr1$/, false).at(-1).body.reason, "ошиблись в дате");
     await run.page.close();
   });
 }
@@ -270,21 +276,33 @@ test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не
   await run.page.close();
 });
 
-test("Э3 «Закончить сегодня»: the field of the reason appears only after the server answered REASON_REQUIRED (as before), the write then sends it", async () => {
-  const wanted = { status: 422, json: { detail: { code: "REASON_REQUIRED", message: "Укажите причину" } } };
+test("Б11.50 Э1 «Закончить сегодня»: the field «Причина (обязательно)» stands in the confirmation at once; an empty / short reason is refused IN the card and nothing is sent; the FIRST write already carries the reason and there is no 422 REASON_REQUIRED in the scenario", async () => {
   const answer = contract("pause_probe_end_today");
-  const server = pauseServer({ pauses: [RUNNING()], end: (request) => (/dry_run=true/.test(request.query) ? wanted : { json: { ...answer, dry_run: false } }) });
+  let refusals = 0;
+  const server = pauseServer({ pauses: [RUNNING()], end: (request) => {
+    const body = request.body ?? {};
+    if (!body.reason) { refusals += 1; return { status: 422, json: { detail: { code: "REASON_REQUIRED", message: "Укажите причину" } } }; }
+    return { json: { ...answer, dry_run: /dry_run=true/.test(request.query) } };
+  } });
   const run = await open(server);
   await run.page.getByRole("button", { name: "Закончить сегодня" }).click();
   await run.page.waitForSelector("#pause-act-reason");
-  assert.equal(await run.page.locator('[data-testid="pause-money"]').count(), 0, "the dry run answered no rows: nothing is invented");
+  await run.page.waitForSelector('[data-testid="pause-money"]');
+  assert.equal(refusals, 0, "even the dry run was not refused: it carries a reason");
   await run.page.getByRole("button", { name: "Закончить паузу", exact: true }).click();
   assert.match(plain(await run.page.locator('[data-testid="pause-card-acting"] [role="alert"]').innerText()), /^Укажите причину/, "an empty reason is refused in the card, nothing is sent");
+  assert.equal(askedFor(run, "PATCH", /\/pauses\/pr1$/, false).length, 0);
+  await run.page.fill("#pause-act-reason", "ab");
+  await run.page.getByRole("button", { name: "Закончить паузу", exact: true }).click();
+  assert.match(plain(await run.page.locator('[data-testid="pause-card-acting"] [role="alert"]').innerText()), /^Укажите причину/, "two letters are short, as in the taking off");
   assert.equal(askedFor(run, "PATCH", /\/pauses\/pr1$/, false).length, 0);
   await run.page.fill("#pause-act-reason", "ошиблись в дате");
   await run.page.getByRole("button", { name: "Закончить паузу", exact: true }).click();
   await run.page.waitForFunction(() => window.__log.some((line) => line.startsWith("changed:Пауза закончена")));
-  assert.equal(askedFor(run, "PATCH", /\/pauses\/pr1$/, false).at(-1).body.reason, "ошиблись в дате");
+  const writes = askedFor(run, "PATCH", /\/pauses\/pr1$/, false);
+  assert.equal(writes.length, 1, "ONE write");
+  assert.equal(writes[0].body.reason, "ошиблись в дате", "the first write carries the reason");
+  assert.equal(refusals, 0, "no 422 REASON_REQUIRED at all");
   await run.page.close();
 });
 
@@ -698,6 +716,7 @@ for (const phase of ["dry run", "the press"]) {
     await list.getByRole("button", { name: "Закончить сегодня" }).click();
     if (phase === "the press") {
       await run.page.waitForSelector('[data-testid="pause-act-confirm"]:not([disabled])');
+      await run.page.fill("#pause-act-reason", "ошиблись в дате");   // Б11.50 Э1: the reason is asked at once
       await run.page.locator('[data-testid="pause-act-confirm"]').click();
     }
     await run.page.waitForSelector('[data-testid="pause-locked-text"]');
@@ -883,7 +902,7 @@ for (const action of ["end", "void"]) {
     const run = await open(server);
     await run.page.getByRole("button", { name: action === "end" ? "Закончить сегодня" : "Снять паузу целиком" }).click();
     await run.page.waitForSelector('[data-testid="pause-act-confirm"]:not([disabled])');
-    if (action === "void") await run.page.fill("#pause-act-reason", "ученик передумал");
+    await run.page.fill("#pause-act-reason", "ученик передумал");   // Б11.50 Э1: both actions ask the reason at once
     await run.page.locator('[data-testid="pause-act-confirm"]').click();
     await run.page.waitForFunction(() => window.__log.includes("close"));
     const log = await run.page.evaluate(() => window.__log);

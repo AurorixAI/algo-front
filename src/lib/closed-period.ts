@@ -254,6 +254,8 @@ export function periodClosedText(info: PeriodClosedInfo, options: { canReopen: b
     ? `Чтобы ${CLOSED_TO[options.purpose ?? "lesson"]}, переоткройте месяц.`
     : "Месяц переоткрывает владелец или администратор с доступом к деньгам.";
   if (!info.month) return { head: info.message || "Месяц закрыт", advice: "" };
+  // PAY-TAILS Б11.50 Э4: a pause shows the sentence of the server WHOLE (it also says who reopens the month); the screen does not shorten it
+  if (options.purpose === "pause" && info.message) return { head: info.message, advice: "" };
   const genitive = genitiveShortName(info.teacherName);
   const month = monthLabel(info.month, today, true);
   const head = !info.teacherName

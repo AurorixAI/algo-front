@@ -8,7 +8,7 @@
  * preview) are the server's; everything else is arranged here.  Pure: no React, no network.
  */
 import { MONTHS_NOMINATIVE } from "./ru-calendar";
-import { formatMoneyInput, formatSignedMoney, tidyMoneyText } from "./money-format";
+import { formatMoneyInput, formatSignedMoney, NBSP, tidyMoneyText } from "./money-format";
 import {
   formatDateRu,
   formatMoney,
@@ -61,8 +61,9 @@ export function normalizeImpact(raw: Partial<ImpactMoney> | null | undefined): I
 
 /** «долг 213 000 сум» / «аванс 80 000 сум» / «0» from a debt and an advance. */
 export function balanceWords(debt: number, advance: number): string {
-  if (debt > 0) return `долг ${formatMoney(debt)}`;
-  if (advance > 0) return `аванс ${formatMoney(advance)}`;
+  // the word and its sum are one piece (a no-break space): on a phone the chunk «долг 200 000 сум» does not break between the lines
+  if (debt > 0) return `долг${NBSP}${formatMoney(debt)}`;
+  if (advance > 0) return `аванс${NBSP}${formatMoney(advance)}`;
   return "0";
 }
 
@@ -72,7 +73,9 @@ export function impactBalanceLine(impact: ImpactMoney | null | undefined, wordin
   const before = balanceWords(impact.debt_before, impact.advance_before);
   const after = balanceWords(impact.debt_after, impact.advance_after);
   if (before === after) return "";
-  return wording === "was" ? `Было: ${before} → станет: ${after}` : `Остаток: ${before} → ${after}`;
+  // PAY-TAILS Б11.50 Э3: «долга нет» instead of the bare «0» in the sentence of the past and the future
+  const noDebt = (words: string) => (words === "0" ? "долга нет" : words);
+  return wording === "was" ? `Было: ${noDebt(before)} → станет: ${noDebt(after)}` : `Остаток: ${before} → ${after}`;
 }
 
 /** «Оплачено до: 30.10.2026 → 03.11.2026»; "" when it does not move. */
@@ -610,14 +613,19 @@ export function pauseFacts(pause: Pick<PauseOut, "first_day" | "last_day" | "day
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
   const otherYear = pause.first_day.slice(0, 4) !== today.slice(0, 4) || pause.last_day.slice(0, 4) !== today.slice(0, 4);
   const write = otherYear ? formatDateRu : formatDayMonthRu;
-  return `с ${write(pause.first_day)} по ${write(pause.last_day)} · ${daysLabel(days)}`;
+  return `${pauseDates(pause, write)} · ${daysLabel(days)}`;
 }
 
 /** «с 17.11 по 30.11» - the days without the count (the collapsed row of a pause); the year as in `pauseFacts`. */
 export function pauseSpan(pause: Pick<PauseOut, "first_day" | "last_day">, today: string): string {
   const otherYear = pause.first_day.slice(0, 4) !== today.slice(0, 4) || pause.last_day.slice(0, 4) !== today.slice(0, 4);
   const write = otherYear ? formatDateRu : formatDayMonthRu;
-  return `с ${write(pause.first_day)} по ${write(pause.last_day)}`;
+  return pauseDates(pause, write);
+}
+
+/** Б11.50 Э5: the days of a pause in words: «с 17.11 по 30.11», and ONE day is just «30.11» (never «с 30.11 по 30.11»). */
+function pauseDates(pause: Pick<PauseOut, "first_day" | "last_day">, write: (iso: string) => string): string {
+  return pause.first_day === pause.last_day ? write(pause.first_day) : `с ${write(pause.first_day)} по ${write(pause.last_day)}`;
 }
 
 /** A pause that is on today (it began, its last day is not over) vs one that has not begun. */
@@ -649,7 +657,7 @@ export function pauseGroups(list: PauseOut[] | null | undefined, today: string, 
 /** «с 11.10 по 20.10 · 10 дней · уехал к родственникам». */
 export function pauseLine(pause: Pick<PauseOut, "first_day" | "last_day" | "days" | "reason">): string {
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
-  return `с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(pause.last_day)} · ${daysLabel(days)}${pause.reason ? ` · ${pause.reason}` : ""}`;
+  return `${pauseDates(pause, formatDayMonthRu)} · ${daysLabel(days)}${pause.reason ? ` · ${pause.reason}` : ""}`;
 }
 
 // ── F9: leaving a group / archive with the money settled ───────────────────
