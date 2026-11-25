@@ -82,8 +82,9 @@ function StateTitle({ state }: { state: "running" | "planned" }) {
 function PauseSummaryRow({ pause, today, state }: { pause: PauseOut; today: string; state: "running" | "planned" | null }) {
   return (
     <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700" data-testid="pause-summary">
-      {state && <><StateTitle state={state} /> · </>}
-      <span className={`whitespace-nowrap ${state ? "" : "font-semibold text-slate-900"}`}>{pauseSpan(pause, today)}</span>
+      {state && <><StateTitle state={state} /><span aria-hidden="true" className="hidden sm:inline"> · </span></>}
+      {/* Б11.41 п. 4: below `sm` the dates stand on their own line whole (no separator left at the end of the first one) */}
+      <span className={`whitespace-nowrap ${state ? "block sm:inline" : "font-semibold text-slate-900"}`}>{pauseSpan(pause, today)}</span>
     </p>
   );
 }
@@ -264,10 +265,12 @@ export function PauseDialog({
         const result = await orgApi.voidPause(acting.pause.id, cancelReason.trim());
         onChanged(result.row, "Пауза снята");
       }
-      setActing(null);
       setCancelReason("");
       setEndNeedsReason(false);
-      await loadPauses();
+      const fresh = await loadPauses();
+      // Б11.41 п. 2: the change is done; no live pause left - there is nothing more to do here (the toast says it), otherwise the window stays on the cards (the form of a new pause does not open by itself)
+      if (pauseGroups(fresh, today, participating).cards.length === 0) { setActing(null); onClose(); return; }
+      setActing(null);
     } catch (cause) {
       const failure = logicaError(cause, "Не удалось изменить паузу");
       // REASON_REQUIRED: money is affected, the reason field opens; PAUSE_RANGE (a day older than 30 days) says so inline
@@ -393,7 +396,7 @@ export function PauseDialog({
                 <div className="min-w-0">
                   <p data-testid="pause-facts">{pauseFacts(pause, today)}{pause.reason ? ` · ${pause.reason}` : ""}</p>
                   {locked && pause.days_locked_text && <p className="mt-0.5 text-xs text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
-                  {locked && <Button type="button" variant="ghost" size="sm" data-testid="pause-void" className={QUIET_LINK} onClick={() => startAction(pause, "cancel")}>{PAUSE_VOID_LABEL}</Button>}
+                  {(locked || pause.last_day >= today) && <Button type="button" variant="ghost" size="sm" data-testid="pause-void" className={QUIET_LINK} onClick={() => startAction(pause, "cancel")}>{voidLabelOf(pause)}</Button>}
                 </div>
               </li>
             );

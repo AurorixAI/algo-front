@@ -1,0 +1,58 @@
+[
+  {
+    "created_at": "2026-11-24T07:00:00.000022",
+    "created_by_name": "Иван Owner",
+    "days": 5,
+    "days_locked": false,
+    "days_locked_text": null,
+    "first_day": "2026-12-10",
+    "id": "de160470-ce44-49a4-9943-b863259bb5ec",
+    "last_day": "2026-12-14",
+    "membership_id": "5b5cb77d-0906-45c0-83e7-e13a5c80b0c8",
+    "reason": "Каникулы",
+    "void_reason": null,
+    "voided_at": null
+  },
+  {
+    "created_at": "2026-11-18T07:00:00.000019",
+    "created_by_name": "Иван Owner",
+    "days": 14,
+    "days_locked": false,
+    "days_locked_text": null,
+    "first_day": "2026-11-18",
+    "id": "a3892cc4-cba5-45fd-9bca-1ba24510df06",
+    "last_day": "2026-12-01",
+    "membership_id": "5b5cb77d-0906-45c0-83e7-e13a5c80b0c8",
+    "reason": "Болезнь",
+    "void_reason": null,
+    "voided_at": null
+  },
+  {
+    "created_at": "2026-10-26T07:00:00.000016",
+    "created_by_name": "Иван Owner",
+    "days": 6,
+    "days_locked": false,
+    "days_locked_text": null,
+    "first_day": "2026-10-20",
+    "id": "175677d7-f515-45c2-b070-8fe5cda98e18",
+    "last_day": "2026-10-25",
+    "membership_id": "5b5cb77d-0906-45c0-83e7-e13a5c80b0c8",
+    "reason": "Семейные обстоятельства",
+    "void_reason": null,
+    "voided_at": null
+  },
+  {
+    "created_at": "2026-10-12T07:00:00.000013",
+    "created_by_name": "Иван Owner",
+    "days": 7,
+    "days_locked": false,
+    "days_locked_text": null,
+    "first_day": "2026-10-05",
+    "id": "aaaf053e-3e82-4fea-959b-ce4393971ed0",
+    "last_day": "2026-10-11",
+    "membership_id": "5b5cb77d-0906-45c0-83e7-e13a5c80b0c8",
+    "reason": "Болел",
+    "void_reason": null,
+    "voided_at": null
+  }
+]

@@ -1,5 +1,5 @@
-// PAY-TAILS Б11.39 / Б11.40 (part 16): `node tests/dom/paytails-part16-shots.cjs <out dir>` - the PNGs of the window «Пауза ученика», 1280 and 375, named «<состояние>-<ширина>.png», every state of Э10 + Э9'.
-// The window is the REAL component (real React, the real Modal and the CSS of the project) answered by the contract samples (tests/fixtures/paytails/part16/contract_*.json); in every state with rows the script
+// PAY-TAILS Б11.39 / Б11.40 / Б11.41 / Б11.43 (part 16-17): `node tests/dom/paytails-part16-shots.cjs <out dir>` - the PNGs of the window «Пауза ученика», 1280 and 375, named «<состояние>-<ширина>.png», every state of Э10 + Э9' + the three worlds with `period_begins` (those are shown with the working day of the world, 02.12.2026, and the answer exactly as the server wrote it).
+// The window is the REAL component (real React, the real Modal and the CSS of the project) answered by the REAL answers of the server (tests/fixtures/paytails/part16/pause_probe_*.json); in every state with rows the script
 // ALSO reads the DOM and compares it with the rows of the sample (lesson 178: the window = the answer).  Prints ONLY suspicious things (sideways scroll, text off its block, a console error, a row that is not the sample's).
 // Run with TMPDIR in `artifacts/money1-stage/.cache` (the css of the run goes there).
 const fs = require("node:fs");
@@ -18,6 +18,9 @@ const { readReal } = require("../helpers/paytails-part13.cjs");
 const { contract: sample, pauseOf, pauseServer, day, dmy } = require("../helpers/paytails-part16.cjs");
 // the pictures show the days of today: the labels move with them
 const contract = (name) => sample(name, { labels: true });
+const WORLD = "2026-12-02";   // the working day of the worlds of Б11.43; their answers are shown raw
+const raw = (name) => sample(name, { raw: true });
+const probeRaw = (name) => (request) => ({ json: { ...raw(name), dry_run: /dry_run=true/.test(request.query) } });
 
 const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN = { role: "admin", org_role: "admin" };
@@ -48,7 +51,10 @@ const STATES = [
   ["calc_two_months_begun", createFrom("pause_probe_create_two_months_begun"), {}, OWNER, typeDates(day(0), day(9)), ["pause_probe_create_two_months_begun", '[data-testid="pause-calc"]']],
   ["calc_backdated", createFrom("pause_probe_create_backdated"), {}, OWNER, typeDates(day(-7), day(6)), ["pause_probe_create_backdated", '[data-testid="pause-calc"]']],
   ["calc_future_month", createFrom("pause_probe_create_future_month"), {}, OWNER, typeDates(day(7), day(16)), ["pause_probe_create_future_month", '[data-testid="pause-calc"]']],
-  ["calc_with_balance", createFrom("pause_probe_create_week_with_balance"), {}, OWNER, typeDates(day(0), day(6)), ["pause_probe_create_week_with_balance", '[data-testid="pause-calc"]']],
+  // the real answer of a week; `paid_until_after` is moved to the last day of the pause by hand (no real probe moves it)
+  ["calc_with_balance", { create: (request) => { const answer = contract("pause_probe_create_week"); return { json: { ...answer, impact: { ...answer.impact, paid_until_after: day(6) }, dry_run: /dry_run=true/.test(request.query) } }; } }, {}, OWNER, typeDates(day(0), day(6))],
+  ["calc_two_months_begun_0212", { create: probeRaw("pause_probe_create_two_months_begun_0212") }, {}, OWNER, typeDates("2026-11-24", "2026-12-03"), ["pause_probe_create_two_months_begun_0212", '[data-testid="pause-calc"]', true], WORLD],
+  ["calc_backdated_month_start", { create: probeRaw("pause_probe_create_backdated_month_start") }, {}, OWNER, typeDates("2026-12-01", "2026-12-10"), ["pause_probe_create_backdated_month_start", '[data-testid="pause-calc"]', true], WORLD],
   ["calc_no_money_role", createFrom("pause_probe_create_no_money_role"), { moneyAvailable: false }, ADMIN, typeDates(day(0), day(6)), ["pause_probe_create_no_money_role", '[data-testid="pause-calc"]']],
   ["calc_old_server", { create: () => { const answer = contract("pause_probe_create_week"); delete answer.charge_rows; delete answer.charge_later; return { json: answer }; } }, {}, OWNER, typeDates(day(0), day(6))],
   ["calc_packages_old_line", createFrom("pause_probe_create_packages"), {}, OWNER, typeDates(day(0), day(6))],
@@ -58,6 +64,9 @@ const STATES = [
   ["calc_long_seven_digits", { create: { ...contract("pause_probe_create_two_months_begun"), impact: { ...contract("pause_probe_create_two_months_begun").impact, charged_delta: -11111110 }, charge_rows: [
     { label: "24.11.2026–10.01.2027", first_day: "2026-11-24", last_day: "2027-01-10", days: 48, lessons: 120, lessons_passed: 37, amount: -1234567 },
     { label: "11.01.2027–30.01.2027", first_day: "2027-01-11", last_day: "2027-01-30", days: 20, lessons: 8, lessons_passed: null, amount: -9876543 }] } }, {}, OWNER, typeDates(day(0), day(9))],
+  ["calc_long_period_begins", { create: { ...contract("pause_probe_create_two_months_begun_0212"), impact: { ...contract("pause_probe_create_two_months_begun_0212").impact, charged_delta: -11111110 }, charge_rows: [
+    { label: "24.11.2026–10.01.2027", first_day: "2026-11-24", last_day: "2027-01-10", days: 48, lessons: 120, lessons_passed: 37, amount: -1234567, period_begins: null },
+    { label: "11.01.2027–30.01.2027", first_day: "2027-01-11", last_day: "2027-01-30", days: 20, lessons: 8, lessons_passed: null, amount: -9876543, period_begins: "2027-01-31" }] } }, {}, OWNER, typeDates(day(0), day(9))],
   ["card_running", { pauses: [RUNNING()] }, {}, OWNER, async () => {}],
   ["card_running_planned", { pauses: [RUNNING(), PLANNED()] }, {}, OWNER, async () => {}],
   ["card_planned", { pauses: [PLANNED()] }, {}, OWNER, async () => {}],
@@ -66,6 +75,7 @@ const STATES = [
   ["confirm_end", { pauses: [RUNNING()], end: probeOf("pause_probe_end_today") }, {}, OWNER, click("Закончить сегодня"), ["pause_probe_end_today", '[data-testid="pause-card-acting"]']],
   ["confirm_void_running_reason_empty", { pauses: [RUNNING()], void: probeOf("pause_probe_void_running") }, {}, OWNER, click("Снять паузу целиком"), ["pause_probe_void_running", '[data-testid="pause-card-acting"]']],
   ["confirm_void_running_reason_filled", { pauses: [RUNNING()], void: probeOf("pause_probe_void_running") }, {}, OWNER, async (page) => { await click("Снять паузу целиком")(page); await page.fill("#pause-act-reason", "ученик передумал"); }, ["pause_probe_void_running", '[data-testid="pause-card-acting"]']],
+  ["confirm_void_two_months_0212", { pauses: [pauseOf("pr1", "2026-11-24", "2026-12-03", { reason: "уехал к родственникам" })], void: probeRaw("pause_probe_void_two_months_0212") }, {}, OWNER, click("Снять паузу целиком"), ["pause_probe_void_two_months_0212", '[data-testid="pause-card-acting"]', true], WORLD],
   ["confirm_void_planned", { pauses: [PLANNED()], void: probeOf("pause_probe_void_future") }, {}, OWNER, click("Снять паузу", true), ["pause_probe_void_future", '[data-testid="pause-card-acting"]']],
   ["confirm_error_write_in_card", { pauses: [RUNNING()], void: (request) => (/dry_run=true/.test(request.query) ? { json: { ...contract("pause_probe_void_running"), dry_run: true } } : { status: 409, json: { detail: { code: "PAUSE_RANGE", message: "Слишком давняя дата: паузу уже не изменить" } } }) }, {}, OWNER, async (page) => { await click("Снять паузу целиком")(page); await page.fill("#pause-act-reason", "ошибка"); await page.locator('[data-testid="pause-act-confirm"]').click(); await page.waitForTimeout(500); }],
   ["confirm_closed_month_in_card", { pauses: [RUNNING()], void: closedMonth }, {}, OWNER, click("Снять паузу целиком")],
@@ -76,18 +86,23 @@ const STATES = [
   ["past_open_with_locked", { pauses: [pauseOf("a", day(-60), day(-54), { reason: "болел" }), pauseOf("b", day(-100), day(-98)), pauseOf("y", "2025-10-05", "2025-10-11", { reason: "прошлый год" }), locked("c", day(-8), day(-6), LEAVE_TEXT)] }, {}, OWNER, async (page) => { await page.locator('[data-testid="pause-past-summary"]').click(); await page.waitForTimeout(300); }],
   ["left_today_return_way", { pauses: [locked("l1", day(-5), day(-3), RETURN_TEXT, { reason: "Болезнь" })] }, { active: false }, OWNER, async () => {}],
   ["left_transfer_earlier", { pauses: [locked("l2", day(-5), day(-3), TRANSFER_TEXT)] }, { active: false }, OWNER, async () => {}],
+  ["left_old_data_free_running", { pauses: [pauseOf("l3", day(-3), day(4), { reason: "старые данные" }), pauseOf("p3", day(-40), day(-35), { reason: "болел" })] }, { active: false }, OWNER, async () => {}],   // no card: the fold is open by itself
   ["left_locked_and_plain_past", { pauses: [locked("l1", day(-5), day(-3), LEAVE_TEXT), pauseOf("p2", day(-40), day(-35), { reason: "болел" })] }, { active: false }, OWNER, async (page) => { await page.locator('[data-testid="pause-past-summary"]').click(); await page.waitForTimeout(300); }],
 ];
 
 // the rows of the DOM must be the rows of the sample: label, count word, sign and digits (lesson 178)
-async function compare(page, label, [sampleName, scope]) {
-  const answer = contract(sampleName);
+async function compare(page, label, [sampleName, scope, asIs]) {
+  const answer = asIs ? raw(sampleName) : contract(sampleName);
   const rows = answer.charge_rows ?? [];
   const shown = await page.locator(`${scope} [data-testid="pause-money-row"]`).evaluateAll((items) => items.map((li) => [li.querySelector('[data-testid="pause-money-label"]').textContent.replace(/[\s ]+/g, " ").trim(), li.querySelector('[data-testid="pause-money-amount"]')?.textContent.replace(/[\s ]+/g, " ").trim() ?? null]));
   if (shown.length !== rows.length) { suspicious.push(`${label}: ${shown.length} rows on the screen, ${rows.length} in the sample`); return; }
   rows.forEach((row, index) => {
     const count = row.lessons !== null ? `${row.lessons} ${wordFor(row.lessons)}` : `${row.days} дн`;
-    if (!shown[index][0].startsWith(`${row.label} · ${count}`)) suspicious.push(`${label}: row ${index} says «${shown[index][0]}», the sample «${row.label} · ${count}»`);
+    if (row.period_begins) {
+      const from = `${row.period_begins.slice(8, 10)}.${row.period_begins.slice(5, 7)}`;
+      const want = row.amount < 0 ? `${row.label} — оплата периода начнётся ${from}, до этого дня он в стоимость не входит` : `${row.label} — период входит в стоимость с ${from}`;
+      if (shown[index][0] !== want) suspicious.push(`${label}: row ${index} says «${shown[index][0]}», the sample «${want}»`);
+    } else if (!shown[index][0].startsWith(`${row.label} · ${count}`)) suspicious.push(`${label}: row ${index} says «${shown[index][0]}», the sample «${row.label} · ${count}»`);
     const amount = row.amount === null ? null : signed(row.amount);
     if (shown[index][1] !== amount) suspicious.push(`${label}: row ${index} sum «${shown[index][1]}», the sample «${amount}»`);
   });
@@ -114,9 +129,10 @@ const shot = async (page, name) => {
 (async () => {
   const browser = await launch();
   for (const width of [1280, 375]) {
-    for (const [state, options, props, user, act, sample] of STATES) {
+    for (const [state, options, props, user, act, sample, world] of STATES) {
       const server = pauseServer(options);
       const { page, errors } = await openPage(browser, "money2.entry.tsx", server, dims(width));
+      if (world) await page.clock.setFixedTime(new Date(`${world}T09:00:00+05:00`));
       await page.evaluate(([n, u, p]) => window.mount(n, u, p), ["pause", user, { moneyAvailable: true, groupName: "Алгебра", ...props }]);
       await page.waitForSelector('[data-testid="pause-loading"], #pause-first, [data-testid="pause-card"], [data-testid="pause-past"]');
       await page.waitForTimeout(500);

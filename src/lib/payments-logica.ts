@@ -378,6 +378,8 @@ export interface ChargeRow {
   lessons: number | null;
   lessons_passed: number | null;
   amount: number | null;
+  /** Б11.43 п. 1 (step 8.14.10): the first paid day of a period the action MOVES across the working day (it has not begun in the bill after it); null on every other row. */
+  period_begins?: string | null;
 }
 
 /** Б11.40 С3': the days of the change that fall into a period which is not charged yet (no sum): one record. */
@@ -481,8 +483,15 @@ export interface PauseMoneyModel {
   note: string | null;
 }
 
-/** «24.11–30.11 · 3 урока», «… · 6 уроков, из них 3 уже прошли», «… · 4 дня» (the period is not counted by lessons): the label of the server and the counts of the server. */
+/**
+ * «24.11–30.11 · 3 урока», «… · 6 уроков, из них 3 уже прошли», «… · 4 дня» (the period is not counted by lessons): the label of the server and the counts of the server.  A row with `period_begins` (Б11.43)
+ * writes NO number of lessons (they do not cost what the sum says): «… — оплата периода начнётся 04.12, до этого дня он в стоимость не входит» (the sum below zero) / «… — период входит в стоимость с 01.12» (above zero).
+ */
 export function chargeRowLabel(row: ChargeRow): string {
+  if (row.period_begins && row.amount !== null && row.amount !== undefined && row.amount !== 0) {
+    const from = formatDayMonthRu(row.period_begins);
+    return row.amount < 0 ? `${row.label} — оплата периода начнётся ${from}, до этого дня он в стоимость не входит` : `${row.label} — период входит в стоимость с ${from}`;
+  }
   const count = row.lessons !== null && row.lessons !== undefined ? `${row.lessons} ${lessonsWord(row.lessons)}` : `${row.days} ${daysWord(row.days)}`;
   const passed = row.lessons_passed && row.lessons_passed > 0 ? `, из них ${row.lessons_passed} уже ${pluralRu(row.lessons_passed, "прошёл", "прошли", "прошли")}` : "";
   return `${row.label} · ${count}${passed}`;
@@ -502,7 +511,7 @@ export function pauseMoneyModel(saved: { charge_rows?: ChargeRow[] | null; charg
     heading: set ? "Не входят в стоимость" : "Снова входят в стоимость",
     rows: rows.map((row, index) => ({ key: `${row.first_day}-${row.last_day}-${index}`, label: chargeRowLabel(row), amount: row.amount === null || row.amount === undefined ? null : formatSignedMoney(row.amount) })),
     total: rows.length >= 2 && saved.impact ? formatSignedMoney(saved.impact.charged_delta) : null,
-    later: later ? `${later.label} — период ещё не начислен, эти дни в него ${set ? "не войдут" : "войдут"}.` : null,
+    later: later ? `${later.label} — следующий период: эти дни в стоимость ${set ? "не войдут" : "войдут"}.` : null,
     note: set ? "Место в группе сохраняется." : null,
   };
 }

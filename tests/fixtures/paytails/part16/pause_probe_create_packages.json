@@ -1,0 +1,46 @@
+{
+  "advance_drops": [],
+  "charge_later": null,
+  "charge_rows": [],
+  "dry_run": true,
+  "impact": {
+    "advance_after": 0,
+    "advance_before": 0,
+    "charged_delta": 0,
+    "debt_after": 400000,
+    "debt_before": 400000,
+    "paid_until_after": "2026-09-30",
+    "paid_until_before": "2026-09-30",
+    "refundable_after": 0,
+    "refundable_before": 0
+  },
+  "lessons": {
+    "attended": [],
+    "excluded": []
+  },
+  "new_debts": [],
+  "other_gains": [],
+  "other_groups_text": null,
+  "pause": {
+    "created_at": "2026-10-20T07:00:00.000030",
+    "created_by_name": "Иван Owner",
+    "days": 15,
+    "days_locked": false,
+    "days_locked_text": null,
+    "first_day": "2026-10-27",
+    "id": "8b03625c-098c-4823-ae2f-e6a3a46eebe0",
+    "last_day": "2026-11-10",
+    "membership_id": "00005296-b56b-4588-87b1-39b81ce88110",
+    "reason": "Болезнь",
+    "void_reason": null,
+    "voided_at": null
+  },
+  "payroll": {
+    "months": [
+      "2026-10",
+      "2026-11"
+    ],
+    "saved_sheets_changed": 0
+  },
+  "row": null
+}
