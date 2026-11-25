@@ -21,8 +21,8 @@ function setup(test) {
 const plain = (text) => String(text ?? "").replace(/[\s ]+/g, " ").trim();
 const isDry = (request) => /dry_run=true/.test(request.query);
 /** Opens the page of `money2.entry.tsx`, mounts `name` and returns the run (`page`, `calls`, `errors`). */
-async function mount(ctx, answer, name, user, props, width = 1280) {
-  const run = await openPage(ctx.browser, "money2.entry.tsx", answer, { width, height: width === 375 ? 800 : 900 });
+async function mount(ctx, answer, name, user, props, width = 1280, { today = null } = {}) {
+  const run = await openPage(ctx.browser, "money2.entry.tsx", answer, { width, height: width === 375 ? 800 : 900, today });
   await run.page.evaluate(([n, u, p]) => window.mount(n, u, p), [name, user ?? { role: "owner", org_role: "owner" }, props ?? {}]);
   return run;
 }

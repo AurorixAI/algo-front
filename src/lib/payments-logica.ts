@@ -380,6 +380,10 @@ export interface ChargeRow {
   amount: number | null;
   /** Б11.43 п. 1 (step 8.14.10): the first paid day of a period the action MOVES across the working day (it has not begun in the bill after it); null on every other row. */
   period_begins?: string | null;
+  /** Б11.45 (step 8.14.12): what the move of that period takes out of the bill today (below zero) or puts back (above zero); null on every other row and for a role without money. */
+  deferred?: number | null;
+  /** Б11.45: the server's name of that period («Декабрь», «15.11–14.12»), capitalised; filled only with `period_begins`. */
+  period_label?: string | null;
 }
 
 /** Б11.40 С3': the days of the change that fall into a period which is not charged yet (no sum): one record. */
@@ -473,10 +477,12 @@ export type PauseMoneyAction = "set" | "end" | "void";
 
 export interface PauseMoneyModel {
   /** By the ACTION, not by the sign (Б11.40 Э5'): «Не входят в стоимость» for a new pause, «Снова входят в стоимость» for an ending and a void. */
-  heading: string;
+  heading: string | null;
   rows: Array<{ key: string; label: string; amount: string | null }>;
   /** «Итого» under a line: two rows and more, for a role that sees money. */
   total: string | null;
+  /** Б11.45: one quiet line per period the action moves across the working day («Декабрь: оплата 514 000 сум начнётся 04.12 — …»). */
+  deferrals: string[];
   /** The days of the change that fall into a period not charged yet - one quiet line. */
   later: string | null;
   /** «Место в группе сохраняется.» - only when a pause is set. */
@@ -484,33 +490,52 @@ export interface PauseMoneyModel {
 }
 
 /**
- * «24.11–30.11 · 3 урока», «… · 6 уроков, из них 3 уже прошли», «… · 4 дня» (the period is not counted by lessons): the label of the server and the counts of the server.  A row with `period_begins` (Б11.43)
- * writes NO number of lessons (they do not cost what the sum says): «… — оплата периода начнётся 04.12, до этого дня он в стоимость не входит» (the sum below zero) / «… — период входит в стоимость с 01.12» (above zero).
+ * «24.11–30.11 · 3 урока», «… · 6 уроков, из них 3 уже прошли», «… · 4 дня» (the period is not counted by lessons): the label of the server and the counts of the server.  A row of a period the action
+ * MOVES across the working day (Б11.45) is an ordinary row: the difference of its price; what the move takes out of / puts back into the bill today is the quiet line `chargeDeferralText` under the rows.
  */
 export function chargeRowLabel(row: ChargeRow): string {
-  if (row.period_begins && row.amount !== null && row.amount !== undefined && row.amount !== 0) {
-    const from = formatDayMonthRu(row.period_begins);
-    return row.amount < 0 ? `${row.label} — оплата периода начнётся ${from}, до этого дня он в стоимость не входит` : `${row.label} — период входит в стоимость с ${from}`;
-  }
   const count = row.lessons !== null && row.lessons !== undefined ? `${row.lessons} ${lessonsWord(row.lessons)}` : `${row.days} ${daysWord(row.days)}`;
   const passed = row.lessons_passed && row.lessons_passed > 0 ? `, из них ${row.lessons_passed} уже ${pluralRu(row.lessons_passed, "прошёл", "прошли", "прошли")}` : "";
   return `${row.label} · ${count}${passed}`;
 }
 
+/** A row that is written in the list: with a sum - not zero; for a role without money (`amount` null) - one that has lessons (or is counted by days). */
+function chargeRowShown(row: ChargeRow): boolean {
+  if (row.amount === null || row.amount === undefined) return row.lessons !== 0;
+  return row.amount !== 0 && row.lessons !== 0;
+}
+
 /**
- * Б11.39 Э6 + Б11.40 С1'-С5', Э5'-Э6': the block of money of a pause, from the answer of the server (a dry run or the real one).  `null` = the old one line stays: no `charge_rows`
- * (an old server), or both `charge_rows` and `charge_later` empty (a personal period, packages, a period without lessons in the changed days).  Nothing is added up here: «Итого» is `impact.charged_delta`.
+ * Б11.45: the quiet line of a period that has `period_label` (the server's words, capitalised, put FIRST): «Декабрь: оплата 514 000 сум начнётся 04.12 — до этого дня она в долг не входит.» /
+ * «Декабрь: оплата 514 000 сум началась 01.12 и снова входит в долг.»; a role without money (`deferred` null): «Декабрь: оплата начнётся 04.12.» (the begin is after the working day) / «… началась 01.12.».
  */
-export function pauseMoneyModel(saved: { charge_rows?: ChargeRow[] | null; charge_later?: ChargeLater | null; impact?: ImpactMoney | null } | null | undefined, action: PauseMoneyAction): PauseMoneyModel | null {
+export function chargeDeferralText(row: ChargeRow, today: string): string | null {
+  if (!row.period_label || !row.period_begins) return null;
+  const from = formatDayMonthRu(row.period_begins);
+  if (row.deferred === null || row.deferred === undefined) return `${row.period_label}: оплата ${row.period_begins > today ? "начнётся" : "началась"} ${from}.`;
+  if (row.deferred === 0) return null;
+  const sum = formatMoney(Math.abs(row.deferred));
+  return row.deferred < 0 ? `${row.period_label}: оплата ${sum} начнётся ${from} — до этого дня она в долг не входит.` : `${row.period_label}: оплата ${sum} началась ${from} и снова входит в долг.`;
+}
+
+/**
+ * Б11.39 Э6 + Б11.40 С1'-С5', Э5'-Э6' + Б11.45: the block of money of a pause, from the answer of the server (a dry run or the real one).  `null` = the old one line stays: no `charge_rows`
+ * (an old server), or nothing to say (a personal period, packages, a period without lessons in the changed days).  «Итого» is the sum of the rows written above it (the server keeps «Σ amount + Σ deferred = charged_delta»).
+ */
+export function pauseMoneyModel(saved: { charge_rows?: ChargeRow[] | null; charge_later?: ChargeLater | null; impact?: ImpactMoney | null } | null | undefined, action: PauseMoneyAction, today: string): PauseMoneyModel | null {
   if (!saved) return null;
-  const rows = arr<ChargeRow>(saved.charge_rows);
+  const all = arr<ChargeRow>(saved.charge_rows);
+  const rows = all.filter(chargeRowShown);
+  const deferrals = all.map((row) => chargeDeferralText(row, today)).filter((line): line is string => line !== null);
   const later = saved.charge_later && saved.charge_later.label ? saved.charge_later : null;
-  if (rows.length === 0 && !later) return null;
+  if (rows.length === 0 && deferrals.length === 0 && !later) return null;
   const set = action === "set";
+  const withSums = rows.filter((row) => row.amount !== null && row.amount !== undefined);
   return {
-    heading: set ? "Не входят в стоимость" : "Снова входят в стоимость",
+    heading: rows.length > 0 ? (set ? "Не входят в стоимость" : "Снова входят в стоимость") : null,
     rows: rows.map((row, index) => ({ key: `${row.first_day}-${row.last_day}-${index}`, label: chargeRowLabel(row), amount: row.amount === null || row.amount === undefined ? null : formatSignedMoney(row.amount) })),
-    total: rows.length >= 2 && saved.impact ? formatSignedMoney(saved.impact.charged_delta) : null,
+    total: withSums.length >= 2 && withSums.length === rows.length ? formatSignedMoney(withSums.reduce((total, row) => total + (row.amount ?? 0), 0)) : null,
+    deferrals,
     later: later ? `${later.label} — следующий период: эти дни в стоимость ${set ? "не войдут" : "войдут"}.` : null,
     note: set ? "Место в группе сохраняется." : null,
   };
@@ -522,7 +547,8 @@ export function pauseWarnings(saved: Pick<PauseSaved, "pause" | "lessons" | "pay
   const out: string[] = [];
   const { pause } = saved;
   if (pause.first_day < today) {
-    out.push(`Пауза задним числом: уроки с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(pause.last_day < today ? pause.last_day : addIsoDays(today, -1))} не будут засчитаны ни ученику, ни преподавателю`);
+    const to = pause.last_day < today ? pause.last_day : addIsoDays(today, -1);
+    out.push(`Пауза задним числом: уроки ${to === pause.first_day ? `за ${formatDayMonthRu(to)}` : `с ${formatDayMonthRu(pause.first_day)} по ${formatDayMonthRu(to)}`} не будут засчитаны ни ученику, ни преподавателю`);
   }
   const attended = arr<PauseLessonMark>(saved.lessons?.attended);
   if (attended.length > 0) out.push(attendedText(attended.map((item) => item.date)));

@@ -294,10 +294,12 @@ export function PauseDialog({
   };
 
   const stateOf = (pause: PauseOut): "running" | "planned" | null => (participating && pause.last_day >= today ? (pauseIsRunning(pause, today) ? "running" : "planned") : null);
+  /** Rule 142: with two cards or more the buttons look alike - the accessible name says whose pause («Снять паузу, пауза с 24.11 по 30.11»); with one card the visible words are the name. */
+  const nameWithDates = (label: string, pause: PauseOut) => (groups.cards.length > 1 ? `${label}, пауза ${pauseSpan(pause, today)}` : undefined);
   const voidLabelOf = (pause: PauseOut) => (pause.days_locked !== true && pause.first_day > today ? PAUSE_VOID_PLANNED_LABEL : PAUSE_VOID_LABEL);
 
   const warnings = pauseWarnings(calc, today);
-  const calcModel = pauseMoneyModel(calc, "set");
+  const calcModel = pauseMoneyModel(calc, "set", today);
   const calcTail = pauseCalcTail(calc?.impact);
   const hasList = groups.cards.length > 0 || groups.past.length > 0;
 
@@ -317,7 +319,7 @@ export function PauseDialog({
     const state = stateOf(pause);
     const kind = action === "end" ? "end" : "void";
     const answer = actPreview?.status === "ready" ? (actPreview.answer as Partial<PauseSaved> | null) : null;
-    const model = pauseMoneyModel(answer, kind);
+    const model = pauseMoneyModel(answer, kind, today);
     const tail = pauseCalcTail(answer?.impact);
     const hasOther = otherGroupsOf(answer).rows.length > 0;
     const sentence = action === "end"
@@ -370,8 +372,8 @@ export function PauseDialog({
         {pause.reason && <p className="mt-1 text-xs text-slate-600" data-testid="pause-reason">{pause.reason}</p>}
         {locked && pause.days_locked_text && <p className="mt-1 text-xs text-slate-600" data-testid="pause-locked-text">{pause.days_locked_text}</p>}
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          {canEnd && <Button type="button" variant="primary" size="md" data-testid="pause-end" className="w-full sm:w-auto" onClick={() => startAction(pause, "end")}>{PAUSE_END_LABEL}</Button>}
-          <Button type="button" variant="secondary" size="md" data-testid="pause-void" className="w-full sm:w-auto" onClick={() => startAction(pause, "cancel")}>{voidLabelOf(pause)}</Button>
+          {canEnd && <Button type="button" variant="primary" size="md" data-testid="pause-end" className="w-full sm:w-auto" onClick={() => startAction(pause, "end")} aria-label={nameWithDates(PAUSE_END_LABEL, pause)}>{PAUSE_END_LABEL}</Button>}
+          <Button type="button" variant="secondary" size="md" data-testid="pause-void" className="w-full sm:w-auto" onClick={() => startAction(pause, "cancel")} aria-label={nameWithDates(voidLabelOf(pause), pause)}>{voidLabelOf(pause)}</Button>
         </div>
       </li>
     );

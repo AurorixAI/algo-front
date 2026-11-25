@@ -62,7 +62,7 @@ test("Т9 (создание): the sentence about the other group stands once und
 
 test("Т9 (отмена и окончание): the dry run is asked when the action opens, its sentence is shown once, the write follows", async () => {
   const run = await open(1280, server());
-  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();              // the planned pause: «Снять паузу»
+  await run.page.locator('[data-testid="pause-card"][data-state="planned"]').getByRole("button", { name: /^Снять паузу, пауза с \d\d\.\d\d по \d\d\.\d\d$/ }).click();   // two cards: the name says whose pause (rule 142)              // the planned pause: «Снять паузу»
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.equal(dryCalls(run, /\/pauses\/pf\/void$/).length, 1, "the cancel asks the dry run");
   assert.equal(plain(await run.page.textContent('[data-testid="pause-act-effects"]')), plain(OTHER));
@@ -78,7 +78,7 @@ test("Т9 (отмена и окончание): the dry run is asked when the ac
 
 test("Т9: 409 `PAUSE_BREAKS_REFUND` - the server's text (with the name of the group), the button is off; without the right to money no sentence and no dead end", async () => {
   const run = await open(1280, server({ breaks: true }));
-  await run.page.getByRole("button", { name: "Снять паузу", exact: true }).click();
+  await run.page.locator('[data-testid="pause-card"][data-state="planned"]').getByRole("button", { name: /^Снять паузу, пауза с \d\d\.\d\d по \d\d\.\d\d$/ }).click();   // two cards: the name says whose pause (rule 142)
   await run.page.waitForSelector('[data-testid="pause-act-effects"]');
   assert.equal(plain(await run.page.textContent('[data-testid="pause-act-effects"]')), plain(BREAKS));
   const confirm = run.page.locator('[data-testid="pause-act-confirm"]');
@@ -86,7 +86,7 @@ test("Т9: 409 `PAUSE_BREAKS_REFUND` - the server's text (with the name of the g
   await run.page.close();
 
   const blind = await open(1280, server({ text: null }));
-  await blind.page.getByRole("button", { name: "Снять паузу", exact: true }).click();
+  await blind.page.locator('[data-testid="pause-card"][data-state="planned"]').getByRole("button", { name: /^Снять паузу, пауза с \d\d\.\d\d по \d\d\.\d\d$/ }).click();   // two cards: the name says whose pause (rule 142)
   await blind.page.waitForTimeout(700);
   assert.equal(await blind.page.locator('[data-testid="pause-act-effects"]').count(), 0);
   assert.equal(await blind.page.locator('[data-testid="pause-act-confirm"]').isDisabled(), false);

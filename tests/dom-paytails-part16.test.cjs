@@ -2,24 +2,29 @@
 // the rows of the server's `charge_rows` (the REAL answers of the server: tests/fixtures/paytails/part16/pause_probe_*.json, byte copies of `paytails-r7/answers/`); «the window = the answer»: the labels, the
 // counts and the sums on the screen are the rows of the sample, written here by hand from the answer (not from the code).  PNGs: node tests/dom/paytails-part16-shots.cjs <dir>.
 const assert = require("node:assert/strict");
-const test = require("node:test");
+const nodeTest = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 const { setup, plain, mount, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
 const { readReal } = require("./helpers/paytails-part13.cjs");
-const { contract, pauseOf, pauseServer, day, dmy, dm } = require("./helpers/paytails-part16.cjs");
+const { contract, pauseOf, pauseBefore, pauseServer, setWorld, currentWorld, worldDay, FIXTURE_DAY, day, dmy, dm } = require("./helpers/paytails-part16.cjs");
 
-const ctx = setup(test);
+// lesson 178: every test starts in the day of the world of the FIRST answers (24.11.2026); a test of another world (02.12.2026) says so with `setWorld(worldDay(name))` before it builds anything
+const test = (name, fn) => nodeTest(name, async (t) => { setWorld(FIXTURE_DAY); return fn(t); });
+const ctx = setup(nodeTest);
 const root = path.join(__dirname, "..");
 const NB = " ";
-const open = (server, props = {}, width = 1280, user = OWNER) => mount(ctx, server, "pause", user, { moneyAvailable: true, ...props }, width);
+const open = (server, props = {}, width = 1280, user = OWNER) => mount(ctx, server, "pause", user, { moneyAvailable: true, ...props }, width, { today: currentWorld() });
 const footer = (page) => page.locator('[role="dialog"] [data-modal-part="footer"]');
 const footerButtons = async (page) => (await footer(page).locator("button").allInnerTexts()).map(plain);
 const dialogText = async (page) => plain(await page.locator('[role="dialog"]').innerText());
 const dateOf = (iso) => dm(iso);
 const factsOf = (first, last, days) => `с ${dateOf(first)} по ${dateOf(last)} · ${days} ${days % 10 === 1 && days % 100 !== 11 ? "день" : [2, 3, 4].includes(days % 10) && ![12, 13, 14].includes(days % 100) ? "дня" : "дней"}`;
 const fill = async (page, first, last) => { await page.fill("#pause-first", dmy(first)); await page.fill("#pause-last", dmy(last)); };
+/** The person types the days of the pause the answer is about: the fields are the answer's own days. */
+const fillOf = (page, answer) => fill(page, answer.pause.first_day, answer.pause.last_day);
+const digits = (text) => Number(text.replace(/[^\d]/g, "")) * (text.trim().startsWith("−") ? -1 : 1);
 /** What a person reads in the block of money: heading, [label, sum|null] per row, the total, the quiet lines. */
 async function money(page, scope = "") {
   const block = page.locator(`${scope} [data-testid="pause-money"]`);
@@ -30,10 +35,19 @@ async function money(page, scope = "") {
       heading: t(element.querySelector('[data-testid="pause-money-heading"]')),
       rows: [...element.querySelectorAll('[data-testid="pause-money-row"]')].map((li) => [t(li.querySelector('[data-testid="pause-money-label"]')), t(li.querySelector('[data-testid="pause-money-amount"]'))]),
       total: t(element.querySelector('[data-testid="pause-money-total-amount"]')),
+      deferred: [...element.querySelectorAll('[data-testid="pause-money-deferred"]')].map(t),
       later: t(element.querySelector('[data-testid="pause-money-later"]')),
       note: t(element.querySelector('[data-testid="pause-money-note"]')),
     };
   });
+}
+/** «Остаток: долг X сум → долг Y сум» read from the screen: X + Σ rows on the screen + Σ moved periods on the screen = Y (nothing from the answer: the numbers a person reads). */
+function reconcile(text, read, label) {
+  const [, before, after] = text.match(/Остаток: долг ([\d\s]+) сум → долг ([\d\s]+) сум/);
+  const num = (value) => Number(value.replace(/\D/g, ""));
+  const rowsSum = read.rows.reduce((total, [, amount]) => total + digits(amount), 0);
+  const movedSum = read.deferred.reduce((total, line) => total + (/начнётся/.test(line) ? -1 : 1) * num(line.match(/оплата ([\d\s]+) сум/)[1]), 0);
+  assert.equal(num(before) + rowsSum + movedSum, num(after), `${label}: debt ${before} + rows ${rowsSum} + moved ${movedSum} = debt ${after}`);
 }
 const calcOf = async (page) => { await page.waitForSelector('[data-testid="pause-calc-wrap"], [data-testid="pause-calc"] [role="alert"]'); return page; };
 const sum = (n) => `${n < 0 ? "−" : "+"}${String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} сум`;
@@ -60,6 +74,13 @@ for (const width of [1280, 375]) {
     await run.page.close();
   });
 }
+
+test("Э1 / Э2 (rule 142) ONE card: the buttons are named by their visible words (no extra name); the name with the dates appears only when there are two cards or more", async () => {
+  const run = await open(pauseServer({ pauses: [RUNNING()] }));
+  await run.page.waitForSelector('[data-testid="pause-card"]');
+  assert.deepEqual(await run.page.locator('[data-testid="pause-card"] button').evaluateAll((items) => items.map((item) => item.getAttribute("aria-label"))), [null, null]);
+  await run.page.close();
+});
 
 test("Э1 / Э2: a live pause - NO form, the card «Сейчас на паузе» (facts, the reason on its own quiet line, «Закончить сегодня» main + «Снять паузу целиком»), «+ Новая пауза» under it; the footer is «Закрыть» only", async () => {
   const run = await open(pauseServer({ pauses: [RUNNING()] }));
@@ -89,7 +110,15 @@ test("Э2: a pause without a reason has no reason line; the running one goes fir
   assert.equal(await cards.nth(2).locator('[data-testid="pause-reason"]').count(), 0, "no reason - no line");
   const planned = cards.nth(1);
   assert.equal(await planned.locator("button").count(), 1);
-  assert.equal(await planned.getByRole("button", { name: "Снять паузу", exact: true }).getAttribute("data-variant"), "secondary");
+  // rule 142: with several cards every button has a name that says WHICH pause (the visible words first, then the dates of its card)
+  assert.equal(await planned.getByRole("button").getAttribute("data-variant"), "secondary");
+  const names = await cards.evaluateAll((items) => items.map((item) => [...item.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))));
+  assert.deepEqual(names, [
+    [`Закончить сегодня, пауза ${factsOf(day(-7), day(6), 14).split(" · ")[0]}`, `Снять паузу целиком, пауза ${factsOf(day(-7), day(6), 14).split(" · ")[0]}`],
+    [`Снять паузу, пауза ${factsOf(day(14), day(20), 7).split(" · ")[0]}`],
+    [`Снять паузу, пауза ${factsOf(day(30), day(33), 4).split(" · ")[0]}`],
+  ]);
+  assert.equal(new Set(names.flat()).size, 4, "no two buttons of the window have the same name");
   const dots = await cards.evaluateAll((items) => items.map((item) => getComputedStyle(item.querySelector('[data-testid="pause-state"] span span')).backgroundColor));
   assert.notEqual(dots[0], dots[1], "amber for the running one, calm blue-grey for a planned one");
   await run.page.close();
@@ -161,7 +190,7 @@ for (const width of [1280, 375]) {
     assert.equal(await run.page.locator('[data-testid="pause-card"]').count(), 0, "the card is squeezed");
     assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), width === 1280 ? /^Сейчас на паузе · с \d\d\.\d\d по \d\d\.\d\d$/ : /^Сейчас на паузе с \d\d\.\d\d по \d\d\.\d\d$/, "below sm the dates stand on their own line, no separator");
     assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), `Последний день паузы — вчера, ${dateOf(day(-1))}.`);
-    assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["24.11–30.11 · 3 урока", "+150 000 сум"]], total: null, later: null, note: null });
+    assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["24.11–30.11 · 3 урока", "+150 000 сум"]], total: null, deferred: [], later: null, note: null });
     assert.equal(await run.page.locator("#pause-act-reason").count(), 0, "a plain ending asks no reason until the server wants it");
     assert.equal(await acting.getByRole("button", { name: "Закончить паузу", exact: true }).getAttribute("data-variant"), "primary");
     assert.equal(await acting.getByRole("button", { name: "Назад", exact: true }).count(), 1);
@@ -184,7 +213,7 @@ test("Э3 / Э6 / Э7' «Снять паузу целиком» (running): the s
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const acting = run.page.locator('[data-testid="pause-card-acting"]');
   assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза будет снята целиком, как будто её не было.");
-  assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["17.11–30.11 · 6 уроков, из них 3 уже прошли", "+300 000 сум"]], total: null, later: null, note: null });
+  assert.deepEqual(await money(run.page, '[data-testid="pause-card-acting"]'), { heading: "Снова входят в стоимость", rows: [["17.11–30.11 · 6 уроков, из них 3 уже прошли", "+300 000 сум"]], total: null, deferred: [], later: null, note: null });
   const label = acting.locator('label[for="pause-act-reason"]');
   assert.equal(plain(await label.innerText()), "Причина (обязательно)");
   assert.ok((await acting.locator('[data-testid="pause-money"]').boundingBox()).y < (await label.boundingBox()).y, "the reason stands under the money");
@@ -209,7 +238,7 @@ test("Э3 / Э7' «Снять паузу» of a planned pause: «Пауза не
   const acting = run.page.locator('[data-testid="pause-card-acting"]');
   assert.match(plain(await acting.locator('[data-testid="pause-summary"]').innerText()), /^Пауза запланирована · с /);
   assert.equal(plain(await acting.locator('[data-testid="pause-act-sentence"]').innerText()), "Пауза не начнётся, её дни войдут в стоимость.");
-  assert.deepEqual(await money(run.page), { heading: "Снова входят в стоимость", rows: [], total: null, later: "01.12–10.12 — следующий период: эти дни в стоимость войдут.", note: null });
+  assert.deepEqual(await money(run.page), { heading: null, rows: [], total: null, deferred: [], later: "01.12–10.12 — следующий период: эти дни в стоимость войдут.", note: null }, "only the quiet line: NO heading over it (Б11.45 Э2)");
   assert.equal(await acting.getByRole("button", { name: "Снять паузу", exact: true }).count(), 1);
   await acting.getByRole("button", { name: "Назад", exact: true }).click();
   await run.page.waitForSelector('[data-testid="pause-card"]');
@@ -377,34 +406,39 @@ test("Э4' a student who has left and has NO card (only a pause without locked d
 // ── Э6 / Э7: the calculation under the form ─────────────────────────────────────────────────────────────
 
 const LATER_SET = (label) => `${label} — следующий период: эти дни в стоимость не войдут.`;
-const BEGINS = (label, from) => `${label} — оплата периода начнётся ${from}, до этого дня он в стоимость не входит`;
+const DEFER_CREATE = (label, sum, from) => `${label}: оплата ${sum} сум начнётся ${from} — до этого дня она в долг не входит.`;
 const CALC_CASES = [
-  { name: "pause_probe_create_week", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, later: null },
-  { name: "pause_probe_create_two_months", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, later: LATER_SET("01.12–03.12") },
-  { name: "pause_probe_create_two_months_begun", rows: [["24.11–30.11 · 3 урока", -150000], ["01.12–03.12 · 2 урока", -86000]], total: -236000, later: null },
-  { name: "pause_probe_create_backdated", rows: [["17.11–30.11 · 6 уроков", -300000]], total: null, later: null },
-  { name: "pause_probe_create_future_month", rows: [], total: null, later: LATER_SET("01.12–10.12") },
-  // Б11.43: the three worlds with `period_begins` - the number of lessons is NOT written on that row, the sentence says when the period starts to count
-  { name: "pause_probe_create_two_months_begun_0212", rows: [["24.11–30.11 · 3 урока", -150000], [BEGINS("01.12–03.12", "04.12"), -600000]], total: -750000, later: null },
-  { name: "pause_probe_create_backdated_month_start", rows: [[BEGINS("01.12–10.12", "11.12"), -600000]], total: null, later: null },
+  { name: "pause_probe_create_week", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, deferred: [], later: null },
+  { name: "pause_probe_create_two_months", rows: [["24.11–30.11 · 3 урока", -150000]], total: null, deferred: [], later: LATER_SET("01.12–03.12") },
+  { name: "pause_probe_create_two_months_begun", rows: [["24.11–30.11 · 3 урока", -150000], ["01.12–03.12 · 2 урока", -86000]], total: -236000, deferred: [], later: null },
+  { name: "pause_probe_create_backdated", rows: [["17.11–30.11 · 6 уроков", -300000]], total: null, deferred: [], later: null },
+  { name: "pause_probe_create_future_month", rows: [], total: null, deferred: [], later: LATER_SET("01.12–10.12"), heading: null },
+  // Б11.45: the worlds with a period the pause MOVES across the working day: an ordinary row (the difference of the price) and the quiet line of what the move takes out of the bill today
+  { name: "pause_probe_create_two_months_begun_0212", rows: [["24.11–30.11 · 3 урока", -150000], ["01.12–03.12 · 2 урока", -86000]], total: -236000, deferred: [DEFER_CREATE("Декабрь", "514 000", "04.12")], later: null },
+  { name: "pause_probe_create_backdated_month_start", rows: [["01.12–10.12 · 5 уроков", -214000]], total: null, deferred: [DEFER_CREATE("Декабрь", "386 000", "11.12")], later: null },
 ];
 for (const width of [1280, 375]) {
   for (const one of CALC_CASES) {
     test(`Э6 (${width}) ${one.name}: heading «Не входят в стоимость», the rows ARE the charge_rows of the answer${one.total !== null ? ", «Итого» under a line" : ""}, «Место в группе сохраняется.»; the line under the dates is gone`, async () => {
+      setWorld(worldDay(one.name));
       const answer = contract(one.name);
       const run = await open(pauseServer({ pauses: [], create: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
       await run.page.waitForSelector("#pause-first");
-      await fill(run.page, day(0), day(6));
+      await fillOf(run.page, answer);
       await run.page.waitForSelector('[data-testid="pause-money"]');
       const read = await money(run.page, '[data-testid="pause-calc"]');
       assert.deepEqual(read.rows.map(([label, amount]) => [label, amount && Number(amount.replace(/[^\d]/g, "")) * (amount.startsWith("−") ? -1 : 1)]), one.rows.map(([label, amount]) => [label, amount]));
       for (const [index, [, amount]] of read.rows.entries()) assert.equal(amount, sum(one.rows[index][1]), "a real minus sign and a space that does not break");
-      assert.equal(read.heading, "Не входят в стоимость");
+      assert.equal(read.heading, one.heading === undefined ? "Не входят в стоимость" : one.heading);
       assert.equal(read.total, one.total === null ? null : sum(one.total));
+      assert.deepEqual(read.deferred, one.deferred, "one quiet line per moved period, the server's label first");
       assert.equal(read.later, one.later);
-      assert.equal(read.note, "Место в группе сохраняется.");
+      // the check of the number on the screen: the debt before + the rows + what the move puts in / takes out of the bill = the debt after
+      const balance = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
+      if (/Остаток: долг/.test(balance)) reconcile(balance, read, one.name);
       assert.equal(answer.charge_rows.length, one.rows.length, "the sample is the one the test describes");
-      assert.equal(answer.charge_rows.reduce((total, row) => total + row.amount, 0), answer.impact.charged_delta, "the sample itself keeps «Σ rows = charged_delta» (Б11.40 С4')");
+      assert.equal(read.note, "Место в группе сохраняется.");
+      assert.equal(answer.charge_rows.reduce((total, row) => total + row.amount + (row.deferred ?? 0), 0), answer.impact.charged_delta, "the sample itself keeps «Σ amount + Σ deferred = charged_delta» (Б11.45)");
       assert.equal(await run.page.locator('[data-testid="pause-hint"]').count(), 0, "the calculation replaces the quiet line");
       const text = await dialogText(run.page);
       assert.ok(!text.includes("Дни паузы не входят в стоимость:"), "no old line next to the rows");
@@ -440,10 +474,10 @@ test("Э6 a role WITHOUT the right to money: the rows have the period and the le
   const answer = contract("pause_probe_create_no_money_role");
   const run = await open(pauseServer({ pauses: [], create: { ...answer } }), { moneyAvailable: false }, 1280, ADMIN);
   await run.page.waitForSelector("#pause-first");
-  await fill(run.page, day(0), day(6));
+  await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const read = await money(run.page, '[data-testid="pause-calc"]');
-  assert.deepEqual(read, { heading: "Не входят в стоимость", rows: [["24.11–30.11 · 3 урока", null]], total: null, later: LATER_SET("01.12–03.12"), note: "Место в группе сохраняется." });
+  assert.deepEqual(read, { heading: "Не входят в стоимость", rows: [["24.11–30.11 · 3 урока", null]], total: null, deferred: [], later: LATER_SET("01.12–03.12"), note: "Место в группе сохраняется." });
   assert.ok(!/сум|\d{3}/.test(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()).replace(/\d\d\.\d\d/g, "")), "no money digits");
   await run.page.close();
 });
@@ -453,7 +487,7 @@ for (const name of ["pause_probe_create_packages", "pause_probe_create_personal"
     const answer = contract(name);
     const run = await open(pauseServer({ pauses: [], create: { ...answer } }));
     await run.page.waitForSelector("#pause-first");
-    await fill(run.page, day(0), day(6));
+    await fillOf(run.page, answer);
     await run.page.waitForSelector('[data-testid="pause-calc-wrap"]');
     assert.equal(await run.page.locator('[data-testid="pause-money"]').count(), 0);
     // the real answers: the pause has `days` 15 (packages) / 7 (personal); the sum of the change is 0, so the sentence has no sum
@@ -542,18 +576,20 @@ test("Э7 the write of a new pause refused by the server: the refusal stands in 
 
 // ── the 375 measure ─────────────────────────────────────────────────────────────────────────────────────
 
-test("Э6 (375) the sum of a row stands in ONE line on the right and does not leave the box - a seven-digit sum, the longest label (two years, many lessons, «из них … уже прошли»)", async () => {
+test("stress_ Э6 (375) the sum of a row stands in ONE line on the right and does not leave the box - a seven-digit sum, the longest label (two years, many lessons, «из них … уже прошли»); the SYNTHETIC answer is written in one day: the fields, the rows and the debt agree", async () => {
+  const real = contract("pause_probe_create_two_months_begun");
   const answer = {
-    ...contract("pause_probe_create_two_months_begun"),
+    ...real,
+    pause: { ...real.pause, first_day: "2026-11-24", last_day: "2027-01-30", days: 68 },
     charge_rows: [
       { label: "24.11.2026–10.01.2027", first_day: "2026-11-24", last_day: "2027-01-10", days: 48, lessons: 120, lessons_passed: 37, amount: -1234567 },
       { label: "11.01.2027–30.01.2027", first_day: "2027-01-11", last_day: "2027-01-30", days: 20, lessons: 8, lessons_passed: null, amount: -9876543 },
     ],
-    impact: { ...contract("pause_probe_create_two_months_begun").impact, charged_delta: -11111110 },
+    impact: { ...real.impact, charged_delta: -11111110, debt_before: 20000000, debt_after: 8888890 },
   };
   const run = await open(pauseServer({ pauses: [], create: { ...answer } }), {}, 375);
   await run.page.waitForSelector("#pause-first");
-  await fill(run.page, day(0), day(6));
+  await fillOf(run.page, answer);
   await run.page.waitForSelector('[data-testid="pause-money"]');
   const rows = await run.page.locator('[data-testid="pause-money-row"]').evaluateAll((items) => items.map((li) => {
     const amount = li.querySelector('[data-testid="pause-money-amount"]');
@@ -581,35 +617,35 @@ test("Э6 (375) the sum of a row stands in ONE line on the right and does not le
 
 // ── «окно = ответ» and the races ───────────────────────────────────────────────────────────────────────
 
-test("«окно = ответ»: for EVERY sample of the contract the rows on the screen (label, count word, sign and digits of the sum) are the rows of the answer", async () => {
+test("«окно = ответ»: for EVERY sample of the contract the rows on the screen (label, count word, sign and digits of the sum) and the quiet lines of the moved periods are the rows of the answer; a row without sum or lessons is not a row", async () => {
   const names = fs.readdirSync(path.join(root, "tests", "fixtures", "paytails", "part16")).filter((file) => /^pause_probe_(create|end|void).*\.json$/.test(file)).map((file) => file.replace(/\.json$/, ""));
   assert.equal(names.length, 14, names.join());
   const wordFor = (n) => (n % 10 === 1 && n % 100 !== 11 ? "урок" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "урока" : "уроков");
+  const unsigned = (n) => sum(Math.abs(n)).slice(1);
   for (const name of names) {
+    setWorld(worldDay(name));
     const answer = contract(name);
     const kind = name.includes("_end_") ? "end" : name.includes("_void_") ? "void" : "create";
-    const rows = answer.charge_rows ?? [];
+    const rows = (answer.charge_rows ?? []).filter((row) => row.amount !== 0 && row.lessons !== 0);
     const run = kind === "create"
       ? await open(pauseServer({ pauses: [], create: { ...answer } }))
-      : await open(pauseServer({ pauses: [RUNNING()], end: { ...answer }, void: { ...answer } }));
-    if (kind === "create") { await run.page.waitForSelector("#pause-first"); await fill(run.page, day(0), day(6)); await run.page.waitForSelector('[data-testid="pause-calc-wrap"], [data-testid="pause-calc"] [role="alert"]'); }
-    else { await run.page.getByRole("button", { name: kind === "end" ? "Закончить сегодня" : "Снять паузу целиком" }).click(); await run.page.waitForSelector('[data-testid="pause-act-calc"], [data-testid="pause-act-sentence"]'); await run.page.waitForTimeout(250); }
+      : await open(pauseServer({ pauses: [kind === "end" ? RUNNING() : pauseBefore(name)], end: { ...answer }, void: { ...answer } }));
+    if (kind === "create") { await run.page.waitForSelector("#pause-first"); await fillOf(run.page, answer); await run.page.waitForSelector('[data-testid="pause-calc-wrap"], [data-testid="pause-calc"] [role="alert"]'); }
+    else { await run.page.getByRole("button", { name: kind === "end" ? "Закончить сегодня" : /^Снять паузу/ }).click(); await run.page.waitForSelector('[data-testid="pause-act-calc"], [data-testid="pause-act-sentence"]'); await run.page.waitForTimeout(250); }
     const scope = kind === "create" ? '[data-testid="pause-calc"]' : '[data-testid="pause-card-acting"]';
-    const shown = await run.page.locator(`${scope} [data-testid="pause-money-row"]`).evaluateAll((items) => items.map((li) => [li.querySelector('[data-testid="pause-money-label"]').textContent.replace(/[\s ]+/g, " ").trim(), li.querySelector('[data-testid="pause-money-amount"]')?.textContent.replace(/[\s ]+/g, " ").trim() ?? null]));
-    assert.equal(shown.length, rows.length, `${name}: one row per record`);
+    const shown = await run.page.locator(`${scope} [data-testid="pause-money-row"]`).evaluateAll((items) => items.map((li) => [li.querySelector('[data-testid="pause-money-label"]').textContent.replace(/[\s\u00a0]+/g, " ").trim(), li.querySelector('[data-testid="pause-money-amount"]')?.textContent.replace(/[\s\u00a0]+/g, " ").trim() ?? null]));
+    assert.equal(shown.length, rows.length, `${name}: one row per record that has a sum and lessons`);
     rows.forEach((row, index) => {
       const count = row.lessons !== null ? `${row.lessons} ${wordFor(row.lessons)}` : `${row.days} дней`;
-      if (row.period_begins) {
-        // Б11.43: no number of lessons, the date the period starts to count (hand-written from the spec)
-        const from = `${row.period_begins.slice(8, 10)}.${row.period_begins.slice(5, 7)}`;
-        assert.equal(shown[index][0], row.amount < 0 ? `${row.label} — оплата периода начнётся ${from}, до этого дня он в стоимость не входит` : `${row.label} — период входит в стоимость с ${from}`, name);
-        assert.ok(!shown[index][0].includes("урок") && !shown[index][0].includes("из них"), `${name}: no lessons on a row with period_begins`);
-      } else {
-        assert.ok(shown[index][0].startsWith(`${row.label} · ${count}`), `${name}: ${shown[index][0]}`);
-        assert.equal(shown[index][0].includes("из них"), Boolean(row.lessons_passed), `${name}: «из них … уже прошли» only where lessons_passed > 0`);
-      }
+      assert.ok(shown[index][0].startsWith(`${row.label} · ${count}`), `${name}: ${shown[index][0]}`);
+      assert.equal(shown[index][0].includes("из них"), Boolean(row.lessons_passed), `${name}: «из них … уже прошли» only where lessons_passed > 0`);
+      assert.ok(!/оплата периода|период входит/.test(shown[index][0]), `${name}: the old phrases of a moved period are gone`);
       assert.equal(shown[index][1], row.amount === null ? null : sum(row.amount), name);
     });
+    // the quiet line of every row that has `period_label`
+    const moved = (answer.charge_rows ?? []).filter((row) => row.period_label);
+    const lines = (await run.page.locator(`${scope} [data-testid="pause-money-deferred"]`).allInnerTexts()).map(plain);
+    assert.deepEqual(lines, moved.map((row) => `${row.period_label}: оплата ${unsigned(row.deferred)} ${row.deferred < 0 ? "начнётся" : "началась"} ${dm(row.period_begins)} ${row.deferred < 0 ? "— до этого дня она в долг не входит." : "и снова входит в долг."}`), name);
     const later = await run.page.locator(`${scope} [data-testid="pause-money-later"]`).count();
     assert.equal(later, answer.charge_later ? 1 : 0, `${name}: the line of the period that is not charged yet`);
     if (answer.charge_later) assert.ok(plain(await run.page.locator(`${scope} [data-testid="pause-money-later"]`).innerText()).startsWith(`${answer.charge_later.label} — следующий период: эти дни в стоимость`));
@@ -668,27 +704,146 @@ test("Б11.37 / Б11.34 the REAL pause objects of the server (closed by a transf
   await run.page.close();
 });
 
-// ── Б11.43: a row of a period that has not begun (the real answers of the worlds with `period_begins`) ─────────────
+// ── Б11.45: a period the action moves across the working day (the real answers of the worlds of 02.12) ────────────────────
 
+/** What the text of the block says, read from the screen: the sum of the rows, the sum the move takes out / puts back, the debts before / after - the reconciliation of the person. */
 for (const width of [1280, 375]) {
-  test(`Б11.43 (${width}) «Снять паузу целиком» (the world 02.12): the row of a period that begins later says «период входит в стоимость с 01.12» and NO lessons; the row of November keeps «3 урока, из них 3 уже прошли»; the total is the sum of the rows`, async () => {
+  test(`Б11.45 (${width}) «Снять паузу целиком» (the world 02.12): the row of December is an ordinary one «01.12–03.12 · 2 урока, из них 1 уже прошёл» +86 000, the quiet line says 514 000 «началась 01.12 и снова входит в долг»; the debt 450 000 + 236 000 + 514 000 = 1 200 000`, async () => {
+    setWorld(worldDay("pause_probe_void_two_months_0212"));
     const answer = contract("pause_probe_void_two_months_0212");
-    const run = await open(pauseServer({ pauses: [RUNNING()], void: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
+    const run = await open(pauseServer({ pauses: [pauseBefore("pause_probe_void_two_months_0212")], void: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }), {}, width);
     await run.page.getByRole("button", { name: "Снять паузу целиком" }).click();
     await run.page.waitForSelector('[data-testid="pause-money"]');
     const read = await money(run.page, '[data-testid="pause-card-acting"]');
     assert.deepEqual(read, {
       heading: "Снова входят в стоимость",
-      rows: [["24.11–30.11 · 3 урока, из них 3 уже прошли", "+150 000 сум"], ["01.12–03.12 — период входит в стоимость с 01.12", "+600 000 сум"]],
-      total: "+750 000 сум", later: null, note: null,
+      rows: [["24.11–30.11 · 3 урока, из них 3 уже прошли", "+150 000 сум"], ["01.12–03.12 · 2 урока, из них 1 уже прошёл", "+86 000 сум"]],
+      total: "+236 000 сум", deferred: ["Декабрь: оплата 514 000 сум началась 01.12 и снова входит в долг."], later: null, note: null,
     });
-    assert.equal(answer.charge_rows.reduce((total, row) => total + row.amount, 0), answer.impact.charged_delta, "the sample keeps «Σ rows = charged_delta»");
+    const text = plain(await run.page.locator('[data-testid="pause-card-acting"]').innerText());
+    reconcile(text, read, "void_two_months_0212");
+    assert.ok(text.includes("Остаток: долг 450 000 сум → долг 1 200 000 сум"), text);
+    assert.ok(!/оплата периода|период входит/.test(text));
     const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
     assert.deepEqual(probe.bad, []);
     assert.equal(probe.scroll, 0);
     await run.page.close();
   });
 }
+
+test("Б11.45 the same worlds, the debt of the window: «Остаток: долг … → долг …» of the three real answers = the debt before + Σ rows + Σ moved, read from the screen", async () => {
+  for (const [name, kind] of [["pause_probe_create_two_months_begun_0212", "create"], ["pause_probe_create_backdated_month_start", "create"], ["pause_probe_void_two_months_0212", "void"]]) {
+    setWorld(worldDay(name));
+    const answer = contract(name);
+    const run = kind === "create"
+      ? await open(pauseServer({ pauses: [], create: { ...answer } }))
+      : await open(pauseServer({ pauses: [pauseBefore(name)], void: { ...answer } }));
+    if (kind === "create") { await run.page.waitForSelector("#pause-first"); await fillOf(run.page, answer); } else await run.page.getByRole("button", { name: "Снять паузу целиком" }).click();
+    const scope = kind === "create" ? '[data-testid="pause-calc"]' : '[data-testid="pause-card-acting"]';
+    const read = await money(run.page, scope);
+    const text = plain(await run.page.locator(scope).innerText());
+    assert.match(text, /Остаток: долг [\d\s]+ сум → долг [\d\s]+ сум/, name);
+    reconcile(text, read, name);
+    await run.page.close();
+  }
+});
+
+test("Б11.45 a role WITHOUT money: the same real worlds, the moved period is a quiet line WITHOUT a sum («начнётся 04.12» / «началась 01.12»), the rows have no sums, no «Итого»", async () => {
+  const stripped = (name) => ({ ...contract(name), impact: null, charge_rows: contract(name).charge_rows.map((row) => ({ ...row, amount: null, deferred: null })) });
+  for (const [name, kind, line] of [["pause_probe_create_two_months_begun_0212", "create", "Декабрь: оплата начнётся 04.12."], ["pause_probe_void_two_months_0212", "void", "Декабрь: оплата началась 01.12."]]) {
+    setWorld(worldDay(name));
+    const answer = stripped(name);
+    const run = kind === "create"
+      ? await open(pauseServer({ pauses: [], create: { ...answer } }), { moneyAvailable: false }, 1280, ADMIN)
+      : await open(pauseServer({ pauses: [pauseBefore(name)], void: { ...answer } }), { moneyAvailable: false }, 1280, ADMIN);
+    if (kind === "create") { await run.page.waitForSelector("#pause-first"); await fillOf(run.page, answer); } else await run.page.getByRole("button", { name: "Снять паузу целиком" }).click();
+    const read = await money(run.page, kind === "create" ? '[data-testid="pause-calc"]' : '[data-testid="pause-card-acting"]');
+    assert.deepEqual(read.deferred, [line], name);
+    assert.ok(read.rows.every(([, amount]) => amount === null) && read.total === null, name);
+    assert.ok(!/сум/.test(plain(await run.page.locator(kind === "create" ? '[data-testid="pause-calc"]' : '[data-testid="pause-card-acting"]').innerText())), `${name}: no money words`);
+    await run.page.close();
+  }
+});
+
+test("stress_ Б11.45 a pause on a day without a lesson at the start of the period: the real answer of the backdated month start with `amount` 0 and `lessons` 0 (a SYNTHETIC change of two fields) - no row, no heading, no «Итого»: only the quiet line «Декабрь: оплата 600 000 сум начнётся 11.12 …»; «из них прошло» is not written", async () => {
+  setWorld(worldDay("pause_probe_create_backdated_month_start"));
+  const real = contract("pause_probe_create_backdated_month_start");
+  const answer = { ...real, charge_rows: real.charge_rows.map((row) => ({ ...row, lessons: 0, lessons_passed: null, amount: 0, deferred: -600000 })) };
+  const run = await open(pauseServer({ pauses: [], create: { ...answer } }));
+  await run.page.waitForSelector("#pause-first");
+  await fillOf(run.page, answer);
+  await run.page.waitForSelector('[data-testid="pause-money"]');
+  assert.deepEqual(await money(run.page, '[data-testid="pause-calc"]'), { heading: null, rows: [], total: null, deferred: [DEFER_CREATE("Декабрь", "600 000", "11.12")], later: null, note: "Место в группе сохраняется." });
+  assert.ok(!plain(await run.page.locator('[data-testid="pause-calc"]').innerText()).includes("из них"));
+  await run.page.close();
+});
+
+test("stress_ Б11.45 (375) the quiet line of a moved period with a seven-digit sum and a long label stays inside the box (a SYNTHETIC answer written in one day: the fields, the rows, the line and the debt agree)", async () => {
+  setWorld(worldDay("pause_probe_create_two_months_begun_0212"));
+  const real = contract("pause_probe_create_two_months_begun_0212");
+  const answer = {
+    ...real,
+    pause: { ...real.pause, first_day: "2026-11-24", last_day: "2027-01-30", days: 68 },
+    charge_rows: [
+      { label: "24.11.2026–10.01.2027", first_day: "2026-11-24", last_day: "2027-01-10", days: 48, lessons: 120, lessons_passed: 37, amount: -1234567 },
+      { label: "11.01.2027–30.01.2027", first_day: "2027-01-11", last_day: "2027-01-30", days: 20, lessons: 8, lessons_passed: null, amount: -1876543, period_begins: "2027-01-31", deferred: -7654321, period_label: "11.01.2027–30.01.2027" },
+    ],
+    impact: { ...real.impact, charged_delta: -10765431, debt_before: 20000000, debt_after: 9234569 },
+  };
+  const run = await open(pauseServer({ pauses: [], create: { ...answer } }), {}, 375);
+  await run.page.waitForSelector("#pause-first");
+  await fillOf(run.page, answer);
+  await run.page.waitForSelector('[data-testid="pause-money"]');
+  const read = await money(run.page, '[data-testid="pause-calc"]');
+  assert.deepEqual(read.deferred, ["11.01.2027–30.01.2027: оплата 7 654 321 сум начнётся 31.01 — до этого дня она в долг не входит."]);
+  assert.equal(read.total, "−3 111 110 сум");
+  reconcile(plain(await run.page.locator('[data-testid="pause-calc"]').innerText()), read, "stress deferred");
+  const probe = await run.page.evaluate(layoutProbe, '[role="dialog"]');
+  assert.deepEqual(probe.bad, []);
+  assert.equal(probe.scroll, 0);
+  await run.page.close();
+});
+
+test("stress_ Б11.45 Э2: the quiet lines (moved period, `charge_later`) stand UNDER the rows and the total, apart from them (an offset from above), at the width of the block", async () => {
+  setWorld(worldDay("pause_probe_create_two_months_begun_0212"));
+  const answer = { ...contract("pause_probe_create_two_months_begun_0212"), charge_later: { first_day: "2026-12-04", last_day: "2026-12-10", label: "04.12–10.12" } };
+  const run = await open(pauseServer({ pauses: [], create: { ...answer } }));
+  await run.page.waitForSelector("#pause-first");
+  await fillOf(run.page, answer);
+  await run.page.waitForSelector('[data-testid="pause-money"]');
+  const box = await run.page.locator('[data-testid="pause-money"]').boundingBox();
+  const total = await run.page.locator('[data-testid="pause-money-total"]').boundingBox();
+  const deferred = await run.page.locator('[data-testid="pause-money-deferred"]').boundingBox();
+  const later = await run.page.locator('[data-testid="pause-money-later"]').boundingBox();
+  assert.ok(deferred.y >= total.y + total.height + 4, "under «Итого», with an offset");
+  assert.ok(later.y > deferred.y, "the line of the period that is not charged yet after it");
+  assert.ok(deferred.width > box.width * 0.9, "at the width of the block");
+  assert.ok(await run.page.locator('[data-testid="pause-money-deferred"]').evaluate((element) => getComputedStyle(element).color !== getComputedStyle(document.querySelector('[data-testid="pause-money-label"]')).color), "muted, not the colour of the rows");
+  await run.page.close();
+});
+
+test("Б11.45 Э3 the warning of a backdated pause of ONE day (the real answer of the backdated month start, the world 02.12): «уроки за 01.12», not «с 01.12 по 01.12»; a range keeps its words", async () => {
+  setWorld(worldDay("pause_probe_create_backdated_month_start"));
+  const answer = contract("pause_probe_create_backdated_month_start");
+  const run = await open(pauseServer({ pauses: [], create: { ...answer } }));
+  await run.page.waitForSelector("#pause-first");
+  await fillOf(run.page, answer);
+  await run.page.waitForSelector('[data-testid="pause-warnings"]');
+  assert.equal(plain(await run.page.locator('[data-testid="pause-warnings"] p').first().innerText()), "Пауза задним числом: уроки за 01.12 не будут засчитаны ни ученику, ни преподавателю");
+  await run.page.close();
+});
+
+test("Б11.45 Э5 «Оплачено до станет …» is shown in the confirmation of the ENDING too (the block of the money of the card, under the rows) when the server moves the day", async () => {
+  const real = contract("pause_probe_end_today");
+  const answer = { ...real, impact: { ...real.impact, paid_until_after: "2026-11-23" } };   // the only field changed by hand: no real probe of an ending moves it
+  const run = await open(pauseServer({ pauses: [RUNNING()], end: (request) => ({ json: { ...answer, dry_run: /dry_run=true/.test(request.query) } }) }));
+  await run.page.getByRole("button", { name: "Закончить сегодня" }).click();
+  await run.page.waitForSelector('[data-testid="pause-act-calc"]');
+  const box = run.page.locator('[data-testid="pause-act-calc"]');
+  assert.ok(plain(await box.innerText()).includes("Оплачено до станет 23.11."), plain(await box.innerText()));
+  assert.ok((await box.locator('[data-testid="pause-money-label"]').first().boundingBox()).y < (await box.getByText("Оплачено до станет 23.11.").boundingBox()).y, "under the rows");
+  await run.page.close();
+});
 
 // ── Б11.41 п. 2: after the ending / the taking off ──────────────────────────────────────────────────────────
 
@@ -721,7 +876,7 @@ test("Б11.41 п.2 another live pause is left: the window stays on the cards (on
   });
   const run = await open(server);
   await run.page.waitForSelector('[data-testid="pause-card"]');
-  await run.page.locator('[data-testid="pause-card"][data-state="planned"]').getByRole("button", { name: "Снять паузу", exact: true }).click();
+  await run.page.locator('[data-testid="pause-card"][data-state="planned"]').getByRole("button").click();
   await run.page.waitForSelector('[data-testid="pause-act-confirm"]:not([disabled])');
   await run.page.fill("#pause-act-reason", "ученик передумал");
   await run.page.locator('[data-testid="pause-act-confirm"]').click();

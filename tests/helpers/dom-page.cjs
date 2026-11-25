@@ -14,8 +14,10 @@ async function launch() { return chromium.launch(); }
  * `answer(request)` -> `{ status?, json? }` for a request of the API; every request is written to `calls` as `{ method, path, query, headers, body }` (`path` without `/api/v1`).
  * `initScript` (a function or a string) is run in the page before any script of it. Anything not answered is a 404 - the test sees it in `calls`.
  */
-async function openPage(browser, entry, answer = () => null, { width = 1280, height = 900, initScript = null } = {}) {
+async function openPage(browser, entry, answer = () => null, { width = 1280, height = 900, initScript = null, today = null } = {}) {
   const page = await browser.newPage({ viewport: { width, height } });
+  // `today` (ISO day): the clock of the page stands at noon of that business day (Tashkent) - the screen reads «today» from it; the timers keep running
+  if (today) await page.clock.setFixedTime(new Date(`${today}T07:00:00Z`));
   // runs BEFORE the page's own scripts (a phone that gives no animation frames, a shortened limit)
   if (initScript) await page.addInitScript(initScript);
   const calls = [];

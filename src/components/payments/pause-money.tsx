@@ -13,7 +13,7 @@ export function PauseMoneyBox({ model, children, testId }: { model: PauseMoneyMo
     <div aria-live="polite" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700" data-testid={testId}>
       {model && (
         <div data-testid="pause-money" className="space-y-1.5">
-          <p className="text-xs font-semibold text-slate-600" data-testid="pause-money-heading">{model.heading}</p>
+          {model.heading !== null && <p className="text-xs font-semibold text-slate-600" data-testid="pause-money-heading">{model.heading}</p>}
           {model.rows.length > 0 && (
             <ul className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-y-1.5">
               {model.rows.map((row) => (
@@ -30,7 +30,12 @@ export function PauseMoneyBox({ model, children, testId }: { model: PauseMoneyMo
               <span className="shrink-0 whitespace-nowrap text-right font-semibold tabular-nums text-slate-900" data-testid="pause-money-total-amount">{model.total}</span>
             </p>
           )}
-          {model.later && <p className="text-xs text-slate-600" data-testid="pause-money-later">{model.later}</p>}
+          {(model.deferrals.length > 0 || model.later) && (
+            <div className={`space-y-1.5 ${model.rows.length > 0 ? "pt-1.5" : ""}`}>
+              {model.deferrals.map((line) => <p key={line} className="text-xs text-slate-600" data-testid="pause-money-deferred">{line}</p>)}
+              {model.later && <p className="text-xs text-slate-600" data-testid="pause-money-later">{model.later}</p>}
+            </div>
+          )}
           {model.note && <p className="text-xs text-slate-600" data-testid="pause-money-note">{model.note}</p>}
         </div>
       )}
