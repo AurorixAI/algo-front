@@ -569,6 +569,8 @@ test("F19 / Q4: no «Начисл…» on the money screens of the student; the 
   ];
   // Б11.41 п. 1: the sentence of «a period that has not begun» says «следующий период»; the word «начисл…» has no exception any more (the check is whole again)
   for (const file of files) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""), /[Нн]ачисл/, file);
+  // Б11.51 С3': the product word is «перерасчёт»; «вычет» is not said on these screens
+  for (const file of files) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""), /[Вв]ычет/, file);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /<th scope="col" className=\{`\$\{HEAD\} text-right`\}>Заработано<\/th>/);
   assert.match(read("src/components/payroll/sheet-controls.tsx"), />Заработано<\/th>/);
   assert.doesNotMatch(read("src/components/payroll/sheet-table.tsx").replace(/\/\*[\s\S]*?\*\//g, ""), /<th[^>]*>Начислено/);

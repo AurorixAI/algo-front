@@ -50,7 +50,7 @@ function reconcile(text, read, label) {
   const movedSum = read.deferred.reduce((total, line) => total + (/появятся/.test(line) ? -1 : 1) * num(line.match(/: ([\d\s]+) сум/)[1]), 0);
   // Б11.51 С3': (debt - advance) after - before = charged_delta - recalc_delta - forgiven_delta; the two quiet lines of the screen carry the last two (a sign by the word: «меньше» is a negative delta)
   const signed = (word, value) => (word === "меньше" ? -1 : 1) * num(value);
-  const recalcHit = text.match(/Вычет за отменённые центром уроки стал (меньше|больше) на ([\d\s]+) сум/);
+  const recalcHit = text.match(/Перерасчёт за уроки, отменённые центром, стал (меньше|больше) на ([\d\s]+) сум/);
   const forgivenHit = text.match(/Прощение покрывает на ([\d\s]+) сум (меньше|больше)/);
   const recalc = recalcHit ? signed(recalcHit[1], recalcHit[2]) : 0;
   const forgiven = forgivenHit ? signed(forgivenHit[2], forgivenHit[1]) : 0;
@@ -1004,8 +1004,8 @@ test("Б11.51 С3' the identity on EVERY real answer of a pause with `impact`: (
 });
 
 const SET_LINES = [
-  ["pause_probe_create_with_centre_cancel", ["Вычет за отменённые центром уроки стал меньше на 40 000 сум."], "Было: долг 200 000 сум → станет: долг 160 000 сум"],
-  ["pause_probe_create_with_forgiveness_cut", ["Вычет за отменённые центром уроки стал меньше на 40 000 сум.", "Прощение покрывает на 40 000 сум меньше."], null],
+  ["pause_probe_create_with_centre_cancel", ["Перерасчёт за уроки, отменённые центром, стал меньше на 40 000 сум."], "Было: долг 200 000 сум → станет: долг 160 000 сум"],
+  ["pause_probe_create_with_forgiveness_cut", ["Перерасчёт за уроки, отменённые центром, стал меньше на 40 000 сум.", "Прощение покрывает на 40 000 сум меньше."], null],
 ];
 for (const width of [1280, 375]) {
   for (const [name, lines, balance] of SET_LINES) {
@@ -1017,7 +1017,7 @@ for (const width of [1280, 375]) {
       await run.page.waitForSelector('[data-testid="pause-money"]');
       const text = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
       const quiet = await run.page.locator('[data-testid="pause-calc"] p.text-xs').allInnerTexts();
-      assert.deepEqual(quiet.map(plain).filter((line) => /^(Вычет|Прощение)/.test(line)), lines, "exactly these quiet lines, in this order, as written");
+      assert.deepEqual(quiet.map(plain).filter((line) => /^(Перерасчёт|Прощение)/.test(line)), lines, "exactly these quiet lines, in this order, as written");
       const rows = text.indexOf("26.11–30.11 · 2 урока"), first = text.indexOf(lines[0]);
       assert.ok(rows >= 0 && first > rows, `the lines stand UNDER the rows of the lessons: ${text}`);
       assert.ok(!/в эти дни/.test(text), "no «в эти дни»");
@@ -1040,7 +1040,7 @@ test("Б11.51 С3' the answer with zeros (`recalc_delta` 0, `forgiven_delta` 0):
     await fillOf(run.page, answer);
     await run.page.waitForSelector('[data-testid="pause-calc"] [data-testid="pause-money"], [data-testid="pause-calc"] p');
     const text = plain(await run.page.locator('[data-testid="pause-calc"]').innerText());
-    assert.ok(!/Вычет за отменённые|Прощение покрывает/.test(text), `${label}: ${text}`);
+    assert.ok(!/Перерасчёт за уроки, отменённые|Прощение покрывает/.test(text), `${label}: ${text}`);
     await run.page.close();
   }
 });

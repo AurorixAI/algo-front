@@ -478,7 +478,7 @@ export function pauseCalcTail(impact: ImpactMoney | null | undefined): string[] 
   const lines: string[] = [];
   // Б11.51 С3': what else moves the debt - the deductions for the lessons the centre cancelled and the forgiveness; the server's two numbers, the sentences are the screen's
   const recalc = impact?.recalc_delta ?? 0;
-  if (recalc !== 0) lines.push(`Вычет за отменённые центром уроки стал ${recalc < 0 ? "меньше" : "больше"} на ${formatMoney(Math.abs(recalc))}.`);
+  if (recalc !== 0) lines.push(`Перерасчёт за уроки, отменённые центром, стал ${recalc < 0 ? "меньше" : "больше"} на ${formatMoney(Math.abs(recalc))}.`);
   const forgiven = impact?.forgiven_delta ?? 0;
   if (forgiven !== 0) lines.push(`Прощение покрывает на ${formatMoney(Math.abs(forgiven))} ${forgiven < 0 ? "меньше" : "больше"}.`);
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${formatDayMonthRu(impact.paid_until_after)}.`);
