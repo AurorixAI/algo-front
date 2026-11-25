@@ -1197,6 +1197,8 @@ export interface StudentProfile {
   /** All active memberships (N13 P2); older servers do not send it. No money here. */
   groups?: StudentGroupMembership[];
   group_history: Array<{
+    /** Б11.50 Э7: the id of the stay (for the pauses of a former group); an older server does not send it - the row then has no «Паузы». */
+    membership_id?: string | null;
     group_id: string;
     group_name: string;
     class_level?: number | null;

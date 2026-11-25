@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile, type StudentArchiveResult } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { FormerStayPauses } from "@/components/students/former-stay-pauses";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
@@ -901,6 +902,18 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                           <span>
                             {gh.joined_at ? formatUtcNaiveAsBusinessDate(gh.joined_at) : "—"} — {gh.left_at ? formatUtcNaiveAsBusinessDate(gh.left_at) : "переведён"}
                           </span>
+                        )}
+                        {/* Б11.50 Э7: the pauses of a former stay (left / transferred / archived) - the same window as «Пауза…», without the form of a new pause */}
+                        {!gh.is_active && gh.membership_id && !isTeacher && canManageMoney(user) && (
+                          <div className="mt-1">
+                            <FormerStayPauses
+                              membershipId={gh.membership_id}
+                              groupName={gh.group_name}
+                              studentName={student.full_name}
+                              onNotify={showToast}
+                              onChanged={() => { void usePaymentsSummary.getState().refresh(true); }}
+                            />
+                          </div>
                         )}
                       </div>
                     </div>

@@ -33,3 +33,11 @@ export function groupMenuItems(input: { pauses: ReadonlyArray<Pick<PauseOut, "fi
   items.push({ key: "leave", label: LEAVE_MENU_LABEL });
   return items;
 }
+
+/**
+ * PAY-TAILS Б11.50 Э7: does a FORMER stay (left, transferred, archived) have a pause worth opening - one with locked days (a leaving / transfer cut it: it can still be taken off whole) or one whose last day is not
+ * before today.  `pauses` come from `livePauses`.  Without such a pause the history row has no action.
+ */
+export function formerStayHasPauses(pauses: ReadonlyArray<{ last_day: string; days_locked?: boolean; voided_at?: string | null }> | null | undefined, today: string): boolean {
+  return (pauses ?? []).some((pause) => !pause.voided_at && (pause.days_locked === true || pause.last_day >= today));
+}
