@@ -10,8 +10,8 @@ import type { PlanSplit } from "@/lib/payment-plan";
 export function PlanSplitRows({ split }: { split: PlanSplit }) {
   return (
     <div data-testid="payment-split">
-      {/* one grid for all rows: the sums of the rows stand on ONE line (right-aligned), the quiet marks after them in a column of their own */}
-      <ul className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline sm:grid-cols-[minmax(0,1fr)_auto_5rem] gap-y-1.5 text-sm">
+      {/* one grid for all rows: the sums of the rows stand on ONE line (right-aligned), the quiet marks after them in a column of their own (width by the longest mark, any font) */}
+      <ul className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-y-1.5 text-sm">
         {split.rows.map((row, index) => (
           <li key={`${row.label}-${index}`} className="contents" data-testid="payment-split-row">
             <span className="min-w-0 text-slate-700" data-testid="payment-split-label">{row.label}</span>
