@@ -112,3 +112,59 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await expect(card).toHaveCount(0);
   await expect(page.getByTestId("learning-pause-chip")).toHaveCount(0);
 });
+
+/**
+ * PAY-TAILS Б11.48: the pause from the page of the group (the administrator knows «ребёнок заболел», looking at the group): the roster → «⋯» of the row → «Пауза…»
+ * (the same window) → the chip in THE row → «⋯» → «Закончить паузу» (the card; a pause that began today is taken off whole) → no chip; the other student's row is untouched.
+ */
+test("pause from the roster of a group: «⋯» → «Пауза…» → the chip in the row → «⋯» → «Закончить паузу» → no chip @mobile", async ({ signIn }) => {
+  const today = businessNow().date;
+  const teacher = await org.addStaff("teacher", "Ростеров");
+  const group = await org.createGroup({ name: "Группа П2", teacherId: teacher.userId });
+  const sick = await org.addStudent(group, "Тимур", "Заболевший");
+  const well = await org.addStudent(group, "Лола", "Здоровая");
+  await org.setGroupPrice(group.id, 400000);
+
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}`);
+  const chipOf = (last: string) => page.locator(`[data-testid="roster-table"] a:has-text("${last}") [data-kind="chip"]`);
+  const menuOf = (last: string) => page.getByRole("button", { name: new RegExp(`^Действия: .*${last}`) });
+  await expect(menuOf("Заболевший")).toBeVisible();
+  await expect(chipOf("Заболевший")).toHaveCount(0);
+
+  // the pause is the first item of the menu of the row
+  await menuOf("Заболевший").click();
+  const items = page.getByRole("menuitem");
+  await expect(items.first()).toHaveText("Пауза…");
+  await expect(items.last()).toContainText("Убрать из группы…");
+  await items.first().dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  const dialog = page.getByRole("dialog", { name: "Пауза ученика" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Группа П2");
+  await fillDate(dialog.locator("#pause-first"), today);
+  await fillDate(dialog.locator("#pause-last"), addDays(today, 6));
+  await dialog.getByLabel(/Причина/).fill("Болезнь");
+  await dialog.getByRole("button", { name: "Поставить на паузу" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // the roster was read again: the chip stands in the row of this student and in no other; the item of the menu changed
+  await expect(chipOf("Заболевший")).toContainText(`На паузе до ${dm(addDays(today, 6))}`);
+  await expect(chipOf("Здоровая")).toHaveCount(0);
+  await menuOf("Здоровая").click();
+  await expect(page.getByRole("menuitem").first()).toHaveText("Пауза…");
+  await page.keyboard.press("Escape");
+  await menuOf("Заболевший").click();
+  await expect(page.getByRole("menuitem").first()).toHaveText("Закончить паузу");
+  await page.getByRole("menuitem").first().dispatchEvent("click");
+
+  // began today: no «Закончить сегодня», the pause is taken off whole with a reason; the last pause is gone - the window closes by itself
+  const card = page.getByRole("dialog", { name: "Пауза ученика" });
+  await expect(card.getByTestId("pause-card")).toHaveCount(1);
+  await expect(card.getByRole("button", { name: "Закончить сегодня" })).toHaveCount(0);
+  await card.getByRole("button", { name: "Снять паузу целиком" }).click();
+  await card.getByTestId("pause-act-reason").fill("Ошиблись в датах");
+  await card.getByTestId("pause-act-confirm").click();
+  await expect(card).toHaveCount(0);
+  await expect(chipOf("Заболевший")).toHaveCount(0);
+  expect(sick.id).not.toEqual(well.id);
+});
