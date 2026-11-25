@@ -892,6 +892,8 @@ export interface StudentInGroup {
   /** LOGIC-A: the student is on a pause today (not in the class); `paused_until` = the last day of the live pause (ISO). Older servers do not send them. */
   on_pause?: boolean | null;
   paused_until?: string | null;
+  /** PAY-TAILS Б11.48: the id of the membership of the student in THIS group (what a pause is put on). Older servers do not send it: no pause in the «⋯» of the row. */
+  membership_id?: string | null;
 }
 
 export interface GroupDetail extends GroupInfo {

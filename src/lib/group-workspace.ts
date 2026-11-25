@@ -121,11 +121,11 @@ export function groupHeaderActions(input: { archived: boolean; priceAvailable: b
   return input.priceAvailable ? ["edit", "price", "archive"] : ["edit", "archive"];
 }
 
-/** The menu of a row of the roster: «Перевести в другую группу…» and «Убрать из группы…» (the name is the link to the card). */
+/** The menu of a row of the roster: «Пауза…» / «Закончить паузу» (PAY-TAILS Б11.48, the labels of `membership-learning`), «Перевести в другую группу…» and «Убрать из группы…» last, the danger one (the name is the link to the card). */
 export const ROSTER_TRANSFER_LABEL = "Перевести в другую группу…";
 export const ROSTER_LEAVE_LABEL = "Убрать из группы…";
-export function rosterMenuKeys(input: { canLeave: boolean; canTransfer: boolean }): Array<"transfer" | "leave"> {
-  return [...(input.canTransfer ? (["transfer"] as const) : []), ...(input.canLeave ? (["leave"] as const) : [])];
+export function rosterMenuKeys(input: { canLeave: boolean; canTransfer: boolean; canPause?: boolean }): Array<"pause" | "transfer" | "leave"> {
+  return [...(input.canPause ? (["pause"] as const) : []), ...(input.canTransfer ? (["transfer"] as const) : []), ...(input.canLeave ? (["leave"] as const) : [])];
 }
 
 // ── money chips of the header ───────────────────────────────────────────────

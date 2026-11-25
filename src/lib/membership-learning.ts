@@ -11,6 +11,9 @@ export const LEAVE_MENU_LABEL = "Убрать из группы…";
 
 export type GroupMenuKey = "pause" | "leave";
 
+/** The first item of a «⋯» of an enrolment (the card of the student and the roster of a group say it by one rule): «Закончить паузу» while a pause runs today, else «Пауза…». */
+export const pauseMenuLabel = (running: boolean): string => (running ? END_PAUSE_MENU_LABEL : PAUSE_MENU_LABEL);
+
 /** The live pause that covers `today` (both ends included); `pauses` come from `livePauses`. */
 export function runningPause(pauses: ReadonlyArray<Pick<PauseOut, "first_day" | "last_day">> | null | undefined, today: string): Pick<PauseOut, "first_day" | "last_day"> | null {
   return (pauses ?? []).find((pause) => pause.first_day <= today && pause.last_day >= today) ?? null;
@@ -26,7 +29,7 @@ export function pauseChipOf(pauses: ReadonlyArray<Pick<PauseOut, "first_day" | "
 export function groupMenuItems(input: { pauses: ReadonlyArray<Pick<PauseOut, "first_day" | "last_day">> | null | undefined; today: string; hasMembershipId: boolean }): Array<{ key: GroupMenuKey; label: string }> {
   const items: Array<{ key: GroupMenuKey; label: string }> = [];
   // an older server sends no membership id: nothing to put on pause, leaving the group still works by the group
-  if (input.hasMembershipId) items.push({ key: "pause", label: runningPause(input.pauses, input.today) ? END_PAUSE_MENU_LABEL : PAUSE_MENU_LABEL });
+  if (input.hasMembershipId) items.push({ key: "pause", label: pauseMenuLabel(Boolean(runningPause(input.pauses, input.today))) });
   items.push({ key: "leave", label: LEAVE_MENU_LABEL });
   return items;
 }

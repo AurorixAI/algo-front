@@ -1,0 +1,101 @@
+{
+  "archiveReason": null,
+  "archivedAt": null,
+  "class_level": 9,
+  "created_at": "2026-11-01T07:00:00.000002",
+  "description": null,
+  "id": "8a399fe8-e468-45f6-8fbc-819c140dedd3",
+  "lesson_type": "group",
+  "max_students": 30,
+  "name": "Общий",
+  "org_id": "d877626b-9401-4ed1-a8c8-49b3de19956e",
+  "price_current": {
+    "amount": 600000,
+    "valid_from": "2000-01-01"
+  },
+  "schedule": [
+    {
+      "dayOfWeek": 2,
+      "endTime": "15:00",
+      "format": "offline",
+      "id": "s2",
+      "startTime": "14:00",
+      "validFrom": "2026-01-01"
+    },
+    {
+      "dayOfWeek": 4,
+      "endTime": "15:00",
+      "format": "offline",
+      "id": "s4",
+      "startTime": "14:00",
+      "validFrom": "2026-01-01"
+    },
+    {
+      "dayOfWeek": 5,
+      "endTime": "15:00",
+      "format": "offline",
+      "id": "s5",
+      "startTime": "14:00",
+      "validFrom": "2026-01-01"
+    }
+  ],
+  "status": "active",
+  "student_count": 2,
+  "students": [
+    {
+      "class_level": 9,
+      "display_id": "NO1-001",
+      "first_name": "Ученик ОМ",
+      "full_name": "Ученик Ученик ОМ",
+      "id": "d3467d31-5ea9-4d79-abe6-737342a5c579",
+      "joined_at": "2026-11-01T07:00:00.000008",
+      "last_class_equivalent": null,
+      "last_diagnosed_at": null,
+      "last_level": null,
+      "last_level_provisional": null,
+      "last_level_status": null,
+      "last_name": "Ученик",
+      "last_theta": null,
+      "membership_id": "99c307b7-58a2-4523-b871-72594d4dba85",
+      "on_pause": true,
+      "paused_until": "2026-11-30",
+      "periods": [
+        {
+          "joined_at": "2026-11-01T07:00:00.000008",
+          "left_at": null
+        }
+      ],
+      "status": "active",
+      "student_phone": null
+    },
+    {
+      "class_level": 9,
+      "display_id": "NO1-002",
+      "first_name": "Ученик без паузы",
+      "full_name": "Ученик Ученик без паузы",
+      "id": "d061a096-e355-450c-a46b-e0c301c6d91f",
+      "joined_at": "2026-11-24T07:00:00.000015",
+      "last_class_equivalent": null,
+      "last_diagnosed_at": null,
+      "last_level": null,
+      "last_level_provisional": null,
+      "last_level_status": null,
+      "last_name": "Ученик",
+      "last_theta": null,
+      "membership_id": "a68f3373-e42a-4bb8-b829-c1248f8128d3",
+      "on_pause": false,
+      "paused_until": null,
+      "periods": [
+        {
+          "joined_at": "2026-11-24T07:00:00.000015",
+          "left_at": null
+        }
+      ],
+      "status": "active",
+      "student_phone": null
+    }
+  ],
+  "substitution": false,
+  "teacher_id": "26372ca0-3c59-4d02-b209-4018efe7a69b",
+  "teacher_name": "Пётр Teacher"
+}

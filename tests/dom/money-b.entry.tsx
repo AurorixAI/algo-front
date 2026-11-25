@@ -57,7 +57,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "groupHeader":
       w.__params = { id: "g1" };
-      root.render(<GroupDetailView workspace="owner" />);
+      root.render(<GroupDetailView workspace={props.workspace ?? "owner"} />);
       break;
     case "groupPayments":
       root.render(<GroupPaymentsTab groupId="g1" groupName="7-А Алгебра" groupPrice={{ amount: 300000, valid_from: "2026-09-01" } as never} groupsBasePath="/owner/groups" studentsBasePath="/owner/students" paymentsBasePath="/owner/payments" joinedAt={{}} filter={props.filter ?? "all"} onFilterChange={() => log("filter")} />);

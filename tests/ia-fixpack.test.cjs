@@ -286,10 +286,12 @@ test("Q3 / F7 / F30: the header menu of a group is «Изменить групп
   assert.match(view, /groupPaymentsHref\(paths\.groups, group\.id, "debt"\)/);
 });
 
-test("F4 / F8: the roster menu has at most two items, no «Карточка ученика», no legacy confirmation; the name is the link", () => {
+test("F4 / F8: the roster menu has at most three items (the pause first, Б11.48), no «Карточка ученика», no legacy confirmation; the name is the link", () => {
   const W = require(path.join(root, "src/lib/group-workspace.ts"));
   assert.deepEqual(W.rosterMenuKeys({ canLeave: true, canTransfer: true }), ["transfer", "leave"]);
   assert.deepEqual(W.rosterMenuKeys({ canLeave: false, canTransfer: false }), []);
+  assert.deepEqual(W.rosterMenuKeys({ canLeave: true, canTransfer: true, canPause: true }), ["pause", "transfer", "leave"], "PAY-TAILS Б11.48: the pause first, the danger item last");
+  assert.deepEqual(W.rosterMenuKeys({ canLeave: true, canTransfer: true, canPause: false }), ["transfer", "leave"]);
   assert.equal(W.ROSTER_TRANSFER_LABEL, "Перевести в другую группу…");
   assert.equal(W.ROSTER_LEAVE_LABEL, "Убрать из группы…");
   const table = read("src/components/groups/group-student-table.tsx");

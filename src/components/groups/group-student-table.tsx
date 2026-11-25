@@ -4,7 +4,7 @@ import { canManageMoney } from "@/lib/money-effects";
 import { useAuthStore } from "@/lib/store";
 import { useState } from "react";
 import { displayPhone } from "@/lib/phone";
-import { GraduationCap, Check, Copy, UserMinus, ArrowRightLeft } from "lucide-react";
+import { GraduationCap, Check, Copy, UserMinus, ArrowRightLeft, PauseCircle, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { orgApi, StudentInGroup } from "@/lib/api";
@@ -15,6 +15,8 @@ import { Words } from "@/components/ui/words";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { TRANSFER_NO_RIGHT_TEXT } from "@/lib/enrol-labels";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
+import { PauseDialog } from "@/components/payments/pause-dialog";
+import { pauseMenuLabel } from "@/lib/membership-learning";
 import { LeaveStudentDialog } from "./leave-student-dialog";
 import { useCopy } from "@/lib/use-copy";
 
@@ -37,20 +39,28 @@ interface GroupStudentTableProps {
   onStale?: (message: string) => void;
   /** «Перевести в другую группу…» of a row: the page opens the transfer dialog of the card for this student. */
   onTransfer?: (student: StudentInGroup) => void;
+  /**
+   * PAY-TAILS Б11.48: «Пауза…» / «Закончить паузу» of a row (the window of the card of the student); called with the server's words once a pause is set / ended / taken off:
+   * the page shows them and reads the roster again.  Without it the row has no pause item.
+   */
+  onPauseChanged?: (text: string) => void;
 }
 
 /**
- * The roster of a group.  The name is the link to the card of the student; the «⋯» of a row has at most two items (IA audit F4, d2):
- * «Перевести в другую группу…» and «Убрать из группы…» (the one dialog with the money).  The card of the student is the link of the name.
+ * The roster of a group.  The name is the link to the card of the student; the «⋯» of a row has at most three items (IA audit F4, d2; PAY-TAILS Б11.48):
+ * «Пауза…» / «Закончить паузу» (the money right, a server that sends `membership_id`), «Перевести в другую группу…» and «Убрать из группы…» (the one dialog with the money).  The card of the student is the link of the name.
  */
-export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, groupName, onLeft, onStale, onTransfer }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, groupName, onLeft, onStale, onTransfer, onPauseChanged }: GroupStudentTableProps) {
   const pathname = usePathname();
   const isTeacher = pathname?.startsWith("/teacher");
   const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<StudentInGroup | null>(null);
   // Money-1 A4 (I-6): a transfer carries the paid days and the advance of the student - the money right only
   const moneyRight = canManageMoney(useAuthStore((state) => state.user));
   const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher) });
   const removable = menuKeys.length > 0;
+  // a pause takes days off the bill: the money right; an older server sends no `membership_id` of the row - nothing to put on pause
+  const rowMenuKeys = (s: StudentInGroup) => rosterMenuKeys({ canLeave: menuKeys.includes("leave"), canTransfer: menuKeys.includes("transfer"), canPause: Boolean(onPauseChanged && moneyRight && !isTeacher && removable && s.membership_id) });
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
 
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -144,15 +154,28 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
               <DataCell col="actions">
                 <RowMenu
                   label={`Действия: ${name(s)}`}
-                  items={menuKeys.map((key): RowMenuItem => key === "transfer"
-                    ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, disabled: !moneyRight, hint: moneyRight ? undefined : TRANSFER_NO_RIGHT_TEXT, onSelect: () => onTransfer?.(s) }
-                    : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
+                  items={rowMenuKeys(s).map((key): RowMenuItem => key === "pause"
+                    ? { key, label: pauseMenuLabel(Boolean(s.on_pause)), icon: s.on_pause ? PlayCircle : PauseCircle, onSelect: () => setPauseTarget(s) }
+                    : key === "transfer"
+                      ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, disabled: !moneyRight, hint: moneyRight ? undefined : TRANSFER_NO_RIGHT_TEXT, onSelect: () => onTransfer?.(s) }
+                      : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
                 />
               </DataCell>
             )}
           </DataRow>
         ))}
       </DataTable>
+      {pauseTarget?.membership_id && onPauseChanged && (
+        <PauseDialog
+          open
+          membershipId={pauseTarget.membership_id}
+          studentName={name(pauseTarget)}
+          groupName={groupName ?? ""}
+          active
+          onClose={() => setPauseTarget(null)}
+          onChanged={(_row, text) => onPauseChanged(text)}
+        />
+      )}
       {groupId && onLeft && !isTeacher && (
         <LeaveStudentDialog
           open={leaveTarget !== null}

@@ -230,6 +230,13 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
     showToast(LEFT_GROUP_TEXT, "success", settled);
   };
 
+  // PAY-TAILS Б11.48: a pause set / ended / taken off from the «⋯» of a row: the server's words, the roster (the chip, the item of the menu) and the money of the page are read again
+  const handleRosterPause = (text: string) => {
+    showToast(text, "success");
+    setDebtTick((n) => n + 1);
+    void load(true);
+  };
+
   // LOGIC-A F14: the server took the new type (the dialog opened by «Сохранить» of the edit form); the rest of the form is saved next.
   const handleLessonTypeSaved = (result: GroupLessonTypeChanged) => {
     setGroup((prev) => prev ? { ...prev, lesson_type: result.current } : null);
@@ -582,6 +589,7 @@ export function GroupDetailView({ workspace }: { workspace: GroupWorkspace }) {
               onStale={() => setDebtTick((n) => n + 1)}
               canRemove={canManage && group.status === "active"}
               onTransfer={setTransferStudent}
+              onPauseChanged={handleRosterPause}
             />
           </motion.div>
         )}
