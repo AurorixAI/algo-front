@@ -43,10 +43,10 @@ const profileServer = (rows, pauses, long) => (r) => {
   if (r.path === "/auth/org/settings/payments") return { json: X.SETTINGS };
   return null;
 };
-const LEAVE_TODAY = readReal("pause_closed_by_leave_today");
-const LEAVE_LATER = readReal("pause_closed_by_leave_later");
-const TRANSFER_TODAY = readReal("pause_closed_by_transfer_today");
-const TRANSFER_LATER = readReal("pause_closed_by_transfer_later");
+const LEAVE_TODAY = { ...readReal("pause_closed_by_leave_today"), membership_id: "m-leave_today" };   // the real object; the id of the stay is told apart (the fixtures share one)
+const LEAVE_LATER = { ...readReal("pause_closed_by_leave_later"), membership_id: "m-leave_later" };   // the real object; the id of the stay is told apart (the fixtures share one)
+const TRANSFER_TODAY = { ...readReal("pause_closed_by_transfer_today"), membership_id: "m-transfer_today" };   // the real object; the id of the stay is told apart (the fixtures share one)
+const TRANSFER_LATER = { ...readReal("pause_closed_by_transfer_later"), membership_id: "m-transfer_later" };   // the real object; the id of the stay is told apart (the fixtures share one)
 const rowsAll = [
   history({ membership_id: LEAVE_LATER.membership_id, group_name: "Алгебра 7 (вт/пт)" }),
   history({ membership_id: LEAVE_TODAY.membership_id, group_name: "Геометрия 8", left_at: "2026-11-24T05:00:00", periods: [{ joined_at: "2026-09-01T07:00:00", left_at: "2026-11-24T05:00:00" }] }),
