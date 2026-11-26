@@ -58,6 +58,8 @@ for (const width of [1280, 375]) {
     assert.ok(!/записывается\s+заново/i.test(all), "the old title is nowhere");
     assert.equal(all.split(RETURN_PREFIX).length - 1, 1, "the phrase of a return is said once");
     assert.equal(await run.page.locator('[role="dialog"] [aria-label="Пояснение"]').count(), 0, "no «?»");
+    assert.ok(!/\d+\s+урок\S*\s+из/.test(all), `0 lessons of the answer are not written next to the sum: ${all}`);
+    assert.match(all, /Тимур Возвратов — 100[\s\u00a0\u202f]000/);
     fs.mkdirSync(SNAPS, { recursive: true });
     await run.page.screenshot({ path: path.join(SNAPS, `bulk_return_same_period-${width}.png`) });
     await run.page.close();

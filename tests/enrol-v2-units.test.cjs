@@ -105,3 +105,27 @@ test("Money-2 fix 12: serverPhraseShown - a hyphen inside «…» is non-breakin
   const toast = E.assignDoneToast({ studentName: "Анвар", groupName: "М11 ВС Вт-Чт-Сб", transfer: true, warnings: ["Долг останется в группе «М11 ВС Вт-Чт-Сб»: 42 000"], infos: [] });
   assert.equal(toast.details[0], "Долг останется в группе «М11 ВС Вт‑Чт‑Сб»: 42 000");
 });
+
+// PAY-TAILS (stage walk): a part with a sum and 0 lessons (a return in the same period: the server does not know the number) says no number of lessons; with lessons - as before.
+test("the lessons of a part: 0 lessons with a sum - no number anywhere (the real answers of the server)", () => {
+  const real = (name) => JSON.parse(fs.readFileSync(path.join(root, "tests", "fixtures", "paytails", "part20", `${name}.json`), "utf8"));
+  const back = real("bulk_return_same_period").students[0].billing.immediate;
+  assert.equal(back.lessons, 0);
+  assert.equal(back.parts[0].lessons, 0);
+  assert.ok(back.parts[0].amount > 0);
+  const P = require(path.join(root, "src/lib/pay-from.ts"));
+  assert.equal(B.lessonsLine(back.parts[0]), null);
+  const bar = B.enrolBarOf([{ id: "a", name: "Тимур Возвратов", amount: back.amount, parts: back.parts }, { id: "b", name: "Олег Новичков", amount: null, parts: [] }]);
+  assert.equal(flat(bar.line), "Тимур Возвратов — 100 000");
+  assert.ok(!/урок/.test(String(bar.line)));
+  const all = B.enrolBarOf([{ id: "a", name: "Тимур Возвратов", amount: back.amount, parts: back.parts }]);
+  assert.ok(!/урок/.test(String(all.line)), `one student: ${all.line}`);
+  for (const text of [...P.immediatePartLines(back.parts), ...P.immediatePartRows(back.parts).map((r) => r.label)]) assert.ok(!/урок/.test(text), text);
+  // lessons > 0: the line stays as it was
+  const two = real("return_preview_no_break").billing.immediate;
+  assert.equal(two.parts[0].lessons, 2);
+  const line = B.lessonsLine(two.parts[0]);
+  assert.match(line, /^2 урока из \d+ в /);
+  assert.ok(P.immediatePartLines(two.parts)[0].includes("2 урока из"));
+  assert.ok(P.immediatePartRows(two.parts)[0].label.includes("2 урока из"));
+});

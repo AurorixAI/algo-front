@@ -8,7 +8,7 @@ import { groupNameShown } from "./enrol-labels";
 import { formatDayMonthRu } from "./business-time";
 import { dayMonthWords } from "./enrol-terms";
 import type { ForecastBar } from "./paytails-contract";
-import type { ImmediatePart } from "./pay-from";
+import { lessonsUnknown, type ImmediatePart } from "./pay-from";
 
 /** The server names the month in the nominative («ноябрь»); a sentence about lessons wants «в ноябре». */
 const MONTH_IN: Record<string, string> = {
@@ -28,7 +28,8 @@ export function periodIn(label: string): string {
  * «5 уроков из 12 в ноябре».  A period given by DATES that is charged whole (the server sends `whole` and no count of the lessons of the period) is «13 уроков · весь период 20.11–19.12» - never «из 0» (Money-2 fix 11, F4).
  * A calendar month keeps «из N в ноябре» (the month has its full number of lessons).
  */
-export function lessonsLine(part: ImmediatePart): string {
+export function lessonsLine(part: ImmediatePart): string | null {
+  if (lessonsUnknown(part)) return null;
   const lessons = `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])}`;
   if (/\d/.test(part.label) && (part.whole || !part.lessons_in_period)) return `${lessons} · весь период ${part.label.trim()}`;
   if (!part.lessons_in_period) return `${lessons} ${periodIn(part.label)}`;
@@ -123,11 +124,12 @@ export function enrolBarOf(rows: readonly EnrolBarRow[], totalLines: readonly st
   const identical = payers.every((row) => row.amount === payers[0].amount && sameParts(row.parts, firstParts));
   const periodLine = firstParts.length === 1 ? lessonsLine(firstParts[0]) : null;
   if (payers.length === 1 && rows.length === 1) return { ...base, line: periodLine ?? (periodsOf(firstParts.map((part) => part.label)) || null), expandable: firstParts.length > 1 };
-  if (identical && periodLine) {
+  const periodUnknown = firstParts.length === 1 && lessonsUnknown(firstParts[0]);
+  if (identical && (periodLine || periodUnknown)) {
     const each = splitMoney(payers[0].amount ?? 0);
     const everyone = payers.length === rows.length;
     const who = everyone ? "по" : payers.length === 1 ? `${payers[0].name} —` : `${COUNT_DATIVE[payers.length] ?? `${payers.length} ученикам`} по`;
-    return { ...base, line: `${who} ${each.text} · ${periodLine}`, expandable: captionsDiffer(payers) };
+    return { ...base, line: periodLine ? `${who} ${each.text} · ${periodLine}` : `${who} ${each.text}`, expandable: captionsDiffer(payers) };
   }
   // the periods in the order of the longest story (a student with two months says «октябрь, ноябрь»), a new one is added after them
   const labels = [...payers].sort((a, b) => b.parts.length - a.parts.length).flatMap((row) => row.parts.map((part) => part.label));

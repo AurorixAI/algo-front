@@ -63,13 +63,16 @@ export function normalizeParts(raw: unknown): ImmediatePart[] {
 /** The rows of the break-down block under the sum of the bar: the caption on the left («Октябрь, с 27.10 · 2 урока из 9», «Ноябрь, весь месяц»), the sum on the right. */
 export function immediatePartRows(parts: ImmediatePart[]): Array<{ label: string; amount: string }> {
   return parts.map((part) => ({
-    label: part.whole ? `${capital(part.label)}, ${wholeWord(part)}` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} · ${lessonsOf(part)}`,
+    label: part.whole ? `${capital(part.label)}, ${wholeWord(part)}` : `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""}${lessonsUnknown(part) ? "" : ` · ${lessonsOf(part)}`}`,
     amount: formatMoney(part.amount),
   }));
 }
 
 /** The lines of the break-down: «Ноябрь, весь месяц — 400 000 сум» for a whole month, «Октябрь, с 27.10 — 89 000 сум · 2 урока из 9» for a part. */
 /** «5 уроков из 12». */
+/** A part with a sum but with 0 lessons (a return in the same period: the server does not know the number) says no number of lessons. */
+export const lessonsUnknown = (part: ImmediatePart): boolean => part.amount > 0 && part.lessons === 0;
+
 const lessonsOf = (part: ImmediatePart): string => `${part.lessons} ${pluralRu(part.lessons, ["урок", "урока", "уроков"])} из ${part.lessons_in_period}`;
 
 /** «весь месяц» for a calendar month («Ноябрь»); a whole period given by DATES («19.11–18.12») is «весь период». */
@@ -83,7 +86,7 @@ export function immediatePartLines(parts: ImmediatePart[]): string[] {
     const sum = formatMoney(part.amount);
     if (part.whole) return `${capital(part.label)}, ${wholeWord(part)} — ${sum}`;
     // a part with no day (`from: null`: the earlier charge was taken off the month) has no «с …» - the lessons say how much of the month it is
-    return `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} — ${sum} · ${lessonsOf(part)}`;
+    return `${capital(part.label)}${part.from ? `, с ${formatDayMonthRu(part.from)}` : ""} — ${sum}${lessonsUnknown(part) ? "" : ` · ${lessonsOf(part)}`}`;
   });
 }
 

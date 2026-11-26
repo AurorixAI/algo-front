@@ -678,3 +678,12 @@ test("F36: the orphan administrator analytics page is gone; nothing links to it"
   const walk = (dir, out = []) => { for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) { const rel = `${dir}/${entry.name}`; if (entry.isDirectory()) walk(rel, out); else if (/\.tsx?$/.test(entry.name)) out.push(rel); } return out; };
   for (const file of walk("src/components")) assert.doesNotMatch(read(file), /\/admin\/analytics/, file);
 });
+
+// every PAY-TAILS screen test is in the run of `test:display` (a file that is not in the script never runs in the gate)
+test("every tests/dom-paytails-*.test.cjs is named in the script test:display", () => {
+  const script = JSON.parse(read("package.json")).scripts["test:display"];
+  const files = fs.readdirSync(path.join(root, "tests")).filter((f) => /^dom-paytails-.*\.test\.cjs$/.test(f));
+  assert.ok(files.length > 0);
+  const missing = files.filter((f) => !script.split(/\s+/).includes(`tests/${f}`));
+  assert.deepEqual(missing, []);
+});
