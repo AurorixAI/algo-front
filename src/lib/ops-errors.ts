@@ -26,14 +26,24 @@ export function errorMessageOf(error: unknown, fallback: string): string {
 
 // ── decision 7: the window of the teacher (LESSON-RULES: the rule of the CENTRE, 1 / 3 / 7 / 14 / 30 days; the screen keeps no copy of the number) ──
 
-/** «Урок старше 14 дн. — его закрывает администратор или владелец»: the number is `windowDays` of the server's answer (an open action, a refusal); without it the sentence names no number. */
+/** «Урок старше 14 дн. — его закрывает администратор или владелец.»: the number is `windowDays` of the server's answer (an open action, a refusal); without it the sentence names no number. */
 export function lessonTooOldText(windowDays?: number | null): string {
   const days = Math.trunc(Number(windowDays));
   return Number.isFinite(days) && days > 0
-    ? `Урок старше ${days} дн. — его закрывает администратор или владелец`
-    : "Урок старше срока центра — его закрывает администратор или владелец";
+    ? `Урок старше ${days} дн. — его закрывает администратор или владелец.`
+    : "Урок старше срока центра — его закрывает администратор или владелец.";
 }
 export const LESSON_TOO_OLD_HINT = "Обратитесь к администратору";
+
+/** C10: the flags of the window the server puts on EVERY lesson of the journal and of the schedule (for a teacher; the same function as its refusal). */
+export interface LessonWindowFlags { canActSelf?: boolean | null; monthClosed?: boolean | null; windowDays?: number | null }
+export const MONTH_CLOSED_TEXT = "Месяц закрыт — обратитесь к владельцу";
+/** The line under a lesson a teacher may NOT act on himself, or null when he may (or the server sent no flags: the server judges, as before). A closed month is said first. */
+export function lessonWindowLock(flags: LessonWindowFlags | null | undefined): string | null {
+  if (!flags) return null;
+  if (flags.monthClosed === true) return MONTH_CLOSED_TEXT;
+  return flags.canActSelf === false ? lessonTooOldText(flags.windowDays) : null;
+}
 
 // ── O6: an empty roster ─────────────────────────────────────────────────────────────────────────
 

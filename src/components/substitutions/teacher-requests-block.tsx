@@ -145,7 +145,7 @@ export function TeacherRequestsBlock({
                         Отозвать
                       </Button>
                     )}
-                    {item.outcome === "cancel_waiting" && (
+                    {item.outcome === "cancel_waiting" && item.canWithdraw === true && (
                       <Button
                         type="button"
                         data-testid="withdraw-cancellation"

@@ -11,6 +11,7 @@ import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { SheetWaitingNotice } from "@/components/groups/sheet-waiting-notice";
 import { SheetTodoBlock } from "@/components/payroll/sheet-todo";
 import { sheetTodoItems } from "@/lib/payroll";
+import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 
 const w = window as any;
 w.__log = [] as string[];
@@ -35,7 +36,10 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<div className="mx-auto max-w-sm p-4"><LessonPanelError message={props.message} info={props.info === true} /></div>);
       break;
     case "sheet-waiting":
-      root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="g1" title="Г" lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30" }} moneyRight={props.moneyRight === true} onDecided={() => w.__log.push("decided")} /></div>);
+      root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="287049ea-7673-5f46-b17e-41e317fdd7f1" title="Математика 7" lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30" }} moneyRight={props.moneyRight === true} onDecided={() => w.__log.push("decided")} /></div>);
+      break;
+    case "journal":
+      root.render(<GroupAttendanceJournal groupId={props.groupId} students={props.students ?? []} canEdit adminMode={props.adminMode === true} groupName="Математика 7" initialMonth="2026-11" />);
       break;
     case "lesson-rules":
       root.render(<div className="mx-auto max-w-3xl p-4"><LessonRulesSection /></div>);

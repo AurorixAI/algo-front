@@ -20,21 +20,25 @@ async function openBlock(server, width = 375) {
   return run;
 }
 
+const mineReal = () => answer("mine_teacher");
+const rowOf = (page, date) => page.locator('[data-testid="my-request-row"]', { hasText: date });
+
 for (const width of [375, 1280]) {
-  test(`${width}: one list «Запросы и изменения уроков» - the waiting cancellation first, with «Отозвать» named by the lesson; the decided one «Отменён: по вине центра»`, async () => {
-    const { page, errors } = await openBlock(mineOf(answer("mine_teacher")), width);
+  test(`${width}: one list «Запросы и изменения уроков» - ONE row per lesson (the system record of a return is hidden), «Отозвать» only where the server says canWithdraw, the outcomes in the words of the server (the real answer mine_teacher)`, async () => {
+    const { page, errors } = await openBlock(mineOf(mineReal()), width);
     assert.match(plain(await page.textContent("section h2")), /Запросы и изменения уроков/);
     const rows = page.locator('[data-testid="my-request-row"]');
-    assert.equal(await rows.count(), 2);
-    const first = plain(await rows.nth(0).textContent());
-    assert.match(first, /пн, 23\.11 · Г/);
-    assert.match(first, /Отмена ждёт подтверждения/);
-    assert.match(first, /Отозвать/);
-    const second = plain(await rows.nth(1).textContent());
-    assert.match(second, /ср, 18\.11 · Г/);
-    assert.match(second, /Отменён: по вине центра/);
-    assert.ok(!second.includes("Отозвать"), "decided: nothing to take back");
-    assert.equal(await page.locator('button[aria-label="Отозвать отмену: пн, 23.11 · Г"]').count(), 1);
+    assert.equal(await rows.count(), 8, "10 records of the answer minus the two system records of the returned lessons that have the cancellation «урок был»");
+    const texts = (await rows.allTextContents()).map(plain);
+    assert.match(texts[0], /ср, 18\.11 · Математика 7/);
+    assert.match(texts[0], /Отмена ждёт подтверждения/);
+    assert.ok(!texts[0].includes("Отозвать"), "canWithdraw is false (the lesson is older than the window): no button");
+    assert.match(texts[1], /пн, 23\.11 · Математика 7/);
+    assert.match(texts[1], /Отмена ждёт подтверждения/);
+    assert.match(texts[1], /Отозвать/);
+    for (const chip of ["Отменён: праздник", "Отменён: по вине центра", "Включён в зарплату"]) assert.ok(texts.some((t) => t.includes(chip)), chip);
+    assert.equal(await page.locator('button[aria-label="Отозвать отмену: пн, 23.11 · Математика 7"]').count(), 1);
+    assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 1, "only the one with canWithdraw true");
     assert.equal(await page.locator("text=Новый запрос").count(), 1);
     const probe = await page.evaluate(layoutProbe, "body");
     assert.deepEqual([probe.bad, probe.scroll > 0], [[], false]);
@@ -44,58 +48,67 @@ for (const width of [375, 1280]) {
   });
 }
 
-test("«Отозвать»: POST withdraw-cancellation with expectedKind unconfirmed for THIS lesson, then the block reads again", async () => {
-  const mine = answer("mine_teacher");
+test("a returned lesson is ONE row: the cancellation «урок был» of 09.11 and 25.11 stand, their system records `closed` are hidden; the return of 02.11 has no such cancellation and stays", async () => {
+  const mine = mineReal();
+  const system = mine.items.filter((i) => i.status === "closed");
+  assert.equal(system.length, 3, "the real answer has three system records of a return");
+  const run = await openBlock(mineOf(mine));
+  const { page } = run;
+  assert.equal(await rowOf(page, "пн, 09.11").count(), 1);
+  assert.equal(await rowOf(page, "ср, 25.11").count(), 1);
+  assert.equal(await rowOf(page, "пн, 02.11").count(), 2, "02.11: «Включён в зарплату» and the return - different outcomes, both stay");
+  await page.close();
+});
+
+test("«Отозвать»: POST withdraw-cancellation with expectedKind unconfirmed for THIS lesson (23.11), then the block reads again", async () => {
+  const mine = mineReal();
   let reads = 0;
   const run = await openBlock((request) => {
-    if (request.path === "/auth/org/substitutions/mine") { reads += 1; return { json: reads > 1 ? { ...mine, items: mine.items.slice(1) } : mine }; }
+    if (request.path === "/auth/org/substitutions/mine") { reads += 1; return { json: reads > 1 ? { ...mine, items: mine.items.filter((i) => i.lesson.date !== "2026-11-23") } : mine }; }
     if (request.method === "POST" && WITHDRAW.test(request.path)) return { json: { ok: true, restored: true, lessonId: "lesson-mon", lessonDate: "2026-11-23", previousKind: "unconfirmed", returnedToReview: true } };
     return null;
   });
   const { page, calls } = run;
   await page.click('[data-testid="withdraw-cancellation"]');
-  await page.waitForFunction(() => document.querySelectorAll('[data-testid="my-request-row"]').length === 1);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="withdraw-cancellation"]').length === 0);
   const sent = calls.filter((c) => WITHDRAW.test(c.path));
-  assert.deepEqual(sent.map((c) => [c.method, c.path.includes(mine.items[0].group.id), c.body]), [["POST", true, { lessonId: "lesson-mon", lessonDate: "2026-11-23", expectedKind: "unconfirmed" }]]);
+  const waiting = mine.items.find((i) => i.lesson.date === "2026-11-23" && i.outcome === "cancel_waiting");
+  assert.deepEqual(sent.map((c) => [c.method, c.path.includes(waiting.group.id), c.body]), [["POST", true, { lessonId: "lesson-mon", lessonDate: "2026-11-23", expectedKind: "unconfirmed" }]]);
   await page.close();
 });
 
 test("the owner decided before the withdrawal (409 ALREADY_DECIDED, the real refusal): the teacher reads the server's sentence and the block reads again - nothing is hidden", async () => {
-  const mine = answer("mine_teacher");
+  const mine = mineReal();
   const refusal = answer("refusals").already_decided;
   const run = await openBlock((request) => {
     if (request.path === "/auth/org/substitutions/mine") return { json: mine };
     if (request.method === "POST" && WITHDRAW.test(request.path)) return { status: 409, json: refusal };
     return null;
   });
-  const { page } = run;
+  const { page, calls } = run;
   await page.click('[data-testid="withdraw-cancellation"]');
   await page.waitForSelector('[role="alert"]');
-  assert.match(plain(await page.textContent('[role="alert"]')), /Отмену подтвердил Улугбек Усманов/);
+  assert.equal(plain(await page.textContent('[role="alert"]')), refusal.detail.message);
+  assert.ok(calls.filter((c) => c.path === "/auth/org/substitutions/mine").length >= 2, "the block reads again");
   await page.close();
 });
 
-test("a lesson that was given back («Урок был»): the chip says whether he marks it (the window of the centre) - «отметьте посещаемость» with «Открыть урок», or «отметит администратор» without it", async () => {
-  const mine = answer("mine_teacher");
-  const base = mine.items[1];
-  const returned = (id, teacherCanMark) => ({ ...base, id, outcome: "lesson_restored", teacherCanMark });
-  const run = await openBlock(mineOf({ ...mine, items: [returned("r1", true), returned("r2", false)] }));
+test("a lesson that was given back («Урок был»): the chip says whether he marks it (teacherCanMark of the real answer: 25.11 true, 09.11 false) - «отметьте посещаемость» with «Открыть урок», or «отметит администратор» without it", async () => {
+  const run = await openBlock(mineOf(mineReal()));
   const { page } = run;
-  const rows = page.locator('[data-testid="my-request-row"]');
-  assert.match(plain(await rows.nth(0).textContent()), /Урок был — отметьте посещаемость/);
-  assert.equal(await rows.nth(0).locator('[data-testid="open-returned-lesson"]').count(), 1);
-  assert.match(plain(await rows.nth(1).textContent()), /Урок был — отметит администратор/);
-  assert.equal(await rows.nth(1).locator('[data-testid="open-returned-lesson"]').count(), 0, "older than the window: no action for the teacher");
+  const yes = rowOf(page, "ср, 25.11");
+  assert.match(plain(await yes.textContent()), /Урок был — отметьте посещаемость/);
+  assert.equal(await yes.locator('[data-testid="open-returned-lesson"]').count(), 1);
+  const no = rowOf(page, "пн, 09.11");
+  assert.match(plain(await no.textContent()), /Урок был — отметит администратор/);
+  assert.equal(await no.locator('[data-testid="open-returned-lesson"]').count(), 0, "older than the window: no action for the teacher");
   await page.close();
 });
 
-test("«Включён в зарплату» and «Отменён: праздник» are chips of the same list (the words of the outcome codes of the server)", async () => {
-  const mine = answer("mine_teacher");
-  const base = mine.items[1];
-  const run = await openBlock(mineOf({ ...mine, items: [{ ...base, id: "a", outcome: "included_in_payroll" }, { ...base, id: "b", outcome: "cancelled_holiday" }] }));
-  const text = plain(await run.page.textContent("section"));
-  assert.match(text, /Включён в зарплату/);
-  assert.match(text, /Отменён: праздник/);
+test("«Включён в зарплату» and «Отменён: праздник» are chips of the same list (the real answer: 02.11 and 16.11)", async () => {
+  const run = await openBlock(mineOf(mineReal()));
+  assert.match(plain(await rowOf(run.page, "пн, 16.11").textContent()), /Отменён: праздник/);
+  assert.match(plain(await run.page.locator('[data-testid="my-request-row"]', { hasText: "Включён в зарплату" }).textContent()), /пн, 02\.11/);
   await run.page.close();
 });
 

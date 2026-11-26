@@ -102,6 +102,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [items, setItems] = useState<SubstitutionListRow[]>([]);
   /** LESSON-RULES: the cancellations that wait for the owner (the number of the server; the rows are in `items`). */
   const [unconfirmedTotal, setUnconfirmedTotal] = useState(0);
+  /** C10: the number of the tab «Ждут решения» and of the menu badge is the SERVER's (`waitingTotal`: only what the viewer can decide; the rows «решает владелец» of an administrator without the right are not in it); null until the list is read (or an older answer without it). */
+  const [serverWaiting, setServerWaiting] = useState<number | null>(null);
   const [waitingDialog, setWaitingDialog] = useState<WaitingCancellationItem | null>(null);
   const [total, setTotal] = useState(0);
   const [pendingTotal, setPendingTotal] = useState(0);
@@ -129,9 +131,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const moneyRightLost = moneyRightLostFor(moneyLostFor, user);
   const moneyRightLostRef = useRef(moneyRightLost);
   moneyRightLostRef.current = moneyRightLost;
-  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total + unconfirmedTotal, moneyRightLost);
+  const waitingCount = serverWaiting ?? waitingCountFor(user, pendingTotal, decisions.total + unconfirmedTotal, moneyRightLost);
   // UX pack №7: the tab says what it lists (an administrator without the money access sees the rows of money, so the tab is not «(0)» over a row); the badge of the menu is his own tasks
-  const listedCount = listedCountFor(pendingTotal, decisions.total + unconfirmedTotal);
+  const listedCount = serverWaiting ?? listedCountFor(pendingTotal, decisions.total + unconfirmedTotal);
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -191,10 +193,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       setPendingTotal(data.pendingTotal ?? 0);
       setExpiringTotal(data.expiringTotal ?? 0);
       setUnconfirmedTotal(data.unconfirmedTotal ?? 0);
+      setServerWaiting(typeof data.waitingTotal === "number" ? data.waitingTotal : null);
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current + (data.unconfirmedTotal ?? 0), moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: typeof data.waitingTotal === "number" ? data.waitingTotal : waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current + (data.unconfirmedTotal ?? 0), moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -440,11 +443,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           canDecide={canDecideMoney(user)}
           rightLost={moneyRightLost}
           onRightLost={() => setMoneyLostFor({ profile: user })}
-          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
+          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); void load(true); refreshBadge(); }); }}
           loading={decisions.loading}
           error={decisions.error}
           onRetry={() => void decisions.reload()}
-          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
+          onDecided={() => { void decisions.reload(true); void load(true); refreshBadge(); }}
           showToast={showToast}
         />
       )}

@@ -66,6 +66,10 @@ interface LessonSummary {
   movedFrom?: MovedFrom | null;
   /** W1 F10: a substitute leads this lesson of the main teacher. */
   replacedBy?: { id: string; name: string } | null;
+  /** LESSON-RULES C10: the window of the teacher, judged by the server for THIS lesson. */
+  canActSelf?: boolean | null;
+  monthClosed?: boolean | null;
+  windowDays?: number | null;
 }
 
 type LessonAction = {

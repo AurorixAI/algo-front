@@ -27,10 +27,11 @@ for (const width of [1280, 1024, 375]) {
     await page.waitForSelector('[data-testid="lesson-rule-window"]');
     const rules = answer("rules_lessons").items;
     assert.equal(plain(await page.textContent('[data-testid="lesson-rule-window"] p')), rules[0].title);
-    assert.equal(plain(await page.textContent('[data-testid="lesson-window-hint"]')), "Оформленное задним числом видно в «Замены → История»");
-    assert.equal(plain(await page.textContent('[data-testid="lesson-window-select"]')), "14 дней", "the real answer says 14");
-    assert.equal(plain(await page.textContent('[data-testid="lesson-rule-confirm"] p')), "Отмену прошедшего урока преподавателем или администратором без доступа к деньгам подтверждает владелец или администратор с доступом к деньгам");
-    assert.equal(plain(await page.textContent('[data-testid="lesson-confirm-hint"]')), "Пока отмена не подтверждена, ученикам ничего не меняется");
+    assert.equal(plain(await page.textContent('[data-testid="lesson-window-hint"]')), rules[0].hint);
+    assert.ok(rules[0].hint.endsWith("Оформленное задним числом видно в «Замены → История»."), "the words of the mock N2u");
+    assert.equal(plain(await page.textContent('[data-testid="lesson-window-select"]')), "7 дней", "the real answer says 7");
+    assert.equal(plain(await page.textContent('[data-testid="lesson-rule-confirm"] p')), rules[1].title);
+    assert.equal(plain(await page.textContent('[data-testid="lesson-confirm-hint"]')), rules[1].hint);
     assert.equal(await page.getAttribute('[data-testid="lesson-confirm-switch"]', "aria-checked"), "true");
     assert.equal(plain(await page.textContent("h2")), "Уроки");
     assert.equal(await page.isDisabled('button:has-text("Сохранить")'), true, "nothing changed: nothing to save");

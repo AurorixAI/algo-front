@@ -10,9 +10,9 @@ const { layoutProbe } = require("./helpers/layout-probe.cjs");
 const { plain, WORLD_DAY } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
-const CONTRACT = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "logicA", "A26_sheet_f1_one_price_per_period.json"), "utf8"));
-const ITEM = { lessonDate: "2026-11-23", groupId: "g1", groupName: "Математика 7", lessonId: "lesson-mon", teacherId: "t1", ageDays: 9 };
-const warnings = (over) => ({ ...CONTRACT.warnings, open_lessons: 0, ...over });
+const REAL = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "lessonRules", "payroll_calculate_waiting.json"), "utf8")).sheets[0].warnings;   // the sheet of the world: November of Эргашев К.
+const ITEM = REAL.unconfirmed_items[1];
+const warnings = (over) => ({ ...REAL, open_lessons: 0, open_lesson_items: [], unconfirmed_cancellations: 0, unconfirmed_items: [], pending_excused: 0, no_fee: 0, unpaid: 0, unpaid_students: [], ...over });
 
 async function open(counts, width = 1280) {
   const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", () => null, { width, height: width === 375 ? 800 : 900, today: "2026-12-02" });
@@ -22,12 +22,13 @@ async function open(counts, width = 1280) {
 
 for (const width of [1280, 1024, 375]) {
   test(`${width}: the item «1 отмена ждёт подтверждения» stands FIRST in «Что нужно сделать» and leads to «Замены» with the button «Решить»`, async () => {
-    const { page, errors } = await open(warnings({ unconfirmed_cancellations: 1, unconfirmed_items: [ITEM], pending_excused: 2 }), width);
+    const { page, errors } = await open(REAL, width);
     await page.waitForSelector('[data-testid="sheet-todo"]');
     const items = page.locator('[data-testid="sheet-todo-item"]');
-    assert.equal(await items.count(), 2);
-    assert.match(plain(await items.nth(0).textContent()), /^1 отмена ждёт подтверждения\s*Решить$/);
-    assert.match(plain(await items.nth(1).textContent()), /2 уважительные ждут решения/);
+    assert.equal(await items.count(), 3);
+    assert.match(plain(await items.nth(0).textContent()), /^2 отмены ждут подтверждения\s*Решить$/);
+    assert.match(plain(await items.nth(1).textContent()), /^6 уроков без отметки/, "the real sheet: the cancellations stand BEFORE the lessons without a mark");
+    assert.match(plain(await items.nth(2).textContent()), /^у 3 учеников нет цены/);
     assert.equal(await items.nth(0).locator("a").getAttribute("href"), "/owner/substitutions");
     const probe = await page.evaluate(layoutProbe, "body");
     assert.deepEqual([probe.bad, probe.scroll > 0], [[], false]);
@@ -36,7 +37,7 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
-test("the number is said right: 1 отмена ждёт / 2 отмены ждут / 5 отмен ждут; zero says nothing (the real contract has 0)", async () => {
+test("the number is said right: 1 отмена ждёт / 2 отмены ждут / 5 отмен ждут; zero says nothing (the real sheet has 2; the other warnings are zeroed to see the line alone)", async () => {
   for (const [n, text] of [[1, "1 отмена ждёт подтверждения"], [2, "2 отмены ждут подтверждения"], [5, "5 отмен ждут подтверждения"], [21, "21 отмена ждёт подтверждения"]]) {
     const { page } = await open(warnings({ unconfirmed_cancellations: n, unconfirmed_items: [ITEM] }));
     assert.match(plain(await page.textContent('[data-testid="sheet-todo-item"]')), new RegExp(`^${text}`));

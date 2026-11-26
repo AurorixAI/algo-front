@@ -57,8 +57,17 @@ for (const width of [1280, 1024, 375]) {
       for (const box of boxes) assert.ok(box.ddLeft > box.dtLeft, "the value stands beside its label");
     }
     // the date and the time of the subtitle are not torn: ONE line box for «ср, 4 ноября · 10:00–11:00» (the group name may wrap before it)
-    const torn = await page.evaluate(() => { const walker = document.createTreeWalker(document.querySelector('[role="dialog"]'), NodeFilter.SHOW_TEXT); for (let n = walker.nextNode(); n; n = walker.nextNode()) { if (!n.textContent.includes("10:00")) continue; const text = n.textContent; const at = text.indexOf("ср,"); const range = document.createRange(); range.setStart(n, at); range.setEnd(n, text.indexOf("11:00") + 5); return range.getClientRects().length > 0 ? new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size : -1; } return -2; });
-    assert.equal(torn, 1, "«ср, 4 ноября · 10:00–11:00» stays on one line");
+    // the node of the subtitle is the one with the day and both times: another text of the window may also hold «10:00» (a time of a decision) and has no day to start from
+    const torn = await page.evaluate(() => {
+      const nodes = []; const walker = document.createTreeWalker(document.querySelector('[role="dialog"]'), NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+      const day = nodes.find((n) => n.textContent.includes("ср,"));
+      const time = nodes.find((n) => n.textContent.includes("10:00") && n.textContent.includes("11:00"));
+      if (!day || !time) return -2;
+      const range = document.createRange(); range.setStart(day, day.textContent.indexOf("ср,")); range.setEnd(time, time.textContent.length);
+      window.__rects = JSON.stringify([...range.getClientRects()].map((r) => [Math.round(r.top), Math.round(r.bottom), Math.round(r.left)])); return new Set([...range.getClientRects()].map((r) => Math.round((r.top + r.bottom) / 8))).size;   // the line of a box is its middle: inline boxes of one line differ by a pixel in their tops
+    });
+    assert.equal(torn, 1, "«ср, 4 ноября · 10:00–11:00» stays on one line " + await page.evaluate(() => window.__rects));
     const block = plain(await page.innerText('[data-testid="money-effects"]'));
     assert.match(block, /^Что изменится Зарплата Эргашева К\. за ноябрь Было 120 834 сум Станет \+45 000 сум 165 834 сум Уже выплачено 150 000 сум Останется выплатить 15 834 сум$/);
     // the numbers stand on the right edge of the block, in one column

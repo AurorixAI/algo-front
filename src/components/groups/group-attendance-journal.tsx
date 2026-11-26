@@ -37,6 +37,8 @@ import {
   formatUtcNaiveAsBusinessDateTime,
 } from "@/lib/business-time";
 import { wasMemberOn } from "@/lib/membership-periods";
+import { lessonWindowLock } from "@/lib/ops-errors";
+import { Notice } from "@/components/ui/notice";
 import {
   collectExcuseReasons,
   CORRECTION_REASON_MAX,
@@ -84,6 +86,7 @@ import {
   conflictHeadline,
   examSyncNotice,
   expectedVersionFor,
+  failureLine,
   lessonFailure,
   mergeKeepMine,
   mergeVersions,
@@ -395,6 +398,8 @@ export function GroupAttendanceJournal({
   const [savingLessonKey, setSavingLessonKey] = useState<string | null>(null);
   const [openCell, setOpenCell] = useState<OpenAttendanceCell | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** C10: the refusal EXCUSE_DECIDED belongs to ONE mark: its cell is outlined and the sentence of the server stands over the table as an information. */
+  const [decidedMark, setDecidedMark] = useState<{ lessonKey: string; studentId: string | null; studentName: string | null; text: string } | null>(null);
   const { showToast, toastNode } = useToast();
   const closedMonth = useClosedMonthDialog();
   const [columnMenu, setColumnMenu] = useState<{ key: string; anchor: MenuAnchor } | null>(null);
@@ -706,12 +711,16 @@ export function GroupAttendanceJournal({
    */
   const actionsFor = (lesson: Lesson, key: string, lessonStatus: string): AdminLessonAction[] => {
     if (!canEdit) return [];
-    if (!adminMode) return lessonTeacherActions(lessonStatus, !lessonIsOthers(key));
+    if (!adminMode) return lessonTeacherActions(lessonStatus, !lessonIsOthers(key), lesson);
     const moved = lessonStatus === "cancelled" && lesson.substitutionOutcome?.kind === "rescheduled";
     // R2-4 (walk of 05.11): a cancelled lesson of TODAY that has begun goes back to the review at once (the start of the lesson, like the server), not the next day
     const started = lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time });
     return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight), started });
   };
+
+  /** LESSON-RULES C10: why a teacher cannot correct the marks of his own held lesson (the server's flags of THIS lesson: a closed month, a lesson older than the window); null when he can or it is not his. */
+  const teacherLockFor = (lesson: Lesson, key: string, lessonStatus: string): string | null =>
+    canEdit && !adminMode && lessonStatus === "completed" && !lessonIsOthers(key) ? lessonWindowLock(lesson) : null;
 
   /** G3M Ф3: «Отметить посещаемость» of a past lesson nobody started is the money right's (the same rule as the schedule's sheet): without it the column says why. */
   const markLockFor = (lesson: Lesson, lessonStatus: string): string | null =>
@@ -728,6 +737,7 @@ export function GroupAttendanceJournal({
     const lessonKey = instanceKey(lesson);
     const lessonStatus = attendanceData?.statuses?.[lessonKey] || lesson.status || "scheduled";
     const inCorrection = correcting?.key === lessonKey;
+    setDecidedMark(null);
     // The lesson is being closed: a mark sent in parallel would race with the finish.
     if (finishingKeyRef.current === lessonKey) return;
     if (
@@ -872,6 +882,11 @@ export function GroupAttendanceJournal({
         reloadWantedRef.current = true;
         pendingReasonsRef.current[lessonKey] = {};
         setLocalRecords(recordsRef.current);
+        if (failure.kind === "excuse_decided") {
+          setSaveError(null);
+          setDecidedMark({ lessonKey, studentId: failure.studentId, studentName: failure.studentName, text: failure.text });
+          return;
+        }
         const message = error instanceof Error ? error.message : "";
         reportFailure(
           error,
@@ -1389,9 +1404,10 @@ export function GroupAttendanceJournal({
         });
         return;
       }
+      if (failure.kind === "excuse_decided") setDecidedMark({ lessonKey: correcting.key, studentId: failure.studentId, studentName: failure.studentName, text: failure.text });
       setCorrectionDialog({
         ...correctionDialog,
-        error: failure.text,
+        error: failureLine(failure),
         closed: periodClosedOf(err),
       });
     } finally {
@@ -1409,6 +1425,12 @@ export function GroupAttendanceJournal({
           />
           <button type="button" onClick={() => setClosedNotice(null)} aria-label="Закрыть сообщение об ошибке" className="rounded p-0.5 text-rose-800 hover:bg-rose-100"><X className="h-4 w-4" /></button>
         </div>
+      )}
+
+      {decidedMark && (
+        <Notice variant="info" testId="excuse-decided-notice" action={<button type="button" onClick={() => setDecidedMark(null)} aria-label="Закрыть сообщение" className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-semibold text-info-900 hover:underline">Понятно</button>}>
+          {decidedMark.studentName ? <><span className="font-semibold">{decidedMark.studentName}.</span> </> : null}{decidedMark.text}
+        </Notice>
       )}
 
       {saveError && (
@@ -1547,7 +1569,7 @@ export function GroupAttendanceJournal({
                         title={presentation.description}
                         className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : highlightedKey === key ? "bg-primary-100 ring-2 ring-inset ring-primary-300" : lesson.date === today ? "bg-primary-50" : ""}`}
                       >
-                        {(adminActions.length > 0 || canReplace || markLockFor(lesson, lessonStatus) !== null) && (
+                        {(adminActions.length > 0 || canReplace || markLockFor(lesson, lessonStatus) !== null || (!correcting && teacherLockFor(lesson, key, lessonStatus) !== null)) && (
                           <button
                             type="button"
                             data-column-menu-trigger
@@ -1728,7 +1750,7 @@ export function GroupAttendanceJournal({
                           : lessonStatus === "scheduled"
                             ? "Сначала начните урок в расписании или на панели «Сегодня»"
                           : lessonStatus === "completed"
-                            ? (actionsFor(lesson, key, lessonStatus).includes("correct") ? `Завершённый урок: чтобы изменить отметки, выберите «⋯ → ${CORRECT_MARKS_LABEL}» в заголовке столбца` : "Завершённый урок защищён от случайного изменения")
+                            ? (teacherLockFor(lesson, key, lessonStatus) ?? (actionsFor(lesson, key, lessonStatus).includes("correct") ? `Завершённый урок: чтобы изменить отметки, выберите «⋯ → ${CORRECT_MARKS_LABEL}» в заголовке столбца` : "Завершённый урок защищён от случайного изменения"))
                             : lessonStatus === "cancelled"
                               ? "Отменённый урок нельзя отмечать"
                               : "Режим просмотра";
@@ -1741,7 +1763,7 @@ export function GroupAttendanceJournal({
                         const menuAvailable = isOpen && (!locked || reviewable || Boolean(excuse));
 
                         return (
-                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className={`relative border-r border-slate-100 p-2 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50/60" : highlightedKey === key ? "bg-primary-50" : ""}`}>
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} data-excuse-decided={decidedMark?.lessonKey === key && decidedMark.studentId === student.id ? "true" : undefined} className={`relative border-r border-slate-100 p-2 text-center transition-colors duration-500 ${decidedMark?.lessonKey === key && decidedMark.studentId === student.id ? "bg-warning-50 ring-2 ring-inset ring-warning-300" : inCorrection ? "bg-amber-50/60" : highlightedKey === key ? "bg-primary-50" : ""}`}>
                             {wasInLesson ? <button
                               type="button"
                               disabled={locked && !reviewable && !excuse}
@@ -1926,7 +1948,7 @@ export function GroupAttendanceJournal({
                           && (lessonStatus === "in_progress" || (lessonStatus === "completed" && inCorrection));
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         return (
-                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className="relative border-r border-slate-100 p-2 text-center">
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} data-excuse-decided={decidedMark?.lessonKey === key && decidedMark.studentId === student.id ? "true" : undefined} className={`relative border-r border-slate-100 p-2 text-center ${decidedMark?.lessonKey === key && decidedMark.studentId === student.id ? "bg-warning-50 ring-2 ring-inset ring-warning-300" : ""}`}>
                             {wasInLesson ? (
                               editable ? (
                                 <button
@@ -1987,6 +2009,7 @@ export function GroupAttendanceJournal({
         const menuTeacherInfo = attendanceData?.lessonTeachers?.[columnMenu.key];
         const menuCanReplace = Boolean(menuTeacherInfo) && canReplaceTeacher("admin", lessonStatus) && (moneyRight || lessonStatus !== "completed");
         const markLock = markLockFor(lesson, lessonStatus);
+        const teacherLock = teacherLockFor(lesson, columnMenu.key, lessonStatus);
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
@@ -2002,6 +2025,12 @@ export function GroupAttendanceJournal({
                 <span className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-slate-500" />{MARK_LESSON_LABEL}</span>
                 <span className="pl-6 text-xs font-medium text-amber-700">{markLock}</span>
               </button>
+            )}
+            {teacherLock && (
+              <div role="menuitem" data-testid="menu-teacher-locked" aria-disabled="true" className="flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
+                <span className="flex items-center gap-2"><Pencil className="h-4 w-4 text-slate-500" />{CORRECT_MARKS_LABEL}</span>
+                <span className="pl-6 text-xs font-medium text-amber-700">{teacherLock}</span>
+              </div>
             )}
             {actions.includes("cancel_missed") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("cancel_missed", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">

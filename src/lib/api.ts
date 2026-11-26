@@ -731,6 +731,10 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   createdBy?: LessonAuthor | null;
   /** W1 F10: on the lesson of the MAIN teacher that a substitute leads: who leads it instead (the lesson stays in his schedule, he cannot start or mark it). */
   replacedBy?: { id: string; name: string } | null;
+  /** LESSON-RULES C10: the window of the teacher, judged by the server for THIS lesson. */
+  canActSelf?: boolean | null;
+  monthClosed?: boolean | null;
+  windowDays?: number | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -944,6 +948,10 @@ export interface Lesson extends LessonPurposeFields {
   movedFrom?: MovedFrom | null;
   /** W1 S26: who added a ONE-OFF lesson (null / absent for a lesson of the weekly schedule). */
   createdBy?: LessonAuthor | null;
+  /** LESSON-RULES C10: the window of the teacher, judged by the server for THIS lesson (the same function as its refusal). */
+  canActSelf?: boolean | null;
+  monthClosed?: boolean | null;
+  windowDays?: number | null;
 }
 
 /** W1 S26: the author of a one-off lesson. */

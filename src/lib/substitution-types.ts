@@ -188,6 +188,8 @@ export interface SubstitutionItem {
   waitingDays?: number | null;
   /** LESSON-RULES: a lesson that was given back: may its teacher still mark it (the window of the centre)? false = the administrator marks it; null = not a returned lesson. */
   teacherCanMark?: boolean | null;
+  /** LESSON-RULES: a waiting cancellation: may its teacher still take it back (the window of the centre and the kind)? Only `true` shows «Отозвать». */
+  canWithdraw?: boolean | null;
 }
 
 /** LESSON-RULES: a cancellation that WAITS for the owner as a row of «Ждут решения» (`source: "unconfirmed"`; `id` is the id of the journal row of the lesson, not of a request). */
@@ -357,6 +359,8 @@ export interface SubstitutionListOut {
   expiringTotal?: number;
   /** LESSON-RULES: cancellations that wait for the owner (also rows of `items` of the pending list). */
   unconfirmedTotal?: number;
+  /** C10: the number of the tab «Ждут решения» as the server counts it for THIS viewer (what he can decide; no «решает владелец» rows). */
+  waitingTotal?: number;
 }
 
 /** The author of an event: `{id, name, role}` for an owner / an administrator, `{role}` alone for a teacher (#157 A1), `null` - the system. */

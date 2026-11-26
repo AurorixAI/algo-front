@@ -7,6 +7,7 @@ import { MONTHS_NOMINATIVE_CAP } from "./ru-calendar";
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
 import { reasonProblemFor } from "./reason-rules";
+import { lessonWindowLock, type LessonWindowFlags } from "./ops-errors";
 
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
@@ -73,8 +74,9 @@ export function lessonAdminActions(state: string, date: string, today: string, r
  * Money-1 A5: the teacher of a lesson corrects the marks of his OWN held lesson within the window of the centre, while the month is open, with a reason (the server judges the month and the days:
  * LESSON_TOO_OLD, PERIOD_CLOSED).  The journal offers the one action «Исправить отметки»; nothing else of the administrator's menu.
  */
-export function lessonTeacherActions(state: string, own: boolean): AdminLessonAction[] {
-  // LESSON-RULES: the window is the centre's (1-30 days) and the journal carries no flag for it: the action is offered, the server judges (LESSON_TOO_OLD in its own words, PERIOD_CLOSED)
+export function lessonTeacherActions(state: string, own: boolean, flags?: LessonWindowFlags | null): AdminLessonAction[] {
+  // LESSON-RULES C10: the server marks every lesson (`canActSelf`, `monthClosed`): a lesson he may not act on offers nothing; without flags the action is offered and the server judges
+  if (lessonWindowLock(flags)) return [];
   return state === "completed" && own ? ["correct"] : [];
 }
 

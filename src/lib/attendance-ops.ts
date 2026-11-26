@@ -160,7 +160,9 @@ export const FINISH_LESSON_ACTION = "Завершить урок";
 
 /** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it goes to the salary of the teacher; the server asks for an explicit yes. */
 /** The words of 409 `NOBODY_CAME_BACKDATED` when the server sent none (it does: the screen shows its sentence). */
-export const NOBODY_CAME_BACKDATED_TEXT = "Урок, на который никто не пришёл, задним числом оформляет администратор или владелец";
+export const NOBODY_CAME_BACKDATED_TEXT = "Никто не пришёл? Такой урок задним числом оформляет администратор — он видит его в уроках без отметки.";
+/** The words of 409 `EXCUSE_DECIDED` when the server sent none (it does: the screen shows its sentence). */
+export const EXCUSE_DECIDED_TEXT = "Уважительную причину уже рассмотрели — изменить отметку может администратор или владелец";
 export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя";
 
 /** Our words for the question when the answer of the server has none (R3 n6: the sentence of the server is the question when it came). */
@@ -229,6 +231,8 @@ export type LessonFailure =
   | { kind: "too_old"; text: string }
   /** LESSON-RULES: a lesson nobody came to is written afterwards by the administrator or the owner (409 `NOBODY_CAME_BACKDATED`). */
   | { kind: "nobody_came_backdated"; text: string }
+  /** LESSON-RULES C10: the excuse of THIS student was already reviewed - the mark is changed by the administrator or the owner (409 `EXCUSE_DECIDED`; the refusal names the student). */
+  | { kind: "excuse_decided"; text: string; studentId: string | null; studentName: string | null }
   | { kind: "no_students"; text: string }
   | { kind: "not_lesson_teacher"; text: string }
   | { kind: "archived"; text: string }
@@ -236,7 +240,12 @@ export type LessonFailure =
 
 /** A refusal that is a RULE of the centre, not a failure: the screen says it as an information (blue), without a red error. */
 export function isRuleRefusal(failure: LessonFailure): boolean {
-  return failure.kind === "too_old" || failure.kind === "nobody_came_backdated";
+  return failure.kind === "too_old" || failure.kind === "nobody_came_backdated" || failure.kind === "excuse_decided";
+}
+
+/** The line a panel without a table shows for a refusal: the refusal about ONE mark names the student first. */
+export function failureLine(failure: LessonFailure): string {
+  return failure.kind === "excuse_decided" && failure.studentName ? `${failure.studentName}. ${failure.text}` : failure.text;
 }
 
 /** Sorts a failed lesson action into what the screen does about it; `text` is always something to show. */
@@ -257,6 +266,10 @@ export function lessonFailure(error: unknown, operation: LessonOperation, fallba
       return { kind: "too_old", text: errorMessageOf(error, lessonTooOldText((opsErrorDetail(error) as { windowDays?: number } | null)?.windowDays)) };
     case "NOBODY_CAME_BACKDATED":
       return { kind: "nobody_came_backdated", text: errorMessageOf(error, NOBODY_CAME_BACKDATED_TEXT) };
+    case "EXCUSE_DECIDED": {
+      const detail = (opsErrorDetail(error) ?? {}) as { studentId?: string | null; studentName?: string | null };
+      return { kind: "excuse_decided", text: errorMessageOf(error, EXCUSE_DECIDED_TEXT), studentId: detail.studentId ?? null, studentName: detail.studentName ?? null };
+    }
     case "NO_STUDENTS":
       return { kind: "no_students", text: operation === "finish" ? NO_STUDENTS_FINISH_TEXT : NO_STUDENTS_START_TEXT };
     case "NO_STUDENTS_COMPLETE":

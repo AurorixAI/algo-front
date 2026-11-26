@@ -17,7 +17,7 @@ import {
 import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
 import { askConfirm } from "./confirm-dialog";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
-import { examSyncNotice, isLockedByServer, isRuleRefusal, lessonFailure, nobodyCameQuestion } from "./attendance-ops";
+import { examSyncNotice, failureLine, isLockedByServer, isRuleRefusal, lessonFailure, nobodyCameQuestion } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
 import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
@@ -26,7 +26,7 @@ import {
 import { cancelEntryPoint, lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
-import { lessonTooOldText, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
+import { lessonTooOldText, lessonWindowLock, type LessonWindowFlags, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
 import { reasonProblemFor } from "./reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "./schedule-card-actions";
 import { getLessonTimeStatus } from "./schedule-time";
@@ -41,7 +41,7 @@ import type { LessonCancelBinding } from "@/components/substitutions/lesson-canc
 import { teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 
 /** What the panel shows of a lesson: a lesson of today's list, a card of the week and the lesson rebuilt from a task of the server are all of this shape. */
-export interface TeacherPanelLesson extends PanelLesson {
+export interface TeacherPanelLesson extends PanelLesson, LessonWindowFlags {
   id: string;
   groupId: string;
   groupName: string;
@@ -559,7 +559,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; } // another lesson is on the screen now: not the place for the dialog, the notice stays
       const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
-      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text, isRuleRefusal(failure));
+      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failureLine(failure), isRuleRefusal(failure));
     } finally {
       writes.end(target.key);
     }
@@ -629,7 +629,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; nobody came - in the question below; anything else is the text of the panel
       if (failure.kind === "nobody_came") askNobody = failure.text;
-      else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text, isRuleRefusal(failure));
+      else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failureLine(failure), isRuleRefusal(failure));
     } finally {
       writes.end(target.key);
     }
@@ -745,8 +745,11 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const windowAction = activeLesson && activeLessonDate
     ? host.openActions.find((action) => action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === activeLessonDate) ?? null
     : null;
-  const lessonTooOld = Boolean(viewerRole !== "owner" && viewerRole !== "admin" && isLockedByServer(windowAction));
-  const lessonTooOldLine = lessonTooOldText(windowAction?.windowDays);
+  // C10: every lesson of the schedule carries the flags of the window (`canActSelf`, `monthClosed`, `windowDays`) - the same judgement as the open action; the closed month is said first
+  const isTeacherView = viewerRole !== "owner" && viewerRole !== "admin";
+  const flagLock = isTeacherView ? lessonWindowLock(activeLesson) : null;
+  const lessonTooOld = Boolean(isTeacherView && (isLockedByServer(windowAction) || flagLock));
+  const lessonTooOldLine = flagLock ?? lessonTooOldText(windowAction?.windowDays ?? activeLesson?.windowDays);
   // The never-started lesson of a past day, which the teacher can still settle as "missed"
   const activeMissedAction = activeLesson && activeLessonRelation === "past" && !lessonTooOld
     ? host.openActions.find((action) => (

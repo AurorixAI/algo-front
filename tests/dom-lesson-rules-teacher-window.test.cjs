@@ -9,7 +9,7 @@ const { answer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs
 
 const ctx = setup(test);
 const TEACHER = { role: "teacher", org_role: "teacher" };
-const WAITING = "Отмену подтвердит владелец или администратор с доступом к деньгам: до подтверждения ученикам ничего не меняется";
+const WAITING = answer("cancel_teacher_waiting").consequence;   // the sentence of the server as it comes (the real answer of «Урока не было»)
 const KIND = /\/attendance\/cancellation-kind$/;
 
 async function mount(name, who, props, width = 375, server = () => null) {
@@ -48,7 +48,7 @@ test("without the sentence of the server (not read yet / refused) the question a
 });
 
 test("the refusals of the rules (the real answers) are an information, not a red error: no one to come backdated, a lesson older than the window", async () => {
-  for (const key of ["nobody_came_backdated", "lesson_too_old"]) {
+  for (const key of ["nobody_came_backdated", "lesson_too_old_save", "withdraw_too_old"]) {
     const message = answer("refusals")[key].detail.message;
     const { page } = await mount("rule-notice", TEACHER, { message, info: true });
     await page.waitForSelector('[data-testid="lesson-rule-refusal"]');
@@ -71,7 +71,7 @@ test("Э9: the sheet of a lesson whose cancellation waits - the chip «Отме�
   await page.waitForSelector('[data-testid="waiting-outcomes"]');
   const dialog = plain(await page.textContent('[role="dialog"]'));
   assert.match(dialog, /Отмена урока ждёт подтверждения/, "the sheet does not know who wrote it: the window does not say it");
-  assert.match(dialog, /Г · пн, 23\.11 · 10:00–11:30/);
+  assert.match(dialog, /Математика 7 · пн, 23\.11 · 10:00–11:30/);
   assert.equal(await page.locator('[data-testid="waiting-head"]').count(), 0, "no invented author");
   await page.click('[data-testid="waiting-outcome-centre"]');
   await page.waitForFunction(() => /Перерасчёт/.test(document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? ""));

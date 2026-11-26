@@ -31,18 +31,18 @@ const refusalOf = (detail) => Object.assign(new Error(detail.message), { code: d
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 test("the window of the teacher: the sentence says the number of the ANSWER (windowDays), never a copy; without a number it names none", () => {
-  assert.equal(Err.lessonTooOldText(14), "Урок старше 14 дн. — его закрывает администратор или владелец");
-  assert.equal(Err.lessonTooOldText(1), "Урок старше 1 дн. — его закрывает администратор или владелец");
-  assert.equal(Err.lessonTooOldText(30), "Урок старше 30 дн. — его закрывает администратор или владелец");
-  assert.equal(Err.lessonTooOldText(undefined), "Урок старше срока центра — его закрывает администратор или владелец");
-  assert.equal(Err.lessonTooOldText(0), "Урок старше срока центра — его закрывает администратор или владелец");
+  assert.equal(Err.lessonTooOldText(14), "Урок старше 14 дн. — его закрывает администратор или владелец.");
+  assert.equal(Err.lessonTooOldText(1), "Урок старше 1 дн. — его закрывает администратор или владелец.");
+  assert.equal(Err.lessonTooOldText(30), "Урок старше 30 дн. — его закрывает администратор или владелец.");
+  assert.equal(Err.lessonTooOldText(undefined), "Урок старше срока центра — его закрывает администратор или владелец.");
+  assert.equal(Err.lessonTooOldText(0), "Урок старше срока центра — его закрывает администратор или владелец.");
   // the refusal of the server (the real answer, window 7): the screen shows the server's sentence as it is
-  const refusal = answers("refusals").lesson_too_old.detail;
+  const refusal = answers("refusals").lesson_too_old_save.detail;
   const failure = Ops.lessonFailure(refusalOf(refusal), "finish", "x");
   assert.deepEqual([failure.kind, failure.text], ["too_old", refusal.message]);
   // a refusal without the sentence: the number still comes from the detail
-  assert.equal(Ops.lessonFailure(refusalOf({ code: "LESSON_TOO_OLD", message: "", windowDays: 3 }), "finish", "x").text, "Урок старше 3 дн. — его закрывает администратор или владелец");
-  assert.equal(Subs.substitutionErrorText(refusalOf({ code: "LESSON_TOO_OLD", message: "", windowDays: 30 })), "Урок старше 30 дн. — его закрывает администратор или владелец");
+  assert.equal(Ops.lessonFailure(refusalOf({ code: "LESSON_TOO_OLD", message: "", windowDays: 3 }), "finish", "x").text, "Урок старше 3 дн. — его закрывает администратор или владелец.");
+  assert.equal(Subs.substitutionErrorText(refusalOf({ code: "LESSON_TOO_OLD", message: "", windowDays: 30 })), "Урок старше 30 дн. — его закрывает администратор или владелец.");
 });
 
 test("no copy of the number of days of the window is left in the screens (the number is the server's: LESSON-RULES 6.11)", () => {
@@ -66,21 +66,42 @@ test("the refusals that are RULES are an information, the other ones stay errors
   const refusals = answers("refusals");
   const nobody = Ops.lessonFailure(refusalOf(refusals.nobody_came_backdated.detail), "finish", "x");
   assert.deepEqual([nobody.kind, nobody.text, Ops.isRuleRefusal(nobody)], ["nobody_came_backdated", refusals.nobody_came_backdated.detail.message, true]);
-  assert.equal(Ops.isRuleRefusal(Ops.lessonFailure(refusalOf({ code: "LESSON_TOO_OLD", message: "m", windowDays: 7 }), "finish", "x")), true);
+  assert.equal(Ops.isRuleRefusal(Ops.lessonFailure(refusalOf(refusals.withdraw_too_old.detail), "finish", "x")), true);
   assert.equal(Ops.isRuleRefusal(Ops.lessonFailure(refusalOf({ code: "NOBODY_CAME", message: "m" }), "finish", "x")), false, "the old question stays a question");
-  assert.equal(Ops.isRuleRefusal(Ops.lessonFailure(refusalOf(refusals.attendance_conflict.detail), "save", "x")), false);
-  // a decided excuse (K8b) is said in the server's own sentence, nothing is added
-  const decided = Ops.lessonFailure(refusalOf({ code: "EXCUSE_DECIDED", message: "Уважительную причину уже рассмотрели — изменить отметку может администратор или владелец" }), "save", "x");
-  assert.equal(decided.text, "Уважительную причину уже рассмотрели — изменить отметку может администратор или владелец");
-  assert.equal(Ops.isRuleRefusal(decided), false);
+  // NOT EXPORTED by the server: the real ATTENDANCE_CONFLICT (listed in the report); a refusal with another code stays an error
+  assert.equal(Ops.isRuleRefusal(Ops.lessonFailure(refusalOf({ code: "ATTENDANCE_CONFLICT", message: "m" }), "save", "x")), false);
+  // a decided excuse (K8b) is said in the server's own sentence and belongs to ONE student (C10: studentId, studentName)
+  const decided = Ops.lessonFailure(refusalOf(refusals.excuse_decided.detail), "save", "x");
+  assert.deepEqual([decided.kind, decided.text, decided.studentId, decided.studentName], ["excuse_decided", refusals.excuse_decided.detail.message, refusals.excuse_decided.detail.studentId, "Назаров Бекзод"]);
+  assert.equal(Ops.isRuleRefusal(decided), true, "an information, not a red error");
+  assert.equal(Ops.failureLine(decided), `Назаров Бекзод. ${refusals.excuse_decided.detail.message}`, "a panel without a table names the student first");
+  assert.equal(Ops.failureLine(nobody), nobody.text);
 });
 
-test("the correction of the marks is offered to the teacher of his OWN held lesson - the window is judged by the server (the journal has no flag for it: said in the report)", () => {
+test("the correction of the marks is offered to the teacher of his OWN held lesson - the window is judged by the flags of the server for THIS lesson", () => {
   const A = require(path.join(root, "src/lib/attendance-excuses.ts"));
   assert.deepEqual(A.lessonTeacherActions("completed", true), ["correct"]);
   assert.deepEqual(A.lessonTeacherActions("completed", false), []);
   assert.deepEqual(A.lessonTeacherActions("cancelled", true), []);
   assert.deepEqual(A.lessonTeacherActions("scheduled", true), []);
+  // C10: the server's flags of THIS lesson (journal_teacher: 02.11 held, window over; 23.11 may be acted on)
+  const lessons = answers("journal_teacher").lessons;
+  const old = lessons.find((l) => l.date === "2026-11-02");
+  const fresh = lessons.find((l) => l.date === "2026-11-23");
+  assert.deepEqual([old.canActSelf, old.monthClosed, old.windowDays], [false, false, 7]);
+  assert.deepEqual(A.lessonTeacherActions("completed", true, old), [], "older than the window: nothing for the teacher");
+  assert.deepEqual(A.lessonTeacherActions("completed", true, fresh), ["correct"]);
+  assert.deepEqual(A.lessonTeacherActions("completed", true, { canActSelf: true, monthClosed: true, windowDays: 7 }), [], "a closed month closes it whatever the window says");
+  assert.equal(Err.lessonWindowLock(old), "Урок старше 7 дн. — его закрывает администратор или владелец.");
+  assert.equal(Err.lessonWindowLock({ canActSelf: true, monthClosed: true }), "Месяц закрыт — обратитесь к владельцу");
+  assert.equal(Err.lessonWindowLock({ canActSelf: false, monthClosed: true, windowDays: 7 }), "Месяц закрыт — обратитесь к владельцу", "a closed month is said first");
+  assert.equal(Err.lessonWindowLock(fresh), null);
+  assert.equal(Err.lessonWindowLock({}), null, "no flags: the server judges");
+  // the schedule carries the same three flags on EVERY occurrence (schedule_teacher): the lessons older than the window are closed
+  const occurrences = answers("schedule_teacher");
+  assert.ok(occurrences.every((o) => typeof o.canActSelf === "boolean" && typeof o.monthClosed === "boolean" && o.windowDays === 7));
+  // by hand: today is 26.11, the window is 7 days, so the teacher acts on a lesson from 19.11 on (18.11 is 8 days old)
+  assert.ok(occurrences.every((o) => o.canActSelf === (o.occurrenceDate >= "2026-11-19")));
 });
 
 test("outcomes of a waiting cancellation: the sentence of the chosen outcome comes from the numbers of the real dry run (9 × 50 000 = 450 000)", () => {
@@ -92,18 +113,20 @@ test("outcomes of a waiting cancellation: the sentence of the chosen outcome com
   const holiday = answers("dry_run_confirm_holiday");
   assert.deepEqual([holiday.students, holiday.total, holiday.per_student], [0, 0, null]);
   // the other shapes of the same answer (the server's fields): the recalculation of the centre is off; unequal amounts; one student; no recalculation; the lesson is older than the window
-  assert.equal(L.outcomeCaption("centre", { ...dry, recalc_off: true }), "Перерасчёт за отмены в центре выключен — ученикам ничего не изменится. Преподавателю урок не оплачивается.");
-  assert.equal(L.outcomeCaption("centre", { ...dry, per_student: null, students: 2, total: 90000 }), "Перерасчёт 2 ученикам, всего 90 000 сум. Преподавателю урок не оплачивается.");
+  assert.equal(L.outcomeCaption("centre", answers("dry_run_confirm_recalc_off")), "Перерасчёт за отмены в центре выключен — ученикам ничего не изменится. Преподавателю урок не оплачивается.");
+  // unequal amounts (the real answer: 7 × 50 000 + 40 000 + 30 000 = 420 000)
+  assert.equal(L.outcomeCaption("centre", answers("dry_run_confirm_different_sums")), "Перерасчёт 9 ученикам, всего 420 000 сум. Преподавателю урок не оплачивается.");
   assert.equal(L.outcomeCaption("centre", { ...dry, students: 1, per_student: 50000, total: 50000 }), "Перерасчёт 1 ученику по 50 000 сум, всего 50 000 сум. Преподавателю урок не оплачивается.");
   assert.equal(L.outcomeCaption("centre", { ...dry, students: 0, total: 0, per_student: null }), "Ученикам: без перерасчёта. Преподавателю урок не оплачивается.");
-  assert.equal(L.outcomeCaption("held", { ...dry, teacher_can_mark: false, window_days: 14 }), "Отмена снимается. Урок старше 14 дн.: отметит администратор или владелец.");
+  assert.equal(L.outcomeCaption("held", answers("dry_run_confirm_old_lesson")), "Отмена снимается. Урок старше 7 дн.: отметит администратор или владелец.");
   assert.equal(L.outcomeCaption("centre", null), null, "nothing is promised before the numbers come");
 });
 
 test("an archived group cannot give the lesson back (restore_allowed false): the window offers TWO outcomes; otherwise three", () => {
   assert.deepEqual(L.offeredOutcomes(null).map((o) => o.key), ["centre", "holiday", "held"]);
   assert.deepEqual(L.offeredOutcomes({ restore_allowed: true }).map((o) => o.key), ["centre", "holiday", "held"]);
-  assert.deepEqual(L.offeredOutcomes({ restore_allowed: false }).map((o) => o.key), ["centre", "holiday"]);
+  assert.deepEqual(L.offeredOutcomes(answers("dry_run_confirm_archived")).map((o) => o.key), ["centre", "holiday"], "the real answer of an archived group");
+  assert.deepEqual(L.offeredOutcomes(answers("dry_run_confirm_centre")).map((o) => o.key), ["centre", "holiday", "held"]);
   assert.deepEqual(L.WAITING_OUTCOMES.map((o) => o.button), ["Подтвердить: по вине центра", "Подтвердить: праздник, выходной", "Вернуть урок на отметку"]);
 });
 
@@ -115,10 +138,11 @@ test("the words of the row and of the window, from the real answer pending_owner
   assert.equal(L.waitingChipText(5), "ждёт 5 дней");
   assert.equal(L.waitingChipText(11), "ждёт 11 дней");
   assert.equal(L.waitingReasonText({ reason: "Отключили свет" }), "Урока не было: отключили свет");
-  assert.equal(L.waitingReasonText(item), "Урока не было");
+  assert.equal(L.waitingReasonText(item), "Урока не было: отключили свет", "the words of the teacher in the real answer");
+  assert.equal(L.waitingReasonText({ reason: null }), "Урока не было");
   assert.equal(L.waitingDialogTitle(item), "Преподаватель сообщил: урока не было");
   assert.equal(L.waitingDialogTitle({ cancelledBy: { role: "admin" } }), "Администратор сообщил: урока не было");
-  assert.equal(L.waitingDialogSubtitle(item), "Г · пн, 23.11 · 10:00–11:30");
+  assert.equal(L.waitingDialogSubtitle(item), "Математика 7 · ср, 18.11 · 10:00–11:30");
   assert.equal(L.ownerDecidesLine({ oneOffs: 1, cancellations: 1 }), "Решает владелец: 1 дополнительный урок, 1 отмена урока");
   assert.equal(L.ownerDecidesLine({ oneOffs: 0, cancellations: 3 }), "Решает владелец: 3 отмены урока");
   assert.equal(L.ownerDecidesLine({ oneOffs: 2, cancellations: 0 }), "Решает владелец: 2 дополнительных урока");
@@ -134,12 +158,12 @@ test("the words of the row and of the window, from the real answer pending_owner
 
 test("the words of the history: the chip of every entry of the journal (the real answer history)", () => {
   const entries = answers("history").items.filter((row) => row.source === "audit");
-  assert.deepEqual(entries.map((e) => L.auditChipText(e)), ["Задним числом · 1 дн.", "Отметки исправлены"]);
+  assert.deepEqual(entries.map((e) => L.auditChipText(e)), ["Задним числом · 24 дн.", "Добавил урок в расписание", "Отметки исправлены", "Задним числом · 14 дн.", "Задним числом · 2 дн.", "Задним числом · 6 дн.", "Задним числом · 12 дн."]);
   assert.equal(L.auditChipText({ kind: "lesson_added", lateDays: null }), "Добавил урок в расписание");
   assert.equal(L.auditChipText({ kind: "backdated", lateDays: 12 }), "Задним числом · 12 дн.");
-  assert.equal(L.auditByLine(entries[0]), null, "the teacher closed his own lesson");
-  assert.equal(L.auditByLine(entries[1]), "оформление: Усманов У.");
-  assert.equal(L.teacherWordsOf(answers("history").items[0]), "Урока не было");
+  assert.equal(L.auditByLine(entries[0]), "оформление: Валиев Р.", "the owner wrote it over the lesson of the teacher");
+  assert.equal(L.auditByLine(entries[4]), null, "the teacher closed his own lesson");
+  assert.equal(L.teacherWordsOf(answers("history").items[0]), "Отключили свет");
   assert.equal(L.teacherWordsOf({ trigger: "manager_cancel", decision: { note: "x" } }), null, "only the teacher's own words");
   assert.equal(L.BACKDATED_EMPTY_TEXT, "За 30 дней уроки задним числом не оформлялись");
   assert.equal(Subs.tabLabel("decided", 3), "История");
@@ -150,7 +174,7 @@ test("the list of «Замены» asks the server's own parameter (backdated_on
   assert.doesNotMatch(Subs.listQuery({ status: "decided" }), /backdated/);
   const rows = [...answers("pending_owner").items, ...answers("history").items];
   const split = L.splitRows(rows);
-  assert.deepEqual([split.waiting.length, split.audit.length, split.requests.length], [1, 2, 1]);
+  assert.deepEqual([split.waiting.length, split.audit.length, split.requests.length], [2, 7, 8]);
 });
 
 test("the salary line of the panel: «В зарплате за ноябрь: +25 000 сум» from the dry run of the return; no sheet, nothing", () => {
@@ -158,32 +182,44 @@ test("the salary line of the panel: «В зарплате за ноябрь: +25
   assert.equal(L.salaryLineOf({ payroll: [{ month: "2026-11", changedBy: 0 }] }, "2026-11-26"), null);
   assert.equal(L.salaryLineOf({ payroll: [] }, "2026-11-26"), null);
   assert.equal(L.salaryLineOf(null, "2026-11-26"), null);
+  // the real dry run of the return of the lesson of 02.11 (the draft of November: 168 750 -> 0)
+  assert.equal(L.salaryLineOf(answers("dry_run_return_payroll").moneyEffects, "2026-11-26"), "В зарплате за ноябрь: +168\u00a0750\u00a0сум");
 });
 
-test("the teacher's block: the waiting cancellation first (the nearest lesson), the decided ones after; the chips of the real answer mine_teacher", () => {
+test("the teacher's block: the waiting cancellations first (the nearest lesson), the decided ones after; ONE row per lesson; the chips of the real answer mine_teacher", () => {
   const mine = answers("mine_teacher");
   const NOW = Date.parse("2026-11-26T07:00:00Z");
+  assert.equal(mine.items.length, 10);
   const ordered = Subs.recentRequests(mine.items, NOW);
-  assert.deepEqual(ordered.map((i) => i.outcome), ["cancel_waiting", "cancelled_centre"]);
-  assert.deepEqual(ordered.map((i) => O.outcomeOf(i, "teacher").text), ["Отмена ждёт подтверждения", "Отменён: по вине центра"]);
-  assert.equal(Subs.myRequestLine(ordered[0]), "пн, 23.11 · Г");
+  // the two system records `closed` of the lessons 09.11 and 25.11 are hidden: their cancellation says «урок был» already; the return of 02.11 has no such cancellation and stays
+  assert.deepEqual(ordered.map((i) => `${i.lesson.date}:${i.outcome}`), [
+    "2026-11-18:cancel_waiting", "2026-11-23:cancel_waiting", "2026-11-16:cancelled_holiday", "2026-11-02:lesson_restored",
+    "2026-11-25:lesson_restored", "2026-11-09:lesson_restored", "2026-11-11:cancelled_centre", "2026-11-02:included_in_payroll",
+  ]);
+  assert.deepEqual(Subs.oneRowPerReturnedLesson(mine.items).filter((i) => i.status === "closed").map((i) => i.lesson.date), ["2026-11-02"]);
+  assert.deepEqual(ordered.map((i) => O.outcomeOf(i, "teacher").text), [
+    "Отмена ждёт подтверждения", "Отмена ждёт подтверждения", "Отменён: праздник", "Урок возвращён",
+    "Урок был — отметьте посещаемость", "Урок был — отметит администратор", "Отменён: по вине центра", "Включён в зарплату",
+  ]);
+  assert.deepEqual(ordered.filter((i) => i.outcome === "cancel_waiting").map((i) => i.canWithdraw), [false, true], "«Отозвать» only where the server says so");
+  assert.equal(Subs.myRequestLine(ordered[1]), "пн, 23.11 · Математика 7");
   assert.equal(Subs.MY_REQUESTS_TITLE, "Запросы и изменения уроков");
   // a returned lesson: the teacher marks it (the window of the centre says so) or the administrator does
-  assert.equal(O.outcomeOf({ ...mine.items[1], outcome: "lesson_restored", teacherCanMark: true }, "teacher").text, "Урок был — отметьте посещаемость");
-  assert.equal(O.outcomeOf({ ...mine.items[1], outcome: "lesson_restored", teacherCanMark: false }, "teacher").text, "Урок был — отметит администратор");
-  assert.equal(O.outcomeOf({ ...mine.items[1], outcome: "lesson_restored", teacherCanMark: true }, "manager").text, "Урок возвращён");
+  assert.equal(O.outcomeOf(mine.items[4], "teacher").text, "Урок был — отметьте посещаемость");
+  assert.equal(O.outcomeOf(mine.items[5], "teacher").text, "Урок был — отметит администратор");
+  assert.equal(O.outcomeOf(mine.items[4], "manager").text, "Урок возвращён");
 });
 
-test("the history of a confirmed cancellation: «Преподаватель сообщил, что урока не было» and «Отмена подтверждена: по вине центра» with who (the events of the server)", () => {
-  const item = { ...answers("history").items[0], id: "r1" };
-  const manager = { id: "o", name: "Усманов У.", role: "owner" };
-  const timeline = TL.timelineOf({ item, events: [
-    { requestId: "r1", action: "cancelled", actor: item.teacher && { id: "t", name: "Иванов И.", role: "teacher" }, at: "2026-11-24T09:50:00", snapshot: { reason: "Урока не было" } },
-    { requestId: "r1", action: "confirmed", actor: manager, at: "2026-11-26T07:40:00", snapshot: { cancellationKind: { from: "unconfirmed", to: "centre" } } },
-  ] }, "manager");
-  assert.deepEqual(timeline.rows.map((r) => [r.title, r.author]), [["Преподаватель сообщил, что урока не было", "Иванов И., преподаватель"], ["Отмена подтверждена: по вине центра", "Усманов У., владелец"]]);
-  assert.equal(TL.timelineOf({ item, events: [{ requestId: "r1", action: "confirmed", actor: manager, snapshot: { cancellationKind: { from: "unconfirmed", to: "holiday" } } }] }, "manager").rows[0].title, "Отмена подтверждена: праздник");
+test("the history of a confirmed cancellation (the real detail_confirmed): «Преподаватель сообщил, что урока не было» and «Отмена подтверждена: по вине центра» with who (the events of the server)", () => {
+  const detail = answers("detail_confirmed");
+  assert.deepEqual(detail.item.confirmedBy && [detail.item.confirmedBy.name, detail.item.confirmedBy.role], ["Валиев Р.", "owner"], "the confirmation is in the detail answer");
+  const timeline = TL.timelineOf(detail, "manager");
+  const rows = timeline.rows.map((r) => [r.title, r.author]);
+  assert.deepEqual(rows.slice(-2), [["Преподаватель сообщил, что урока не было", "Эргашев К., преподаватель"], ["Отмена подтверждена: по вине центра", "Валиев Р., владелец"]]);
+  const holiday = detail.events.map((e) => (e.action === "confirmed" ? { ...e, snapshot: { cancellationKind: { from: "unconfirmed", to: "holiday" } } } : e));
+  assert.ok(TL.timelineOf({ ...detail, events: holiday }, "manager").rows.some((r) => r.title === "Отмена подтверждена: праздник"), "the other outcome reads in its own words");
 });
+
 
 test("«без запроса» is gone from the history: nothing is said about who did not ask (LESSON-RULES Э3); «открыт заново» stays", () => {
   assert.equal(O.originBadge({ origin: "system", trigger: "manager_cancel" }), null);
@@ -199,7 +235,9 @@ test("the sheet of a teacher: the waiting cancellations are the FIRST affair and
   const view = Pay.warningViews({ ...base, unconfirmed_cancellations: 1 })[0];
   assert.deepEqual([view.href, view.button, view.target], ["/owner/substitutions", "Решить", "Замены → Ждут решения"]);
   // the refusal of the saving: the server's sentence is shown as it is
-  const message = "Отмен уроков, которые ждут подтверждения владельца: 1. Решите их в «Замены → Ждут решения», затем сохраните зарплату";
+  const gate = answers("payroll_gate_409").detail;
+  assert.deepEqual([gate.code, gate.count], ["UNCONFIRMED_CANCELLATIONS", 2]);
+  const message = gate.message;
   assert.equal(Pay.payrollErrorText(Object.assign(new Error(message), { status: 409, code: "UNCONFIRMED_CANCELLATIONS" })), message);
 });
 
