@@ -1404,7 +1404,12 @@ export function GroupAttendanceJournal({
         });
         return;
       }
-      if (failure.kind === "excuse_decided") setDecidedMark({ lessonKey: correcting.key, studentId: failure.studentId, studentName: failure.studentName, text: failure.text });
+      if (failure.kind === "excuse_decided") {
+        // an information about ONE mark, not a failure of the form: the window closes, the table shows the outlined cell and the sentence; the correction stays open for the other marks
+        setDecidedMark({ lessonKey: correcting.key, studentId: failure.studentId, studentName: failure.studentName, text: failure.text });
+        setCorrectionDialog(null);
+        return;
+      }
       setCorrectionDialog({
         ...correctionDialog,
         error: failureLine(failure),

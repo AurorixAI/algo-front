@@ -12,7 +12,7 @@ execFileSync(process.execPath, [path.join(root, "node_modules", "tailwindcss", "
 process.env.DOM_CSS = css;
 const { launch, openPage } = require("../helpers/dom-page.cjs");
 const { layoutProbe } = require("../helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY } = require("../helpers/lesson-rules-answers.cjs");
+const { answer, listServer, WORLD_DAY, PERIOD_CLOSED_NOT_EXPORTED, DECIDED_ONE_OFF_NOT_EXPORTED } = require("../helpers/lesson-rules-answers.cjs");
 
 const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN_NO_MONEY = { role: "admin", org_role: "admin", payments_access: false };
@@ -31,7 +31,7 @@ async function check(page, errors, label) {
 }
 const longPending = () => {
   const p = answer("pending_owner");
-  p.items[0].group.name = LONG; p.items[0].teacher.name = LONG_TEACHER; p.items[0].cancelledBy.name = LONG_TEACHER; p.items[0].reason = LONG_REASON;
+  for (const item of p.items) { item.group.name = LONG; item.teacher.name = LONG_TEACHER; item.cancelledBy.name = LONG_TEACHER; item.reason = LONG_REASON; }
   return p;
 };
 const longHistory = () => {
@@ -39,8 +39,9 @@ const longHistory = () => {
   for (const row of h.items) { row.group.name = LONG; row.teacher.name = LONG_TEACHER; if (row.reason) row.reason = LONG_REASON; if (row.decision) row.decision.note = LONG_REASON; }
   return h;
 };
-const RETURN_DRY = { ok: true, changed: false, dryRun: true, version: 4, status: "completed", moneyEffects: { students: [], payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Иванов И.", savedTotal: 0, paid: 0, freshBefore: 75000, freshAfter: 50000, freshTotal: 50000, changedBy: -25000, driftAfter: 0 }], text: "", dryRun: true } };
-const historyExtra = (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { json: RETURN_DRY } : /one-off-decisions\/decided/.test(r.path) ? { json: { items: [], total: 0 } } : null);
+const MON = 'button[aria-label$="23.11"]';   // the dry-run answers of the world are for the lesson of 23.11 (the second row)
+const DECIDED_ONE_OFFS = { json: { items: [DECIDED_ONE_OFF_NOT_EXPORTED], total: 1 } };   // hand-written (not in the unload), only for the shots of the folded block
+const historyExtra = (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { json: answer("dry_run_return_payroll") } : /one-off-decisions\/decided/.test(r.path) ? DECIDED_ONE_OFFS : null);
 const dryServer = (extra) => (r) => {
   if (r.method === "PUT" && KIND.test(r.path)) return { json: /dry_run=true/.test(r.query) ? answer("dry_run_confirm_centre") : { ok: true } };
   return extra ? extra(r) : null;
@@ -67,7 +68,7 @@ const dryServer = (extra) => (r) => {
     }
     // Э1: an administrator WITHOUT the money right: the line «Решает владелец», folded and open
     {
-      const pending = answer("pending_admin"); pending.items[0].canDecide = false;
+      const pending = answer("pending_admin");
       const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ pending }), ADMIN_NO_MONEY, { role: "admin" });
       await page.waitForSelector('[data-testid="one-off-decisions-toggle"]');
       await check(page, errors, `Э1 admin folded ${width}`);
@@ -81,7 +82,7 @@ const dryServer = (extra) => (r) => {
     for (const tag of ["ordinary", "long"]) {
       const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ pending: tag === "long" ? longPending() : null, extra: dryServer() }), OWNER, { role: "owner" });
       await page.waitForSelector('[data-testid="waiting-row"]');
-      await page.click('button[aria-label^="Решить отмену"]');
+      await page.click(MON);
       await page.waitForSelector('[data-testid="waiting-outcomes"]');
       await page.waitForTimeout(400);
       await check(page, errors, `Э2 empty ${tag} ${width}`);
@@ -94,10 +95,21 @@ const dryServer = (extra) => (r) => {
       }
       await page.close();
     }
-    for (const [tag, status, body] of [["already-decided", 409, answer("refusals").already_decided], ["period-closed", 409, answer("refusals").period_closed]]) {
+    // Э2: the lesson older than the window (18.11, 8 days): «Урок был» says the administrator marks it (the real dry run old_lesson)
+    {
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ extra: (r) => (r.method === "PUT" && KIND.test(r.path) ? { json: /dry_run=true/.test(r.query) ? answer("dry_run_confirm_old_lesson") : { ok: true } } : null) }), OWNER, { role: "owner" });
+      await page.waitForSelector('[data-testid="waiting-row"]');
+      await page.click('button[aria-label$="18.11"]');
+      await page.click('[data-testid="waiting-outcome-held"]');
+      await page.waitForFunction(() => /старше/.test(document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? ""));
+      await check(page, errors, `Э2 old lesson ${width}`);
+      await shot(page, "E2-window-held-old-lesson");
+      await page.close();
+    }
+    for (const [tag, status, body] of [["already-decided", 409, answer("refusals").already_decided], ["period-closed", 409, PERIOD_CLOSED_NOT_EXPORTED]]) {
       const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ extra: (r) => (r.method === "PUT" && KIND.test(r.path) ? { status, json: body } : null) }), OWNER, { role: "owner" });
       await page.waitForSelector('[data-testid="waiting-row"]');
-      await page.click('button[aria-label^="Решить отмену"]');
+      await page.click(MON);
       await page.waitForSelector(tag === "already-decided" ? '[data-testid="waiting-decided"]' : '[data-testid="period-closed"]');
       await check(page, errors, `Э2 ${tag} ${width}`);
       await shot(page, `E2-window-${tag}`);
@@ -111,6 +123,11 @@ const dryServer = (extra) => (r) => {
       await check(page, errors, `Э3 history ${tag} ${width}`);
       await shot(page, `E3-history-${tag}`);
       if (tag === "ordinary") {
+        await page.click('[data-testid="decided-toggle"]');
+        await page.waitForSelector('[data-testid="decided-row"]');
+        await check(page, errors, `Э6 decided open ${width}`);
+        await shot(page, "E3-history-decided-one-offs-open");
+        await page.click('[data-testid="decided-toggle"]');
         await page.click('[data-testid="audit-row"][data-kind="backdated"] [data-testid="audit-details"]');
         await page.waitForSelector('[data-testid="audit-panel"]');
         await page.waitForTimeout(500);
@@ -140,12 +157,15 @@ const dryServer = (extra) => (r) => {
     }
     // Э4: the teacher's block and the card
     {
-      const mine = answer("mine_teacher");
-      const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (r.path === "/auth/org/substitutions/mine" ? { json: mine } : null), TEACHER, {}, "teacher-block");
-      await page.waitForSelector('[data-testid="my-request-row"]');
-      await check(page, errors, `Э4 block ${width}`);
-      await shot(page, "E4-teacher-block");
-      await page.close();
+      for (const [tag, long] of [["ordinary", false], ["long", true]]) {
+        const mine = answer("mine_teacher");
+        if (long) for (const item of mine.items) item.group.name = LONG;
+        const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (r.path === "/auth/org/substitutions/mine" ? { json: mine } : null), TEACHER, {}, "teacher-block");
+        await page.waitForSelector('[data-testid="my-request-row"]');
+        await check(page, errors, `Э4 block ${tag} ${width}`);
+        await shot(page, `E4-teacher-block-${tag}`);
+        await page.close();
+      }
       const step = { kind: "action", action: { lesson: { id: "l", groupName: "Индивидуально: Азизов" }, tone: "rose", actionType: "in_progress", label: "Завершите урок", description: "вт, 24 нояб. · Индивидуально: Азизов", ageDays: 2 } };
       const card = await open("lesson-rules.entry.tsx", () => null, TEACHER, { step }, "next-card");
       await card.page.waitForSelector('[data-testid="next-action-card"]');
@@ -155,13 +175,13 @@ const dryServer = (extra) => (r) => {
     }
     // Э5: the question of the report, the refusals as information
     {
-      const consequence = "Отмену подтвердит владелец или администратор с доступом к деньгам: до подтверждения ученикам ничего не меняется";
+      const consequence = answer("cancel_teacher_waiting").consequence;
       const { page, errors } = await open("lesson-rules.entry.tsx", () => null, TEACHER, { date: "2026-11-23", reason: "Отключили свет", consequence }, "cancel-panel");
       await page.waitForSelector('[data-testid="lesson-cancel-panel"]');
       await check(page, errors, `Э5 report ${width}`);
       await shot(page, "E5-report-window");
       await page.close();
-      for (const [tag, message, info] of [["nobody-backdated", answer("refusals").nobody_came_backdated.detail.message, true], ["too-old", answer("refusals").lesson_too_old.detail.message, true]]) {
+      for (const [tag, message, info] of [["nobody-backdated", answer("refusals").nobody_came_backdated.detail.message, true], ["too-old", answer("refusals").lesson_too_old_save.detail.message, true]]) {
         const run = await open("lesson-rules.entry.tsx", () => null, TEACHER, { message, info }, "rule-notice");
         await run.page.waitForSelector('[data-testid="lesson-rule-refusal"]');
         await check(run.page, run.errors, `Э5 ${tag} ${width}`);
@@ -171,13 +191,41 @@ const dryServer = (extra) => (r) => {
     }
     // Э6: the sheet of a teacher
     {
-      const contract = JSON.parse(fs.readFileSync(path.join(root, "tests", "fixtures", "logicA", "A26_sheet_f1_one_price_per_period.json"), "utf8"));
-      const counts = { ...contract.warnings, open_lessons: 0, unconfirmed_cancellations: 1, unconfirmed_items: [] };
+      const counts = answer("payroll_calculate_waiting").sheets[0].warnings;   // November of Эргашев К., as the server counts it
       const { page, errors } = await open("lesson-rules.entry.tsx", () => null, OWNER, { counts }, "sheet-todo");
       await page.waitForSelector('[data-testid="sheet-todo"]');
       await check(page, errors, `Э6 todo ${width}`);
       await shot(page, "E6-sheet-todo");
       await page.close();
+    }
+    // C10: the journal of a group for the teacher - a held lesson older than the window; the refusal EXCUSE_DECIDED at its mark (an administrator corrects)
+    {
+      const journal = answer("journal_teacher");
+      const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: null, joined_at: "2026-09-01", last_theta: null, last_level: null }; });
+      const serve = (extra) => (r) => (extra && extra(r)) || (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: journal } : null);
+      const teacher = await open("lesson-rules.entry.tsx", serve(), { id: "85364d94-c8fb-5916-ae84-9583524e23fd", ...TEACHER }, { groupId: journal.groupId, students }, "journal");
+      await teacher.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
+      await teacher.page.waitForTimeout(1500);
+      await teacher.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
+      await teacher.page.waitForSelector('[data-testid="menu-teacher-locked"]');
+      await teacher.page.waitForTimeout(300);
+      await shot(teacher.page, "C10-journal-teacher-window-over");
+      await teacher.page.close();
+      const real = answer("refusals").excuse_decided;
+      const refusal = { detail: { ...real.detail, studentId: students[0].id, studentName: students[0].full_name } };   // the unload has this refusal for a student of another group: only the id is replaced by a student of this roster
+      const admin = await open("lesson-rules.entry.tsx", serve((r) => (r.method === "POST" && /\/attendance\/impact$/.test(r.path) ? { json: { ok: true, moneyEffects: answer("dry_run_return_payroll").moneyEffects } } : r.method === "POST" && /\/attendance$/.test(r.path) ? { status: 409, json: refusal } : null)), OWNER, { groupId: journal.groupId, students, adminMode: true }, "journal");
+      await admin.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
+      await admin.page.waitForTimeout(1500);
+      await admin.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
+      await admin.page.click('[role="menuitem"]:has-text("Исправить отметки")');
+      await admin.page.locator(`tr:has-text("${students[0].full_name}") td`).nth(1).locator("button").first().click();
+      await admin.page.click('[role="menuitemradio"]:not([aria-checked="true"])');
+      await admin.page.click('button:visible:has-text("Сохранить исправление")');
+      await admin.page.fill("#correction-reason", "Исправляю отметку ученика");
+      await admin.page.click('[data-testid="correction-submit"]');
+      await admin.page.waitForSelector('[data-testid="excuse-decided-notice"]');
+      await shot(admin.page, "C10-journal-excuse-decided");
+      await admin.page.close();
     }
     // Э8: «Настройки → Уроки»
     {

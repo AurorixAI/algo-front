@@ -48,10 +48,12 @@ export function WaitingReason({ item }: { item: WaitingCancellationItem }) {
  * A cancellation that waits, as a row of the table «Ждут решения» (for who may decide it): the lesson, the teacher, the words of the teacher, «ждёт N дней», «Решить», «›».  No tick: the bulk
  * panel decides requests (a cancellation is decided one by one - the outcome is a fact about the lesson, not a choice for a pack).  The grid classes are those of the page's table.
  */
-export function WaitingTableRow({ item, cols, showReason, lessonHref, onDecide }: {
+export function WaitingTableRow({ item, cols, showReason, tickSpace = true, lessonHref, onDecide }: {
   item: WaitingCancellationItem;
   cols: string;
   showReason: boolean;
+  /** The list has rows with a tick: the lesson keeps the place of the tick (one vertical for both kinds); without any tick the lesson stands under its header. */
+  tickSpace?: boolean;
   lessonHref: string | null;
   onDecide: (item: WaitingCancellationItem) => void;
 }) {
@@ -59,7 +61,7 @@ export function WaitingTableRow({ item, cols, showReason, lessonHref, onDecide }
     <li data-testid="waiting-row" className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-12 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 xl:pr-4 ${cols}`}>
       {/* the place of the tick of the requests: the lessons of both kinds stand on one vertical */}
       <div className="flex min-w-0 items-start gap-3">
-        <span aria-hidden className="hidden h-[18px] w-[18px] shrink-0 xl:block" />
+        {tickSpace && <span aria-hidden className="hidden h-[18px] w-[18px] shrink-0 xl:block" />}
         <LessonLinkCell item={item} href={lessonHref} />
       </div>
       <p className="break-words text-sm font-medium text-slate-800">{item.teacher.name}</p>

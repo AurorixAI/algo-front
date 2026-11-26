@@ -4,13 +4,11 @@ const test = require("node:test");
 const { setup, isDry, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
+const { answer, listServer, WORLD_DAY, plain, PERIOD_CLOSED_NOT_EXPORTED } = require("./helpers/lesson-rules-answers.cjs");   // PERIOD_CLOSED: the one answer the unload has not (a hand-written body, listed in the report)
 
 const ctx = setup(test);
 const KIND_PATH = /\/attendance\/cancellation-kind$/;
 const MON = 'button[aria-label="Решить отмену: Математика 7, Эргашев К., 23.11"]';   // the dry run answers of the world are for the lesson of 23.11 (the second row: the older one, 18.11, is the first)
-// NOT EXPORTED by the server (С10.7): the refusal PERIOD_CLOSED. The body below is written by hand from the text of the server and is the ONE answer of this file that is not the server's own (listed in the report).
-const PERIOD_CLOSED_NOT_EXPORTED = { detail: { code: "PERIOD_CLOSED", message: "Преподаватель: Эргашев К. · ноябрь закрыт (зарплата сохранена 02.12.2026). Чтобы изменить урок, переоткройте месяц (это делает владелец или администратор с доступом к деньгам).", month: "2026-11", teacherId: "85364d94-c8fb-5916-ae84-9583524e23fd", teacherName: "Эргашев К.", teacherFirstName: "Камол", teacherLastName: "Эргашев", closedOn: "2026-12-02" } };
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
 
 async function open(server, { user = OWNER, width = 1280 } = {}) {

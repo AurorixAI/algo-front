@@ -30,6 +30,7 @@ async function openAs(who, width, adminMode, extra) {
   const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", serve(extra), { width, height: width === 375 ? 800 : 900, today: WORLD_DAY });
   await run.page.evaluate(([user, props]) => window.mount("journal", user, props), [who, { groupId: JOURNAL.groupId, students: STUDENTS, adminMode }]);
   await run.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"]');
+  await run.page.waitForTimeout(900);   // the journal reads once more after the first draw (a phone): a menu opened before that is closed by it
   return run;
 }
 
@@ -38,7 +39,7 @@ for (const width of [1280, 1024, 375]) {
     const { page, errors } = await open(width);
     const old = JOURNAL.lessons.find((l) => l.date === "2026-11-02");
     assert.deepEqual([old.canActSelf, old.monthClosed, old.windowDays], [false, false, 7]);
-    await page.click(MENU_OLD);
+    await page.locator(MENU_OLD).evaluate((el) => el.click());   // at 375 the «⋯» of the column lies beyond the edge of the screen (the table scrolls inside its box): a click of Playwright scrolls to it and that scroll closes the menu
     await page.waitForSelector('[data-testid="menu-teacher-locked"]');
     const item = plain(await page.textContent('[data-testid="menu-teacher-locked"]'));
     assert.match(item, /Исправить отметки/);
@@ -70,7 +71,7 @@ test("EXCUSE_DECIDED (the real refusal) belongs to ONE mark: the administrator c
     return r.method === "POST" && /\/attendance$/.test(r.path) ? { status: 409, json: refusal } : null;
   });
   const { page } = run;
-  await page.click(MENU_OLD);
+  await page.locator(MENU_OLD).evaluate((el) => el.click());   // at 375 the «⋯» of the column lies beyond the edge of the screen (the table scrolls inside its box): a click of Playwright scrolls to it and that scroll closes the menu
   await page.click('[role="menuitem"]:has-text("Исправить отметки")');
   const cell = page.locator(`tr:has-text("${mine.full_name}") td[data-lesson-key], tr:has-text("${mine.full_name}") td`).nth(1);
   await cell.locator("button").first().click();
@@ -82,6 +83,8 @@ test("EXCUSE_DECIDED (the real refusal) belongs to ONE mark: the administrator c
   const notice = plain(await page.textContent('[data-testid="excuse-decided-notice"]'));
   assert.ok(notice.includes(mine.full_name) && notice.includes(real.detail.message), notice);
   assert.equal(await page.getAttribute('[data-testid="excuse-decided-notice"]', "data-variant"), "info", "an information, not a red error");
+  await page.waitForSelector('[data-testid="correction-submit"]', { state: "detached" });
+  assert.equal(await page.locator('[data-testid="correction-submit"]').count(), 0, "the window of the correction is closed: the sentence is not said twice, in red");
   assert.equal(await page.locator('td[data-excuse-decided="true"]').count(), 1, "ONE cell is outlined");
   assert.ok(plain(await page.locator('td[data-excuse-decided="true"]').evaluate((el) => el.closest("tr").textContent)).includes(mine.full_name));
   await page.close();

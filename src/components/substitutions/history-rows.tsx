@@ -15,7 +15,7 @@ import { journalHref } from "@/lib/open-lessons";
 import { moneyEffectsOf } from "@/lib/money-effects";
 import { dayAndDateLabel } from "@/lib/ops-errors";
 import { authorLine, eventMoment } from "@/lib/substitution-outcome";
-import { shortWhen } from "@/lib/substitutions";
+import { lessonWhen, shortWhen } from "@/lib/substitutions";
 import { auditByLine, auditChipText, auditPanelTitle, salaryLineOf } from "@/lib/lesson-rules";
 import type { AuditEntryItem } from "@/lib/substitution-types";
 import { LessonLinkCell, waitingLessonLabel } from "@/components/substitutions/waiting-rows";
@@ -113,7 +113,7 @@ export function AuditPanel({ entry, workspace, canSeeMoney, onClose, onReturn }:
         <div data-testid="audit-panel" className="space-y-4">
           <div className="space-y-1">
             <h3 data-testid="panel-group" className="break-words text-base font-bold text-slate-900">{entry.group.name}</h3>
-            <p className="text-sm text-slate-700">{dayAndDateLabel(entry.lesson.date)}</p>
+            <p className="text-sm text-slate-700">{entry.lesson.startTime && entry.lesson.endTime ? lessonWhen(entry.lesson.date, entry.lesson.startTime, entry.lesson.endTime) : dayAndDateLabel(entry.lesson.date)}</p>
             <p className="flex flex-wrap items-center gap-2 pt-1 text-sm text-slate-700"><span>Сейчас:</span><Chip tone="neutral" testId="panel-outcome">{auditChipText(entry)}</Chip></p>
           </div>
           <dl data-testid="panel-facts" className="space-y-1.5">

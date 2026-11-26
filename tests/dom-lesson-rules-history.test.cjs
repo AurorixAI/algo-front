@@ -6,7 +6,7 @@ const { setup, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { deferred } = require("./helpers/dom-answers.cjs");
 const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
+const { answer, listServer, WORLD_DAY, plain, DECIDED_ONE_OFF_NOT_EXPORTED } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
@@ -100,7 +100,7 @@ test("the panel of an entry: group, lesson, «Сейчас», the teacher, one l
   await page.waitForSelector('[data-testid="panel-salary"]');
   const panel = plain(await page.textContent('[data-testid="audit-panel"]'));
   assert.match(panel, /Математика 7/);
-  assert.match(panel, /пн, 02\.11/);
+  assert.match(panel, /пн, 02\.11 · 10:00–11:30/, "the panel names the time of the lesson, as the row does");
   assert.match(panel, /Сейчас:\s*Задним числом · 24 дн\./);
   assert.match(panel, /Преподаватель\s*Эргашев К\./);
   assert.match(panel, /В зарплате за ноябрь: \+168 750 сум/);
@@ -127,7 +127,7 @@ test("an administrator WITHOUT the money right: the same panel without the salar
 
 // ── Э6: «Решения по дополнительным урокам» under «История» ─────────────────────────────────────────────────────────────
 // NOT EXPORTED by the server (С10.7 has no decided additional lessons): the one item below is written by hand from the contract of `GET /org/one-off-decisions/decided` (listed in the report).
-const DECIDED_ONE_OFF = { lessonId: "lesson-extra", groupId: "287049ea-7673-5f46-b17e-41e317fdd7f1", groupName: "Математика 7", lessonDate: "2026-11-24", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок", teacher: { id: "85364d94-c8fb-5916-ae84-9583524e23fd", name: "Эргашев К." }, createdBy: null, studentsPresent: 7, studentsTotal: 9, payrollSheet: null, money: "paid", decidedAt: "2026-11-26T07:00:00", decidedBy: { id: "05720600-ebf6-5f54-baaf-fd04de596155", name: "Валиев Р.", role: "owner" }, canUndo: true, periodClosed: false };
+const DECIDED_ONE_OFF = DECIDED_ONE_OFF_NOT_EXPORTED;
 const decidedRoute = (items) => (request) => (request.path === "/auth/org/one-off-decisions/decided" ? { json: { total: items.length, items } } : null);
 
 for (const width of [1280, 375]) {
@@ -151,6 +151,10 @@ for (const width of [1280, 375]) {
     assert.equal(await some.page.getAttribute('[data-testid="decided-prev"]', "aria-label"), "Предыдущий месяц");
     assert.equal(await some.page.getAttribute('[data-testid="decided-next"]', "aria-label"), "Следующий месяц");
     assert.equal(await some.page.isDisabled('[data-testid="decided-next"]'), true, "the month of today is the last");
+    for (const id of ["decided-prev", "decided-next"]) {
+      const icon = await some.page.locator(`[data-testid="${id}"] svg`).evaluate((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+      assert.deepEqual(icon, [16, 16], `${id}: the arrow is drawn (it was squeezed to nothing by the padding of the button)`);
+    }
     await some.page.click('[data-testid="decided-prev"]');
     await some.page.waitForFunction(() => /Октябрь 2026 г\./.test(document.querySelector('[data-testid="decided-month"]')?.textContent ?? ""));
     assert.equal(await some.page.locator('[data-testid="decided-one-offs"]').count(), 1, "a month browsed inside the block keeps it");

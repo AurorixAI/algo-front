@@ -489,6 +489,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       item={entry}
                       cols={cols}
                       showReason={showReason}
+                      tickSpace={requests.length > 0}
                       lessonHref={entry.lesson.lessonId ? journalHref(bases.groups, { groupId: entry.group.id, lessonDate: entry.lesson.date, lessonId: entry.lesson.lessonId }) : null}
                       onDecide={setWaitingDialog}
                     />

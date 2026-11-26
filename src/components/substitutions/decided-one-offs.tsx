@@ -64,9 +64,9 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-y border-slate-100 px-4 py-2.5">
         <div className="flex min-w-0 items-center"><HelpHint text={DECIDED_HINT} testId="decided-hint" /></div>
         <div className="flex items-center gap-1" role="group" aria-label="Месяц">
-          <Button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} variant="secondary" size="md" className="w-10 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
+          <Button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} variant="secondary" size="md" className="w-10 shrink-0 px-0 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
           <span data-testid="decided-month" className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{monthTitle(month)}</span>
-          <Button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} variant="secondary" size="md" className="w-10 sm:w-8"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
+          <Button type="button" aria-label="Следующий месяц" data-testid="decided-next" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonthKey(value, 1))} variant="secondary" size="md" className="w-10 shrink-0 px-0 sm:w-8"><ChevronRight className="h-4 w-4" aria-hidden /></Button>
         </div>
       </header>
       {loading ? (
