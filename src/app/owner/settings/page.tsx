@@ -75,67 +75,8 @@ import { useToast } from "@/components/ui/toast";
 import { profileUpdateBody } from "@/lib/profile-form";
 import { newPasswordProblem, PASSWORD_HINT } from "@/lib/set-password";
 import { Button } from "@/components/ui/button";
-
-interface SettingsSectionProps {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-  onSave: () => void;
-  saving: boolean;
-  saved: boolean;
-  saveText?: string;
-  disabledSave?: boolean;
-}
-
-function SettingsSection({
-  title, description, icon: Icon, children,
-  onSave, saving, saved, saveText = "Сохранить", disabledSave = false
-}: SettingsSectionProps) {
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      aria-labelledby="settings-section-title"
-      className="min-w-0 space-y-5"
-    >
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm shrink-0">
-            <Icon className="w-5 h-5 text-slate-600" />
-          </div>
-          <h2 id="settings-section-title" className="text-lg font-bold text-slate-900">{title}</h2>
-        </div>
-        <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5 sm:p-8">
-        <div className="space-y-6">
-          {children}
-
-          <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-end">
-            <button
-              onClick={onSave}
-              disabled={saving || disabledSave || saved}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all ${
-                saved
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-slate-900 text-white hover:bg-slate-800 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              }`}
-            >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : saved ? (
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-              ) : null}
-              {saved ? "Сохранено" : saving ? "Сохранение..." : saveText}
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.section>
-  );
-}
+import { SettingsSection } from "@/components/settings/settings-section";
+import { LessonRulesSection } from "@/components/settings/lesson-rules-section";
 
 const inputClasses = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium text-slate-900";
 const labelClasses = "block text-sm font-semibold text-slate-700 mb-1.5";
@@ -844,6 +785,7 @@ function OwnerSettingsContent() {
           {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} onNotify={(text) => showToast(text)} />}
           {!waitingForPaymentSettings && section === "attendance" && <AttendanceSettingsSection draft={paymentSettings} />}
           {section === "days_off" && <DaysOffPanel />}
+          {section === "lessons" && <LessonRulesSection />}
           {section === "payroll" && <PayrollSettingsSection draft={payrollSettings} />}
 
           {!waitingForPaymentSettings && section === "profile" && (

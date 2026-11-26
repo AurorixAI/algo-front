@@ -118,16 +118,16 @@ test("each settings section validates and saves only its own fields", () => {
 });
 
 test("?section= falls back to «Организация» for anything unknown or not shown", () => {
-  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "days_off", "payroll", "profile", "security"]);
+  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "days_off", "lessons", "payroll", "profile", "security"]);          // LESSON-RULES: «Уроки» stands over «Зарплата»
   assert.equal(sections.DEFAULT_SETTINGS_SECTION, "organization");
-  for (const key of ["organization", "payments", "attendance", "days_off", "payroll", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
+  for (const key of ["organization", "payments", "attendance", "days_off", "lessons", "payroll", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
   for (const bad of [null, undefined, "", "salary", "Payments", "payments ", "../x", "constructor"]) assert.equal(sections.parseSettingsSection(bad), "organization", String(bad));
   // a section the user may not see is not opened by a link either
   const noPayments = sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: false });
   assert.deepEqual(noPayments, ["organization", "days_off", "payroll", "profile", "security"]);
   assert.equal(sections.parseSettingsSection("payments", noPayments), "organization");
   assert.equal(sections.parseSettingsSection("attendance", noPayments), "organization");
-  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 7);
+  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 8);
   assert.deepEqual(sections.visibleSettingsSections({ isOwner: false, paymentSettingsReadable: true }), ["organization", "profile", "security"]);
   assert.equal(sections.settingsSectionHref("payments"), "?section=payments");
   // «Зарплата» exists since N13 P3 (the owner's alone) and is never offered as «скоро»
