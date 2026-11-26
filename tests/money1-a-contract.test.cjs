@@ -144,8 +144,10 @@ test("R3 item 14: the list is read from `one-off-decisions/decided?month=` and r
   assert.equal(OO.decidedMoneyText("paid"), "Включён в зарплату");
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /\{!pendingTab && canDecideMoney\(user\) && !moneyRightLost && \(\s*<DecidedOneOffsBlock/, "the money right only, on the tab «Решённые»");
+  // LESSON-RULES Э6: the block is a folded line «Решения по дополнительным урокам · N» that appears only when something was decided (the screen test: dom-lesson-rules-history)
+  assert.equal(OO.DECIDED_TITLE, "Решения по дополнительным урокам");
   const block = html(React.createElement(component("substitutions/decided-one-offs.tsx").DecidedOneOffsBlock, { showToast() {} }));
-  assert.ok(plain(textOf(block)).includes("Решённые дополнительные уроки"));
+  assert.equal(plain(textOf(block)), "", "before the first reading nothing is drawn: no flicker of a block that may not be shown");
 });
 
 // ── item 17: the rights of the rest of the screens ────────────────────────────────────────────────────

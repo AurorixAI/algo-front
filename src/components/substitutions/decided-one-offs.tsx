@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { HelpHint } from "@/components/ui/help-hint";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate, formatDateRu, shiftMonthKey } from "@/lib/business-time";
 import { formatDateTimeRu } from "@/lib/attendance-excuses";
@@ -26,6 +27,9 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [undo, setUndo] = useState<UndoDecisionTarget | null>(null);
+  /** LESSON-RULES Э6: under «История» the block is ONE folded line (as «Решает владелец»); it opens on a tap, the month is switched inside. */
+  const [open, setOpen] = useState(false);
+  const [ready, setReady] = useState(false);
   const sequence = useRef(0);
 
   const load = useCallback(async (silent = false) => {
@@ -41,19 +45,24 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
       if (mine !== sequence.current) return;
       if (!silent) { setItems([]); setError(DECIDED_LOAD_ERROR_TEXT); }
     } finally {
-      if (mine === sequence.current) setLoading(false);
+      if (mine === sequence.current) { setLoading(false); setReady(true); }
     }
   }, [month]);
   useEffect(() => { void load(); return () => { sequence.current += 1; }; }, [load]);
 
   const thisMonth = formatBusinessDate().slice(0, 7);
+  // nothing decided this month and nothing wrong: the block is not shown (a month browsed inside the open block keeps it, so is the way back)
+  if (!ready || (!error && total === 0 && month === thisMonth && !open)) return null;
   return (
     <section aria-label={DECIDED_TITLE} data-testid="decided-one-offs" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-slate-900">{DECIDED_TITLE}{!loading && !error ? ` · ${total}` : ""}</h2>
-          <p className="text-xs text-slate-500">{DECIDED_HINT}</p>
-        </div>
+      <button type="button" data-testid="decided-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="flex min-h-10 w-full items-center gap-2 bg-slate-50 px-4 py-2.5 text-left text-sm font-semibold text-slate-700">
+        <ChevronRight className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
+        <span data-testid="decided-title">{DECIDED_TITLE}{!loading && !error ? ` · ${total}` : ""}</span>
+      </button>
+      {open && (
+      <>
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-y border-slate-100 px-4 py-2.5">
+        <div className="flex min-w-0 items-center"><HelpHint text={DECIDED_HINT} testId="decided-hint" /></div>
         <div className="flex items-center gap-1" role="group" aria-label="Месяц">
           <Button type="button" aria-label="Предыдущий месяц" data-testid="decided-prev" onClick={() => setMonth((value) => shiftMonthKey(value, -1))} variant="secondary" size="md" className="w-10 sm:w-8"><ChevronLeft className="h-4 w-4" aria-hidden /></Button>
           <span data-testid="decided-month" className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-800">{monthTitle(month)}</span>
@@ -74,6 +83,8 @@ export function DecidedOneOffsBlock({ showToast, onChanged }: { showToast: (text
         <ul className="divide-y divide-slate-100">
           {items.map((item) => <DecidedRow key={item.lessonId + item.lessonDate} item={item} onUndo={setUndo} onReopened={() => void load(true)} />)}
         </ul>
+      )}
+      </>
       )}
       <UndoDecisionDialog
         target={undo}

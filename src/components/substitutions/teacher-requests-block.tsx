@@ -117,11 +117,11 @@ export function TeacherRequestsBlock({
       {items.length > 0 && (
         <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-card sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+            <h2 className="flex min-w-0 items-center gap-2 text-base font-bold text-slate-900">
               <Repeat2 className="h-5 w-5 text-amber-600" />
               {MY_REQUESTS_TITLE}
             </h2>
-            <button type="button" onClick={onNewRequest} className="inline-flex min-h-10 items-center text-xs font-bold text-primary-600 hover:text-primary-700">{NEW_REQUEST_LINK}</button>
+            <button type="button" onClick={onNewRequest} className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap text-xs font-bold text-primary-600 hover:text-primary-700">{NEW_REQUEST_LINK}</button>
           </div>
           <ul className="divide-y divide-slate-100">
             {items.map((item) => {

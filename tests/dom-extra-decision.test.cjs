@@ -196,6 +196,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
     return null;
   });
   await run.page.evaluate(() => window.mount("decided"));
+  await run.page.click('[data-testid="decided-toggle"]');   // LESSON-RULES Э6: the block is a folded line until it is tapped
   await run.page.waitForSelector('[data-testid="decided-undo"]');
   await run.page.click('[data-testid="decided-undo"]');
   await run.page.waitForSelector('[data-testid="money-effects"][data-state="ready"], [data-testid="money-effects-none"]');
@@ -209,6 +210,7 @@ test("D-5: «Отменить решение» - the window says what the sheet 
     return null;
   });
   await closed.page.evaluate(() => window.mount("decided"));
+  await closed.page.click('[data-testid="decided-toggle"]');   // LESSON-RULES Э6: the block is a folded line until it is tapped
   await closed.page.waitForSelector('[data-testid="decided-undo"]');
   await closed.page.click('[data-testid="decided-undo"]');
   await closed.page.waitForSelector('[data-testid="period-closed"]');

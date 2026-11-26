@@ -40,6 +40,9 @@ for (const width of [375, 1280]) {
     assert.equal(await page.locator('button[aria-label="Отозвать отмену: пн, 23.11 · Математика 7"]').count(), 1);
     assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 1, "only the one with canWithdraw true");
     assert.equal(await page.locator("text=Новый запрос").count(), 1);
+    const link = await page.evaluate(() => { const el = [...document.querySelectorAll("button")].find((b) => /Новый запрос/.test(b.textContent)); const range = document.createRange(); range.selectNodeContents(el); return { lines: new Set([...range.getClientRects()].map((r) => Math.round((r.top + r.bottom) / 8))).size, right: Math.round(el.getBoundingClientRect().right), viewport: window.innerWidth }; });
+    assert.equal(link.lines, 1, "«Новый запрос» is on ONE line at every width");
+    assert.ok(link.right <= link.viewport, "and inside the screen");
     const probe = await page.evaluate(layoutProbe, "body");
     assert.deepEqual([probe.bad, probe.scroll > 0], [[], false]);
     if (width === 375) assert.deepEqual(await page.evaluate(touchTargets, "body"), []);

@@ -124,3 +124,39 @@ test("an administrator WITHOUT the money right: the same panel without the salar
   assert.equal(calls.filter((c) => /\/attendance\/return/.test(c.path)).length, 0);
   await page.close();
 });
+
+// ── Э6: «Решения по дополнительным урокам» under «История» ─────────────────────────────────────────────────────────────
+// NOT EXPORTED by the server (С10.7 has no decided additional lessons): the one item below is written by hand from the contract of `GET /org/one-off-decisions/decided` (listed in the report).
+const DECIDED_ONE_OFF = { lessonId: "lesson-extra", groupId: "287049ea-7673-5f46-b17e-41e317fdd7f1", groupName: "Математика 7", lessonDate: "2026-11-24", startTime: "16:00", endTime: "17:00", purpose: "extra", title: "Дополнительный урок", teacher: { id: "85364d94-c8fb-5916-ae84-9583524e23fd", name: "Эргашев К." }, createdBy: null, studentsPresent: 7, studentsTotal: 9, payrollSheet: null, money: "paid", decidedAt: "2026-11-26T07:00:00", decidedBy: { id: "05720600-ebf6-5f54-baaf-fd04de596155", name: "Валиев Р.", role: "owner" }, canUndo: true, periodClosed: false };
+const decidedRoute = (items) => (request) => (request.path === "/auth/org/one-off-decisions/decided" ? { json: { total: items.length, items } } : null);
+
+for (const width of [1280, 375]) {
+  test(`${width}: no decided additional lessons - the block is not on the page; some - ONE folded line «Решения по дополнительным урокам · N» (as «Решает владелец»), the month is switched inside`, async () => {
+    const none = await openHistory(listServer(), { width });
+    await none.page.waitForSelector('[data-testid="audit-row"]');
+    await none.page.waitForTimeout(150);
+    assert.equal(await none.page.locator('[data-testid="decided-one-offs"]').count(), 0, "nothing decided: nothing shown");
+    await none.page.close();
+
+    const some = await openHistory(listServer({ extra: decidedRoute([DECIDED_ONE_OFF]) }), { width });
+    await some.page.waitForSelector('[data-testid="decided-toggle"]');
+    assert.equal(plain(await some.page.textContent('[data-testid="decided-title"]')), "Решения по дополнительным урокам · 1");
+    assert.equal(await some.page.getAttribute('[data-testid="decided-toggle"]', "aria-expanded"), "false");
+    assert.equal(await some.page.locator('[data-testid="decided-row"]').count(), 0, "folded: no rows");
+    assert.equal(await some.page.locator('[data-testid="decided-prev"]').count(), 0, "folded: no month switch");
+    await some.page.click('[data-testid="decided-toggle"]');
+    await some.page.waitForSelector('[data-testid="decided-row"]');
+    assert.equal(await some.page.locator('[data-testid="decided-hint"]').count(), 1, "the explanation is a «?»");
+    assert.equal(plain(await some.page.textContent('[data-testid="decided-month"]')), "Ноябрь 2026 г.");
+    assert.equal(await some.page.getAttribute('[data-testid="decided-prev"]', "aria-label"), "Предыдущий месяц");
+    assert.equal(await some.page.getAttribute('[data-testid="decided-next"]', "aria-label"), "Следующий месяц");
+    assert.equal(await some.page.isDisabled('[data-testid="decided-next"]'), true, "the month of today is the last");
+    await some.page.click('[data-testid="decided-prev"]');
+    await some.page.waitForFunction(() => /Октябрь 2026 г\./.test(document.querySelector('[data-testid="decided-month"]')?.textContent ?? ""));
+    assert.equal(await some.page.locator('[data-testid="decided-one-offs"]').count(), 1, "a month browsed inside the block keeps it");
+    const probe = await some.page.evaluate(layoutProbe, "body");
+    assert.deepEqual([probe.bad, probe.scroll > 0], [[], false]);
+    if (width === 375) assert.deepEqual(await some.page.evaluate(touchTargets, '[data-testid="decided-one-offs"]'), []);
+    await some.page.close();
+  });
+}

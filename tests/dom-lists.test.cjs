@@ -62,6 +62,7 @@ test("item 14 / n7: the decided lessons of the month; «Отменить реш�
     return null;
   });
   await page.evaluate(() => window.mount("decided"));
+  await page.click('[data-testid="decided-toggle"]');   // LESSON-RULES Э6: the block is a folded line until it is tapped
   await page.waitForSelector('[data-testid="decided-row"]');
   const label = await page.getAttribute('[data-testid="decided-undo"]', "aria-label");
   assert.match(label, /Отменить решение: 7-А Алгебра, 27\.10\.2026/, "a date a screen reader can read");

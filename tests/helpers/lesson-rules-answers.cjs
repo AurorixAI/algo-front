@@ -15,6 +15,7 @@ function listServer({ pending = null, decided = null, extra = null } = {}) {
     if (request.path === "/auth/org/substitutions" && /status=decided/.test(request.query)) return { json: decided ?? answer("history") };
     if (request.path === "/auth/org/substitutions/summary") return { json: answer("summary_owner") };
     if (request.path === "/auth/org/one-off-decisions") return { json: { items: [], total: 0 } };
+    if (request.path === "/auth/org/one-off-decisions/decided") return { json: { items: [], total: 0 } };   // the unload has no decided additional lessons: none in the world
     if (request.path === "/auth/org/members" || request.path === "/auth/org/groups") return { json: [] };
     return null;
   };

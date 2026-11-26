@@ -106,7 +106,7 @@ export interface DecidedOneOffsOut {
   items: DecidedOneOffItem[];
 }
 
-export const DECIDED_TITLE = "Решённые дополнительные уроки";
+export const DECIDED_TITLE = "Решения по дополнительным урокам";
 export const DECIDED_HINT = "Что решили по дополнительным урокам за месяц. Решение можно отменить, пока месяц не закрыт.";
 export const DECIDED_EMPTY_TEXT = "В этом месяце по дополнительным урокам решений нет.";
 export const DECIDED_LOAD_ERROR_TEXT = "Не удалось загрузить решённые дополнительные уроки. Повторите попытку.";
