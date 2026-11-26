@@ -31,7 +31,13 @@ import {
   moreLessonsText,
   tabLabel,
 } from "@/lib/substitutions";
-import type { DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
+import type { AuditEntryItem, DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem, SubstitutionListRow, WaitingCancellationItem } from "@/lib/substitution-types";
+import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows } from "@/lib/lesson-rules";
+import { AuditPanel, AuditTableRow } from "@/components/substitutions/history-rows";
+import { LessonReturnDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
+import { Notice } from "@/components/ui/notice";
+import { WaitingTableRow } from "@/components/substitutions/waiting-rows";
+import { WaitingCancelDialog } from "@/components/substitutions/waiting-cancel-dialog";
 import { DeadlineBadge, DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell, hasReason } from "@/components/substitutions/journal-cells";
 import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
 import { filterLabel } from "@/lib/cascading-filter";
@@ -52,7 +58,8 @@ type Tab = "pending" | "decided";
 
 /** Columns of the wide layout (cards below `xl`, as the other tables of the admin screens). */
 const COLS_PENDING = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_220px_104px_40px]";
-const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_96px_minmax(0,1.1fr)_104px_40px]";
+/** LESSON-RULES: the reason column of the history holds the words of the teacher («Отключили свет»), not only a chip: it takes a share of the width, the chips still fit. */
+const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_104px_40px]";
 /** UX pack №16: no column «Причина» when no row has one (an empty column is noise). */
 const COLS_PENDING_NO_REASON = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_220px_104px_40px]";
 const COLS_DECIDED_NO_REASON = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_104px_40px]";
@@ -83,12 +90,19 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [tab, setTab] = useState<Tab>(searchParams?.get("status") === "decided" ? "decided" : "pending");
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
   const [urgentOnly, setUrgentOnly] = useState(false);
+  /** LESSON-RULES Э3: the tick of the history «Только задним числом» (the server filters the same list). */
+  const [backdatedOnly, setBackdatedOnly] = useState(false);
+  const [auditPanel, setAuditPanel] = useState<AuditEntryItem | null>(null);
+  const [returnTarget, setReturnTarget] = useState<ReturnLessonTarget | null>(null);
   /** #159 U3: «Показать» in the line of the requests that close on the 1st narrows the list to them (the server filters by the date of the lesson). */
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [items, setItems] = useState<SubstitutionItem[]>([]);
+  const [items, setItems] = useState<SubstitutionListRow[]>([]);
+  /** LESSON-RULES: the cancellations that wait for the owner (the number of the server; the rows are in `items`). */
+  const [unconfirmedTotal, setUnconfirmedTotal] = useState(0);
+  const [waitingDialog, setWaitingDialog] = useState<WaitingCancellationItem | null>(null);
   const [total, setTotal] = useState(0);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [expiringTotal, setExpiringTotal] = useState(0);
@@ -115,9 +129,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const moneyRightLost = moneyRightLostFor(moneyLostFor, user);
   const moneyRightLostRef = useRef(moneyRightLost);
   moneyRightLostRef.current = moneyRightLost;
-  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total, moneyRightLost);
+  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total + unconfirmedTotal, moneyRightLost);
   // UX pack №7: the tab says what it lists (an administrator without the money access sees the rows of money, so the tab is not «(0)» over a row); the badge of the menu is his own tasks
-  const listedCount = listedCountFor(pendingTotal, decisions.total);
+  const listedCount = listedCountFor(pendingTotal, decisions.total + unconfirmedTotal);
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -160,6 +174,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         groupId: filter.groupId || undefined,
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
         urgent: tab === "pending" && urgentOnly,
+        backdatedOnly: tab === "decided" && backdatedOnly,
         dateTo: tab === "pending" && expiringOnly ? expiringDateTo(formatBusinessDate()) ?? undefined : undefined,
         search,
         limit: PAGE_SIZE,
@@ -175,10 +190,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       setTotal(data.total ?? 0);
       setPendingTotal(data.pendingTotal ?? 0);
       setExpiringTotal(data.expiringTotal ?? 0);
+      setUnconfirmedTotal(data.unconfirmedTotal ?? 0);
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current, moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current + (data.unconfirmedTotal ?? 0), moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -189,7 +205,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     } finally {
       if (guard.accepts(token)) setLoading(false);
     }
-  }, [tab, filter.groupId, filter.teacherId, urgentOnly, expiringOnly, search, page, guard, showToast]);
+  }, [tab, filter.groupId, filter.teacherId, urgentOnly, backdatedOnly, expiringOnly, search, page, guard, showToast]);
 
   loadRef.current = load;
   useEffect(() => { void load(); }, [load]);
@@ -276,7 +292,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const stale = (fresh: SubstitutionItem) => { setPanelRefresh((value) => value + 1); void afterDecision(() => patchItem(fresh), refreshBadge); };
 
   const bulkDone = (out: DecideBulkOut) => {
-    const toast = bulkToast(out, items);
+    const toast = bulkToast(out, requests);
     showToast(toast.text, toast.type, toast.details.length ? toast.details : undefined);
     setBulkKind(null);
     setSelected(new Set());
@@ -294,10 +310,19 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   useEffect(() => { if (expiringOnly && !loading && expiringTotal === 0) setExpiringOnly(false); }, [expiringOnly, loading, expiringTotal]);
 
   const pendingTab = tab === "pending";
-  const showReason = items.some(hasReason);
+  const split = splitRows(items);
+  const requests = split.requests;
+  // a cancellation that waits is a row of the table for who may decide it, a line of the block «Решает владелец» for who may not (LESSON-RULES)
+  const tableWaiting = pendingTab && !moneyRightLost ? split.waiting.filter((row) => row.canDecide) : [];
+  const blockWaiting = pendingTab ? split.waiting.filter((row) => !tableWaiting.includes(row)) : [];
+  const tableRows = items.filter((row) => {
+    const source = (row as { source?: string }).source;
+    return pendingTab ? !source || tableWaiting.includes(row as WaitingCancellationItem) : source !== "unconfirmed";
+  });
+  const showReason = requests.some(hasReason) || tableWaiting.length > 0 || split.audit.some((entry) => entry.kind === "corrected" && Boolean(entry.reason));
   const cols = pendingTab ? (showReason ? COLS_PENDING : COLS_PENDING_NO_REASON) : (showReason ? COLS_DECIDED : COLS_DECIDED_NO_REASON);
-  const selectedItems = items.filter((item) => selected.has(item.id));
-  const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
+  const selectedItems = requests.filter((item) => selected.has(item.id));
+  const allSelected = pendingTab && requests.length > 0 && selectedItems.length === requests.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "pending", label: tabLabel("pending", listedCount) },
@@ -318,7 +343,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const visibleDecisions = pendingTab && !urgentOnly && !expiringOnly ? decisions.items.filter((row) => decisionMatches(row, { groupId: filter.groupId, teacherId: filter.teacherId, search })) : [];
   const decisionsOnly = visibleDecisions.length > 0;
   const expiringBanner = expiringText(expiringTotal, formatBusinessDate());
-  const selectAll = (on: boolean) => setSelected(on ? new Set(items.map((item) => item.id)) : new Set());
+  const selectAll = (on: boolean) => setSelected(on ? new Set(requests.map((item) => item.id)) : new Set());
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -371,10 +396,15 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             </label>
             <CascadingFilter iconOnPhone allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
           </div>
-          {pendingTab && (
+          {pendingTab ? (
             <label className="inline-flex h-10 shrink-0 cursor-pointer xl:ml-auto items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Checkbox checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} />
               <span className="sm:hidden">Срочные</span><span className="hidden sm:inline">Только срочные</span>
+            </label>
+          ) : (
+            <label data-testid="backdated-only" className="inline-flex h-10 shrink-0 cursor-pointer xl:ml-auto items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Checkbox checked={backdatedOnly} onChange={(event) => { setBackdatedOnly(event.target.checked); setPage(0); }} />
+              <span>{BACKDATED_FILTER_LABEL}</span>
             </label>
           )}
           {filterOn && (
@@ -406,6 +436,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       {pendingTab && (
         <OneOffDecisionsBlock
           items={visibleDecisions}
+          waiting={blockWaiting}
           canDecide={canDecideMoney(user)}
           rightLost={moneyRightLost}
           onRightLost={() => setMoneyLostFor({ profile: user })}
@@ -418,20 +449,18 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         />
       )}
 
-      <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
+      <section className={!loading && !loadError && tableRows.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
             Загрузка…
           </div>
         ) : loadError ? (
-          <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-            <AlertCircle className="h-8 w-8 text-rose-500" />
-            <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
-            <Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>
-          </div>
-        ) : items.length === 0 ? (
-          decisionsOnly ? null : <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
+          <Notice variant="error" testId="list-error" action={<Button type="button" onClick={() => void load()} variant="secondary" size="md">Повторить</Button>}>
+            <span className="font-semibold">{pendingTab ? loadError : HISTORY_LOAD_ERROR_TEXT}</span>
+          </Notice>
+        ) : tableRows.length === 0 ? (
+          decisionsOnly || blockWaiting.length > 0 ? null : !pendingTab && backdatedOnly ? <EmptyState icon={CheckCircle2} title={BACKDATED_EMPTY_TEXT} /> : <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
         ) : (
           <>
             <TableHeader
@@ -441,15 +470,42 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
               aligns={pendingTab ? (showReason ? PENDING_ALIGNS : PENDING_ALIGNS_NO_REASON) : (showReason ? DECIDED_ALIGNS : DECIDED_ALIGNS_NO_REASON)}
             />
             {/* «Выбрать все · N» is the first row of the list (a phone and the wide table alike) */}
-            {pendingTab && (
+            {pendingTab && requests.length > 0 && (
               <label data-testid="select-all" className="flex cursor-pointer items-center gap-2 px-1 py-1 text-sm font-medium text-slate-600 xl:border-b xl:border-slate-100 xl:px-4 xl:py-2 xl:text-xs xl:text-slate-500">
                 <Checkbox checked={allSelected} onChange={(event) => selectAll(event.target.checked)} />
-                Выбрать все · {items.length}
+                Выбрать все · {requests.length}
               </label>
             )}
             <ul className="mt-2 space-y-2.5 xl:mt-0 xl:space-y-0 xl:divide-y xl:divide-slate-100">
-              {items.map((item) => {
-                const siblings = batchSiblings(item, items);
+              {tableRows.map((row) => {
+                if ((row as { source?: string }).source === "unconfirmed") {
+                  const entry = row as WaitingCancellationItem;
+                  return (
+                    <WaitingTableRow
+                      key={`waiting-${entry.id}`}
+                      item={entry}
+                      cols={cols}
+                      showReason={showReason}
+                      lessonHref={entry.lesson.lessonId ? journalHref(bases.groups, { groupId: entry.group.id, lessonDate: entry.lesson.date, lessonId: entry.lesson.lessonId }) : null}
+                      onDecide={setWaitingDialog}
+                    />
+                  );
+                }
+                if ((row as { source?: string }).source === "audit") {
+                  const entry = row as AuditEntryItem;
+                  return (
+                    <AuditTableRow
+                      key={`audit-${entry.id}`}
+                      entry={entry}
+                      cols={cols}
+                      showReason={showReason}
+                      lessonHref={entry.lesson.lessonId ? journalHref(bases.groups, { groupId: entry.group.id, lessonDate: entry.lesson.date, lessonId: entry.lesson.lessonId }) : null}
+                      onOpen={setAuditPanel}
+                    />
+                  );
+                }
+                const item = row as SubstitutionItem;
+                const siblings = batchSiblings(item, requests);
                 const open = expanded.has(item.id);
                 const lessonHref = item.lesson.lessonId ? journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId }) : null;
                 return (
@@ -562,6 +618,26 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         onClose={() => { setDialogItem(null); if (requestedId && !panel) { openedFor.current = null; setRequestParam(null); } }}
         onDecided={decided}
         onStale={stale}
+      />
+      <AuditPanel
+        entry={auditPanel}
+        workspace={role}
+        canSeeMoney={canDecideMoney(user) && !moneyRightLost}
+        onClose={() => setAuditPanel(null)}
+        onReturn={(entry) => setReturnTarget({ groupId: entry.group.id, lessonId: entry.lesson.lessonId, lessonDate: entry.lesson.date })}
+      />
+      <LessonReturnDialog
+        target={returnTarget}
+        aboveLessonPanel
+        onClose={() => setReturnTarget(null)}
+        onDone={() => { setReturnTarget(null); setAuditPanel(null); showToast("Урок возвращён", "success"); void load(true); refreshBadge(); }}
+        onStale={() => { void load(true); }}
+      />
+      <WaitingCancelDialog
+        item={waitingDialog}
+        onClose={() => setWaitingDialog(null)}
+        onDecided={() => { void load(true); refreshBadge(); }}
+        showToast={showToast}
       />
       <BulkDialog kind={bulkKind} items={selectedItems} role={role} onClose={() => setBulkKind(null)} onDone={bulkDone} />
       {toastNode}

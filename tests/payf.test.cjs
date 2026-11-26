@@ -346,7 +346,7 @@ test("3. the sheet of a cancelled lesson offers «Изменить причин�
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /orgApi\.changeCancellationKind\(groupId/);
   assert.match(sheet, /data-testid="sheet-change-kind"/);
-  assert.match(read("src/lib/api.ts"), /\/attendance\/cancellation-kind`, \{ method: "PUT"/);
+  assert.match(read("src/lib/api.ts"), /\/attendance\/cancellation-kind\$\{options\.dryRun \? "\?dry_run=true" : ""\}`, \{ method: "PUT"/);
 });
 
 test("the package as a progress line: the text, the share used, the forecast line, the tone of the state, the bar for the screen reader", () => {

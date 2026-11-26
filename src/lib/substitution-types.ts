@@ -74,7 +74,12 @@ export type SubstitutionOutcomeCode =
   | "lesson_restored"
   | "kind_changed"
   | "one_off_added"
-  | "closed";
+  | "closed"
+  // LESSON-RULES: the words of the teacher's block and of the journal
+  | "cancel_waiting"
+  | "cancelled_centre"
+  | "cancelled_holiday"
+  | "included_in_payroll";
 
 export interface SubstitutionMovedTo {
   date: string;
@@ -176,7 +181,57 @@ export interface SubstitutionItem {
   needsDecision?: boolean;
   /** #157: the `trigger` of the event that closed the record (`day_off`, `window_expired`, ...); null while it is not closed. */
   closedTrigger?: string | null;
+  /** LESSON-RULES: who confirmed a waiting cancellation and when (the manager's eyes only). */
+  confirmedBy?: PersonRef | null;
+  confirmedAt?: string | null;
+  /** LESSON-RULES: the days a waiting cancellation has waited (null: it does not wait). */
+  waitingDays?: number | null;
+  /** LESSON-RULES: a lesson that was given back: may its teacher still mark it (the window of the centre)? false = the administrator marks it; null = not a returned lesson. */
+  teacherCanMark?: boolean | null;
 }
+
+/** LESSON-RULES: a cancellation that WAITS for the owner as a row of «Ждут решения» (`source: "unconfirmed"`; `id` is the id of the journal row of the lesson, not of a request). */
+export interface WaitingCancellationItem {
+  source: "unconfirmed";
+  id: string;
+  kind: "unconfirmed";
+  group: { id: string; name: string; studentCount?: number };
+  lesson: { lessonId: string; date: string; startTime: string | null; endTime: string | null };
+  teacher: PersonRef;
+  /** Who cancelled (a teacher or an administrator without the money right). */
+  cancelledBy: PersonRef;
+  /** The words of the cancelling person. */
+  reason: string | null;
+  /** Naive UTC. */
+  cancelledAt: string;
+  waitingDays: number;
+  /** How old the lesson is, in days. */
+  ageDays: number;
+  /** The money right of the caller: false = «решает владелец» (no sums, no buttons). */
+  canDecide: boolean;
+}
+
+/** LESSON-RULES: an entry of the journal of the history (`source: "audit"`): «оформлен задним числом», «отметки исправлены», «добавил урок в расписание». */
+export interface AuditEntryItem {
+  source: "audit";
+  id: string;
+  kind: "backdated" | "corrected" | "lesson_added";
+  /** Naive UTC. */
+  at: string;
+  group: { id: string; name: string };
+  lesson: { lessonId: string; date: string; startTime?: string | null; endTime?: string | null };
+  teacher: PersonRef;
+  /** Who wrote the line (the teacher himself or an administrator over the lesson of somebody else). */
+  by: PersonRef;
+  lateDays: number | null;
+  reason: string | null;
+  /** The server's sentence. */
+  text: string;
+}
+
+/** A row of the list of «Замены»: a request, a waiting cancellation, an entry of the journal. */
+export type SubstitutionListRow = SubstitutionItem | WaitingCancellationItem | AuditEntryItem;
+
 
 // ── teacher ───────────────────────────────────────────────────────────────────
 
@@ -273,6 +328,8 @@ export interface SubstitutionSummary {
   overdueTotal: number;
   /** W1 S20: see `SubstitutionListOut`. */
   expiringTotal?: number;
+  /** LESSON-RULES: cancellations that wait for the owner (in `waitingTotal` only for the money right). */
+  unconfirmedTotal?: number;
 }
 
 export type SubstitutionListStatus = "pending" | "decided" | "all";
@@ -287,15 +344,19 @@ export interface SubstitutionListParams {
   search?: string;
   limit?: number;
   offset?: number;
+  /** LESSON-RULES: the tick «Только задним числом» of the history. */
+  backdatedOnly?: boolean;
 }
 
 export interface SubstitutionListOut {
-  items: SubstitutionItem[];
+  items: SubstitutionListRow[];
   total: number;
   pendingTotal: number;
   urgentTotal: number;
   /** W1 S20: waiting requests of the last month that drop out of the window on the 1st - non-zero only in the last 3 days before it. */
   expiringTotal?: number;
+  /** LESSON-RULES: cancellations that wait for the owner (also rows of `items` of the pending list). */
+  unconfirmedTotal?: number;
 }
 
 /** The author of an event: `{id, name, role}` for an owner / an administrator, `{role}` alone for a teacher (#157 A1), `null` - the system. */

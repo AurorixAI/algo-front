@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "source": "unconfirmed",
+      "id": "033f944d-9d7a-4fa8-97a8-fa38c9257d69",
+      "kind": "unconfirmed",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-mon",
+        "date": "2026-11-23",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": null
+      },
+      "cancelledBy": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "reason": "Урока не было",
+      "cancelledAt": "2026-11-26T07:00:00",
+      "waitingDays": 0,
+      "ageDays": 3,
+      "canDecide": true
+    }
+  ],
+  "total": 1,
+  "pendingTotal": 0,
+  "urgentTotal": 0,
+  "expiringTotal": 0,
+  "unconfirmedTotal": 1
+}

@@ -187,7 +187,7 @@ test("F3: the words and the call of «Вернуть урок»; every RESTORE_*
   assert.equal(text("REASON_REQUIRED"), "Укажите причину (не менее 3 символов)");
   assert.equal(text("TEACHER_BUSY", "Преподаватель занят").length > 0, true);
   const api = read("src/lib/api.ts");
-  assert.match(api, /restoreLesson: \(groupId: string, body: \{ lessonId: string; lessonDate: string; reason: string; dryRun\?: boolean \}, signal\?: AbortSignal\) =>\s+api<RestoreLessonResult>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/lessons\/restore`, \{ method: "POST", body, signal \}\)/);
+  assert.match(api, /restoreLesson: \(groupId: string, body: \{ lessonId: string; lessonDate: string; reason: string; dryRun\?: boolean; expectedKind\?: StoredCancellationKind \}, signal\?: AbortSignal\) =>\s+api<RestoreLessonResult>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/lessons\/restore`, \{ method: "POST", body, signal \}\)/);
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /orgApi\.restoreLesson\(groupId, \{ lessonId: lesson\.id, lessonDate: lesson\.date, reason: trimmed \}\)/);
   assert.match(sheet, /onChanged\("Урок возвращён", warningTexts\(restored\)\)/, "the toast; the note about the exams is under the form's field, not repeated as a warning");
@@ -460,22 +460,22 @@ test("R3 2 (#157): the journal «Замены» understands EVERY W1 trigger - t
   const view = (item, outcome, events) => ({ badge: O.originBadge(item), chip: O.outcomeOf({ ...item, outcome }, "manager").text, rows: TL.timelineOf({ item: { id: "r", ...item }, events: events.map((event) => ({ requestId: "r", at: AT, ...event })) }, "manager").rows.map((row) => [row.title, row.author]) });
   // manager_cancel
   assert.deepEqual(view(J({ trigger: "manager_cancel" }), "cancelled", [{ action: "cancelled", actor: mgr, snapshot: { reason: "Болен", cancellationKind: "centre" } }]),
-    { badge: "без запроса", chip: "Урок отменён", rows: [["Урок отменён", "Каримова Н., администратор"]] });
+    { badge: null, chip: "Урок отменён", rows: [["Урок отменён", "Каримова Н., администратор"]] });
   assert.equal(TL.timelineOf({ item: { id: "r", origin: "system", trigger: "manager_cancel" }, events: [{ requestId: "r", action: "cancelled", actor: { id: "o", name: "Юсупова Н.", role: "owner" }, at: AT, snapshot: {} }] }, "manager").rows[0].author, "Юсупова Н., владелец");
   // teacher_cancel
   assert.deepEqual(view(J({ trigger: "teacher_cancel" }), "lesson_not_held", [{ action: "cancelled", actor: { id: "t1", name: "Иванов И.", role: "teacher" }, snapshot: {} }]),
-    { badge: "без запроса", chip: "Урока не было", rows: [["Урока не было", "Иванов И., преподаватель"]] });
+    { badge: null, chip: "Урока не было", rows: [["Урока не было", "Иванов И., преподаватель"]] });
   // manager_restore
   assert.deepEqual(view(J({ trigger: "manager_restore", status: "closed" }), "lesson_restored", [{ action: "closed", actor: mgr, snapshot: { closedReason: "LESSON_RESTORED", trigger: "manager_restore", reason: "Ошиблись" } }]),
-    { badge: "без запроса", chip: "Урок возвращён", rows: [["Урок возвращён", "Каримова Н., администратор"]] });
+    { badge: null, chip: "Урок возвращён", rows: [["Урок возвращён", "Каримова Н., администратор"]] });
   // the original record of a cancellation the lesson was restored from: its own event
   assert.deepEqual(view(J({ trigger: "manager_cancel" }), "lesson_restored", [{ action: "lesson_restored", actor: mgr, snapshot: {} }]).rows, [["Урок возвращён", "Каримова Н., администратор"]]);
   // manager_reason_change
   assert.deepEqual(view(J({ trigger: "manager_reason_change", status: "closed" }), "kind_changed", [{ action: "closed", actor: mgr, snapshot: { closedReason: "KIND_CHANGED", trigger: "manager_reason_change", cancellationKind: { from: "centre", to: "holiday" } } }]),
-    { badge: "без запроса", chip: "Вид отмены изменён", rows: [["Вид отмены изменён", "Каримова Н., администратор"]] });
+    { badge: null, chip: "Вид отмены изменён", rows: [["Вид отмены изменён", "Каримова Н., администратор"]] });
   // teacher_one_off
   assert.deepEqual(view(J({ trigger: "teacher_one_off", status: "closed", teacher: { id: "t9", name: "Рахимов Т." } }), "one_off_added", [{ action: "closed", actor: { id: "t9", name: "Рахимов Т.", role: "teacher" }, snapshot: { closedReason: "ONE_OFF_ADDED", trigger: "teacher_one_off" } }]),
-    { badge: "без запроса", chip: "Разовый урок", rows: [["Разовый урок добавлен", "Рахимов Т., преподаватель"]] });
+    { badge: null, chip: "Разовый урок", rows: [["Разовый урок добавлен", "Рахимов Т., преподаватель"]] });
   // window_expired (a request of the teacher the month border closed): the system has no author
   const expired = { origin: "teacher", trigger: null, status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "other", decision: { kind: "closed", closedReason: "LESSON_OUTSIDE_WINDOW", at: "2026-11-01T00:05:00" } };
   assert.deepEqual(view(expired, "not_resolved_in_time", [{ action: "closed", actor: null, snapshot: { closedReason: "LESSON_OUTSIDE_WINDOW", trigger: "window_expired" } }]),
@@ -692,7 +692,7 @@ test("R3 6 (phone, #157): the search and the filter icon are ONE row, «Сроч
   assert.match(page, /<CascadingFilter iconOnPhone /);
   assert.match(page, /<span className="sm:hidden">Срочные<\/span><span className="hidden sm:inline">Только срочные<\/span>/);
   assert.match(page, /data-testid="select-all"/);
-  assert.match(page, /Выбрать все · \{items\.length\}/, "the count is in the row");
+  assert.match(page, /Выбрать все · \{requests\.length\}/, "the count is in the row");
   assert.doesNotMatch(page, /select-all-compact/, "no lonely checkbox beside the tabs");
   assert.match(page, /data-testid="filter-chip"[\s\S]*sm:hidden/, "the chip «Имя ×» is for a phone: it says the filter is on");
   assert.match(page, /text-base[^"]*sm:text-sm/, "the search is 16 px on a phone: no zoom of iOS Safari");

@@ -19,6 +19,10 @@ import { useMoneyPreview } from "@/lib/use-money-preview";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
+import { OWNER_DECIDES_NOTE, ownerDecidesLine } from "@/lib/lesson-rules";
+import { WaitingReportedRow } from "@/components/substitutions/waiting-rows";
+import type { WaitingCancellationItem } from "@/lib/substitution-types";
 
 /**
  * One row of the payment of an additional lesson (#159 U4) - the same row for who decides (with the buttons) and for who only looks (an administrator without the right).
@@ -81,8 +85,10 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
  * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
  * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, waiting = [], loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
+  /** LESSON-RULES: the cancellations that wait for the owner, for who CANNOT decide them: they stand in this block as «решает владелец» (a person with the right sees them as rows of the table). */
+  waiting?: WaitingCancellationItem[];
   loading: boolean;
   error: string | null;
   /** `canDecideMoney(user)`: the buttons are there only for who decides (an absent right is no right). */
@@ -160,7 +166,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       </div>
     );
   }
-  if (items.length === 0) {
+  if (items.length === 0 && (waiting.length === 0 || mayDecide)) {
     return loading ? <div className="flex items-center gap-2 px-1 text-xs text-slate-500" data-testid="one-off-decisions-loading"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Проверяем уроки, которые ждут решения…</div> : null;
   }
 
@@ -173,25 +179,26 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
     <section aria-label={DECISIONS_GROUP_TITLE} data-testid="one-off-decisions" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {mayDecide ? (
         <header className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-          <h2 className="text-sm font-bold text-slate-900" data-testid="one-off-decisions-title">{DECISIONS_GROUP_TITLE} · {items.length}</h2>
-          <p className="text-xs text-slate-500" data-testid="one-off-decisions-hint">{DECISIONS_GROUP_HINT}</p>
+          {/* LESSON-RULES Э7: the explanation is a «?» by the title, not a grey paragraph (the same words) */}
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900" data-testid="one-off-decisions-title">{DECISIONS_GROUP_TITLE} · {items.length}<HelpHint text={DECISIONS_GROUP_HINT} testId="one-off-decisions-hint" /></h2>
         </header>
       ) : (
         /* an administrator without the right (U4): information, not his task - ONE row that opens the list */
         <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
           <button type="button" data-testid="one-off-decisions-toggle" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)} className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-700">
             <ChevronRight className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${viewOpen ? "rotate-90" : ""}`} aria-hidden />
-            <span data-testid="one-off-decisions-title">{decisionsViewLine(items.length)}</span>
+            <span data-testid="one-off-decisions-title">{waiting.length > 0 ? ownerDecidesLine({ oneOffs: items.length, cancellations: waiting.length }) : decisionsViewLine(items.length)}</span>
           </button>
           {rightLost && onRefreshProfile && (
             <button type="button" data-testid="one-off-decisions-refresh" onClick={onRefreshProfile} className="shrink-0 text-xs font-semibold text-primary-700 underline hover:text-primary-800">Обновить</button>
           )}
         </div>
       )}
-      {!mayDecide && viewOpen && <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500" data-testid="one-off-decisions-hint">{DECISIONS_GROUP_HINT_VIEW}</p>}
+      {!mayDecide && viewOpen && <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500" data-testid="one-off-decisions-hint">{waiting.length > 0 ? OWNER_DECIDES_NOTE : DECISIONS_GROUP_HINT_VIEW}</p>}
       {(mayDecide || viewOpen) && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {items.map((item) => <PaymentRow key={item.lessonId} item={item} canDecide={mayDecide} onPick={pick} onReopened={onRetry} />)}
+          {!mayDecide && waiting.map((entry) => <WaitingReportedRow key={entry.id} item={entry} />)}
         </ul>
       )}
 

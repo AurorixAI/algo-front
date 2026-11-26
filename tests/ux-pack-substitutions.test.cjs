@@ -15,10 +15,10 @@ test("a row has a reason to show: a request of a teacher with a label or a code,
 
 test("the page draws the column only when a row has a reason: the template, the header, the aligns and the cells follow; the decisions are over the table", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /const showReason = items\.some\(hasReason\);/);
+  assert.match(page, /const showReason = requests\.some\(hasReason\) \|\| tableWaiting\.length > 0/);
   assert.match(page, /filter\(\(label\) => showReason \|\| label !== "Причина"\)/);
   assert.match(page, /COLS_PENDING_NO_REASON = "xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1fr\)_220px_104px_40px\]"/);
   assert.match(page, /COLS_DECIDED_NO_REASON = "xl:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,1\.3fr\)_minmax\(0,1\.1fr\)_104px_40px\]"/);
   assert.equal((page.match(/\{showReason && <div/g) || []).length, 2, "both cells follow the column");
-  assert.ok(page.indexOf("<OneOffDecisionsBlock") < page.indexOf('<section className={!loading && !loadError && items.length > 0'), "the decisions are over the section of the requests");
+  assert.ok(page.indexOf("<OneOffDecisionsBlock") < page.indexOf('<section className={!loading && !loadError && tableRows.length > 0'), "the decisions are over the section of the requests");
 });

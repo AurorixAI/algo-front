@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "dry_run": true,
+  "changed": true,
+  "from": "unconfirmed",
+  "to": "centre",
+  "students": 9,
+  "per_student": 50000,
+  "total": 450000,
+  "deductions": [
+    {
+      "studentId": "0d43243c-5837-5791-a28c-2e70c57c8cfb",
+      "amount": 50000,
+      "name": "Ученик2 Тест"
+    },
+    {
+      "studentId": "152b7b7f-2799-50a7-b489-39b67924ee89",
+      "amount": 50000,
+      "name": "Ученик7 Тест"
+    },
+    {
+      "studentId": "4e1fa437-3585-5277-8579-4a9e8e4d53c4",
+      "amount": 50000,
+      "name": "Ученик9 Тест"
+    },
+    {
+      "studentId": "66de509e-6d61-5165-8662-714d8f06db51",
+      "amount": 50000,
+      "name": "Ученик8 Тест"
+    },
+    {
+      "studentId": "700cd71a-8a42-51c6-825b-1750cfcf34b5",
+      "amount": 50000,
+      "name": "Ученик5 Тест"
+    },
+    {
+      "studentId": "a77166ae-49f1-5117-ab2d-55c7b3b40408",
+      "amount": 50000,
+      "name": "Ученик3 Тест"
+    },
+    {
+      "studentId": "b903d77c-921f-5b93-aaa5-d7f071e9828d",
+      "amount": 50000,
+      "name": "Ученик4 Тест"
+    },
+    {
+      "studentId": "c7818186-460d-554c-b110-603451b7e2f3",
+      "amount": 50000,
+      "name": "Ученик6 Тест"
+    },
+    {
+      "studentId": "db0c8802-5334-5bad-a523-82e1c43ddec4",
+      "amount": 50000,
+      "name": "Ученик1 Тест"
+    }
+  ],
+  "recalc_off": false,
+  "restore_allowed": true,
+  "age_days": 3,
+  "window_days": 14,
+  "teacher_can_mark": true
+}

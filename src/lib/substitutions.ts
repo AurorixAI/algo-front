@@ -10,6 +10,7 @@ import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { pluralRu } from "./plural";
+import { isRequestRow } from "./list-rows";
 import { reasonProblemFor, type ReasonKind } from "./reason-rules";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
@@ -34,6 +35,7 @@ import type {
   SubstitutionCandidate,
   SubstitutionItem,
   SubstitutionListParams,
+  SubstitutionListRow,
   SubstitutionMovedTo,
   SubstitutionOutcome,
   SubstitutionReasonCode,
@@ -505,17 +507,24 @@ export const RECENT_DAYS = 14;
 export function recentRequests(items: SubstitutionItem[], nowMs: number): SubstitutionItem[] {
   const decidedAt = (item: SubstitutionItem) => parseUtcNaive(item.decision?.at ?? item.createdAt)?.getTime() ?? 0;
   const limit = nowMs - RECENT_DAYS * 86_400_000;
+  // LESSON-RULES: a cancellation that waits for the owner is a waiting row too (the teacher may take it back), the nearest lesson first
+  const waiting = (item: SubstitutionItem) => item.status === "pending" || item.outcome === "cancel_waiting";
   const pending = items
-    .filter((item) => item.status === "pending")
+    .filter(waiting)
     .sort((a, b) => (startsAtMsOf(a) ?? 0) - (startsAtMsOf(b) ?? 0));
   const decided = items
-    .filter((item) => item.status !== "pending" && decidedAt(item) >= limit)
+    .filter((item) => !waiting(item) && decidedAt(item) >= limit)
     .sort((a, b) => decidedAt(b) - decidedAt(a));
   return [...pending, ...decided];
 }
 
 export const ASSIGNED_TITLE = "Вам назначена замена";
-export const MY_REQUESTS_TITLE = "Запросы на замену";
+export const MY_REQUESTS_TITLE = "Запросы и изменения уроков";
+
+/** «пн, 23.11 · Математика 7» - the lesson of a row of the block «Запросы и изменения уроков» (the day and the group; the hour is in the lesson itself). */
+export function myRequestLine(item: Pick<SubstitutionItem, "group" | "lesson">): string {
+  return `${dayAndDateLabel(item.lesson.date)} · ${item.group.name}`;
+}
 export const NEW_REQUEST_LINK = "Новый запрос";
 
 export { declineShortName, genitiveShortName, type NameCase } from "./name-case";
@@ -649,6 +658,7 @@ export function listQuery(params: SubstitutionListParams): string {
   if (params.urgent) query.set("urgent", "true");
   const search = (params.search ?? "").trim();
   if (search) query.set("search", search);
+  if (params.backdatedOnly) query.set("backdated_only", "true");
   query.set("limit", String(params.limit ?? PAGE_SIZE));
   query.set("offset", String(params.offset ?? 0));
   return query.toString();
@@ -661,9 +671,9 @@ export const PAGE_HINT = "Запросы преподавателей и все 
 export const DECIDED_EMPTY_HINT = "Здесь появятся события за последние 30 дней.";
 export const LOAD_ERROR_TEXT = "Не удалось загрузить запросы. Повторите попытку.";
 
-/** «Ждут решения (3)» / «Решённые». */
+/** «Ждут решения (3)» / «История» (LESSON-RULES: the tab «Решённые» is the history of the journal). */
 export function tabLabel(tab: "pending" | "decided", pendingTotal: number): string {
-  return tab === "pending" ? `Ждут решения (${pendingTotal})` : "Решённые";
+  return tab === "pending" ? `Ждут решения (${pendingTotal})` : "История";
 }
 
 /** «В запросе ещё 2 урока» for the other requests of the batch on screen. */
@@ -681,13 +691,13 @@ export function moreLessonsText(count: number): string {
  * left the open tab leaves the list, and the counter of the tab follows.
  */
 export function applyFreshItem(
-  state: { items: SubstitutionItem[]; total: number; pendingTotal: number },
+  state: { items: SubstitutionListRow[]; total: number; pendingTotal: number },
   fresh: SubstitutionItem,
   tab: "pending" | "decided",
-): { items: SubstitutionItem[]; total: number; pendingTotal: number } {
-  const index = state.items.findIndex((item) => item.id === fresh.id);
+): { items: SubstitutionListRow[]; total: number; pendingTotal: number } {
+  const index = state.items.findIndex((item) => item.id === fresh.id && isRequestRow(item));
   if (index < 0) return state;
-  const was = state.items[index];
+  const was = state.items[index] as SubstitutionItem;
   const pendingTotal = was.status === "pending" && fresh.status !== "pending" ? Math.max(0, state.pendingTotal - 1) : state.pendingTotal;
   const leaves = tab === "pending" ? fresh.status !== "pending" : false;
   if (leaves) {

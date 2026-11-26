@@ -1,0 +1,63 @@
+{
+  "items": [
+    {
+      "source": "audit",
+      "id": "24c674cb-d63e-4c14-adfd-7480cc1d4a54",
+      "kind": "backdated",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г"
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-25"
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": null
+      },
+      "by": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "lateDays": 1,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 1 день позже даты урока"
+    },
+    {
+      "source": "audit",
+      "id": "c75ee08e-576d-404c-a4a6-264cc2cf79d2",
+      "kind": "corrected",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г"
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-25"
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": null
+      },
+      "by": {
+        "id": "0b7217ee-ea5d-5569-9e3c-9b83aa10dfb6",
+        "name": "Усманов У.",
+        "role": "owner"
+      },
+      "lateDays": 1,
+      "reason": "Ошибся",
+      "text": "Отметки исправлены: Ошибся"
+    }
+  ],
+  "total": 2,
+  "pendingTotal": 0,
+  "urgentTotal": 0,
+  "expiringTotal": 0,
+  "unconfirmedTotal": 1
+}

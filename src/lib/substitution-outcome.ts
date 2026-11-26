@@ -48,6 +48,11 @@ export const OUTCOME_CHIP: Record<SubstitutionOutcomeCode, { text: string; tone:
   kind_changed: { text: "Вид отмены изменён", tone: "muted" },
   one_off_added: { text: "Разовый урок", tone: "muted" },
   closed: { text: "Запрос закрыт", tone: "muted" },
+  // LESSON-RULES: what became of «Урока не было» of a past lesson
+  cancel_waiting: { text: "Отмена ждёт подтверждения", tone: "warn" },
+  cancelled_centre: { text: "Отменён: по вине центра", tone: "muted" },
+  cancelled_holiday: { text: "Отменён: праздник", tone: "muted" },
+  included_in_payroll: { text: "Включён в зарплату", tone: "ok" },
 };
 
 export const OUTCOME_CODES = Object.keys(OUTCOME_CHIP) as SubstitutionOutcomeCode[];
@@ -67,7 +72,7 @@ function isKnownCode(code: unknown): code is SubstitutionOutcomeCode {
  * (a new server code never shows as an empty chip; the test on every code is in `p157-substitutions-front.test.cjs`, LESSONS 46).
  * «Выходной отменён» is yellow only when the server says a decision is needed (`item.needsDecision`) and the lesson is still ahead.
  */
-export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision" | "needsDecision">, audience: Audience, nowMs: number = Date.now()): OutcomeView {
+export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision" | "needsDecision"> & Partial<Pick<SubstitutionItem, "teacherCanMark">>, audience: Audience, nowMs: number = Date.now()): OutcomeView {
   const code: SubstitutionOutcomeCode = isKnownCode(item.outcome) ? item.outcome : "closed";
   const chip = OUTCOME_CHIP[code];
   let text = chip.text;
@@ -75,6 +80,10 @@ export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "d
   if (audience === "teacher") {
     const substitute = (item.decision?.substitute?.name ?? "").trim();
     text = code === "substituted" && substitute ? `Замена: ${substitute}` : TEACHER_TEXT[code] ?? text;
+  }
+  // LESSON-RULES: a lesson that was given back waits for the marks of its teacher - or, older than the window of the centre, for the administrator (the server says which: `teacherCanMark`)
+  if (audience === "teacher" && code === "lesson_restored" && typeof item.teacherCanMark === "boolean") {
+    return item.teacherCanMark ? { code, text: "Урок был — отметьте посещаемость", tone: "warn" } : { code, text: "Урок был — отметит администратор", tone: "muted" };
   }
   if (code === "day_off_voided") {
     // yellow only when a decision is needed (the server says it) and the lesson is still ahead
@@ -130,10 +139,13 @@ export const NO_REQUEST_BADGE = "без запроса";
 /** A request the system reopened (the substitute left, the day off was voided, ...): «открыт заново». */
 export const REOPENED_BADGE = "открыт заново";
 
-/** The quiet badge of a row: «без запроса» (an action of an administrator or a teacher), «открыт заново» (reopened by the system); null for a request of a teacher. */
+/**
+ * The quiet badge of a row: «открыт заново» (reopened by the system); null for a request of a teacher.  LESSON-RULES: the chip «без запроса» is gone - the history says WHAT happened in its one chip
+ * («Отменён: по вине центра», «Замена назначена», …), and that nobody asked is not a fact the owner needs in every row.
+ */
 export function originBadge(item: Pick<SubstitutionItem, "origin" | "trigger">): string | null {
   if (item.origin !== "system") return null;
-  return item.trigger ? NO_REQUEST_BADGE : REOPENED_BADGE;
+  return item.trigger ? null : REOPENED_BADGE;
 }
 
 /** The reason as a short label - for a request of a teacher only («Болезнь», «Личное», «Другое»); a record without a request has no reason. */

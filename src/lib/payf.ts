@@ -42,7 +42,10 @@ export function forecastText(row: Pick<MembershipPaymentRow, "period_mode" | "le
 
 // ── 3. The kind of a cancellation and the deduction ─────────────────────────
 
+/** What a PERSON may send (a body of a request): the server refuses `unconfirmed` with 422 - it writes it itself. */
 export type CancellationKind = "centre" | "holiday";
+/** What the SERVER answers (lists, panels, journal): `unconfirmed` = «ждёт подтверждения» (a past lesson cancelled by a role without the money right; LESSON-RULES). */
+export type StoredCancellationKind = CancellationKind | "unconfirmed";
 
 /** The question over the two ways to cancel (UX pack №5): who bears the cost of the lesson that did not take place. */
 export const CANCELLATION_KIND_LEGEND = "Вид отмены";

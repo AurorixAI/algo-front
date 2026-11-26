@@ -8,9 +8,10 @@ import { Chip } from "@/components/ui/chip";
 import { substitutionsApi } from "@/lib/api";
 import { groupHref, teacherHref, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
+import { teacherWordsOf } from "@/lib/lesson-rules";
 import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, movedToLabel, reasonLabelOf, substitutionErrorText } from "@/lib/substitutions";
 import { DeadlineBadge } from "@/components/substitutions/journal-cells";
-import { outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcome";
+import { eventMoment, outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcome";
 import { TRUNCATED_TEXT, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
 import { canDecideInPanel, panelView } from "@/lib/substitution-panel-state";
 import type { SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
@@ -38,12 +39,14 @@ export function PanelFacts({ item }: { item: SubstitutionItem }) {
   const moved = item.status === "rescheduled" && item.decision?.movedTo ? movedToLabel(item.decision.movedTo) : null;
   const reason = item.origin === "system" ? "" : [item.reasonLabel || reasonLabelOf(item.reasonCode), (item.comment ?? "").trim() ? `«${(item.comment ?? "").trim()}»` : ""].filter(Boolean).join(" — ");
   const note = item.status === "substituted" ? (item.decision?.note ?? "").trim() : "";
+  const words = reason ? "" : teacherWordsOf(item) ?? "";
   return (
     <dl data-testid="panel-facts" className="space-y-1.5">
       <Fact label={item.origin === "system" ? "Преподаватель" : "Кто не может"}>{item.teacher.name}</Fact>
       {substitute && <Fact label="Замена">{substitute}</Fact>}
       {moved && <Fact label="Новое время">{moved}</Fact>}
       {reason && <Fact label="Причина">{reason}</Fact>}
+      {words && <Fact label="Причина">{words}</Fact>}
       {note && <Fact label="Комментарий">{note}</Fact>}
     </dl>
   );
@@ -187,6 +190,10 @@ export function SubstitutionPanel({
           </div>
         ) : null}
         {item && <PanelFacts item={item} />}
+        {/* LESSON-RULES: who confirmed a waiting cancellation and when (the manager's eyes: the server sends it to nobody else) */}
+        {item && audience === "manager" && item.confirmedBy?.name && (
+          <p data-testid="panel-confirmed" className="text-sm text-slate-800">Подтвердил {item.confirmedBy.name} {eventMoment(item.confirmedAt)}</p>
+        )}
         {error ? (
           <div role="alert" data-testid="panel-error" className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3">
             <p className="text-sm font-medium text-rose-800">{error}</p>

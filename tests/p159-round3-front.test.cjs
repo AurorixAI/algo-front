@@ -140,8 +140,8 @@ test("M2 tail: the page holds the mark; the block, the tab and the badge read it
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /const \[moneyLostFor, setMoneyLostFor\] = useState<\{ profile: unknown \} \| null>\(null\);/);
   assert.match(page, /const moneyRightLost = moneyRightLostFor\(moneyLostFor, user\);/);
-  assert.match(page, /const waitingCount = waitingCountFor\(user, pendingTotal, decisions\.total, moneyRightLost\);/);
-  assert.match(page, /waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current, moneyRightLostRef\.current\)/, "the badge set from the list: the same rule");
+  assert.match(page, /const waitingCount = waitingCountFor\(user, pendingTotal, decisions\.total \+ unconfirmedTotal, moneyRightLost\);/);
+  assert.match(page, /waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current \+ \(data\.unconfirmedTotal \?\? 0\), moneyRightLostRef\.current\)/, "the badge set from the list: the same rule");
   assert.match(page, /rightLost=\{moneyRightLost\}/);
   assert.match(page, /onRightLost=\{\(\) => setMoneyLostFor\(\{ profile: user \}\)\}/);
   assert.match(page, /setWaiting\(waitingCount\)/, "the badge of the menu follows the counter of the tab");

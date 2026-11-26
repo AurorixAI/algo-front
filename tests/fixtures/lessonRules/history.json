@@ -1,0 +1,130 @@
+{
+  "items": [
+    {
+      "id": "94a13288-1617-402c-99b1-8cefaf9d5375",
+      "batchId": "5664db03-d189-42ca-9153-3e16a9b40319",
+      "status": "cancelled",
+      "origin": "system",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-18",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-18T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "reasonCode": "other",
+      "reasonLabel": "Другое",
+      "comment": null,
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": -11640,
+      "urgent": false,
+      "overdue": false,
+      "decision": {
+        "kind": "cancel",
+        "by": {
+          "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+          "name": "Иванов И.",
+          "role": "teacher"
+        },
+        "at": "2026-11-26T07:00:00",
+        "via": "teacher_cancel",
+        "note": "Урока не было",
+        "substitute": null,
+        "movedTo": null,
+        "closedReason": null,
+        "closedReasonText": null
+      },
+      "previous": null,
+      "trigger": "teacher_cancel",
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "cancelled_centre",
+      "lastActivityAt": "2026-11-26T07:00:00.000002",
+      "needsDecision": false,
+      "confirmedBy": {
+        "id": "0b7217ee-ea5d-5569-9e3c-9b83aa10dfb6",
+        "name": "Усманов У.",
+        "role": "owner"
+      },
+      "confirmedAt": "2026-11-26T07:00:00.000002",
+      "waitingDays": null,
+      "teacherCanMark": null,
+      "closedTrigger": null
+    },
+    {
+      "source": "audit",
+      "id": "24c674cb-d63e-4c14-adfd-7480cc1d4a54",
+      "kind": "backdated",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г"
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-25"
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": null
+      },
+      "by": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "lateDays": 1,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 1 день позже даты урока"
+    },
+    {
+      "source": "audit",
+      "id": "c75ee08e-576d-404c-a4a6-264cc2cf79d2",
+      "kind": "corrected",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г"
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-25"
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": null
+      },
+      "by": {
+        "id": "0b7217ee-ea5d-5569-9e3c-9b83aa10dfb6",
+        "name": "Усманов У.",
+        "role": "owner"
+      },
+      "lateDays": 1,
+      "reason": "Ошибся",
+      "text": "Отметки исправлены: Ошибся"
+    }
+  ],
+  "total": 3,
+  "pendingTotal": 0,
+  "urgentTotal": 0,
+  "expiringTotal": 0,
+  "unconfirmedTotal": 1
+}

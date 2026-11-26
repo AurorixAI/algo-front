@@ -687,3 +687,12 @@ test("every tests/dom-paytails-*.test.cjs is named in the script test:display", 
   const missing = files.filter((f) => !script.split(/\s+/).includes(`tests/${f}`));
   assert.deepEqual(missing, []);
 });
+
+// LESSON-RULES: every screen test of the package is in the run of `test:display`
+test("every tests/dom-lesson-rules-*.test.cjs is named in the script test:display", () => {
+  const script = JSON.parse(read("package.json")).scripts["test:display"];
+  const files = fs.readdirSync(path.join(root, "tests")).filter((f) => /^dom-lesson-rules-.*\.test\.cjs$/.test(f));
+  assert.ok(files.length > 0);
+  const missing = files.filter((f) => !script.split(/\s+/).includes(`tests/${f}`));
+  assert.deepEqual(missing, []);
+});

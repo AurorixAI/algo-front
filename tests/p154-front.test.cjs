@@ -321,7 +321,7 @@ test("A: the counter of the tab and of the menu is the requests plus the lessons
   assert.match(page, /tabLabel\("pending", listedCount\)/);
   assert.match(page, /<OneOffDecisionsBlock/);
   assert.match(page, /oneOffDecisionsTotal: decisionsTotalRef\.current/);
-  assert.match(page, /decisionsOnly \? null : <EmptyState/, "the empty text is not said while rows of money wait");
+  assert.match(page, /decisionsOnly \|\| blockWaiting\.length > 0 \? null : .*<EmptyState/, "the empty text is not said while rows of money wait");
 });
 
 test("A: the filter and the search of the page narrow the rows of money", () => {

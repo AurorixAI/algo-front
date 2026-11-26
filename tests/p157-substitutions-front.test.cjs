@@ -37,7 +37,7 @@ const item = (over = {}) => ({
   decision: { kind: "substitute", by: person("Тестов О.", "owner"), at: "2026-10-28T07:17:00", substitute: person("Петров Б.", "teacher"), via: "request" }, ...over,
 });
 
-// ── the 25 codes ────────────────────────────────────────────────────────────────────────────────────────────
+// ── the 29 codes (the 25 of #157 + the four of LESSON-RULES: the words of the cancellations of a past lesson) ────────────────────────────────────────────────────────────────────────────────────────────
 
 const EXPECTED = {
   pending: ["Ждёт решения", "warn"],
@@ -65,10 +65,15 @@ const EXPECTED = {
   kind_changed: ["Вид отмены изменён", "muted"],
   one_off_added: ["Разовый урок", "muted"],
   closed: ["Запрос закрыт", "muted"],
+  // LESSON-RULES (26.11): what became of «Урока не было» of a past lesson; the server says which (`outcome`)
+  cancel_waiting: ["Отмена ждёт подтверждения", "warn"],
+  cancelled_centre: ["Отменён: по вине центра", "muted"],
+  cancelled_holiday: ["Отменён: праздник", "muted"],
+  included_in_payroll: ["Включён в зарплату", "ok"],
 };
 
-test("#157: every one of the 25 codes of the server has its chip and its colour (LESSONS 46: a test on each code)", () => {
-  assert.equal(Object.keys(EXPECTED).length, 25);
+test("#157: every one of the 29 codes of the server has its chip and its colour (LESSONS 46: a test on each code)", () => {
+  assert.equal(Object.keys(EXPECTED).length, 29);
   assert.deepEqual(O.OUTCOME_CODES.slice().sort(), Object.keys(EXPECTED).sort(), "the table of the front is the table of the contract");
   const past = item({ lesson: { ...item().lesson, date: "2026-10-20" } });
   for (const [code, [label, tone]] of Object.entries(EXPECTED)) {
@@ -132,7 +137,7 @@ test("#157 row: «Кто → кто» left, the badge is quiet, the reason is a 
   const owner = item();
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: owner }))), "|Иванов А.|→ |Петров Б.|");
   const direct = item({ origin: "system", trigger: "manager_assign" });
-  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: direct }))), "|Иванов А.|без запроса|→ |Петров Б.|");
+  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: direct }))), "|Иванов А.|→ |Петров Б.|");
   const moved = item({ status: "rescheduled", outcome: "rescheduled", decision: { kind: "reschedule", movedTo: { date: "2026-10-29", startTime: "16:00", endTime: "17:00" } } });
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: moved }))), "|Иванов А.|→ |чт, 29.10, 16:00|");
   const cancelled = item({ status: "cancelled", outcome: "cancelled", decision: { kind: "cancel", by: person("Тестов О.", "owner") } });
@@ -163,7 +168,7 @@ test("#157 row: «Кто → кто» left, the badge is quiet, the reason is a 
 test("#157 page: the wide table is «Урок · Кто → кто · Причина · Итог · Когда · ›», left aligned; «Выбрать все · N» is the first row; the old cells and their texts are gone", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /\["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""\]/);
-  assert.match(page, /Выбрать все · \{items\.length\}/);
+  assert.match(page, /Выбрать все · \{requests\.length\}/);
   assert.match(page, /text-base[^"]*sm:text-sm/, "the search is 16 px on a phone (no zoom of iOS Safari)");
   assert.match(page, /data-testid="filter-chip"/);
   assert.doesNotMatch(page, /OriginLine|DecisionCell|substitution-group-link|substitution-teacher-link|>Открыть урок</, "the group, the teacher and «Открыть урок» moved into the panel");

@@ -121,8 +121,18 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       const where = movedLabelOf(snapshot.movedTo);
       return { title: where ? `Урок перенесён на ${where}` : "Урок перенесён", details: [reason].filter(Boolean) };
     }
-    case "cancelled":
-      return { title: isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kindLabel(snapshot.cancellationKind) ?? ""].filter(Boolean) };
+    case "cancelled": {
+      // LESSON-RULES: the teacher of a PAST lesson reports it, the owner confirms - the history says what was reported (a lesson that is not yet decided has no kind to name)
+      const reported = isTeacherCancel(record) && (record.outcome === "cancel_waiting" || record.outcome === "cancelled_centre" || record.outcome === "cancelled_holiday");
+      const kind = record.outcome === "cancel_waiting" ? null : kindLabel(snapshot.cancellationKind);
+      return { title: reported ? "Преподаватель сообщил, что урока не было" : isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kind ?? ""].filter(Boolean) };
+    }
+    case "confirmed": {
+      // LESSON-RULES: the owner (or the administrator with the money right) decided a waiting cancellation: one event on the record of the cancellation
+      const change = snapshot.cancellationKind && typeof snapshot.cancellationKind === "object" ? snapshot.cancellationKind as { to?: unknown } : null;
+      const now = kindLabel(change?.to);
+      return { title: now ? `Отмена подтверждена: ${now}` : "Отмена подтверждена", details: [reason].filter(Boolean) };
+    }
     case "rejected":
       return { title: "Запрос отклонён", details: [reason].filter(Boolean) };
     case "withdrawn":

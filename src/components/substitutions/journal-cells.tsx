@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { ChevronRight, MessageSquare, AlertTriangle, UserCheck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
+import { TAP_ZONE } from "@/lib/tap-zone";
 import { Hint } from "@/components/ui/hint";
 import type { ChipTone } from "@/lib/chip-tone";
 import { dayAndDateLabel } from "@/lib/ops-errors";
 import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, suggestedLine, type DeadlineTone } from "@/lib/substitutions";
 import { lastActivityLabel, originBadge, outcomeOf, peopleOf, reasonShort, systemReasonOf, type Audience } from "@/lib/substitution-outcome";
 import type { SubstitutionItem } from "@/lib/substitution-types";
+import { teacherWordsOf } from "@/lib/lesson-rules";
+import { ReasonWords } from "@/components/substitutions/history-rows";
 
 /** The cells of a row of «Замены» (#157): the lesson, who -> whom, the reason, the result, when, «Подробнее».  The same cells for the wide table and for the card of a phone. */
 
@@ -38,7 +41,7 @@ export function LessonCell({ item, href }: { item: SubstitutionItem; href: strin
     );
   }
   return (
-    <Link href={href} data-testid="substitution-lesson-link" aria-label={`Открыть урок: ${lessonLabel(item)}`} className="block min-w-0 rounded-md text-left hover:[&>span:first-child]:text-primary-700 hover:[&>span:first-child]:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+    <Link href={href} data-testid="substitution-lesson-link" aria-label={`Открыть урок: ${lessonLabel(item)}`} data-touch-zone="" className={`block min-w-0 rounded-md text-left ${TAP_ZONE} hover:[&>span:first-child]:text-primary-700 hover:[&>span:first-child]:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}>
       {body}
     </Link>
   );
@@ -85,7 +88,7 @@ function NoteMark({ text, icon: Icon, tone = "grey", testId }: { text: string; i
  */
 /** Has the row a reason to show (the cell would not be empty)?  A column that is empty in every row is not drawn (UX pack №16). */
 export function hasReason(item: SubstitutionItem): boolean {
-  return Boolean(systemReasonOf(item)?.label ?? reasonShort(item));
+  return Boolean(systemReasonOf(item)?.label ?? reasonShort(item) ?? teacherWordsOf(item));
 }
 
 export function ReasonCell({ item, withComment = false }: { item: SubstitutionItem; withComment?: boolean }) {
@@ -94,6 +97,9 @@ export function ReasonCell({ item, withComment = false }: { item: SubstitutionIt
   const comment = (item.comment ?? "").trim();
   const suggested = withComment && !system ? suggestedLine(item) : null;
   const inactive = item.suggestedTeacher?.active === false;
+  // LESSON-RULES: «Урока не было» of a teacher - his own words, not a chip (the chips are the reasons of requests)
+  const words = !label ? teacherWordsOf(item) : null;
+  if (words) return <ReasonWords text={words} />;
   if (!label) return null;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-left">

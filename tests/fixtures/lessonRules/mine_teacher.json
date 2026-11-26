@@ -1,0 +1,133 @@
+{
+  "items": [
+    {
+      "id": "0c15283f-38ed-4d4e-8f02-522f3b3990bd",
+      "batchId": "bbab1e0e-aa48-4509-9b67-d1ef0836854d",
+      "status": "cancelled",
+      "origin": "system",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-mon",
+        "date": "2026-11-23",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-23T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "reasonCode": "other",
+      "reasonLabel": "Другое",
+      "comment": null,
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": -4440,
+      "urgent": false,
+      "overdue": false,
+      "decision": {
+        "kind": "cancel",
+        "by": {
+          "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+          "name": "Иванов И.",
+          "role": "teacher"
+        },
+        "at": "2026-11-26T07:00:00",
+        "via": "teacher_cancel",
+        "note": "Урока не было",
+        "substitute": null,
+        "movedTo": null,
+        "closedReason": null,
+        "closedReasonText": null
+      },
+      "previous": null,
+      "trigger": "teacher_cancel",
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "cancel_waiting",
+      "lastActivityAt": "2026-11-26T07:00:00.000001",
+      "needsDecision": false,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "waitingDays": 0,
+      "teacherCanMark": null,
+      "closedTrigger": null
+    },
+    {
+      "id": "94a13288-1617-402c-99b1-8cefaf9d5375",
+      "batchId": "5664db03-d189-42ca-9153-3e16a9b40319",
+      "status": "cancelled",
+      "origin": "system",
+      "group": {
+        "id": "c6807972-288b-5835-8273-e751a95f556d",
+        "name": "Г",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-18",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-18T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+        "name": "Иванов И.",
+        "role": "teacher"
+      },
+      "reasonCode": "other",
+      "reasonLabel": "Другое",
+      "comment": null,
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": -11640,
+      "urgent": false,
+      "overdue": false,
+      "decision": {
+        "kind": "cancel",
+        "by": {
+          "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
+          "name": "Иванов И.",
+          "role": "teacher"
+        },
+        "at": "2026-11-26T07:00:00",
+        "via": "teacher_cancel",
+        "note": "Урока не было",
+        "substitute": null,
+        "movedTo": null,
+        "closedReason": null,
+        "closedReasonText": null
+      },
+      "previous": null,
+      "trigger": "teacher_cancel",
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "cancelled_centre",
+      "lastActivityAt": "2026-11-26T07:00:00.000002",
+      "needsDecision": false,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "waitingDays": null,
+      "teacherCanMark": null,
+      "closedTrigger": null
+    }
+  ],
+  "pendingTotal": 0,
+  "assignedToMe": [],
+  "clearedForMe": []
+}

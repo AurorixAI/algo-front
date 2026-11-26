@@ -4,6 +4,7 @@ import { encodePathId } from "./encode-id";
 import { errorMessageOf, parseErrorBody, readErrorBody } from "./error-body";
 import { recordClientError, resetClientErrors, type SupportCard, type SupportCreateBody, type SupportCreated, type SupportFileInfo, type SupportItem } from "./support";
 import { listQuery } from "./substitutions";
+import type { LessonRulesOut, WaitingPreview as ChangeKindPreview } from "./lesson-rules";
 import { serviceApiV1 } from "./api-base";
 import type {
   CandidatesOut,
@@ -32,7 +33,7 @@ import type {
 } from "./substitution-types";
 import { normalizeDecided, type LessonPurposeFields, type MakeupCandidates, type MoneyDecisionOut, type OneOffDecision, type OneOffDecisionAction, type OneOffDecisionsOut, type OneOffMoney } from "./one-off";
 import { loginUrlForPage } from "./safe-redirect";
-import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
+import type { CancellationKind, StoredCancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
   EnrolPriceOverride,
@@ -1030,7 +1031,7 @@ export interface GroupAttendance {
   statuses?: Record<string, LessonAttendanceStatus>; // instance_key -> status
   cancellationReasons?: Record<string, string>; // instance_key -> teacher-provided reason
   /** PAY-F: instance_key -> `centre` | `holiday` | `day_off` (cancelled by a day off of the centre); a cancellation without a kind (old / a move) is absent. */
-  cancellationKinds?: Record<string, string>;
+  cancellationKinds?: Record<string, StoredCancellationKind>;
   /** Roster frozen when the concrete lesson was started. */
   rosterStudentIds?: Record<string, string[]>;
   /** Transferred-out students with attendance in the selected period. */
@@ -1086,6 +1087,8 @@ export interface OpenAttendanceAction {
   /** LOGIC-B (decision 7): the lesson is older than 7 days and only an administrator or the owner closes it. */
   requiresAdmin?: boolean;
   ageDays?: number;
+  /** LESSON-RULES: the window of the centre in days (how long the teacher closes a lesson himself): the screen says THIS number, it keeps no copy of it. */
+  windowDays?: number;
   isSubstitution?: boolean;
 }
 
@@ -1742,7 +1745,7 @@ export const orgApi = {
     api<{ consequence: string }>(`/auth/org/groups/${encodePathId(groupId)}/lessons/cancel-consequence?${new URLSearchParams(params).toString()}`, { signal }),
 
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
-  restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean }, signal?: AbortSignal) =>
+  restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean; expectedKind?: StoredCancellationKind }, signal?: AbortSignal) =>
     api<RestoreLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/lessons/restore`, { method: "POST", body, signal }),
 
   /** Money-1 A2: «Вернуть урок» of a HELD lesson (completed -> not held); `dryRun`: only what it does to money.  Owner / administrator with the money right. */
@@ -1758,8 +1761,25 @@ export const orgApi = {
   createDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo" | "reason">) =>
     api<DayOffApplied>("/auth/org/days-off", { method: "POST", body }),
   applyDayOff: (id: string) => api<DayOffApplied>(`/auth/org/days-off/${encodePathId(id)}/apply`, { method: "POST" }),
-  changeCancellationKind: (groupId: string, body: { lessonDate: string; lessonId: string; cancellationKind: CancellationKind; reason: string }) =>
-    api<{ ok: boolean; changed: boolean; cancellationKind: CancellationKind; version: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/cancellation-kind`, { method: "PUT", body }),
+  /**
+   * `PUT …/attendance/cancellation-kind`: the kind of a cancellation changes (the money right).  LESSON-RULES: a WAITING cancellation (`unconfirmed`) is confirmed with `expectedKind: "unconfirmed"` and no reason;
+   * another kind on the server answers 409 `ALREADY_DECIDED` (who, when).  `dryRun` writes nothing and answers the numbers of the confirmation (`ChangeKindPreview`).
+   */
+  changeCancellationKind: (
+    groupId: string,
+    body: { lessonDate: string; lessonId: string; cancellationKind: CancellationKind; reason?: string; expectedKind?: StoredCancellationKind },
+    options: { dryRun?: boolean; signal?: AbortSignal } = {},
+  ) =>
+    api<{ ok: boolean; changed: boolean; cancellationKind: CancellationKind; version: number } & Partial<ChangeKindPreview>>(
+      `/auth/org/groups/${encodePathId(groupId)}/attendance/cancellation-kind${options.dryRun ? "?dry_run=true" : ""}`, { method: "PUT", body, signal: options.signal }),
+  /** LESSON-RULES: the teacher takes back HIS OWN waiting cancellation (inside the window of the centre): the lesson is «без отметки» again. */
+  withdrawOwnCancellation: (groupId: string, body: { lessonId: string; lessonDate: string; expectedKind?: StoredCancellationKind }) =>
+    api<{ ok: boolean; restored: boolean; lessonId: string; lessonDate: string; previousKind?: StoredCancellationKind | null; returnedToReview?: boolean }>(
+      `/auth/org/groups/${encodePathId(groupId)}/lessons/withdraw-cancellation`, { method: "POST", body }),
+  /** LESSON-RULES С0: the rules of the lessons of the centre (the owner's alone) - the value, the default, the allowed values and the words of each. */
+  getLessonRules: () => api<LessonRulesOut>("/auth/org/settings/lessons"),
+  putLessonRules: (body: { teacher_lesson_window_days?: number; past_cancel_needs_confirmation?: boolean }) =>
+    api<LessonRulesOut>("/auth/org/settings/lessons", { method: "PUT", body }),
   listDaysOff: () => api<DayOffOut[]>("/auth/org/days-off"),
   dayOffForDate: (date: string) => api<DayOffForDate>(`/auth/org/days-off/for-date?date=${encodeURIComponent(date)}`),
   voidDayOff: (id: string, dryRun = false) =>
