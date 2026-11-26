@@ -11,6 +11,6 @@
   "recalc_off": false,
   "restore_allowed": true,
   "age_days": 3,
-  "window_days": 14,
+  "window_days": 7,
   "teacher_can_mark": true
 }

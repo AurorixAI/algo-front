@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "cancelled": true,
+  "version": 1,
+  "warnings": [],
+  "dryRun": false,
+  "waiting": true,
+  "consequence": "Отмену подтвердит администратор. За отменённый урок оплаты нет."
+}

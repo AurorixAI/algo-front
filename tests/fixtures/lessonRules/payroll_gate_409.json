@@ -1,0 +1,27 @@
+{
+  "detail": {
+    "code": "UNCONFIRMED_CANCELLATIONS",
+    "message": "Отмен уроков, которые ждут подтверждения владельца: 2. Решите их в «Замены → Ждут решения», затем сохраните зарплату",
+    "count": 2,
+    "items": [
+      {
+        "lessonDate": "2026-11-18",
+        "groupId": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "groupName": "Математика 7",
+        "lessonId": "lesson-wed",
+        "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "ageDays": 14
+      },
+      {
+        "lessonDate": "2026-11-23",
+        "groupId": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "groupName": "Математика 7",
+        "lessonId": "lesson-mon",
+        "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "ageDays": 9
+      }
+    ],
+    "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+    "month": "2026-11"
+  }
+}

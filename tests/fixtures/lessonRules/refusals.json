@@ -1,68 +1,54 @@
 {
+  "withdraw_too_old": {
+    "detail": {
+      "code": "LESSON_TOO_OLD",
+      "message": "Урок старше 7 дн. — его закрывает администратор или владелец.",
+      "windowDays": 7
+    }
+  },
+  "withdraw_not_yours": {
+    "detail": {
+      "code": "NOT_YOUR_CANCELLATION",
+      "message": "Эту отмену оформили не вы: вернуть урок на отметку может владелец или администратор"
+    }
+  },
   "already_decided": {
     "detail": {
       "code": "ALREADY_DECIDED",
-      "message": "Отмену подтвердил Улугбек Усманов (владелец) в 12:00: по вине центра.",
+      "message": "Отмену подтвердил Рустам Валиев (владелец) в 12:00: по вине центра.",
       "kind": "centre",
-      "decided_by_name": "Улугбек Усманов",
+      "decided_by_name": "Рустам Валиев",
       "decided_by_role": "owner",
       "decided_at": "2026-11-26T07:00:00+00:00",
       "outcome": "kind_changed"
     }
   },
-  "attendance_conflict": {
-    "detail": {
-      "code": "ATTENDANCE_CONFLICT",
-      "message": "Отметки изменены: Усманов У., 12:00",
-      "currentVersion": 3,
-      "updatedBy": {
-        "id": "0b7217ee-ea5d-5569-9e3c-9b83aa10dfb6",
-        "name": "Усманов У."
-      },
-      "updatedAt": "2026-11-26T07:00:00",
-      "records": {
-        "0d43243c-5837-5791-a28c-2e70c57c8cfb": "present",
-        "152b7b7f-2799-50a7-b489-39b67924ee89": "absent",
-        "4e1fa437-3585-5277-8579-4a9e8e4d53c4": "absent",
-        "66de509e-6d61-5165-8662-714d8f06db51": "absent",
-        "700cd71a-8a42-51c6-825b-1750cfcf34b5": "absent",
-        "a77166ae-49f1-5117-ab2d-55c7b3b40408": "present",
-        "b903d77c-921f-5b93-aaa5-d7f071e9828d": "absent",
-        "c7818186-460d-554c-b110-603451b7e2f3": "absent",
-        "db0c8802-5334-5bad-a523-82e1c43ddec4": "present"
-      }
-    }
-  },
   "nobody_came_backdated": {
     "detail": {
       "code": "NOBODY_CAME_BACKDATED",
-      "message": "Урок, на который никто не пришёл, задним числом оформляет администратор или владелец. Урок остаётся в списке «Уроки без отметки» у администратора"
+      "message": "Никто не пришёл? Такой урок задним числом оформляет администратор — он видит его в уроках без отметки."
     }
   },
-  "lesson_too_old": {
+  "excuse_decided": {
+    "detail": {
+      "code": "EXCUSE_DECIDED",
+      "message": "Уважительную причину уже рассмотрели — изменить отметку может администратор или владелец",
+      "studentId": "8917ce72-ce12-536b-a8cf-a7adc637c99b",
+      "studentName": "Назаров Бекзод"
+    }
+  },
+  "lesson_too_old_save": {
     "detail": {
       "code": "LESSON_TOO_OLD",
-      "message": "Урок старше 7 дн. — его закрывает администратор или владелец",
+      "message": "Урок старше 7 дн. — его закрывает администратор или владелец.",
       "windowDays": 7
     }
   },
   "policy_value_invalid": {
     "detail": {
       "code": "POLICY_VALUE_INVALID",
-      "message": "Значение правила «Сколько дней преподаватель сам оформляет и отменяет прошедший урок» не из допустимых: 1, 3, 7, 14, 30",
+      "message": "Значение правила «Преподаватель сам оформляет прошедший урок в течение» не из допустимых: 1, 3, 7, 14, 30",
       "key": "teacher_lesson_window_days"
-    }
-  },
-  "period_closed": {
-    "detail": {
-      "code": "PERIOD_CLOSED",
-      "message": "Преподаватель: Иванов И. · ноябрь закрыт (зарплата сохранена 02.12.2026). Чтобы изменить урок, переоткройте месяц (это делает владелец или администратор с доступом к деньгам).",
-      "month": "2026-11",
-      "teacherId": "74fcd44c-52d8-59ab-ade7-3804bfee507c",
-      "teacherName": "Иванов И.",
-      "teacherFirstName": "Иван",
-      "teacherLastName": "Иванов",
-      "closedOn": "2026-12-02"
     }
   }
 }

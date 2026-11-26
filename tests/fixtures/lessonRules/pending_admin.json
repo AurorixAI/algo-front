@@ -2,11 +2,42 @@
   "items": [
     {
       "source": "unconfirmed",
-      "id": "033f944d-9d7a-4fa8-97a8-fa38c9257d69",
+      "id": "47480fe9-36a5-4182-bd4f-63755f8a59ea",
       "kind": "unconfirmed",
       "group": {
-        "id": "c6807972-288b-5835-8273-e751a95f556d",
-        "name": "Г",
+        "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-18",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "cancelledBy": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reason": "Отключили свет",
+      "cancelledAt": "2026-11-26T07:00:00",
+      "waitingDays": 0,
+      "ageDays": 8,
+      "canDecide": false
+    },
+    {
+      "source": "unconfirmed",
+      "id": "ff53ca76-f93e-4fad-9537-12acc48bcdb7",
+      "kind": "unconfirmed",
+      "group": {
+        "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "name": "Математика 7",
         "studentCount": 9
       },
       "lesson": {
@@ -16,25 +47,26 @@
         "endTime": "11:30"
       },
       "teacher": {
-        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
-        "name": "Иванов И.",
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
         "role": null
       },
       "cancelledBy": {
-        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
-        "name": "Иванов И.",
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
         "role": "teacher"
       },
-      "reason": "Урока не было",
+      "reason": "Отключили свет",
       "cancelledAt": "2026-11-26T07:00:00",
       "waitingDays": 0,
       "ageDays": 3,
-      "canDecide": true
+      "canDecide": false
     }
   ],
-  "total": 1,
+  "total": 2,
   "pendingTotal": 0,
   "urgentTotal": 0,
   "expiringTotal": 0,
-  "unconfirmedTotal": 1
+  "unconfirmedTotal": 2,
+  "waitingTotal": 0
 }

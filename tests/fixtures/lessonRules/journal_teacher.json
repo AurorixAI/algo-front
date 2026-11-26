@@ -1,0 +1,494 @@
+{
+  "groupId": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+  "month": "2026-11",
+  "lessons": [
+    {
+      "id": "lesson-mon",
+      "instanceKey": "2026-11-02_lesson-mon",
+      "date": "2026-11-02",
+      "topic": "Математика",
+      "status": "completed",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-wed",
+      "instanceKey": "2026-11-04_lesson-wed",
+      "date": "2026-11-04",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "topic": "Математика",
+      "room": null,
+      "format": "offline",
+      "status": "scheduled",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7
+    },
+    {
+      "id": "lesson-mon",
+      "instanceKey": "2026-11-09_lesson-mon",
+      "date": "2026-11-09",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "topic": "Математика",
+      "room": null,
+      "format": "offline",
+      "status": "scheduled",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-wed",
+      "instanceKey": "2026-11-11_lesson-wed",
+      "date": "2026-11-11",
+      "topic": "Математика",
+      "status": "cancelled",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-mon",
+      "instanceKey": "2026-11-16_lesson-mon",
+      "date": "2026-11-16",
+      "topic": "Математика",
+      "status": "cancelled",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-wed",
+      "instanceKey": "2026-11-18_lesson-wed",
+      "date": "2026-11-18",
+      "topic": "Математика",
+      "status": "cancelled",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": false,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-mon",
+      "instanceKey": "2026-11-23_lesson-mon",
+      "date": "2026-11-23",
+      "topic": "Математика",
+      "status": "cancelled",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": true,
+      "monthClosed": false,
+      "windowDays": 7,
+      "substitutionOutcome": {
+        "kind": "cancelled",
+        "movedTo": null
+      }
+    },
+    {
+      "id": "lesson-wed",
+      "instanceKey": "2026-11-25_lesson-wed",
+      "date": "2026-11-25",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "topic": "Математика",
+      "room": null,
+      "format": "offline",
+      "status": "scheduled",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": true,
+      "monthClosed": false,
+      "windowDays": 7
+    },
+    {
+      "id": "lesson-mon",
+      "instanceKey": "2026-11-30_lesson-mon",
+      "date": "2026-11-30",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "topic": "Математика",
+      "room": null,
+      "format": "offline",
+      "status": "scheduled",
+      "isRescheduled": false,
+      "originalStartTime": null,
+      "originalEndTime": null,
+      "originalRoom": null,
+      "rescheduleReason": null,
+      "purpose": null,
+      "purposeLabel": null,
+      "madeUpFor": null,
+      "madeUpBy": null,
+      "money": null,
+      "moneyLabel": null,
+      "canActSelf": true,
+      "monthClosed": false,
+      "windowDays": 7
+    }
+  ],
+  "records": {
+    "2026-11-02_lesson-mon": {
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a": "present",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d": "present",
+      "856138c3-790d-5031-8cd4-9223c15b6f98": "present",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb": "present",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d": "present",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7": "present",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b": "present",
+      "c6353ed6-e019-53b8-8778-6f8630be6845": "present",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa": "present"
+    },
+    "2026-11-11_lesson-wed": {},
+    "2026-11-16_lesson-mon": {},
+    "2026-11-18_lesson-wed": {},
+    "2026-11-23_lesson-mon": {}
+  },
+  "statuses": {
+    "2026-11-02_lesson-mon": "completed",
+    "2026-11-11_lesson-wed": "cancelled",
+    "2026-11-16_lesson-mon": "cancelled",
+    "2026-11-18_lesson-wed": "cancelled",
+    "2026-11-23_lesson-mon": "cancelled"
+  },
+  "cancellationReasons": {
+    "2026-11-11_lesson-wed": "Отключили свет",
+    "2026-11-16_lesson-mon": "Отключили свет",
+    "2026-11-18_lesson-wed": "Отключили свет",
+    "2026-11-23_lesson-mon": "Отключили свет"
+  },
+  "cancellationKinds": {
+    "2026-11-11_lesson-wed": "centre",
+    "2026-11-16_lesson-mon": "holiday",
+    "2026-11-18_lesson-wed": "unconfirmed",
+    "2026-11-23_lesson-mon": "unconfirmed"
+  },
+  "rosterStudentIds": {
+    "2026-11-02_lesson-mon": [
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
+      "856138c3-790d-5031-8cd4-9223c15b6f98",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b",
+      "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa"
+    ],
+    "2026-11-11_lesson-wed": [
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
+      "856138c3-790d-5031-8cd4-9223c15b6f98",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b",
+      "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa"
+    ],
+    "2026-11-16_lesson-mon": [
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
+      "856138c3-790d-5031-8cd4-9223c15b6f98",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b",
+      "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa"
+    ],
+    "2026-11-18_lesson-wed": [
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
+      "856138c3-790d-5031-8cd4-9223c15b6f98",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b",
+      "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa"
+    ],
+    "2026-11-23_lesson-mon": [
+      "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
+      "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
+      "856138c3-790d-5031-8cd4-9223c15b6f98",
+      "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "aec675d4-49bd-5f1d-aad5-747657e245e7",
+      "bf03fb88-e71c-5e87-800d-d33cce36428b",
+      "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa"
+    ]
+  },
+  "historicalStudents": [],
+  "membershipEvents": [],
+  "diagnosticReportNotices": [],
+  "excuses": {},
+  "corrections": {
+    "2026-11-16_lesson-mon": {
+      "kind": "corrected",
+      "by_name": "Рустам Валиев",
+      "at": "2026-11-26T07:00:00",
+      "reason": null,
+      "changes": [],
+      "history": []
+    },
+    "2026-11-11_lesson-wed": {
+      "kind": "corrected",
+      "by_name": "Рустам Валиев",
+      "at": "2026-11-26T07:00:00",
+      "reason": null,
+      "changes": [],
+      "history": []
+    }
+  },
+  "backdated": {
+    "2026-11-02_lesson-mon": {
+      "by_name": "Рустам Валиев",
+      "at": "2026-11-26T07:00:00",
+      "taught_by_name": null
+    }
+  },
+  "versions": {
+    "2026-11-02_lesson-mon": 2,
+    "2026-11-11_lesson-wed": 2,
+    "2026-11-16_lesson-mon": 2,
+    "2026-11-18_lesson-wed": 1,
+    "2026-11-23_lesson-mon": 1
+  },
+  "lessonTeachers": {
+    "2026-11-02_lesson-mon": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-04_lesson-wed": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-09_lesson-mon": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-11_lesson-wed": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-16_lesson-mon": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-18_lesson-wed": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-23_lesson-mon": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-25_lesson-wed": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    },
+    "2026-11-30_lesson-mon": {
+      "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "teacherName": "Эргашев К.",
+      "isSubstitution": false,
+      "defaultTeacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "defaultTeacherName": "Эргашев К."
+    }
+  },
+  "substitutionRequests": {
+    "2026-11-16_lesson-mon": {
+      "id": "111f3e57-8606-4df2-98f0-9eb3fbb71c1c",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-18_lesson-wed": {
+      "id": "21adf26a-75b9-4b39-bd1a-d58107a1d258",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-25_lesson-wed": {
+      "id": "462a543d-ae2b-4ada-a52b-c31f586ee847",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-09_lesson-mon": {
+      "id": "55d30031-83bf-4ca1-afc8-7c9e55832c7c",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-11_lesson-wed": {
+      "id": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-02_lesson-mon": {
+      "id": "c6298798-35cc-42be-9b98-5c77cb856219",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    },
+    "2026-11-23_lesson-mon": {
+      "id": "cc5c2f54-f346-49ef-ae71-8693bd14b3fa",
+      "status": "cancelled",
+      "reasonCode": "other",
+      "teacherName": "Эргашев К."
+    }
+  },
+  "lessonRoster": null
+}

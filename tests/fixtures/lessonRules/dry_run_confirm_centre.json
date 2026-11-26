@@ -9,54 +9,54 @@
   "total": 450000,
   "deductions": [
     {
-      "studentId": "0d43243c-5837-5791-a28c-2e70c57c8cfb",
+      "studentId": "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
       "amount": 50000,
-      "name": "Ученик2 Тест"
+      "name": "Давронов Санжар"
     },
     {
-      "studentId": "152b7b7f-2799-50a7-b489-39b67924ee89",
+      "studentId": "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
       "amount": 50000,
-      "name": "Ученик7 Тест"
+      "name": "Ерматова Нодира"
     },
     {
-      "studentId": "4e1fa437-3585-5277-8579-4a9e8e4d53c4",
+      "studentId": "856138c3-790d-5031-8cd4-9223c15b6f98",
       "amount": 50000,
-      "name": "Ученик9 Тест"
+      "name": "Абдуллаев Азиз"
     },
     {
-      "studentId": "66de509e-6d61-5165-8662-714d8f06db51",
+      "studentId": "886830f6-4a5a-52bd-9524-0e2f29640ffb",
       "amount": 50000,
-      "name": "Ученик8 Тест"
+      "name": "Валиев Тимур"
     },
     {
-      "studentId": "700cd71a-8a42-51c6-825b-1750cfcf34b5",
+      "studentId": "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
       "amount": 50000,
-      "name": "Ученик5 Тест"
+      "name": "Исмоилова Зарина"
     },
     {
-      "studentId": "a77166ae-49f1-5117-ab2d-55c7b3b40408",
+      "studentId": "aec675d4-49bd-5f1d-aad5-747657e245e7",
       "amount": 50000,
-      "name": "Ученик3 Тест"
+      "name": "Гафурова Лола"
     },
     {
-      "studentId": "b903d77c-921f-5b93-aaa5-d7f071e9828d",
+      "studentId": "bf03fb88-e71c-5e87-800d-d33cce36428b",
       "amount": 50000,
-      "name": "Ученик4 Тест"
+      "name": "Каримов Умид"
     },
     {
-      "studentId": "c7818186-460d-554c-b110-603451b7e2f3",
+      "studentId": "c6353ed6-e019-53b8-8778-6f8630be6845",
       "amount": 50000,
-      "name": "Ученик6 Тест"
+      "name": "Бекова Мадина"
     },
     {
-      "studentId": "db0c8802-5334-5bad-a523-82e1c43ddec4",
+      "studentId": "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa",
       "amount": 50000,
-      "name": "Ученик1 Тест"
+      "name": "Жураев Сардор"
     }
   ],
   "recalc_off": false,
   "restore_allowed": true,
   "age_days": 3,
-  "window_days": 14,
+  "window_days": 7,
   "teacher_can_mark": true
 }

@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "dry_run": true,
+  "changed": true,
+  "from": "unconfirmed",
+  "to": "centre",
+  "students": 9,
+  "per_student": null,
+  "total": 420000,
+  "deductions": [
+    {
+      "studentId": "1b067938-8075-53e4-aa0b-608dc63649a9",
+      "amount": 30000,
+      "name": "Каримов Умид"
+    },
+    {
+      "studentId": "34e7890f-f863-5e4b-80e2-e0e2946c8aef",
+      "amount": 50000,
+      "name": "Валиев Тимур"
+    },
+    {
+      "studentId": "5facbe85-8758-5c70-a1e6-81907ba3ae38",
+      "amount": 50000,
+      "name": "Гафурова Лола"
+    },
+    {
+      "studentId": "6fc8fb5a-a215-54b2-8c08-e51a1b684bf0",
+      "amount": 50000,
+      "name": "Жураев Сардор"
+    },
+    {
+      "studentId": "80a67cda-2a09-52ab-9da2-79bb4b23acec",
+      "amount": 50000,
+      "name": "Ерматова Нодира"
+    },
+    {
+      "studentId": "b76c490e-0df4-535b-a8e3-5883a6c3bc98",
+      "amount": 40000,
+      "name": "Исмоилова Зарина"
+    },
+    {
+      "studentId": "dbf0cd17-a021-56ee-a3a6-71e23a92d17f",
+      "amount": 50000,
+      "name": "Давронов Санжар"
+    },
+    {
+      "studentId": "dd773a8c-5cd7-52a1-a058-4d230ead1200",
+      "amount": 50000,
+      "name": "Абдуллаев Азиз"
+    },
+    {
+      "studentId": "e2013bfc-48ab-58ab-badc-7f664c2e490b",
+      "amount": 50000,
+      "name": "Бекова Мадина"
+    }
+  ],
+  "recalc_off": false,
+  "restore_allowed": true,
+  "age_days": 3,
+  "window_days": 7,
+  "teacher_can_mark": true
+}

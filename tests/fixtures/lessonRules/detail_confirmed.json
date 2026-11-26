@@ -1,0 +1,126 @@
+{
+  "item": {
+    "id": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+    "batchId": "60c05008-70bb-42db-bc0f-41aebd53bb09",
+    "status": "cancelled",
+    "origin": "system",
+    "group": {
+      "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+      "name": "Математика 7",
+      "studentCount": 9
+    },
+    "lesson": {
+      "lessonId": "lesson-wed",
+      "date": "2026-11-11",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "room": null,
+      "format": "offline",
+      "startsAtUtc": "2026-11-11T05:00:00",
+      "exists": true
+    },
+    "teacher": {
+      "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "name": "Эргашев К.",
+      "role": "teacher"
+    },
+    "reasonCode": "other",
+    "reasonLabel": "Другое",
+    "comment": null,
+    "suggestedTeacher": null,
+    "createdAt": "2026-11-26T07:00:00",
+    "minutesToStart": -21720,
+    "urgent": false,
+    "overdue": false,
+    "decision": {
+      "kind": "cancel",
+      "by": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "at": "2026-11-26T07:00:00",
+      "via": "teacher_cancel",
+      "note": "Отключили свет",
+      "substitute": null,
+      "movedTo": null,
+      "closedReason": null,
+      "closedReasonText": null
+    },
+    "previous": null,
+    "trigger": "teacher_cancel",
+    "clearedAt": null,
+    "clearedBy": null,
+    "clearedTo": null,
+    "clearedTrigger": null,
+    "outcome": "cancelled_centre",
+    "lastActivityAt": "2026-11-26T07:00:00.000002",
+    "needsDecision": false,
+    "confirmedBy": {
+      "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+      "name": "Валиев Р.",
+      "role": "owner"
+    },
+    "confirmedAt": "2026-11-26T07:00:00.000002",
+    "waitingDays": null,
+    "teacherCanMark": null,
+    "canWithdraw": null,
+    "closedTrigger": null
+  },
+  "chain": [],
+  "next": [],
+  "truncated": false,
+  "events": [
+    {
+      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "action": "requested",
+      "actor": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "at": "2026-11-26T07:00:00",
+      "snapshot": {
+        "trigger": "teacher_cancel",
+        "reasonCode": "other"
+      },
+      "substituteName": null,
+      "mergedRequestId": null
+    },
+    {
+      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "action": "cancelled",
+      "actor": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "at": "2026-11-26T07:00:00.000001",
+      "snapshot": {
+        "reason": "Отключили свет",
+        "cancellationKind": "unconfirmed"
+      },
+      "substituteName": null,
+      "mergedRequestId": null
+    },
+    {
+      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "action": "confirmed",
+      "actor": {
+        "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+        "name": "Валиев Р.",
+        "role": "owner"
+      },
+      "at": "2026-11-26T07:00:00.000002",
+      "snapshot": {
+        "cancellationKind": {
+          "to": "centre",
+          "from": "unconfirmed"
+        }
+      },
+      "substituteName": null,
+      "mergedRequestId": null
+    }
+  ],
+  "examBinding": null
+}

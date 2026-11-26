@@ -2,62 +2,189 @@
   "items": [
     {
       "source": "audit",
-      "id": "24c674cb-d63e-4c14-adfd-7480cc1d4a54",
+      "id": "139ffbd9-92af-4687-8ca3-75375d67040b",
       "kind": "backdated",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "c6807972-288b-5835-8273-e751a95f556d",
-        "name": "Г"
+        "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "name": "Математика 7",
+        "studentCount": 9
       },
       "lesson": {
-        "lessonId": "lesson-wed",
-        "date": "2026-11-25"
+        "lessonId": "lesson-mon",
+        "date": "2026-11-02",
+        "startTime": "10:00",
+        "endTime": "11:30"
       },
       "teacher": {
-        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
-        "name": "Иванов И.",
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
-        "name": "Иванов И.",
-        "role": "teacher"
+        "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+        "name": "Валиев Р.",
+        "role": "owner"
       },
-      "lateDays": 1,
+      "lateDays": 24,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 1 день позже даты урока"
+      "text": "Урок оформлен задним числом: на 24 дня позже даты урока"
     },
     {
       "source": "audit",
-      "id": "c75ee08e-576d-404c-a4a6-264cc2cf79d2",
+      "id": "ca605fa3-0ae1-411c-85ae-b918c5bfd79f",
       "kind": "corrected",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "c6807972-288b-5835-8273-e751a95f556d",
-        "name": "Г"
+        "id": "2d5ec8b4-99bd-5089-b81b-cb2105d56970",
+        "name": "Физика 8",
+        "studentCount": 3
       },
       "lesson": {
-        "lessonId": "lesson-wed",
-        "date": "2026-11-25"
+        "lessonId": "lesson-tue",
+        "date": "2026-11-17",
+        "startTime": "14:00",
+        "endTime": "15:30"
       },
       "teacher": {
-        "id": "8e21a5d7-5e0a-534e-b0c6-fe7ecd948357",
-        "name": "Иванов И.",
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "0b7217ee-ea5d-5569-9e3c-9b83aa10dfb6",
-        "name": "Усманов У.",
+        "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+        "name": "Валиев Р.",
         "role": "owner"
       },
-      "lateDays": 1,
-      "reason": "Ошибся",
-      "text": "Отметки исправлены: Ошибся"
+      "lateDays": 9,
+      "reason": "Ошибся в отметках",
+      "text": "Отметки исправлены: Ошибся в отметках"
+    },
+    {
+      "source": "audit",
+      "id": "edaafba0-d7bf-4d6d-8152-6d30b4001fd5",
+      "kind": "backdated",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "2d5ec8b4-99bd-5089-b81b-cb2105d56970",
+        "name": "Физика 8",
+        "studentCount": 3
+      },
+      "lesson": {
+        "lessonId": "lesson-thu",
+        "date": "2026-11-12",
+        "startTime": "14:00",
+        "endTime": "15:30"
+      },
+      "teacher": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "by": {
+        "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+        "name": "Валиев Р.",
+        "role": "owner"
+      },
+      "lateDays": 14,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 14 дней позже даты урока"
+    },
+    {
+      "source": "audit",
+      "id": "e030a7d2-1312-4953-bbdc-1a8e2a3be2e2",
+      "kind": "backdated",
+      "at": "2026-11-19T07:00:00",
+      "group": {
+        "id": "2d5ec8b4-99bd-5089-b81b-cb2105d56970",
+        "name": "Физика 8",
+        "studentCount": 3
+      },
+      "lesson": {
+        "lessonId": "lesson-tue",
+        "date": "2026-11-17",
+        "startTime": "14:00",
+        "endTime": "15:30"
+      },
+      "teacher": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "by": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "lateDays": 2,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 2 дня позже даты урока"
+    },
+    {
+      "source": "audit",
+      "id": "493f377e-7a18-4b54-88d0-88025c054815",
+      "kind": "backdated",
+      "at": "2026-11-16T07:00:00",
+      "group": {
+        "id": "2d5ec8b4-99bd-5089-b81b-cb2105d56970",
+        "name": "Физика 8",
+        "studentCount": 3
+      },
+      "lesson": {
+        "lessonId": "lesson-tue",
+        "date": "2026-11-10",
+        "startTime": "14:00",
+        "endTime": "15:30"
+      },
+      "teacher": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "by": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "lateDays": 6,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 6 дней позже даты урока"
+    },
+    {
+      "source": "audit",
+      "id": "b03bb7fe-afdb-4eb9-834c-4bc994269879",
+      "kind": "backdated",
+      "at": "2026-11-15T07:00:00",
+      "group": {
+        "id": "2d5ec8b4-99bd-5089-b81b-cb2105d56970",
+        "name": "Физика 8",
+        "studentCount": 3
+      },
+      "lesson": {
+        "lessonId": "lesson-tue",
+        "date": "2026-11-03",
+        "startTime": "14:00",
+        "endTime": "15:30"
+      },
+      "teacher": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "by": {
+        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "lateDays": 12,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 12 дней позже даты урока"
     }
   ],
-  "total": 2,
+  "total": 6,
   "pendingTotal": 0,
   "urgentTotal": 0,
   "expiringTotal": 0,
-  "unconfirmedTotal": 1
+  "unconfirmedTotal": 2,
+  "waitingTotal": 2
 }
