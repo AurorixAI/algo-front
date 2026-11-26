@@ -85,10 +85,13 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
  * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
  * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, waiting = [], loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, waiting = [], onWithdrawWaiting, withdrawingId = null, loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
   /** LESSON-RULES: the cancellations that wait for the owner, for who CANNOT decide them: they stand in this block as «решает владелец» (a person with the right sees them as rows of the table). */
   waiting?: WaitingCancellationItem[];
+  /** «Отозвать» on a line of «решает владелец»: only where the server says `canWithdraw` (an administrator without the right takes back the cancellation he made himself). */
+  onWithdrawWaiting?: (item: WaitingCancellationItem) => void;
+  withdrawingId?: string | null;
   loading: boolean;
   error: string | null;
   /** `canDecideMoney(user)`: the buttons are there only for who decides (an absent right is no right). */
@@ -198,7 +201,7 @@ export function OneOffDecisionsBlock({ items, waiting = [], loading, error, canD
       {(mayDecide || viewOpen) && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {items.map((item) => <PaymentRow key={item.lessonId} item={item} canDecide={mayDecide} onPick={pick} onReopened={onRetry} />)}
-          {!mayDecide && waiting.map((entry) => <WaitingReportedRow key={entry.id} item={entry} />)}
+          {!mayDecide && waiting.map((entry) => <WaitingReportedRow key={entry.id} item={entry} onWithdraw={onWithdrawWaiting} busy={withdrawingId !== null} />)}
         </ul>
       )}
 

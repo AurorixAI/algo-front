@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, Loader2, MessageSquare } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { dayAndDateLabel } from "@/lib/ops-errors";
@@ -86,10 +86,17 @@ export function WaitingTableRow({ item, cols, showReason, tickSpace = true, less
 }
 
 /** The quiet line of a waiting cancellation for who cannot decide it (the block «Решает владелец»): who reported, when, which lesson.  No sum, no button. */
-export function WaitingReportedRow({ item }: { item: WaitingCancellationItem }) {
+export function WaitingReportedRow({ item, onWithdraw, busy = false }: { item: WaitingCancellationItem; onWithdraw?: (item: WaitingCancellationItem) => void; busy?: boolean }) {
+  const mayWithdraw = item.canWithdraw === true && Boolean(onWithdraw);   // the server says who may take it back: an administrator who cancelled this lesson himself
   return (
-    <li data-testid="waiting-reported-row" className="px-4 py-3 text-sm text-slate-800">
-      <span className="break-words">{reportedLine(item)}</span>
+    <li data-testid="waiting-reported-row" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm text-slate-800">
+      <span className="min-w-0 flex-1 break-words">{reportedLine(item)}</span>
+      {mayWithdraw && (
+        <Button type="button" data-testid="withdraw-cancellation" aria-label={`Отозвать отмену: ${waitingLessonLabel(item)}`} onClick={() => onWithdraw?.(item)} disabled={busy} variant="ghost" size="sm">
+          {busy && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+          Отозвать
+        </Button>
+      )}
     </li>
   );
 }

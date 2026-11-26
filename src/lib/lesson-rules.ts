@@ -89,6 +89,9 @@ export interface WaitingPreview {
   per_student: number | null;
   total: number;
   recalc_off: boolean;
+  /** Why the recalculation is zero (`packages` / `nobody_charged` / `one_off`; null when it is not) and the server's own sentence for it. */
+  zero_reason?: "packages" | "nobody_charged" | "one_off" | null;
+  zero_text?: string | null;
   restore_allowed: boolean;
   window_days: number;
   teacher_can_mark: boolean;
@@ -120,7 +123,7 @@ export function outcomeCaption(outcome: WaitingOutcome, preview: WaitingPreview 
   }
   if (preview === null) return null;
   if (preview.recalc_off) return `Перерасчёт за отмены в центре выключен — ученикам ничего не изменится. ${TEACHER_NOT_PAID}`;
-  if (preview.students <= 0) return `Ученикам: без перерасчёта. ${TEACHER_NOT_PAID}`;
+  if (preview.students <= 0 || preview.total <= 0) return `${preview.zero_text || "Ученикам: без перерасчёта."} ${TEACHER_NOT_PAID}`;   // the sentence of the server says WHY it is zero; never «Перерасчёт 0 ученикам»
   return `${recalcSentence(preview)} ${TEACHER_NOT_PAID}`;
 }
 

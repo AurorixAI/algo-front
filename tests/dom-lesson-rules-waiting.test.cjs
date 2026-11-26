@@ -82,6 +82,21 @@ test("«По вине центра»: the sentence of the server's numbers (9 ×
   await page.close();
 });
 
+for (const name of ["dry_run_zero_packages", "dry_run_zero_nobody_charged", "dry_run_zero_one_off"]) {
+  test(`the recalculation is zero (${name}, the real dry run): the window says the sentence of the server about WHY (zero_text), never «Перерасчёт 0 ученикам»`, async () => {
+    const zero = answer(name);
+    assert.deepEqual([zero.total, zero.students, typeof zero.zero_text, Boolean(zero.zero_reason)], [0, 0, "string", true]);
+    const run = await open(listServer({ extra: (r) => (r.method === "PUT" && KIND_PATH.test(r.path) && isDry(r) ? { json: zero } : null) }));
+    const { page } = run;
+    await page.click(MON);
+    await page.click('[data-testid="waiting-outcome-centre"]');
+    const caption = plain(await page.textContent('[data-testid="waiting-caption"]'));
+    assert.equal(caption, `${zero.zero_text} Преподавателю урок не оплачивается.`);
+    assert.ok(!/Перерасчёт 0|0 учени/.test(await page.textContent('[role="dialog"]')), "no «0 ученикам» anywhere in the window");
+    await page.close();
+  });
+}
+
 test("«Праздник, выходной»: no recalculation, the button names the outcome; «Урок был»: the lesson goes back to the mark (restore with expectedKind), the teacher marks it", async () => {
   const run = await open(listServer({ extra: (r) => {
     if (r.method === "PUT" && KIND_PATH.test(r.path)) return { json: isDry(r) ? answer("dry_run_confirm_centre") : { ok: true, changed: true, cancellationKind: "holiday", version: 3 } };
@@ -150,5 +165,41 @@ test("an administrator WITHOUT the money right: the waiting cancellation is not 
   assert.match(line, /Эргашев К\. сообщил 26\.11, что урока не было · пн, 23\.11, Математика 7/);
   assert.ok(!/сум/.test(line), "no sum for a role without the right");
   assert.equal(await page.locator('button:has-text("Решить")').count(), 0);
+  assert.deepEqual(pending.items.map((i) => i.canWithdraw), [false, false], "the real answer: the cancellations of the teacher are not his to take back");
+  assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 0, "«Отозвать» only where the server says canWithdraw");
+  await page.close();
+});
+
+test("the pending list keeps a request row next to the waiting cancellations when the server says source:\"request\" (a row of the real history, made pending): the three models stand together", async () => {
+  const owner = answer("pending_owner");
+  const request = { ...answer("history").items.find((r) => r.source === "request"), status: "pending", outcome: null, decision: null };
+  assert.equal(request.source, "request");
+  const run = await open(listServer({ pending: { ...owner, items: [request, ...owner.items], total: 3 } }));
+  const { page } = run;
+  await page.waitForSelector('[data-testid="waiting-row"]');
+  assert.equal(await page.locator('[data-testid="substitution-row"]').count(), 1, "the request is a row of the table");
+  assert.equal(await page.locator('[data-testid="waiting-row"]').count(), 2, "and the two waiting cancellations");
+  await page.close();
+});
+
+test("an administrator WITHOUT the money right who cancelled the past lesson himself (the real answer pending_admin_author, canWithdraw true): his line of the block «Решает владелец» has «Отозвать»; it sends the withdrawal for THIS lesson and the list is read again", async () => {
+  const pending = answer("pending_admin_author");
+  const [item] = pending.items;
+  assert.equal(item.canWithdraw, true);
+  let reads = 0;
+  const run = await open(listServer({ pending, extra: (r) => {
+    if (r.path === "/auth/org/substitutions" && /status=pending/.test(r.query)) { reads += 1; return { json: reads > 1 ? { ...pending, items: [], total: 0, unconfirmedTotal: 0 } : pending }; }
+    if (r.method === "POST" && /\/lessons\/withdraw-cancellation$/.test(r.path)) return { json: { ok: true, restored: true, lessonId: item.lesson.lessonId, lessonDate: item.lesson.date, previousKind: "unconfirmed", returnedToReview: true } };
+    return null;
+  } }), { user: { ...ADMIN, payments_access: false } });
+  const { page, calls } = run;
+  await page.click('[data-testid="one-off-decisions-toggle"]');
+  assert.equal(await page.locator('[data-testid="waiting-reported-row"]').count(), 1);
+  assert.equal(await page.locator('[data-testid="waiting-row"]').count(), 0, "still no sum and no «Решить»");
+  assert.equal(plain(await page.textContent('[data-testid="withdraw-cancellation"]')), "Отозвать");
+  await page.click('[data-testid="withdraw-cancellation"]');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="waiting-reported-row"]').length === 0);
+  const sent = calls.filter((c) => c.method === "POST" && /withdraw-cancellation$/.test(c.path));
+  assert.deepEqual(sent.map((c) => [c.path.includes(item.group.id), c.body]), [[true, { lessonId: item.lesson.lessonId, lessonDate: item.lesson.date, expectedKind: "unconfirmed" }]]);
   await page.close();
 });

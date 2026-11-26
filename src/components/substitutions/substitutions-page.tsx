@@ -30,9 +30,12 @@ import {
   itemLessonLine,
   moreLessonsText,
   tabLabel,
+  alreadyDecided,
+  substitutionErrorText,
 } from "@/lib/substitutions";
 import type { AuditEntryItem, DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem, SubstitutionListRow, WaitingCancellationItem } from "@/lib/substitution-types";
 import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows } from "@/lib/lesson-rules";
+import { isAuditRow, isWaitingRow, rowSource } from "@/lib/list-rows";
 import { AuditPanel, AuditTableRow } from "@/components/substitutions/history-rows";
 import { LessonReturnDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { Notice } from "@/components/ui/notice";
@@ -144,6 +147,25 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const guard = guardRef.current;
 
   const refreshBadge = () => { void useSubstitutionBadge.getState().refresh(true); };
+  // LESSON-RULES: an administrator without the money right takes back the cancellation he made himself (the line «решает владелец» has «Отозвать» only where the server says canWithdraw)
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const withdrawSending = useRef(false);
+  const withdrawWaiting = async (entry: WaitingCancellationItem) => {
+    if (withdrawSending.current) return;
+    withdrawSending.current = true;
+    setWithdrawingId(entry.id);
+    try {
+      await orgApi.withdrawOwnCancellation(entry.group.id, { lessonId: entry.lesson.lessonId, lessonDate: entry.lesson.date, expectedKind: "unconfirmed" });
+    } catch (failure) {
+      const decided = alreadyDecided(failure);
+      showToast(decided ? decided.message : substitutionErrorText(failure, undefined, { role: "admin" }), "error");
+    } finally {
+      withdrawSending.current = false;
+      setWithdrawingId(null);
+      void load(true);
+      refreshBadge();
+    }
+  };
 
   // search: a pause after the last key
   useEffect(() => {
@@ -319,8 +341,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const tableWaiting = pendingTab && !moneyRightLost ? split.waiting.filter((row) => row.canDecide) : [];
   const blockWaiting = pendingTab ? split.waiting.filter((row) => !tableWaiting.includes(row)) : [];
   const tableRows = items.filter((row) => {
-    const source = (row as { source?: string }).source;
-    return pendingTab ? !source || tableWaiting.includes(row as WaitingCancellationItem) : source !== "unconfirmed";
+    const source = rowSource(row);
+    return pendingTab ? source === "request" || tableWaiting.includes(row as WaitingCancellationItem) : source !== "unconfirmed";
   });
   const showReason = requests.some(hasReason) || tableWaiting.length > 0 || split.audit.some((entry) => entry.kind === "corrected" && Boolean(entry.reason));
   const cols = pendingTab ? (showReason ? COLS_PENDING : COLS_PENDING_NO_REASON) : (showReason ? COLS_DECIDED : COLS_DECIDED_NO_REASON);
@@ -440,6 +462,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <OneOffDecisionsBlock
           items={visibleDecisions}
           waiting={blockWaiting}
+          onWithdrawWaiting={(entry) => void withdrawWaiting(entry)}
+          withdrawingId={withdrawingId}
           canDecide={canDecideMoney(user)}
           rightLost={moneyRightLost}
           onRightLost={() => setMoneyLostFor({ profile: user })}
@@ -481,8 +505,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             )}
             <ul className="mt-2 space-y-2.5 xl:mt-0 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {tableRows.map((row) => {
-                if ((row as { source?: string }).source === "unconfirmed") {
-                  const entry = row as WaitingCancellationItem;
+                if (isWaitingRow(row)) {
+                  const entry = row;
                   return (
                     <WaitingTableRow
                       key={`waiting-${entry.id}`}
@@ -495,8 +519,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                     />
                   );
                 }
-                if ((row as { source?: string }).source === "audit") {
-                  const entry = row as AuditEntryItem;
+                if (isAuditRow(row)) {
+                  const entry = row;
                   return (
                     <AuditTableRow
                       key={`audit-${entry.id}`}

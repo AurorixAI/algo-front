@@ -145,7 +145,12 @@ export interface SubstitutionPrevious {
   substituteName?: string | null;
 }
 
+/** The `source` of a row of the list of «Замены»: the three models of the server. */
+export type ListRowSource = "request" | "unconfirmed" | "audit";
+
 export interface SubstitutionItem {
+  /** A request of a teacher (the list of «Замены» says it on every row). */
+  source?: "request";
   id: string;
   batchId?: string | null;
   status: SubstitutionStatus;
@@ -211,6 +216,8 @@ export interface WaitingCancellationItem {
   ageDays: number;
   /** The money right of the caller: false = «решает владелец» (no sums, no buttons). */
   canDecide: boolean;
+  /** May the caller take this cancellation back (its author while it waits; an administrator without the money right for the one he made himself)? Only `true` shows «Отозвать». */
+  canWithdraw?: boolean | null;
 }
 
 /** LESSON-RULES: an entry of the journal of the history (`source: "audit"`): «оформлен задним числом», «отметки исправлены», «добавил урок в расписание». */

@@ -122,6 +122,10 @@ test("outcomes of a waiting cancellation: the sentence of the chosen outcome com
   assert.equal(L.outcomeCaption("centre", answers("dry_run_confirm_different_sums")), "Перерасчёт 9 ученикам, всего 420 000 сум. Преподавателю урок не оплачивается.");
   assert.equal(L.outcomeCaption("centre", { ...dry, students: 1, per_student: 50000, total: 50000 }), "Перерасчёт 1 ученику по 50 000 сум, всего 50 000 сум. Преподавателю урок не оплачивается.");
   assert.equal(L.outcomeCaption("centre", { ...dry, students: 0, total: 0, per_student: null }), "Ученикам: без перерасчёта. Преподавателю урок не оплачивается.");
+  for (const name of ["dry_run_zero_packages", "dry_run_zero_nobody_charged", "dry_run_zero_one_off"]) {
+    const zero = answers(name);
+    assert.equal(L.outcomeCaption("centre", zero), `${zero.zero_text} Преподавателю урок не оплачивается.`, name);
+  }
   assert.equal(L.outcomeCaption("held", answers("dry_run_confirm_old_lesson")), "Отмена снимается. Урок старше 7 дн.: отметит администратор или владелец.");
   assert.equal(L.outcomeCaption("centre", null), null, "nothing is promised before the numbers come");
 });
@@ -293,4 +297,15 @@ test("a decision of «Отменить урок» over a PAST lesson by a role w
   assert.equal(Subs.decisionToast({ item: { decision: {} }, result: { kind: "cancel", cancellationKind: "centre" } }), "Урок отменён");
   assert.equal(Subs.decisionToast({ item: { decision: {} }, result: { kind: "cancel", cancellationKind: null } }), "Урок отменён");
   assert.match(read("src/lib/substitution-types.ts"), /cancellationKind\?: StoredCancellationKind \| null;\n  teacherId/);
+});
+
+test("the three models of the list are told apart by the `source` of the server: every row of the real answers is exactly one of request / unconfirmed / audit, the request has its own `source`", () => {
+  for (const name of ["pending_owner", "pending_admin", "pending_admin_author", "history", "history_backdated_only", "history_evening_not_late", "history_admin_with_right"]) {
+    const rows = answers(name).items;
+    const split = L.splitRows(rows);
+    assert.equal(split.requests.length + split.waiting.length + split.audit.length, rows.length, `${name}: nothing lost, nothing counted twice`);
+    assert.equal(split.waiting.length, rows.filter((r) => r.source === "unconfirmed").length, name);
+    assert.equal(split.audit.length, rows.filter((r) => r.source === "audit").length, name);
+    assert.equal(split.requests.length, rows.filter((r) => r.source === "request").length, `${name}: a request row says source:"request"`);
+  }
 });
