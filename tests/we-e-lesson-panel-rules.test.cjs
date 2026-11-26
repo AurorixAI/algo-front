@@ -128,7 +128,7 @@ test("[R5] a lesson the server leaves to the teacher (requiresAdmin false) is se
     assert.equal(api.panel.banner, "tooOld");
     await api.screen.call(() => api.panel.handleSaveAttendance());
     assert.equal(api.world.called("saveGroupAttendance").length, 0);
-    assert.match(api.panel.attendanceError || "", /^Урок старше 7 дн\. — его закрывает администратор или владелец$/, "the number is the windowDays of the server's task");
+    assert.match(api.panel.attendanceError || "", /^Урок старше 7 дн\. — его закрывает администратор или владелец\.$/, "the number is the windowDays of the server's task");
     assert.equal(api.panel.attendanceInfo, true, "a rule of the centre is said as an information, not as a red error");
     // the administrator is not bound by the window
     api.world.user = { ...api.world.user, role: "admin", org_role: "admin" };

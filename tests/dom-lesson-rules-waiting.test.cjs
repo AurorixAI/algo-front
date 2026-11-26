@@ -38,6 +38,7 @@ for (const width of [1280, 1024, 375]) {
     assert.equal(await page.locator(MON).count(), 1);
     assert.equal(await page.locator('button[aria-label="Решить отмену: Математика 7, Эргашев К., 18.11"]').count(), 1);
     assert.match(plain(await page.textContent('[role="tablist"]')), /Ждут решения \(2\)/);
+    assert.equal(answer("pending_owner").waitingTotal, 2, "the tab says the server's waitingTotal (owner: 2; the administrator without the right: 0 - the test below)");
     const probe = await page.evaluate(layoutProbe, "body");
     assert.deepEqual([probe.bad, probe.scroll > 0], [[], false], `nothing leaves its box at ${width}`);
     if (width === 375) assert.deepEqual(await page.evaluate(touchTargets, "body"), [], "a phone: every tap target is 40 px");

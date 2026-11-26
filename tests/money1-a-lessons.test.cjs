@@ -68,7 +68,8 @@ test("the journal column: «Исправить отметки» and «Верну
   assert.deepEqual(withRight("cancelled", "2026-11-20", { started: true }), [], "a future day is never begun, whatever is said");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /const started = lessonHasStarted\(\{ date: lesson\.date, today, startTime: lesson\.startTime \|\| lesson\.start_time \}\);/);
-  assert.match(journal, /const actionsFor = \(lesson: Lesson, key: string, lessonStatus: string\): AdminLessonAction\[\] => \{\s*if \(!canEdit\) return \[\];\s*if \(!adminMode\) return lessonTeacherActions\(lessonStatus, !lessonIsOthers\(key\)\);/);
+  // the flags of THIS lesson (canActSelf, monthClosed, windowDays) go into the teacher's actions: the window is the server's
+  assert.match(journal, /const actionsFor = \(lesson: Lesson, key: string, lessonStatus: string\): AdminLessonAction\[\] => \{\s*if \(!canEdit\) return \[\];\s*if \(!adminMode\) return lessonTeacherActions\(lessonStatus, !lessonIsOthers\(key\), lesson\);/);
   assert.match(journal, /const reviewable = adminMode && moneyRight && !inCorrection && Boolean\(excuse\);/);
   assert.match(journal, /canReplaceTeacher\("admin", lessonStatus\) && \(moneyRight \|\| lessonStatus !== "completed"\)/);
 });

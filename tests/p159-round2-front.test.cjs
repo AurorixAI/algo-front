@@ -152,14 +152,15 @@ test("M2: the counter of the tab counts the money rows only for who may decide t
   assert.equal(O.waitingCountFor(null, 1, 1), 1);
   assert.equal(O.waitingCountFor(owner, -1, -1), 0);
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /const waitingCount = waitingCountFor\(user, pendingTotal, decisions\.total \+ unconfirmedTotal, moneyRightLost\);/);
+  assert.match(page, /const waitingCount = serverWaiting \?\? waitingCountFor\(user, pendingTotal, decisions\.total \+ unconfirmedTotal, moneyRightLost\);/);
+  assert.match(page, /setServerWaiting\(typeof data\.waitingTotal === "number" \? data\.waitingTotal : null\);/, "the number comes from the server's waitingTotal (the same for both roles); the count by the rule is only the fallback of an older answer");
   assert.match(page, /tabLabel\("pending", listedCount\)/);
-  assert.match(page, /const listedCount = listedCountFor\(pendingTotal, decisions\.total \+ unconfirmedTotal\);/, "the tab says what it lists");
+  assert.match(page, /const listedCount = serverWaiting \?\? listedCountFor\(pendingTotal, decisions\.total \+ unconfirmedTotal\);/, "the tab says what it lists");
   assert.equal(O.listedCountFor(2, 3), 5);
   assert.equal(O.listedCountFor(0, 1), 1, "an administrator without the access: not «(0)» over a row");
   assert.equal(O.listedCountFor(-1, -1), 0);
   assert.match(page, /setWaiting\(waitingCount\)/);
-  assert.match(page, /waitingTotal: waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current \+ \(data\.unconfirmedTotal \?\? 0\), moneyRightLostRef\.current\)/, "the badge set from the list carries the same number");
+  assert.match(page, /waitingTotal: typeof data\.waitingTotal === "number" \? data\.waitingTotal : waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current \+ \(data\.unconfirmedTotal \?\? 0\), moneyRightLostRef\.current\)/, "the badge set from the list carries the server's number (the rule only for an older answer)");
   assert.doesNotMatch(page, /pendingTotal \+ decisions\.total/);
   // the server's number wins for the menu badge
   assert.equal(O.waitingTotal({ pendingTotal: 2, oneOffDecisionsTotal: 3, waitingTotal: 2 }), 2);
