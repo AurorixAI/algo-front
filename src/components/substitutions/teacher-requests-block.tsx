@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Loader2, Repeat2 } from "lucide-react";
-import { substitutionsApi } from "@/lib/api";
+import Link from "next/link";
+import { orgApi, substitutionsApi } from "@/lib/api";
+import { journalHref } from "@/lib/open-lessons";
 import {
   ASSIGNED_TITLE,
   MY_REQUESTS_TITLE,
@@ -13,7 +15,7 @@ import {
   assignedLine,
   assignedSingleLine,
   clearedForMeLine,
-  itemLessonLine,
+  myRequestLine,
   recentRequests,
   substitutionErrorText,
 } from "@/lib/substitutions";
@@ -65,6 +67,26 @@ export function TeacherRequestsBlock({
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 
+  /** LESSON-RULES Э4: the teacher takes back HIS cancellation of a past lesson while the owner has not decided it (the server judges the window and the owner: a refusal is said in words). */
+  const withdrawCancellation = async (item: SubstitutionItem) => {
+    if (busyId || sending.current) return;
+    sending.current = true;
+    setBusyId(item.id);
+    setError(null);
+    try {
+      await orgApi.withdrawOwnCancellation(item.group.id, { lessonId: item.lesson.lessonId, lessonDate: item.lesson.date, expectedKind: "unconfirmed" });
+      await load();
+      onChanged?.();
+    } catch (failure) {
+      const decided = alreadyDecided(failure);
+      setError(decided ? decided.message : substitutionErrorText(failure, undefined, { role: "teacher" }));
+      await load();
+    } finally {
+      sending.current = false;
+      setBusyId(null);
+    }
+  };
+
   const withdraw = async (requestId: string) => {
     if (busyId || sending.current) return;
     sending.current = true;
@@ -106,7 +128,7 @@ export function TeacherRequestsBlock({
               const hint = todayPendingHint(item, formatBusinessDate(new Date(now)), new Date(now));
               return (
                 <li key={item.id} data-testid="my-request-row" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 first:pt-0 last:pb-0">
-                  <span className="min-w-0 text-sm font-medium text-slate-800">{itemLessonLine(item)}</span>
+                  <span className="min-w-0 text-sm font-medium text-slate-800">{myRequestLine(item)}</span>
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <OutcomeChip item={item} audience="teacher" />
                     {hint && <span data-testid="today-pending-hint" className="text-xs font-medium text-amber-800">{hint}</span>}
@@ -120,6 +142,29 @@ export function TeacherRequestsBlock({
                         {busyId === item.id && <Loader2 className="h-3 w-3 animate-spin" />}
                         Отозвать
                       </Button>
+                    )}
+                    {item.outcome === "cancel_waiting" && (
+                      <Button
+                        type="button"
+                        data-testid="withdraw-cancellation"
+                        aria-label={`Отозвать отмену: ${myRequestLine(item)}`}
+                        onClick={() => void withdrawCancellation(item)}
+                        disabled={busyId !== null}
+                        variant="ghost" size="sm"
+                      >
+                        {busyId === item.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                        Отозвать
+                      </Button>
+                    )}
+                    {item.outcome === "lesson_restored" && item.teacherCanMark === true && item.lesson.lessonId && (
+                      <Link
+                        data-testid="open-returned-lesson"
+                        href={journalHref("/teacher/groups", { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId })}
+                        aria-label={`Открыть урок: ${myRequestLine(item)}`}
+                        className="inline-flex min-h-10 items-center text-sm font-semibold text-primary-700 hover:underline"
+                      >
+                        Открыть урок
+                      </Link>
                     )}
                     <DetailsButton item={item} onOpen={(row) => setPanel({ id: row.id, seed: row })} />
                   </span>

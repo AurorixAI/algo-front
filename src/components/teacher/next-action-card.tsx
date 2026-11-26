@@ -6,6 +6,7 @@ import { formatIsoDateLabel } from "@/lib/business-time";
 import { formatCountdown, moreTodayText, startsInText, type AgendaLessonLike, type NextStep } from "@/lib/teacher-agenda";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/lib/button-style";
+import { notClosedText } from "@/lib/lesson-rules";
 
 /** What the card needs of a lesson action of the dashboard (`LessonAction`). */
 export interface CardAction {
@@ -16,6 +17,8 @@ export interface CardAction {
   description: string;
   cardLabel?: string;
   cardDescription?: string;
+  /** LESSON-RULES: the days the lesson has waited for its close (the server's `ageDays`). */
+  ageDays?: number;
 }
 
 /** What the card needs of an exam of the dashboard (`LiveExamDashboardSummary` with the clock). */
@@ -117,6 +120,7 @@ export function NextActionCard<A extends CardAction, L extends AgendaLessonLike>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500">Ближайшее действие</p>
             <h2 data-testid="next-action-title" className="mt-1 text-xl font-bold text-slate-900">{view.title}</h2>
+            {step.kind === "action" && notClosedText(step.action.ageDays) && <p data-testid="next-action-age" className="mt-0.5 text-sm font-semibold text-warning-800">{notClosedText(step.action.ageDays)}</p>}
             <p data-testid="next-action-description" title={view.description} className="mt-1 truncate text-sm leading-6 text-slate-600">{view.description}</p>
             {hint && <p data-testid="today-pending-hint-card" className="mt-1 text-sm font-medium text-amber-800">{hint}</p>}
             {later && <p data-testid="next-lesson-later" className="mt-1 text-sm font-medium text-slate-700">{later}</p>}

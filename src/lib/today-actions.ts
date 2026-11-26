@@ -19,6 +19,10 @@ export interface TodayActionBase<L> {
   actionType?: "in_progress" | "missed";
   badge?: string;
   locked?: boolean;
+  /** LESSON-RULES: how many days the lesson has been waiting for its close (the server's `ageDays` of the open action); 0 / absent: today. */
+  ageDays?: number;
+  /** LESSON-RULES: the window of the centre in days as the server says it (`windowDays`); the words of a lesson that is older say THIS number. */
+  windowDays?: number;
 }
 
 /** The actions the CLOCK gives: a lesson of today that is over and was never started (red, unless the server already returned it), a lesson whose time has come (unless a later lesson of the group is started). */
@@ -107,6 +111,8 @@ export function openTodayActions<L extends AgendaLessonLike>(input: {
         rosterCount: action.rosterCount,
         remainingCount: action.remainingCount,
         locked,
+        ageDays: action.ageDays,
+        windowDays: action.windowDays,
       };
     });
 }
