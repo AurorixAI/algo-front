@@ -116,8 +116,8 @@ test("Б1: «Оплата с» - the owner sees the date with the first lesson b
   const bar = drawer.getByTestId("summary-bar");
   await expect(bar.getByTestId("summary-bar-label").first()).toHaveText(/^(К оплате до \d\d\.\d\d|К оплате сегодня|Долг сразу( · срок был \d\d\.\d\d)?|Долг \d.*|К оплате \d.*)$/);
   await expect(bar.getByTestId("summary-bar-sum")).toHaveText(/^\d[\d\s\u00a0]*\sсум$/);
-  // one period: «5 уроков из 12 в ноябре» (a whole period by dates: «13 уроков · весь период 20.11–19.12»); the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line)
-  await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) (из \d+ (в [а-яё]+|за период)|· весь период)|^за [а-яё]+( и [а-яё]+)?)/);
+  // one period: «5 уроков из 12 в ноябре» (a whole period by dates: «13 уроков · весь период 20.11–19.12»); the past days cross a month: «за октябрь и ноябрь» and «По ученикам» (one student: the periods in the line); a whole personal period of a group with no lessons in the timetable (sum > 0, 0 lessons) names no count: «за 22.11–21.12»
+  await expect(bar.getByTestId("summary-bar-line")).toContainText(/(\d+ (урок|урока|уроков) (из \d+ (в [а-яё]+|за период)|· весь период)|^за [а-яё]+( и [а-яё]+)?|^за \d\d\.\d\d–\d\d\.\d\d)/);
   await expect(drawer.getByTestId("enrol-submit")).toBeEnabled();
   await drawer.getByTestId("enrol-submit").click();
   await expect(drawer).toHaveCount(0);

@@ -48,6 +48,10 @@ test("the bar: different sums or periods - a short line «за октябрь и
   assert.equal(nobody.total, null); assert.equal(nobody.line, null);
   const dates = B.enrolBarOf([row("a", "А", 100, [{ label: "19.11–18.12", from: "", amount: 100, lessons: 6, lessons_in_period: 12, whole: false }])]);
   assert.equal(flat(dates.line), "6 уроков из 12 за период 19.11–18.12", "a period given by dates is not a month");
+  assert.equal(flat(B.lessonsLine({ label: "20.11–19.12", from: "", amount: 100, lessons: 13, lessons_in_period: 0, whole: true })), "13 уроков · весь период 20.11–19.12", "lessons > 0: the count stays");
+  const noLessons = { label: "22.11–21.12", from: "", amount: 100, lessons: 0, lessons_in_period: 0, whole: true };
+  assert.equal(B.lessonsLine(noLessons), null, "sum > 0 and 0 lessons: no count");
+  assert.equal(flat(B.enrolBarOf([row("a", "А", 100, [noLessons])]).line), "за 22.11–21.12");
   assert.equal(B.periodsOf(["октябрь", "ноябрь", "декабрь"]), "за октябрь, ноябрь и декабрь");
   const swapped = B.enrolBarOf([row("a", "А", 188000), row("b", "Б", 489000, [oct, whole])]);
   assert.equal(flat(swapped.line), "за октябрь и ноябрь", "the order of the longest story, not of the choosing");
