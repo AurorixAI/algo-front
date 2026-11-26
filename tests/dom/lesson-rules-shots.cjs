@@ -39,6 +39,8 @@ const longHistory = () => {
   for (const row of h.items) { row.group.name = LONG; row.teacher.name = LONG_TEACHER; if (row.reason) row.reason = LONG_REASON; if (row.decision) row.decision.note = LONG_REASON; }
   return h;
 };
+const RETURN_DRY = { ok: true, changed: false, dryRun: true, version: 4, status: "completed", moneyEffects: { students: [], payroll: [{ month: "2026-11", state: "open", sheetId: "sh1", teacherId: "t1", teacherName: "Иванов И.", savedTotal: 0, paid: 0, freshBefore: 75000, freshAfter: 50000, freshTotal: 50000, changedBy: -25000, driftAfter: 0 }], text: "", dryRun: true } };
+const historyExtra = (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { json: RETURN_DRY } : /one-off-decisions\/decided/.test(r.path) ? { json: { items: [], total: 0 } } : null);
 const dryServer = (extra) => (r) => {
   if (r.method === "PUT" && KIND.test(r.path)) return { json: /dry_run=true/.test(r.query) ? answer("dry_run_confirm_centre") : { ok: true } };
   return extra ? extra(r) : null;
@@ -48,7 +50,7 @@ const dryServer = (extra) => (r) => {
   const browser = await launch();
   for (const width of [1280, 375]) {
     const size = { width, height: heightOf(width) };
-    const shot = (page, name) => page.screenshot({ path: path.join(out, `${name}-${width}.png`), fullPage: true });
+    const shot = async (page, name) => { await page.waitForTimeout(450); await page.screenshot({ path: path.join(out, `${name}-${width}.png`), fullPage: true }); };
     const open = async (entry, server, who, props, mount = "substitutions") => {
       const run = await openPage(browser, entry, server, { ...size, today: WORLD_DAY });
       await run.page.evaluate(([n, u, p]) => window.mount(n, u, p), [mount, who, props]);
@@ -103,7 +105,7 @@ const dryServer = (extra) => (r) => {
     }
     // Э3: the history (ordinary, long), the tick, the panel, the states
     for (const [tag, history] of [["ordinary", null], ["long", longHistory()]]) {
-      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ decided: history }), OWNER, { role: "owner" });
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ decided: history, extra: historyExtra }), OWNER, { role: "owner" });
       await page.click('[role="tab"]:has-text("История")');
       await page.waitForSelector('[data-testid="audit-row"]');
       await check(page, errors, `Э3 history ${tag} ${width}`);

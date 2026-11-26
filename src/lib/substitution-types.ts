@@ -4,7 +4,7 @@
  * answers with the old shape and the screens must read it without surprises.
  */
 import type { OpsErrorDetail, TeacherConflict } from "./ops-b-types";
-import type { CancellationKind } from "./payf";
+import type { CancellationKind, StoredCancellationKind } from "./payf";
 import type { MadeUpRef } from "./one-off";
 
 export type SubstitutionReasonCode = "sick" | "personal" | "other";
@@ -467,7 +467,7 @@ export type DecideBody =
 export interface DecideResult {
   kind: SubstitutionDecisionKind;
   /** W1 S2: what the cancellation became (a date under a day off is a holiday whatever was asked); `null` for the other decisions. */
-  cancellationKind?: CancellationKind | null;
+  cancellationKind?: StoredCancellationKind | null;
   teacherId?: string | null;
   teacherName?: string | null;
   isSubstitution?: boolean | null;
@@ -507,7 +507,7 @@ export interface DecideBulkOut {
   items: SubstitutionItem[];
   skipped: BulkSkipped[];
   /** W1 (server R3): one row per decided request, in the order of `items`, with what the server said about it (a holiday instead of «по вине центра», a substitute released). */
-  results?: Array<{ id: string; kind: string; cancellationKind?: CancellationKind | null; warnings?: Array<{ code: string; message: string }> | null }>;
+  results?: Array<{ id: string; kind: string; cancellationKind?: StoredCancellationKind | null; warnings?: Array<{ code: string; message: string }> | null }>;
   warningsTotal?: number;
 }
 

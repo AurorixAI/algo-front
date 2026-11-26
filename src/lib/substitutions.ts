@@ -5,7 +5,7 @@
  */
 import { MONTHS_GENITIVE } from "./ru-calendar";
 import type { GroupDetail, StudentInGroup } from "./api";
-import { type CancellationKind } from "./payf";
+import { WAITING_CANCEL_LABEL, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
@@ -884,7 +884,8 @@ export function decisionToast(out: Pick<DecideOut, "item" | "result">): string {
       const moved = result.newLesson ?? out.item.decision?.movedTo;
       return moved ? movedText(moved) : "Урок перенесён";
     }
-    case "cancel": return LESSON_CANCELLED_LABEL;
+    // LESSON-RULES: an administrator without the money right cancels a PAST lesson: the server answers the kind `unconfirmed` - the owner decides it, so the toast says so
+    case "cancel": return result.cancellationKind === "unconfirmed" ? WAITING_CANCEL_LABEL : LESSON_CANCELLED_LABEL;
     case "reject": return "Запрос отклонён";
     default: return "Решение сохранено";
   }

@@ -86,7 +86,7 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
           aria-label="Причина"
           aria-invalid={showProblem || undefined}
           aria-describedby={showProblem ? errorId : problem ? hintId : undefined}
-          className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
+          className={`w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm outline-none ${past ? "border-slate-200 focus:border-primary-500" : "border-rose-200 focus:border-rose-400"}`}
         />
         {problem && !showProblem && <p id={hintId} data-testid="reason-hint" className="mt-1.5 text-xs text-slate-600">{problem}</p>}
         {/* the live region is in the page from the start, the text comes later: a screen reader announces the change */}

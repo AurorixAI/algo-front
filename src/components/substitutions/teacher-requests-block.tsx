@@ -127,9 +127,11 @@ export function TeacherRequestsBlock({
             {items.map((item) => {
               const hint = todayPendingHint(item, formatBusinessDate(new Date(now)), new Date(now));
               return (
-                <li key={item.id} data-testid="my-request-row" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 first:pt-0 last:pb-0">
+                <li key={item.id} data-testid="my-request-row" className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2.5 first:pt-0 last:pb-0 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-3 sm:gap-y-1.5">
                   <span className="min-w-0 text-sm font-medium text-slate-800">{myRequestLine(item)}</span>
-                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* a phone: the line and «›» on the first row, the chip and the actions under them; from 640 px one row */}
+                  <span className="col-start-2 row-start-1 sm:order-last"><DetailsButton item={item} onOpen={(row) => setPanel({ id: row.id, seed: row })} /></span>
+                  <span className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:col-auto sm:ml-auto">
                     <OutcomeChip item={item} audience="teacher" />
                     {hint && <span data-testid="today-pending-hint" className="text-xs font-medium text-amber-800">{hint}</span>}
                     {item.status === "pending" && (
@@ -166,7 +168,6 @@ export function TeacherRequestsBlock({
                         Открыть урок
                       </Link>
                     )}
-                    <DetailsButton item={item} onOpen={(row) => setPanel({ id: row.id, seed: row })} />
                   </span>
                 </li>
               );

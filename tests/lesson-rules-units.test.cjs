@@ -242,3 +242,10 @@ test("Э9: every reader of the kind of a cancellation knows `unconfirmed` - the 
   };
   for (const [file, pattern] of Object.entries(sources)) assert.match(read(file), pattern, file);
 });
+
+test("a decision of «Отменить урок» over a PAST lesson by a role without the money right: the answer says unconfirmed and the toast says the owner decides (the types keep the stored kind)", () => {
+  assert.equal(Subs.decisionToast({ item: { decision: {} }, result: { kind: "cancel", cancellationKind: "unconfirmed" } }), "Отмена ждёт подтверждения");
+  assert.equal(Subs.decisionToast({ item: { decision: {} }, result: { kind: "cancel", cancellationKind: "centre" } }), "Урок отменён");
+  assert.equal(Subs.decisionToast({ item: { decision: {} }, result: { kind: "cancel", cancellationKind: null } }), "Урок отменён");
+  assert.match(read("src/lib/substitution-types.ts"), /cancellationKind\?: StoredCancellationKind \| null;\n  teacherId/);
+});

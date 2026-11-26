@@ -125,7 +125,7 @@ export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
       description={item ? waitingDialogSubtitle(item) : undefined}
       onClose={close}
       busy={busy}
-      size="sm"
+      size="lg"
       footerClassName={CONFIRM_FOOTER_CLASS}
       footer={item ? (
         finished

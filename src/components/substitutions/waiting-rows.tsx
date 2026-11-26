@@ -37,7 +37,7 @@ export function LessonLinkCell({ item, href }: { item: { group: { name: string }
 export function WaitingReason({ item }: { item: WaitingCancellationItem }) {
   const text = waitingReasonText(item);
   return (
-    <p data-testid="waiting-reason" title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
+    <p data-testid="waiting-reason" data-allow-hscroll="" title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
       <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       <span className="min-w-0 truncate">{text}</span>
     </p>

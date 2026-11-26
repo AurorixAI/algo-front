@@ -23,7 +23,7 @@ import { LessonLinkCell, waitingLessonLabel } from "@/components/substitutions/w
 /** The reason words of a row of the history: a comment mark and the line (the words of the person), never a chip. */
 export function ReasonWords({ text, testId = "reason-words" }: { text: string; testId?: string }) {
   return (
-    <p data-testid={testId} title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
+    <p data-testid={testId} data-allow-hscroll="" title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
       <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       <span className="min-w-0 truncate">{text}</span>
     </p>
