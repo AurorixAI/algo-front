@@ -80,3 +80,25 @@ test("the teacher reports and takes the report back -> nothing waits for the own
   await teacherPage.reload();
   await expect(teacherPage.getByTestId("next-action-card")).toContainText(group.name);
 });
+
+/**
+ * The journal of a group on a PHONE (375; the project @mobile): the «⋯» of the first column of a lesson lies wholly inside the window and opens its menu with an ordinary press
+ * (it lay beyond the edge of the screen: the press scrolled the table and that scroll closed the menu).
+ */
+test("@mobile the journal on a phone: the «⋯» of the first column is inside the window and the menu opens with an ordinary press and stays", async ({ signIn }) => {
+  test.setTimeout(300_000);
+  const { group } = await worldWithPastLesson("3");
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}?tab=attendance`);
+  const trigger = page.locator("th[data-lesson-key] [data-column-menu-trigger]").first();
+  await expect(trigger).toBeVisible();
+  const box = await trigger.boundingBox();
+  const width = page.viewportSize()?.width ?? 375;
+  expect(box, "the trigger has a box").not.toBeNull();
+  expect(box!.x, "«⋯» starts inside the window").toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width, `«⋯» ends inside the window (${width})`).toBeLessThanOrEqual(width);
+  await trigger.click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(page.getByRole("menu"), "no scroll closed the menu").toBeVisible();
+});
