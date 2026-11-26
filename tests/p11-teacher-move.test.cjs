@@ -146,11 +146,11 @@ test("both week grids write the head of a day with the one component: weekday, t
   assert.ok(fs.readFileSync(path.join(root, "src/app/teacher/schedule/page.tsx"), "utf8").split("\n").length < 3210, "the teacher page did not grow");
 });
 
-test("the journal: a move without a request is «без запроса», its chip is «Урок перенесён»; a teacher's request keeps its reason", () => {
+test("the journal: a move without a request has NO badge «без запроса» (LESSON-RULES: the history says what happened in its one chip), its chip is «Урок перенесён»; a teacher's request keeps its reason", () => {
   const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
   const moved = (trigger) => ({ origin: "system", trigger, outcome: "rescheduled", status: "rescheduled", reasonCode: "other", reasonLabel: "Другое", decision: { via: trigger } });
-  assert.equal(O.originBadge(moved("teacher_move")), "без запроса");
-  assert.equal(O.originBadge(moved("manager_move")), "без запроса");
+  assert.equal(O.originBadge(moved("teacher_move")), null);
+  assert.equal(O.originBadge(moved("manager_move")), null);
   assert.equal(O.reasonShort(moved("teacher_move")), null);
   assert.equal(O.outcomeOf(moved("teacher_move"), "manager").text, "Урок перенесён");
   assert.equal(O.originBadge({ origin: "system", status: "pending", trigger: null }), "открыт заново");

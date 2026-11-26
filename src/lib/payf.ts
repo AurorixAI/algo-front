@@ -76,6 +76,13 @@ export function cancellationKindBody(kind: CancellationKind, canChoose: boolean)
 export const CHANGE_KIND_LABEL = "Изменить причину отмены";
 export const CHANGE_KIND_BUTTON = "Сохранить причину";
 
+/** LESSON-RULES: a cancellation that WAITS for the owner (`unconfirmed`): its words everywhere are «Отмена ждёт подтверждения» and its action is «Решить» (the window of «Замены»), never «Изменить причину отмены». */
+export const WAITING_CANCEL_LABEL = "Отмена ждёт подтверждения";
+export const DECIDE_WAITING_LABEL = "Решить";
+export function isWaitingKind(kind: string | null | undefined): boolean {
+  return kind === "unconfirmed";
+}
+
 /** The «Изменить причину отмены» action exists for a lesson cancelled with a kind of its own (not by a day off, not an old cancellation or a move). */
 export function canChangeKind(canChoose: boolean, kind: string | null | undefined): kind is CancellationKind {
   return canChoose && (kind === "centre" || kind === "holiday");

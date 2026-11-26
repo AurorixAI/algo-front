@@ -112,6 +112,9 @@ import { nobodyCameQuestion } from "@/lib/attendance-ops";
 import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
+import { WaitingCancelDialog } from "@/components/substitutions/waiting-cancel-dialog";
+import type { WaitingTarget } from "@/lib/lesson-rules";
+import { DECIDE_WAITING_LABEL, WAITING_CANCEL_LABEL } from "@/lib/payf";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
@@ -297,7 +300,7 @@ function formatMembershipEvent(event: MembershipEvent): string {
   return `Переведён${event.source_group_name ? ` из «${event.source_group_name}»` : " в эту группу"}${date ? ` · ${date}` : ""}`;
 }
 
-function lessonStatusPresentation(status: string, lessonDate: string, today: string) {
+function lessonStatusPresentation(status: string, lessonDate: string, today: string, cancelKind: string | null = null) {
   if (status === "completed") {
     return {
       label: "Завершён",
@@ -306,6 +309,8 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
     };
   }
   if (status === "cancelled") {
+    // LESSON-RULES: the cancellation of a past lesson that waits for the owner says so in the head of the column
+    if (cancelKind === "unconfirmed") return { label: WAITING_CANCEL_LABEL, className: "text-amber-700", description: "Преподаватель сообщил, что урока не было: отмену подтвердит владелец или администратор с доступом к деньгам" };
     return { label: "Не состоялся", className: "text-slate-500", description: "Урока не было: посещаемость недоступна" };
   }
   if (status === "in_progress" && lessonDate < today) {
@@ -401,6 +406,7 @@ export function GroupAttendanceJournal({
   const moneyRight = canManageMoney(user);
   const [returnTarget, setReturnTarget] = useState<ReturnLessonTarget | null>(null);
   const [reviewTarget, setReviewTarget] = useState<ReturnLessonTarget | null>(null);
+  const [waitingTarget, setWaitingTarget] = useState<WaitingTarget | null>(null);
   const [reconcileTarget, setReconcileTarget] = useState<ReconcileTarget | null>(null);
   const [undoTarget, setUndoTarget] = useState<UndoDecisionTarget | null>(null);
   /** Money-1 A1: a save was refused because the month of the teacher is closed - the banner offers «Переоткрыть месяц» (the right) next to the server's sentence. */
@@ -696,11 +702,11 @@ export function GroupAttendanceJournal({
 
   /**
    * The actions of the column «⋯» of one lesson.  The administrator / the owner: by the state of the lesson and the MONEY right (I-6: a held lesson, a return, a lesson formalised afterwards are money);
-   * the teacher of the lesson: «Исправить отметки» of his own held lesson within 7 days (Money-1 A5).
+   * the teacher of the lesson: «Исправить отметки» of his own held lesson within the window of the centre (Money-1 A5).
    */
   const actionsFor = (lesson: Lesson, key: string, lessonStatus: string): AdminLessonAction[] => {
     if (!canEdit) return [];
-    if (!adminMode) return lessonTeacherActions(lessonStatus, lesson.date, today, !lessonIsOthers(key));
+    if (!adminMode) return lessonTeacherActions(lessonStatus, !lessonIsOthers(key));
     const moved = lessonStatus === "cancelled" && lesson.substitutionOutcome?.kind === "rescheduled";
     // R2-4 (walk of 05.11): a cancelled lesson of TODAY that has begun goes back to the review at once (the start of the lesson, like the server), not the next day
     const started = lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time });
@@ -1279,6 +1285,11 @@ export function GroupAttendanceJournal({
       setReviewTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
       return;
     }
+    if (action === "decide_waiting") {
+      // LESSON-RULES: the same window as in «Замены» (three outcomes); the journal knows the group and the lesson, not who wrote it - the window says only what it knows
+      setWaitingTarget({ group: { id: groupId, name: groupName ?? "" }, lesson: { lessonId: lesson.id, date: lesson.date, startTime: lesson.startTime || lesson.start_time || null, endTime: lesson.endTime || null } });
+      return;
+    }
     if (action === "reconcile") {
       // Money-1 A6: the lesson is formalised afterwards - the money right says WHO taught it (the planned teacher by default)
       const fromRow = highlightTarget && highlightTarget.lessonId === lesson.id && highlightTarget.date === lesson.date ? highlightTeacherId : null;
@@ -1513,7 +1524,7 @@ export function GroupAttendanceJournal({
                     const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
-                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
+                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null);
                     const inCorrection = correcting?.key === key;
                     const correction = attendanceData?.corrections?.[key];
                     const adminActions = !correcting ? actionsFor(lesson, key, lessonStatus) : [];
@@ -1864,7 +1875,7 @@ export function GroupAttendanceJournal({
                     const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
-                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
+                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null);
                     return (
                       <th key={key} scope="col" title={presentation.description} className="min-w-[132px] border-r border-slate-200 px-3 py-3 text-center">
                         <div className="space-y-0.5">
@@ -2055,6 +2066,12 @@ export function GroupAttendanceJournal({
                 <span className="min-w-0"><span className="block">{UNDO_DECISION_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.undo_decision} /></span>
               </button>
             )}
+            {actions.includes("decide_waiting") && (
+              <button type="button" role="menuitem" data-testid="menu-decide-waiting" onClick={() => void runColumnAction("decide_waiting", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span className="min-w-0"><span className="block">{DECIDE_WAITING_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.decide_waiting} /></span>
+              </button>
+            )}
             {actions.includes("return_review") && (
               <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
@@ -2233,6 +2250,12 @@ export function GroupAttendanceJournal({
           const money = toastWithEffects(result);
           showToast(returnDoneText(target.lessonDate, result.changed), money.tone, money.details);
         }}
+      />
+      <WaitingCancelDialog
+        item={waitingTarget}
+        onClose={() => setWaitingTarget(null)}
+        onDecided={() => { void loadAttendanceRef.current(true); }}
+        showToast={showToast}
       />
       <ReturnToReviewDialog
         target={reviewTarget}

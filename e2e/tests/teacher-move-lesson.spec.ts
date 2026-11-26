@@ -100,11 +100,11 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   // --- 5. the owner: «Замены и переносы» says WHO moved it
   const ownerPage = await signIn(org.owner);
   await ownerPage.goto("/owner/substitutions");
-  await ownerPage.getByRole("tab", { name: /Решённые/ }).click();
+  await ownerPage.getByRole("tab", { name: /История/ }).click();
   const row = ownerPage.getByRole("listitem").filter({ hasText: group.name });
-  // #159 U1-U5 / W1: the row says who moved it («Переносов У.», «без запроса»), where («→ ср, 04.11, 15:00») and the kind («Урок перенесён»); a move has no reason plate
+  // #159 U1-U5 / W1: the row says who moved it («Переносов У.»; LESSON-RULES: the chip «без запроса» is gone), where («→ ср, 04.11, 15:00») and the kind («Урок перенесён»); a move has no reason plate
   await expect(row).toContainText(/Переносов У\./);
-  await expect(row).toContainText("без запроса");
+  await expect(row).not.toContainText("без запроса");
   await expect(row).toContainText(/→ ср, \d\d\.\d\d, 15:00/);
   await expect(row).toContainText("Урок перенесён");
   await shot(ownerPage, `04-journal-${project}`);

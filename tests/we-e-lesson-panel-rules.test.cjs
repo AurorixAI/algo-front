@@ -103,13 +103,14 @@ test("[R4] MUTATION: without the date check the same scenario fails (a request g
   await assert.rejects(() => probe(mutated, scenarioDateCheck), /no request for a lesson of another day|0 !== 1|1 !== 0/);
 });
 
-// the window of the teacher is BY THE DATE of the lesson (server: LESSON_TOO_OLD when the date is before today - 7): 7 days back is allowed, 8 is not
+// the window of the teacher is the rule of the CENTRE and the SERVER says it (LESSON-RULES: `requiresAdmin` + `windowDays` of the open action of the lesson; LESSON_TOO_OLD for the rest): the screen keeps no copy of the number
+// a lesson inside the window (flag false) is the teacher's, a lesson outside it (flag true) is the administrator's - whatever the number of days is
 const dayLesson = (id, date) => lesson(id, `G-${id}`, `Группа ${id}`, date, "10:00", "11:00");
-test("[R5] 7 days back the teacher still settles / cancels / marks, 8 days back nothing of his is offered: ONE line instead; the administrator is not bound", async () => {
+test("[R5] a lesson the server leaves to the teacher (requiresAdmin false) is settled / cancelled / marked by him, a lesson the server closes to him (requiresAdmin true, windowDays 7) offers nothing of his: ONE line instead; the administrator is not bound", async () => {
   const seven = dayLesson("L7", "2026-10-28");
   const eight = dayLesson("L8", "2026-10-27");
   await probe(null, async (api) => {
-    const missed = (l) => api.world.openAction(l);
+    const missed = (l) => ({ ...api.world.openAction(l), requiresAdmin: l === eight, windowDays: 7 });
     api.setHost({ openActions: [missed(seven), missed(eight)] });
     await api.open(seven);
     assert.equal(api.panel.lessonTooOld, false);
@@ -127,7 +128,8 @@ test("[R5] 7 days back the teacher still settles / cancels / marks, 8 days back 
     assert.equal(api.panel.banner, "tooOld");
     await api.screen.call(() => api.panel.handleSaveAttendance());
     assert.equal(api.world.called("saveGroupAttendance").length, 0);
-    assert.match(api.panel.attendanceError || "", /Урок старше 7 дней — его закрывает администратор или владелец/);
+    assert.match(api.panel.attendanceError || "", /^Урок старше 7 дн\. — его закрывает администратор или владелец$/, "the number is the windowDays of the server's task");
+    assert.equal(api.panel.attendanceInfo, true, "a rule of the centre is said as an information, not as a red error");
     // the administrator is not bound by the window
     api.world.user = { ...api.world.user, role: "admin", org_role: "admin" };
     api.setHost({ openActions: [missed(eight)], user: api.world.user });
@@ -135,10 +137,11 @@ test("[R5] 7 days back the teacher still settles / cancels / marks, 8 days back 
   }, { extra: [seven, eight] });
 });
 
-test("[R5b] MUTATION: the window by the existence of the task (not by the date) lets a lesson of 8 days with no task through", async () => {
+test("[R5b] MUTATION: without the flag of the server (requiresAdmin) a lesson the server closes to the teacher is offered to him", async () => {
   const eight = dayLesson("L8", "2026-10-27");
-  const mutated = (source) => { assert.match(source, /isLessonTooOld\(activeLessonDate, businessDate\)/); return source.replace("isLessonTooOld(activeLessonDate, businessDate)", "false"); };
+  const mutated = (source) => { assert.match(source, /isLockedByServer\(windowAction\)/); return source.replace("isLockedByServer(windowAction)", "false"); };
   await assert.rejects(() => probe(mutated, async (api) => {
+    api.setHost({ openActions: [{ ...api.world.openAction(eight), requiresAdmin: true, windowDays: 7 }] });
     await api.open(eight);
     assert.equal(api.panel.banner, "tooOld");
   }, { extra: [eight] }), /'past' !== 'tooOld'|tooOld/);

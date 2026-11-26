@@ -1,12 +1,12 @@
 /**
  * O6 / O7 / O8 / decision 7 (LOGIC-B): what the lesson screens do with the new answers of the attendance endpoints -
  * the version of a lesson record (optimistic lock), the conflict of two editors, a live exam at the finish,
- * an empty roster, a lesson older than 7 days.  Pure: no React, no network.
+ * an empty roster, a lesson older than the window of the centre.  Pure: no React, no network.
  */
 import { addIsoDays, formatLessonWhen, formatUtcNaiveAsBusinessTime } from "./business-time";
 import {
   LESSON_TOO_OLD_HINT,
-  LESSON_TOO_OLD_TEXT,
+  lessonTooOldText,
   NO_STUDENTS_FINISH_TEXT,
   NO_STUDENTS_START_TEXT,
   opsErrorCode,
@@ -17,14 +17,11 @@ import { substitutionErrorText } from "./substitutions";
 import type { AttendanceConflictDetail, ExamSync, LiveExamDetail, LiveExamItem } from "./ops-b-types";
 import type { ConfirmRequest } from "./confirm-dialog";
 
-// ── the window of 7 days (decision 7) ───────────────────────────────────────────────────────────
+// ── the window of the teacher (decision 7; LESSON-RULES: the window is the rule of the CENTRE - the server says it) ──
 
-/** A teacher closes lessons of the last 7 days (today - 7 and later); older ones belong to an administrator or the owner. */
-export const TEACHER_WINDOW_DAYS = 7;
-
-export function isLessonTooOld(lessonDate: string, today: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(lessonDate ?? "")) return false;
-  return lessonDate < addIsoDays(today, -TEACHER_WINDOW_DAYS);
+/** The server marks a lesson the teacher may not close himself (`requiresAdmin` of the open action): older than the window of the centre.  No copy of the number of days lives here. */
+export function isLockedByServer(action: { requiresAdmin?: boolean | null } | null | undefined): boolean {
+  return action?.requiresAdmin === true;
 }
 
 export interface OpenLessonAccess {
@@ -35,18 +32,16 @@ export interface OpenLessonAccess {
 }
 
 /**
- * A row of «Уроки без отметки» for this viewer: the server says `requiresAdmin` for a teacher and a lesson older than 7 days;
- * an older server says nothing, then the date decides.  Owner and administrator are never locked by the window.
+ * A row of «Уроки без отметки» for this viewer: the server says `requiresAdmin` for a teacher and a lesson older than the window of the centre; nothing is guessed from the date.
+ * Owner and administrator are never locked by the window.
  */
 export function openLessonAccess(
-  action: { lessonDate: string; requiresAdmin?: boolean | null },
+  action: { requiresAdmin?: boolean | null },
   viewerRole: string | null | undefined,
-  today: string,
 ): OpenLessonAccess {
   const manager = viewerRole === "owner" || viewerRole === "admin";
   if (manager) return { locked: false, hint: null };
-  const locked = action.requiresAdmin ?? isLessonTooOld(action.lessonDate, today);
-  return locked ? { locked: true, hint: LESSON_TOO_OLD_HINT } : { locked: false, hint: null };
+  return isLockedByServer(action) ? { locked: true, hint: LESSON_TOO_OLD_HINT } : { locked: false, hint: null };
 }
 
 // ── versions (O7) ───────────────────────────────────────────────────────────────────────────────
@@ -164,6 +159,8 @@ export const FINISH_LESSON_ACTION = "Завершить урок";
 // ── nobody came (Money-1 A6) ────────────────────────────────────────────────────────────────────
 
 /** 409 `NOBODY_CAME`: every student is «Не был» / «Уважительная» - a finish makes the lesson HELD and it goes to the salary of the teacher; the server asks for an explicit yes. */
+/** The words of 409 `NOBODY_CAME_BACKDATED` when the server sent none (it does: the screen shows its sentence). */
+export const NOBODY_CAME_BACKDATED_TEXT = "Урок, на который никто не пришёл, задним числом оформляет администратор или владелец";
 export const NOBODY_CAME_TEXT = "Никто не пришёл. Если завершить, урок будет считаться проведённым и войдёт в зарплату преподавателя";
 
 /** Our words for the question when the answer of the server has none (R3 n6: the sentence of the server is the question when it came). */
@@ -230,10 +227,17 @@ export type LessonFailure =
   | { kind: "live_exam"; text: string; exams: LiveExamItem[] }
   | { kind: "nobody_came"; text: string }
   | { kind: "too_old"; text: string }
+  /** LESSON-RULES: a lesson nobody came to is written afterwards by the administrator or the owner (409 `NOBODY_CAME_BACKDATED`). */
+  | { kind: "nobody_came_backdated"; text: string }
   | { kind: "no_students"; text: string }
   | { kind: "not_lesson_teacher"; text: string }
   | { kind: "archived"; text: string }
   | { kind: "other"; text: string };
+
+/** A refusal that is a RULE of the centre, not a failure: the screen says it as an information (blue), without a red error. */
+export function isRuleRefusal(failure: LessonFailure): boolean {
+  return failure.kind === "too_old" || failure.kind === "nobody_came_backdated";
+}
 
 /** Sorts a failed lesson action into what the screen does about it; `text` is always something to show. */
 export function lessonFailure(error: unknown, operation: LessonOperation, fallback: string): LessonFailure {
@@ -249,7 +253,10 @@ export function lessonFailure(error: unknown, operation: LessonOperation, fallba
     case "NOBODY_CAME":
       return { kind: "nobody_came", text: errorMessageOf(error, NOBODY_CAME_TEXT) };
     case "LESSON_TOO_OLD":
-      return { kind: "too_old", text: LESSON_TOO_OLD_TEXT };
+      // the number of days is the window of the CENTRE: the server says it in its sentence (`windowDays` of the refusal); the screen keeps no copy of it
+      return { kind: "too_old", text: errorMessageOf(error, lessonTooOldText((opsErrorDetail(error) as { windowDays?: number } | null)?.windowDays)) };
+    case "NOBODY_CAME_BACKDATED":
+      return { kind: "nobody_came_backdated", text: errorMessageOf(error, NOBODY_CAME_BACKDATED_TEXT) };
     case "NO_STUDENTS":
       return { kind: "no_students", text: operation === "finish" ? NO_STUDENTS_FINISH_TEXT : NO_STUDENTS_START_TEXT };
     case "NO_STUDENTS_COMPLETE":

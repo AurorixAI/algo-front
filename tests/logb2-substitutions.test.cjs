@@ -510,7 +510,7 @@ test("[M2] the list: the deadline in minutes, hours, days; urgent under 24 hours
   assert.equal(S.deadlineText(0), null);
   assert.equal(S.deadlineText(-30), null);
   assert.equal(S.tabLabel("pending", 3), "Ждут решения (3)");
-  assert.equal(S.tabLabel("decided", 3), "Решённые");
+  assert.equal(S.tabLabel("decided", 3), "История");          // LESSON-RULES: «Решённые» became «История» (the requests and the entries of the journal in one list)
   assert.equal(S.EMPTY_TEXT, "Запросов на замену нет");
   assert.equal(S.LOAD_ERROR_TEXT, "Не удалось загрузить запросы. Повторите попытку.");
   assert.equal(S.suggestedLine({ suggestedTeacher: { id: "x", name: "Рахимов Т.", active: false } }), "Предложенный сотрудник больше не ведёт уроки");

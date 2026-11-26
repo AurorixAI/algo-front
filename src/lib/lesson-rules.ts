@@ -36,26 +36,40 @@ export function waitingDecideLabel(item: Pick<WaitingCancellationItem, "group" |
 
 // ── the window of the decision ────────────────────────────────────────────────────────
 
-/** Who wrote the cancellation, in the title of the window: «Преподаватель сообщил: урока не было». */
-export function waitingDialogTitle(item: Pick<WaitingCancellationItem, "cancelledBy">): string {
+/**
+ * What the window of the decision needs of a cancellation that waits: the row of «Замены» gives all of it, the journal and the lesson sheet know the lesson and the group only (who wrote it, when and what is
+ * then not said - the window never invents it).
+ */
+export interface WaitingTarget {
+  group: { id: string; name: string };
+  lesson: { lessonId: string; date: string; startTime?: string | null; endTime?: string | null };
+  cancelledBy?: PersonRef | null;
+  cancelledAt?: string | null;
+  reason?: string | null;
+  waitingDays?: number | null;
+}
+
+/** Who wrote the cancellation, in the title of the window: «Преподаватель сообщил: урока не было» (the lesson sheet does not know who: «Отмена урока ждёт подтверждения»). */
+export function waitingDialogTitle(item: Pick<WaitingTarget, "cancelledBy">): string {
   const role = item.cancelledBy?.role;
+  if (!item.cancelledBy) return "Отмена урока ждёт подтверждения";
   const who = role === "admin" ? "Администратор" : role === "owner" ? "Владелец" : "Преподаватель";
   return `${who} сообщил: урока не было`;
 }
 
 /** «Математика 7 · пн, 23.11 · 17:00–18:00» under the title. */
-export function waitingDialogSubtitle(item: Pick<WaitingCancellationItem, "group" | "lesson">): string {
+export function waitingDialogSubtitle(item: Pick<WaitingTarget, "group" | "lesson">): string {
   const { date, startTime, endTime } = item.lesson;
   if (startTime && endTime) return lessonLine(item.group.name, date, startTime, endTime);
   return `${item.group.name} · ${formatDayMonthRu(date)}`;
 }
 
 /** «Эргашев К., 24.11 в 12:50: «Отключили свет»»: who, when and what he wrote - ONE sentence of the head of the window. */
-export function waitingDialogHead(item: Pick<WaitingCancellationItem, "cancelledBy" | "cancelledAt" | "reason">): string {
-  const when = shortWhen(item.cancelledAt).replace(" ", " в ");
+export function waitingDialogHead(item: Pick<WaitingTarget, "cancelledBy" | "cancelledAt" | "reason">): string {
+  const when = item.cancelledAt ? shortWhen(item.cancelledAt).replace(" ", " в ") : "";
   const reason = (item.reason ?? "").trim();
   const said = reason && reason.toLowerCase() !== WAITING_REASON_PREFIX.toLowerCase() ? `: «${reason}»` : "";
-  return `${item.cancelledBy?.name ?? ""}, ${when}${said}`.replace(/^,\s*/, "");
+  return [item.cancelledBy?.name ?? "", when].filter(Boolean).join(", ") + said;
 }
 
 export type WaitingOutcome = "centre" | "holiday" | "held";

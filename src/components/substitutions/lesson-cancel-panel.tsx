@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react";
 import { formatIsoDateLabel } from "@/lib/business-time";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { Button } from "@/components/ui/button";
+import { PAST_CANCEL_BUTTON, PAST_CANCEL_BUSY, pastCancelQuestion } from "@/lib/lesson-rules";
 
 /** What the exam bound to the lesson means for the cancellation (the page reads `lesson-exam-binding` when the panel opens). */
 export interface LessonCancelBinding {
@@ -20,7 +21,7 @@ export interface LessonCancelBinding {
  * The minimum of the reason is a quiet grey line from the start (as on the other forms); it turns red only after an attempt to send a short reason or after
  * the person leaves the field - the button stays pressable, so the attempt is answered with the reason, not with a dead button.
  */
-export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, binding, reason, onReason, busy, onConfirm, onBack }: {
+export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, binding, reason, onReason, busy, onConfirm, onBack, pastLesson = false, consequence = null }: {
   /** YYYY-MM-DD */
   date: string;
   /** W1 S27: the teacher cancels the one-off lesson he added himself (not «урока не было»). */
@@ -33,7 +34,15 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
   busy: boolean;
   onConfirm: () => void;
   onBack: () => void;
+  /**
+   * LESSON-RULES Э5: the lesson has started already (or never was started) - the teacher REPORTS that it did not take place and the owner confirms it (the server writes `unconfirmed`).  The panel is then a plain
+   * question, the sentence of the server says what happens next («Отмену подтвердит …»), the button is the usual blue one: the message is not dangerous (nothing is cancelled for the students yet).
+   */
+  pastLesson?: boolean;
+  /** The sentence of the SERVER about what happens next (`GET …/cancel-consequence`, read by the window that holds the panel); null while it is not known - the cancellation is never blocked by it. */
+  consequence?: string | null;
 }) {
+  const past = pastLesson && !oneOff;
   const problem = reasonProblemFor("cancel", reason);
   const hintId = useId();
   const errorId = useId();
@@ -46,11 +55,15 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
     onConfirm();
   };
   return (
-    <div data-testid="lesson-cancel-panel" className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+    <div data-testid="lesson-cancel-panel" data-past={past ? "true" : undefined} className={past ? "mb-5 space-y-3" : "mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"}>
+      {past ? (
+        <p data-testid="past-cancel-question" className="text-sm leading-6 text-slate-700">{pastCancelQuestion(formatIsoDateLabel(date, { day: "numeric", month: "long" }))}</p>
+      ) : (
       <div>
         <p className="text-sm font-bold text-rose-900">{oneOff ? "Отменить разовый урок" : "Урока не было"}: {formatIsoDateLabel(date, { day: "numeric", month: "long" })}</p>
         <p className="mt-0.5 text-xs text-rose-700">{oneOff ? "Разовый урок будет отменён. Причина сохранится в истории." : "Урок будет отмечен как не состоявшийся. Причина сохранится в истории урока."}</p>
       </div>
+      )}
       {binding?.loading && (
         <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">Проверяем связанный экзамен…</p>
       )}
@@ -79,15 +92,17 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
         {/* the live region is in the page from the start, the text comes later: a screen reader announces the change */}
         <p id={errorId} data-testid="reason-error" aria-live="polite" className={showProblem ? "mt-1.5 text-xs font-medium text-rose-700" : undefined}>{showProblem ? problem : null}</p>
       </div>
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={onBack} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white">Назад</button>
+      {/* the sentence of the SERVER about what happens next (it is the owner who decides the cancellation); plain text, not a muted note */}
+      {past && consequence && <p data-testid="past-cancel-consequence" className="text-sm leading-6 text-slate-800">{consequence}</p>}
+      <div className={past ? "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end" : "flex justify-end gap-2"}>
+        <button type="button" onClick={onBack} disabled={busy} className={past ? "min-h-10 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"}>Назад</button>
         <Button
           type="button"
           onClick={confirm}
           disabled={busy || (binding !== undefined && (!binding || binding.loading || !binding.canCancel))}
-          variant="danger" size="sm"
+          variant={past ? "primary" : "danger"} size={past ? "md" : "sm"}
         >
-          {busy ? "Сохранение..." : oneOff ? "Отменить урок" : "Урока не было"}
+          {busy ? (past ? PAST_CANCEL_BUSY : "Сохранение...") : oneOff ? "Отменить урок" : past ? PAST_CANCEL_BUTTON : "Урока не было"}
         </Button>
       </div>
     </div>

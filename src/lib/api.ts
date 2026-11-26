@@ -1084,7 +1084,7 @@ export interface OpenAttendanceAction {
   teacherName?: string | null;
   /** LOGIC-B (O7): version of an `in_progress` record (the next save's `expectedVersion`). */
   version?: number | null;
-  /** LOGIC-B (decision 7): the lesson is older than 7 days and only an administrator or the owner closes it. */
+  /** LOGIC-B (decision 7): the lesson is older than the window of the centre and only an administrator or the owner closes it. */
   requiresAdmin?: boolean;
   ageDays?: number;
   /** LESSON-RULES: the window of the centre in days (how long the teacher closes a lesson himself): the screen says THIS number, it keeps no copy of it. */
@@ -1391,6 +1391,8 @@ export interface CancelMissedResult {
   deductions?: Array<{ studentId: string; name: string | null; amount: number }>;
   /** Money-1 Г (Р-4): what the cancellation does to the students in the server's own words («Ученикам зачтётся по 46 000 сум» / «На оплату не влияет»); for everyone, with no sums for a person without the money right. */
   consequence?: string;
+  /** LESSON-RULES: the cancellation of a PAST lesson waits for the owner (`unconfirmed`): `consequence` is then the server's sentence about what happens next. */
+  waiting?: boolean;
 }
 
 export const orgApi = {
@@ -1717,7 +1719,7 @@ export const orgApi = {
       confirmNobodyCame?: boolean;
     }
   ) =>
-    api<SaveAttendanceResult & { ok: boolean; saved: boolean }>(`/auth/org/groups/${encodePathId(groupId)}/attendance`, { method: "POST", body: data }),
+    api<SaveAttendanceResult & { ok: boolean; saved: boolean; waiting?: boolean; consequence?: string }>(`/auth/org/groups/${encodePathId(groupId)}/attendance`, { method: "POST", body: data }),
 
   startGroupAttendance: (
     groupId: string,

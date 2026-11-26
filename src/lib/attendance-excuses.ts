@@ -7,7 +7,6 @@ import { MONTHS_NOMINATIVE_CAP } from "./ru-calendar";
 import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { addIsoDays, daysBetweenInclusive, formatBusinessDateTime } from "./business-time";
 import { reasonProblemFor } from "./reason-rules";
-import { isLessonTooOld } from "./attendance-ops";
 
 export type AdminLessonAction =
   | "reconcile"      // "Отметить посещаемость" - forgotten past lesson
@@ -16,6 +15,7 @@ export type AdminLessonAction =
   | "correct"        // "Исправить отметки"
   | "return"         // "Вернуть урок" (Money-1 A2): a held lesson goes back to «не проведён»
   | "return_review"  // "Вернуть на отметку" (Money-1 A2): «Урока не было» said by mistake for a lesson that has begun
+  | "decide_waiting" // "Решить" (LESSON-RULES): the cancellation of a past lesson waits for the owner - the same window of three outcomes as in «Замены»
   | "undo_decision"; // "Отменить решение об оплате" (Money-1 A3): the decision on an additional lesson is taken back
 
 export const CORRECTION_REASON_MIN = 10;
@@ -58,6 +58,8 @@ export interface AdminActionRights {
 export function lessonAdminActions(state: string, date: string, today: string, rights: AdminActionRights): AdminLessonAction[] {
   if (state === "completed") return rights.moneyRight ? ["correct", "return", ...(rights.undoDecision ? ["undo_decision" as const] : [])] : [];
   if (state === "cancelled") {
+    // LESSON-RULES: a cancellation that waits for the owner is decided (the window has «Урок был» inside), not «returned» or «changed»; only the money right decides
+    if (rights.cancelKind === "unconfirmed") return rights.moneyRight ? ["decide_waiting"] : [];
     const begun = date < today || (date === today && rights.started === true);
     return rights.moneyRight && begun && !rights.moved && rights.cancelKind !== "day_off" ? ["return_review"] : [];
   }
@@ -68,12 +70,12 @@ export function lessonAdminActions(state: string, date: string, today: string, r
 }
 
 /**
- * Money-1 A5: the teacher of a lesson corrects the marks of his OWN held lesson within 7 days, while the month is open, with a reason (the server judges the month and the days:
+ * Money-1 A5: the teacher of a lesson corrects the marks of his OWN held lesson within the window of the centre, while the month is open, with a reason (the server judges the month and the days:
  * LESSON_TOO_OLD, PERIOD_CLOSED).  The journal offers the one action «Исправить отметки»; nothing else of the administrator's menu.
  */
-export function lessonTeacherActions(state: string, date: string, today: string, own: boolean): AdminLessonAction[] {
-  if (state !== "completed" || !own) return [];
-  return isLessonTooOld(date, today) ? [] : ["correct"];
+export function lessonTeacherActions(state: string, own: boolean): AdminLessonAction[] {
+  // LESSON-RULES: the window is the centre's (1-30 days) and the journal carries no flag for it: the action is offered, the server judges (LESSON_TOO_OLD in its own words, PERIOD_CLOSED)
+  return state === "completed" && own ? ["correct"] : [];
 }
 
 /** null when the lesson can be finished, otherwise the hint to show. */

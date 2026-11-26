@@ -43,9 +43,9 @@ const cleared = (patch = {}) => direct({
                                 closedReasonText: "Замена снята", note: null }, ...patch,
 });
 
-test("[1] a substitution without a request (#157): the badge «без запроса», no reason, «Иванов А. → Петров Б.», the chip «Замена назначена»", () => {
+test("[1] a substitution without a request (#157): no badge «без запроса» (LESSON-RULES: the chip says what happened), no reason, «Иванов А. → Петров Б.», the chip «Замена назначена»", () => {
   const item = direct();
-  assert.equal(O.originBadge(item), "без запроса");
+  assert.equal(O.originBadge(item), null);
   assert.equal(O.reasonShort(item), null, "a record without a request has no reason: the machine «Другое» and the comment of the administrator are not shown as one");
   assert.deepEqual(O.peopleOf(item), { teacher: "Иванов А.", to: "Петров Б." });
   assert.deepEqual(O.outcomeOf(item, "manager"), { code: "substituted", text: "Замена назначена", tone: "ok" });
@@ -74,13 +74,13 @@ test("a request the system reopened is «открыт заново» - decided o
   assert.equal(O.originBadge({ origin: "system", status: "pending", trigger: null }), "открыт заново");
   assert.equal(O.originBadge({ origin: "teacher", trigger: null }), null);
   for (const trigger of ["manager_assign", "manager_move", "teacher_move", "manager_cancel", "teacher_cancel", "manager_restore", "manager_reason_change", "teacher_one_off", "day_off"]) {
-    assert.equal(O.originBadge({ origin: "system", trigger }), "без запроса", trigger);
+    assert.equal(O.originBadge({ origin: "system", trigger }), null, trigger);
   }
 });
 
 test("a move keeps its lines (P1.1): the new time is under the teacher, it is not a substitution", () => {
   const moved = { origin: "system", trigger: "manager_move", outcome: "rescheduled", status: "rescheduled", reasonCode: "other", reasonLabel: "Другое", teacher: person("Иванов А."), decision: { kind: "reschedule", via: "request", by: person("Каримова Н."), at: AT, movedTo: { date: "2026-10-29", startTime: "16:00", endTime: "17:00" } } };
-  assert.equal(O.originBadge(moved), "без запроса");
+  assert.equal(O.originBadge(moved), null);
   assert.equal(O.reasonShort(moved), null);
   assert.deepEqual(O.peopleOf(moved), { teacher: "Иванов А.", to: "чт, 29.10, 16:00" });
   assert.equal(O.outcomeOf(moved, "manager").text, "Урок перенесён");
@@ -117,7 +117,7 @@ test("[4] a substitution taken off by the sheet is a closed record: «Замен
   assert.equal(S.closedReasonText(item), "Замена снята");
   assert.deepEqual(O.outcomeOf(item, "manager"), { code: "substitution_cleared", text: "Замена снята", tone: "muted" });
   assert.deepEqual(O.peopleOf(item), { teacher: "Иванов А.", to: "Петров Б." });
-  assert.equal(O.originBadge(item), "без запроса");
+  assert.equal(O.originBadge(item), null);
   const noName = cleared({ decision: { ...cleared().decision, substitute: null } });
   assert.deepEqual(O.peopleOf(noName), { teacher: "Иванов А.", to: null });
   const system = { origin: "teacher", status: "closed", outcome: "group_archived", teacher: person("Иванов А."), decision: { kind: "closed", via: "system", by: null, at: AT, closedReason: "GROUP_ARCHIVED", closedReasonText: "Группа закрыта" } };
@@ -153,7 +153,7 @@ test("[R3 #3] «Ведёт: …» - the lesson of a group without a main teacher
 
 test("[R3 #6] the rows of the journal, rendered: the badge under the teacher, the reason, the one chip of the result, «когда»", () => {
   const stood = { ...direct(), comment: "Болезнь у основного преподавателя", lastActivityAt: AT };
-  assert.equal(render(cells.PeopleCell, { item: stood }), "|Иванов А.|без запроса|→ |Петров Б.|");
+  assert.equal(render(cells.PeopleCell, { item: stood }), "|Иванов А.|→ |Петров Б.|");
   assert.equal(render(cells.ReasonCell, { item: stood }), "", "no reason for a record without a request; the comment is for the panel");
   assert.equal(render(cells.OutcomeChip, { item: stood }), "|Замена назначена|");
   assert.equal(render(cells.WhenCell, { item: stood }), "|21.10 14:12|");

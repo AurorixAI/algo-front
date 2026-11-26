@@ -19,13 +19,30 @@ export async function sendTeacherCancel(
   target: TeacherCancelTarget,
   reason: string,
   version: { expectedVersion?: number } = {},
-): Promise<string[]> {
+): Promise<TeacherCancelNotes> {
   if (route === "missed") {
     const out = await orgApi.cancelMissedGroupAttendance(target.groupId, { lessonDate: target.lessonDate, lessonId: target.lessonId, cancellationReason: reason });
-    return warningTexts(out);
+    return notesOf(out);
   }
   const out = await orgApi.saveGroupAttendance(target.groupId, {
     lessonDate: target.lessonDate, lessonId: target.lessonId, topic: target.topic, status: "cancelled", records: {}, cancellationReason: reason, ...version,
   });
-  return warningTexts(out);
+  return notesOf(out);
+}
+
+/** The lines the screen shows after the cancellation; `waiting` (the server says so): the cancellation of a past lesson waits for the owner, the first line is the server's sentence about it. */
+export type TeacherCancelNotes = string[] & { waiting?: boolean };
+
+function notesOf(out: { warnings?: Array<{ code?: string; message?: string }> | null; waiting?: boolean; consequence?: string }): TeacherCancelNotes {
+  const notes: TeacherCancelNotes = warningTexts(out);
+  if (out.waiting === true) {
+    if (out.consequence) notes.unshift(out.consequence);
+    notes.waiting = true;
+  }
+  return notes;
+}
+
+/** The title of the toast after the cancellation of a lesson: «Отмена ждёт подтверждения» for a past lesson (the owner decides it), «Урок отмечен как не состоявшийся» otherwise. */
+export function cancelToastTitle(notes: TeacherCancelNotes): string {
+  return notes.waiting ? "Отмена ждёт подтверждения" : "Урок отмечен как не состоявшийся";
 }

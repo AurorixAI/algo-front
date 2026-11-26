@@ -45,15 +45,13 @@ test("Money-1 A4: an administrator without the money right sees no action that m
   assert.deepEqual(actions("in_progress", TODAY), ["finish"]);
 });
 
-test("Money-1 A5: the teacher corrects his OWN held lesson within 7 days, nothing else", () => {
-  const own = (state, date, mine = true) => rules.lessonTeacherActions(state, date, TODAY, mine);
-  assert.deepEqual(own("completed", TODAY), ["correct"]);
-  assert.deepEqual(own("completed", "2026-10-07"), ["correct"]);          // exactly 7 days back
-  assert.deepEqual(own("completed", "2026-10-06"), []);          // older: the administrator
-  assert.deepEqual(own("completed", TODAY, false), []);          // somebody else's lesson
-  assert.deepEqual(own("in_progress", TODAY), []);
-  assert.deepEqual(own("cancelled", TODAY), []);
-  assert.deepEqual(own("scheduled", "2026-10-10"), []);
+test("Money-1 A5: the teacher corrects his OWN held lesson, nothing else (the window of the centre is judged by the server: LESSON_TOO_OLD in its own words - the journal carries no flag for it)", () => {
+  const own = (state, mine = true) => rules.lessonTeacherActions(state, mine);
+  assert.deepEqual(own("completed"), ["correct"]);
+  assert.deepEqual(own("completed", false), []);          // somebody else's lesson
+  assert.deepEqual(own("in_progress"), []);
+  assert.deepEqual(own("cancelled"), []);
+  assert.deepEqual(own("scheduled"), []);
 });
 
 test("finishing needs every student marked, the hint counts the rest", () => {

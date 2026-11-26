@@ -21,12 +21,15 @@ import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { formatDayMonthRu, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
+import { Notice } from "@/components/ui/notice";
+import { orgApi } from "@/lib/api";
+import { consequenceTextOf } from "@/lib/cancel-preview";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonCancelPanel } from "@/components/substitutions/lesson-cancel-panel";
 import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup, type LessonMenuItem } from "@/components/substitutions/teacher-lesson-controls";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import { movedToLabel, showsGroupLinks, substituteGroupLabel } from "@/lib/substitutions";
-import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
+import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { roomLabel } from "@/lib/schedule-slots";
 import { isMovedAway, timeRange } from "@/lib/schedule-plan";
 import { movedAwayLines } from "@/lib/schedule-card-actions";
@@ -81,14 +84,14 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   useEffect(() => { setMounted(true); }, []);
   const {
     activeLesson, setActiveLesson, requestClose, movedTarget, openMovedLesson, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
-    isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, activeTeacherInfo, activeRequestMark, activeRosterSource,
+    isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, attendanceInfo, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
-    activeMissedAction, activeMissedUnknown, retryOpenActions, lessonTooOld, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
+    activeMissedAction, activeMissedUnknown, retryOpenActions, lessonTooOld, lessonTooOldLine, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     missedLessonAction, setMissedLessonAction, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
-    missedLessonError, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
+    missedLessonError, missedLessonInfo, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
   } = panel;
   // the page behind neither scrolls nor stays outside the dim while the panel or the reconciliation dialog is open
   useScrollLock(Boolean(activeLesson || missedLessonAction));
@@ -106,6 +109,22 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   const menuShown = Boolean((recurring?.canRevise || (activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson)) && menuGroups.some((group) => group.items.length > 0));
   // the menu that loses its last row (the card took «Урока не было» when the roster was read) is closed with its button: no invisible menu that eats the first Escape
   useEffect(() => { if (!menuShown && isLessonMenuOpen) setIsLessonMenuOpen(false); }, [menuShown, isLessonMenuOpen, setIsLessonMenuOpen]);
+
+  // LESSON-RULES Э5: «Урока не было» of a lesson that has started is a REPORT - the sentence of the server about what happens next (the owner confirms) is read when the teacher opens the question
+  const [pastConsequence, setPastConsequence] = useState<string | null>(null);
+  const reporting = missedLessonAction !== null && isCancellingMissedLesson;
+  const reportKey = reporting && missedLessonAction ? `${missedLessonAction.groupId}|${missedLessonAction.lessonId}|${missedLessonAction.lessonDate}` : null;
+  useEffect(() => {
+    setPastConsequence(null);
+    if (!reportKey || !missedLessonAction) return undefined;
+    let stale = false;
+    Promise.resolve()
+      .then(() => orgApi.cancelConsequence(missedLessonAction.groupId, { lessonDate: missedLessonAction.lessonDate, lessonId: missedLessonAction.lessonId }))
+      .then((answer) => { if (!stale) setPastConsequence(consequenceTextOf(answer)); })
+      .catch(() => { /* no sentence: the report is never blocked by it */ });
+    return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportKey]);
 
   // a lesson moved away says where it went (one text with the sheet of the administrator) instead of «Урок отменён»
   const movedOutcome = activeLesson && isMovedAway(activeLesson.substitutionOutcome) ? activeLesson.substitutionOutcome : null;
@@ -173,13 +192,17 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                   <p className="text-sm leading-6 text-slate-600">
                     Урок не был начат в системе. Мы не подставляем посещаемость и не создаём время начала задним числом — выберите фактический исход.
                   </p>
-                  {missedLessonError && (
+                  {missedLessonError && missedLessonInfo && (
+                    // LESSON-RULES Э5: a rule of the centre, not a failure - an information; nothing to press but «Понятно»
+                    <Notice variant="info" role="alert" testId="missed-rule-refusal">{missedLessonError}</Notice>
+                  )}
+                  {missedLessonError && !missedLessonInfo && (
                     <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
                       {missedLessonError}
                     </p>
                   )}
 
-                  {!isCancellingMissedLesson ? (
+                  {missedLessonInfo ? null : !isCancellingMissedLesson ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <button
                         type="button"
@@ -208,6 +231,8 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     // rule 38: the SAME panel as the lesson panel's «Урока не было» (the list of missed lessons asks no exam: the server decides)
                     <LessonCancelPanel
                       autoFocus
+                      pastLesson
+                      consequence={pastConsequence}
                       date={missedLessonAction.lessonDate}
                       reason={missedLessonCancellationReason}
                       onReason={setMissedLessonCancellationReason}
@@ -224,7 +249,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     onClick={() => setMissedLessonAction(null)}
                     className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Разобрать позже
+                    {missedLessonInfo ? "Понятно" : "Разобрать позже"}
                   </button>
                 </div>
               </motion.div>
@@ -399,7 +424,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                           <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
                             <Clock className="w-5 h-5" />
                           </div>
-                          <p className="text-xs font-semibold text-slate-700">{LESSON_TOO_OLD_TEXT}</p>
+                          <p className="text-xs font-semibold text-slate-700">{lessonTooOldLine}</p>
                         </div>
                       ) : banner === "dirty" ? (
                         <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -775,7 +800,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                 )}
 
                 {/* The marking list shows its own copy of the error; every other step shows it here. */}
-                {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
+                {!isMarkingAttendance && <LessonPanelError message={attendanceError} info={attendanceInfo} />}
 
                 {/* Actions footer.  While the marks are being entered the list has its own row of buttons (with «Завершить урок»):
                     a second row under it, with a «Закрыть» that repeats the cross, is not shown (ROADMAP #114). */}

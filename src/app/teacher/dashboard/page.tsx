@@ -27,7 +27,8 @@ import { staffDisplayName } from "@/lib/staff-name";
 import { useScrollLock } from "@/components/ui/modal";
 import { roomLabel } from "@/lib/schedule-slots";
 import { openLessonAccess } from "@/lib/attendance-ops";
-import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
+import { LESSON_TOO_OLD_HINT, lessonTooOldText } from "@/lib/ops-errors";
+import { cancelToastTitle } from "@/lib/teacher-cancel";
 import { createToast, occurrenceChips } from "@/lib/substitutions";
 import type { MovedFrom, SubstitutionItem, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
@@ -83,7 +84,7 @@ type LessonAction = {
   remainingCount?: number;
   /** The word of the chip in the centre when the action has no `actionType` («Пора начать», «Не отмечен»). */
   badge?: string;
-  /** Decision 7: older than 7 days - only an administrator or the owner closes it (the row is grey, without buttons). */
+  /** Decision 7: older than the window of the centre (the server says so: `requiresAdmin`) - only an administrator or the owner closes it (the row is grey, without buttons). */
   locked?: boolean;
 };
 
@@ -167,12 +168,12 @@ export default function TeacherDashboardPage() {
           setLessonAttendanceMap((previous) => ({ ...previous, [lesson.id]: false }));
           setCompletedLessonsMap((previous) => ({ ...previous, [lesson.id]: false }));
         }
-        if (event.notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", event.notes);
+        if (event.notes.length > 0) showToast(cancelToastTitle(event.notes), "warning", event.notes);
       }
     },
     notifyRefusal: (notice, reason) => showToast(notice, "error", [reason]),
     onMissedCancelled: (notes) => {
-      if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
+      if (notes.length > 0) showToast(cancelToastTitle(notes), "warning", notes);
       setDashboardRefreshNonce((value) => value + 1);
     },
   });
@@ -348,10 +349,10 @@ export default function TeacherDashboardPage() {
     actions: openAttendanceActions,
     today: businessDate,
     toLesson: lessonFromAttendanceAction,
-    isLocked: (action) => openLessonAccess(action, user?.org_role ?? null, businessDate).locked,
+    isLocked: (action) => openLessonAccess(action, user?.org_role ?? null).locked,
   }) as LessonAction[], [openAttendanceActions, businessDate, user?.org_role]);
 
-  /** Decision 7: lessons older than 7 days. They stay in the list, grey and without buttons; they never become the card of the next action. */
+  /** Decision 7: lessons older than the window of the centre. They stay in the list, grey and without buttons; they never become the card of the next action. */
   const lockedLessonActions = useMemo(() => openLessonActions.filter((action) => action.locked), [openLessonActions]);
 
   // The card, the tile «Требуют действия» and the centre read this one list, in one order: red, in progress, to start.
@@ -1230,7 +1231,7 @@ export default function TeacherDashboardPage() {
                           <p className="mt-0.5 text-xs font-semibold text-slate-500">
                             {formatIsoDateLabel(action.lesson.occurrenceDate || businessDate, { weekday: "long", day: "numeric", month: "long" })} · {action.lesson.startTime} — {action.lesson.endTime}
                           </p>
-                          <p className="mt-2 text-xs leading-5">{LESSON_TOO_OLD_TEXT}</p>
+                          <p className="mt-2 text-xs leading-5">{lessonTooOldText(action.sourceAction?.windowDays)}</p>
                           <p className="mt-0.5 text-xs font-semibold text-slate-600">{LESSON_TOO_OLD_HINT}</p>
                         </div>
                       </div>

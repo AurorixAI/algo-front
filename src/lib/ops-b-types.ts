@@ -367,7 +367,7 @@ export interface RestoreLessonResult {
   restored: boolean;
   lessonId: string;
   lessonDate: string;
-  previousKind: "centre" | "holiday" | null;
+  previousKind: "centre" | "holiday" | "unconfirmed" | null;
   /** «Экзамены, снятые с урока при его отмене, не вернутся — назначьте их заново» */
   examsNote?: string | null;
   warnings?: OpsWarning[];

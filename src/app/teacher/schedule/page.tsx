@@ -810,7 +810,7 @@ export default function TeacherSchedulePage() {
       actions: openAttendanceActions,
       today: businessDate,
       toLesson: lessonFromAttendanceAction,
-      isLocked: (action) => openLessonAccess(action, user?.org_role ?? null, businessDate).locked,
+      isLocked: (action) => openLessonAccess(action, user?.org_role ?? null).locked,
     }),
     scheduled: scheduledTodayActions({ entries: todayAgendaView.entries, openActions: openAttendanceActions, today: businessDate, subsequentStarted: (lesson) => Boolean(lessonPanel.getSubsequentStartedLesson(lesson)) }),
     today: businessDate,

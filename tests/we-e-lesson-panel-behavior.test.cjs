@@ -137,8 +137,9 @@ scenario("B6", "a finished lesson: «Урок завершён», the marks are 
   world.setLessonState(LESSONS.over, { status: "completed", version: 3, roster: ["s1", "s2"], records: { s1: "present", s2: "present" } });
   const s = await openPanel(screen, await startScreen(screen, world), "over");
   assert.match(s.text(), /Урок завершён/);
-  // Money-1 A5: the teacher corrects the marks of his own held lesson in the journal within 7 days (this lesson is today's)
-  assert.match(s.text(), /Если ошиблись, исправьте их в журнале группы — в течение 7 дней, с причиной/);
+  // Money-1 A5: the teacher corrects the marks of his own held lesson in the journal within the window of the centre (this lesson is today's; the window is the server's: no number on the screen)
+  assert.match(s.text(), /Если ошиблись, исправьте их в журнале группы — с причиной/);
+  assert.doesNotMatch(s.text(), /в течение \d+ дн/);
   assert.match(s.text(), /Открыть журнал группы/);
   assert.equal(s.hasButton(/^Начать урок$/), false);
 });

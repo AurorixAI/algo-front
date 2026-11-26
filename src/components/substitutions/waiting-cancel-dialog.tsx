@@ -17,7 +17,7 @@ import {
   WAITING_HELD_REASON, WAITING_PICK_WHY, WAITING_QUESTION, offeredOutcomes, outcomeCaption, waitingChipText, waitingDecidedToast, waitingDialogHead, waitingDialogSubtitle, waitingDialogTitle,
   type WaitingOutcome, type WaitingPreview,
 } from "@/lib/lesson-rules";
-import type { WaitingCancellationItem } from "@/lib/substitution-types";
+import type { WaitingTarget } from "@/lib/lesson-rules";
 
 type PreviewState = { status: "loading" } | { status: "ready"; preview: WaitingPreview } | { status: "error"; message: string } | { status: "closed"; info: PeriodClosedInfo };
 
@@ -34,7 +34,8 @@ function alreadyDecidedMessage(failure: unknown): string | null {
  * «Уже решено» (409) and «месяц закрыт» (409 `PERIOD_CLOSED`) are their own states of the same window.
  */
 export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
-  item: WaitingCancellationItem | null;
+  /** The row of «Замены» (all of it) or the lesson of the journal / the sheet (the lesson and the group). */
+  item: WaitingTarget | null;
   onClose: () => void;
   /** The cancellation was decided (or somebody did it first): the page reads the lists again. */
   onDecided: () => void;
@@ -151,10 +152,12 @@ export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
       )}
       {item && decidedBy === null && state.status !== "closed" && (
         <div className="space-y-3 text-sm text-slate-700">
-          <div data-testid="waiting-head" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
-            <p className="min-w-0 break-words text-slate-800">{waitingDialogHead(item)}</p>
-            <Chip tone="warn" testId="waiting-chip" className="whitespace-nowrap">{waitingChipText(item.waitingDays)}</Chip>
-          </div>
+          {item.cancelledBy && (
+            <div data-testid="waiting-head" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+              <p className="min-w-0 break-words text-slate-800">{waitingDialogHead(item)}</p>
+              {typeof item.waitingDays === "number" && <Chip tone="warn" testId="waiting-chip" className="whitespace-nowrap">{waitingChipText(item.waitingDays)}</Chip>}
+            </div>
+          )}
           <fieldset className="space-y-2" data-testid="waiting-outcomes">
             <legend className="mb-1.5 block w-full text-sm font-semibold text-slate-900">{WAITING_QUESTION}</legend>
             {options.map((option) => (

@@ -68,7 +68,7 @@ test("the journal column: «Исправить отметки» and «Верну
   assert.deepEqual(withRight("cancelled", "2026-11-20", { started: true }), [], "a future day is never begun, whatever is said");
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /const started = lessonHasStarted\(\{ date: lesson\.date, today, startTime: lesson\.startTime \|\| lesson\.start_time \}\);/);
-  assert.match(journal, /const actionsFor = \(lesson: Lesson, key: string, lessonStatus: string\): AdminLessonAction\[\] => \{\s*if \(!canEdit\) return \[\];\s*if \(!adminMode\) return lessonTeacherActions\(lessonStatus, lesson\.date, today, !lessonIsOthers\(key\)\);/);
+  assert.match(journal, /const actionsFor = \(lesson: Lesson, key: string, lessonStatus: string\): AdminLessonAction\[\] => \{\s*if \(!canEdit\) return \[\];\s*if \(!adminMode\) return lessonTeacherActions\(lessonStatus, !lessonIsOthers\(key\)\);/);
   assert.match(journal, /const reviewable = adminMode && moneyRight && !inCorrection && Boolean\(excuse\);/);
   assert.match(journal, /canReplaceTeacher\("admin", lessonStatus\) && \(moneyRight \|\| lessonStatus !== "completed"\)/);
 });
@@ -342,9 +342,10 @@ test("«Оформлен задним числом»: who and when, and who taug
   assert.equal(COR.BACKDATED_LABEL, "Оформлен задним числом");
 });
 
-test("the journal words the teacher's panel: the teacher corrects his OWN held lesson in the journal within 7 days; older - the administrator", () => {
+test("the journal words the teacher's panel: the teacher corrects his OWN held lesson in the journal (the window of the centre is the server's: no number on the screen); outside it - the administrator", () => {
   const near = lib("lesson-panel-view.ts").completedLessonNote({ tooOld: false });
-  assert.equal(near.text, "Отметки зафиксированы. Если ошиблись, исправьте их в журнале группы — в течение 7 дней, с причиной.");
+  assert.equal(near.text, "Отметки зафиксированы. Если ошиблись, исправьте их в журнале группы — с причиной.");
+  assert.doesNotMatch(near.text, /\d+ дн/, "no copy of the number of days of the window");
   assert.equal(near.journalLink, true);
   const old = lib("lesson-panel-view.ts").completedLessonNote({ tooOld: true });
   assert.equal(old.text, "Отметки зафиксированы. Исправить их может только администратор — с причиной.");

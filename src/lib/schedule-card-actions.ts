@@ -180,7 +180,8 @@ function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
  */
 export function canRestoreLesson(input: Pick<ScheduleCardInput, "role" | "archived" | "state" | "date" | "today" | "startTime" | "now" | "moved" | "cancelKind">): boolean {
   if (input.archived || (input.role !== "owner" && input.role !== "admin")) return false;
-  if (input.state !== "cancelled" || input.moved || input.cancelKind === "day_off") return false;
+  // a cancellation that waits for the owner is decided («Решить» of the sheet: «Урок был» is one of its outcomes), not restored from the card (LESSON-RULES)
+  if (input.state !== "cancelled" || input.moved || input.cancelKind === "day_off" || input.cancelKind === "unconfirmed") return false;
   return !lessonHasStarted({ date: input.date, today: input.today, startTime: input.startTime, now: input.now });
 }
 

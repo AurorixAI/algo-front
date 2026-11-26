@@ -9,7 +9,7 @@
  * What differs between the screens is only what each does AFTER a write (its own cards, counters, lists): the screen gives `onWritten` and `notifyRefusal`.
  * The picture is `components/teacher/lesson-panel.tsx`.
  */
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   orgApi, examsApi,
   type AttendanceStatus, type GroupInfo, type LessonAttendanceStatus, type OpenAttendanceAction, type ScheduleOccurrence, type StudentInGroup,
@@ -17,7 +17,7 @@ import {
 import { businessDayOfWeek, businessTimeMinutes, isoDateDayOfWeek } from "./business-time";
 import { askConfirm } from "./confirm-dialog";
 import { collectExcuseReasons, firstMissingExcuseReason } from "./attendance-excuses";
-import { examSyncNotice, isLessonTooOld, lessonFailure, nobodyCameQuestion } from "./attendance-ops";
+import { examSyncNotice, isLockedByServer, isRuleRefusal, lessonFailure, nobodyCameQuestion } from "./attendance-ops";
 import { canFinishLessonNow, lessonDateRelation, startBlockedReason } from "./lesson-actions";
 import {
   lessonCancelRef, lessonDateOf, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites,
@@ -26,7 +26,7 @@ import {
 import { cancelEntryPoint, lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
-import { LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
+import { lessonTooOldText, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
 import { reasonProblemFor } from "./reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "./schedule-card-actions";
 import { getLessonTimeStatus } from "./schedule-time";
@@ -146,7 +146,10 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
   const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
-  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [attendanceError, setAttendanceErrorText] = useState<string | null>(null);
+  // LESSON-RULES Э5: a refusal that is a RULE (a lesson older than the window, a lesson nobody came to written afterwards) is said as an information, not as a red error; the next error is red again
+  const [attendanceInfo, setAttendanceInfo] = useState(false);
+  const setAttendanceError = useCallback((text: string | null, info = false) => { setAttendanceInfo(info && text !== null); setAttendanceErrorText(text); }, []);
   // LOGIC-B: the version of the lesson record, the conflict of two editors, the exam a finish waits for.
   const marksOps = useLessonMarksOps();
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
@@ -163,7 +166,10 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const [missedLessonAction, setMissedLessonAction] = useState<OpenAttendanceAction | null>(null);
   const [isCancellingMissedLesson, setIsCancellingMissedLesson] = useState(false);
   const [missedLessonCancellationReason, setMissedLessonCancellationReason] = useState("");
-  const [missedLessonError, setMissedLessonError] = useState<string | null>(null);
+  const [missedLessonError, setMissedLessonErrorText] = useState<string | null>(null);
+  /** LESSON-RULES Э5: the refusal of a rule («Урок старше N дн.», «никто не пришёл» задним числом) - an information with «Понятно», no actions under it. */
+  const [missedLessonInfo, setMissedLessonInfo] = useState(false);
+  const setMissedLessonError = useCallback((text: string | null, info = false) => { setMissedLessonInfo(info && text !== null); setMissedLessonErrorText(text); }, []);
   const [isResolvingMissedLesson, setIsResolvingMissedLesson] = useState(false);
   const missedSending = useRef(false);
   const moveHoldsEscape = useRef(false);                 // the move dialog (TeacherMoveControl) is above the panel and keeps the key to itself
@@ -426,7 +432,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       setActiveLesson(lesson);
     } catch (err) {
       console.error("Failed to reconcile missed lesson:", err);
-      setMissedLessonError(lessonFailure(err, "reconcile", "Не удалось открыть журнал пропущенного урока. Данные не изменены.").text);
+      const failure = lessonFailure(err, "reconcile", "Не удалось открыть журнал пропущенного урока. Данные не изменены.");
+      setMissedLessonError(failure.text, isRuleRefusal(failure));
     } finally {
       setIsResolvingMissedLesson(false);
     }
@@ -457,7 +464,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       host.onMissedCancelled(notes);
     } catch (err) {
       console.error("Failed to cancel missed lesson:", err);
-      setMissedLessonError(lessonFailure(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.").text);
+      const failure = lessonFailure(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.");
+      setMissedLessonError(failure.text, isRuleRefusal(failure));
     } finally {
       missedSending.current = false;
       setIsResolvingMissedLesson(false);
@@ -507,7 +515,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
-    if (lessonTooOld) { setAttendanceError(LESSON_TOO_OLD_TEXT); return; }
+    if (lessonTooOld) { setAttendanceError(lessonTooOldLine, true); return; }
 
     // Attendance is allowed only after the server recorded the real start of this lesson.
     // This is a client-side guard; the API enforces it too.
@@ -551,7 +559,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; } // another lesson is on the screen now: not the place for the dialog, the notice stays
       const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
-      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
+      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text, isRuleRefusal(failure));
     } finally {
       writes.end(target.key);
     }
@@ -561,7 +569,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     if (!activeLesson) return;
     const target = panel.target(activeLesson);
     if (!target) { setAttendanceError(panel.notReadyText); return; }
-    if (lessonTooOld) { setAttendanceError(LESSON_TOO_OLD_TEXT); return; }
+    if (lessonTooOld) { setAttendanceError(lessonTooOldLine, true); return; }
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
@@ -621,7 +629,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; nobody came - in the question below; anything else is the text of the panel
       if (failure.kind === "nobody_came") askNobody = failure.text;
-      else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
+      else if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text, isRuleRefusal(failure));
     } finally {
       writes.end(target.key);
     }
@@ -663,7 +671,7 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
       const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
       if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.", attendance);
-      if (failure.kind !== "conflict") setAttendanceError(failure.text);
+      if (failure.kind !== "conflict") setAttendanceError(failure.text, isRuleRefusal(failure));
     } finally {
       cancelSending.current = false;
       writes.end(target.key);
@@ -731,10 +739,14 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
   const activeTimeStatus = activeLesson && activeLessonIsToday
     ? getLessonTimeStatus(activeLesson, todayDayOfWeek, isAttendanceSaved || host.hasSavedMarks(activeLesson.id), activeInstanceStatus === "completed")
     : null;
-  // The window of the teacher: a lesson older than 7 days (by ITS DATE, as the server says LESSON_TOO_OLD) is closed by an administrator or the owner -
-  // nothing of the teacher's actions is offered for it (settle, mark, «Урока не было»): one line instead (`LESSON_TOO_OLD_TEXT`)
+  // The window of the teacher (LESSON-RULES: the rule of the CENTRE, 1-30 days): a lesson the server marks `requiresAdmin` in the open actions is closed by an administrator or the owner -
+  // nothing of the teacher's actions is offered for it (settle, mark, «Урока не было»): one line instead, with the number of days the server says (`windowDays`)
   const viewerRole = host.user?.org_role ?? host.user?.role ?? null;
-  const lessonTooOld = Boolean(activeLesson && activeLessonDate && viewerRole !== "owner" && viewerRole !== "admin" && isLessonTooOld(activeLessonDate, businessDate));
+  const windowAction = activeLesson && activeLessonDate
+    ? host.openActions.find((action) => action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === activeLessonDate) ?? null
+    : null;
+  const lessonTooOld = Boolean(viewerRole !== "owner" && viewerRole !== "admin" && isLockedByServer(windowAction));
+  const lessonTooOldLine = lessonTooOldText(windowAction?.windowDays);
   // The never-started lesson of a past day, which the teacher can still settle as "missed"
   const activeMissedAction = activeLesson && activeLessonRelation === "past" && !lessonTooOld
     ? host.openActions.find((action) => (
@@ -794,19 +806,19 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     // state
     activeLesson, setActiveLesson, openLesson, closePanel, requestClose, movedTarget, openMovedLesson,
     activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
-    isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, isAttendanceDirty, attendanceError,
+    isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, isAttendanceDirty, attendanceError, attendanceInfo,
     activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
     loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape,
     // the rules, read once
-    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedUnknown, retryOpenActions: host.retryOpenActions, lessonTooOld, activeSubsequentLesson,
+    banner, canFinishLesson, activeLessonDate, activeLessonRelation, activeLessonIsToday, activeTimeStatus, activeMissedAction, activeMissedUnknown, retryOpenActions: host.retryOpenActions, lessonTooOld, lessonTooOldLine, activeSubsequentLesson,
     ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, consumeEscape, getSubsequentStartedLesson, todayDayOfWeek, businessDate,
     // the handlers
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openCancelLessonPanel,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
     // the reconciliation of a past lesson that was never started
     missedLessonAction, setMissedLessonAction, openMissedLesson, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
-    missedLessonError, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
+    missedLessonError, missedLessonInfo, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
   };
 }
 

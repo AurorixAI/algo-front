@@ -67,7 +67,7 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   await decision.getByRole("radio", { name: /Ким У\.|Заменяющий/ }).first().click();
   await decision.getByRole("button", { name: "Назначить замену" }).click();
   await expect(ownerPage.getByRole("dialog")).toHaveCount(0);
-  await ownerPage.getByRole("tab", { name: /Решённые/ }).click();
+  await ownerPage.getByRole("tab", { name: /История/ }).click();
   await expect(ownerPage.getByRole("listitem").filter({ hasText: group.name })).toContainText(/Просящий У\.\s*→ Заменяющий У\./); // P1.2: the journal says «кто → кто» (it said «Замена: …»)
 
   // --- 3. the substitute holds this lesson only (his schedule shows it as a substitution)

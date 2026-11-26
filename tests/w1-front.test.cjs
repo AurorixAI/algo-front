@@ -108,7 +108,8 @@ test("F1/F4: the refusals of a cancellation have one wording on every screen", (
   assert.equal(text("LESSON_CHANGED"), "Урок уже изменили: обновите страницу и повторите");
   assert.equal(text("REQUEST_REJECTED"), "Администратор отклонил заявку по этому уроку");
   assert.equal(text("LESSON_IN_PROGRESS"), "Урок идёт: сначала завершите его, затем назначьте того, кто провёл");
-  assert.equal(text("LESSON_TOO_OLD"), "Урок старше 7 дней — его закрывает администратор или владелец.");
+  assert.equal(text("LESSON_TOO_OLD"), "Урок старше срока центра — его закрывает администратор или владелец");          // no number in the answer: none is invented
+  assert.equal(S.substitutionErrorText(Object.assign(coded("LESSON_TOO_OLD", ""), { detail: { windowDays: 14 } })), "Урок старше 14 дн. — его закрывает администратор или владелец");
   assert.match(text("SERIES_ENDED", "Постоянный урок прекращается с 05.11 — перенесите на более раннюю дату"), /прекращается с 05\.11/);
   for (const code of ["TEACHER_CANNOT_CANCEL", "ALREADY_CANCELLED", "LESSON_HAS_MARKS", "LESSON_CHANGED", "LESSON_ALREADY_STARTED"]) {
     const failure = O.lessonFailure(coded(code, "x"), "cancel", "fallback");

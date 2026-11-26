@@ -36,7 +36,7 @@ import { useMoneyRight } from "@/lib/use-money-right";
 import { CancelConsequence } from "@/components/money/cancel-consequence-line";
 import { reasonProblemFor } from "@/lib/reason-rules";
 import { ChangeKindForm } from "./change-kind-form";
-import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field"; import { SheetWaitingNotice } from "@/components/groups/sheet-waiting-notice";
 import { DateInput } from "@/components/ui/date-input";
 import { END_BEFORE_START_TEXT } from "@/lib/lesson-slot-form";
 import { TimeInput } from "@/components/ui/time-input";
@@ -383,6 +383,7 @@ export function LessonActionSheet({
             </div>
           )}
 
+          {mode === "menu" && lesson && <SheetWaitingNotice kind={cancellationKind} groupId={groupId} title={title} lesson={lesson} moneyRight={moneyRight} onDecided={() => onChanged("Решение сохранено")} />}
           {mode === "menu" && changeKind && (
             <button type="button" data-testid="sheet-change-kind" onClick={() => open("kind")} className={ACTION_BUTTON}>
               <Pencil className="h-4 w-4 text-slate-500" />{CHANGE_KIND_LABEL}

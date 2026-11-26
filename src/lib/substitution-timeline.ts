@@ -45,7 +45,7 @@ const CLEARED_WHY: Record<string, string> = {
 
 /** The kind of a cancellation in a line of the history (the manager only: a student's money; the server does not send it to a teacher). */
 function kindLabel(kind: unknown): string | null {
-  return kind === "centre" ? "по вине центра" : kind === "holiday" ? "праздник" : null;
+  return kind === "centre" ? "по вине центра" : kind === "holiday" ? "праздник" : kind === "unconfirmed" ? "ждёт подтверждения" : null;
 }
 
 function text(value: unknown): string {
@@ -124,7 +124,7 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
     case "cancelled": {
       // LESSON-RULES: the teacher of a PAST lesson reports it, the owner confirms - the history says what was reported (a lesson that is not yet decided has no kind to name)
       const reported = isTeacherCancel(record) && (record.outcome === "cancel_waiting" || record.outcome === "cancelled_centre" || record.outcome === "cancelled_holiday");
-      const kind = record.outcome === "cancel_waiting" ? null : kindLabel(snapshot.cancellationKind);
+      const kind = record.outcome === "cancel_waiting" || snapshot.cancellationKind === "unconfirmed" ? null : kindLabel(snapshot.cancellationKind);
       return { title: reported ? "Преподаватель сообщил, что урока не было" : isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kind ?? ""].filter(Boolean) };
     }
     case "confirmed": {

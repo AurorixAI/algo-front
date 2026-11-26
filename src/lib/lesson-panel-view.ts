@@ -26,7 +26,7 @@ export function lessonPanelBanner(input: {
   status: string;
   /** The day of the lesson against the business day. */
   relation: LessonDateRelation | null;
-  /** The lesson is older than the window of the teacher (7 days): only an administrator or the owner closes it - ONE line instead of any action. */
+  /** The lesson is older than the window of the teacher (the centre's rule: the server marks it): only an administrator or the owner closes it - ONE line instead of any action. */
   tooOld?: boolean;
   /** Marks were changed and not saved yet. */
   isDirty: boolean;
@@ -52,13 +52,13 @@ export function lessonPanelBanner(input: {
 }
 
 /**
- * Money-1 A5: what the panel of the TEACHER says under «Урок завершён».  The teacher corrects the marks of his own held lesson in the journal within 7 days, with a reason
+ * Money-1 A5: what the panel of the TEACHER says under «Урок завершён».  The teacher corrects the marks of his own held lesson in the journal within the window of the centre (LESSON-RULES: the server judges the days), with a reason
  * (the month must be open); older - the administrator does it.  ONE text for the dashboard and the schedule.
  */
 export function completedLessonNote(input: { tooOld: boolean }): { text: string; journalLink: boolean } {
   return input.tooOld
     ? { text: "Отметки зафиксированы. Исправить их может только администратор — с причиной.", journalLink: false }
-    : { text: "Отметки зафиксированы. Если ошиблись, исправьте их в журнале группы — в течение 7 дней, с причиной.", journalLink: true };
+    : { text: "Отметки зафиксированы. Если ошиблись, исправьте их в журнале группы — с причиной.", journalLink: true };
 }
 
 /** Where the teacher starts «Урока не было» (given that he may cancel the lesson at all): the button of the state card, a row of the «⋯» menu, the dialog «Пропущенный урок» (after «Разобрать»), or nowhere yet. */

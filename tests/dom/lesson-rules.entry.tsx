@@ -8,6 +8,7 @@ import { NextActionCard } from "@/components/teacher/next-action-card";
 import { LessonRulesSection } from "@/components/settings/lesson-rules-section";
 import { LessonCancelPanel } from "@/components/substitutions/lesson-cancel-panel";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
+import { SheetWaitingNotice } from "@/components/groups/sheet-waiting-notice";
 import { SheetTodoBlock } from "@/components/payroll/sheet-todo";
 import { sheetTodoItems } from "@/lib/payroll";
 
@@ -32,6 +33,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "rule-notice":
       root.render(<div className="mx-auto max-w-sm p-4"><LessonPanelError message={props.message} info={props.info === true} /></div>);
+      break;
+    case "sheet-waiting":
+      root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="g1" title="Г" lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30" }} moneyRight={props.moneyRight === true} onDecided={() => w.__log.push("decided")} /></div>);
       break;
     case "lesson-rules":
       root.render(<div className="mx-auto max-w-3xl p-4"><LessonRulesSection /></div>);

@@ -108,7 +108,7 @@ test("the dialog «Преподаватель урока»: roles, the reason in
 
   // --- 3/4. the owner's journal: one line per fact, in the words of the spec
   await page.goto("/owner/substitutions");
-  await page.getByRole("tab", { name: /Решённые/ }).click();
+  await page.getByRole("tab", { name: /История/ }).click();
   const rows = page.getByRole("listitem").filter({ hasText: group.name });
   // #159: the outcome is ONE short chip with the time under it (the names are in the row): «Заменён другим» and «Замена снята»
   await expect(rows.filter({ hasText: /Заменён другим\s*\d\d\.\d\d \d\d:\d\d/ })).toHaveCount(1);
@@ -120,7 +120,7 @@ test("the dialog «Преподаватель урока»: roles, the reason in
   // --- 3. the teacher's own list says the same: no stale «Администратор заменил» next to «Замену снял(а)»
   const mine = await signIn(main);
   await mine.goto("/teacher/dashboard");
-  const block = mine.getByRole("region", { name: "Запросы на замену" });
+  const block = mine.getByRole("region", { name: "Запросы и изменения уроков" });
   await expect(block).toContainText("Заменён другим");
   await expect(block).toContainText("Замена снята");
   await expect(block).not.toContainText("Администратор заменил");

@@ -24,9 +24,15 @@ export function errorMessageOf(error: unknown, fallback: string): string {
   return text || fallback;
 }
 
-// ── decision 7: the window of 7 days ────────────────────────────────────────────────────────────
+// ── decision 7: the window of the teacher (LESSON-RULES: the rule of the CENTRE, 1 / 3 / 7 / 14 / 30 days; the screen keeps no copy of the number) ──
 
-export const LESSON_TOO_OLD_TEXT = "Урок старше 7 дней — его закрывает администратор или владелец.";
+/** «Урок старше 14 дн. — его закрывает администратор или владелец»: the number is `windowDays` of the server's answer (an open action, a refusal); without it the sentence names no number. */
+export function lessonTooOldText(windowDays?: number | null): string {
+  const days = Math.trunc(Number(windowDays));
+  return Number.isFinite(days) && days > 0
+    ? `Урок старше ${days} дн. — его закрывает администратор или владелец`
+    : "Урок старше срока центра — его закрывает администратор или владелец";
+}
 export const LESSON_TOO_OLD_HINT = "Обратитесь к администратору";
 
 // ── O6: an empty roster ─────────────────────────────────────────────────────────────────────────

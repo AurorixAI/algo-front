@@ -33,7 +33,7 @@ import { useAuthStore } from "@/lib/store";
 import { canManageMoney } from "@/lib/money-effects";
 import { formatBusinessDate, formatLessonWhen, formatWeekdayDate } from "@/lib/business-time";
 import { openLessonAccess } from "@/lib/attendance-ops";
-import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
+import { lessonTooOldText } from "@/lib/ops-errors";
 import { cancelLessonLabel } from "@/lib/schedule-card-actions";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 import { Button } from "@/components/ui/button";
@@ -242,8 +242,8 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
               </p>
               <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:border-t lg:border-slate-100">
                 {group.items.map((item) => {
-                  // decision 7: older than 7 days and the viewer is not a manager - grey, no buttons, «Обратитесь к администратору»
-                  const access = openLessonAccess(item, role, today);
+                  // decision 7: older than the window of the centre (`requiresAdmin`) and the viewer is not a manager - grey, no buttons, «Обратитесь к администратору»
+                  const access = openLessonAccess(item, role);
                   return (
                   <li
                     key={openLessonKey(item)}
@@ -271,7 +271,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
 
                     <div className="flex items-center justify-end gap-2 lg:-my-1.5 lg:justify-self-end">
                       {access.locked ? (
-                        <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={LESSON_TOO_OLD_TEXT}>{access.hint}</p>
+                        <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={lessonTooOldText(item.windowDays)}>{access.hint}</p>
                       ) : (
                         <>
                           {canMarkOpenLesson(item, role, moneyRight) ? <Link

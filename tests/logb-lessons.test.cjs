@@ -310,27 +310,28 @@ test("[O8.R7] the finish after which the exam service did not answer: the notice
   assert.deepEqual(fixture("c5_save_lobby_released").examSync.released, ["EX_123"]);
 });
 
-// ── decision 7: the window of 7 days ───────────────────────────────────────────────────────────
+// ── decision 7: the window of the teacher (LESSON-RULES: the rule of the CENTRE; the server says which lesson is outside it) ─────────────────────────
 
-test("[R7.R1][R7.R6] a teacher closes the last 7 days: Wed 21.10 -> 14.10 is still open, 13.10 is not; the day changes at midnight", () => {
-  assert.equal(Ops.isLessonTooOld("2026-10-19", TODAY), false);
-  assert.equal(Ops.isLessonTooOld("2026-10-14", TODAY), false);
-  assert.equal(Ops.isLessonTooOld("2026-10-13", TODAY), true);
-  assert.equal(Ops.isLessonTooOld("2026-10-14", "2026-10-22"), true, "00:00:30 on Thursday 22.10: 14.10 is 8 days old");
-  assert.equal(Ops.isLessonTooOld("not a date", TODAY), false);
+test("[R7.R1][R7.R6] the window is the server's: a lesson is locked for the teacher by the flag of the task (requiresAdmin), never by a date the screen computes (no copy of the number of days)", () => {
+  assert.equal(Ops.isLockedByServer({ requiresAdmin: true }), true);
+  assert.equal(Ops.isLockedByServer({ requiresAdmin: false }), false);
+  assert.equal(Ops.isLockedByServer({}), false, "an older answer without the flag locks nothing");
+  assert.equal(Ops.isLockedByServer(null), false);
+  assert.equal(Ops.isLessonTooOld, undefined, "the date check of the screen is gone");
+  assert.equal(Ops.TEACHER_WINDOW_DAYS, undefined, "so is the number");
 });
 
 test("[R7.R5] the open lesson of chain 4: for a teacher it is grey with «Обратитесь к администратору», for an administrator an ordinary one", () => {
   const row = fixture("x_open_action_requires_admin");
   assert.equal(row.requiresAdmin, true);
   assert.equal(row.ageDays, 8);
-  assert.deepEqual(Ops.openLessonAccess(row, "teacher", TODAY), { locked: true, hint: "Обратитесь к администратору" });
-  assert.deepEqual(Ops.openLessonAccess(row, "admin", TODAY), { locked: false, hint: null });
-  assert.deepEqual(Ops.openLessonAccess(row, "owner", TODAY), { locked: false, hint: null });
-  // an older server sends no `requiresAdmin`: the date decides
-  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-13" }, "teacher", TODAY).locked, true);
-  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-14" }, "teacher", TODAY).locked, false);
-  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-14", requiresAdmin: true }, "teacher", TODAY).locked, true, "the server's word wins");
+  assert.deepEqual(Ops.openLessonAccess(row, "teacher"), { locked: true, hint: "Обратитесь к администратору" });
+  assert.deepEqual(Ops.openLessonAccess(row, "admin"), { locked: false, hint: null });
+  assert.deepEqual(Ops.openLessonAccess(row, "owner"), { locked: false, hint: null });
+  // an older server sends no `requiresAdmin`: nothing is guessed from the date (the window is the centre's, the server says it)
+  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-13" }, "teacher").locked, false);
+  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-14", requiresAdmin: false }, "teacher").locked, false);
+  assert.equal(Ops.openLessonAccess({ lessonDate: "2026-10-14", requiresAdmin: true }, "teacher").locked, true, "the server's word decides");
 });
 
 test("[R7.R1] the refusal LESSON_TOO_OLD is shown in the words of the spec", () => {
@@ -338,7 +339,8 @@ test("[R7.R1] the refusal LESSON_TOO_OLD is shown in the words of the spec", () 
   assert.equal(body.status, 403);
   const failure = Ops.lessonFailure(refusal(body.status, body.body), "save", "x");
   assert.equal(failure.kind, "too_old");
-  assert.equal(failure.text, "Урок старше 7 дней — его закрывает администратор или владелец.");
+  assert.equal(failure.text, body.body.detail.message, "the sentence of the server is shown as it is (it carries the number of the window of the centre)");
+  assert.equal(failure.text, "Урок старше 7 дней — его закрывает администратор или владелец");
   assert.equal(Err.LESSON_TOO_OLD_HINT, "Обратитесь к администратору");
 });
 

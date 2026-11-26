@@ -12,7 +12,7 @@ import { addIsoDays, formatDayMonthRu, formatUtcNaiveAsBusinessDateTime, parseUt
 import { pluralRu } from "./plural";
 import { isRequestRow } from "./list-rows";
 import { reasonProblemFor, type ReasonKind } from "./reason-rules";
-import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
+import { dayAndDateLabel, errorMessageOf, lessonTooOldText, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
 import type {
   AlreadyDecidedDetail,
@@ -305,7 +305,7 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "DECISION_FAILED": return "Не удалось выполнить это решение. Остальные не затронуты — повторите позже";
     case "GROUP_NOT_FOUND": return "Группа не найдена: возможно, она удалена или принадлежит другому центру";
     case "EXAMS_NEED_CONFIRMATION": return "К урокам, которые сдвинутся, привязаны экзамены: подтвердите, что они вернутся в черновики";
-    case "LESSON_TOO_OLD": return "Урок старше 7 дней — его закрывает администратор или владелец.";
+    case "LESSON_TOO_OLD": return lessonTooOldText((opsErrorDetail(error) as { windowDays?: number } | null)?.windowDays);
     case "SERIES_ENDED": return detail?.message?.trim() || "Постоянный урок прекращается раньше этой даты: перенесите на более раннюю дату";
     case "CANCELLED_BY_DAY_OFF": return "Урок отменён выходным днём: чтобы изменить причину, измените сам выходной";
     case "REASON_CHANGE_TOO_OLD": return "Причину можно изменить только у недавней отмены: урок вне окна уроков без отметки";
