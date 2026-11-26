@@ -1,0 +1,7 @@
+{
+  "detail": {
+    "code": "ATTENDANCE_CONFLICT",
+    "message": "Отметки урока уже изменили. Обновите страницу",
+    "currentVersion": 2
+  }
+}

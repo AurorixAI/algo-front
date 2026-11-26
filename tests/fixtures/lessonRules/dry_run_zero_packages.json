@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "dry_run": true,
+  "changed": true,
+  "from": "unconfirmed",
+  "to": "centre",
+  "students": 0,
+  "per_student": null,
+  "total": 0,
+  "deductions": [],
+  "recalc_off": false,
+  "zero_reason": "packages",
+  "zero_text": "В пакетах уроков отмена не требует перерасчёта: урок просто не списывается.",
+  "restore_allowed": true,
+  "age_days": 3,
+  "window_days": 7,
+  "teacher_can_mark": true
+}

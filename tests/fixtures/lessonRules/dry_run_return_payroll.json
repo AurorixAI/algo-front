@@ -10,19 +10,19 @@
       {
         "month": "2026-11",
         "state": "open",
-        "sheetId": "30f0a5e0-bfb6-4285-ba79-701d249f8d42",
-        "teacherId": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "sheetId": "22b7db17-90c5-4e88-bf0e-df5de4ba91aa",
+        "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "teacherName": "Эргашев К.",
         "teacherFirstName": "Камол",
         "teacherLastName": "Эргашев",
-        "savedTotal": 168750,
+        "savedTotal": 337500,
         "paid": 0,
-        "freshBefore": 168750,
-        "freshAfter": 0,
-        "freshTotal": 0,
+        "freshBefore": 337500,
+        "freshAfter": 168750,
+        "freshTotal": 168750,
         "changedBy": -168750,
         "driftAfter": -168750,
-        "balanceAfter": 0
+        "balanceAfter": 168750
       }
     ],
     "text": "Зарплата за ноябрь 2026 (Эргашев К.) изменится на −168 750 сум",

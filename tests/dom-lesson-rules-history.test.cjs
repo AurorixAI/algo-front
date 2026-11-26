@@ -6,7 +6,7 @@ const { setup, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { deferred } = require("./helpers/dom-answers.cjs");
 const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY, plain, DECIDED_ONE_OFF_NOT_EXPORTED } = require("./helpers/lesson-rules-answers.cjs");
+const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
@@ -28,12 +28,18 @@ for (const width of [1280, 1024, 375]) {
     assert.match(tabs, /История/);
     assert.ok(!tabs.includes("Решённые"), "the tab is called «История»");
     const rows = page.locator('[data-testid="substitution-row"], [data-testid="audit-row"]');
-    assert.equal(await rows.count(), 15, "8 records of requests + 7 entries of the journal: ONE list");
+    assert.equal(await rows.count(), 14, "7 records of requests (a returned lesson is ONE of them) + 7 entries of the journal: ONE list");
     assert.equal(await page.locator('[data-testid="audit-row"]').count(), 7);
     const text = plain(await page.textContent("section"));
-    for (const chip of ["Отменён: по вине центра", "Отменён: праздник", "Включён в зарплату", "Урок возвращён", "Отметки исправлены", "Добавил урок в расписание", "Задним числом · 2 дн.", "Задним числом · 6 дн.", "Задним числом · 12 дн.", "Задним числом · 14 дн.", "Задним числом · 24 дн."]) assert.ok(text.includes(chip), chip);
+    for (const chip of ["Отменён: по вине центра", "Отменён: праздник", "Урок возвращён", "Разовый урок", "Отметки исправлены", "Добавил урок в расписание", "Задним числом · 2 дн.", "Задним числом · 6 дн.", "Задним числом · 12 дн.", "Задним числом · 14 дн.", "Задним числом · 24 дн."]) assert.ok(text.includes(chip), chip);
     assert.ok(!text.includes("без запроса"), "no chip «без запроса»");
-    assert.match(plain(await rows.nth(0).textContent()), /пн, 16\.11 · 10:00–11:30/, "the time of the lesson is in every record");
+    // С11.17: the lessons 02.11, 09.11 and 25.11 were returned - ONE row each (the return), the cancellation «урок был» is not a second row
+    const returned = page.locator('[data-testid="substitution-row"]').filter({ hasText: "Урок возвращён" });
+    assert.equal(await returned.count(), 3, "one row per returned lesson");
+    for (const date of ["02.11", "09.11", "25.11"]) assert.equal(await page.locator('[data-testid="substitution-row"]').filter({ hasText: new RegExp(`, ${date.replace(".", "\\.")} ·`) }).filter({ hasText: "Урок возвращён" }).count(), 1, `${date}: one return row`);
+    assert.equal(await page.locator('[data-testid="substitution-row"]').filter({ hasText: /Урок был/ }).count(), 0, "the old second row «Урок был» is gone");
+    assert.ok(!text.includes("Включён в зарплату"), "the cancellation of 02.11 «включён в зарплату» is not a second row of the returned lesson (the words stay in the block of the teacher)");
+    assert.match(plain(await rows.nth(0).textContent()), /ср, 11\.11 · 10:00–11:30/, "the time of the lesson is in every record");
     assert.match(plain(await page.locator('[data-testid="audit-row"]').last().textContent()), /вт, 03\.11 · 14:00–15:30/, "and in every entry of the journal");
     assert.match(plain(await page.locator('[data-testid="reason-words"]').first().textContent()), /Отключили свет/);
     assert.match(plain(await page.locator('[data-testid="audit-row"][data-kind="corrected"]').textContent()), /Ошибся/);
@@ -126,8 +132,8 @@ test("an administrator WITHOUT the money right: the same panel without the salar
 });
 
 // ── Э6: «Решения по дополнительным урокам» under «История» ─────────────────────────────────────────────────────────────
-// NOT EXPORTED by the server (С10.7 has no decided additional lessons): the one item below is written by hand from the contract of `GET /org/one-off-decisions/decided` (listed in the report).
-const DECIDED_ONE_OFF = DECIDED_ONE_OFF_NOT_EXPORTED;
+// The real answer of `GET /org/one-off-decisions/decided` (one «Не оплачивать» and one «Оплатить»).
+const DECIDED_ONE_OFFS = answer("one_off_decided").items;
 const decidedRoute = (items) => (request) => (request.path === "/auth/org/one-off-decisions/decided" ? { json: { total: items.length, items } } : null);
 
 for (const width of [1280, 375]) {
@@ -138,9 +144,9 @@ for (const width of [1280, 375]) {
     assert.equal(await none.page.locator('[data-testid="decided-one-offs"]').count(), 0, "nothing decided: nothing shown");
     await none.page.close();
 
-    const some = await openHistory(listServer({ extra: decidedRoute([DECIDED_ONE_OFF]) }), { width });
+    const some = await openHistory(listServer({ extra: decidedRoute(DECIDED_ONE_OFFS) }), { width });
     await some.page.waitForSelector('[data-testid="decided-toggle"]');
-    assert.equal(plain(await some.page.textContent('[data-testid="decided-title"]')), "Решения по дополнительным урокам · 1");
+    assert.equal(plain(await some.page.textContent('[data-testid="decided-title"]')), "Решения по дополнительным урокам · 2");
     assert.equal(await some.page.getAttribute('[data-testid="decided-toggle"]', "aria-expanded"), "false");
     assert.equal(await some.page.locator('[data-testid="decided-row"]').count(), 0, "folded: no rows");
     assert.equal(await some.page.locator('[data-testid="decided-prev"]').count(), 0, "folded: no month switch");

@@ -2,10 +2,10 @@
   "items": [
     {
       "source": "unconfirmed",
-      "id": "47480fe9-36a5-4182-bd4f-63755f8a59ea",
+      "id": "88d56463-030b-4705-8ca5-d6615195ebdf",
       "kind": "unconfirmed",
       "group": {
-        "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -16,12 +16,12 @@
         "endTime": "11:30"
       },
       "teacher": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": null
       },
       "cancelledBy": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -29,14 +29,15 @@
       "cancelledAt": "2026-11-26T07:00:00",
       "waitingDays": 0,
       "ageDays": 8,
-      "canDecide": false
+      "canDecide": false,
+      "canWithdraw": false
     },
     {
       "source": "unconfirmed",
-      "id": "ff53ca76-f93e-4fad-9537-12acc48bcdb7",
+      "id": "f205244c-1de9-4b9b-9e2b-da6f73d6608a",
       "kind": "unconfirmed",
       "group": {
-        "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -47,12 +48,12 @@
         "endTime": "11:30"
       },
       "teacher": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": null
       },
       "cancelledBy": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -60,7 +61,8 @@
       "cancelledAt": "2026-11-26T07:00:00",
       "waitingDays": 0,
       "ageDays": 3,
-      "canDecide": false
+      "canDecide": false,
+      "canWithdraw": false
     }
   ],
   "total": 2,

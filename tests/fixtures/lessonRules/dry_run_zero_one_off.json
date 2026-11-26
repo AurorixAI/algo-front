@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "dry_run": true,
+  "changed": true,
+  "from": "unconfirmed",
+  "to": "centre",
+  "students": 0,
+  "per_student": null,
+  "total": 0,
+  "deductions": [],
+  "recalc_off": false,
+  "zero_reason": "one_off",
+  "zero_text": "Разовый урок: перерасчёта нет.",
+  "restore_allowed": true,
+  "age_days": 1,
+  "window_days": 7,
+  "teacher_can_mark": true
+}

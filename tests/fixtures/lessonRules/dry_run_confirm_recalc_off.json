@@ -9,6 +9,8 @@
   "total": 0,
   "deductions": [],
   "recalc_off": true,
+  "zero_reason": null,
+  "zero_text": null,
   "restore_allowed": true,
   "age_days": 3,
   "window_days": 7,

@@ -9,52 +9,54 @@
   "total": 450000,
   "deductions": [
     {
-      "studentId": "09ae957b-9291-55a4-ba3b-ccc7a4700b5a",
-      "amount": 50000,
-      "name": "Давронов Санжар"
-    },
-    {
-      "studentId": "4236871a-cdfe-53a1-8379-6fbc7b875b8d",
-      "amount": 50000,
-      "name": "Ерматова Нодира"
-    },
-    {
-      "studentId": "856138c3-790d-5031-8cd4-9223c15b6f98",
-      "amount": 50000,
-      "name": "Абдуллаев Азиз"
-    },
-    {
-      "studentId": "886830f6-4a5a-52bd-9524-0e2f29640ffb",
+      "studentId": "3f12d17e-2fc1-56b2-afec-5ee476fbf326",
       "amount": 50000,
       "name": "Валиев Тимур"
     },
     {
-      "studentId": "9ae6839b-d53c-54df-8d6d-098fe5ed2e9d",
+      "studentId": "4507f25f-f716-5212-943a-79376856c657",
       "amount": 50000,
-      "name": "Исмоилова Зарина"
+      "name": "Давронов Санжар"
     },
     {
-      "studentId": "aec675d4-49bd-5f1d-aad5-747657e245e7",
-      "amount": 50000,
-      "name": "Гафурова Лола"
-    },
-    {
-      "studentId": "bf03fb88-e71c-5e87-800d-d33cce36428b",
-      "amount": 50000,
-      "name": "Каримов Умид"
-    },
-    {
-      "studentId": "c6353ed6-e019-53b8-8778-6f8630be6845",
+      "studentId": "4725976f-7de8-54cd-964d-a085bd031c74",
       "amount": 50000,
       "name": "Бекова Мадина"
     },
     {
-      "studentId": "d1b0a358-db8b-5a82-9d30-a34a5f66bdfa",
+      "studentId": "5cdb6f71-dd12-54fe-aa2f-2ec3d023beb4",
+      "amount": 50000,
+      "name": "Каримов Умид"
+    },
+    {
+      "studentId": "7725939f-351f-59b6-9579-01921ab44bab",
+      "amount": 50000,
+      "name": "Ерматова Нодира"
+    },
+    {
+      "studentId": "83c13200-9e83-528e-8c74-46e180e31863",
+      "amount": 50000,
+      "name": "Гафурова Лола"
+    },
+    {
+      "studentId": "8c976eca-c7c7-5ba7-9707-ebe99482f47b",
       "amount": 50000,
       "name": "Жураев Сардор"
+    },
+    {
+      "studentId": "96ac09e1-2185-509d-a234-38ea928c85f0",
+      "amount": 50000,
+      "name": "Абдуллаев Азиз"
+    },
+    {
+      "studentId": "b19c7ab7-915e-5569-b56b-476324f925f4",
+      "amount": 50000,
+      "name": "Исмоилова Зарина"
     }
   ],
   "recalc_off": false,
+  "zero_reason": null,
+  "zero_text": null,
   "restore_allowed": true,
   "age_days": 8,
   "window_days": 7,

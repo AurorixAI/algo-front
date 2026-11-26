@@ -1,11 +1,11 @@
 {
   "item": {
-    "id": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
-    "batchId": "60c05008-70bb-42db-bc0f-41aebd53bb09",
+    "id": "79b01e34-e5a4-4ab1-81b0-cc0d2cb108fc",
+    "batchId": "d8bd896f-06ae-4413-b91a-f4488e2287b6",
     "status": "cancelled",
     "origin": "system",
     "group": {
-      "id": "287049ea-7673-5f46-b17e-41e317fdd7f1",
+      "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
       "name": "Математика 7",
       "studentCount": 9
     },
@@ -20,7 +20,7 @@
       "exists": true
     },
     "teacher": {
-      "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+      "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
       "name": "Эргашев К.",
       "role": "teacher"
     },
@@ -35,7 +35,7 @@
     "decision": {
       "kind": "cancel",
       "by": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -57,7 +57,7 @@
     "lastActivityAt": "2026-11-26T07:00:00.000002",
     "needsDecision": false,
     "confirmedBy": {
-      "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+      "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
       "name": "Валиев Р.",
       "role": "owner"
     },
@@ -72,10 +72,10 @@
   "truncated": false,
   "events": [
     {
-      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "requestId": "79b01e34-e5a4-4ab1-81b0-cc0d2cb108fc",
       "action": "requested",
       "actor": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -88,10 +88,10 @@
       "mergedRequestId": null
     },
     {
-      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "requestId": "79b01e34-e5a4-4ab1-81b0-cc0d2cb108fc",
       "action": "cancelled",
       "actor": {
-        "id": "85364d94-c8fb-5916-ae84-9583524e23fd",
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -104,10 +104,10 @@
       "mergedRequestId": null
     },
     {
-      "requestId": "ad5125ec-e7b8-46c1-ad38-caa4114a138f",
+      "requestId": "79b01e34-e5a4-4ab1-81b0-cc0d2cb108fc",
       "action": "confirmed",
       "actor": {
-        "id": "05720600-ebf6-5f54-baaf-fd04de596155",
+        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
         "name": "Валиев Р.",
         "role": "owner"
       },

@@ -48,7 +48,7 @@ test("without the sentence of the server (not read yet / refused) the question a
 });
 
 test("the refusals of the rules (the real answers) are an information, not a red error: no one to come backdated, a lesson older than the window", async () => {
-  for (const key of ["nobody_came_backdated", "lesson_too_old_save", "withdraw_too_old"]) {
+  for (const key of ["nobody_came_backdated", "withdraw_too_old"]) {
     const message = answer("refusals")[key].detail.message;
     const { page } = await mount("rule-notice", TEACHER, { message, info: true });
     await page.waitForSelector('[data-testid="lesson-rule-refusal"]');

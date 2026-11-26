@@ -9,6 +9,8 @@
   "total": 0,
   "deductions": [],
   "recalc_off": false,
+  "zero_reason": "nobody_charged",
+  "zero_text": "За этот урок никто из учеников не платит: перерасчёта нет.",
   "restore_allowed": false,
   "age_days": 3,
   "window_days": 7,

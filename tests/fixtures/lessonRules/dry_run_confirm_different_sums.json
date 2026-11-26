@@ -9,52 +9,54 @@
   "total": 420000,
   "deductions": [
     {
-      "studentId": "1b067938-8075-53e4-aa0b-608dc63649a9",
-      "amount": 30000,
-      "name": "Каримов Умид"
-    },
-    {
-      "studentId": "34e7890f-f863-5e4b-80e2-e0e2946c8aef",
-      "amount": 50000,
-      "name": "Валиев Тимур"
-    },
-    {
-      "studentId": "5facbe85-8758-5c70-a1e6-81907ba3ae38",
+      "studentId": "220afa67-4717-5ce8-8a23-60dfd82bde72",
       "amount": 50000,
       "name": "Гафурова Лола"
     },
     {
-      "studentId": "6fc8fb5a-a215-54b2-8c08-e51a1b684bf0",
-      "amount": 50000,
-      "name": "Жураев Сардор"
-    },
-    {
-      "studentId": "80a67cda-2a09-52ab-9da2-79bb4b23acec",
-      "amount": 50000,
-      "name": "Ерматова Нодира"
-    },
-    {
-      "studentId": "b76c490e-0df4-535b-a8e3-5883a6c3bc98",
+      "studentId": "3751d8d3-a988-5849-903f-563479184fb6",
       "amount": 40000,
       "name": "Исмоилова Зарина"
     },
     {
-      "studentId": "dbf0cd17-a021-56ee-a3a6-71e23a92d17f",
-      "amount": 50000,
-      "name": "Давронов Санжар"
+      "studentId": "409c36e1-645f-5bb5-98ae-90ae2807f0ee",
+      "amount": 30000,
+      "name": "Каримов Умид"
     },
     {
-      "studentId": "dd773a8c-5cd7-52a1-a058-4d230ead1200",
+      "studentId": "5ccfdaed-7f58-5e00-ace6-56684ee81c21",
+      "amount": 50000,
+      "name": "Жураев Сардор"
+    },
+    {
+      "studentId": "83a1736e-b4d8-5034-94f3-f691659d6091",
       "amount": 50000,
       "name": "Абдуллаев Азиз"
     },
     {
-      "studentId": "e2013bfc-48ab-58ab-badc-7f664c2e490b",
+      "studentId": "a5dafe4c-1ec5-51a7-b42b-c1e947aab60a",
+      "amount": 50000,
+      "name": "Валиев Тимур"
+    },
+    {
+      "studentId": "acbb0f54-81c4-5e59-a47d-02802cc7c1a5",
       "amount": 50000,
       "name": "Бекова Мадина"
+    },
+    {
+      "studentId": "ba20dea7-fcc0-518e-aa0b-24494398155b",
+      "amount": 50000,
+      "name": "Давронов Санжар"
+    },
+    {
+      "studentId": "d554bf7b-77bf-532e-a8e1-a60e15e4356b",
+      "amount": 50000,
+      "name": "Ерматова Нодира"
     }
   ],
   "recalc_off": false,
+  "zero_reason": null,
+  "zero_text": null,
   "restore_allowed": true,
   "age_days": 3,
   "window_days": 7,

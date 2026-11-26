@@ -1,0 +1,73 @@
+{
+  "total": 2,
+  "items": [
+    {
+      "lessonId": "one-off-f09e3d74f4ca4ddf",
+      "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+      "groupName": "Математика 7",
+      "lessonDate": "2026-11-17",
+      "startTime": "12:00",
+      "endTime": "13:00",
+      "purpose": "extra",
+      "title": "Дополнительный урок — включить в зарплату?",
+      "teacher": {
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "createdBy": {
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "studentsPresent": 9,
+      "studentsTotal": 9,
+      "studentsPaid": 9,
+      "moneyEstimate": null,
+      "periodClosed": false,
+      "payrollSheet": null,
+      "money": "none",
+      "decidedAt": "2026-11-26T07:00:00",
+      "decidedBy": {
+        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "name": "Валиев Р.",
+        "role": "owner"
+      },
+      "canUndo": true
+    },
+    {
+      "lessonId": "one-off-507cfe7f7966476d",
+      "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+      "groupName": "Математика 7",
+      "lessonDate": "2026-11-14",
+      "startTime": "12:00",
+      "endTime": "13:00",
+      "purpose": "extra",
+      "title": "Дополнительный урок — включить в зарплату?",
+      "teacher": {
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "createdBy": {
+        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "studentsPresent": 9,
+      "studentsTotal": 9,
+      "studentsPaid": 9,
+      "moneyEstimate": null,
+      "periodClosed": false,
+      "payrollSheet": null,
+      "money": "paid",
+      "decidedAt": "2026-11-26T07:00:00",
+      "decidedBy": {
+        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "name": "Валиев Р.",
+        "role": "owner"
+      },
+      "canUndo": true
+    }
+  ]
+}

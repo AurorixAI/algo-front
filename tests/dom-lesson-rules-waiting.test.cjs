@@ -4,7 +4,7 @@ const test = require("node:test");
 const { setup, isDry, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe, touchTargets } = require("./helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY, plain, PERIOD_CLOSED_NOT_EXPORTED } = require("./helpers/lesson-rules-answers.cjs");   // PERIOD_CLOSED: the one answer the unload has not (a hand-written body, listed in the report)
+const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
 const KIND_PATH = /\/attendance\/cancellation-kind$/;
@@ -120,8 +120,8 @@ test("the owner decided first (409 ALREADY_DECIDED, the real refusal): «Отм�
   await page.close();
 });
 
-test("the month is closed (409 PERIOD_CLOSED, a hand-written body, NOT exported - see the note above): the window says it in the notice with the way out; no outcome to choose", async () => {
-  const refusal = PERIOD_CLOSED_NOT_EXPORTED;
+test("the month is closed (409 PERIOD_CLOSED, the real answer confirm_period_closed_409): the window says it in the notice with the way out; no outcome to choose", async () => {
+  const refusal = answer("confirm_period_closed_409");
   const run = await open(listServer({ extra: (r) => (r.method === "PUT" && KIND_PATH.test(r.path) ? { status: 409, json: refusal } : null) }));
   const { page } = run;
   await page.click(MON);

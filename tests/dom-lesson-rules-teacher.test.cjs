@@ -28,7 +28,7 @@ for (const width of [375, 1280]) {
     const { page, errors } = await openBlock(mineOf(mineReal()), width);
     assert.match(plain(await page.textContent("section h2")), /Запросы и изменения уроков/);
     const rows = page.locator('[data-testid="my-request-row"]');
-    assert.equal(await rows.count(), 8, "10 records of the answer minus the two system records of the returned lessons that have the cancellation «урок был»");
+    assert.equal(await rows.count(), 10, "12 records of the answer (two of them the one-off lessons) minus the two system records of the returned lessons that have the cancellation «урок был»");
     const texts = (await rows.allTextContents()).map(plain);
     assert.match(texts[0], /ср, 18\.11 · Математика 7/);
     assert.match(texts[0], /Отмена ждёт подтверждения/);
@@ -36,7 +36,7 @@ for (const width of [375, 1280]) {
     assert.match(texts[1], /пн, 23\.11 · Математика 7/);
     assert.match(texts[1], /Отмена ждёт подтверждения/);
     assert.match(texts[1], /Отозвать/);
-    for (const chip of ["Отменён: праздник", "Отменён: по вине центра", "Включён в зарплату"]) assert.ok(texts.some((t) => t.includes(chip)), chip);
+    for (const chip of ["Отменён: праздник", "Отменён: по вине центра", "Включён в зарплату", "Разовый урок"]) assert.ok(texts.some((t) => t.includes(chip)), chip);
     assert.equal(await page.locator('button[aria-label="Отозвать отмену: пн, 23.11 · Математика 7"]').count(), 1);
     assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 1, "only the one with canWithdraw true");
     assert.equal(await page.locator("text=Новый запрос").count(), 1);
@@ -53,7 +53,7 @@ for (const width of [375, 1280]) {
 
 test("a returned lesson is ONE row: the cancellation «урок был» of 09.11 and 25.11 stand, their system records `closed` are hidden; the return of 02.11 has no such cancellation and stays", async () => {
   const mine = mineReal();
-  const system = mine.items.filter((i) => i.status === "closed");
+  const system = mine.items.filter((i) => i.status === "closed" && i.outcome === "lesson_restored");
   assert.equal(system.length, 3, "the real answer has three system records of a return");
   const run = await openBlock(mineOf(mine));
   const { page } = run;

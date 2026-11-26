@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "moneyEffects": {
+    "students": [],
+    "payroll": [],
+    "text": "",
+    "dryRun": true
+  }
+}

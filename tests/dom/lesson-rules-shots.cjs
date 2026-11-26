@@ -12,7 +12,7 @@ execFileSync(process.execPath, [path.join(root, "node_modules", "tailwindcss", "
 process.env.DOM_CSS = css;
 const { launch, openPage } = require("../helpers/dom-page.cjs");
 const { layoutProbe } = require("../helpers/layout-probe.cjs");
-const { answer, listServer, WORLD_DAY, PERIOD_CLOSED_NOT_EXPORTED, DECIDED_ONE_OFF_NOT_EXPORTED } = require("../helpers/lesson-rules-answers.cjs");
+const { answer, listServer, WORLD_DAY } = require("../helpers/lesson-rules-answers.cjs");
 
 const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN_NO_MONEY = { role: "admin", org_role: "admin", payments_access: false };
@@ -40,7 +40,7 @@ const longHistory = () => {
   return h;
 };
 const MON = 'button[aria-label$="23.11"]';   // the dry-run answers of the world are for the lesson of 23.11 (the second row)
-const DECIDED_ONE_OFFS = { json: { items: [DECIDED_ONE_OFF_NOT_EXPORTED], total: 1 } };   // hand-written (not in the unload), only for the shots of the folded block
+const DECIDED_ONE_OFFS = { json: answer("one_off_decided") };
 const historyExtra = (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { json: answer("dry_run_return_payroll") } : /one-off-decisions\/decided/.test(r.path) ? DECIDED_ONE_OFFS : null);
 const dryServer = (extra) => (r) => {
   if (r.method === "PUT" && KIND.test(r.path)) return { json: /dry_run=true/.test(r.query) ? answer("dry_run_confirm_centre") : { ok: true } };
@@ -106,7 +106,7 @@ const dryServer = (extra) => (r) => {
       await shot(page, "E2-window-held-old-lesson");
       await page.close();
     }
-    for (const [tag, status, body] of [["already-decided", 409, answer("refusals").already_decided], ["period-closed", 409, PERIOD_CLOSED_NOT_EXPORTED]]) {
+    for (const [tag, status, body] of [["already-decided", 409, answer("refusals").already_decided], ["period-closed", 409, answer("confirm_period_closed_409")]]) {
       const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ extra: (r) => (r.method === "PUT" && KIND.test(r.path) ? { status, json: body } : null) }), OWNER, { role: "owner" });
       await page.waitForSelector('[data-testid="waiting-row"]');
       await page.click(MON);
@@ -181,7 +181,7 @@ const dryServer = (extra) => (r) => {
       await check(page, errors, `Э5 report ${width}`);
       await shot(page, "E5-report-window");
       await page.close();
-      for (const [tag, message, info] of [["nobody-backdated", answer("refusals").nobody_came_backdated.detail.message, true], ["too-old", answer("refusals").lesson_too_old_save.detail.message, true]]) {
+      for (const [tag, message, info] of [["nobody-backdated", answer("refusals").nobody_came_backdated.detail.message, true], ["too-old", answer("refusals").withdraw_too_old.detail.message, true]]) {
         const run = await open("lesson-rules.entry.tsx", () => null, TEACHER, { message, info }, "rule-notice");
         await run.page.waitForSelector('[data-testid="lesson-rule-refusal"]');
         await check(run.page, run.errors, `Э5 ${tag} ${width}`);
