@@ -39,7 +39,7 @@ for (const width of [1280, 1024, 375]) {
     const { page, errors } = await open(width);
     const old = JOURNAL.lessons.find((l) => l.date === "2026-11-02");
     assert.deepEqual([old.canActSelf, old.monthClosed, old.windowDays], [false, false, 7]);
-    await page.locator(MENU_OLD).evaluate((el) => el.click());   // at 375 the «⋯» of the column lies beyond the edge of the screen (the table scrolls inside its box): a click of Playwright scrolls to it and that scroll closes the menu
+    await page.click(MENU_OLD);   // the ordinary press: at 375 too the «⋯» of the first column is on the screen
     await page.waitForSelector('[data-testid="menu-teacher-locked"]');
     const item = plain(await page.textContent('[data-testid="menu-teacher-locked"]'));
     assert.match(item, /Исправить отметки/);
@@ -74,6 +74,32 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+test("375: the journal of a group on a phone - the first column of a lesson is wholly on the screen: its head does not cut a chip, the «⋯» lies inside the window and opens the menu with an ordinary press (no scroll that closes it); the names of the students are wrapped, not cut", async () => {
+  const { page, errors } = await open(375);
+  const geometry = await page.evaluate(() => {
+    const th = document.querySelector('th[data-lesson-key="2026-11-02_lesson-mon"]');
+    const box = th.getBoundingClientRect();
+    const trigger = th.querySelector("[data-column-menu-trigger]").getBoundingClientRect();
+    const chips = [...th.querySelectorAll("span, div")].filter((el) => el.children.length === 0 && /Оформлен|Завершён/.test(el.textContent)).map((el) => { const r = el.getBoundingClientRect(); return { text: el.textContent.trim(), width: r.width, left: Math.round(r.left), right: Math.round(r.right), clipped: el.scrollWidth > el.clientWidth + 1 }; }).filter((chip) => chip.width > 20);   // the visible words (the hint text of a chip is not on the screen)
+    const sticky = document.querySelector("tbody tr td").getBoundingClientRect();
+    const name = document.querySelector("tbody tr td p.break-words");
+    return { viewport: window.innerWidth, th: [Math.round(box.left), Math.round(box.right)], trigger: [Math.round(trigger.left), Math.round(trigger.right), Math.round(trigger.width), Math.round(trigger.height)], chips, sticky: Math.round(sticky.width), nameClipped: name.scrollWidth > name.clientWidth + 1 };
+  });
+  assert.ok(geometry.th[1] <= geometry.viewport, `the whole first column is inside the window: ${JSON.stringify(geometry.th)}`);
+  assert.ok(geometry.trigger[0] >= 0 && geometry.trigger[1] <= geometry.viewport, `«⋯» is inside the window: ${JSON.stringify(geometry.trigger)}`);
+  assert.ok(geometry.trigger[2] >= 40 && geometry.trigger[3] >= 40, "and it is a 40 px target");
+  assert.ok(geometry.chips.length >= 2);
+  for (const chip of geometry.chips) assert.ok(chip.left >= geometry.th[0] && chip.right <= geometry.th[1] && !chip.clipped, `a chip is not cut: ${JSON.stringify(chip)}`);
+  assert.ok(geometry.sticky <= 150, `the column of the students does not eat the screen: ${geometry.sticky}`);
+  assert.equal(geometry.nameClipped, false, "a name is wrapped, not cut");
+  await page.click(MENU_OLD);
+  await page.waitForSelector('[data-testid="menu-teacher-locked"]');
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('[data-testid="menu-teacher-locked"]').count(), 1, "the menu stays open after an ordinary press");
+  assert.deepEqual(noise(errors), []);
+  await page.close();
+});
 
 test("a lesson that is cancelled or still to come has no lock line: the flags matter for a held lesson only", async () => {
   const { page } = await open(1280);

@@ -1543,7 +1543,7 @@ export function GroupAttendanceJournal({
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th
                     scope="col"
-                    className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 text-[13px] font-semibold text-slate-500"
+                    className="sticky left-0 z-20 w-[148px] min-w-[148px] max-w-[148px] border-r border-slate-200 bg-slate-50 px-3 py-3.5 text-[13px] font-semibold text-slate-500 sm:w-auto sm:min-w-[235px] sm:max-w-none sm:px-5"
                   >
                     Ученик ({activeStudents.length})
                   </th>
@@ -1584,7 +1584,7 @@ export function GroupAttendanceJournal({
                             aria-haspopup="menu"
                             aria-expanded={columnMenu?.key === key}
                             title="Действия с уроком"
-                            className="absolute right-1 top-1 rounded-lg p-1 text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-60"
+                            className="absolute right-0 top-0 flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-60 sm:right-1 sm:top-1 sm:h-auto sm:w-auto sm:p-1"
                           >
                             {columnBusyKey === key ? <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> : <MoreHorizontal className="h-4 w-4" />}
                           </button>
@@ -1687,15 +1687,15 @@ export function GroupAttendanceJournal({
                   const stickyCellClassName = "bg-white group-hover:bg-slate-50";
                   return (
                     <tr key={student.id} className={rowClassName}>
-                      <td className={`sticky left-0 z-10 border-r border-slate-200 px-5 py-3 ${stickyCellClassName}`}>
+                      <td className={`sticky left-0 z-10 w-[148px] max-w-[148px] border-r border-slate-200 px-3 py-3 sm:w-auto sm:max-w-none sm:px-5 ${stickyCellClassName}`}>
                         {studentProfileHref ? (
                           <Link href={studentProfileHref} title="Открыть профиль ученика" className="flex items-center gap-3 rounded-lg outline-none transition-colors hover:text-primary-700 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-100 text-xs font-bold text-primary-700">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-xs font-bold text-primary-700">
                               {fullName[0]}
                             </span>
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-center gap-1.5">
-                                <p className="min-w-0 truncate text-sm font-semibold text-slate-900 transition-colors group-hover:text-primary-700" title={fullName}>{fullName}</p>
+                                <p className="min-w-0 break-words text-sm font-semibold text-slate-900 sm:truncate transition-colors group-hover:text-primary-700" title={fullName}>{fullName}</p>
                                 {membershipEvent && (
                                   <Hint text={formatMembershipEvent(membershipEvent)} className="shrink-0 border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                                 )}
@@ -1710,12 +1710,12 @@ export function GroupAttendanceJournal({
                           </Link>
                         ) : (
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-100 text-xs font-bold text-primary-700">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-xs font-bold text-primary-700">
                             {fullName[0]}
                           </span>
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={fullName}>{fullName}</p>
+                              <p className="min-w-0 break-words text-sm font-semibold text-slate-900 sm:truncate" title={fullName}>{fullName}</p>
                               {membershipEvent && (
                                 <Hint text={formatMembershipEvent(membershipEvent)} className="shrink-0 border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                               )}
@@ -1895,7 +1895,7 @@ export function GroupAttendanceJournal({
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th scope="col" className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 text-[13px] font-semibold text-slate-500">
+                  <th scope="col" className="sticky left-0 z-20 w-[148px] min-w-[148px] max-w-[148px] border-r border-slate-200 bg-slate-50 px-3 py-3.5 text-[13px] font-semibold text-slate-500 sm:w-auto sm:min-w-[235px] sm:max-w-none sm:px-5">
                     Ученик
                   </th>
                   {lessons.map((lesson) => {
@@ -1922,7 +1922,7 @@ export function GroupAttendanceJournal({
                   const studentProfileHref = studentProfileBasePath ? `${studentProfileBasePath}/${student.id}` : null;
                   return (
                     <tr key={student.id} className="bg-white">
-                      <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-5 py-3">
+                      <td className="sticky left-0 z-10 w-[148px] max-w-[148px] border-r border-slate-200 bg-white px-3 py-3 sm:w-auto sm:max-w-none sm:px-5">
                         {studentProfileHref ? (
                           <Link href={studentProfileHref} title="Открыть профиль ученика" className="flex items-center gap-3 rounded-lg outline-none transition-colors hover:text-primary-700 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
                             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">{fullName[0]}</span>
