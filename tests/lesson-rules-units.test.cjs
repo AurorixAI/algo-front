@@ -309,3 +309,19 @@ test("the three models of the list are told apart by the `source` of the server:
     assert.equal(split.requests.length, rows.filter((r) => r.source === "request").length, `${name}: a request row says source:"request"`);
   }
 });
+
+test("С11.19: the lessons that were given back (02.11 held, 09.11 and 25.11 waiting for a mark) are NOT out of plan in the schedule of the real answer - no «Отменён» chip; the lessons that are cancelled are (11.11, 16.11, 18.11, 23.11)", () => {
+  const { outOfPlan } = require(path.join(root, "src/lib/schedule-plan.ts"));
+  const math = answers("schedule_teacher").filter((o) => o.groupName === "Математика 7");
+  const journal = answers("journal_teacher");
+  const statusOf = (date) => journal.lessons.find((l) => l.date === date)?.status;
+  for (const date of ["2026-11-02", "2026-11-09", "2026-11-25"]) {
+    const occurrence = math.find((o) => o.occurrenceDate === date);
+    assert.equal(occurrence.substitutionOutcome, null, `${date}: the schedule says nothing about a cancellation`);
+    assert.equal(outOfPlan({ status: statusOf(date), outcome: occurrence.substitutionOutcome }), null, date);
+  }
+  for (const date of ["2026-11-11", "2026-11-16", "2026-11-18", "2026-11-23"]) {
+    const occurrence = math.find((o) => o.occurrenceDate === date);
+    assert.equal(outOfPlan({ status: statusOf(date), outcome: occurrence.substitutionOutcome }), "cancelled", date);
+  }
+});

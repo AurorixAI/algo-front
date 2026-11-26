@@ -53,6 +53,28 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
+for (const width of [1280, 375]) {
+  test(`${width}: the lessons given back after a cancellation (the real journal, С11.19: no substitutionOutcome on them) have no chip «Урок отменён»: 02.11 is «Завершён» and «Оформлен задним числом», 09.11 is «Не отмечен»; a lesson that IS cancelled keeps «Не состоялся»`, async () => {
+    const { page } = await open(width);
+    const header = async (key) => plain(await page.textContent(`th[data-lesson-key="${key}"]`));
+    for (const key of ["2026-11-02_lesson-mon", "2026-11-09_lesson-mon"]) {
+      const lesson = JOURNAL.lessons.find((l) => `${l.date}_${l.id}` === key);
+      assert.equal(lesson.substitutionOutcome ?? null, null, "the real answer: nothing is said about a cancellation");
+    }
+    const held = await header("2026-11-02_lesson-mon");
+    assert.match(held, /Завершён/);
+    assert.match(held, /Оформлен задним числом/);
+    assert.ok(!held.includes("Урок отменён"), held);
+    const waiting = await header("2026-11-09_lesson-mon");
+    assert.match(waiting, /Не отмечен/);
+    assert.ok(!waiting.includes("Урок отменён"), waiting);
+    assert.ok(!waiting.includes("Завершён"), waiting);
+    const cancelled = await header("2026-11-16_lesson-mon");
+    assert.match(cancelled, /Не состоялся/, "a lesson that is really cancelled says so");
+    await page.close();
+  });
+}
+
 test("a lesson that is cancelled or still to come has no lock line: the flags matter for a held lesson only", async () => {
   const { page } = await open(1280);
   for (const key of ["2026-11-11_lesson-wed", "2026-11-16_lesson-mon", "2026-11-18_lesson-wed", "2026-11-23_lesson-mon"]) {
