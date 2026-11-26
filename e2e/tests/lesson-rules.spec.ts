@@ -34,8 +34,9 @@ test("the teacher reports «урока не было» -> the owner confirms «�
   await ownerPage.goto("/owner/substitutions");
   const row = ownerPage.getByTestId("waiting-row");
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText("Урока не было");
+  await expect(row).toContainText("Урока не было: отключили свет");   // the words of the teacher, as the server gave them
   await expect(row).toContainText(group.name);
+  await expect(ownerPage.getByRole("tab", { name: /Ждут решения \(1\)/ })).toBeVisible();   // the number of the tab is the server's waitingTotal
   await row.getByRole("button", { name: /Решить отмену/ }).click();
   const dialog = ownerPage.getByRole("dialog");
   await expect(dialog.getByText("Что произошло на самом деле?")).toBeVisible();
@@ -44,6 +45,7 @@ test("the teacher reports «урока не было» -> the owner confirms «�
   await expect(dialog.getByTestId("waiting-caption")).toContainText("Преподавателю урок не оплачивается");
   await dialog.getByRole("button", { name: "Подтвердить: по вине центра" }).click();
   await expect(ownerPage.getByTestId("waiting-row")).toHaveCount(0);
+  await expect(ownerPage.getByRole("tab", { name: /Ждут решения \(0\)/ })).toBeVisible();
 
   // the history of the owner names the outcome in ONE chip
   await ownerPage.getByRole("tab", { name: "История" }).click();
@@ -66,6 +68,8 @@ test("the teacher reports and takes the report back -> nothing waits for the own
   await teacherPage.goto("/teacher/dashboard");
   const mine = teacherPage.getByRole("region", { name: "Запросы и изменения уроков" });
   await expect(mine.getByText("Отмена ждёт подтверждения")).toBeVisible();
+  // «Отозвать» stands only where the server says canWithdraw: the lesson of this minute is inside the window
+  await expect(mine.getByRole("button", { name: /Отозвать отмену/ })).toHaveCount(1);
   await mine.getByRole("button", { name: /Отозвать отмену/ }).click();
   await expect(mine.getByText("Отмена ждёт подтверждения")).toHaveCount(0);
 
