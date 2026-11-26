@@ -356,6 +356,9 @@ export interface OpenLessonItem {
 export interface PayrollSheetWarnings {
   open_lessons: number | null;
   open_lesson_items?: OpenLessonItem[];
+  /** LESSON-RULES С8: cancellations of the teacher's lessons of the month that WAIT for the owner (they hold the closing of the month); absent on an older answer. */
+  unconfirmed_cancellations?: number;
+  unconfirmed_items?: UnconfirmedCancellationItem[];
   pending_excused: number;
   no_fee: number;
   unpaid: number;
@@ -431,10 +434,23 @@ export interface PayrollMonthWarnings {
   open_lessons: number | null;
   open_lessons_unknown?: boolean;
   open_lesson_items?: OpenLessonItem[];
+  /** LESSON-RULES С8: see `PayrollSheetWarnings`. */
+  unconfirmed_cancellations?: number;
+  unconfirmed_items?: UnconfirmedCancellationItem[];
   pending_excused: number;
   no_fee: number;
   unpaid: number;
   unpaid_students?: number;
+}
+
+/** One waiting cancellation of a month (`{lessonDate, groupId, groupName, lessonId, teacherId, ageDays}`): the list of the refusal 409 `UNCONFIRMED_CANCELLATIONS` and of the warning. */
+export interface UnconfirmedCancellationItem {
+  lessonDate: string;
+  groupId: string;
+  groupName: string;
+  lessonId: string;
+  teacherId: string;
+  ageDays: number;
 }
 
 export interface PayrollMonthTeacher {
@@ -1495,7 +1511,7 @@ export function sheetCardStatus(input: {
 
 // ── Warnings ────────────────────────────────────────────────────────────────
 
-export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students" | "open_lesson_items">;
+export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students" | "open_lesson_items" | "unconfirmed_items">;
 
 export interface WarningView {
   key: WarningKey | "undecided" | "changed";
@@ -1512,6 +1528,7 @@ export interface WarningView {
 
 /** Where a warning leads: the screen in which the owner can fix what it names. */
 export const WARNING_LINKS = {
+  unconfirmed_cancellations: "/owner/substitutions",
   open_lessons: "/owner/attendance?tab=open",
   pending_excused: "/owner/attendance?tab=excuses",
   no_fee: pricesBaseOf("/owner/groups"),
@@ -1519,10 +1536,11 @@ export const WARNING_LINKS = {
 } as const;
 
 /** The button of an item in the block «Что нужно сделать» of the sheet (UX pack §5.2-бис). */
-export const WARNING_BUTTONS = { open_lessons: "Отметить", pending_excused: "Решить", no_fee: "Задать цену", unpaid: "Открыть" } as const;
+export const WARNING_BUTTONS = { unconfirmed_cancellations: "Решить", open_lessons: "Отметить", pending_excused: "Решить", no_fee: "Задать цену", unpaid: "Открыть" } as const;
 
 /** The link of a warning in words (a tooltip, a screen reader). */
 export const WARNING_TARGETS = {
+  unconfirmed_cancellations: "Замены → Ждут решения",
   open_lessons: "Посещаемость → Уроки без отметки",
   pending_excused: "Посещаемость → Пропуски",
   no_fee: "Оплаты → Цены групп",
@@ -1535,6 +1553,7 @@ export const OPEN_LESSONS_UNKNOWN_HINT = "Не получилось узнать
 
 /** What each warning means; the unpaid one says the lessons are not in the sum and can be added on the sheet. */
 export const WARNING_HINTS = {
+  unconfirmed_cancellations: "Преподаватель сообщил, что урока не было, а владелец ещё не решил, чья это вина. Пока отмена не подтверждена, ученикам ничего не меняется и месяц закрыть нельзя. Решите её в «Замены → Ждут решения».",
   open_lessons: "Урок проведён, но посещаемость не закрыта. Пока урок не закрыт, он не попадёт в расчёт. Откройте «Посещаемость → Уроки без отметки» и закройте его.",
   pending_excused: "Уважительная причина ещё не подтверждена: пока ждёт решения, урок засчитывается преподавателю. Подтверждённая причина — урок не засчитывается.",
   no_fee: "У ученика нет цены (ни у его группы, ни индивидуальной), поэтому его уроки не оцениваются. Задайте цену в «Оплаты → Цены групп» или в карточке ученика.",
@@ -1548,8 +1567,11 @@ export const WARNING_HINTS = {
  */
 export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings, options: { noFeeHref?: string; openUnknown?: boolean } = {}): WarningView[] {
   const out: WarningView[] = [];
+  const waiting = counts.unconfirmed_cancellations;
   const add = (key: WarningKey, text: string, tone: WarningView["tone"], href: string = WARNING_LINKS[key]) =>
     out.push({ key, text, href, tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key], button: WARNING_BUTTONS[key] });
+  // LESSON-RULES С8 (Э6): first - it is what holds the closing of the month (the server refuses the save while it stands)
+  if (waiting) add("unconfirmed_cancellations", `${waiting} ${pluralRu(waiting, ["отмена ждёт подтверждения", "отмены ждут подтверждения", "отмен ждут подтверждения"])}`, "warning");
   const open = counts.open_lessons;
   // the month overview says so itself; a calculation not saved yet has `null` for a failed check (a saved sheet's null is «not looked up»: the caller passes `openUnknown` only for the first)
   if (("open_lessons_unknown" in counts && counts.open_lessons_unknown === true) || options.openUnknown === true) {
