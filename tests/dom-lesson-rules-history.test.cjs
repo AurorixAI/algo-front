@@ -56,6 +56,30 @@ for (const width of [1280, 1024, 375]) {
   });
 }
 
+test("an evening lesson started in time and closed after midnight (the real answer history_evening_not_late): the server writes no «задним числом» entry, so the page shows none - the history of the day is empty, not a line that blames the teacher", async () => {
+  const empty = answer("history_evening_not_late");
+  assert.equal(empty.items.length, 0, "the real answer: no entry at all for that lesson");
+  const run = await openHistory(listServer({ decided: empty }));
+  const { page } = run;
+  await page.waitForSelector('text="Здесь появятся события за последние 30 дней."');
+  assert.equal(await page.locator('[data-testid="audit-row"]').count(), 0);
+  assert.ok(!/Задним числом/.test(plain(await page.textContent("section"))), "no chip «Задним числом»");
+  await page.close();
+});
+
+test("an administrator WITH the money right wrote «оформлен задним числом» over the lesson of the teacher (the real answer history_admin_with_right): the line says who in the words of the server, next to the owner's one", async () => {
+  const real = answer("history_admin_with_right");
+  const run = await openHistory(listServer({ decided: real }));
+  const { page } = run;
+  await page.waitForSelector('[data-testid="audit-row"]');
+  const row = page.locator('[data-testid="audit-row"]', { hasText: "Задним числом · 21 дн." });
+  assert.equal(await row.count(), 1);
+  assert.match(plain(await row.textContent()), /оформление: Каримова Д\./);
+  assert.match(plain(await row.textContent()), /чт, 05\.11/);
+  assert.equal(await page.locator('[data-testid="audit-by"]').count(), 4, "owner x3 and the administrator x1 wrote over the lessons of the teacher");
+  await page.close();
+});
+
 test("the tick «Только задним числом» asks the same list with backdated_only=true and shows only what looks back (the real answer history_backdated_only)", async () => {
   const run = await openHistory(listServer({ extra: (r) => (isHistory(r) && /backdated_only=true/.test(r.query) ? { json: answer("history_backdated_only") } : null) }));
   const { page, calls } = run;

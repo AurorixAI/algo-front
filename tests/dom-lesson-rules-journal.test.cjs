@@ -62,12 +62,13 @@ test("a lesson that is cancelled or still to come has no lock line: the flags ma
 });
 
 test("EXCUSE_DECIDED (the real refusal) belongs to ONE mark: the administrator corrects a held lesson, the server refuses - the cell of that student is outlined, the sentence of the server stands over the table as an information, with the student", async () => {
-  // the unload has this refusal for a student of «Физика 8»: ONLY `studentId` is replaced by a student of this roster so that the cell of the journal can be found (said in the report)
+  // the real refusal, as the server gave it: the student is of THIS group («Математика 7»), the answer is not touched
   const real = answer("refusals").excuse_decided;
-  const mine = STUDENTS[0];
-  const refusal = { detail: { ...real.detail, studentId: mine.id, studentName: mine.full_name } };
+  const refusal = real;
+  const mine = STUDENTS.find((student) => student.id === real.detail.studentId);
+  assert.equal(mine.full_name, real.detail.studentName, "the student of the refusal is on the roster of the journal");
   const run = await openAs({ id: "owner-1", role: "owner", org_role: "owner" }, 1280, true, (r) => {
-    if (r.method === "POST" && /\/attendance\/impact$/.test(r.path)) return { json: { ok: true, moneyEffects: answer("dry_run_return_payroll").moneyEffects } };   // the money effects of the real family: the preview is not under test
+    if (r.method === "POST" && /\/attendance\/impact$/.test(r.path)) return { json: answer("attendance_impact") };   // the real answer of the preview of money
     return r.method === "POST" && /\/attendance$/.test(r.path) ? { status: 409, json: refusal } : null;
   });
   const { page } = run;

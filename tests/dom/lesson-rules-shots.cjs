@@ -212,13 +212,14 @@ const dryServer = (extra) => (r) => {
       await shot(teacher.page, "C10-journal-teacher-window-over");
       await teacher.page.close();
       const real = answer("refusals").excuse_decided;
-      const refusal = { detail: { ...real.detail, studentId: students[0].id, studentName: students[0].full_name } };   // the unload has this refusal for a student of another group: only the id is replaced by a student of this roster
-      const admin = await open("lesson-rules.entry.tsx", serve((r) => (r.method === "POST" && /\/attendance\/impact$/.test(r.path) ? { json: { ok: true, moneyEffects: answer("dry_run_return_payroll").moneyEffects } } : r.method === "POST" && /\/attendance$/.test(r.path) ? { status: 409, json: refusal } : null)), OWNER, { groupId: journal.groupId, students, adminMode: true }, "journal");
+      const refusal = real;
+      const decidedStudent = students.find((s) => s.id === real.detail.studentId);
+      const admin = await open("lesson-rules.entry.tsx", serve((r) => (r.method === "POST" && /\/attendance\/impact$/.test(r.path) ? { json: answer("attendance_impact") } : r.method === "POST" && /\/attendance$/.test(r.path) ? { status: 409, json: refusal } : null)), OWNER, { groupId: journal.groupId, students, adminMode: true }, "journal");
       await admin.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
       await admin.page.waitForTimeout(1500);
       await admin.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
       await admin.page.click('[role="menuitem"]:has-text("Исправить отметки")');
-      await admin.page.locator(`tr:has-text("${students[0].full_name}") td`).nth(1).locator("button").first().click();
+      await admin.page.locator(`tr:has-text("${decidedStudent.full_name}") td`).nth(1).locator("button").first().click();
       await admin.page.click('[role="menuitemradio"]:not([aria-checked="true"])');
       await admin.page.click('button:visible:has-text("Сохранить исправление")');
       await admin.page.fill("#correction-reason", "Исправляю отметку ученика");
