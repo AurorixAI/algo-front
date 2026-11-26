@@ -27,13 +27,13 @@ async function drawer(chosen, { undone = [], ordinary = [], balances = {}, who =
 }
 const hintsIn = (page) => page.locator('[role="dialog"] [aria-label="Пояснение"], [role="tooltip"]').count();
 
-test("«записывается заново»: the line in the row of the student and the server's sentence under it, whole - no «?», no bubble; it stays inside the window at 375", async () => {
+test("«зачисляется обычным порядком»: the line in the row of the student and the server's sentence under it, whole - no «?», no bubble; it stays inside the window at 375", async () => {
   for (const width of [1280, 375]) {
     const run = await drawer(["Второй"], { ordinary: ["st8"], width });
     const p = run.page;
     await p.locator('[data-testid="enrol-note-rewrite"]').waitFor();
     assert.equal(await hintsIn(p), 0, "no «?»");
-    assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Записывается заново", "one student: his name is in the title, not in the row");
+    assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Зачисляется обычным порядком", "one student: his name is in the title, not in the row");
     assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-text"]').innerText()), plain(ORDINARY), "the sentence of the server as it is");
     const box = await p.locator('[data-testid="enrol-note-rewrite"]').boundingBox();
     assert.ok(box.x >= 0 && box.x + box.width <= width + 0.5, `the row is inside the screen ${JSON.stringify(box)}`);
@@ -42,16 +42,16 @@ test("«записывается заново»: the line in the row of the stud
   }
 });
 
-test("rows: «записывается заново» and «вернётся как был» are rows with the NAME of their student and the words of the server; a student with nothing special has no row; no disclosure, no «?»", async () => {
+test("rows: «зачисляется обычным порядком» and «вернётся как был» are rows with the NAME of their student and the words of the server; a student with nothing special has no row; no disclosure, no «?»", async () => {
   const run = await drawer(["Новый", "Второй", "Третий"], { undone: ["st9"], ordinary: ["st8", "st7"] });
   const p = run.page;
   await p.waitForSelector('[data-testid="enrol-note-rewrite"]');
   assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]').count(), 2);
   assert.equal(await p.locator('[data-testid="enrol-note-undone"]').count(), 1);
   assert.match(plain(await p.locator('[data-testid="enrol-note-undone"]').innerText()), new RegExp(`^Новый Ученик ${plain(UNDO_TEXT).slice(0, 30)}`));
-  assert.match(plain(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Второй" }).innerText()), /^Второй Ученик — записывается заново Ученика убрали сегодня, но после этого/);
+  assert.match(plain(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Второй" }).innerText()), /^Второй Ученик — зачисляется обычным порядком Ученика убрали сегодня, но после этого/);
   assert.equal(await p.locator('[role="dialog"] details').count(), 0);
-  assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Новый" }).count(), 0, "a student who comes back as he was is not «записывается заново»");
+  assert.equal(await p.locator('[data-testid="enrol-note-rewrite"]', { hasText: "Новый" }).count(), 0, "a student who comes back as he was is not «зачисляется обычным порядком»");
   assert.equal(await hintsIn(p), 0);
   assert.ok(!/уход отмен|Возврат обычный|возвращаются в день/i.test(plain(await p.getByRole("dialog").innerText())), "none of the old plates' sentences");
   await p.close();

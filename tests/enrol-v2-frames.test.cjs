@@ -208,7 +208,7 @@ test("frame 5: only the moved student chosen - the title and the button say «П
   await admin.page.close();
 });
 
-test("frame 6: a debt of the last time, «записывается заново», «вернётся как был» - one row each with the NAME of the student, the words of the server as they are; the link «Выписка» for the debt", async () => {
+test("frame 6: a debt of the last time, «зачисляется обычным порядком», «вернётся как был» - one row each with the NAME of the student, the words of the server as they are; the link «Выписка» for the debt", async () => {
   for (const width of [1280, 375]) {
     const run = await FRAMES[6](ctx, { width });
     const p = run.page;
@@ -218,7 +218,7 @@ test("frame 6: a debt of the last time, «записывается заново�
     assert.match(plain(await rows.nth(0).innerText()), /^Лола Юсупова — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19\.11 Выписка$/);
     const link = rows.nth(0).getByRole("link", { name: "Выписка" });
     assert.match(await link.getAttribute("href"), /\/owner\/payments\/statement\/m-same$/);
-    assert.equal(plain(await rows.nth(1).innerText()), plain(`Тимур Рашидов — записывается заново ${H.REWRITE}`));
+    assert.equal(plain(await rows.nth(1).innerText()), plain(`Тимур Рашидов — зачисляется обычным порядком ${H.REWRITE}`));
     assert.equal(plain(await rows.nth(2).innerText()), plain(`Мадина Турсунова ${H.UNDO}`));
     assert.equal(await p.locator('[data-testid="enrol-exceptions"]').getByText("Анвар Каримов").count(), 0, "a student with nothing special has no row");
     assert.equal(await barSum(p), "564 000 сум");

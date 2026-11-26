@@ -1,5 +1,5 @@
 // Money-2 fix 10Д in the form of the mock-up of 19.11: ONE line of the conditions and ONE bottom bar instead of the frames and the cards: the period said once when it is the same (one line under the sum), the list «По ученикам»
-// when the sums or the periods differ, the notes of a student in HIS row (debt / advance of the last time, «записывается заново», «общие цена и дата не действуют»), no sums for a role without money, the chosen stay on the screen.
+// when the sums or the periods differ, the notes of a student in HIS row (debt / advance of the last time, «зачисляется обычным порядком», «общие цена и дата не действуют»), no sums for a role without money, the chosen stay on the screen.
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { setup, plain } = require("./helpers/money2-w2.cjs");
@@ -72,14 +72,14 @@ test("different periods: a short line «за октябрь и ноябрь» an
   await p.close();
 });
 
-test("the notes stand in the row of THEIR student: the debt of this group, the advance of another group, «записывается заново»; one «Выписка» per balance; a student with nothing special has no row", async () => {
+test("the notes stand in the row of THEIR student: the debt of this group, the advance of another group, «зачисляется обычным порядком»; one «Выписка» per balance; a student with nothing special has no row", async () => {
   const run = await drawer({ people: THREE, imm: { st1: NOV, st2: NOV, st3: NOV }, past: { st2: [DEBT_SAME], st3: [ADVANCE_OTHER] }, ordinary: ["st2"] });
   const p = run.page;
   const two = rowOf(p, "М14-2-а");
-  assert.equal(await two.count(), 1, "ONE row of his (Money-2 fix 11, F7): the debt and «записывается заново» stand on lines of their own in it");
+  assert.equal(await two.count(), 1, "ONE row of his (Money-2 fix 11, F7): the debt and «зачисляется обычным порядком» stand on lines of their own in it");
   assert.match(plain(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-2-а" }).innerText()), /^М14-2-а СцМ14 — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19\.11 Выписка$/);
   assert.equal(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-2-а" }).getByRole("link", { name: "Выписка" }).count(), 1);
-  assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Записывается заново", "the second thing of the row: a line of its own, with a capital");
+  assert.equal(plain(await p.locator('[data-testid="enrol-note-rewrite"] [data-testid="leave-undo-line"]').innerText()), "Зачисляется обычным порядком", "the second thing of the row: a line of its own, with a capital");
   assert.ok(plain(await p.locator('[data-testid="enrol-note-rewrite"]').innerText()).includes(H.REWRITE), "the server's words are under the line, as they are");
   assert.match(plain(await p.locator('[data-testid="enrol-note-past"]', { hasText: "М14-н6" }).innerText()), /^М14-н6 СцМ14 — Аванс с прошлого раза 40 000 сум · в «Физика 9», ушёл 17\.11 Выписка$/);
   assert.equal(await rowOf(p, "М14-н7").count(), 0);

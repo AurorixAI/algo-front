@@ -177,6 +177,22 @@ export function payStartSentenceOf(answer: unknown): string | null {
   return Array.isArray(r.students) ? null : normalizeBilling(r.billing)?.text || null;
 }
 
+/**
+ * The sentences of the server about a RETURN in the period that is already in the account, per student of a bulk dry run (`students[].billing.text` that is not the sentence about the day «Оплата считается с …»:
+ * «Возврат в том же периоде: ноябрь уже в счёте и заново не считается.»).  The student has his own sentence; one who is added for the first time has none.  The screen shows it as it came.
+ */
+export function returnSentencesOfBulk(answer: unknown): Map<string, string> {
+  const list = (answer as { students?: unknown } | null | undefined)?.students;
+  const out = new Map<string, string>();
+  if (!Array.isArray(list)) return out;
+  list.forEach((item) => {
+    const id = (item as { student_id?: unknown } | null)?.student_id;
+    const text = normalizeBilling((item as { billing?: unknown } | null)?.billing)?.text || "";
+    if (typeof id === "string" && text && !/^Оплата\s/.test(text)) out.set(id, text);
+  });
+  return out;
+}
+
 /** The field cannot be sent: an empty or impossible date. */
 export function payFromProblem(value: string, def: PayFromDefault | null, range: { min: string; max: string }): string | null {
   if (!def) return null;

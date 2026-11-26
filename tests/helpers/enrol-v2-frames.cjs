@@ -40,7 +40,7 @@ const FRAMES = {
     await run.page.waitForSelector('[data-testid="transfer-preview"][data-state="ready"]');
     return run;
   },
-  // 6 - a debt of the last time, «записывается заново», «вернётся как был»
+  // 6 - a debt of the last time, «зачисляется обычным порядком», «вернётся как был»
   6: async (ctx, o = {}) => {
     const run = await openDrawer(ctx, server(base(o.long, { past: { st2: [DEBT] }, ordinary: ["st3"], undone: ["st6"], parts: (id, body) => (id === "st6" ? null : H.defaultParts(450000, body.pay_from || H.TODAY)) })), { width: o.width, props: withGroup(o.long) });
     await pick(run.page, o.long ? "Новоиспечённый" : "Каримов", "Юсупова", "Рашидов", "Турсунова");

@@ -26,14 +26,16 @@ export function EnrolExceptions({ children }: { children: ReactNode }) {
   return <section aria-label="Особое" data-testid="enrol-exceptions" className="grid gap-3 border-t border-slate-100 px-5 py-3 empty:hidden max-sm:px-4">{children}</section>;
 }
 
-/** What the server says about ONE student before the write: the balance of the last time, a leaving that is not cancelled («записывается заново»), a leaving that is («вернётся как был»). */
+/** What the server says about ONE student before the write: the balance of the last time, a leaving that is not cancelled («зачисляется обычным порядком»), a leaving that is («вернётся как был»). */
 export interface EnrolNote {
   id: string;
   /** null: the window is about one student and his name is in its title */
   name: string | null;
   past: PastBalance[];
-  /** comes back in the ordinary way: the server's words are shown under «записывается заново» */
+  /** comes back in the ordinary way: the server's words are shown under «зачисляется обычным порядком» */
   rewrite: LeaveUndo | null;
+  /** comes back inside a period that is already in the account: the sentence of the server about it (`billing.text`), shown as it came */
+  returned?: string | null;
   /** comes back as he was (the server's words) */
   undone: LeaveUndo | null;
   /** a common price or day is entered and does not apply to a student who comes back as he was */
@@ -65,7 +67,7 @@ const MUTED_DETAIL = "mt-0.5 block text-xs text-slate-600";
 /**
  * ONE row per student for everything the server says about him before the write (Money-2 fix 11, F7): the name in bold with the short state in the same line, the server's detail muted and small under it, each further
  * thing on a line of its own under the first - never a second row with the same name.  Only the debt (and a refusal) is in the colour of a warning.  The facts: the balance of the last time, a leaving that is not
- * cancelled («записывается заново»), a leaving that is («возвращаем как было»).
+ * cancelled («зачисляется обычным порядком»), a leaving that is («возвращаем как было»).
  */
 export function EnrolNoteRows({ note, paymentsBase }: { note: EnrolNote; paymentsBase: string | null }) {
   const facts: Array<Omit<Parameters<typeof Fact>[0], "name" | "first">> = [
@@ -74,9 +76,10 @@ export function EnrolNoteRows({ note, paymentsBase }: { note: EnrolNote; payment
       aside: paymentsBase ? <Link href={statementHref(paymentsBase, row.membershipId)} data-testid="past-balance-link" className="inline-flex min-h-8 shrink-0 items-center text-sm font-semibold text-primary-700 hover:underline max-sm:min-h-10">Выписка</Link> : undefined,
     })),
     ...(note.rewrite ? [{
-      testId: "enrol-note-rewrite", state: <span data-testid="leave-undo-line">{note.name && note.past.length === 0 ? "записывается заново" : "Записывается заново"}</span>,
+      testId: "enrol-note-rewrite", state: <span data-testid="leave-undo-line">{note.name && note.past.length === 0 ? "зачисляется обычным порядком" : "Зачисляется обычным порядком"}</span>,
       detail: <span className={MUTED_DETAIL} data-testid="leave-undo-text">{serverPhraseShown(tidyMoneyText(note.rewrite.text))}</span>,
     }] : []),
+    ...(note.returned ? [{ testId: "enrol-note-returned", phrase: <span data-testid="enrol-return-sentence">{serverPhraseShown(tidyMoneyText(note.returned))}</span> }] : []),
     ...(note.undone ? [{
       testId: "enrol-note-undone", phrase: <span data-testid="leave-undo-text">{serverPhraseShown(tidyMoneyText(note.undone.text))}</span>,
       detail: note.sharedUndone ? <span className={MUTED_DETAIL} data-testid="enrol-note-shared">Общие цена и дата на него не действуют — остаются прежние</span> : undefined,

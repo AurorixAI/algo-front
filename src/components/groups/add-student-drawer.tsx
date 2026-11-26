@@ -18,7 +18,7 @@ import { splitTransferNotes } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney } from "@/lib/money-format";
-import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, payStartSentenceOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
+import { normalizeBilling, normalizeBulkImmediate, payFromErrorText, payFromIsPast, payFromProblem, payFromRange, payFromRequest, payStartOf, returnSentencesOfBulk, payStartSentenceOf, PAY_FROM_NOTHING_NOW } from "@/lib/pay-from";
 import { usePayFromDefault, usePayFromPreview, type PayFromPreview } from "@/lib/use-pay-from";
 import { ENROL_ACTION_LABEL, TRANSFER_ACTION_LABEL, groupNameShown, serverPhraseShown } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
@@ -325,6 +325,7 @@ export function AddStudentDrawer({
   useEffect(() => { if (freshAnswer) setHeld({ set: setKey, answer: freshAnswer }); }, [freshAnswer, setKey]);
   const probeAnswer: unknown = freshAnswer ?? (held !== null && held.set === setKey ? held.answer : null);
   const { undone: undoneBy, ordinary: ordinaryBy } = leaveReturnsOfBulk(probeAnswer);
+  const returnedBy = returnSentencesOfBulk(probeAnswer);
   const allUndone = selected.size > 0 && Array.from(selected.keys()).every((id) => undoneBy.has(id));
   const openingAllowed = openingOffered(moneyAvailable, openingsSummary) && selected.size === 1 && (transfers.length === 0 || mode === "add") && !allUndone;
   // Money-1 B1: «Оплата с» belongs to ADDING a student; a transfer has its own day (the server refuses the field there); not for those who all come back
@@ -370,6 +371,7 @@ export function AddStudentDrawer({
     name: selected.size === 1 ? null : nameOfStudent(student),
     past: pastOf.get(student.id) ?? [],
     rewrite: ordinaryBy.get(student.id) ?? null,
+    returned: returnedBy.get(student.id) ?? null,
     undone: undoneBy.get(student.id) ?? null,
     sharedUndone: sharedTermsEntered,
   }));
@@ -491,7 +493,7 @@ export function AddStudentDrawer({
   // the special rows exist only when there is something to say (no empty block)
   const exceptionsShown = selected.size > 0 && (
     (moneyAvailable && groupPrice === null && Boolean(priceNote)) || transfers.length > 0 || transferKey !== null
-    || notes.some((note) => note.past.length > 0 || note.rewrite !== null || note.undone !== null) || refusals.length > 0
+    || notes.some((note) => note.past.length > 0 || note.rewrite !== null || note.returned != null || note.undone !== null) || refusals.length > 0
   );
 
   // the bar: the sum, the line under it, the button

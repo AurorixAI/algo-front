@@ -125,7 +125,7 @@ test("Т6: coming back the day of the leaving - `leave_undo` in the words of the
   const plainReturn = { undone: false, text: "Сегодня ученика перевели в группу «Физика». Чтобы вернуть всё как было, переведите его обратно из этой группы", restored: [] };
   const run = await open(1280, F.baseServer((request) => request.path === "/auth/org/groups/gt/students/st1" ? { json: { student_id: "st1", group_id: "gt", status: "added", dry_run: true, leave_undo: plainReturn } } : null), { props: { mode: "add", currentGroupName: "Алгебра" } });
   await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
-  assert.ok(plain(await run.page.textContent('[data-testid="enrol-note-rewrite"]')).includes("переведите его обратно из этой группы"), "an ordinary return: the server's words under «Записывается заново»");
+  assert.ok(plain(await run.page.textContent('[data-testid="enrol-note-rewrite"]')).includes("переведите его обратно из этой группы"), "an ordinary return: the server's words under «Зачисляется обычным порядком»");
   await run.page.close();
 });
 

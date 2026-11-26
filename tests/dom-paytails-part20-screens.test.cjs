@@ -44,7 +44,7 @@ for (const width of [1280, 375]) {
     const run = await openReturn(real("return_preview_no_break"), width);
     assert.equal(plain(await run.page.locator('[data-testid="enrol-terms-why"]').innerText()), NO_BREAK);
     const text = await dialogText(run.page);
-    assert.ok(NO_BREAK.length > 20 && !/с первого занятия группы|записывается заново/.test(text), text);
+    assert.ok(NO_BREAK.length > 20 && !/с первого занятия группы|записывается\s+заново/.test(text), text);
     assert.deepEqual((await run.page.evaluate(layoutProbe, '[role="dialog"]')).bad, []);
     await run.page.close();
   });
@@ -64,13 +64,13 @@ for (const width of [1280, 375]) {
   });
 }
 
-nodeTest("Э8 the screen builds no sentence of its own about the day: «Оплата считается с» is in no source of the window, «записывается заново» (the old sentence of a refused undoing) is nowhere", () => {
+nodeTest("Э8 the screen builds no sentence of its own about the day: «Оплата считается с» is in no source of the window, the old exceptions title of a refused undoing («записывается» + «заново») is nowhere", () => {
   const root = path.join(__dirname, "..");
   const walk = (dirPath) => fs.readdirSync(dirPath, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(path.join(dirPath, entry.name)) : [path.join(dirPath, entry.name)]));
   const sources = walk(path.join(root, "src")).filter((file) => /\.(ts|tsx)$/.test(file));
   const own = sources.filter((file) => /`Оплата считается с|"Оплата считается с/.test(fs.readFileSync(file, "utf8")));
   assert.deepEqual(own, [], "no source builds the sentence");
-  const old = [...sources, ...walk(path.join(root, "tests")).filter((file) => /\.(cjs|ts)$/.test(file) && !file.endsWith("dom-paytails-part20-screens.test.cjs"))].filter((file) => /поэтому он записывается заново/.test(fs.readFileSync(file, "utf8")));
+  const old = [...sources, ...walk(path.join(root, "tests")).filter((file) => /\.(cjs|ts)$/.test(file) && !file.endsWith("dom-paytails-part20-screens.test.cjs"))].filter((file) => /поэтому он записывается\s+заново/.test(fs.readFileSync(file, "utf8")));
   assert.deepEqual(old, [], "the refusal of an undoing is the server's («поэтому уход не отменяется, ученик зачисляется обычным порядком»)");
 });
 

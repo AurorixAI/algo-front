@@ -1,6 +1,6 @@
 // Money-2 fix 9 (walk M12, замечания) in the form of the mock-up of 19.11: (4) the words of the server about a student who comes back as he was stand in HIS row of the special rows (the mock-up shows them before the action) and
 // once more, once, in the message after it - no list of what was restored, no «Уход отменяется —»; (5) when ALL chosen come back the conditions are not drawn, when some - they stay; (6) an ORDINARY return
-// (`leave_undo.undone=false`) is said in the drawer too: «записывается заново» and the sentence of the server under it.
+// (`leave_undo.undone=false`) is said in the drawer too: «зачисляется обычным порядком» and the sentence of the server under it.
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { setup, plain, mount, OWNER } = require("./helpers/money2-w2.cjs");
@@ -87,17 +87,17 @@ test("drawer, ALL come back: the conditions are not drawn; SOME come back: they 
 });
 
 // ---- 6
-test("drawer, ONE student returns in the ordinary way: «Записывается заново» and the sentence of the server under it", async () => {
+test("drawer, ONE student returns in the ordinary way: «Зачисляется обычным порядком» and the sentence of the server under it", async () => {
   const run = await drawer(["Второй"], { ordinary: ["st8"] });
   await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
   const note = run.page.locator('[data-testid="enrol-note-rewrite"]');
-  assert.equal(plain(await note.locator('[data-testid="leave-undo-line"]').innerText()), "Записывается заново");
+  assert.equal(plain(await note.locator('[data-testid="leave-undo-line"]').innerText()), "Зачисляется обычным порядком");
   assert.equal(plain(await note.locator('[data-testid="leave-undo-text"]').innerText()), plain(H.REWRITE), "the server's words only, no «can not be set» line - nothing is cancelled");
   await run.page.click('[data-testid="enrol-terms-toggle"]');
   assert.ok(await run.page.locator('[data-testid="pay-from"]').count() > 0, "an ordinary return keeps «Оплата с»");
   await run.page.close();
 });
-test("drawer, SEVERAL: one cancelling and two ordinary - «записывается заново» in the rows of the ordinary ones only", async () => {
+test("drawer, SEVERAL: one cancelling and two ordinary - «зачисляется обычным порядком» in the rows of the ordinary ones only", async () => {
   const run = await drawer(NAMES, { undone: ["st9"], ordinary: ["st8", "st7"] });
   await run.page.waitForSelector('[data-testid="enrol-note-rewrite"]');
   const notes = run.page.locator('[data-testid="enrol-note-rewrite"]');

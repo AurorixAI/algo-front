@@ -271,7 +271,7 @@ test("F6b: on a phone the special rows stand right under the labels, BEFORE «Е
 
 // ── F7 ───────────────────────────────────────────────────────────────────────────────────────────────
 
-test("F7: one student - one row: the name once in bold, a debt and «записывается заново» on lines of their own, the server's detail muted under; only the debt has the colour of a warning", async () => {
+test("F7: one student - one row: the name once in bold, a debt and «зачисляется обычным порядком» on lines of their own, the server's detail muted under; only the debt has the colour of a warning", async () => {
   const run = await H.openDrawer(ctx, H.server({ past: { st2: [DEBT] }, ordinary: ["st2"], undone: ["st3"] }), { props: { groupName: "М11 БС" } });
   await H.pick(run.page, "Каримов", "Юсупова", "Рашидов");
   await run.page.waitForSelector('[data-testid="enrol-note-past"]'); await run.page.waitForSelector('[data-testid="enrol-note-undone"]'); await H.settled(run.page);
@@ -280,7 +280,7 @@ test("F7: one student - one row: the name once in bold, a debt and «запис�
   const first = rows.nth(0);
   assert.equal(await first.getAttribute("data-testid"), "enrol-student-row");
   assert.equal(await first.getAttribute("data-row-tone"), "warn");
-  assert.equal(plain(await first.innerText()), `Лола Юсупова — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19.11 Выписка Записывается заново ${H.REWRITE}`);
+  assert.equal(plain(await first.innerText()), `Лола Юсупова — Долг с прошлого раза 15 000 сум · в этой же группе, ушёл 19.11 Выписка Зачисляется обычным порядком ${H.REWRITE}`);
   assert.equal((plain(await first.innerText()).match(/Лола Юсупова/g) || []).length, 1, "the name once");
   const lines = await first.evaluate((el) => Array.from(el.querySelectorAll('[data-testid="enrol-note-past"], [data-testid="enrol-note-rewrite"]')).map((n) => ({ id: n.dataset.testid, top: Math.round(n.getBoundingClientRect().top) })));
   assert.equal(lines.length, 2); assert.ok(lines[1].top > lines[0].top, "one under the other");
