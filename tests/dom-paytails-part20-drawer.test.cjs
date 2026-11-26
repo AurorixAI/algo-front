@@ -11,6 +11,8 @@ const H = require("./helpers/enrol-v2.cjs");
 const ctx = setup(test);
 const answer = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "paytails", "part20", "bulk_return_same_period.json"), "utf8"));
 const [BACK, FIRST] = answer.students;
+const WORLD_DAY = BACK.billing.default_pay_from;   // the day of the answer (26.11.2026): the clock of the page and the stub of the group stand on it - the dates of the screen do not disagree with the answer
+assert.equal(WORLD_DAY, "2026-11-26");
 const SNAPS = path.join(__dirname, "..", "..", "artifacts", "analysis", "paytails_front", "part20");
 const RETURN_PREFIX = "Возврат в том же периоде";
 assert.ok(BACK.billing.text.startsWith(RETURN_PREFIX) && !FIRST.billing.text.startsWith(RETURN_PREFIX) && BACK.leave_undo.undone === false && FIRST.leave_undo === null, "the fixture is the world of the test");
@@ -25,7 +27,7 @@ const LONG = { [BACK.student_id]: ["Мухаммадаминхужа", "Ново
 
 async function open(students, { width = 1280, names = NAMES } = {}) {
   const people = Object.entries(names).map(([id, [first, last]]) => H.STUDENT(id, first, last));
-  const inner = H.server({ people });
+  const inner = H.server({ people, today: WORLD_DAY });
   const handler = (r) => {
     const res = inner(r);
     if (r.method === "POST" && /\/students\/bulk$/.test(r.path) && /dry_run=true/.test(r.query)) {
@@ -34,7 +36,7 @@ async function open(students, { width = 1280, names = NAMES } = {}) {
     }
     return res;
   };
-  const run = await H.openDrawer(ctx, handler, { width });
+  const run = await H.openDrawer(ctx, handler, { width, today: WORLD_DAY });
   const surname = (id) => names[id][1];
   return { run, pick: async (...ids) => { for (const id of ids) await H.pick(run.page, surname(id)); await run.page.waitForSelector('[data-testid="enrol-exceptions"]', { timeout: 5000 }).catch(() => null); await run.page.waitForTimeout(700); } };
 }

@@ -109,8 +109,8 @@ const OWNER = { role: "owner", org_role: "owner" };
 const ADMIN_NO_MONEY = { role: "admin", org_role: "admin", payments_access: false };
 
 /** opens the drawer of the group page; `props.money` false - a role without the right to money */
-async function openDrawer(ctx, handler, { width = 1280, user = OWNER, props = {} } = {}) {
-  const run = await openPage(ctx.browser, "enrol-v2.entry.tsx", handler, { width, height: width === 375 ? 812 : 900 });
+async function openDrawer(ctx, handler, { width = 1280, user = OWNER, props = {}, today = null } = {}) {
+  const run = await openPage(ctx.browser, "enrol-v2.entry.tsx", handler, { width, height: width === 375 ? 812 : 900, today });
   const money = props.money !== false;
   await run.page.evaluate(([name, u, p]) => window.mount(name, u, p), ["drawer", user, { groupName: "М11 БС", groupPrice: money ? (props.groupPrice === undefined ? { amount: 450000, valid_from: "2026-09-01" } : props.groupPrice) : undefined, ...props }]);
   await run.page.waitForSelector('[data-testid="enrol-list"] label, [data-testid="enrol-list"] p');
