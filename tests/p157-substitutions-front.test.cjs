@@ -351,8 +351,10 @@ test("#157 teacher: «Запросы на замену» - the lesson, one short
 });
 
 test("#157: LESSONS 48 - one function says «Урок» for a row in the link, the arrow and the dialog name; the texts of the page tell the facts", () => {
-  assert.equal(cells.lessonLabel(item()), "9-А, пт, 30.10, 10:00–11:30");
   const S = require(path.join(root, "src/lib/substitutions.ts"));
+  assert.equal(S.lessonLabel(item()), "9-А, пт, 30.10, 10:00–11:30");
+  assert.equal(S.lessonLabel({ group: { name: "Математика 7" }, lesson: { date: "2026-11-23" } }), "Математика 7, пн, 23.11", "no time: no empty «, –»");
+  assert.equal(cells.lessonLabel, undefined, "one function, not a copy in the cells");
   assert.match(S.PAGE_HINT, /замены, переносы, отмены/);
   assert.equal(S.DECIDED_EMPTY_HINT, "Здесь появятся события за последние 30 дней.");
   assert.doesNotMatch(S.PAGE_HINT + S.DECIDED_EMPTY_HINT, /\(а\)/);

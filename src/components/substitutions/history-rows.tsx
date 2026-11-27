@@ -15,10 +15,10 @@ import { journalHref } from "@/lib/open-lessons";
 import { moneyEffectsOf } from "@/lib/money-effects";
 import { dayAndDateLabel } from "@/lib/ops-errors";
 import { authorLine, eventMoment } from "@/lib/substitution-outcome";
-import { lessonWhen, shortWhen } from "@/lib/substitutions";
+import { lessonLabel, lessonWhen, shortWhen } from "@/lib/substitutions";
 import { auditByLine, auditChipText, auditPanelTitle, salaryLineOf } from "@/lib/lesson-rules";
 import type { AuditEntryItem } from "@/lib/substitution-types";
-import { LessonLinkCell, waitingLessonLabel } from "@/components/substitutions/waiting-rows";
+import { LessonLinkCell } from "@/components/substitutions/waiting-rows";
 import { ReasonWords } from "@/components/substitutions/reason-words";
 
 /**
@@ -50,7 +50,7 @@ export function AuditTableRow({ entry, cols, showReason, lessonHref, onOpen }: {
           type="button"
           onClick={() => onOpen(entry)}
           aria-haspopup="dialog"
-          aria-label={`Подробнее: ${waitingLessonLabel(entry)}`}
+          aria-label={`Подробнее: ${lessonLabel(entry)}`}
           data-testid="audit-details"
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         >

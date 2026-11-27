@@ -180,7 +180,7 @@ test("the words of the returns: the toast, the reason rules, the refusals in the
 
 // ── the money of a correction and of a decision on an excuse, BEFORE ──────────────────────────────────
 
-test("the correction of a held lesson: the dry run (impact) is asked for the money right, the button waits for it, a closed month has the way out; the teacher reads the rule in words", () => {
+test("the correction of a held lesson: the dry run (impact) is asked for the money right, the button waits for it, a closed month has the way out; the teacher asks the dry run too and reads the real block of it (no rule in words)", () => {
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   // R3 #24 (item 12): the teacher of the lesson asks the dry run too - his block has the month and the state of the sheet, no sums
   assert.match(journal, /const impactKey = correctionDialog && correcting && correctingLesson\s*\?/);

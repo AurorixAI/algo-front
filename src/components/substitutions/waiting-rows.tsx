@@ -6,16 +6,10 @@ import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { dayAndDateLabel } from "@/lib/ops-errors";
 import { TAP_ZONE } from "@/lib/tap-zone";
-import { lessonWhen } from "@/lib/substitutions";
+import { lessonLabel, lessonWhen } from "@/lib/substitutions";
 import { waitingChipText, waitingDecideLabel, waitingReasonText, reportedLine } from "@/lib/lesson-rules";
 import { ReasonWords } from "@/components/substitutions/reason-words";
 import type { WaitingCancellationItem } from "@/lib/substitution-types";
-
-/** «Открыть урок: Математика 7, пн, 23.11, 17:00–18:00» - the name of the link of the lesson of a waiting cancellation (fifty rows must not read alike). */
-export function waitingLessonLabel(item: { group: { name: string }; lesson: { date: string; startTime?: string | null; endTime?: string | null } }): string {
-  const { date, startTime, endTime } = item.lesson;
-  return `${item.group.name}, ${dayAndDateLabel(date)}${startTime && endTime ? `, ${startTime}–${endTime}` : ""}`;
-}
 
 /** The lesson of a row that is not a request (a waiting cancellation, an entry of the journal): «пн, 23.11 · 17:00–18:00» (the time when the server has it) and the group under it; ONE link to the journal of that day. */
 export function LessonLinkCell({ item, href }: { item: { group: { name: string }; lesson: { date: string; startTime?: string | null; endTime?: string | null } }; href: string | null }) {
@@ -28,7 +22,7 @@ export function LessonLinkCell({ item, href }: { item: { group: { name: string }
     </>
   );
   return href ? (
-    <Link href={href} data-testid="waiting-lesson-link" aria-label={`Открыть урок: ${waitingLessonLabel(item)}`} data-touch-zone="" className={`block min-w-0 rounded-md text-left ${TAP_ZONE} hover:[&>span:first-child]:text-primary-700 hover:[&>span:first-child]:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}>
+    <Link href={href} data-testid="waiting-lesson-link" aria-label={`Открыть урок: ${lessonLabel(item)}`} data-touch-zone="" className={`block min-w-0 rounded-md text-left ${TAP_ZONE} hover:[&>span:first-child]:text-primary-700 hover:[&>span:first-child]:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}>
       {body}
     </Link>
   ) : <div className="min-w-0 text-left">{body}</div>;
@@ -66,7 +60,7 @@ export function WaitingTableRow({ item, cols, showReason, tickSpace = true, less
       </div>
       <div className="absolute right-1 top-1 xl:static xl:-my-1 xl:flex xl:justify-end">
         {lessonHref && (
-          <Link href={lessonHref} aria-label={`Открыть урок: ${waitingLessonLabel(item)}`} data-testid="waiting-open" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+          <Link href={lessonHref} aria-label={`Открыть урок: ${lessonLabel(item)}`} data-testid="waiting-open" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
             <ChevronRight className="h-5 w-5" aria-hidden />
           </Link>
         )}
@@ -82,7 +76,7 @@ export function WaitingReportedRow({ item, onWithdraw, busy = false }: { item: W
     <li data-testid="waiting-reported-row" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm text-slate-800">
       <span className="min-w-0 flex-1 break-words">{reportedLine(item)}</span>
       {mayWithdraw && (
-        <Button type="button" data-testid="withdraw-cancellation" aria-label={`Отозвать отмену урока: ${waitingLessonLabel(item)}`} onClick={() => onWithdraw?.(item)} disabled={busy} variant="ghost" size="sm">
+        <Button type="button" data-testid="withdraw-cancellation" aria-label={`Отозвать отмену урока: ${lessonLabel(item)}`} onClick={() => onWithdraw?.(item)} disabled={busy} variant="ghost" size="sm">
           {busy && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
           Отозвать
         </Button>

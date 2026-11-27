@@ -6,19 +6,13 @@ import { Chip } from "@/components/ui/chip";
 import { TAP_ZONE } from "@/lib/tap-zone";
 import { Hint } from "@/components/ui/hint";
 import type { ChipTone } from "@/lib/chip-tone";
-import { dayAndDateLabel } from "@/lib/ops-errors";
-import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, suggestedLine, type DeadlineTone } from "@/lib/substitutions";
+import { LESSON_DELETED_TEXT, deadlineOf, lessonLabel, lessonWhen, suggestedLine, type DeadlineTone } from "@/lib/substitutions";
 import { lastActivityLabel, originBadge, outcomeOf, peopleOf, reasonShort, systemReasonOf, type Audience } from "@/lib/substitution-outcome";
 import type { SubstitutionItem } from "@/lib/substitution-types";
 import { teacherWordsOf } from "@/lib/lesson-rules";
 import { ReasonWords } from "@/components/substitutions/reason-words";
 
 /** The cells of a row of «Замены» (#157): the lesson, who -> whom, the reason, the result, when, «Подробнее».  The same cells for the wide table and for the card of a phone. */
-
-/** «Открыть урок: 9-А, пн, 26.10, 10:00–11:30» - the name of the link of a lesson and of the arrow of its row (fifty rows must not read alike). */
-export function lessonLabel(item: Pick<SubstitutionItem, "group" | "lesson">): string {
-  return `${item.group.name}, ${dayAndDateLabel(item.lesson.date)}, ${item.lesson.startTime}–${item.lesson.endTime}`;
-}
 
 /**
  * The lesson: «пн, 26.10 · 10:00–11:30» and the group under it, ONE link to the lesson (the journal of the group on that day).  A lesson that is not in

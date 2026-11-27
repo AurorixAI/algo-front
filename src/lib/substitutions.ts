@@ -87,6 +87,12 @@ export function lessonLine(groupName: string, date: string, startTime: string, e
   return `${groupName} · ${lessonWhen(date, startTime, endTime)}`;
 }
 
+/** «9-А, пн, 26.10, 10:00–11:30» (no time when the row has none): THE name of a lesson in the links, the arrows and the buttons of the rows of «Замены» - fifty rows must not read alike. */
+export function lessonLabel(item: { group: { name: string }; lesson: { date: string; startTime?: string | null; endTime?: string | null } }): string {
+  const { date, startTime, endTime } = item.lesson;
+  return `${item.group.name}, ${dayAndDateLabel(date)}${startTime && endTime ? `, ${startTime}–${endTime}` : ""}`;
+}
+
 export function itemLessonLine(item: Pick<SubstitutionItem, "group" | "lesson">): string {
   return lessonLine(item.group.name, item.lesson.date, item.lesson.startTime, item.lesson.endTime);
 }
