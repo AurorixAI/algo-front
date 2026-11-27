@@ -2,10 +2,10 @@
   "items": [
     {
       "source": "unconfirmed",
-      "id": "81fed186-f79c-43f8-b584-7bf4f7838717",
+      "id": "86e083c9-56c0-430d-922e-de0aec7f8144",
       "kind": "unconfirmed",
       "group": {
-        "id": "3d3b685d-1970-541b-b389-47bb1edf8d26",
+        "id": "77db4b7f-5934-5b2e-a5a4-cf23b99295fd",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -16,15 +16,17 @@
         "endTime": "11:30"
       },
       "teacher": {
-        "id": "21ab70b9-e1f4-51c9-a791-12db35cef906",
+        "id": "aff90a52-29f6-52d8-87ab-770cb54e2960",
         "name": "Эргашев К.",
         "role": null
       },
       "cancelledBy": {
-        "id": "c8e2989e-6e37-5c84-8759-177d49736fb3",
+        "id": "36eb9809-82bb-589a-bd56-17e2596e851f",
         "name": "Каримова Д.",
         "role": "admin"
       },
+      "reportedBy": "Каримова Д.",
+      "reportedByRole": "admin",
       "reason": "Заболел",
       "cancelledAt": "2026-11-26T07:00:00",
       "waitingDays": 0,

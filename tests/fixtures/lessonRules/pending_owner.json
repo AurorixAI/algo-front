@@ -2,42 +2,10 @@
   "items": [
     {
       "source": "unconfirmed",
-      "id": "88d56463-030b-4705-8ca5-d6615195ebdf",
+      "id": "0d176588-d31f-44f9-ba1b-491d53e5d035",
       "kind": "unconfirmed",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-        "name": "Математика 7",
-        "studentCount": 9
-      },
-      "lesson": {
-        "lessonId": "lesson-wed",
-        "date": "2026-11-18",
-        "startTime": "10:00",
-        "endTime": "11:30"
-      },
-      "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": null
-      },
-      "cancelledBy": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": "teacher"
-      },
-      "reason": "Отключили свет",
-      "cancelledAt": "2026-11-26T07:00:00",
-      "waitingDays": 0,
-      "ageDays": 8,
-      "canDecide": true,
-      "canWithdraw": false
-    },
-    {
-      "source": "unconfirmed",
-      "id": "f205244c-1de9-4b9b-9e2b-da6f73d6608a",
-      "kind": "unconfirmed",
-      "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -48,19 +16,55 @@
         "endTime": "11:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "cancelledBy": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
+      "reportedBy": "Эргашев К.",
+      "reportedByRole": "teacher",
       "reason": "Отключили свет",
       "cancelledAt": "2026-11-26T07:00:00",
       "waitingDays": 0,
       "ageDays": 3,
+      "canDecide": true,
+      "canWithdraw": false
+    },
+    {
+      "source": "unconfirmed",
+      "id": "fc91efe8-6652-48c8-bc39-5af79f9da20b",
+      "kind": "unconfirmed",
+      "group": {
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-18",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "cancelledBy": {
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reportedBy": "Эргашев К.",
+      "reportedByRole": "teacher",
+      "reason": "Отключили свет",
+      "cancelledAt": "2026-11-26T07:00:00",
+      "waitingDays": 0,
+      "ageDays": 8,
       "canDecide": true,
       "canWithdraw": false
     }

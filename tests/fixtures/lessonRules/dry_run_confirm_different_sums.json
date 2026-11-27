@@ -9,49 +9,49 @@
   "total": 420000,
   "deductions": [
     {
-      "studentId": "220afa67-4717-5ce8-8a23-60dfd82bde72",
-      "amount": 50000,
-      "name": "Гафурова Лола"
-    },
-    {
-      "studentId": "3751d8d3-a988-5849-903f-563479184fb6",
+      "studentId": "17e86a30-64c1-5750-af57-36254f308999",
       "amount": 40000,
       "name": "Исмоилова Зарина"
     },
     {
-      "studentId": "409c36e1-645f-5bb5-98ae-90ae2807f0ee",
-      "amount": 30000,
-      "name": "Каримов Умид"
-    },
-    {
-      "studentId": "5ccfdaed-7f58-5e00-ace6-56684ee81c21",
+      "studentId": "27791312-2640-5c0f-a2b4-b4c27ce76f80",
       "amount": 50000,
-      "name": "Жураев Сардор"
+      "name": "Ерматова Нодира"
     },
     {
-      "studentId": "83a1736e-b4d8-5034-94f3-f691659d6091",
-      "amount": 50000,
-      "name": "Абдуллаев Азиз"
-    },
-    {
-      "studentId": "a5dafe4c-1ec5-51a7-b42b-c1e947aab60a",
-      "amount": 50000,
-      "name": "Валиев Тимур"
-    },
-    {
-      "studentId": "acbb0f54-81c4-5e59-a47d-02802cc7c1a5",
-      "amount": 50000,
-      "name": "Бекова Мадина"
-    },
-    {
-      "studentId": "ba20dea7-fcc0-518e-aa0b-24494398155b",
+      "studentId": "5e02931e-d780-5b03-8c0c-ab46b93460e0",
       "amount": 50000,
       "name": "Давронов Санжар"
     },
     {
-      "studentId": "d554bf7b-77bf-532e-a8e1-a60e15e4356b",
+      "studentId": "706a7ac7-1daa-58e3-a18b-3344d619cd89",
       "amount": 50000,
-      "name": "Ерматова Нодира"
+      "name": "Гафурова Лола"
+    },
+    {
+      "studentId": "9bf40581-0415-5718-9711-58f8bff7d29b",
+      "amount": 50000,
+      "name": "Жураев Сардор"
+    },
+    {
+      "studentId": "bb2939a0-97a9-5da9-beb9-cd6990cbe97d",
+      "amount": 30000,
+      "name": "Каримов Умид"
+    },
+    {
+      "studentId": "cbab8a3a-b6cc-5f91-880a-6ae76c3c7fc1",
+      "amount": 50000,
+      "name": "Валиев Тимур"
+    },
+    {
+      "studentId": "cdd8e724-7ba4-5f21-9052-3bd14fae68ae",
+      "amount": 50000,
+      "name": "Бекова Мадина"
+    },
+    {
+      "studentId": "d59e19ab-aa74-5af5-8d71-506f684aa1a7",
+      "amount": 50000,
+      "name": "Абдуллаев Азиз"
     }
   ],
   "recalc_off": false,
@@ -60,5 +60,8 @@
   "restore_allowed": true,
   "age_days": 3,
   "window_days": 7,
-  "teacher_can_mark": true
+  "teacher_can_mark": true,
+  "centre_text": "Перерасчёт 9 ученикам, всего 420 000 сум. Преподавателю урок не оплачивается.",
+  "holiday_text": "Ученикам: без перерасчёта. Преподавателю урок не оплачивается.",
+  "held_text": "Отмена снимается, преподаватель отметит посещаемость. Деньги считаются как за обычный урок."
 }

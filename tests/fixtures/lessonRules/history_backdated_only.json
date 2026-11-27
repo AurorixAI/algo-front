@@ -2,41 +2,42 @@
   "items": [
     {
       "source": "audit",
-      "id": "08c10ae8-2c42-492d-872c-3689e6d4f0d7",
-      "kind": "backdated",
+      "id": "8a82e5c1-c660-4fef-a5d8-e0dfbdc266b5",
+      "kind": "corrected",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-        "name": "Математика 7",
-        "studentCount": 9
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
+        "name": "Физика 8",
+        "studentCount": 3
       },
       "lesson": {
-        "lessonId": "lesson-mon",
-        "date": "2026-11-02",
-        "startTime": "10:00",
-        "endTime": "11:30"
+        "lessonId": "lesson-tue",
+        "date": "2026-11-17",
+        "startTime": "14:00",
+        "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
-      "lateDays": 24,
-      "reason": null,
-      "text": "Урок оформлен задним числом: на 24 дня позже даты урока"
+      "lateDays": 9,
+      "reason": "Ошибся в отметках",
+      "text": "Отметки исправлены: Ошибся в отметках",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "d3757aa3-2df2-4b91-8833-aba19a3108e0",
+      "id": "b8e0e877-5cd2-4003-8cfd-2b79e2310df3",
       "kind": "backdated",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -47,56 +48,58 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
       "lateDays": 14,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 14 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 14 дней позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "d66da18f-c83f-4503-b279-7866aa83ceee",
-      "kind": "corrected",
+      "id": "f26413b4-cf1f-480c-b5f6-31a03879558b",
+      "kind": "backdated",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
-        "name": "Физика 8",
-        "studentCount": 3
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+        "name": "Математика 7",
+        "studentCount": 9
       },
       "lesson": {
-        "lessonId": "lesson-tue",
-        "date": "2026-11-17",
-        "startTime": "14:00",
-        "endTime": "15:30"
+        "lessonId": "lesson-mon",
+        "date": "2026-11-02",
+        "startTime": "10:00",
+        "endTime": "11:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
-      "lateDays": 9,
-      "reason": "Ошибся в отметках",
-      "text": "Отметки исправлены: Ошибся в отметках"
+      "lateDays": 24,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 24 дня позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "81d7a6bd-beaa-4d7d-a40c-539df764c485",
+      "id": "5c365ca9-42fc-4041-9bf7-ffe92fbb032e",
       "kind": "backdated",
       "at": "2026-11-19T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -107,26 +110,27 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 2,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 2 дня позже даты урока"
+      "text": "Урок оформлен задним числом: на 2 дня позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "b311a1b8-6e5f-434f-88c2-b061533c82e4",
+      "id": "6a3f20cd-c4d4-4ff8-a94a-3bf2cf23bab2",
       "kind": "backdated",
       "at": "2026-11-16T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -137,26 +141,27 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 6,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 6 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 6 дней позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "19e902ff-3c2b-4c15-b49f-4741aa5055c1",
+      "id": "c636b21c-a856-4368-a1d8-814efdb1a0b9",
       "kind": "backdated",
       "at": "2026-11-15T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -167,18 +172,19 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 12,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 12 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 12 дней позже даты урока",
+      "canReturn": true
     }
   ],
   "total": 6,

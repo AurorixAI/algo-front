@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "cancelled": true,
+  "version": 1,
+  "warnings": [],
+  "dryRun": false,
+  "moneyEffects": {
+    "students": [],
+    "payroll": [],
+    "text": "",
+    "dryRun": false
+  },
+  "waiting": true,
+  "consequence": "Отмену подтвердит владелец или администратор с доступом к деньгам: до подтверждения ученикам ничего не меняется"
+}

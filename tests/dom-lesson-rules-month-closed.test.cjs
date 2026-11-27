@@ -5,10 +5,10 @@ const test = require("node:test");
 const { setup } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
-const { answer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
+const { answer, WORLD_DAY, WORLD_TEACHER_ID, plain } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
-const TEACHER = { id: "42110e14-fb74-5185-9f18-4ab04bd042da", role: "teacher", org_role: "teacher" };
+const TEACHER = { id: WORLD_TEACHER_ID, role: "teacher", org_role: "teacher" };
 const MONTH_CLOSED = "Месяц закрыт — обратитесь к владельцу";
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
 const STUDENTS = answer("dry_run_confirm_centre").deductions.map((d, index) => {

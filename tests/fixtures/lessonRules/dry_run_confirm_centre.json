@@ -9,47 +9,47 @@
   "total": 450000,
   "deductions": [
     {
-      "studentId": "3f12d17e-2fc1-56b2-afec-5ee476fbf326",
+      "studentId": "39d8d019-5159-5e02-a642-88bcc39520f3",
       "amount": 50000,
       "name": "Валиев Тимур"
     },
     {
-      "studentId": "4507f25f-f716-5212-943a-79376856c657",
-      "amount": 50000,
-      "name": "Давронов Санжар"
-    },
-    {
-      "studentId": "4725976f-7de8-54cd-964d-a085bd031c74",
-      "amount": 50000,
-      "name": "Бекова Мадина"
-    },
-    {
-      "studentId": "5cdb6f71-dd12-54fe-aa2f-2ec3d023beb4",
-      "amount": 50000,
-      "name": "Каримов Умид"
-    },
-    {
-      "studentId": "7725939f-351f-59b6-9579-01921ab44bab",
+      "studentId": "50ef3c1b-d0ba-5f3d-8220-0337a0632b7c",
       "amount": 50000,
       "name": "Ерматова Нодира"
     },
     {
-      "studentId": "83c13200-9e83-528e-8c74-46e180e31863",
+      "studentId": "51dff0c4-3e0f-55dc-9e8d-a35ff2f7c9d4",
       "amount": 50000,
-      "name": "Гафурова Лола"
+      "name": "Бекова Мадина"
     },
     {
-      "studentId": "8c976eca-c7c7-5ba7-9707-ebe99482f47b",
-      "amount": 50000,
-      "name": "Жураев Сардор"
-    },
-    {
-      "studentId": "96ac09e1-2185-509d-a234-38ea928c85f0",
+      "studentId": "6c82441d-8fae-5640-a9ca-acee7c797922",
       "amount": 50000,
       "name": "Абдуллаев Азиз"
     },
     {
-      "studentId": "b19c7ab7-915e-5569-b56b-476324f925f4",
+      "studentId": "6ec1197f-9b6c-5df5-98f7-54993bc13af7",
+      "amount": 50000,
+      "name": "Жураев Сардор"
+    },
+    {
+      "studentId": "9b3c7559-f8d1-5793-8934-be6fde5479a8",
+      "amount": 50000,
+      "name": "Гафурова Лола"
+    },
+    {
+      "studentId": "c21c242d-d677-5e8c-b0bb-bb8d11645820",
+      "amount": 50000,
+      "name": "Давронов Санжар"
+    },
+    {
+      "studentId": "e98f1d3b-0a90-5752-8323-bae43d52e902",
+      "amount": 50000,
+      "name": "Каримов Умид"
+    },
+    {
+      "studentId": "f90cacfc-1ffa-52f3-8b99-6014119447e8",
       "amount": 50000,
       "name": "Исмоилова Зарина"
     }
@@ -60,5 +60,8 @@
   "restore_allowed": true,
   "age_days": 3,
   "window_days": 7,
-  "teacher_can_mark": true
+  "teacher_can_mark": true,
+  "centre_text": "Перерасчёт 9 ученикам по 50 000 сум, всего 450 000 сум. Преподавателю урок не оплачивается.",
+  "holiday_text": "Ученикам: без перерасчёта. Преподавателю урок не оплачивается.",
+  "held_text": "Отмена снимается, преподаватель отметит посещаемость. Деньги считаются как за обычный урок."
 }

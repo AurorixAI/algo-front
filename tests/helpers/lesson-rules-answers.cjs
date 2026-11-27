@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const answer = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "..", "fixtures", "lessonRules", `${name}.json`), "utf8"));
 const WORLD_DAY = "2026-11-26";
+/** The teacher of the world, read from the real answer (the ids of the unload change with every run: no id is copied into a test). */
+const WORLD_TEACHER_ID = answer("schedule_teacher")[0].teacherId;
 const plain = (text) => String(text ?? "").replace(/[\s ]+/g, " ").trim();
 
 /** The routes of the page «Замены»: the pending list and the history are the given answers; the rest is quiet. */
@@ -21,4 +23,4 @@ function listServer({ pending = null, decided = null, extra = null } = {}) {
   };
 }
 
-module.exports = { answer, listServer, WORLD_DAY, plain };
+module.exports = { answer, listServer, WORLD_DAY, WORLD_TEACHER_ID, plain };

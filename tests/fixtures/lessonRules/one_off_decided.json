@@ -2,8 +2,8 @@
   "total": 2,
   "items": [
     {
-      "lessonId": "one-off-f09e3d74f4ca4ddf",
-      "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+      "lessonId": "one-off-dfdd5e18555b4b03",
+      "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
       "groupName": "Математика 7",
       "lessonDate": "2026-11-17",
       "startTime": "12:00",
@@ -11,12 +11,12 @@
       "purpose": "extra",
       "title": "Дополнительный урок — включить в зарплату?",
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "createdBy": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
@@ -29,15 +29,15 @@
       "money": "none",
       "decidedAt": "2026-11-26T07:00:00",
       "decidedBy": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
       "canUndo": true
     },
     {
-      "lessonId": "one-off-507cfe7f7966476d",
-      "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+      "lessonId": "one-off-4355b83c525e47b9",
+      "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
       "groupName": "Математика 7",
       "lessonDate": "2026-11-14",
       "startTime": "12:00",
@@ -45,12 +45,12 @@
       "purpose": "extra",
       "title": "Дополнительный урок — включить в зарплату?",
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "createdBy": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
@@ -63,7 +63,7 @@
       "money": "paid",
       "decidedAt": "2026-11-26T07:00:00",
       "decidedBy": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },

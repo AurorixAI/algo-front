@@ -1,5 +1,5 @@
 {
-  "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+  "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
   "month": "2026-10",
   "lessons": [
     {
@@ -25,7 +25,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-wed",
@@ -50,7 +54,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-mon",
@@ -75,7 +83,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-wed",
@@ -100,7 +112,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-mon",
@@ -125,7 +141,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-wed",
@@ -150,7 +170,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-mon",
@@ -175,7 +199,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     },
     {
       "id": "lesson-wed",
@@ -200,7 +228,11 @@
       "moneyLabel": null,
       "canActSelf": false,
       "monthClosed": true,
-      "windowDays": 7
+      "windowDays": 7,
+      "waiting": false,
+      "reportedBy": null,
+      "reportedByRole": null,
+      "canWithdraw": null
     }
   ],
   "records": {},
@@ -217,59 +249,59 @@
   "versions": {},
   "lessonTeachers": {
     "2026-10-05_lesson-mon": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-07_lesson-wed": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-12_lesson-mon": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-14_lesson-wed": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-19_lesson-mon": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-21_lesson-wed": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-26_lesson-mon": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     },
     "2026-10-28_lesson-wed": {
-      "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacherName": "Эргашев К.",
       "isSubstitution": false,
-      "defaultTeacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "defaultTeacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "defaultTeacherName": "Эргашев К."
     }
   },

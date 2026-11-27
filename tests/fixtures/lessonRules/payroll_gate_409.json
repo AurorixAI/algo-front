@@ -6,22 +6,22 @@
     "items": [
       {
         "lessonDate": "2026-11-18",
-        "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "groupName": "Математика 7",
         "lessonId": "lesson-wed",
-        "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "ageDays": 14
       },
       {
         "lessonDate": "2026-11-23",
-        "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "groupName": "Математика 7",
         "lessonId": "lesson-mon",
-        "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "ageDays": 9
       }
     ],
-    "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+    "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
     "month": "2026-11"
   }
 }

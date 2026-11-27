@@ -1,81 +1,12 @@
 {
   "items": [
     {
-      "id": "79b01e34-e5a4-4ab1-81b0-cc0d2cb108fc",
-      "batchId": "d8bd896f-06ae-4413-b91a-f4488e2287b6",
+      "id": "5abc4b8e-081e-430a-9725-725f55ab1f37",
+      "batchId": "cde76e18-9fc8-4df4-a2b0-395efbc3a2e2",
       "status": "cancelled",
       "origin": "system",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-        "name": "Математика 7",
-        "studentCount": 9
-      },
-      "lesson": {
-        "lessonId": "lesson-wed",
-        "date": "2026-11-11",
-        "startTime": "10:00",
-        "endTime": "11:30",
-        "room": null,
-        "format": "offline",
-        "startsAtUtc": "2026-11-11T05:00:00",
-        "exists": true
-      },
-      "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": "teacher"
-      },
-      "reasonCode": "other",
-      "reasonLabel": "Другое",
-      "comment": null,
-      "suggestedTeacher": null,
-      "createdAt": "2026-11-26T07:00:00",
-      "minutesToStart": -21720,
-      "urgent": false,
-      "overdue": false,
-      "decision": {
-        "kind": "cancel",
-        "by": {
-          "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-          "name": "Эргашев К.",
-          "role": "teacher"
-        },
-        "at": "2026-11-26T07:00:00",
-        "via": "teacher_cancel",
-        "note": "Отключили свет",
-        "substitute": null,
-        "movedTo": null,
-        "closedReason": null,
-        "closedReasonText": null
-      },
-      "previous": null,
-      "trigger": "teacher_cancel",
-      "clearedAt": null,
-      "clearedBy": null,
-      "clearedTo": null,
-      "clearedTrigger": null,
-      "outcome": "cancelled_centre",
-      "lastActivityAt": "2026-11-26T07:00:00.000002",
-      "needsDecision": false,
-      "confirmedBy": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
-        "name": "Валиев Р.",
-        "role": "owner"
-      },
-      "confirmedAt": "2026-11-26T07:00:00.000002",
-      "waitingDays": null,
-      "teacherCanMark": null,
-      "canWithdraw": null,
-      "closedTrigger": null,
-      "source": "request"
-    },
-    {
-      "id": "d382627b-2cf4-4896-ba8b-420b7d1816f1",
-      "batchId": "ed237f6f-592f-43be-9c4b-b671c083132d",
-      "status": "cancelled",
-      "origin": "system",
-      "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -90,7 +21,7 @@
         "exists": true
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -105,7 +36,7 @@
       "decision": {
         "kind": "cancel",
         "by": {
-          "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+          "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
           "name": "Эргашев К.",
           "role": "teacher"
         },
@@ -127,7 +58,7 @@
       "lastActivityAt": "2026-11-26T07:00:00.000002",
       "needsDecision": false,
       "confirmedBy": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
@@ -139,12 +70,81 @@
       "source": "request"
     },
     {
-      "id": "af0c785d-f9e6-437a-a0a4-66c9a13bf0e8",
-      "batchId": "d603dce3-70be-4bd3-9d24-143f02b42876",
+      "id": "6bbec637-29b4-4c33-9dea-d430866e3aed",
+      "batchId": "14d53cb2-8cce-4e33-89d9-8b339af1c46f",
+      "status": "cancelled",
+      "origin": "system",
+      "group": {
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-11",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-11T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reasonCode": "other",
+      "reasonLabel": "Другое",
+      "comment": null,
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": -21720,
+      "urgent": false,
+      "overdue": false,
+      "decision": {
+        "kind": "cancel",
+        "by": {
+          "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+          "name": "Эргашев К.",
+          "role": "teacher"
+        },
+        "at": "2026-11-26T07:00:00",
+        "via": "teacher_cancel",
+        "note": "Отключили свет",
+        "substitute": null,
+        "movedTo": null,
+        "closedReason": null,
+        "closedReasonText": null
+      },
+      "previous": null,
+      "trigger": "teacher_cancel",
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "cancelled_centre",
+      "lastActivityAt": "2026-11-26T07:00:00.000002",
+      "needsDecision": false,
+      "confirmedBy": {
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
+        "name": "Валиев Р.",
+        "role": "owner"
+      },
+      "confirmedAt": "2026-11-26T07:00:00.000002",
+      "waitingDays": null,
+      "teacherCanMark": null,
+      "canWithdraw": null,
+      "closedTrigger": null,
+      "source": "request"
+    },
+    {
+      "id": "45203187-36c1-474b-b889-c41ca98d9c10",
+      "batchId": "56c91213-defe-4ce0-8ea1-e27d974b8860",
       "status": "closed",
       "origin": "system",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -159,7 +159,7 @@
         "exists": true
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -174,7 +174,7 @@
       "decision": {
         "kind": "closed",
         "by": {
-          "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+          "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
           "name": "Валиев Р.",
           "role": "owner"
         },
@@ -187,7 +187,7 @@
         "closedReasonText": "Урок возвращён"
       },
       "previous": {
-        "id": "20327a99-421e-4aa8-bb20-765f4b92e970",
+        "id": "f28757c0-e188-4b31-8b34-1485d4146b33",
         "status": "cancelled",
         "teacherName": "Эргашев К.",
         "substituteName": null
@@ -209,82 +209,12 @@
       "source": "request"
     },
     {
-      "id": "b3a3f88f-eeea-46ac-b52f-074484126fc9",
-      "batchId": "7f32371c-018e-4a9f-be98-053d4eaa31f5",
+      "id": "55f755b5-fb67-4f5b-aae5-a6df64722fc3",
+      "batchId": "1dd32847-0a75-4993-bbb3-cf829935ad8e",
       "status": "closed",
       "origin": "system",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-        "name": "Математика 7",
-        "studentCount": 9
-      },
-      "lesson": {
-        "lessonId": "lesson-wed",
-        "date": "2026-11-25",
-        "startTime": "10:00",
-        "endTime": "11:30",
-        "room": null,
-        "format": "offline",
-        "startsAtUtc": "2026-11-25T05:00:00",
-        "exists": true
-      },
-      "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": "teacher"
-      },
-      "reasonCode": "other",
-      "reasonLabel": "Другое",
-      "comment": "Урок был",
-      "suggestedTeacher": null,
-      "createdAt": "2026-11-26T07:00:00",
-      "minutesToStart": -1560,
-      "urgent": false,
-      "overdue": false,
-      "decision": {
-        "kind": "closed",
-        "by": {
-          "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
-          "name": "Валиев Р.",
-          "role": "owner"
-        },
-        "at": "2026-11-26T07:00:00",
-        "via": "manager_restore",
-        "note": null,
-        "substitute": null,
-        "movedTo": null,
-        "closedReason": "LESSON_RESTORED",
-        "closedReasonText": "Урок возвращён"
-      },
-      "previous": {
-        "id": "99f19d85-37ad-412d-b6cb-7380925acdfe",
-        "status": "cancelled",
-        "teacherName": "Эргашев К.",
-        "substituteName": null
-      },
-      "trigger": "manager_restore",
-      "clearedAt": null,
-      "clearedBy": null,
-      "clearedTo": null,
-      "clearedTrigger": null,
-      "outcome": "lesson_restored",
-      "lastActivityAt": "2026-11-26T07:00:00.000001",
-      "needsDecision": false,
-      "confirmedBy": null,
-      "confirmedAt": null,
-      "waitingDays": null,
-      "teacherCanMark": null,
-      "canWithdraw": null,
-      "closedTrigger": "manager_restore",
-      "source": "request"
-    },
-    {
-      "id": "b8e5e19a-420c-497e-a039-0dc75fa8dade",
-      "batchId": "a7b63d21-c7f7-4764-a374-443146a2b024",
-      "status": "closed",
-      "origin": "system",
-      "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
@@ -299,7 +229,7 @@
         "exists": true
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -314,7 +244,7 @@
       "decision": {
         "kind": "closed",
         "by": {
-          "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+          "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
           "name": "Валиев Р.",
           "role": "owner"
         },
@@ -327,7 +257,77 @@
         "closedReasonText": "Урок возвращён"
       },
       "previous": {
-        "id": "b4a662f9-a0d8-487d-bb8c-d19f67a837a2",
+        "id": "d9c542bb-2dde-40b9-974a-f07ff6c1972c",
+        "status": "cancelled",
+        "teacherName": "Эргашев К.",
+        "substituteName": null
+      },
+      "trigger": "manager_restore",
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "lesson_restored",
+      "lastActivityAt": "2026-11-26T07:00:00.000001",
+      "needsDecision": false,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "waitingDays": null,
+      "teacherCanMark": null,
+      "canWithdraw": null,
+      "closedTrigger": "manager_restore",
+      "source": "request"
+    },
+    {
+      "id": "5c6d0684-ae47-4bb4-8d6d-c30f352a30e5",
+      "batchId": "6883e093-8043-43f9-9895-6298a1da0a67",
+      "status": "closed",
+      "origin": "system",
+      "group": {
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-25",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-25T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reasonCode": "other",
+      "reasonLabel": "Другое",
+      "comment": "Урок был",
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": -1560,
+      "urgent": false,
+      "overdue": false,
+      "decision": {
+        "kind": "closed",
+        "by": {
+          "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
+          "name": "Валиев Р.",
+          "role": "owner"
+        },
+        "at": "2026-11-26T07:00:00",
+        "via": "manager_restore",
+        "note": null,
+        "substitute": null,
+        "movedTo": null,
+        "closedReason": "LESSON_RESTORED",
+        "closedReasonText": "Урок возвращён"
+      },
+      "previous": {
+        "id": "ada8b62b-4dae-4051-b02f-e94ca7c71b9b",
         "status": "cancelled",
         "teacherName": "Эргашев К.",
         "substituteName": null
@@ -350,71 +350,42 @@
     },
     {
       "source": "audit",
-      "id": "08c10ae8-2c42-492d-872c-3689e6d4f0d7",
-      "kind": "backdated",
+      "id": "8a82e5c1-c660-4fef-a5d8-e0dfbdc266b5",
+      "kind": "corrected",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-        "name": "Математика 7",
-        "studentCount": 9
-      },
-      "lesson": {
-        "lessonId": "lesson-mon",
-        "date": "2026-11-02",
-        "startTime": "10:00",
-        "endTime": "11:30"
-      },
-      "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": null
-      },
-      "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
-        "name": "Валиев Р.",
-        "role": "owner"
-      },
-      "lateDays": 24,
-      "reason": null,
-      "text": "Урок оформлен задним числом: на 24 дня позже даты урока"
-    },
-    {
-      "source": "audit",
-      "id": "918b7c0b-d288-4de5-8864-575339a9214f",
-      "kind": "lesson_added",
-      "at": "2026-11-26T07:00:00",
-      "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
       "lesson": {
-        "lessonId": "lesson-850030ead2",
-        "date": "2026-11-27",
-        "startTime": "16:00",
-        "endTime": "17:00"
+        "lessonId": "lesson-tue",
+        "date": "2026-11-17",
+        "startTime": "14:00",
+        "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
-        "name": "Эргашев К.",
-        "role": "teacher"
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
+        "name": "Валиев Р.",
+        "role": "owner"
       },
-      "lateDays": null,
-      "reason": null,
-      "text": "Добавил урок в расписание"
+      "lateDays": 9,
+      "reason": "Ошибся в отметках",
+      "text": "Отметки исправлены: Ошибся в отметках",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "d3757aa3-2df2-4b91-8833-aba19a3108e0",
+      "id": "b8e0e877-5cd2-4003-8cfd-2b79e2310df3",
       "kind": "backdated",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -425,56 +396,89 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
       "lateDays": 14,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 14 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 14 дней позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "d66da18f-c83f-4503-b279-7866aa83ceee",
-      "kind": "corrected",
+      "id": "c5c0e74d-f930-4e4f-8709-dc19b9350032",
+      "kind": "lesson_added",
       "at": "2026-11-26T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
       "lesson": {
-        "lessonId": "lesson-tue",
-        "date": "2026-11-17",
-        "startTime": "14:00",
-        "endTime": "15:30"
+        "lessonId": "lesson-3e72bcb020",
+        "date": "2026-11-27",
+        "startTime": "16:00",
+        "endTime": "17:00"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "4de17d65-6379-59b0-92d3-cc92a245af06",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "lateDays": null,
+      "reason": null,
+      "text": "Добавил урок в расписание",
+      "canReturn": null
+    },
+    {
+      "source": "audit",
+      "id": "f26413b4-cf1f-480c-b5f6-31a03879558b",
+      "kind": "backdated",
+      "at": "2026-11-26T07:00:00",
+      "group": {
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-mon",
+        "date": "2026-11-02",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "by": {
+        "id": "89c9e3cd-6f24-5bab-8dcb-dd47eb00c21d",
         "name": "Валиев Р.",
         "role": "owner"
       },
-      "lateDays": 9,
-      "reason": "Ошибся в отметках",
-      "text": "Отметки исправлены: Ошибся в отметках"
+      "lateDays": 24,
+      "reason": null,
+      "text": "Урок оформлен задним числом: на 24 дня позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "81d7a6bd-beaa-4d7d-a40c-539df764c485",
+      "id": "5c365ca9-42fc-4041-9bf7-ffe92fbb032e",
       "kind": "backdated",
       "at": "2026-11-19T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -485,26 +489,27 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 2,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 2 дня позже даты урока"
+      "text": "Урок оформлен задним числом: на 2 дня позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "b311a1b8-6e5f-434f-88c2-b061533c82e4",
+      "id": "6a3f20cd-c4d4-4ff8-a94a-3bf2cf23bab2",
       "kind": "backdated",
       "at": "2026-11-16T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -515,26 +520,27 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 6,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 6 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 6 дней позже даты урока",
+      "canReturn": true
     },
     {
       "source": "audit",
-      "id": "19e902ff-3c2b-4c15-b49f-4741aa5055c1",
+      "id": "c636b21c-a856-4368-a1d8-814efdb1a0b9",
       "kind": "backdated",
       "at": "2026-11-15T07:00:00",
       "group": {
-        "id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+        "id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
         "name": "Физика 8",
         "studentCount": 3
       },
@@ -545,31 +551,32 @@
         "endTime": "15:30"
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": null
       },
       "by": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
       "lateDays": 12,
       "reason": null,
-      "text": "Урок оформлен задним числом: на 12 дней позже даты урока"
+      "text": "Урок оформлен задним числом: на 12 дней позже даты урока",
+      "canReturn": true
     },
     {
-      "id": "ef1ad50e-c5b4-453e-8568-b8ff6254ea16",
-      "batchId": "f2b56017-5ea4-4a1d-abb6-6e450c3b2a1e",
+      "id": "e9f48b95-2be2-4a68-8ed0-2fa573627363",
+      "batchId": "7c9391cd-54c0-44d2-9ee2-0db8d5556e85",
       "status": "closed",
       "origin": "system",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
       "lesson": {
-        "lessonId": "one-off-f09e3d74f4ca4ddf",
+        "lessonId": "one-off-dfdd5e18555b4b03",
         "date": "2026-11-17",
         "startTime": "12:00",
         "endTime": "13:00",
@@ -579,7 +586,7 @@
         "exists": true
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },
@@ -620,17 +627,17 @@
       "source": "request"
     },
     {
-      "id": "34d11894-9b49-4369-8492-b48f1d4523f3",
-      "batchId": "fc0af2bf-6773-42c6-b961-ca5b600e3b38",
+      "id": "485b6f3f-4d63-4c96-bdd4-16ae5f098586",
+      "batchId": "2a6e81be-cd9c-449f-a730-36c060972795",
       "status": "closed",
       "origin": "system",
       "group": {
-        "id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+        "id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
         "name": "Математика 7",
         "studentCount": 9
       },
       "lesson": {
-        "lessonId": "one-off-507cfe7f7966476d",
+        "lessonId": "one-off-4355b83c525e47b9",
         "date": "2026-11-14",
         "startTime": "12:00",
         "endTime": "13:00",
@@ -640,7 +647,7 @@
         "exists": true
       },
       "teacher": {
-        "id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+        "id": "d643aac6-30cd-507d-a769-fd14de4438a8",
         "name": "Эргашев К.",
         "role": "teacher"
       },

@@ -9,7 +9,7 @@
       "period_start": "2026-11-01",
       "period_end": "2026-11-30",
       "month_open": true,
-      "teacher_id": "42110e14-fb74-5185-9f18-4ab04bd042da",
+      "teacher_id": "d643aac6-30cd-507d-a769-fd14de4438a8",
       "teacher_name": "Камол Эргашев",
       "teacher_first_name": "Камол",
       "teacher_last_name": "Эргашев",
@@ -20,12 +20,12 @@
       "divisor_default": 12,
       "lines": [
         {
-          "line_key": "9b7f8718-dc7f-45bb-a0d5-26f83f234aa2",
-          "membership_id": "9b7f8718-dc7f-45bb-a0d5-26f83f234aa2",
-          "student_id": "96ac09e1-2185-509d-a234-38ea928c85f0",
+          "line_key": "58974695-c5db-4adc-92fc-d2999fcdccfe",
+          "membership_id": "58974695-c5db-4adc-92fc-d2999fcdccfe",
+          "student_id": "6c82441d-8fae-5640-a9ca-acee7c797922",
           "student_name": "Абдуллаев Азиз",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -52,7 +52,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -62,7 +62,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -82,12 +82,12 @@
           "warnings": []
         },
         {
-          "line_key": "d9b0b474-7729-46a7-97b1-13203c140afe",
-          "membership_id": "d9b0b474-7729-46a7-97b1-13203c140afe",
-          "student_id": "4725976f-7de8-54cd-964d-a085bd031c74",
+          "line_key": "f9e974bf-fb68-4b57-b512-e494e1bbe42b",
+          "membership_id": "f9e974bf-fb68-4b57-b512-e494e1bbe42b",
+          "student_id": "51dff0c4-3e0f-55dc-9e8d-a35ff2f7c9d4",
           "student_name": "Бекова Мадина",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -114,7 +114,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -124,7 +124,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -144,12 +144,12 @@
           "warnings": []
         },
         {
-          "line_key": "62828ecb-b569-4fb0-8476-6fa9c802e4af",
-          "membership_id": "62828ecb-b569-4fb0-8476-6fa9c802e4af",
-          "student_id": "3f12d17e-2fc1-56b2-afec-5ee476fbf326",
+          "line_key": "7db458c0-cd46-4e39-b5ed-402b2a529041",
+          "membership_id": "7db458c0-cd46-4e39-b5ed-402b2a529041",
+          "student_id": "39d8d019-5159-5e02-a642-88bcc39520f3",
           "student_name": "Валиев Тимур",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -176,7 +176,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -186,7 +186,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -206,12 +206,12 @@
           "warnings": []
         },
         {
-          "line_key": "b91ea0f5-cdbd-48f7-ade5-29ab3d304e7f",
-          "membership_id": "b91ea0f5-cdbd-48f7-ade5-29ab3d304e7f",
-          "student_id": "83c13200-9e83-528e-8c74-46e180e31863",
+          "line_key": "c35aa7c1-5cf3-4de5-87df-227041894fe6",
+          "membership_id": "c35aa7c1-5cf3-4de5-87df-227041894fe6",
+          "student_id": "9b3c7559-f8d1-5793-8934-be6fde5479a8",
           "student_name": "Гафурова Лола",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -238,7 +238,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -248,7 +248,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -268,12 +268,12 @@
           "warnings": []
         },
         {
-          "line_key": "8ef8d2a9-3331-4366-896c-0435f14d1482",
-          "membership_id": "8ef8d2a9-3331-4366-896c-0435f14d1482",
-          "student_id": "4507f25f-f716-5212-943a-79376856c657",
+          "line_key": "ebdb10d6-d731-4ad0-b9cb-109a3a7497ca",
+          "membership_id": "ebdb10d6-d731-4ad0-b9cb-109a3a7497ca",
+          "student_id": "c21c242d-d677-5e8c-b0bb-bb8d11645820",
           "student_name": "Давронов Санжар",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -300,7 +300,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -310,7 +310,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -330,12 +330,12 @@
           "warnings": []
         },
         {
-          "line_key": "b6475ebe-91d8-40b9-9670-e07bed7a8eed",
-          "membership_id": "b6475ebe-91d8-40b9-9670-e07bed7a8eed",
-          "student_id": "7725939f-351f-59b6-9579-01921ab44bab",
+          "line_key": "c6f05b48-5a88-447f-b48e-eef278b98d16",
+          "membership_id": "c6f05b48-5a88-447f-b48e-eef278b98d16",
+          "student_id": "50ef3c1b-d0ba-5f3d-8220-0337a0632b7c",
           "student_name": "Ерматова Нодира",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -362,7 +362,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -372,7 +372,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -392,12 +392,12 @@
           "warnings": []
         },
         {
-          "line_key": "2aa09f1f-c8e5-42b4-9178-b43f2d12cc11",
-          "membership_id": "2aa09f1f-c8e5-42b4-9178-b43f2d12cc11",
-          "student_id": "8c976eca-c7c7-5ba7-9707-ebe99482f47b",
+          "line_key": "d1869ce2-b8a0-4194-a217-840031e6db04",
+          "membership_id": "d1869ce2-b8a0-4194-a217-840031e6db04",
+          "student_id": "6ec1197f-9b6c-5df5-98f7-54993bc13af7",
           "student_name": "Жураев Сардор",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -424,7 +424,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -434,7 +434,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -454,12 +454,12 @@
           "warnings": []
         },
         {
-          "line_key": "fed286ab-6dba-497d-a27d-26f4e216dbe0",
-          "membership_id": "fed286ab-6dba-497d-a27d-26f4e216dbe0",
-          "student_id": "b19c7ab7-915e-5569-b56b-476324f925f4",
+          "line_key": "0d7b653a-d07c-4fe4-b6fa-abe776e29f9b",
+          "membership_id": "0d7b653a-d07c-4fe4-b6fa-abe776e29f9b",
+          "student_id": "f90cacfc-1ffa-52f3-8b99-6014119447e8",
           "student_name": "Исмоилова Зарина",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -486,7 +486,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -496,7 +496,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -516,12 +516,12 @@
           "warnings": []
         },
         {
-          "line_key": "be0bb19d-45b1-4e9f-b1fc-c5b49a7de8cb",
-          "membership_id": "be0bb19d-45b1-4e9f-b1fc-c5b49a7de8cb",
-          "student_id": "5cdb6f71-dd12-54fe-aa2f-2ec3d023beb4",
+          "line_key": "1440b616-a371-4a2a-80db-0252b4165a39",
+          "membership_id": "1440b616-a371-4a2a-80db-0252b4165a39",
+          "student_id": "e98f1d3b-0a90-5752-8323-bae43d52e902",
           "student_name": "Каримов Умид",
           "display_id": null,
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -548,7 +548,7 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d",
+              "lesson_id": "one-off-4355b83c525e47b9",
               "mark": 1,
               "state": "counted",
               "divisor": 12,
@@ -558,7 +558,7 @@
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf",
+              "lesson_id": "one-off-dfdd5e18555b4b03",
               "mark": 0,
               "state": "no_pay",
               "divisor": null,
@@ -578,12 +578,12 @@
           "warnings": []
         },
         {
-          "line_key": "bd2081d2-2893-4214-91e3-47b5236c1e9c",
-          "membership_id": "bd2081d2-2893-4214-91e3-47b5236c1e9c",
-          "student_id": "cf3856ac-0cf6-54fd-810c-266fbc78c4eb",
+          "line_key": "a8e585f1-23bc-4180-95c1-3f53cda6c38d",
+          "membership_id": "a8e585f1-23bc-4180-95c1-3f53cda6c38d",
+          "student_id": "66e10231-4c24-5231-8e1a-007bbb92bbed",
           "student_name": "Назаров Бекзод",
           "display_id": null,
-          "group_id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+          "group_id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
           "group_name": "Физика 8",
           "lesson_type": "group",
           "lesson_time": "14:00–15:30",
@@ -659,12 +659,12 @@
           ]
         },
         {
-          "line_key": "afa9a7ca-6d60-418f-989f-3128365ab2b0",
-          "membership_id": "afa9a7ca-6d60-418f-989f-3128365ab2b0",
-          "student_id": "f9a9ffe6-74cb-502f-a82e-8f27e71ffe11",
+          "line_key": "57a5d9ff-f75c-4e0b-9b77-85bddc736be8",
+          "membership_id": "57a5d9ff-f75c-4e0b-9b77-85bddc736be8",
+          "student_id": "e8384c3a-b1b2-5715-8b4e-d69367b6fe0d",
           "student_name": "Одилова Шахноза",
           "display_id": null,
-          "group_id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+          "group_id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
           "group_name": "Физика 8",
           "lesson_type": "group",
           "lesson_time": "14:00–15:30",
@@ -740,12 +740,12 @@
           ]
         },
         {
-          "line_key": "1e6c41a9-1023-48ef-b031-0c053b6fc398",
-          "membership_id": "1e6c41a9-1023-48ef-b031-0c053b6fc398",
-          "student_id": "37acfbe7-d2af-5481-a227-b92562aa4c19",
+          "line_key": "84d753be-d0a1-4835-b0d5-ddbe7d532a43",
+          "membership_id": "84d753be-d0a1-4835-b0d5-ddbe7d532a43",
+          "student_id": "5478c31a-7a51-5e0a-b10f-1a52aa71e92d",
           "student_name": "Рахимов Жасур",
           "display_id": null,
-          "group_id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+          "group_id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
           "group_name": "Физика 8",
           "lesson_type": "group",
           "lesson_time": "14:00–15:30",
@@ -823,8 +823,8 @@
       ],
       "groups": [
         {
-          "block_key": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
-          "group_id": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+          "block_key": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
+          "group_id": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
           "group_name": "Математика 7",
           "lesson_type": "group",
           "lesson_time": "10:00–11:30, 12:00–13:00",
@@ -836,11 +836,11 @@
             },
             {
               "date": "2026-11-14",
-              "lesson_id": "one-off-507cfe7f7966476d"
+              "lesson_id": "one-off-4355b83c525e47b9"
             },
             {
               "date": "2026-11-17",
-              "lesson_id": "one-off-f09e3d74f4ca4ddf"
+              "lesson_id": "one-off-dfdd5e18555b4b03"
             }
           ],
           "line_count": 9,
@@ -849,8 +849,8 @@
           "total_amount": 337500
         },
         {
-          "block_key": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
-          "group_id": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+          "block_key": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
+          "group_id": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
           "group_name": "Физика 8",
           "lesson_type": "group",
           "lesson_time": "14:00–15:30",
@@ -891,69 +891,69 @@
         "unconfirmed_items": [
           {
             "lessonDate": "2026-11-18",
-            "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+            "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
             "groupName": "Математика 7",
             "lessonId": "lesson-wed",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
             "ageDays": 8
           },
           {
             "lessonDate": "2026-11-23",
-            "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+            "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
             "groupName": "Математика 7",
             "lessonId": "lesson-mon",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da",
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8",
             "ageDays": 3
           }
         ],
         "open_lesson_items": [
           {
             "lessonDate": "2026-11-04",
-            "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+            "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
             "groupName": "Математика 7",
             "lessonId": "lesson-wed",
             "kind": "in_progress",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           },
           {
             "lessonDate": "2026-11-05",
-            "groupId": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+            "groupId": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
             "groupName": "Физика 8",
             "lessonId": "lesson-thu",
             "kind": "missed",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           },
           {
             "lessonDate": "2026-11-09",
-            "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+            "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
             "groupName": "Математика 7",
             "lessonId": "lesson-mon",
             "kind": "missed",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           },
           {
             "lessonDate": "2026-11-19",
-            "groupId": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+            "groupId": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
             "groupName": "Физика 8",
             "lessonId": "lesson-thu",
             "kind": "in_progress",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           },
           {
             "lessonDate": "2026-11-24",
-            "groupId": "6820e3f5-cf6c-504c-aaa9-05e7c022a1ce",
+            "groupId": "8e241d36-c4e9-59b0-a54f-0d39fb77468e",
             "groupName": "Физика 8",
             "lessonId": "lesson-tue",
             "kind": "missed",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           },
           {
             "lessonDate": "2026-11-25",
-            "groupId": "3dbc9974-8596-5d8c-8f6b-0fe539eadc6a",
+            "groupId": "ecdf2e15-b2f4-535c-b19a-fd1ee29cc7e2",
             "groupName": "Математика 7",
             "lessonId": "lesson-wed",
             "kind": "missed",
-            "teacherId": "42110e14-fb74-5185-9f18-4ab04bd042da"
+            "teacherId": "d643aac6-30cd-507d-a769-fd14de4438a8"
           }
         ],
         "pending_excused": 0,
@@ -961,7 +961,7 @@
         "unpaid": 12,
         "unpaid_students": 3
       },
-      "source_fingerprint": "3e429a6cfcc580ecdc6b411c18ccde413f2765e4377e9accbb35e5161eb1bacd",
+      "source_fingerprint": "48579d85ffcf9381cd7a9854e4a0993d60c1b0c590cb328fd3b42ada3d365c5e",
       "stale": null,
       "note": null,
       "created_by_name": null,

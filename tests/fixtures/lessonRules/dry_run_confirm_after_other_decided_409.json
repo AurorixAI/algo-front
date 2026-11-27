@@ -1,0 +1,11 @@
+{
+  "detail": {
+    "code": "ALREADY_DECIDED",
+    "message": "Отмену подтвердил Рустам Валиев (владелец) в 12:00: по вине центра.",
+    "kind": "centre",
+    "decided_by_name": "Рустам Валиев",
+    "decided_by_role": "owner",
+    "decided_at": "2026-11-26T07:00:00+00:00",
+    "outcome": "kind_changed"
+  }
+}

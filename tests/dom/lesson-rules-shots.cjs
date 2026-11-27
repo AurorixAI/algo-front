@@ -208,7 +208,7 @@ const dryServer = (extra) => (r) => {
       const journal = answer("journal_teacher");
       const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: null, joined_at: "2026-09-01", last_theta: null, last_level: null }; });
       const serve = (extra) => (r) => (extra && extra(r)) || (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: journal } : null);
-      const teacher = await open("lesson-rules.entry.tsx", serve(), { id: "85364d94-c8fb-5916-ae84-9583524e23fd", ...TEACHER }, { groupId: journal.groupId, students }, "journal");
+      const teacher = await open("lesson-rules.entry.tsx", serve(), { id: answer("schedule_teacher")[0].teacherId, ...TEACHER }, { groupId: journal.groupId, students }, "journal");
       await teacher.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
       await teacher.page.waitForTimeout(1500);
       await teacher.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
@@ -270,7 +270,7 @@ const dryServer = (extra) => (r) => {
     // п.10 / п.7: the journal of a group (the teacher, the owner) - November, and a closed October; the panel of a lesson of the schedule in a closed month
     {
       const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: null, joined_at: "2026-09-01", last_theta: null, last_level: null }; });
-      const TEACHER_ID = "42110e14-fb74-5185-9f18-4ab04bd042da";
+      const TEACHER_ID = answer("schedule_teacher")[0].teacherId;
       const serveJournal = (journal) => (r) => (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: journal } : null);
       for (const [tag, who, adminMode] of [["teacher", { id: TEACHER_ID, ...TEACHER }, false], ["owner", { id: "owner-1", ...OWNER }, true]]) {
         const journal = answer("journal_teacher");
