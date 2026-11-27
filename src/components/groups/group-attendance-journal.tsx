@@ -167,6 +167,59 @@ function anchorOf(element: Element): MenuAnchor {
 }
 
 /**
+ * The menu of a column opens BELOW the whole header cell (its date and time stay readable), not under the «⋯» button inside it.
+ */
+function columnMenuAnchorOf(trigger: Element): MenuAnchor {
+  const anchor = anchorOf(trigger);
+  const header = trigger.closest("th");
+  return header ? { ...anchor, bottom: Math.max(anchor.bottom, header.getBoundingClientRect().bottom) } : anchor;
+}
+
+const sameAnchor = (a: MenuAnchor, b: MenuAnchor) => a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right;
+
+/**
+ * A floating menu stays with the control that opened it.  A scroll of the table or of the page and a change of the window (the address bar of a phone) MOVE the control, they are
+ * not a decision of the person: the menu follows it (one move per frame), and goes only when the control has left the window.  A scroll that began before the press (the swipe that
+ * brought the column into view, its momentum) is delivered AFTER the press: closing on it made the menu open and vanish within 50 ms.  The person's own actions - a press elsewhere,
+ * Esc, a choice - close it as before; the scroll of the menu itself moves nothing.
+ */
+function useMenuFollowsTrigger(
+  open: boolean,
+  menuRef: MutableRefObject<HTMLDivElement | null>,
+  findTrigger: () => Element | null,
+  anchorOfTrigger: (trigger: Element) => MenuAnchor,
+  moveTo: (anchor: MenuAnchor) => void,
+  close: () => void,
+) {
+  const latest = useRef({ findTrigger, anchorOfTrigger, moveTo, close });
+  latest.current = { findTrigger, anchorOfTrigger, moveTo, close };
+  useEffect(() => {
+    if (!open) return undefined;
+    let frame = 0;
+    const follow = () => {
+      frame = 0;
+      const { findTrigger: find, anchorOfTrigger: anchorFor, moveTo: move, close: closeMenu } = latest.current;
+      const trigger = find();
+      if (!trigger) { closeMenu(); return; }
+      const rect = trigger.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) { closeMenu(); return; }
+      move(anchorFor(trigger));
+    };
+    const onMoved = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      if (!frame) frame = window.requestAnimationFrame(follow);
+    };
+    window.addEventListener("resize", onMoved);
+    window.addEventListener("scroll", onMoved, true);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", onMoved);
+      window.removeEventListener("scroll", onMoved, true);
+    };
+  }, [open, menuRef]);
+}
+
+/**
  * Menu rendered in <body> with position: fixed, so no overflow of the journal
  * table can clip it.  It opens below the anchor when it fits, otherwise above,
  * otherwise on the roomier side with its own scroll, and is shifted into the screen.
@@ -532,18 +585,20 @@ export function GroupAttendanceJournal({
     };
     document.addEventListener("pointerdown", closeWhenClickedOutside);
     document.addEventListener("keydown", closeOnEscape);
-    const closeOnOuterScroll = (event: Event) => {
-      if (!columnMenuRef.current?.contains(event.target as Node)) close();
-    };
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", closeOnOuterScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeWhenClickedOutside);
       document.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", closeOnOuterScroll, true);
     };
   }, [columnMenu]);
+  const columnMenuKey = columnMenu?.key;
+  useMenuFollowsTrigger(
+    columnMenuKey !== undefined,
+    columnMenuRef,
+    () => document.querySelector(`th[data-lesson-key="${columnMenuKey}"] [data-column-menu-trigger]`),
+    columnMenuAnchorOf,
+    (anchor) => setColumnMenu((current) => (current && sameAnchor(current.anchor, anchor) ? current : current && { ...current, anchor })),
+    () => setColumnMenu(null),
+  );
 
   useEffect(() => {
     if (!openCell) return;
@@ -558,22 +613,22 @@ export function GroupAttendanceJournal({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpenCell(null);
     };
-    const close = () => setOpenCell(null);
-    const closeOnOuterScroll = (event: Event) => {
-      if (!cellMenuRef.current?.contains(event.target as Node)) close();
-    };
 
     document.addEventListener("pointerdown", closeWhenClickedOutside);
     document.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", closeOnOuterScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeWhenClickedOutside);
       document.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", closeOnOuterScroll, true);
     };
   }, [openCell]);
+  useMenuFollowsTrigger(
+    openCell !== null,
+    cellMenuRef,
+    () => openCellContainerRef.current?.querySelector("button[aria-expanded='true']") ?? null,
+    anchorOf,
+    (anchor) => setOpenCell((current) => (current && sameAnchor(current.anchor, anchor) ? current : current && { ...current, anchor })),
+    () => setOpenCell(null),
+  );
 
   const lessons = useMemo(
     () => attendanceData?.lessons || [],
@@ -1060,9 +1115,7 @@ export function GroupAttendanceJournal({
     }
     setOpenCell(null);
     // the menu opens BELOW the whole header cell (its date and time stay readable), not under the «⋯» button inside it
-    const anchor = anchorOf(event.currentTarget);
-    const header = event.currentTarget.closest("th");
-    setColumnMenu({ key, anchor: header ? { ...anchor, bottom: Math.max(anchor.bottom, header.getBoundingClientRect().bottom) } : anchor });
+    setColumnMenu({ key, anchor: columnMenuAnchorOf(event.currentTarget) });
   };
 
   // The server judges completeness by the roster frozen at the start of the

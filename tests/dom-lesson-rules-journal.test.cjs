@@ -35,7 +35,6 @@ async function openAs(who, width, adminMode, extra) {
   const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", serve(extra), { width, height: width === 375 ? 800 : 900, today: WORLD_DAY });
   await run.page.evaluate(([user, props]) => window.mount("journal", user, props), [who, { groupId: JOURNAL.groupId, students: STUDENTS, adminMode }]);
   await run.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"]');
-  await run.page.waitForTimeout(900);   // the journal reads once more after the first draw (a phone): a menu opened before that is closed by it
   return run;
 }
 
@@ -197,3 +196,52 @@ test("EXCUSE_DECIDED (the real refusal) belongs to ONE mark: the administrator c
   assert.ok(plain(await page.locator('td[data-excuse-decided="true"]').evaluate((el) => el.closest("tr").textContent)).includes(mine.full_name));
   await page.close();
 });
+
+// A SCROLL OF THE TABLE MUST NOT CLOSE A MENU THE PERSON HAS JUST OPENED (the defect of the full e2e run: on a phone the swipe that brought the column into view - or its momentum - is
+// delivered AFTER the press, the menu opened and vanished within 50 ms).  The menu follows its «⋯» while the table or the page moves, and goes only when the «⋯» has left the window.
+for (const width of [1280, 375]) {
+  test(`${width}: a scroll of the table or a change of the window after the press does not close the column menu - it follows its «⋯»; it goes when the «⋯» is out of the window (a press elsewhere and Esc still close it)`, async () => {
+    const { page, errors } = await open(width);
+    const frames = (count) => page.evaluate((n) => new Promise((done) => { const step = (left) => (left === 0 ? done() : requestAnimationFrame(() => step(left - 1))); step(n); }), count);
+    const geometry = () => page.evaluate(() => {
+      const trigger = document.querySelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').getBoundingClientRect();
+      const th = document.querySelector('th[data-lesson-key="2026-11-02_lesson-mon"]').getBoundingClientRect();
+      const menu = document.querySelector('[role="menu"]')?.getBoundingClientRect() ?? null;
+      return { viewport: window.innerWidth, triggerRight: trigger.right, headBottom: th.bottom, menu: menu && { left: menu.left, top: menu.top } };
+    });
+    const expectedLeft = (g) => Math.min(Math.max(8, g.triggerRight - 240), g.viewport - 240 - 8);
+    await page.click(MENU_OLD);
+    await page.waitForSelector('[role="menu"]');
+    const before = await geometry();
+    // the table is moved by 24 px after the press (the scroll that began before it is delivered now)
+    await page.evaluate(() => { const box = document.querySelector("div.overflow-x-auto"); box.scrollLeft += 24; });
+    await frames(3);
+    const moved = await geometry();
+    assert.notEqual(Math.round(moved.triggerRight), Math.round(before.triggerRight), "the table really moved under the «⋯»");
+    assert.equal(await page.locator('[role="menu"]').count(), 1, "the scroll after the press did not close the menu");
+    assert.ok(Math.abs(moved.menu.left - expectedLeft(moved)) <= 1.5, `the menu follows its «⋯»: menu ${moved.menu.left}, expected ${expectedLeft(moved)}`);
+    assert.ok(Math.abs(moved.menu.top - (moved.headBottom + 6)) <= 1.5, `and stays right under the head of the column: ${moved.menu.top} vs ${moved.headBottom + 6}`);
+    // a change of the window (the address bar of a phone, the keyboard) does not close it either
+    await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+    await frames(2);
+    assert.equal(await page.locator('[role="menu"]').count(), 1, "a resize event did not close the menu");
+    // the «⋯» leaves the window: the menu would point at nothing - it goes
+    await page.evaluate(() => { const box = document.querySelector("div.overflow-x-auto"); box.scrollLeft = box.scrollWidth; });
+    await frames(3);
+    const gone = await page.evaluate(() => { const r = document.querySelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').getBoundingClientRect(); return { out: r.right <= 0 || r.left >= window.innerWidth, menus: document.querySelectorAll('[role="menu"]').length }; });
+    if (gone.out) assert.equal(gone.menus, 0, "the «⋯» is out of the window: the menu is closed");
+    // the person's own actions still close it: Esc, a press elsewhere
+    await page.evaluate(() => { document.querySelector("div.overflow-x-auto").scrollLeft = 0; });
+    await frames(2);
+    await page.click(MENU_OLD);
+    await page.waitForSelector('[role="menu"]');
+    await page.keyboard.press("Escape");
+    await page.waitForSelector('[role="menu"]', { state: "detached" });
+    await page.click(MENU_OLD);
+    await page.waitForSelector('[role="menu"]');
+    await page.mouse.click(width - 4, 4);
+    await page.waitForSelector('[role="menu"]', { state: "detached" });
+    assert.deepEqual(noise(errors), []);
+    await page.close();
+  });
+}

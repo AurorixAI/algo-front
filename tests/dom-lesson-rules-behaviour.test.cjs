@@ -180,15 +180,10 @@ test("the journal: 409 from «Решить» - the window says who and when, the
   }, { width: 1280, height: 900, today: WORLD_DAY });
   await run.page.evaluate(([user, props]) => window.mount("journal", user, props), [OWNER, { groupId: JOURNAL.groupId, students, adminMode: true }]);
   await run.page.waitForSelector('th[data-lesson-key="2026-11-23_lesson-mon"]');
-  // the journal draws twice (the first draw and a second reading): a menu opened between them is closed by the second one - press until the item stays
   await until(() => journalReads >= 1, "the journal was read");
-  let pressed = false;
-  for (let attempt = 0; attempt < 20 && !pressed; attempt += 1) {
-    await run.page.evaluate(() => { if (!document.querySelector('[data-testid="menu-decide-waiting"]')) document.querySelector('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]')?.click(); });
-    pressed = await run.page.evaluate(() => { const item = document.querySelector('[data-testid="menu-decide-waiting"]'); if (item) item.click(); return Boolean(item); });
-    if (!pressed) await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.ok(pressed, "«Решить» was in the menu of the lesson");
+  // an ordinary press, once: the menu stays (a scroll or a second reading does not close it), «Решить» is in it
+  await run.page.click('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]');
+  await run.page.click('[data-testid="menu-decide-waiting"]');
   await run.page.waitForSelector('[data-testid="waiting-decided"]');
   assert.equal(plain(await run.page.textContent('[data-testid="waiting-decided"]')), ALREADY.detail.message);
   await until(() => journalReads > readsAtRefusal, "the journal is read again after «уже решено»");
