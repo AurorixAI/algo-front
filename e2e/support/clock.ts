@@ -17,8 +17,25 @@ const WITH_EXAM = process.env.E2E_EXAM === "1";
 
 type ClockBody = { now_business: string; now_utc: string; offset_seconds: number };
 
+/**
+ * A read of the stand clock survives a dropped connection (`fetch failed`, UND_ERR_SOCKET: the service closed an idle keep-alive socket, or answered
+ * slowly under the load of the other workers): up to 5 tries, 400 ms apart.  A real answer with a bad status is NOT retried - that is a stand without the clock.
+ */
+async function fetchWithRetry(url: string): Promise<Response> {
+  let last: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await fetch(url);
+    } catch (error) {
+      last = error;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw last;
+}
+
 async function readClock(url: string): Promise<ClockBody> {
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status} - the stand clock is not available (run the suite through e2e/scripts/run.mjs: ALGO_TEST_CLOCK=1)`);
   return (await res.json()) as ClockBody;
 }
