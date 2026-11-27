@@ -26,6 +26,8 @@ import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-ti
 import { todayPendingHint } from "@/lib/schedule-card-actions";
 import { useNow } from "@/lib/use-now";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
+import { useWithdrawCancellation } from "@/lib/use-withdraw-cancellation";
 
 /**
  * T2 (LOGIC-B2): on the teacher's dashboard - «Запросы на замену» (waiting ones with «Отозвать», the decided ones of the last 14 days
@@ -48,6 +50,7 @@ export function TeacherRequestsBlock({
   const [data, setData] = useState<MineOut | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showToast, toastNode } = useToast();
   /** #157: «›» opens the panel «Подробнее» of a request (the same panel as the owner's, for a teacher: his own records, the other people by role only). */
   const [panel, setPanel] = useState<{ id: string; seed: SubstitutionItem | null } | null>(null);
   const token = useRef(0);
@@ -67,24 +70,15 @@ export function TeacherRequestsBlock({
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 
-  /** LESSON-RULES Э4: the teacher takes back HIS cancellation of a past lesson while the owner has not decided it (the server judges the window and the owner: a refusal is said in words). */
-  const withdrawCancellation = async (item: SubstitutionItem) => {
+  /** LESSON-RULES Э4 / М4: the teacher takes back HIS cancellation of a past lesson while the owner has not decided it - the ONE road and the one set of words of every screen (the server judges the window and the owner). */
+  const cancellation = useWithdrawCancellation({
+    say: (text, tone) => { if (tone === "success") { setError(null); showToast(text, "success"); onChanged?.(); } else setError(text); },
+    reload: () => load(),
+  });
+  const withdrawCancellation = (item: SubstitutionItem) => {
     if (busyId || sending.current) return;
-    sending.current = true;
-    setBusyId(item.id);
     setError(null);
-    try {
-      await orgApi.withdrawOwnCancellation(item.group.id, { lessonId: item.lesson.lessonId, lessonDate: item.lesson.date, expectedKind: "unconfirmed" });
-      await load();
-      onChanged?.();
-    } catch (failure) {
-      const decided = alreadyDecided(failure);
-      setError(decided ? decided.message : substitutionErrorText(failure, undefined, { role: "teacher" }));
-      await load();
-    } finally {
-      sending.current = false;
-      setBusyId(null);
-    }
+    void cancellation.withdraw({ groupId: item.group.id, lessonId: item.lesson.lessonId, lessonDate: item.lesson.date });
   };
 
   const withdraw = async (requestId: string) => {
@@ -110,7 +104,7 @@ export function TeacherRequestsBlock({
   const now = useNow(30_000, true);
   const assigned = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
   const cleared = data?.clearedForMe ?? [];
-  if (items.length === 0 && assigned.length === 0 && cleared.length === 0) return null;
+  if (items.length === 0 && assigned.length === 0 && cleared.length === 0) return <>{toastNode}</>;
 
   return (
     <section aria-label={MY_REQUESTS_TITLE} className="grid gap-5"        /* in the left column of the dashboard (under «Группы в фокусе»): one under the other */>
@@ -151,11 +145,11 @@ export function TeacherRequestsBlock({
                         type="button"
                         data-testid="withdraw-cancellation"
                         aria-label={`Отозвать отмену урока: ${myRequestLine(item)}`}
-                        onClick={() => void withdrawCancellation(item)}
-                        disabled={busyId !== null}
+                        onClick={() => withdrawCancellation(item)}
+                        disabled={busyId !== null || cancellation.busyKey !== null}
                         variant="ghost" size="sm"
                       >
-                        {busyId === item.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {cancellation.busyKey === `${item.group.id}|${item.lesson.lessonId}|${item.lesson.date}` && <Loader2 className="h-3 w-3 animate-spin" />}
                         Отозвать
                       </Button>
                     )}
@@ -191,6 +185,7 @@ export function TeacherRequestsBlock({
         onClose={() => setPanel(null)}
         onOpenRequest={(id) => setPanel({ id, seed: null })}
       />
+      {toastNode}
     </section>
   );
 }

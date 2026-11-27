@@ -30,8 +30,6 @@ import {
   itemLessonLine,
   moreLessonsText,
   tabLabel,
-  alreadyDecided,
-  substitutionErrorText,
 } from "@/lib/substitutions";
 import type { AuditEntryItem, DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem, SubstitutionListRow, WaitingCancellationItem } from "@/lib/substitution-types";
 import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows, waitingDecidedToast } from "@/lib/lesson-rules";
@@ -53,6 +51,7 @@ import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
+import { useWithdrawCancellation } from "@/lib/use-withdraw-cancellation";
 import { canDecideMoney, decisionMatches, moneyRightLostFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
@@ -145,23 +144,16 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   const refreshBadge = () => { void useSubstitutionBadge.getState().refresh(true); };
   // LESSON-RULES: an administrator without the money right takes back the cancellation he made himself (the line «решает владелец» has «Отозвать» only where the server says canWithdraw)
+  // М4: the one road and the one set of words of «Отозвать отмену» (success is a toast here too); the list and the badge are read again whatever the answer was
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
-  const withdrawSending = useRef(false);
+  const waitingWithdrawal = useWithdrawCancellation({
+    say: (text, tone) => showToast(text, tone),
+    reload: () => { void loadRef.current(true); refreshBadge(); },
+  });
   const withdrawWaiting = async (entry: WaitingCancellationItem) => {
-    if (withdrawSending.current) return;
-    withdrawSending.current = true;
     setWithdrawingId(entry.id);
-    try {
-      await orgApi.withdrawOwnCancellation(entry.group.id, { lessonId: entry.lesson.lessonId, lessonDate: entry.lesson.date, expectedKind: "unconfirmed" });
-    } catch (failure) {
-      const decided = alreadyDecided(failure);
-      showToast(decided ? decided.message : substitutionErrorText(failure, undefined, { role: "admin" }), "error");
-    } finally {
-      withdrawSending.current = false;
-      setWithdrawingId(null);
-      void load(true);
-      refreshBadge();
-    }
+    try { await waitingWithdrawal.withdraw({ groupId: entry.group.id, lessonId: entry.lesson.lessonId, lessonDate: entry.lesson.date }); }
+    finally { setWithdrawingId(null); }
   };
 
   // search: a pause after the last key
@@ -464,7 +456,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           withdrawingId={withdrawingId}
           canDecide={canDecideMoney(user)}
           rightLost={moneyRightLost}
-          onRightLost={() => setMoneyLostFor({ profile: user })}
+          onRightLost={() => { setMoneyLostFor({ profile: user }); void load(true); refreshBadge(); }}
           onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); void load(true); refreshBadge(); }); }}
           loading={decisions.loading}
           error={decisions.error}

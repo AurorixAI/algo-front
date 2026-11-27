@@ -131,7 +131,7 @@ test("M2 tail: the page holds the mark; the block, the tab and the badge read it
   assert.match(page, /const moneyRightLost = moneyRightLostFor\(moneyLostFor, user\);/);
   // the number of the tab is the server's waitingTotal: behaviour - dom-lesson-rules-behaviour ("the numbers are the server's")
   assert.match(page, /rightLost=\{moneyRightLost\}/);
-  assert.match(page, /onRightLost=\{\(\) => setMoneyLostFor\(\{ profile: user \}\)\}/);
+  assert.match(page, /onRightLost=\{\(\) => \{ setMoneyLostFor\(\{ profile: user \}\); void load\(true\); refreshBadge\(\); \}\}/, "the mark is held AND the list and the badge are read again (М5; behaviour: dom-lesson-rules-batch4)");
   assert.match(page, /setWaiting\(waitingCount\)/, "the badge of the menu follows the counter of the tab");
   assert.doesNotMatch(page, /pendingTotal \+ decisions\.total/, "one rule of counting, not a second");
   const block = read("src/components/substitutions/one-off-decisions.tsx");
