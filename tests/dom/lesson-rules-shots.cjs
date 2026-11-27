@@ -305,6 +305,82 @@ const dryServer = (extra) => (r) => {
         await page.close();
       }
     }
+    // пачка 3 / Э10: «Отозвать отмену» in the column menu of the journal of the teacher (the real journal: 23.11 waits, canWithdraw true) and the head of the column that says who wrote it
+    {
+      const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: "" }; });
+      const journal = answer("journal_teacher");
+      const who = { id: answer("schedule_teacher")[0].teacherId, ...TEACHER };
+      const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: journal } : null), who, { groupId: journal.groupId, students, adminMode: false }, "journal");
+      await page.waitForSelector('th[data-lesson-key="2026-11-23_lesson-mon"]');
+      await page.waitForTimeout(1200);
+      // a phone: the column of 23.11 lies beyond the edge of the box that scrolls; bring it in (an instant scroll), let the page settle, then press
+      await page.locator('th[data-lesson-key="2026-11-23_lesson-mon"]').evaluate((el) => el.scrollIntoView({ inline: "end", block: "nearest", behavior: "instant" }));
+      await page.waitForTimeout(600);
+      await page.locator('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
+      await page.waitForSelector('[data-testid="menu-withdraw"]');
+      await checkPageOnly(page, errors, `N10 journal withdraw ${width}`);
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: path.join(out, `N10-journal-withdraw-menu-${width}.png`) });
+      await page.close();
+    }
+    // пачка 3 / Э10 + Э8: the sheet of a lesson that waits (an administrator author without the right: who wrote it, «Отозвать отмену»), the panel of the teacher's lesson
+    {
+      const author = answer("pending_admin_author").items[0];
+      const { page, errors } = await open("lesson-rules.entry.tsx", () => null, { ...ADMIN_NO_MONEY, id: "admin-1" }, { kind: "unconfirmed", moneyRight: false, lesson: { reportedBy: author.reportedBy, reportedByRole: author.reportedByRole, canWithdraw: author.canWithdraw } }, "sheet-waiting");
+      await page.waitForSelector('[data-testid="sheet-withdraw"]');
+      await check(page, errors, `N10 sheet ${width}`);
+      await shot(page, "N10-sheet-withdraw");
+      await page.close();
+      const TEACHER_ID = answer("schedule_teacher")[0].teacherId;
+      const lesson = answer("schedule_teacher").find((o) => o.occurrenceDate === "2026-11-23");
+      const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: "" }; });
+      const groups = [{ id: lesson.groupId, name: lesson.groupName, status: "active", teacher_id: TEACHER_ID, class_level: 7, student_count: students.length, subject: "math" }];
+      const roster = (r) => (r.path === `/auth/org/groups/${lesson.groupId}` ? { json: { ...groups[0], students } } : /\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: answer("journal_teacher") } : null);
+      const run = await open("lesson-rules.entry.tsx", roster, { id: TEACHER_ID, ...TEACHER }, { lesson, groups }, "lesson-panel");
+      await run.page.waitForSelector('[data-testid="panel-withdraw"]');
+      await run.page.waitForTimeout(500);
+      await check(run.page, run.errors, `N10 teacher panel ${width}`);
+      await shot(run.page, "N10-teacher-panel-withdraw");
+      await run.page.close();
+    }
+    // пачка 3 / Э8: the window of a cancellation written by an ADMINISTRATOR (the owner decides): «Администратор сообщил», the sentence of the chosen outcome is the server's
+    {
+      const owner = answer("pending_admin_author");
+      owner.waitingTotal = 1;
+      owner.items.forEach((item) => { item.canDecide = true; });
+      for (const outcome of ["holiday", "held"]) {
+        const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ pending: owner, extra: dryServer() }), OWNER, { role: "owner" });
+        await page.waitForSelector('[data-testid="waiting-row"]');
+        await page.click('[data-testid="waiting-row"] button:has-text("Решить")');
+        await page.waitForSelector('[data-testid="waiting-outcomes"]');
+        await page.click(`[data-testid="waiting-outcome-${outcome}"]`);
+        await page.waitForFunction(() => (document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? "").length > 20);
+        await check(page, errors, `N8 admin-author window ${outcome} ${width}`);
+        await shot(page, `N8-window-admin-author-${outcome}`);
+        await page.close();
+      }
+    }
+    // пачка 3 / Э11: the window «Сообщить» (waiting true) and the ordinary «Урока не было» (the centre switched the confirmation off)
+    for (const [tag, file] of [["waiting", "cancel_consequence_waiting_admin"], ["setting-off", "cancel_consequence_setting_off_admin"]]) {
+      const real = answer(file);
+      const { page, errors } = await open("lesson-rules.entry.tsx", () => null, TEACHER, { date: "2026-11-23", reason: "Отключили свет", consequence: real.consequence, waiting: real.waiting }, "cancel-panel");
+      await page.waitForSelector('[data-testid="lesson-cancel-panel"]');
+      await check(page, errors, `N11 cancel panel ${tag} ${width}`);
+      await shot(page, `N11-cancel-panel-${tag}`);
+      await page.close();
+    }
+    // пачка 3 / Э9: the panel of an entry of the history: with «Вернуть урок» (canReturn) and with a failed preview (said, no button)
+    for (const [tag, extra] of [["ok", historyExtra], ["preview-failed", (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { status: 500, json: { detail: { code: "INTERNAL", message: "Сервис временно недоступен" } } } : null)]]) {
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ extra }), OWNER, { role: "owner" });
+      await page.click('[role="tab"]:has-text("История")');
+      await page.waitForSelector('[data-testid="audit-row"]');
+      await page.locator('[data-testid="audit-row"]').filter({ hasText: "Задним числом" }).first().locator('[data-testid="audit-details"]').click();
+      await page.waitForSelector(tag === "ok" ? '[data-testid="panel-salary"]' : '[data-testid="panel-return-error"]');
+      await page.waitForTimeout(700);   // the panel slides in from the side: measure it when it stands
+      await check(page, errors, `N9 history panel ${tag} ${width}`);
+      await shot(page, `N9-history-panel-${tag}`);
+      await page.close();
+    }
     // Э8: «Настройки → Уроки»
     {
       const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (/\/org\/settings\/lessons$/.test(r.path) ? { json: answer("rules_lessons") } : null), OWNER, {}, "lesson-rules");

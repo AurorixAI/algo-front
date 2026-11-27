@@ -83,6 +83,25 @@ test("the teacher reports and takes the report back -> nothing waits for the own
   await expect(teacherPage.getByTestId("next-action-card")).toContainText(group.name);
 });
 
+test("the teacher takes his report back FROM THE JOURNAL of the group (where he sees the cancellation): «Отозвать отмену» is in the column menu, the lesson is not waiting afterwards", async ({ signIn }) => {
+  test.setTimeout(300_000);
+  const { teacher, group, lesson } = await worldWithPastLesson("4");
+  await report(teacher as never, group, lesson, "Ошибся датой");
+  const page = await signIn(teacher);
+  await page.goto(`/teacher/groups/${group.id}?tab=attendance`);
+  const column = page.locator(`th[data-lesson-key="${lesson.date}_${lesson.id}"]`);
+  await expect(column, "the head of the column says the cancellation waits, and who wrote it").toHaveAttribute("title", /Сообщил: .*, преподаватель/);
+  await column.locator("[data-column-menu-trigger]").click();
+  const item = page.getByRole("menuitem", { name: /Отозвать отмену урока/ });
+  await expect(item).toHaveCount(1);
+  await item.click();
+  await expect(page.getByRole("status").filter({ hasText: "Отмена отозвана" })).toBeVisible();
+  await expect(column, "the journal is read again: the lesson no longer waits for the owner").not.toHaveAttribute("title", /ждёт подтверждения|Сообщил/);
+  const ownerPage = await signIn(org.owner);
+  await ownerPage.goto("/owner/substitutions");
+  await expect(ownerPage.getByTestId("waiting-row")).toHaveCount(0);
+});
+
 /**
  * The journal of a group on a PHONE (375; the project @mobile): the «⋯» of the first column of a lesson lies wholly inside the window and opens its menu with an ordinary press
  * (it lay beyond the edge of the screen: the press scrolled the table and that scroll closed the menu).
@@ -114,6 +133,10 @@ test("@mobile the journal on a phone: the «⋯» of the first column is inside 
 //   «по вине центра»  -> the student's debt for the period falls by ONE lesson: recalculated 0 -> 50 000, unpaid (charged - paid - recalculated) -50 000;  the window says «по 50 000 сум, всего 50 000 сум»;
 //   «праздник»        -> no recalculation: recalculated stays 0, unpaid stays;  the window says «Ученикам: без перерасчёта»;
 //   «Урок был»        -> the cancellation is taken off: recalculated 0, unpaid stays, the lesson stands among the lessons without a mark (the teacher marks it);  the window says «Отмена снимается».
+// Checked against the server code (C13), not run here: the settings keys period_mode / billing_anchor / billing_day / accounting_start_date / centre_cancel_recalc / admin_can_manage are the fields of the settings
+// PUT (payments_schemas.py); the statement has summary.recalculated / summary.unpaid / summary.reconciles and rows of type «recalc» with details.recalc.amount (StatementOut); a role without the money right who
+// cancels a lesson that has begun through reconcile/cancel writes `unconfirmed` (lesson_cancel.py, `past_cancel_needs_confirmation` is on by default); the window's sentences are centre_text / holiday_text /
+// held_text of the dry run (the server writes «1 ученику» for one student).
 // While the cancellation WAITS nothing moves (the statement before the decision = the statement before the report).
 const PER_LESSON = 50_000;
 const wrap = (weekday: number) => ((weekday - 1 + 7) % 7) + 1;

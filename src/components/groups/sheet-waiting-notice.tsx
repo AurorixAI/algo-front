@@ -52,18 +52,22 @@ export function SheetWaitingNotice({ kind, groupId, title, lesson, moneyRight, o
       {isWaitingKind(kind) && (
         <div data-testid="sheet-waiting" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
           <Chip tone="warn" testId="sheet-waiting-chip">{WAITING_CANCEL_LABEL}</Chip>
-          {reported && <p data-testid="sheet-waiting-by" className="w-full text-sm text-slate-700">{reported}</p>}
-          {moneyRight && <button type="button" data-testid="sheet-decide-waiting" onClick={() => setDeciding(true)} className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-primary-700 hover:bg-white">{DECIDE_WAITING_LABEL}</button>}
-          {lesson.canWithdraw === true && (
-            <button
-              type="button"
-              data-testid="sheet-withdraw"
-              aria-label={withdrawButtonLabel(lessonLabel({ group: { name: title }, lesson: { date: lesson.date, startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime } }))}
-              disabled={busyKey !== null}
-              onClick={() => { setProblem(null); void withdraw({ groupId, lessonId: lesson.id, lessonDate: lesson.date }); }}
-              className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-primary-700 hover:bg-white disabled:opacity-60"
-            >{WITHDRAW_CANCELLATION_LABEL}</button>
+          {(moneyRight || lesson.canWithdraw === true) && (
+            <div className="flex flex-wrap items-center gap-1">
+              {moneyRight && <button type="button" data-testid="sheet-decide-waiting" onClick={() => setDeciding(true)} className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-primary-700 hover:bg-white">{DECIDE_WAITING_LABEL}</button>}
+              {lesson.canWithdraw === true && (
+                <button
+                  type="button"
+                  data-testid="sheet-withdraw"
+                  aria-label={withdrawButtonLabel(lessonLabel({ group: { name: title }, lesson: { date: lesson.date, startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime } }))}
+                  disabled={busyKey !== null}
+                  onClick={() => { setProblem(null); void withdraw({ groupId, lessonId: lesson.id, lessonDate: lesson.date }); }}
+                  className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-primary-700 hover:bg-white disabled:opacity-60"
+                >{WITHDRAW_CANCELLATION_LABEL}</button>
+              )}
+            </div>
           )}
+          {reported && <p data-testid="sheet-waiting-by" className="w-full text-sm text-slate-700">{reported}</p>}
           {problem && <Notice variant="warning" role="alert" testId="sheet-withdraw-problem" className="w-full">{problem}</Notice>}
         </div>
       )}
