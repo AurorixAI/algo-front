@@ -98,6 +98,23 @@ export interface WaitingPreview {
   age_days: number;
 }
 
+/**
+ * What the answer of the dry run IS: the preview of the confirmation (`dry_run: true` and the numbers), an answer of a cancellation that somebody decided meanwhile (`changed: false` or no `dry_run` -
+ * the server's sentence, when it sends one) or something else (a broken answer).  The shape is checked, never assumed.
+ */
+export type PreviewVerdict = { kind: "preview"; preview: WaitingPreview } | { kind: "decided"; text: string } | { kind: "broken" };
+
+export function previewVerdict(answer: unknown): PreviewVerdict {
+  const out = (answer && typeof answer === "object" ? answer : {}) as Record<string, unknown>;
+  const numbers = typeof out.students === "number" && typeof out.total === "number" && typeof out.recalc_off === "boolean";
+  if (out.dry_run === true && out.changed !== false && numbers) return { kind: "preview", preview: out as unknown as WaitingPreview };
+  if (out.ok === true && (out.changed === false || out.dry_run !== true)) {
+    const text = [out.message, out.consequence].find((value) => typeof value === "string" && value.trim());
+    return { kind: "decided", text: typeof text === "string" ? text.trim() : "" };
+  }
+  return { kind: "broken" };
+}
+
 /** The outcomes the window offers: the lesson of an archived group cannot be given back (`restore_allowed: false`) - two outcomes. */
 export function offeredOutcomes(preview: Pick<WaitingPreview, "restore_allowed"> | null): ReadonlyArray<(typeof WAITING_OUTCOMES)[number]> {
   return WAITING_OUTCOMES.filter((outcome) => outcome.key !== "held" || preview === null || preview.restore_allowed !== false);

@@ -118,30 +118,18 @@ test("D2: the dashboard uses the hook of the library (one mechanism): the minute
 });
 
 // ── M2 tail ──────────────────────────────────────────────────────────────────────────────────────────────
-test("M2 tail: after «нет права» the counter of the tab and the badge count by the same rule - the money rows go out (13 -> 10), no new request", () => {
-  const withRight = { org_role: "admin", payments_access: true }, owner = { org_role: "owner" };
-  assert.equal(O.waitingCountFor(withRight, 10, 3), 13);
-  assert.equal(O.waitingCountFor(withRight, 10, 3, true), 10, "the right is lost");
-  assert.equal(O.waitingCountFor(owner, 10, 3, true), 10);
-  assert.equal(O.waitingCountFor(withRight, 10, 3, false), 13);
-  assert.equal(O.waitingCountFor({ org_role: "admin" }, 10, 3, true), 10, "who had no right stays at 10");
-  assert.equal(O.waitingCountFor(withRight, 10, 3), O.waitingCountFor(withRight, 10, 3, false), "default: not lost");
-});
-
 test("M2 tail: «нет права» belongs to one reading of the profile; a re-read profile brings the buttons and the money rows back", () => {
   const first = { org_role: "admin", payments_access: true }, again = { org_role: "admin", payments_access: true };
   assert.equal(O.moneyRightLostFor(null, first), false);
   assert.equal(O.moneyRightLostFor({ profile: first }, first), true);
   assert.equal(O.moneyRightLostFor({ profile: first }, again), false, "«Обновить» read the profile again");
-  assert.equal(O.waitingCountFor(again, 10, 3, O.moneyRightLostFor({ profile: first }, again)), 13);
 });
 
 test("M2 tail: the page holds the mark; the block, the tab and the badge read it (the mark survives the tab «Решённые»)", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /const \[moneyLostFor, setMoneyLostFor\] = useState<\{ profile: unknown \} \| null>\(null\);/);
   assert.match(page, /const moneyRightLost = moneyRightLostFor\(moneyLostFor, user\);/);
-  assert.match(page, /const waitingCount = serverWaiting \?\? waitingCountFor\(user, pendingTotal, decisions\.total \+ unconfirmedTotal, moneyRightLost\);/);
-  assert.match(page, /waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current \+ \(data\.unconfirmedTotal \?\? 0\), moneyRightLostRef\.current\)/, "the badge set from the list: the same rule");
+  assert.match(page, /const waitingCount = serverWaiting \?\? 0;/, "the number is the server's waitingTotal");
   assert.match(page, /rightLost=\{moneyRightLost\}/);
   assert.match(page, /onRightLost=\{\(\) => setMoneyLostFor\(\{ profile: user \}\)\}/);
   assert.match(page, /setWaiting\(waitingCount\)/, "the badge of the menu follows the counter of the tab");

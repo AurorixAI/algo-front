@@ -318,7 +318,7 @@ test("A: the counter of the tab and of the menu is the requests plus the lessons
   assert.equal(useSubstitutionBadge.getState().pending, 3);
   useSubstitutionBadge.getState().reset();
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /tabLabel\("pending", listedCount\)/);
+  assert.match(page, /tabLabel\("pending", waitingCount\)/);
   assert.match(page, /<OneOffDecisionsBlock/);
   assert.match(page, /oneOffDecisionsTotal: decisionsTotalRef\.current/);
   assert.match(page, /decisionsOnly \|\| blockWaiting\.length > 0 \? null : .*<EmptyState/, "the empty text is not said while rows of money wait");

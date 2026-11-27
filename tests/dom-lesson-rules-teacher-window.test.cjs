@@ -76,7 +76,7 @@ test("Э9: the sheet of a lesson whose cancellation waits - the chip «Отме�
   await page.click('[data-testid="waiting-outcome-centre"]');
   await page.waitForFunction(() => /Перерасчёт/.test(document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? ""));
   await page.click('[data-testid="waiting-confirm"]');
-  await page.waitForFunction(() => window.__log.includes("decided"));
+  await page.waitForFunction(() => window.__log.includes("decided:centre"));
   assert.deepEqual(calls.filter((c) => KIND.test(c.path) && !isDry(c)).map((c) => c.body), [{ lessonDate: "2026-11-23", lessonId: "lesson-mon", cancellationKind: "centre", expectedKind: "unconfirmed" }]);
   await page.close();
 });

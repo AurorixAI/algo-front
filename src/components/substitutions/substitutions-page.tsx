@@ -34,7 +34,7 @@ import {
   substitutionErrorText,
 } from "@/lib/substitutions";
 import type { AuditEntryItem, DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem, SubstitutionListRow, WaitingCancellationItem } from "@/lib/substitution-types";
-import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows } from "@/lib/lesson-rules";
+import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows, waitingDecidedToast } from "@/lib/lesson-rules";
 import { isAuditRow, isWaitingRow, rowSource } from "@/lib/list-rows";
 import { AuditPanel, AuditTableRow } from "@/components/substitutions/history-rows";
 import { LessonReturnDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
@@ -51,7 +51,7 @@ import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
 import { DecidedOneOffsBlock } from "@/components/substitutions/decided-one-offs";
-import { canDecideMoney, decisionMatches, listedCountFor, moneyRightLostFor, waitingCountFor } from "@/lib/one-off";
+import { canDecideMoney, decisionMatches, moneyRightLostFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -127,16 +127,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const decisions = useOneOffDecisions(true);
   const decisionsTotalRef = useRef(0);
   decisionsTotalRef.current = decisions.total;
-  const userRef = useRef(user);          // #159 M2: the counters count the money rows only for who may decide them (the server does the same for the badge)
-  userRef.current = user;
-  // «нет права» that the server answered for THIS reading of the profile (#159 M2 tail): the buttons, the tab and the badge of the menu all read this one mark and count by `waitingCountFor` - no new request
+  // «нет права» that the server answered for THIS reading of the profile (#159 M2 tail): the buttons and the block read this one mark; the numbers of the tab and of the badge are the server's - no new request
   const [moneyLostFor, setMoneyLostFor] = useState<{ profile: unknown } | null>(null);
   const moneyRightLost = moneyRightLostFor(moneyLostFor, user);
-  const moneyRightLostRef = useRef(moneyRightLost);
-  moneyRightLostRef.current = moneyRightLost;
-  const waitingCount = serverWaiting ?? waitingCountFor(user, pendingTotal, decisions.total + unconfirmedTotal, moneyRightLost);
-  // UX pack №7: the tab says what it lists (an administrator without the money access sees the rows of money, so the tab is not «(0)» over a row); the badge of the menu is his own tasks
-  const listedCount = serverWaiting ?? listedCountFor(pendingTotal, decisions.total + unconfirmedTotal);
+  // the number of the tab and of the badge of the menu is the SERVER's `waitingTotal` (only what the viewer can decide) - the screen has no count of its own
+  const waitingCount = serverWaiting ?? 0;
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -219,7 +214,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: typeof data.waitingTotal === "number" ? data.waitingTotal : waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current + (data.unconfirmedTotal ?? 0), moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: data.waitingTotal, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -350,8 +345,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const allSelected = pendingTab && requests.length > 0 && selectedItems.length === requests.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "pending", label: tabLabel("pending", listedCount) },
-    { key: "decided", label: tabLabel("decided", listedCount) },
+    { key: "pending", label: tabLabel("pending", waitingCount) },
+    { key: "decided", label: tabLabel("decided", waitingCount) },
   ];
   const toggle = (id: string, on: boolean) => setSelected((previous) => { const copy = new Set(previous); if (on) copy.add(id); else copy.delete(id); return copy; });
   const toggleExpanded = (id: string) => setExpanded((previous) => { const copy = new Set(previous); if (copy.has(id)) copy.delete(id); else copy.add(id); return copy; });
@@ -462,6 +457,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <OneOffDecisionsBlock
           items={visibleDecisions}
           waiting={blockWaiting}
+          waitingTotal={unconfirmedTotal}
           onWithdrawWaiting={(entry) => void withdrawWaiting(entry)}
           withdrawingId={withdrawingId}
           canDecide={canDecideMoney(user)}
@@ -664,8 +660,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       <WaitingCancelDialog
         item={waitingDialog}
         onClose={() => setWaitingDialog(null)}
-        onDecided={() => { void load(true); refreshBadge(); }}
-        showToast={showToast}
+        onDecided={(outcome) => { showToast(waitingDecidedToast(outcome), "success"); void load(true); refreshBadge(); }}
+        onAlreadyDecided={() => { void load(true); refreshBadge(); }}
       />
       <BulkDialog kind={bulkKind} items={selectedItems} role={role} onClose={() => setBulkKind(null)} onDone={bulkDone} />
       {toastNode}

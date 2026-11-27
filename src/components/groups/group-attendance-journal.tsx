@@ -79,7 +79,7 @@ import {
 } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { groupsBaseOf, purposeMarks } from "@/lib/one-off";
+import { UNDO_DECISION_LABEL, canUndoDecision, groupsBaseOf, purposeMarks, undoToastText } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { LESSON_CANCELLED_LABEL, assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
@@ -104,7 +104,7 @@ import {
 import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasStarted, MARK_LESSON_LABEL, pastMarkLockReason, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
-import { canManageMoney } from "@/lib/money-effects";
+import { canManageMoney, movedByOf, toastWithEffects } from "@/lib/money-effects";
 import { periodClosedOf, REOPENED_THEN_REPEAT, type PeriodClosedInfo } from "@/lib/closed-period";
 import { effectsAllowConfirm } from "@/lib/money-preview";
 import { useMoneyPreview } from "@/lib/use-money-preview";
@@ -116,14 +116,13 @@ import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { WaitingCancelDialog } from "@/components/substitutions/waiting-cancel-dialog";
-import type { WaitingTarget } from "@/lib/lesson-rules";
+import { waitingDecidedToast, type WaitingTarget } from "@/lib/lesson-rules";
+import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { DECIDE_WAITING_LABEL, WAITING_CANCEL_LABEL } from "@/lib/payf";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
 import { UndoDecisionDialog, type UndoDecisionTarget } from "@/components/groups/undo-decision-dialog";
 import { confirmExcuseReset } from "@/components/attendance/confirm-excuse-reset";
 import { useClosedMonthDialog } from "@/components/money/closed-month-dialog";
-import { movedByOf, toastWithEffects } from "@/lib/money-effects";
-import { UNDO_DECISION_LABEL, canUndoDecision, undoToastText } from "@/lib/one-off";
 import { MoneyEffectsBlock } from "@/components/money/money-effects-block";
 import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { Button } from "@/components/ui/button";
@@ -2292,8 +2291,8 @@ export function GroupAttendanceJournal({
       <WaitingCancelDialog
         item={waitingTarget}
         onClose={() => setWaitingTarget(null)}
-        onDecided={() => { void loadAttendanceRef.current(true); }}
-        showToast={showToast}
+        onDecided={(outcome) => { showToast(waitingDecidedToast(outcome), "success"); void loadAttendanceRef.current(true); void useSubstitutionBadge.getState().refresh(true); }}
+        onAlreadyDecided={() => { void loadAttendanceRef.current(true); void useSubstitutionBadge.getState().refresh(true); }}
       />
       <ReturnToReviewDialog
         target={reviewTarget}

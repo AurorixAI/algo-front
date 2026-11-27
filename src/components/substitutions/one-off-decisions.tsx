@@ -85,10 +85,12 @@ export function PaymentRow({ item, canDecide, onPick, onReopened }: {
  * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
  * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, waiting = [], onWithdrawWaiting, withdrawingId = null, loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, waiting = [], waitingTotal = waiting.length, onWithdrawWaiting, withdrawingId = null, loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
   /** LESSON-RULES: the cancellations that wait for the owner, for who CANNOT decide them: they stand in this block as «решает владелец» (a person with the right sees them as rows of the table). */
   waiting?: WaitingCancellationItem[];
+  /** The NUMBER of the cancellations that wait (`unconfirmedTotal` of the server) - the line «Решает владелец: N отмен» says it, not the length of the page of rows. */
+  waitingTotal?: number;
   /** «Отозвать» on a line of «решает владелец»: only where the server says `canWithdraw` (an administrator without the right takes back the cancellation he made himself). */
   onWithdrawWaiting?: (item: WaitingCancellationItem) => void;
   withdrawingId?: string | null;
@@ -190,7 +192,7 @@ export function OneOffDecisionsBlock({ items, waiting = [], onWithdrawWaiting, w
         <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
           <button type="button" data-testid="one-off-decisions-toggle" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)} className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-700">
             <ChevronRight className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${viewOpen ? "rotate-90" : ""}`} aria-hidden />
-            <span data-testid="one-off-decisions-title">{waiting.length > 0 ? ownerDecidesLine({ oneOffs: items.length, cancellations: waiting.length }) : decisionsViewLine(items.length)}</span>
+            <span data-testid="one-off-decisions-title">{waiting.length > 0 ? ownerDecidesLine({ oneOffs: items.length, cancellations: waitingTotal }) : decisionsViewLine(items.length)}</span>
           </button>
           {rightLost && onRefreshProfile && (
             <button type="button" data-testid="one-off-decisions-refresh" onClick={onRefreshProfile} className="shrink-0 text-xs font-semibold text-primary-700 underline hover:text-primary-800">Обновить</button>

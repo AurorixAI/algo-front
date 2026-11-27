@@ -14,18 +14,21 @@ import { PeriodClosedNotice } from "@/components/money/period-closed-notice";
 import { periodClosedOf, type PeriodClosedInfo } from "@/lib/closed-period";
 import { opsErrorCode } from "@/lib/ops-errors";
 import {
-  WAITING_HELD_REASON, WAITING_PICK_WHY, WAITING_QUESTION, offeredOutcomes, outcomeCaption, waitingChipText, waitingDecidedToast, waitingDialogHead, waitingDialogSubtitle, waitingDialogTitle,
+  WAITING_HELD_REASON, WAITING_PICK_WHY, WAITING_QUESTION, offeredOutcomes, outcomeCaption, previewVerdict, waitingChipText, waitingDialogHead, waitingDialogSubtitle, waitingDialogTitle,
   type WaitingOutcome, type WaitingPreview,
 } from "@/lib/lesson-rules";
 import type { WaitingTarget } from "@/lib/lesson-rules";
 
 type PreviewState = { status: "loading" } | { status: "ready"; preview: WaitingPreview } | { status: "error"; message: string } | { status: "closed"; info: PeriodClosedInfo };
 
+const DECIDED_FALLBACK = "Отмену уже решил другой человек.";
+const PREVIEW_ERROR = "Не удалось посчитать последствия. Повторите попытку.";
+
 /** The refusal «уже решено»: the server's own sentence («Отмену подтвердил Тимур Алиев (администратор) в 12:40: по вине центра.»). */
 function alreadyDecidedMessage(failure: unknown): string | null {
   if (opsErrorCode(failure) !== "ALREADY_DECIDED") return null;
   const text = failure instanceof Error ? failure.message.trim() : "";
-  return text || "Отмену уже решил другой человек.";
+  return text || DECIDED_FALLBACK;
 }
 
 /**
@@ -33,13 +36,14 @@ function alreadyDecidedMessage(failure: unknown): string | null {
  * really happened); under the cards stands the consequence of the chosen one, the sums are the numbers of the dry run of the server (LESSONS 143) and the button names the outcome.
  * «Уже решено» (409) and «месяц закрыт» (409 `PERIOD_CLOSED`) are their own states of the same window.
  */
-export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
+export function WaitingCancelDialog({ item, onClose, onDecided, onAlreadyDecided }: {
   /** The row of «Замены» (all of it) or the lesson of the journal / the sheet (the lesson and the group). */
   item: WaitingTarget | null;
   onClose: () => void;
-  /** The cancellation was decided (or somebody did it first): the page reads the lists again. */
-  onDecided: () => void;
-  showToast: (text: string, type: "success" | "error" | "warning") => void;
+  /** THIS person decided it: the caller says the outcome in its toast and reads its lists again (the window closes itself). */
+  onDecided: (outcome: WaitingOutcome) => void;
+  /** SOMEBODY ELSE decided it first: the caller reads its lists again and keeps quiet (no green toast, the window stays and says who and when). */
+  onAlreadyDecided: () => void;
 }) {
   const [outcome, setOutcome] = useState<WaitingOutcome | null>(null);
   const [state, setState] = useState<PreviewState>({ status: "loading" });
@@ -48,6 +52,8 @@ export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
   const [decidedBy, setDecidedBy] = useState<string | null>(null);
   const sending = useRef(false);
   const token = useRef(0);
+  const latest = useRef({ onAlreadyDecided });
+  latest.current = { onAlreadyDecided };
   const key = item ? `${item.group.id}|${item.lesson.lessonId}|${item.lesson.date}` : null;
 
   const ask = useCallback(() => {
@@ -58,15 +64,19 @@ export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
     orgApi.changeCancellationKind(item.group.id, { lessonDate: item.lesson.date, lessonId: item.lesson.lessonId, cancellationKind: "centre", expectedKind: "unconfirmed" }, { dryRun: true })
       .then((out) => {
         if (mine !== token.current) return;
-        setState({ status: "ready", preview: out as unknown as WaitingPreview });
+        // the form of the answer is checked, not assumed: an answer that is no preview (the cancellation was decided meanwhile - a plain `changed: false`) is the same «уже решено» as the 409
+        const verdict = previewVerdict(out);
+        if (verdict.kind === "preview") { setState({ status: "ready", preview: verdict.preview }); return; }
+        if (verdict.kind === "decided") { setDecidedBy(verdict.text || DECIDED_FALLBACK); latest.current.onAlreadyDecided(); return; }
+        setState({ status: "error", message: PREVIEW_ERROR });
       })
       .catch((failure) => {
         if (mine !== token.current) return;
         const decided = alreadyDecidedMessage(failure);
-        if (decided) { setDecidedBy(decided); return; }
+        if (decided) { setDecidedBy(decided); latest.current.onAlreadyDecided(); return; }
         const closed = periodClosedOf(failure);
         if (closed) { setState({ status: "closed", info: closed }); return; }
-        setState({ status: "error", message: failure instanceof Error && failure.message ? failure.message : "Не удалось посчитать последствия. Повторите попытку." });
+        setState({ status: "error", message: failure instanceof Error && failure.message ? failure.message : PREVIEW_ERROR });
       });
   }, [item]);
 
@@ -99,13 +109,12 @@ export function WaitingCancelDialog({ item, onClose, onDecided, showToast }: {
       } else {
         await orgApi.changeCancellationKind(item.group.id, { lessonDate: item.lesson.date, lessonId: item.lesson.lessonId, cancellationKind: picked, expectedKind: "unconfirmed" });
       }
-      showToast(waitingDecidedToast(picked), "success");
-      onDecided();
+      onDecided(picked);
       onClose();
     } catch (failure) {
       const decided = alreadyDecidedMessage(failure);
       const closed = periodClosedOf(failure);
-      if (decided) { setDecidedBy(decided); onDecided(); }
+      if (decided) { setDecidedBy(decided); onAlreadyDecided(); }
       else if (closed) setState({ status: "closed", info: closed });
       else setProblem(failure instanceof Error && failure.message ? failure.message : "Не удалось сохранить решение. Данные не изменены — повторите попытку.");
     } finally {
